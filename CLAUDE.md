@@ -15,6 +15,7 @@ Greenfield project. Core architectural decisions are resolved and documented as 
 ## Documentation layout
 
 - `project.md` — product and design overview: what the app does, high-level architecture, user-visible behavior. The authoritative source for *what* the product is.
+- `schema.md` — the Yjs doc schema. Authoritative for the *shape* of session state, cross-linked to the ADRs that justify each field.
 - `adr/` — Architecture Decision Records. The authoritative source for *why* each structural choice was made, what alternatives were considered, and under what conditions a decision should be revisited. See `adr/README.md` for conventions and the index.
 - `networking-analysis.md` — research artifact that informed ADR-0001 (networking architecture). Kept as a reference; not updated as decisions evolve.
 
