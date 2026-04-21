@@ -41,6 +41,7 @@ import {
   RoundStartSheetComponent,
   type RoundStartSubmission,
 } from '../round-start/round-start.sheet'
+import { SessionSettingsSheetComponent } from '../session-settings/session-settings.sheet'
 
 /**
  * Lobby — ux.md §5.4 host variant.
@@ -76,6 +77,7 @@ import {
     IonTitle,
     IonToolbar,
     RoundStartSheetComponent,
+    SessionSettingsSheetComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -176,6 +178,20 @@ import {
         />
       </ng-template>
     </ion-modal>
+
+    <ion-modal
+      #sessionSettingsModal
+      [isOpen]="sessionSettingsOpen()"
+      [breakpoints]="[0, 0.6, 0.95]"
+      [initialBreakpoint]="0.6"
+      (didDismiss)="sessionSettingsOpen.set(false)"
+    >
+      <ng-template>
+        <app-session-settings-sheet
+          (closeRequested)="closeSessionSettings()"
+        />
+      </ng-template>
+    </ion-modal>
   `,
   styles: [
     `
@@ -228,6 +244,9 @@ export class LobbyPage {
   /** Round-start modal visibility. Two-way bound to `ion-modal`. */
   protected readonly roundStartOpen = signal(false)
 
+  /** Session-settings modal visibility. Two-way bound to `ion-modal`. */
+  protected readonly sessionSettingsOpen = signal(false)
+
   protected readonly myId = this.participantIdService.id
 
   protected readonly hostId = computed(
@@ -263,6 +282,9 @@ export class LobbyPage {
   })
 
   private readonly modalRef = viewChild<IonModal>('roundStartModal')
+  private readonly sessionSettingsModalRef = viewChild<IonModal>(
+    'sessionSettingsModal',
+  )
 
   constructor() {
     addIcons({
@@ -293,7 +315,7 @@ export class LobbyPage {
         {
           text: 'Session settings',
           handler: () => {
-            void this.openSessionSettings()
+            this.openSessionSettings()
           },
         },
         {
@@ -312,10 +334,13 @@ export class LobbyPage {
     await sheet.present()
   }
 
-  protected async openSessionSettings(): Promise<void> {
-    // Phase 2 commit 7: replace with the real session-settings
-    // half-sheet (ux.md §5.8).
-    await this.toast('Session settings land later in Phase 2')
+  protected openSessionSettings(): void {
+    this.sessionSettingsOpen.set(true)
+  }
+
+  protected async closeSessionSettings(): Promise<void> {
+    await this.sessionSettingsModalRef()?.dismiss()
+    this.sessionSettingsOpen.set(false)
   }
 
   protected async onShareInvite(): Promise<void> {
