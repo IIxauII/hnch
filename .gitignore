@@ -1,2 +1,48 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# pnpm-only repo — disallow npm/yarn lockfiles (preinstall guard also blocks them,
+# but tools like `ionic start` will still scribble a package-lock.json on scaffold)
+package-lock.json
+yarn.lock
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Angular / Ionic
+.angular/
+.ionic/
+www/
+
+# Capacitor native shells (generated; iOS/Android added later)
+# ios/App/build/
+# android/app/build/
+
+# Test output
+coverage/
+.nyc_output/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
 # Claude Code per-user settings (not committed)
 .claude/settings.local.json
