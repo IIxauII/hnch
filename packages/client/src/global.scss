@@ -1,12 +1,8 @@
 /*
- * App Global CSS
- * ----------------------------------------------------------------------------
- * Put style rules here that you want to apply globally. These styles are for
- * the entire app and not just one component. Additionally, this file can be
- * used as an entry point to import other CSS/Sass files to be included in the
- * output CSS.
- * For more information on global stylesheets, visit the documentation:
- * https://ionicframework.com/docs/layout/global-stylesheets
+ * App global CSS — loaded once by the Angular builder (see
+ * angular.json → styles). Component-specific styles live in their
+ * own `styles` arrays; this file is reserved for cross-cutting
+ * stylesheet imports and truly app-wide rules.
  */
 
 /* Core CSS required for Ionic components to work properly */
@@ -18,20 +14,19 @@
 @import "@ionic/angular/css/typography.css";
 @import "@ionic/angular/css/display.css";
 
-/* Optional CSS utils that can be commented out */
+/* Optional CSS utility classes */
 @import "@ionic/angular/css/padding.css";
 @import "@ionic/angular/css/float-elements.css";
 @import "@ionic/angular/css/text-alignment.css";
 @import "@ionic/angular/css/text-transformation.css";
 @import "@ionic/angular/css/flex-utils.css";
 
-/**
- * Ionic Dark Mode
- * -----------------------------------------------------
- * For more info, please see:
- * https://ionicframework.com/docs/theming/dark-mode
+/*
+ * Dark mode: system-preference only for v1.
+ *
+ * `dark.system.css` respects the user's OS `prefers-color-scheme`
+ * and flips the full Ionic palette automatically. A manual theme
+ * picker (light / dark / system) is deferred to Phase 6 — see
+ * ux.md §7 and roadmap.md Phase 6.
  */
-
-/* @import "@ionic/angular/css/palettes/dark.always.css"; */
-/* @import "@ionic/angular/css/palettes/dark.class.css"; */
 @import "@ionic/angular/css/palettes/dark.system.css";
