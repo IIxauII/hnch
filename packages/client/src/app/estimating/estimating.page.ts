@@ -19,6 +19,7 @@ import {
 } from '@ionic/angular/standalone'
 
 import { DocService } from '../core/doc/doc.service'
+import { LastSessionService } from '../core/last-session.service'
 import { ParticipantIdService } from '../core/participant-id.service'
 import { AvatarVoteRowComponent } from './avatar-vote-row.component'
 
@@ -189,9 +190,26 @@ export class EstimatingPage {
   private readonly router = inject(Router)
   private readonly docService = inject(DocService)
   private readonly participantIdService = inject(ParticipantIdService)
+  private readonly lastSessionService = inject(LastSessionService)
 
   protected readonly currentRound = this.docService.currentRound
   protected readonly onlineParticipants = this.docService.onlineParticipants
+
+  constructor() {
+    // Bump `hnch.lastSession` so a reopen lands on Estimating rather
+    // than Lobby (plan §3.8). Safe to call unconditionally — the
+    // service no-ops if `roomCode` / `roomUuid` aren't populated (e.g.
+    // deep-link with no active session, which shouldn't happen).
+    const code = this.docService.roomCode()
+    const uuid = this.docService.meta()?.roomUuid
+    if (code && uuid) {
+      void this.lastSessionService.record({
+        roomCode: code,
+        roomUuid: uuid,
+        lastScreen: 'estimating',
+      })
+    }
+  }
 
   private readonly myId = this.participantIdService.id
 

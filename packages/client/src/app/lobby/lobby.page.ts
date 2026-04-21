@@ -37,6 +37,7 @@ import {
 } from 'ionicons/icons'
 
 import { DocService } from '../core/doc/doc.service'
+import { LastSessionService } from '../core/last-session.service'
 import { ParticipantIdService } from '../core/participant-id.service'
 import {
   RoundStartSheetComponent,
@@ -251,6 +252,7 @@ export class LobbyPage {
   private readonly router = inject(Router)
   private readonly docService = inject(DocService)
   private readonly participantIdService = inject(ParticipantIdService)
+  private readonly lastSessionService = inject(LastSessionService)
   private readonly actionSheetCtrl = inject(ActionSheetController)
   private readonly alertCtrl = inject(AlertController)
   private readonly toastCtrl = inject(ToastController)
@@ -308,6 +310,23 @@ export class LobbyPage {
       'qr-code-outline': qrCodeOutline,
       'share-outline': shareOutline,
     })
+    // Refresh the jump-back-in cache on every mount (plan §3.8).
+    // Lobby is the default landing after Create / Join / resume, so
+    // bumping `lastSeenAt` here keeps the 24-h TTL tracking actual
+    // activity rather than whenever the session was first opened.
+    this.recordLastSession()
+  }
+
+  private recordLastSession(): void {
+    const code = this.docService.roomCode()
+    const uuid = this.docService.meta()?.roomUuid
+    if (code && uuid) {
+      void this.lastSessionService.record({
+        roomCode: code,
+        roomUuid: uuid,
+        lastScreen: 'lobby',
+      })
+    }
   }
 
   protected openRoundStart(): void {
@@ -394,6 +413,10 @@ export class LobbyPage {
 
   private async leaveSession(): Promise<void> {
     this.docService.endSession()
+    // The destructive "Leave" action explicitly discards the resume
+    // affordance (plan §2.3). Any other exit — back-nav within the
+    // session, process kill — leaves the cache for Home to resurface.
+    await this.lastSessionService.clear()
     await this.router.navigate(['/home'])
   }
 

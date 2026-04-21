@@ -23,6 +23,7 @@ import {
 } from '@ionic/angular/standalone'
 
 import { DocService } from '../core/doc/doc.service'
+import { LastSessionService } from '../core/last-session.service'
 import { ParticipantIdService } from '../core/participant-id.service'
 import {
   RoundStartSheetComponent,
@@ -236,6 +237,7 @@ export class RevealedPage {
   private readonly router = inject(Router)
   private readonly docService = inject(DocService)
   private readonly participantIdService = inject(ParticipantIdService)
+  private readonly lastSessionService = inject(LastSessionService)
 
   private readonly rounds = this.docService.rounds
   private readonly participantsSignal = this.docService.participants
@@ -245,6 +247,22 @@ export class RevealedPage {
 
   /** Round-start modal visibility, two-way bound to `ion-modal`. */
   protected readonly nextRoundOpen = signal(false)
+
+  constructor() {
+    // Plan §3.8: a reopen after the reveal lands back here rather
+    // than Lobby. The write bumps `lastSeenAt`, and the host's Next
+    // Round / Re-vote handlers do their own writes via Estimating's
+    // constructor when the nav lands there.
+    const code = this.docService.roomCode()
+    const uuid = this.docService.meta()?.roomUuid
+    if (code && uuid) {
+      void this.lastSessionService.record({
+        roomCode: code,
+        roomUuid: uuid,
+        lastScreen: 'revealed',
+      })
+    }
+  }
 
   /**
    * The round whose results we're showing — the current round on the
