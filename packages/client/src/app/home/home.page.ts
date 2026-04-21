@@ -5,6 +5,7 @@ import {
   signal,
 } from '@angular/core'
 import { Router } from '@angular/router'
+import { FIBONACCI_SCALE } from '@hnch/shared'
 import {
   ActionSheetController,
   IonButton,
@@ -25,6 +26,9 @@ import {
   returnUpBackOutline,
 } from 'ionicons/icons'
 
+import { DisplayNameService } from '../core/display-name.service'
+import { DocService } from '../core/doc/doc.service'
+import { ParticipantIdService } from '../core/participant-id.service'
 import {
   JumpBackInBannerComponent,
   type JumpBackInSummary,
@@ -40,9 +44,9 @@ import {
  * stays hidden — its DOM is loaded and ready to accept state
  * without further template churn.
  *
- * "Create Room" logs a Phase 2 marker and no-ops; real room
- * creation (Yjs doc, relay connect, participantId) lands in Phase 2
- * per the roadmap exit bar.
+ * "Create Room" seeds a fresh local `Y.Doc` via the DocService and
+ * navigates to `/lobby`; there is no network yet. The relay
+ * handshake and participantId → deviceId swap both land in Phase 3.
  */
 @Component({
   selector: 'app-home',
@@ -134,12 +138,22 @@ import {
 export class HomePage {
   private readonly router = inject(Router)
   private readonly actionSheetCtrl = inject(ActionSheetController)
+  private readonly displayNameService = inject(DisplayNameService)
+  private readonly participantIdService = inject(ParticipantIdService)
+  private readonly docService = inject(DocService)
 
   /**
    * Backed-out-session summary for the Jump-back-in banner. Null in
    * Phase 1 — wired to the local session cache in Phase 3.
    */
   protected readonly jumpBackInSummary = signal<JumpBackInSummary | null>(null)
+
+  /**
+   * Guards the Create Room button against double-tap while the
+   * displayName + participantId reads are in flight. Pure in-memory
+   * re-entrancy flag; no view binding.
+   */
+  private creating = false
 
   constructor() {
     addIcons({
@@ -150,10 +164,35 @@ export class HomePage {
     })
   }
 
-  protected onCreateRoom(): void {
-    // Phase 2: mint Yjs doc, connect to relay, navigate to /lobby.
-    // Phase 1 is navigation scaffolding only.
-    console.debug('create room — phase 2')
+  protected async onCreateRoom(): Promise<void> {
+    // Guard against double-tap; both Preferences reads are async.
+    if (this.creating) return
+    this.creating = true
+
+    try {
+      // The displayNameGuard has already ensured this is non-null
+      // before we ever rendered, so the `?? ''` fallback is defense
+      // in depth rather than an expected branch.
+      const [displayName, participantId] = await Promise.all([
+        this.displayNameService.getDisplayName(),
+        this.participantIdService.getOrCreateId(),
+      ])
+
+      // Tear down any leftover session (e.g. back-nav from a prior
+      // flow that bailed early) so createSession's single-session
+      // invariant holds.
+      this.docService.endSession()
+      this.docService.createSession({
+        participantId,
+        displayName: displayName ?? '',
+        defaultScale: FIBONACCI_SCALE,
+        revealMode: 'manual',
+      })
+
+      await this.router.navigate(['/lobby'])
+    } finally {
+      this.creating = false
+    }
   }
 
   protected async onJoinRoom(): Promise<void> {
