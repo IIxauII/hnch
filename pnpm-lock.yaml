@@ -56,6 +56,9 @@ importers:
       '@capacitor/status-bar':
         specifier: 8.0.2
         version: 8.0.2(@capacitor/core@8.3.1)
+      '@hnch/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@ionic/angular':
         specifier: ^8.0.0
         version: 8.8.4(qwfqfhtcgz3lh4ffcdaow6v264)
