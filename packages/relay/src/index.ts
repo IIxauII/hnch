@@ -1,32 +1,51 @@
 /**
  * hnch relay entry point.
  *
- * Current state: scaffold. The real relay implementation lands in
- * follow-up commits, each preceded by any ADR touch-ups needed.
- * Planned wiring:
+ * Phase 3 scaffolding. This process is the content-blind y-websocket
+ * relay described in ADR-0001; in this commit it only binds the HTTP
+ * server and exposes `GET /health`. Later commits in the phase grow:
  *
- *   - y-websocket setup with content-blind forwarding (ADR-0001).
- *   - Join handshake with access-control token validation (ADR-0009).
- *   - Room UUID ↔ code lookup with retire/release on snapshot TTL
- *     (ADR-0008, ADR-0012).
- *   - In-memory snapshot store keyed by room UUID with 24h TTL
- *     (ADR-0012).
- *   - Host-election observability hints — relay does not drive the
- *     election but may want to surface "last-peer-disconnect" for
- *     debugging (ADR-0010).
+ *   - Room store and code/UUID minting (ADR-0008).
+ *   - Join handshake with `JoinCredentials` via URL query params
+ *     (ADR-0009, ADR-0016).
+ *   - y-websocket `setupWSConnection` handoff and the 24h in-memory
+ *     snapshot TTL (ADR-0012).
+ *   - Permissive access-control mode for Phase 3 (enforcement lands
+ *     in Phase 5 without a wire-protocol revision).
  *
- * Each of those lands in its own commit with a preceding ADR touch-up
- * if implementation reveals a gap in the existing decision record.
+ * Host-election observability hints (ADR-0010) remain a future
+ * addition only if debugging calls for it; election itself is
+ * client-driven and does not require relay cooperation.
  */
 
-import { generateRoomCode } from '@hnch/shared'
+import { createRelayServer } from './server.js'
+
+const DEFAULT_PORT = 1234
 
 function main(): void {
-  const port = Number(process.env['PORT'] ?? 1234)
-  console.log('hnch relay scaffold — not yet implemented')
-  console.log(`would listen on port ${port}`)
-  // Sanity check: the workspace dependency on @hnch/shared resolves.
-  console.log(`@hnch/shared.generateRoomCode() -> ${generateRoomCode()}`)
+  const portEnv = process.env['PORT']
+  const port = portEnv === undefined || portEnv === '' ? DEFAULT_PORT : Number(portEnv)
+  if (!Number.isFinite(port) || port < 0 || port > 65535) {
+    console.error(`invalid PORT: ${portEnv}`)
+    process.exit(1)
+  }
+
+  const server = createRelayServer()
+  server.listen(port, () => {
+    const address = server.address()
+    const boundPort = typeof address === 'object' && address !== null ? address.port : port
+    console.log(`hnch relay listening on :${boundPort}`)
+  })
+
+  // Graceful shutdown so `pnpm dev`'s Ctrl-C in a tsx-watch loop
+  // actually closes the socket instead of leaking handles.
+  const shutdown = (): void => {
+    server.close(() => {
+      process.exit(0)
+    })
+  }
+  process.on('SIGINT', shutdown)
+  process.on('SIGTERM', shutdown)
 }
 
 main()
