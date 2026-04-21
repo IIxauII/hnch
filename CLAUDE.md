@@ -10,4 +10,41 @@ Core mechanic: team members independently select an estimate (typically Fibonacc
 
 ## Status
 
-Greenfield project. Tech stack and architecture are TBD. See `project.md` for the original concept.
+Greenfield project. Core architectural decisions are resolved and documented as ADRs; implementation has not yet begun. See `project.md` for the product/design overview and the `adr/` folder for the authoritative record of *why* each structural decision was made.
+
+## Documentation layout
+
+- `project.md` — product and design overview: what the app does, high-level architecture, user-visible behavior. The authoritative source for *what* the product is.
+- `adr/` — Architecture Decision Records. The authoritative source for *why* each structural choice was made, what alternatives were considered, and under what conditions a decision should be revisited. See `adr/README.md` for conventions and the index.
+- `networking-analysis.md` — research artifact that informed ADR-0001 (networking architecture). Kept as a reference; not updated as decisions evolve.
+
+## ADR requirement
+
+Any architectural or structural change must be accompanied by a new ADR in `adr/` — never by silently editing an existing one. This includes:
+
+- Introducing or removing a technology from the stack.
+- Changing the shape of the Yjs document, the sync protocol, or the relay's responsibilities.
+- Changing how identity, sessions, rooms, access control, host election, timers, or snapshots work.
+- Reversing or meaningfully modifying a previous ADR.
+
+ADRs are **immutable once accepted**. To change direction, write a new ADR that supersedes the old one (status: `Superseded by ADR-XXXX`). Minor corrections (typos, broken links, clarifications) to an accepted ADR are fine; substantive change requires a new ADR.
+
+See `adr/README.md` for the full conventions, numbering scheme, and template (`adr/0000-template.md`).
+
+When proposing a code change that conflicts with an existing ADR, either adjust the change to conform or draft the superseding ADR first and get agreement before implementing.
+
+## Current decisions at a glance
+
+For quick orientation without reading all 13 ADRs:
+
+- **Architecture:** Yjs CRDTs synchronized via a content-blind y-websocket relay. No direct WebRTC. No authoritative session server. (ADR-0001, ADR-0003)
+- **Stack:** Angular + Ionic + Capacitor for the client; Node.js y-websocket relay for the server. (ADR-0002)
+- **Local persistence:** Capawesome SQLite on native, IndexedDB on PWA — native path avoids iOS WKWebView's 7-day eviction. (ADR-0004)
+- **Identity:** Capacitor Device plugin for the per-device ID, cached in Preferences; no accounts, no fingerprinting. (ADR-0005)
+- **Sessions:** ephemeral per meeting, with a separate local-only Team concept for "my usual crew" continuity. (ADR-0006, ADR-0007)
+- **Room codes:** 6-char alphanumeric, no look-alikes, retired for snapshot TTL before pool recycling. (ADR-0008)
+- **Access control:** relay-enforced via opaque tokens (password hash, single-use invite tokens). (ADR-0009)
+- **Host authority:** creator is initial host; on drop, 5-second debounce then lowest-peer-ID election. (ADR-0010)
+- **Timer:** host writes `timerStartedAt` to the doc; all clients compute locally; host's client authoritatively triggers reveal. (ADR-0011)
+- **Snapshots:** 24-hour in-memory TTL on the relay, keyed by room UUID; no disk persistence. (ADR-0012)
+- **Rounds:** flat list with optional `parentRoundId` for re-vote lineage; vote change allowed until reveal. (ADR-0013)

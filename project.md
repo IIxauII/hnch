@@ -13,7 +13,7 @@ A pointing poker tool that enables agile/scrum teams to collaboratively estimate
 ## Principles
 
 - **Quick & lightweight** — minimal setup, instant use
-- **Local-first / P2P** — no central server required; peers connect directly
+- **Local-first sync** — clients hold the canonical state; the server is a thin, content-blind relay that never inspects session content
 - **No account required** — jump straight into a session, no sign-up or login
 
 ## Estimation Scales
@@ -62,11 +62,15 @@ After reveal, each round displays:
 
 ### Re-voting
 
-Re-votes are always allowed. The group can run as many rounds as needed on the same item.
+Re-votes are always allowed. A re-vote creates a *new* round with `parentRoundId` pointing at the previous round and title/metadata inherited by default, preserving the progression of estimates across rounds (e.g. 5 → 8 → 13) for retrospective value. The UI walks the parent chain to render lineage like "Round 2 of 3 on 'Auth migration'."
+
+Before a round's reveal, a user may change their vote any number of times by tapping a different card — only the selection at reveal time counts. This matches physical planning poker (you can flip your card back over before everyone shows).
 
 ### Timer
 
 Optional countdown per round, configurable by the host. When the timer expires, votes are revealed regardless of completion.
+
+Canonical time is established by the host writing `timerStartedAt` into the shared doc at round start; every client computes its own remaining time locally from that. Sub-second clock skew between peers is imperceptible at these durations. The host's client is the single authority for writing the auto-reveal transition when its timer expires, so the reveal is a single event rather than a race. If the host changes mid-timer (see *Host Migration*), the new host takes over expiry duties using the same `timerStartedAt`.
 
 ### Custom scales
 
@@ -83,42 +87,65 @@ Custom scales can be created per-session and shared with all participants automa
 Multiple join methods to minimize friction:
 
 - **Shareable link** — direct URL to the session
-- **Room code** — short, typeable code (e.g. `ABC-123`)
+- **Room code** — 6-character alphanumeric (uppercase letters + digits, excluding the look-alikes `0`, `O`, `1`, `I`, `L`). Displayed with a dash for readability (e.g. `K7P-9MR`), but stored and matched in normalized, case-insensitive form.
 - **QR code** — scannable from another device
 - **Nearby discovery** (v2) — detect devices in proximity (e.g. Bluetooth/NFC/mDNS) for in-person meetings. Deferred due to limited Capacitor plugin maturity.
 
+Internally, each room has a stable UUID; the 6-char code is a lookup pointing at it. When a session ends, the code is reserved for the snapshot TTL window (see *Session Lifetime*) and then released back to the pool.
+
 ## Identity
 
-User picks a nickname on first app launch. The nickname is persisted locally and tied to a device identifier. Users can optionally change their nickname before joining any session. Each user gets an auto-assigned color and avatar for visual differentiation. Nickname changes within an active session are not allowed.
+User picks a nickname on first app launch. The nickname is persisted locally and tied to a **device identifier** obtained via the Capacitor Device plugin (`Device.getId()`), cached in Capacitor Preferences (or SQLite) to avoid re-hitting the native bridge on every launch. Durability varies by platform: Android's `ANDROID_ID` is stable across reinstalls under the same signing key; iOS's `identifierForVendor` resets on reinstall for a single-app vendor; web generates and stores a UUID. These limitations are accepted for v1 — if durable cross-device identity becomes a real need, it will be solved at a higher layer (e.g. opt-in passkey), not by fingerprinting.
+
+Users can optionally change their nickname before joining any session. Each user gets an auto-assigned color and avatar for visual differentiation. Nickname changes within an active session are not allowed.
+
+## Teams (local concept)
+
+A **Team** is a device-local, personal saved collection of "people I usually estimate with" plus optional default session settings (scale, reveal mode, timer). Teams let a user spin up a new session pre-populated with their usual attendees and defaults.
+
+Teams are *not* synced via Yjs and are *not* part of the session document. Each user maintains their own Teams in local storage. There is no shared canonical team entity — Bob and Carol can each have their own "Platform Squad" Team definition, and they may differ.
+
+A session is always ephemeral (per meeting) regardless of whether it was started from a Team or not.
 
 ## Access Control
 
 Sessions are open by default (anyone with the link/code can join). Host can optionally enable:
 
-- **Password-protected** — joiners must enter a password
-- **Invite-only** — host explicitly admits participants
+- **Password-protected** — on session creation, the host registers a password hash with the relay. Joiners submit their password as a hash (the join token); the relay compares and accepts or rejects at socket connect time.
+- **Invite-only** — the host's client issues short-lived, single-use join tokens on admission. The relay accepts connections presenting a valid unexpired token and revokes tokens on redemption.
+
+Access control is *relay-enforced*, not client-side. The relay now holds a small amount of per-active-room metadata (password hash, outstanding invite tokens and their expiries) but remains **content-blind** — it never parses session data, votes, or user identity. Tokens are opaque to the relay's semantics.
 
 **Future consideration:** vote signing via device keys to prevent forgery. Not in scope initially.
 
 ## Participants
 
-Hard cap of 20 participants per session (P2P mesh constraint). Participants can switch between **voter** and **viewer** roles at any time. Viewers observe but are not required to vote.
+Hard cap of 20 participants per session — more than enough for any real planning poker session and keeps relay bandwidth bounded. Participants can switch between **voter** and **viewer** roles at any time. Viewers observe but are not required to vote.
 
-## Session Persistence
+## Session Lifetime & Persistence
 
-Sessions must persist across page reloads and reconnections. Session state (participants, votes, history) is durable — not lost if the browser is closed or the network drops. Sessions never auto-expire; users manage their own storage.
+A session is **ephemeral — one session per estimation meeting**. It contains participants, rounds, votes, and history for that meeting. Reloads, network blips, and brief disconnects all rehydrate cleanly: connected clients hold the canonical state, and each client persists its own copy to local storage (IndexedDB for PWA, Capawesome SQLite on native).
+
+When the *last* peer disconnects from a room, the relay retains the session's opaque CRDT state in memory for **24 hours** (see *Ephemeral Room Snapshots* under Networking). A peer returning within that window rehydrates the session even if nobody else is online. After 24 hours with no connections, the snapshot is discarded and the session is gone — its code is released back to the pool.
+
+Teams (see *Identity*) are a separate, local-only concept that persists on the user's device indefinitely; they exist independently of any session lifecycle.
 
 ## Networking
 
-### P2P Connectivity
+### Sync Transport
 
-- **Primary** — y-websocket relay via self-hosted server (cross-platform reliable)
-- **Enhanced** (where supported) — WebRTC for direct peer-to-peer data channels; public STUN servers for NAT traversal; TURN fallback for restrictive firewalls
-- **Local/same-network** (v2) — Bluetooth, multipeer connectivity, mDNS, NFC for fully serverless in-person use
+- **Primary (and only supported path)** — y-websocket relay via self-hosted Node server. Cross-platform reliable, works through corporate firewalls, no NAT traversal headaches.
+- **Local/same-network** (v2) — Bluetooth, multipeer connectivity, mDNS, NFC for fully serverless in-person use. Deferred.
 
-### Signaling Server
+Direct WebRTC peer-to-peer data channels were considered and dropped from the roadmap. The latency benefit over a relay is imperceptible for the message sizes and human-paced interactions involved in planning poker, while the costs (TURN server operation, NAT traversal complexity, iOS WKWebView unreliability, mesh connection overhead) are real. The relay handles all sync.
 
-Lightweight self-hosted y-websocket server that relays Yjs CRDT sync messages between peers. Stateless — holds no session data, no user data, no votes. Also handles WebRTC signaling where direct P2P is supported. Pure P2P (y-webrtc) is unreliable on iOS WKWebView, so the relay server is the primary sync path for cross-platform compatibility.
+### Relay Server
+
+Lightweight self-hosted y-websocket server that forwards Yjs CRDT sync messages between clients in the same room. **Content-blind** — it never inspects, parses, or persists vote data, user identity, or round metadata. Messages pass through as opaque binary CRDT updates.
+
+The relay holds a small amount of *access-control and routing* metadata per active room: the internal room UUID, the current room code pointing at it, optional password hash, outstanding single-use invite tokens with expiries, and (when the room has gone empty) an in-memory snapshot. This is not session content — it is what the relay needs to do its job.
+
+**Ephemeral room snapshots** — when a room goes empty, the relay retains the last Yjs state in memory, keyed by the internal room UUID, with a 24-hour TTL. Returning peers rehydrate from the snapshot even if no other client is currently connected. Snapshots are opaque CRDT blobs, not persisted to disk; a relay restart loses them (accepted v1 trade-off).
 
 ### Network Partitions
 
@@ -132,9 +159,13 @@ Yjs (CRDT library) for state synchronization. Guarantees all peers converge to t
 
 The app must work offline. Users can continue interacting with the UI (view past rounds, prepare votes) even without connectivity. Changes sync automatically when back online.
 
-## Host Migration (P2P)
+## Host Migration
 
-In the P2P model, any participant can become the session host. If the current host drops out (closes browser, loses connection, etc.), ownership automatically transfers to another connected peer so the session continues uninterrupted. There is no single point of failure.
+The session *creator* is the initial host. If the host disconnects, election proceeds as follows: wait a 5-second debounce (most disconnects are transient), then elect the connected peer with the lowest-sorted device ID (lexicographic). If the original host later reconnects, they do **not** reclaim — the newly-elected host keeps the role until they themselves disconnect.
+
+Peer ID is the device identifier from *Identity*. Election happens in the shared Yjs doc; the relay is not involved.
+
+Host responsibilities — timer expiry authority, manual-reveal trigger, admitting invite-only joiners — are scoped to the current elected host. A subtle crown icon in the participant list surfaces who holds the role.
 
 ## UX
 
@@ -148,11 +179,11 @@ Mobile-first design. Desktop adapts up. Target platforms: web browser, iOS, Andr
 | UI | Ionic |
 | Native bridge | Capacitor |
 | State/sync | Yjs |
-| P2P transport | y-websocket (sync relay) + WebRTC where supported |
+| Sync transport | y-websocket (relay) |
 | Local storage | Capawesome SQLite (native), IndexedDB (PWA) |
-| Sync/signaling server | y-websocket server, Node.js (self-hosted) |
+| Relay server | y-websocket server, Node.js (self-hosted, content-blind) |
 | Platforms | PWA + iOS (Capacitor) + Android (Capacitor) |
 
 ## Status
 
-Tech stack decided. Architecture and implementation TBD.
+Tech stack decided. Core design questions resolved (see `open-questions.md`). Next: Yjs document schema, screen inventory, and validation spikes.
