@@ -11,35 +11,45 @@
  *     `GET /rooms/:code` (ADR-0016) so the client can turn a typed
  *     code into the UUID it needs for the socket URL.
  *
- * Snapshot state (`Y.Doc`, `connections`, `lastEmptyAt`) is not yet
- * modelled here — those fields land with the y-websocket wiring in
- * P3 #4. The current shape is the minimum surface the HTTP routes
- * need to mint rooms and serve code lookups.
+ * Each `RoomRecord` owns a `Y.Doc` + `Awareness` pair. The doc is the
+ * authoritative copy the relay holds in memory and is what makes the
+ * ADR-0012 snapshot survive "everyone disconnects, one returns": the
+ * y-websocket sync-step-1/2 exchange against this doc hands the
+ * returning peer every update accumulated so far.
  */
 
+import * as Y from 'yjs'
+import { Awareness } from 'y-protocols/awareness'
 import type { PasswordHash } from '@hnch/shared'
 import type { CodePool } from './code-pool.js'
 
 /**
- * A single room's metadata. The fields that Phase 5 will enforce
- * against (`passwordHash`, `invitesOutstanding`) are already modeled
- * as opaque blobs here so that enforcement can land without touching
- * the wire protocol or the room-store shape.
+ * A single room's metadata plus the live CRDT state.
+ *
+ * Fields that Phase 5 will enforce against (`passwordHash`,
+ * `invitesOutstanding`) are modeled now as opaque blobs so Phase 5
+ * lands without touching the wire protocol or the room-store shape.
+ *
+ * `connections` and `lastEmptyAt` are mutated by the WS handler; the
+ * snapshot sweeper (see `snapshot.ts`) evicts rooms whose
+ * `connections === 0` and `lastEmptyAt` is older than the TTL.
  */
 export interface RoomRecord {
   readonly uuid: string
   readonly code: string
-  /**
-   * Opaque password-hash blob registered at room-create time.
-   * Unset in Phase 3 (permissive). Phase 5 will set this from a
-   * field on the `POST /rooms` body.
-   */
   readonly passwordHash?: PasswordHash
-  /**
-   * Set of single-use invite tokens minted by the host. Empty in
-   * Phase 3. Phase 5 grows a mint/redeem lifecycle here.
-   */
   readonly invitesOutstanding: Set<string>
+  readonly doc: Y.Doc
+  readonly awareness: Awareness
+  /** Number of currently-live WS connections. */
+  connections: number
+  /**
+   * Wall-clock timestamp (ms) the room most recently dropped to zero
+   * live connections. `undefined` while at least one peer is connected.
+   * The snapshot sweeper reads this to decide when a room has been
+   * idle long enough to evict.
+   */
+  lastEmptyAt: number | undefined
 }
 
 /**
@@ -52,7 +62,15 @@ export interface RoomRecord {
  */
 export type AccessMode = 'open' | 'password' | 'invite'
 
-export function accessModeOf(record: RoomRecord): AccessMode {
+/**
+ * `accessModeOf` only inspects the access-control fields, so we take a
+ * structural subset rather than the full `RoomRecord`. This keeps tests
+ * (and future call sites that only have a snippet of room state) from
+ * having to fabricate a `Y.Doc` + `Awareness` just to ask the question.
+ */
+export function accessModeOf(
+  record: Pick<RoomRecord, 'passwordHash' | 'invitesOutstanding'>,
+): AccessMode {
   if (record.passwordHash !== undefined) return 'password'
   if (record.invitesOutstanding.size > 0) return 'invite'
   return 'open'
@@ -67,17 +85,20 @@ export interface RoomStoreOptions {
 }
 
 export interface RoomStore {
-  /** Mints a new room with a fresh UUID and a unique code from the pool. */
+  /** Mints a new room with a fresh UUID, a unique code, and an empty Y.Doc. */
   createRoom(): RoomRecord
   /** Returns the record for a given code, or `undefined` if not live. */
   getByCode(code: string): RoomRecord | undefined
   /** Returns the record for a given UUID, or `undefined` if not live. */
   getByUuid(uuid: string): RoomRecord | undefined
   /**
-   * Removes the room from both indexes and releases its code back to
-   * the pool. No-op if the UUID is unknown.
+   * Removes the room from both indexes, releases its code back to
+   * the pool, and tears down its `Y.Doc` / `Awareness`. No-op if the
+   * UUID is unknown.
    */
   deleteRoom(uuid: string): void
+  /** Snapshot of all live records, for the TTL sweeper. */
+  listRooms(): readonly RoomRecord[]
   readonly roomCount: number
 }
 
@@ -94,10 +115,16 @@ export function createRoomStore(
     createRoom(): RoomRecord {
       const uuid = uuidGenerator()
       const code = codePool.mint()
+      const doc = new Y.Doc()
+      const awareness = new Awareness(doc)
       const record: RoomRecord = {
         uuid,
         code,
         invitesOutstanding: new Set<string>(),
+        doc,
+        awareness,
+        connections: 0,
+        lastEmptyAt: Date.now(),
       }
       byUuid.set(uuid, record)
       byCode.set(code, uuid)
@@ -117,6 +144,13 @@ export function createRoomStore(
       byUuid.delete(uuid)
       byCode.delete(record.code)
       codePool.release(record.code)
+      // Tear down CRDT state so the 30s awareness interval + any
+      // pending observers don't leak after eviction.
+      record.awareness.destroy()
+      record.doc.destroy()
+    },
+    listRooms(): readonly RoomRecord[] {
+      return [...byUuid.values()]
     },
     get roomCount(): number {
       return byUuid.size

@@ -65,6 +65,41 @@ describe('room store', () => {
     expect(store.roomCount).toBe(1)
   })
 
+  it('createRoom initializes CRDT state and sweeper fields', () => {
+    const { store } = freshStore()
+    const record = store.createRoom()
+    // The doc is a brand-new, empty Y.Doc — content-blind per ADR-0001.
+    expect(record.doc).toBeDefined()
+    expect(record.awareness).toBeDefined()
+    expect(record.awareness.doc).toBe(record.doc)
+    // No connections yet; `lastEmptyAt` is stamped so the TTL sweeper
+    // starts the eviction countdown from birth if nobody ever joins.
+    expect(record.connections).toBe(0)
+    expect(record.lastEmptyAt).toBeTypeOf('number')
+  })
+
+  it('deleteRoom clears awareness state during teardown', () => {
+    const { store } = freshStore()
+    const record = store.createRoom()
+    // Simulate a peer having published presence before eviction.
+    record.awareness.setLocalState({ displayName: 'peer' })
+    expect(record.awareness.getStates().size).toBeGreaterThan(0)
+    const awareness = record.awareness
+    store.deleteRoom(record.uuid)
+    // `Awareness.destroy()` is what guards against the 30s refresh
+    // interval keeping the event loop alive; the user-visible effect
+    // is that the state map is empty post-destroy.
+    expect(awareness.getStates().size).toBe(0)
+  })
+
+  it('listRooms enumerates all live records', () => {
+    const { store } = freshStore()
+    const a = store.createRoom()
+    const b = store.createRoom()
+    const uuids = store.listRooms().map((r) => r.uuid).sort()
+    expect(uuids).toEqual([a.uuid, b.uuid].sort())
+  })
+
   describe('accessModeOf', () => {
     it('is "open" for a plain new record', () => {
       const { store } = freshStore()
@@ -75,8 +110,6 @@ describe('room store', () => {
     it('is "password" when passwordHash is set', () => {
       expect(
         accessModeOf({
-          uuid: 'u',
-          code: 'C',
           passwordHash: 'opaque-hash',
           invitesOutstanding: new Set(),
         }),
@@ -86,8 +119,6 @@ describe('room store', () => {
     it('is "invite" when an invite is outstanding and no password', () => {
       expect(
         accessModeOf({
-          uuid: 'u',
-          code: 'C',
           invitesOutstanding: new Set(['tok-1']),
         }),
       ).toBe('invite')
@@ -96,8 +127,6 @@ describe('room store', () => {
     it('prefers "password" over "invite" when both are set', () => {
       expect(
         accessModeOf({
-          uuid: 'u',
-          code: 'C',
           passwordHash: 'opaque-hash',
           invitesOutstanding: new Set(['tok-1']),
         }),
