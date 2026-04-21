@@ -35,7 +35,7 @@ When proposing a code change that conflicts with an existing ADR, either adjust 
 
 ## Current decisions at a glance
 
-For quick orientation without reading all 13 ADRs:
+For quick orientation without reading all 14 ADRs:
 
 - **Architecture:** Yjs CRDTs synchronized via a content-blind y-websocket relay. No direct WebRTC. No authoritative session server. (ADR-0001, ADR-0003)
 - **Stack:** Angular + Ionic + Capacitor for the client; Node.js y-websocket relay for the server. (ADR-0002)
@@ -48,3 +48,4 @@ For quick orientation without reading all 13 ADRs:
 - **Timer:** host writes `timerStartedAt` to the doc; all clients compute locally; host's client authoritatively triggers reveal. (ADR-0011)
 - **Snapshots:** 24-hour in-memory TTL on the relay, keyed by room UUID; no disk persistence. (ADR-0012)
 - **Rounds:** flat list with optional `parentRoundId` for re-vote lineage; vote change allowed until reveal. (ADR-0013)
+- **Repo layout:** pnpm workspaces monorepo with `packages/client`, `packages/relay`, `packages/shared`. (ADR-0014)
