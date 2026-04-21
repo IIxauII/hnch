@@ -86,7 +86,7 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
         }
 
         <app-avatar-vote-row
-          [participants]="participants()"
+          [participants]="onlineParticipants()"
           [votedIds]="votedIds()"
         />
 
@@ -191,7 +191,7 @@ export class EstimatingPage {
   private readonly participantIdService = inject(ParticipantIdService)
 
   protected readonly currentRound = this.docService.currentRound
-  protected readonly participants = this.docService.participants
+  protected readonly onlineParticipants = this.docService.onlineParticipants
 
   private readonly myId = this.participantIdService.id
 
@@ -217,11 +217,21 @@ export class EstimatingPage {
     return round.votes[id] ?? null
   })
 
-  /** Set of participantIds that have a vote in the current round. */
+  /**
+   * Set of participantIds that have a vote in the current round,
+   * filtered against awareness. A peer that cast a vote and then
+   * silently dropped (no close frame, just a dead connection) keeps
+   * its entry in `round.votes` — ADR-0011 treats the cast vote as
+   * authoritative — but we don't want the avatar row to keep showing
+   * them as "voted" when the tally won't include them on reveal.
+   * Revealed chips (§3.7) intentionally skip this filter because
+   * there the tally *is* the post-reveal record.
+   */
   protected readonly votedIds = computed<ReadonlySet<string>>(() => {
     const round = this.currentRound()
     if (!round) return new Set()
-    return new Set(Object.keys(round.votes))
+    const online = this.docService.onlineParticipantIds()
+    return new Set(Object.keys(round.votes).filter((id) => online.has(id)))
   })
 
   protected readonly isHost = computed(() => {

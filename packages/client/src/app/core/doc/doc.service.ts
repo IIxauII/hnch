@@ -30,6 +30,7 @@ import {
   type Scale,
   type Settings,
 } from '@hnch/shared'
+import { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
 
 import { environment } from '../../../environments/environment'
@@ -38,6 +39,14 @@ import {
   type SyncProvider,
   type SyncStatus,
 } from './sync-provider'
+
+/**
+ * Awareness field name that carries a peer's `participantId`. A
+ * string literal kept here (and not in `@hnch/shared`) because the
+ * awareness channel is a client-only transport detail — the relay is
+ * content-blind (ADR-0001) and never reads this.
+ */
+const AWARENESS_PARTICIPANT_ID_FIELD = 'participantId'
 
 /**
  * Caller-facing init for {@link DocService.createSession}. Mirrors the
@@ -127,6 +136,11 @@ export class DocService {
     signal<SyncStatus | 'offline'>('offline')
   private readonly lastRejectionSignal: WritableSignal<JoinRejectionReason | null> =
     signal<JoinRejectionReason | null>(null)
+  private awareness: Awareness | null = null
+  private awarenessOff: (() => void) | null = null
+  private readonly onlineParticipantIdsSignal: WritableSignal<
+    ReadonlySet<string>
+  > = signal<ReadonlySet<string>>(new Set())
 
   // ---------------------------------------------------------------------------
   // Public signals
@@ -179,6 +193,40 @@ export class DocService {
   readonly lastRejection: Signal<JoinRejectionReason | null> =
     this.lastRejectionSignal.asReadonly()
 
+  /**
+   * Set of participantIds that are currently online per awareness
+   * (plan §3.7). Seeded with the local participant as soon as
+   * {@link createSession} runs; peers are added/removed as
+   * y-websocket propagates their awareness changes.
+   *
+   * Consumers typically read {@link onlineParticipants} /
+   * {@link offlineParticipants} instead of this raw set, but the set
+   * is exposed for components (like `avatar-vote-row`) that want to
+   * intersect it against a round's `votes`.
+   */
+  readonly onlineParticipantIds: Signal<ReadonlySet<string>> =
+    this.onlineParticipantIdsSignal.asReadonly()
+
+  /**
+   * Participants filtered to those whose `participantId` is currently
+   * in awareness. Used by Lobby's row styling and Estimating's avatar
+   * row — a ghost from a silent disconnect drops off here, whereas
+   * the Yjs participants list keeps them (ADR-0011's "the vote was
+   * cast" semantic).
+   */
+  readonly onlineParticipants: Signal<readonly ParticipantSnapshot[]> =
+    computed(() => {
+      const online = this.onlineParticipantIdsSignal()
+      return this.participants().filter((p) => online.has(p.id))
+    })
+
+  /** Complement of {@link onlineParticipants}. Rendered dimmed. */
+  readonly offlineParticipants: Signal<readonly ParticipantSnapshot[]> =
+    computed(() => {
+      const online = this.onlineParticipantIdsSignal()
+      return this.participants().filter((p) => !online.has(p.id))
+    })
+
   // ---------------------------------------------------------------------------
   // Lifecycle
   // ---------------------------------------------------------------------------
@@ -216,6 +264,7 @@ export class DocService {
 
     this.attach(doc)
     this.roomCodeSignal.set(init.roomCode ?? null)
+    this.initAwareness(doc, init.participantId)
     return roomUuid
   }
 
@@ -244,6 +293,7 @@ export class DocService {
       roomUuid,
       doc,
       credentials,
+      ...(this.awareness !== null && { awareness: this.awareness }),
       onStatusChange: (status) => this.syncStatusSignal.set(status),
       onRejectionChange: (reason) => this.lastRejectionSignal.set(reason),
     })
@@ -271,6 +321,7 @@ export class DocService {
    */
   endSession(): void {
     this.disconnect()
+    this.teardownAwareness()
     this.detach()
     this.doc?.destroy()
     this.doc = null
@@ -376,6 +427,47 @@ export class DocService {
   private rebuildProjection(): void {
     if (!this.doc) return
     this.projection.set(projectDoc(this.doc))
+  }
+
+  /**
+   * Spin up the local awareness channel (plan §3.7). The provider in
+   * {@link connect} reuses this instance so the `setLocalStateField`
+   * we write here lands on the wire as soon as the socket opens; a
+   * fresh provider after a reconnect picks up the same awareness and
+   * keeps the peer set coherent across drop-and-rejoin sequences.
+   *
+   * We seed the local peer synchronously so `onlineParticipantIds`
+   * already contains the local participant before any network event —
+   * Lobby / Estimating never observe a "my own row is offline" flash.
+   */
+  private initAwareness(doc: Y.Doc, participantId: string): void {
+    const awareness = new Awareness(doc)
+    awareness.setLocalStateField(AWARENESS_PARTICIPANT_ID_FIELD, participantId)
+
+    const refresh = (): void => {
+      const next = new Set<string>()
+      for (const state of awareness.getStates().values()) {
+        const value = (state as Record<string, unknown>)[
+          AWARENESS_PARTICIPANT_ID_FIELD
+        ]
+        if (typeof value === 'string') next.add(value)
+      }
+      this.onlineParticipantIdsSignal.set(next)
+    }
+
+    awareness.on('change', refresh)
+    refresh()
+
+    this.awareness = awareness
+    this.awarenessOff = (): void => awareness.off('change', refresh)
+  }
+
+  private teardownAwareness(): void {
+    this.awarenessOff?.()
+    this.awarenessOff = null
+    this.awareness?.destroy()
+    this.awareness = null
+    this.onlineParticipantIdsSignal.set(new Set())
   }
 
   private requireDoc(op: string): Y.Doc {
