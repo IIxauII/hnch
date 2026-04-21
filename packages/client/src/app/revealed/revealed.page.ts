@@ -364,7 +364,9 @@ export class RevealedPage {
       ...(round.description !== undefined && { description: round.description }),
       ...(round.ticketId !== undefined && { ticketId: round.ticketId }),
     })
-    await this.router.navigate(['/estimating'])
+    // replaceUrl: back-nav from the new Estimating should pop to
+    // Lobby, not to the Revealed screen we just left (plan §3.10).
+    await this.router.navigate(['/estimating'], { replaceUrl: true })
   }
 
   protected openNextRound(): void {
@@ -377,7 +379,9 @@ export class RevealedPage {
     })
     await this.modalRef()?.dismiss()
     this.nextRoundOpen.set(false)
-    await this.router.navigate(['/estimating'])
+    // replaceUrl: back-nav from the new Estimating should pop to
+    // Lobby, not to this Revealed screen (plan §3.10).
+    await this.router.navigate(['/estimating'], { replaceUrl: true })
   }
 
   /**

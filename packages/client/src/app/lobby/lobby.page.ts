@@ -9,8 +9,8 @@ import {
 import { Router } from '@angular/router'
 import {
   ActionSheetController,
+  AlertController,
   IonAvatar,
-  IonBackButton,
   IonBadge,
   IonButton,
   IonButtons,
@@ -29,6 +29,7 @@ import {
 } from '@ionic/angular/standalone'
 import { addIcons } from 'ionicons'
 import {
+  chevronBackOutline,
   ellipsisHorizontalCircle,
   personCircleOutline,
   qrCodeOutline,
@@ -51,17 +52,22 @@ import { SessionSettingsSheetComponent } from '../session-settings/session-setti
  * subtemplates driven by `settings.hostParticipantId ===
  * myParticipantId`.
  *
- * Session-settings sheet (⋯ → Session settings and subtitle tap)
- * is stubbed to a toast here; the real sheet lands in commit 7. The
- * Share / QR invite rows are stubbed because relay-minted codes and
- * universal links are Phase 5. Back-nav here pops to Home without a
- * teardown confirmation — that's commit 8's concern.
+ * Session-settings sheet is wired through the ⋯ menu and the
+ * subtitle tap. The Share / QR invite rows are stubbed because
+ * relay-minted codes and universal links are Phase 5.
+ *
+ * The Lobby owns the session's lifetime (plan §3.10): leaving here
+ * — either via the top-left back control or the ⋯ → "Leave
+ * session" entry — prompts an `ion-alert` confirmation per ux.md
+ * §2 "Destructive actions" and calls `docService.endSession()`
+ * before popping to Home. The native `ion-back-button` would pop
+ * without running our confirmation, so we render a custom back
+ * chevron that routes through the same handler.
  */
 @Component({
   selector: 'app-lobby',
   imports: [
     IonAvatar,
-    IonBackButton,
     IonBadge,
     IonButton,
     IonButtons,
@@ -84,7 +90,15 @@ import { SessionSettingsSheetComponent } from '../session-settings/session-setti
     <ion-header>
       <ion-toolbar>
         <ion-buttons slot="start">
-          <ion-back-button defaultHref="/home"></ion-back-button>
+          <ion-button
+            aria-label="Back"
+            (click)="confirmLeave()"
+          >
+            <ion-icon
+              slot="icon-only"
+              name="chevron-back-outline"
+            ></ion-icon>
+          </ion-button>
         </ion-buttons>
         <ion-title>Lobby</ion-title>
         <ion-buttons slot="end">
@@ -235,6 +249,7 @@ export class LobbyPage {
   private readonly docService = inject(DocService)
   private readonly participantIdService = inject(ParticipantIdService)
   private readonly actionSheetCtrl = inject(ActionSheetController)
+  private readonly alertCtrl = inject(AlertController)
   private readonly toastCtrl = inject(ToastController)
 
   protected readonly hasSession = this.docService.hasSession
@@ -288,6 +303,7 @@ export class LobbyPage {
 
   constructor() {
     addIcons({
+      'chevron-back-outline': chevronBackOutline,
       'ellipsis-horizontal-circle': ellipsisHorizontalCircle,
       'person-circle-outline': personCircleOutline,
       'qr-code-outline': qrCodeOutline,
@@ -322,7 +338,7 @@ export class LobbyPage {
           text: 'Leave session',
           role: 'destructive',
           handler: () => {
-            void this.leaveSession()
+            void this.confirmLeave()
           },
         },
         {
@@ -351,6 +367,30 @@ export class LobbyPage {
   protected async onShowQr(): Promise<void> {
     // Phase 5: full-screen QR modal (ux.md §5.8).
     await this.toast('QR code lands in Phase 5')
+  }
+
+  /**
+   * Destructive-action confirmation (ux.md §2). Both entry points —
+   * the top-left back chevron and the ⋯ → "Leave session" row — go
+   * through here, so the session is never torn down without an
+   * explicit user confirmation.
+   */
+  protected async confirmLeave(): Promise<void> {
+    const alert = await this.alertCtrl.create({
+      header: 'Leave session?',
+      message: 'Your session will be discarded.',
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        {
+          text: 'Leave',
+          role: 'destructive',
+          handler: () => {
+            void this.leaveSession()
+          },
+        },
+      ],
+    })
+    await alert.present()
   }
 
   private async leaveSession(): Promise<void> {

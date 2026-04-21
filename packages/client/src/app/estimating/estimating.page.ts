@@ -260,7 +260,10 @@ export class EstimatingPage {
     const round = this.currentRound()
     if (!round) return
     this.docService.revealRound(round.id)
-    await this.router.navigate(['/revealed'])
+    // replaceUrl: back-nav from Revealed should pop to Lobby, not
+    // bounce through the Estimating screen we just left
+    // (plan §3.10).
+    await this.router.navigate(['/revealed'], { replaceUrl: true })
   }
 }
 
