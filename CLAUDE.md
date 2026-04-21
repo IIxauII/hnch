@@ -39,7 +39,7 @@ When proposing a code change that conflicts with an existing ADR, either adjust 
 
 ## Current decisions at a glance
 
-For quick orientation without reading all 15 ADRs:
+For quick orientation without reading all 16 ADRs:
 
 - **Architecture:** Yjs CRDTs synchronized via a content-blind y-websocket relay. No direct WebRTC. No authoritative session server. (ADR-0001, ADR-0003)
 - **Stack:** Angular + Ionic + Capacitor for the client; Node.js y-websocket relay for the server. (ADR-0002)
@@ -48,6 +48,7 @@ For quick orientation without reading all 15 ADRs:
 - **Sessions:** ephemeral per meeting, with a separate local-only Team concept for "my usual crew" continuity. (ADR-0006, ADR-0007)
 - **Room codes:** 6-char alphanumeric, no look-alikes, retired for snapshot TTL before pool recycling. (ADR-0008)
 - **Access control:** relay-enforced via opaque tokens (password hash, single-use invite tokens). (ADR-0009)
+- **Connection handshake:** HTTP `GET /rooms/:code` resolves code → UUID; WebSocket to `/ws/:uuid` carries `JoinCredentials` as query params; rejections use private-use WS close codes 4001–4099. (ADR-0016)
 - **Host authority:** creator is initial host; on drop, 5-second debounce then lowest-peer-ID election. (ADR-0010)
 - **Timer:** host writes `timerStartedAt` to the round at round start; all clients compute locally against `settings.timerDurationMs`; host's client authoritatively triggers reveal. (ADR-0011, ADR-0015)
 - **Snapshots:** 24-hour in-memory TTL on the relay, keyed by room UUID; no disk persistence. (ADR-0012)
