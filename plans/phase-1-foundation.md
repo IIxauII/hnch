@@ -22,12 +22,27 @@ The Ionic scaffold is NgModule-based (`IonicModule.forRoot()`, `AppModule`, decl
 
 - `main.ts` uses `bootstrapApplication(AppComponent, { providers: [provideIonicAngular(), provideRouter(routes, withPreloading(PreloadAllModules), withComponentInputBinding())] })`.
 - `AppModule`, `AppRoutingModule`, and the NgModule-style `HomePageModule` / `HomePageRoutingModule` are deleted.
-- Every new page is authored as `@Component({ standalone: true, imports: [IonicModule, …] })`.
+- Every new page is authored as a standalone component (do **not** set `standalone: true` explicitly — it's the default in Angular v20+ per [`angular.md`](../angular.md)). Use `@Component({ imports: [IonicModule, …], changeDetection: ChangeDetectionStrategy.OnPush })`.
 - The scaffolded `HomePage` is rewritten as a standalone component (placeholder content anyway).
 
 Rationale: the codebase is tiny, the roadmap's wording already names `provideIonicAngular()`, and standalone is Angular 20's default direction. Doing it now avoids a second migration later.
 
-### 2.2 Display name persistence
+### 2.2 Angular conventions (reference [`angular.md`](../angular.md))
+
+Every component and service in this phase must follow the house rules:
+
+- Standalone by default — do NOT write `standalone: true`.
+- `ChangeDetectionStrategy.OnPush` on every component.
+- `inject()` over constructor injection; services are `providedIn: 'root'`.
+- `signal()` / `computed()` for local state; never `mutate()`, use `update()` or `set()`.
+- `input()` / `output()` functions over `@Input` / `@Output` decorators.
+- Host metadata goes in the `host` object, never `@HostBinding` / `@HostListener`.
+- Templates use `@if` / `@for` / `@switch`; never `*ngIf` / `*ngFor` / `*ngSwitch`.
+- Class and style bindings via `[class.x]` / `[style.x]`; never `ngClass` / `ngStyle`.
+- Reactive forms over template-driven forms.
+- `unknown` before `any`; rely on inference where the type is obvious.
+
+### 2.3 Display name persistence
 
 `@capacitor/preferences` is the storage layer. Device-ID identity ([ADR-0005](../adr/0005-device-identity-capacitor-device-plugin.md)) is a Phase 3 concern; Phase 1 only writes:
 
