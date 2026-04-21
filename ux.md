@@ -19,7 +19,7 @@ UX decisions that touch architectural or structural concerns are cross-linked to
 
 ## 1. Goals & principles
 
-**Feel iOS-native everywhere.** hnch is a mobile-first app targeting iPhone via Capacitor. We lock Ionic's `mode` to `'ios'` globally (see [§7 Theming](#7-theming)), so every platform — iPhone, Android, PWA, web — renders iOS-style components. The look is consistent regardless of device; an Android user isn't running a different design.
+**iPhone is the primary design target.** hnch is a mobile-first app targeting iPhone via Capacitor. Ionic's `mode` is left at its default — auto-detected per platform — so iPhone users get iOS-style rendering, Android and web users get Material Design, and each platform feels native to itself. Wireframes and interaction notes in this document describe the iPhone experience; where the iOS and Material defaults diverge, we flag the difference rather than overriding one.
 
 **Session-first, not navigation-first.** Users open hnch to be in a pointing-poker session; the rest of the app is infrastructure for that. The top-level navigation pattern is a single nav stack (not tabs, not a side menu) because there is no meaningful second destination when you're mid-session. Home is a launchpad, not a parallel destination.
 
@@ -29,34 +29,25 @@ UX decisions that touch architectural or structural concerns are cross-linked to
 
 **Accessibility, dark mode, and safe areas are baseline, not polish.** VoiceOver labels on non-text content (QR codes, card grids). Dark mode follows system preference by default with explicit override. Safe areas handled via `ion-header` / `ion-footer` (not raw layout) so content respects notches, dynamic islands, and home indicators.
 
-**Non-goals for v1.** The following are deliberately out of scope for the first shipping version: the Team concept from [ADR-0007](adr/0007-team-local-only-concept.md) (present in the architecture, no UI in v1), full session history (only a single "Jump back in" banner for the most recent backed-out session), iPad-specific or landscape-first layouts (iPhone portrait is the design target), non-iOS platform-native flavors (Material Design mode), and offline session creation (relay is assumed reachable at Create time).
+**Non-goals for v1.** The following are deliberately out of scope for the first shipping version: the Team concept from [ADR-0007](adr/0007-team-local-only-concept.md) (present in the architecture, no UI in v1), full session history (only a single "Jump back in" banner for the most recent backed-out session), iPad-specific or landscape-first layouts (iPhone portrait is the design target), and offline session creation (relay is assumed reachable at Create time).
 
 ---
 
 ## 2. App shell & navigation
 
-### Mode and platform lock
+### Platform mode
 
-Ionic is configured with `mode: 'ios'` globally via `provideIonicAngular`:
+Ionic's `mode` is not set explicitly — we rely on its per-platform auto-detection. That means iPhone (Capacitor WebView or mobile Safari) renders iOS-style components, Android renders Material, and desktop/PWA falls back to Material. We do not override this globally, and we avoid per-component `mode="ios"` overrides — if a component looks meaningfully worse on one platform, we fix it there rather than forcing a look on the other.
 
-```ts
-bootstrapApplication(AppComponent, {
-  providers: [
-    provideIonicAngular({ mode: 'ios' }),
-    // ...
-  ],
-});
-```
-
-This forces iOS-style component rendering on all platforms and removes any need for per-component `mode` overrides.
+The rest of this document describes the iPhone-first experience in detail. Where a pattern depends on iOS specifically (large titles, swipe-to-go-back, iOS-flavored action sheets) the description notes this, and the Material equivalent is whatever Ionic renders by default.
 
 ### Navigation pattern
 
 Single nav stack — no tabs (`ion-tabs`), no side menu (`ion-menu`). Every user-visible screen is pushed onto the Angular router stack; back navigation pops it.
 
-**Large titles** are the default iOS convention and we use them throughout. A screen's title appears as a large title at the top of the content area on initial render and collapses into the nav bar on scroll. Where possible, the large title replaces duplicated chrome (e.g., the room code is the Lobby's large title rather than appearing separately in the content).
+**Large titles.** On iOS, Ionic renders the screen's title as a large title at the top of the content area and collapses it into the nav bar on scroll — we use that behavior throughout, and where possible the large title replaces duplicated chrome (e.g., the room code is the Lobby's large title rather than appearing separately in the content). On Material, titles render normally in the toolbar; this is a visual difference, not a structural one.
 
-**Swipe-to-go-back** is enabled everywhere. Because leaving a session is reversible (snapshots live 24h; rejoin via the Jump-back-in banner on Home), an accidental swipe does not lose session state.
+**Swipe-to-go-back** is enabled everywhere. On iOS this is the familiar edge-swipe gesture; on Material it's Ionic's equivalent back-gesture. Because leaving a session is reversible (snapshots live 24h; rejoin via the Jump-back-in banner on Home), an accidental swipe does not lose session state.
 
 ### Nav bar pattern
 
@@ -70,9 +61,9 @@ Every screen with a ⋯ menu follows this layout:
 └─────────────────────────────────────────┘
 ```
 
-- Left: native iOS back button (chevron + previous title), or absent on Home / Onboarding.
+- Left: Ionic's platform-appropriate back control (chevron + previous title on iOS, arrow icon on Material), or absent on Home / Onboarding.
 - Right: `ion-icon name="ellipsis-horizontal-circle"` button that opens an `ion-action-sheet`.
-- Large title: the screen's primary heading, collapses on scroll.
+- Large title: the screen's primary heading on iOS (collapses on scroll); a regular toolbar title on Material.
 
 ### Primary action placement
 
@@ -84,7 +75,7 @@ Screens with no primary action at footer level (Estimating for joiners, Settings
 
 ### Destructive actions
 
-Destructive actions (Leave session, End session for everyone) live in the ⋯ action sheet with `role: 'destructive'` styling (iOS red text). Tapping a destructive menu item fires an `ion-alert` confirmation before the action commits.
+Destructive actions (Leave session, End session for everyone) live in the ⋯ action sheet with `role: 'destructive'` styling (red text on both modes; Ionic handles the per-platform rendering). Tapping a destructive menu item fires an `ion-alert` confirmation before the action commits.
 
 ---
 
@@ -282,7 +273,7 @@ User taps URL whose room code no longer exists (snapshot TTL expired)
 
 ## 5. Per-screen wireframes
 
-Wireframes below are ASCII sketches — they communicate structure, hierarchy, and component choice, not pixel layout. Every wireframe assumes portrait iPhone, `mode: 'ios'`, and the nav bar pattern from [§2](#2-app-shell--navigation).
+Wireframes below are ASCII sketches — they communicate structure, hierarchy, and component choice, not pixel layout. Every wireframe assumes portrait iPhone (the primary design target) and the nav bar pattern from [§2](#2-app-shell--navigation). On Material platforms, Ionic renders the same components with its Material defaults; the structure shown here is the same, but chrome (back control, large-vs-toolbar title, action-sheet look) differs per mode.
 
 ### 5.1 Onboarding
 
@@ -721,7 +712,7 @@ Save is disabled when empty or whitespace-only. Change is persisted to Preferenc
 
 #### ⋯ action sheet
 
-Invoked by tapping the ⋯ nav-bar button. Content varies by screen (see per-screen notes above for which items appear where). iOS action sheet styling: destructive items in red, Cancel always present as the last item.
+Invoked by tapping the ⋯ nav-bar button. Content varies by screen (see per-screen notes above for which items appear where). Styling follows Ionic's per-platform action-sheet defaults: destructive items in red, Cancel always present as the last item (on iOS visually separated; on Material it appears at the end of the list).
 
 ```
 ┌─────────────────────────────────────────┐
@@ -830,13 +821,13 @@ Haptics fire via `@capacitor/haptics` on native; on web they are no-ops (the API
 
 ## 7. Theming
 
-### Mode lock
+### Platform mode
 
-Ionic's `mode` is set to `'ios'` globally via `provideIonicAngular({ mode: 'ios' })` at bootstrap. This is enforced centrally — no per-component `mode="ios"` overrides — and it means the app looks identical across iPhone, Android, PWA, and web. See [§2](#2-app-shell--navigation) for the bootstrap snippet.
+Ionic's `mode` is left at its default and auto-detected per platform: iOS on iPhone (Capacitor WebView or mobile Safari), Material on Android and desktop/PWA. We do not force a single mode globally, and we avoid per-component `mode="ios"` overrides. The goal is a design that feels native on each platform rather than identical across all of them. See [§2](#2-app-shell--navigation) for the context.
 
 ### Palette (v1 placeholder)
 
-Until brand direction is set, v1 uses Ionic's default iOS palette untouched. The primary action color is Ionic's default `--ion-color-primary` blue; destructive actions use the default iOS red via the `role: 'destructive'` property on action-sheet items and button `color="danger"` in alerts.
+Until brand direction is set, v1 uses Ionic's default palette on each platform, untouched. Primary action color is Ionic's default `--ion-color-primary`; destructive actions use the default danger red via the `role: 'destructive'` property on action-sheet items and button `color="danger"` in alerts.
 
 A palette revision (custom brand blue, accent, card grid colors) is a future pass and should be driven by a small style-guide doc once brand direction exists. Palette changes are *not* architectural and do not require an ADR.
 
@@ -846,7 +837,7 @@ Dark mode follows `prefers-color-scheme` by default, via Ionic's `.ion-palette-d
 
 ### Typography
 
-Ionic's iOS mode already uses the system font stack (`-apple-system, BlinkMacSystemFont, ...`). We do not ship a custom font in v1 — matching the OS is the entire point of `mode: 'ios'`. Numerals in the timer display and on estimate cards use `font-variant-numeric: tabular-nums` to prevent layout jitter during countdowns and reveal.
+We rely on Ionic's per-platform font stack — iOS uses the Apple system fonts (`-apple-system, BlinkMacSystemFont, ...`), Material uses Roboto or the platform system font — and do not ship a custom font in v1. Matching the OS on each platform is the point. Numerals in the timer display and on estimate cards use `font-variant-numeric: tabular-nums` to prevent layout jitter during countdowns and reveal.
 
 ### Safe areas
 
@@ -854,7 +845,7 @@ All screens are built with `ion-header` and `ion-footer` rather than raw CSS —
 
 ### Liquid Glass / iOS 26 theming (deferred)
 
-The community package `@rdlabo/ionic-theme-ios26` provides iOS 26-style Liquid Glass theming on top of Ionic's iOS mode. We are *not* adopting it in v1 — our floor is "looks good and iOS-native on iOS 17+." Revisit for v1.1+ once the package stabilizes and our minimum-supported iOS version is settled.
+The community package `@rdlabo/ionic-theme-ios26` provides iOS 26-style Liquid Glass theming that layers on top of Ionic's iOS rendering. We are *not* adopting it in v1 — our floor is "looks good and platform-native on each supported OS." Revisit for v1.1+ once the package stabilizes and our minimum-supported iOS version is settled; any adoption would be iOS-only and would not affect Material rendering.
 
 ### Accessibility baseline
 
@@ -888,11 +879,10 @@ These are acknowledged gaps and deferred decisions. They are not blocking v1 imp
 
 **Round-times-out-with-nobody-voted.** Currently handled as "Revealed with only a Didn't-vote group." Is that the right UX, or should we skip reveal and offer a direct re-start? Revisit with real usage.
 
-**Schema implications of this document.**
+**Schema implications of this document (resolved).**
 
-This document commits us to two schema-level decisions that need to be reflected in [`schema.md`](schema.md):
+The UX decisions in this document narrowed the v1 schema relative to what earlier ADRs left open. The narrowing is now formalized in [ADR-0015](adr/0015-v1-scope-session-level-reveal-and-timer.md) and reflected in [`schema.md`](schema.md):
 
-1. **Timer is session-level, not per-round.** `timerDurationMs` belongs on the session settings object and applies to every round, not to individual rounds. (See also ADR-0011's phrasing "configurable per round" — that line pre-dates this UX decision and should be corrected via minor edit, or superseded by a new ADR if we decide the phrasing is load-bearing.)
-2. **Rounds have an optional descriptor.** Each round object should carry `description: string | null` (free-text, ≤ ~200 chars, set at round start via the round-start modal).
-
-Neither is architecturally novel — these are shape adjustments, not new concepts — so they can land as a schema.md edit with a brief note, no new ADR required.
+1. **Timer is session-level, not per-round.** `timerDurationMs` lives on `settings`, not on rounds. ADR-0011's Context line has been minor-corrected; its authority mechanism is unchanged.
+2. **Reveal modes are `manual | timer` only.** The `'unanimous'` variant has been removed from the schema.
+3. **Rounds have an optional descriptor.** `description?: string` was already in `schema.md` — no change needed.

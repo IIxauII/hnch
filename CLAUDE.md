@@ -17,6 +17,7 @@ Greenfield project. Core architectural decisions are resolved and documented as 
 - `project.md` — product and design overview: what the app does, high-level architecture, user-visible behavior. The authoritative source for *what* the product is.
 - `schema.md` — the Yjs doc schema. Authoritative for the *shape* of session state, cross-linked to the ADRs that justify each field.
 - `ux.md` — user experience design: screen inventory, flows, per-screen wireframes, interaction patterns, theming. The authoritative source for *what the user sees and does*. Cross-links to ADRs where UX decisions touch architecture.
+- `roadmap.md` — phased implementation plan from the current scaffold to a v1 candidate. A map, not a spec: each phase has a scope and an exit bar.
 - `adr/` — Architecture Decision Records. The authoritative source for *why* each structural choice was made, what alternatives were considered, and under what conditions a decision should be revisited. See `adr/README.md` for conventions and the index.
 - `networking-analysis.md` — research artifact that informed ADR-0001 (networking architecture). Kept as a reference; not updated as decisions evolve.
 
@@ -37,7 +38,7 @@ When proposing a code change that conflicts with an existing ADR, either adjust 
 
 ## Current decisions at a glance
 
-For quick orientation without reading all 14 ADRs:
+For quick orientation without reading all 15 ADRs:
 
 - **Architecture:** Yjs CRDTs synchronized via a content-blind y-websocket relay. No direct WebRTC. No authoritative session server. (ADR-0001, ADR-0003)
 - **Stack:** Angular + Ionic + Capacitor for the client; Node.js y-websocket relay for the server. (ADR-0002)
@@ -47,7 +48,8 @@ For quick orientation without reading all 14 ADRs:
 - **Room codes:** 6-char alphanumeric, no look-alikes, retired for snapshot TTL before pool recycling. (ADR-0008)
 - **Access control:** relay-enforced via opaque tokens (password hash, single-use invite tokens). (ADR-0009)
 - **Host authority:** creator is initial host; on drop, 5-second debounce then lowest-peer-ID election. (ADR-0010)
-- **Timer:** host writes `timerStartedAt` to the doc; all clients compute locally; host's client authoritatively triggers reveal. (ADR-0011)
+- **Timer:** host writes `timerStartedAt` to the round at round start; all clients compute locally against `settings.timerDurationMs`; host's client authoritatively triggers reveal. (ADR-0011, ADR-0015)
 - **Snapshots:** 24-hour in-memory TTL on the relay, keyed by room UUID; no disk persistence. (ADR-0012)
 - **Rounds:** flat list with optional `parentRoundId` for re-vote lineage; vote change allowed until reveal. (ADR-0013)
 - **Repo layout:** pnpm workspaces monorepo with `packages/client`, `packages/relay`, `packages/shared`. (ADR-0014)
+- **v1 scope (reveal/timer):** reveal modes are `manual | timer` only (no `unanimous`); `revealMode` and `timerDurationMs` live on `settings`, not on rounds. (ADR-0015)

@@ -34,6 +34,7 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0012](0012-snapshot-policy.md) | Ephemeral room snapshot policy | Accepted |
 | [0013](0013-round-model-flat-parentroundid.md) | Round model: flat list with parentRoundId linking | Accepted |
 | [0014](0014-repo-layout-pnpm-workspaces.md) | Repo layout: pnpm workspaces monorepo | Accepted |
+| [0015](0015-v1-scope-session-level-reveal-and-timer.md) | v1 scope: session-level reveal mode and timer duration | Accepted |
 
 ## When to write an ADR
 
