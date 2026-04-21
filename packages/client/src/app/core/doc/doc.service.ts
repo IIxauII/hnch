@@ -21,6 +21,8 @@ import {
   upsertParticipant as upsertParticipantY,
   type DocProjection,
   type InitDocInit,
+  type JoinCredentials,
+  type JoinRejectionReason,
   type Meta,
   type Participant,
   type ParticipantSnapshot,
@@ -30,10 +32,18 @@ import {
 } from '@hnch/shared'
 import * as Y from 'yjs'
 
+import { environment } from '../../../environments/environment'
+import {
+  createSyncProvider,
+  type SyncProvider,
+  type SyncStatus,
+} from './sync-provider'
+
 /**
  * Caller-facing init for {@link DocService.createSession}. Mirrors the
- * fields in {@link InitDocInit} but the service fills in `roomUuid`,
- * `createdAt`, and (if missing) `revealMode`.
+ * fields in {@link InitDocInit} but the service fills in `createdAt`
+ * (and `revealMode` when missing); `roomUuid` is the one the relay
+ * minted at `POST /rooms` and `roomCode` is its human-typeable twin.
  */
 export interface CreateSessionInit {
   readonly participantId: string
@@ -43,10 +53,21 @@ export interface CreateSessionInit {
   readonly timerDurationMs?: number
   readonly sessionName?: string
   /**
-   * Override the auto-minted room UUID. Tests pass a stable value;
-   * production leaves this undefined so each call gets a fresh UUID.
+   * The room's UUID, minted by the relay's `POST /rooms` response
+   * (ADR-0016). Tests may pass a stable value; production always
+   * plumbs through the relay's assignment.
+   *
+   * Optional for back-compat with tests that mint a purely local doc;
+   * when omitted, a fresh `crypto.randomUUID()` fills in.
    */
   readonly roomUuid?: string
+  /**
+   * The 6-character room code (ADR-0008). Kept on the service as a
+   * separate signal rather than inside the Yjs doc — schema.md is
+   * explicit that "room codes do not appear in the doc" (the code is
+   * a relay-side lookup, the doc travels under the UUID).
+   */
+  readonly roomCode?: string
   /** Clock injection point. Tests freeze this; production omits. */
   readonly now?: () => number
 }
@@ -63,6 +84,14 @@ export interface StartRoundInit {
 }
 
 /**
+ * Options for {@link DocService.connect}. `wsBaseUrl` defaults to the
+ * environment-configured relay URL; tests may override it.
+ */
+export interface ConnectOptions {
+  readonly wsBaseUrl?: string
+}
+
+/**
  * Yjs-backed session state exposed as Angular signals.
  *
  * All Yjs specifics — the `Y.Doc`, the `Y.observe*` wiring, the
@@ -74,17 +103,30 @@ export interface StartRoundInit {
  * The projection + mutation logic proper lives in
  * `@hnch/shared/doc-projection` so it stays unit-testable against a
  * headless `Y.Doc`; this service is a thin Angular wrapper on top.
+ *
+ * Phase 3 adds a sync-provider handle: {@link connect} opens a
+ * `y-websocket` against the relay once the session exists, and
+ * {@link syncStatus} reflects the live connection state for the
+ * UI's status chip.
  */
 @Injectable({ providedIn: 'root' })
 export class DocService {
   // ---------------------------------------------------------------------------
-  // Private Yjs state
+  // Private Yjs + sync state
   // ---------------------------------------------------------------------------
 
   private doc: Y.Doc | null = null
   private observers: Array<() => void> = []
   private readonly projection: WritableSignal<DocProjection | null> =
     signal<DocProjection | null>(null)
+  private readonly roomCodeSignal: WritableSignal<string | null> = signal<
+    string | null
+  >(null)
+  private provider: SyncProvider | null = null
+  private readonly syncStatusSignal: WritableSignal<SyncStatus | 'offline'> =
+    signal<SyncStatus | 'offline'>('offline')
+  private readonly lastRejectionSignal: WritableSignal<JoinRejectionReason | null> =
+    signal<JoinRejectionReason | null>(null)
 
   // ---------------------------------------------------------------------------
   // Public signals
@@ -114,6 +156,28 @@ export class DocService {
     const snap = this.projection()
     return snap ? currentRoundFromProjection(snap) : null
   })
+
+  /**
+   * The relay-assigned 6-character room code (ADR-0008). `null` before
+   * {@link createSession} runs or if the caller didn't plumb a code
+   * through (e.g., local-only test seeds).
+   */
+  readonly roomCode: Signal<string | null> = this.roomCodeSignal.asReadonly()
+
+  /**
+   * Sync connection status. `'offline'` while no provider is attached
+   * (pre-connect, post-disconnect); otherwise mirrors the y-websocket
+   * `status` event's `connecting | connected | disconnected`.
+   */
+  readonly syncStatus: Signal<SyncStatus | 'offline'> =
+    this.syncStatusSignal.asReadonly()
+
+  /**
+   * Last relay-issued join rejection (ADR-0016's close-code table), if
+   * any. Reset on each successful connect.
+   */
+  readonly lastRejection: Signal<JoinRejectionReason | null> =
+    this.lastRejectionSignal.asReadonly()
 
   // ---------------------------------------------------------------------------
   // Lifecycle
@@ -151,7 +215,53 @@ export class DocService {
     initDoc(doc, seed)
 
     this.attach(doc)
+    this.roomCodeSignal.set(init.roomCode ?? null)
     return roomUuid
+  }
+
+  /**
+   * Open a sync connection to the relay for the active session.
+   * Throws if no session exists; idempotently no-ops if a provider is
+   * already attached. Credentials follow ADR-0016's query-param
+   * encoding — `deviceId` is always sent; Phase-5 password/invite
+   * fields ride on the same object without any wire change.
+   */
+  connect(credentials: JoinCredentials, opts: ConnectOptions = {}): void {
+    const doc = this.requireDoc('connect')
+    if (this.provider !== null) return
+    const roomUuid = this.meta()?.roomUuid
+    if (roomUuid === undefined) {
+      throw new Error('DocService.connect: session has no roomUuid')
+    }
+
+    // Start in `connecting` immediately so the UI's status chip doesn't
+    // flash `offline` during the one-tick gap before y-websocket's
+    // first `status` event fires.
+    this.syncStatusSignal.set('connecting')
+
+    this.provider = createSyncProvider({
+      wsBaseUrl: opts.wsBaseUrl ?? environment.relayWsUrl,
+      roomUuid,
+      doc,
+      credentials,
+      onStatusChange: (status) => this.syncStatusSignal.set(status),
+      onRejectionChange: (reason) => this.lastRejectionSignal.set(reason),
+    })
+  }
+
+  /**
+   * Close the sync connection without tearing down the session. Used
+   * when the client wants to drop the socket but keep viewing local
+   * state; {@link endSession} calls this automatically.
+   */
+  disconnect(): void {
+    if (this.provider === null) {
+      this.syncStatusSignal.set('offline')
+      return
+    }
+    this.provider.disconnect()
+    this.provider = null
+    this.syncStatusSignal.set('offline')
   }
 
   /**
@@ -160,10 +270,13 @@ export class DocService {
    * to `false`. Idempotent — safe to call when no session is active.
    */
   endSession(): void {
+    this.disconnect()
     this.detach()
     this.doc?.destroy()
     this.doc = null
     this.projection.set(null)
+    this.roomCodeSignal.set(null)
+    this.lastRejectionSignal.set(null)
   }
 
   // ---------------------------------------------------------------------------
@@ -272,3 +385,4 @@ export class DocService {
     return this.doc
   }
 }
+
