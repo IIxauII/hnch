@@ -1,58 +1,104 @@
 import { Injectable, signal, type Signal } from '@angular/core'
+import { Device } from '@capacitor/device'
 import { Preferences } from '@capacitor/preferences'
 
 /**
- * Persistent per-install participant identifier.
+ * Persistent per-install participant identifier — ADR-0005.
  *
- * Phase-2-only stub for the real identity layer described in
- * ADR-0005 — the Capacitor Device plugin isn't wired yet. The shape
- * of this service mirrors what the Phase-3 swap will expose so no
- * consumer needs to change: one async getter that yields a stable
- * string for the life of the install, plus a sync cached signal for
- * post-bootstrap reads.
+ * Resolution order, single-shot on first access:
  *
- * The key `hnch.participantId` is retired (not migrated) when
- * Phase 3 replaces the value with the real device identifier. Plan
- * §2.2 for the rationale, ADR-0005 for the target design.
+ *   1. If Preferences holds a legacy `hnch.participantId` (minted by
+ *      the Phase-2 `crypto.randomUUID()` stub), keep using it. Phase 2
+ *      has no durable sessions, so the only thing this preserves is
+ *      the user's display-name binding across the Phase-3 upgrade.
+ *      Plan §2.2 and the schema-version comment below for the
+ *      eventual retirement path.
+ *   2. Otherwise, ask the Capacitor Device plugin for a stable id
+ *      (`Device.getId().identifier`). On iOS/Android that's the
+ *      platform-native vendor identifier; on web the plugin generates
+ *      and persists one via localStorage on our behalf.
+ *
+ * The chosen id is cached on the service's signal so screens and
+ * guards can read it synchronously after bootstrap. An
+ * `APP_INITIALIZER` pre-warms {@link ensureLoaded} so consumers never
+ * race the first-access promise.
+ *
+ * The public signal shape is unchanged from Phase 2; call sites that
+ * read `participantIdService.id()` compile and run identically.
  */
 @Injectable({ providedIn: 'root' })
 export class ParticipantIdService {
   static readonly PARTICIPANT_ID_KEY = 'hnch.participantId'
 
   private readonly idSignal = signal<string | null>(null)
+  private loading: Promise<string> | null = null
 
   /**
-   * Readable signal of the cached id, or `null` if {@link getOrCreateId}
-   * has not yet resolved. Components should prefer this for synchronous
-   * reads once the id is known; anything on a cold start must await
-   * {@link getOrCreateId} once first.
+   * Readable signal of the cached id, or `null` if {@link ensureLoaded}
+   * (or {@link getOrCreateId}) has not yet resolved. Post-bootstrap
+   * reads are synchronous thanks to the `APP_INITIALIZER` harness in
+   * `main.ts`; anything on a cold start must await once first.
    */
   readonly id: Signal<string | null> = this.idSignal.asReadonly()
 
   /**
-   * Resolve the participant id, generating and persisting one on first
-   * use. Safe to call multiple times concurrently — the underlying
-   * Preferences call is idempotent and the last write wins (and, in
-   * the single-client Phase 2 world, there is no contention anyway).
+   * Resolve the participant id, draining the Phase-2 legacy key first
+   * and falling back to `Device.getId()` for fresh installs. Safe to
+   * call concurrently — a single in-flight promise is shared so we
+   * never double-read the Preferences backing store.
    */
   async getOrCreateId(): Promise<string> {
     const cached = this.idSignal()
     if (cached) return cached
+    if (this.loading) return this.loading
 
-    const { value } = await Preferences.get({
+    this.loading = this.resolve()
+    try {
+      const id = await this.loading
+      return id
+    } finally {
+      // Clear the in-flight handle either way; subsequent calls read
+      // straight from the signal without re-hitting the plugin bridge.
+      this.loading = null
+    }
+  }
+
+  /**
+   * Alias for {@link getOrCreateId}. Named for the `APP_INITIALIZER`
+   * call site (plan §3.6) — "ensure this is loaded before the app
+   * paints" is the intent at bootstrap, not "create if missing".
+   */
+  async ensureLoaded(): Promise<string> {
+    return this.getOrCreateId()
+  }
+
+  private async resolve(): Promise<string> {
+    // Migration read (plan §2.2): keep the Phase-2 stub id if present.
+    // We intentionally do NOT overwrite it with the Device id — doing
+    // so would detach the display-name binding on upgrade. Once we
+    // bump a `schemaVersion` in a later phase, this branch can retire.
+    const legacy = await Preferences.get({
       key: ParticipantIdService.PARTICIPANT_ID_KEY,
     })
-    if (value) {
-      this.idSignal.set(value)
-      return value
+    if (legacy.value) {
+      this.idSignal.set(legacy.value)
+      return legacy.value
     }
 
-    const fresh = crypto.randomUUID()
+    // Fresh install path: ADR-0005's Device.getId(). Capacitor's web
+    // backend generates + persists a UUID via localStorage, so the same
+    // code path works under PWA, Capacitor iOS, and Capacitor Android.
+    const { identifier } = await Device.getId()
+    // We still stash it under the legacy key so a future Preferences
+    // read cold-start hits the same branch. This keeps
+    // `crypto.randomUUID()` and `Device.getId()` installs converging
+    // on one storage slot, which simplifies the eventual schema-bump
+    // migration.
     await Preferences.set({
       key: ParticipantIdService.PARTICIPANT_ID_KEY,
-      value: fresh,
+      value: identifier,
     })
-    this.idSignal.set(fresh)
-    return fresh
+    this.idSignal.set(identifier)
+    return identifier
   }
 }
