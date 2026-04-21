@@ -36,6 +36,7 @@ import {
   shareOutline,
 } from 'ionicons/icons'
 
+import { ConnectionChipComponent } from '../core/connection-chip.component'
 import { DocService } from '../core/doc/doc.service'
 import { LastSessionService } from '../core/last-session.service'
 import { ParticipantIdService } from '../core/participant-id.service'
@@ -68,6 +69,7 @@ import { SessionSettingsSheetComponent } from '../session-settings/session-setti
 @Component({
   selector: 'app-lobby',
   imports: [
+    ConnectionChipComponent,
     IonAvatar,
     IonBadge,
     IonButton,
@@ -103,6 +105,7 @@ import { SessionSettingsSheetComponent } from '../session-settings/session-setti
         </ion-buttons>
         <ion-title>Lobby</ion-title>
         <ion-buttons slot="end">
+          <app-connection-chip></app-connection-chip>
           <ion-button
             aria-label="More options"
             (click)="openActionSheet()"
