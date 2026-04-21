@@ -1,11 +1,13 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  effect,
   inject,
+  Injector,
   signal,
 } from '@angular/core'
 import { Router } from '@angular/router'
-import { FIBONACCI_SCALE } from '@hnch/shared'
+import { FIBONACCI_SCALE, type JoinRejectionReason } from '@hnch/shared'
 import {
   ActionSheetController,
   IonButton,
@@ -17,6 +19,7 @@ import {
   IonIcon,
   IonTitle,
   IonToolbar,
+  ToastController,
 } from '@ionic/angular/standalone'
 import { addIcons } from 'ionicons'
 import {
@@ -29,6 +32,11 @@ import {
 import { environment } from '../../environments/environment'
 import { DisplayNameService } from '../core/display-name.service'
 import { DocService } from '../core/doc/doc.service'
+import {
+  LastSessionService,
+  type LastSessionCache,
+  type LastSessionScreen,
+} from '../core/last-session.service'
 import { ParticipantIdService } from '../core/participant-id.service'
 import { mintRoom } from '../core/relay/relay-api'
 import {
@@ -39,18 +47,21 @@ import {
 /**
  * Home launchpad — ux.md §5.2.
  *
- * Two primary entry points (Create, Join) and a ⋯ action sheet that
- * currently only exposes Settings. The JumpBackInBanner shell is
- * rendered iff `jumpBackInSummary()` is non-null; Phase 3 will wire
- * that signal to the local session cache. Until then the banner
- * stays hidden — its DOM is loaded and ready to accept state
- * without further template churn.
+ * Two primary entry points (Create, Join), an optional Jump-back-in
+ * banner above them, and a ⋯ action sheet that currently only
+ * exposes Settings. The banner renders iff `lastSessionService.get()`
+ * resolves a non-expired cache entry; tapping it fast-path-rejoins
+ * using the cached `roomUuid` so we skip `GET /rooms/:code`.
+ *
+ * Rejoin outcome handling (plan §3.8): we open the socket while still
+ * mounted on Home, then race a `syncStatus === 'connected'` transition
+ * against a relay rejection. On `unknown-room` we tear the session
+ * down, clear the cache, toast, and stay put; any other outcome
+ * navigates to the cached `lastScreen`.
  *
  * "Create Room" mints a fresh room on the relay (`POST /rooms`,
  * ADR-0016), seeds a `Y.Doc` with the returned UUID via DocService,
- * opens the y-websocket connection, then navigates to `/lobby`. The
- * participantId → deviceId swap lands later in Phase 3 alongside the
- * Capacitor-Device plumbing.
+ * opens the y-websocket connection, then navigates to `/lobby`.
  */
 @Component({
   selector: 'app-home',
@@ -88,6 +99,7 @@ import {
       @if (jumpBackInSummary(); as summary) {
         <app-jump-back-in-banner
           [summary]="summary"
+          [resuming]="resuming()"
           (resumeRequested)="onResumeJumpBack()"
         />
       }
@@ -142,15 +154,27 @@ import {
 export class HomePage {
   private readonly router = inject(Router)
   private readonly actionSheetCtrl = inject(ActionSheetController)
+  private readonly toastCtrl = inject(ToastController)
   private readonly displayNameService = inject(DisplayNameService)
   private readonly participantIdService = inject(ParticipantIdService)
+  private readonly lastSessionService = inject(LastSessionService)
   private readonly docService = inject(DocService)
+  private readonly injector = inject(Injector)
 
   /**
-   * Backed-out-session summary for the Jump-back-in banner. Null in
-   * Phase 1 — wired to the local session cache in Phase 3.
+   * Summary passed into the banner. `null` means "no banner" — either
+   * no cache entry, entry past TTL, or we just cleared after an
+   * `unknown-room` bounce. Populated once async from
+   * `lastSessionService.get()` in the constructor.
    */
   protected readonly jumpBackInSummary = signal<JumpBackInSummary | null>(null)
+
+  /**
+   * `true` while a rejoin is in flight. Bound to the banner's
+   * `disabled` state so double-taps are swallowed, and guards the
+   * `onResumeJumpBack` handler against re-entry.
+   */
+  protected readonly resuming = signal(false)
 
   /**
    * Guards the Create Room button against double-tap while the
@@ -166,6 +190,7 @@ export class HomePage {
       'ellipsis-horizontal-circle': ellipsisHorizontalCircle,
       'return-up-back-outline': returnUpBackOutline,
     })
+    void this.loadBannerFromCache()
   }
 
   protected async onCreateRoom(): Promise<void> {
@@ -218,10 +243,78 @@ export class HomePage {
     await this.router.navigate(['/join'])
   }
 
-  protected onResumeJumpBack(): void {
-    // Phase 3: reconnect the cached session and push the recorded
-    // screen. No-op while the summary signal is null.
-    console.debug('resume jump-back — phase 3')
+  /**
+   * Fast-path rejoin per plan §3.8.
+   *
+   * Skips `GET /rooms/:code` because we already have the UUID, then
+   * waits for the first `'connected'` / relay-rejection transition
+   * so we can detect `unknown-room` (the only rejection that Phase 3
+   * emits in practice, per §2.4) without navigating first and
+   * bouncing. Any other outcome — including a timeout — optimistically
+   * proceeds to the cached screen; the chip polish in commit §10 will
+   * surface lingering disconnects there.
+   */
+  protected async onResumeJumpBack(): Promise<void> {
+    if (this.resuming()) return
+    this.resuming.set(true)
+    try {
+      // Re-read the cache at tap time rather than trusting the signal:
+      // the entry may have aged past TTL since the banner first
+      // rendered (cold-start banners that idle for 24 h), and re-reading
+      // sweeps stale entries in one place.
+      const cache = await this.lastSessionService.get()
+      if (!cache) {
+        this.jumpBackInSummary.set(null)
+        return
+      }
+
+      const [displayName, participantId] = await Promise.all([
+        this.displayNameService.getDisplayName(),
+        this.participantIdService.getOrCreateId(),
+      ])
+
+      this.docService.endSession()
+      this.docService.createSession({
+        participantId,
+        displayName: displayName ?? '',
+        defaultScale: FIBONACCI_SCALE,
+        revealMode: 'manual',
+        roomUuid: cache.roomUuid,
+        roomCode: cache.roomCode,
+      })
+      this.docService.connect({
+        roomCode: cache.roomCode,
+        deviceId: participantId,
+      })
+
+      const outcome = await this.waitForJoinOutcome()
+      if (outcome === 'unknown-room') {
+        // Relay has forgotten this room (ADR-0012's TTL lapsed or the
+        // server restarted). Tear the local session down, drop the
+        // banner, and stay on Home.
+        this.docService.endSession()
+        await this.lastSessionService.clear()
+        this.jumpBackInSummary.set(null)
+        await this.toast(
+          "That session isn't active anymore. Start a new one or join a fresh code.",
+        )
+        return
+      }
+      if (typeof outcome === 'string' && outcome !== 'connected' && outcome !== 'timeout') {
+        // Phase-5 rejection reasons land here once enforcement is on.
+        // For now we log and stay — a useful fallback should `connect`
+        // ever surface an unexpected reason from the relay mid-Phase 3.
+        this.docService.endSession()
+        await this.toast(rejectionCopy(outcome))
+        return
+      }
+
+      await this.router.navigate([routeForScreen(cache.lastScreen)], {
+        replaceUrl: true,
+      })
+    } finally {
+      this.resuming.set(false)
+    }
   }
 
   protected async openActionSheet(): Promise<void> {
@@ -241,5 +334,115 @@ export class HomePage {
       ],
     })
     await sheet.present()
+  }
+
+  /**
+   * Await the first decisive event off the doc-service signals after
+   * a `connect()` call: either `syncStatus === 'connected'`, a
+   * relay-issued rejection, or a timeout. Implemented with a one-shot
+   * `effect()` captured in `this.injector` so it tears itself down
+   * when any branch resolves.
+   *
+   * Timeout is a safety net — y-websocket will reconnect in the
+   * background if the first attempt times out, but the user has
+   * tapped a button and we owe them a visible outcome.
+   */
+  private waitForJoinOutcome(
+    opts: { timeoutMs?: number } = {},
+  ): Promise<'connected' | 'timeout' | JoinRejectionReason> {
+    const timeoutMs = opts.timeoutMs ?? 5_000
+    return new Promise((resolve) => {
+      let settled = false
+      let timeoutId: ReturnType<typeof setTimeout> | null = null
+      const settle = (
+        outcome: 'connected' | 'timeout' | JoinRejectionReason,
+      ): void => {
+        if (settled) return
+        settled = true
+        if (timeoutId !== null) clearTimeout(timeoutId)
+        // Defer destroy so the effect function returns before we
+        // tear its own handle down.
+        queueMicrotask(() => ref.destroy())
+        resolve(outcome)
+      }
+
+      const ref = effect(
+        () => {
+          if (settled) return
+          const rejection = this.docService.lastRejection()
+          if (rejection !== null) {
+            settle(rejection)
+            return
+          }
+          const status = this.docService.syncStatus()
+          if (status === 'connected') settle('connected')
+        },
+        { injector: this.injector },
+      )
+
+      timeoutId = setTimeout(() => settle('timeout'), timeoutMs)
+    })
+  }
+
+  private async loadBannerFromCache(): Promise<void> {
+    const cache = await this.lastSessionService.get()
+    if (!cache) return
+    this.jumpBackInSummary.set(summaryFromCache(cache))
+  }
+
+  private async toast(message: string): Promise<void> {
+    const t = await this.toastCtrl.create({
+      message,
+      duration: 2400,
+      position: 'bottom',
+    })
+    await t.present()
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Module-private helpers
+// ---------------------------------------------------------------------------
+
+function summaryFromCache(cache: LastSessionCache): JumpBackInSummary {
+  return {
+    roomCode: cache.roomCode,
+    lastScreen: cache.lastScreen,
+  }
+}
+
+function routeForScreen(screen: LastSessionScreen): string {
+  switch (screen) {
+    case 'lobby':
+      return '/lobby'
+    case 'estimating':
+      return '/estimating'
+    case 'revealed':
+      return '/revealed'
+  }
+}
+
+/**
+ * Defensive fallback copy for relay rejections we don't expect in
+ * Phase 3 (the only live reason is `unknown-room`, handled inline).
+ * Mirrors the Join page's switch so Phase 5's enforcement turns on
+ * without another round of copy work.
+ */
+function rejectionCopy(reason: JoinRejectionReason): string {
+  switch (reason) {
+    case 'unknown-room':
+      return "That session isn't active anymore."
+    case 'wrong-password':
+      return 'That password is incorrect.'
+    case 'invalid-invite':
+      return "That invite link isn't valid."
+    case 'expired-invite':
+      return 'That invite link has expired.'
+    case 'invite-already-redeemed':
+      return 'That invite link has already been used.'
+    case 'room-full':
+      return 'That room is full.'
+    case 'malformed-credentials':
+      return "Couldn't rejoin with the info on file."
   }
 }
