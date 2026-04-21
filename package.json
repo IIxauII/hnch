@@ -1,0 +1,22 @@
+{
+  "name": "hnch",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Planning poker app. See project.md and adr/ for design.",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "preinstall": "npx -y only-allow pnpm",
+    "lint": "pnpm -r --if-present run lint",
+    "test": "pnpm -r --if-present run test",
+    "build": "pnpm -r --if-present run build",
+    "dev": "pnpm -r --if-present --parallel run dev",
+    "typecheck": "pnpm -r --if-present run typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}
