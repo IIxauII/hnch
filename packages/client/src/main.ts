@@ -1,3 +1,4 @@
+import { inject, provideAppInitializer } from '@angular/core'
 import { bootstrapApplication } from '@angular/platform-browser'
 import {
   PreloadAllModules,
@@ -10,6 +11,7 @@ import { IonicRouteStrategy, provideIonicAngular } from '@ionic/angular/standalo
 
 import { AppComponent } from './app/app.component'
 import { routes } from './app/app.routes'
+import { ParticipantIdService } from './app/core/participant-id.service'
 
 // Ionic's `mode` is intentionally left unset — Ionic auto-detects per
 // platform (iOS on iPhone, Material on Android / PWA). See ux.md §2.
@@ -22,6 +24,12 @@ bootstrapApplication(AppComponent, {
       withComponentInputBinding(),
     ),
     { provide: RouteReuseStrategy, useClass: IonicRouteStrategy },
+    // Pre-warm the participant id so every downstream screen can read
+    // `participantIdService.id()` synchronously (plan §3.6). The
+    // Capacitor Device bridge is the slow path on cold start; doing it
+    // once here keeps Home / Lobby / Estimating from ever observing a
+    // transient `null`.
+    provideAppInitializer(() => inject(ParticipantIdService).ensureLoaded()),
   ],
 }).catch((err: unknown) => {
   // eslint-disable-next-line no-console
