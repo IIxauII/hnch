@@ -18,6 +18,8 @@
  * client-driven and does not require relay cooperation.
  */
 
+import { createCodePool } from './code-pool.js'
+import { createRoomStore } from './room-store.js'
 import { createRelayServer } from './server.js'
 
 const DEFAULT_PORT = 1234
@@ -30,7 +32,9 @@ function main(): void {
     process.exit(1)
   }
 
-  const server = createRelayServer()
+  const codePool = createCodePool()
+  const roomStore = createRoomStore(codePool)
+  const server = createRelayServer({ roomStore })
   server.listen(port, () => {
     const address = server.address()
     const boundPort = typeof address === 'object' && address !== null ? address.port : port
