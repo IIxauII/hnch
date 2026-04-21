@@ -18,6 +18,7 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone'
 
+import { ConnectionChipComponent } from '../core/connection-chip.component'
 import { DocService } from '../core/doc/doc.service'
 import { LastSessionService } from '../core/last-session.service'
 import { ParticipantIdService } from '../core/participant-id.service'
@@ -53,6 +54,7 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
   selector: 'app-estimating',
   imports: [
     AvatarVoteRowComponent,
+    ConnectionChipComponent,
     IonBackButton,
     IonButton,
     IonButtons,
@@ -72,6 +74,9 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
           <ion-back-button defaultHref="/lobby"></ion-back-button>
         </ion-buttons>
         <ion-title>Estimating</ion-title>
+        <ion-buttons slot="end">
+          <app-connection-chip></app-connection-chip>
+        </ion-buttons>
       </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding">
