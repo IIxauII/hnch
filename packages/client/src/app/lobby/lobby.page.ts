@@ -269,17 +269,12 @@ export class LobbyPage {
   )
 
   /**
-   * Room-code display. Phase 3 replaces this with the relay-assigned
-   * 6-char code (ADR-0008); for Phase 2 we slice the room UUID so the
-   * chrome has *something* to show and the screen shape matches the
-   * final UX. Uppercased for readability.
+   * Relay-assigned 6-character room code (ADR-0008). The code is
+   * plumbed through `DocService` after `POST /rooms` resolves; schema.md
+   * is explicit that codes do not live in the Yjs doc, so we read it
+   * from the service's dedicated signal rather than `meta()`.
    */
-  protected readonly roomCode = computed(() => {
-    const uuid = this.docService.meta()?.roomUuid
-    if (!uuid) return null
-    // Phase 3: replace with relay-assigned room code (ADR-0008).
-    return uuid.replace(/-/g, '').slice(0, 6).toUpperCase()
-  })
+  protected readonly roomCode = this.docService.roomCode
 
   /** 1-based index for the "Start Round N" label. */
   protected readonly nextRoundNumber = computed(() => this.rounds().length + 1)

@@ -1,0 +1,166 @@
+/**
+ * Thin wrapper around `y-websocket`'s `WebsocketProvider`.
+ *
+ * Translates the Phase-3 handshake contract (ADR-0016) — URL shape,
+ * query-param credentials, close-code → `JoinRejectionReason` — into
+ * an Angular-flavored API: read-only signals for connection status and
+ * the most-recent relay rejection, plus a `disconnect()` teardown.
+ *
+ * Keeping the provider behind this seam means the rest of the client
+ * never imports `y-websocket` directly; Phase 5's credential-bearing
+ * join path, Phase 3 §3.8's jump-back-in fast path, and any future
+ * transport swap all land here without touching call sites.
+ */
+
+import { signal, type Signal } from '@angular/core'
+import type * as Y from 'yjs'
+import type { Awareness } from 'y-protocols/awareness'
+import {
+  JOIN_REJECTION_REASONS_BY_CODE,
+  type JoinCredentials,
+  type JoinRejectionReason,
+} from '@hnch/shared'
+import { WebsocketProvider } from 'y-websocket'
+
+/**
+ * Connection state exposed to the UI. Mirrors the y-websocket `status`
+ * event's three values exactly so a chip can bind directly.
+ */
+export type SyncStatus = 'connecting' | 'connected' | 'disconnected'
+
+export interface SyncProviderOptions {
+  /** Base URL of the relay, e.g. `ws://localhost:1234` (no trailing slash). */
+  readonly wsBaseUrl: string
+  /** Room UUID resolved from `GET /rooms/:code` (ADR-0016). */
+  readonly roomUuid: string
+  /** Local `Y.Doc` the provider will sync. */
+  readonly doc: Y.Doc
+  /** Credentials — `deviceId` is required, the rest are Phase-5 fields. */
+  readonly credentials: JoinCredentials
+  /**
+   * Awareness instance to share with the provider. Optional — if omitted,
+   * `y-websocket` creates and owns a fresh one accessible via `awareness`.
+   */
+  readonly awareness?: Awareness
+  /**
+   * Override `WebSocket` — useful in Node-side tests. Defaults to the
+   * browser-global `WebSocket`.
+   */
+  readonly WebSocketPolyfill?: typeof WebSocket
+  /**
+   * Fires on every `y-websocket` `status` event. Lets callers mirror
+   * status into their own reactive state without subscribing to the
+   * returned signal — the signal is maintained in parallel for UIs that
+   * want to bind directly.
+   */
+  readonly onStatusChange?: (status: SyncStatus) => void
+  /**
+   * Fires once when the relay closes the socket with a private-use
+   * code from ADR-0016's table. `null` is passed on successful
+   * (re)connect to clear any prior rejection surfaced to the UI.
+   */
+  readonly onRejectionChange?: (reason: JoinRejectionReason | null) => void
+}
+
+/**
+ * Public handle. Components read `status` / `lastRejection` as signals
+ * and call `disconnect()` on session teardown.
+ */
+export interface SyncProvider {
+  readonly status: Signal<SyncStatus>
+  /**
+   * Set to the decoded `JoinRejectionReason` if the relay closes the
+   * socket with a private-use code from ADR-0016's table. Reset to
+   * `null` on any subsequent successful connect.
+   */
+  readonly lastRejection: Signal<JoinRejectionReason | null>
+  /** The underlying awareness instance — shared with `y-websocket`. */
+  readonly awareness: Awareness
+  /**
+   * Stop reconnecting, close the socket, and release observers. Safe
+   * to call multiple times.
+   */
+  disconnect(): void
+}
+
+/**
+ * Build the URL-param bag for the WS upgrade per ADR-0016. Kept out
+ * of the main factory so the mapping is unit-testable on its own.
+ */
+export function credentialsToParams(credentials: JoinCredentials): Record<string, string> {
+  const params: Record<string, string> = { did: credentials.deviceId }
+  if (credentials.passwordHash !== undefined) {
+    params['pw'] = credentials.passwordHash
+  }
+  if (credentials.inviteToken !== undefined) {
+    params['inv'] = credentials.inviteToken
+  }
+  return params
+}
+
+/**
+ * Opens a `WebsocketProvider` against the relay's `/ws/:uuid` endpoint
+ * (ADR-0016) and returns a signal-backed handle.
+ *
+ * `wsBaseUrl` should end in `/ws`'s parent — the provider appends
+ * `/<roomname>`, so we pass `${wsBaseUrl}/ws` as the server URL and
+ * `roomUuid` as the roomname, yielding `${wsBaseUrl}/ws/${roomUuid}`.
+ */
+export function createSyncProvider(opts: SyncProviderOptions): SyncProvider {
+  const status = signal<SyncStatus>('connecting')
+  const lastRejection = signal<JoinRejectionReason | null>(null)
+
+  const serverUrl = `${opts.wsBaseUrl}/ws`
+  const params = credentialsToParams(opts.credentials)
+
+  const provider = new WebsocketProvider(serverUrl, opts.roomUuid, opts.doc, {
+    params,
+    connect: true,
+    ...(opts.awareness !== undefined && { awareness: opts.awareness }),
+    ...(opts.WebSocketPolyfill !== undefined && {
+      WebSocketPolyfill: opts.WebSocketPolyfill,
+    }),
+  })
+
+  const onStatus = (ev: { status: SyncStatus }): void => {
+    status.set(ev.status)
+    opts.onStatusChange?.(ev.status)
+    // A successful (re)connect invalidates any prior rejection — the
+    // relay accepted us, so clear the surfaced reason.
+    if (ev.status === 'connected') {
+      lastRejection.set(null)
+      opts.onRejectionChange?.(null)
+    }
+  }
+
+  const onConnectionClose = (event: CloseEvent | null): void => {
+    if (event === null) return
+    const reason = JOIN_REJECTION_REASONS_BY_CODE.get(event.code)
+    if (reason === undefined) return
+    // A relay-issued rejection reason means reconnect-loop won't help;
+    // stop it so the UI can route the user somewhere appropriate.
+    lastRejection.set(reason)
+    opts.onRejectionChange?.(reason)
+    provider.shouldConnect = false
+    provider.disconnect()
+  }
+
+  provider.on('status', onStatus)
+  provider.on('connection-close', onConnectionClose)
+
+  let disposed = false
+  return {
+    status,
+    lastRejection,
+    awareness: provider.awareness,
+    disconnect(): void {
+      if (disposed) return
+      disposed = true
+      provider.off('status', onStatus)
+      provider.off('connection-close', onConnectionClose)
+      provider.shouldConnect = false
+      provider.disconnect()
+      provider.destroy()
+    },
+  }
+}

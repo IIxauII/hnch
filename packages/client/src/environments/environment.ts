@@ -2,9 +2,19 @@
 // `ng build` replaces `environment.ts` with `environment.prod.ts`.
 // The list of file replacements can be found in `angular.json`.
 
+/**
+ * Development environment config.
+ *
+ * The `relay*Url` constants point at the relay launched by the root
+ * `pnpm dev` script (plan §2.6). Local dev expects the relay on
+ * `localhost:1234`; production swaps in the deployed URLs via
+ * `environment.prod.ts`.
+ */
 export const environment = {
-  production: false
-};
+  production: false,
+  relayHttpUrl: 'http://localhost:1234',
+  relayWsUrl: 'ws://localhost:1234',
+}
 
 /*
  * For easier debugging in development mode, you can import the following file

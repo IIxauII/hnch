@@ -26,9 +26,11 @@ import {
   returnUpBackOutline,
 } from 'ionicons/icons'
 
+import { environment } from '../../environments/environment'
 import { DisplayNameService } from '../core/display-name.service'
 import { DocService } from '../core/doc/doc.service'
 import { ParticipantIdService } from '../core/participant-id.service'
+import { mintRoom } from '../core/relay/relay-api'
 import {
   JumpBackInBannerComponent,
   type JumpBackInSummary,
@@ -44,9 +46,11 @@ import {
  * stays hidden — its DOM is loaded and ready to accept state
  * without further template churn.
  *
- * "Create Room" seeds a fresh local `Y.Doc` via the DocService and
- * navigates to `/lobby`; there is no network yet. The relay
- * handshake and participantId → deviceId swap both land in Phase 3.
+ * "Create Room" mints a fresh room on the relay (`POST /rooms`,
+ * ADR-0016), seeds a `Y.Doc` with the returned UUID via DocService,
+ * opens the y-websocket connection, then navigates to `/lobby`. The
+ * participantId → deviceId swap lands later in Phase 3 alongside the
+ * Capacitor-Device plumbing.
  */
 @Component({
   selector: 'app-home',
@@ -173,9 +177,13 @@ export class HomePage {
       // The displayNameGuard has already ensured this is non-null
       // before we ever rendered, so the `?? ''` fallback is defense
       // in depth rather than an expected branch.
-      const [displayName, participantId] = await Promise.all([
+      const [displayName, participantId, minted] = await Promise.all([
         this.displayNameService.getDisplayName(),
         this.participantIdService.getOrCreateId(),
+        // Mint the room on the relay (ADR-0016 `POST /rooms`). Until
+        // we introduce a local-session cache we do this eagerly; if
+        // the relay is unreachable the promise rejects and we bail.
+        mintRoom(environment.relayHttpUrl),
       ])
 
       // Tear down any leftover session (e.g. back-nav from a prior
@@ -187,6 +195,17 @@ export class HomePage {
         displayName: displayName ?? '',
         defaultScale: FIBONACCI_SCALE,
         revealMode: 'manual',
+        roomUuid: minted.uuid,
+        roomCode: minted.code,
+      })
+
+      // Open the sync connection so our own writes propagate and the
+      // UI's status chip starts reflecting live state. ADR-0005's
+      // deviceId slot is filled from `participantId` until the
+      // Capacitor-Device swap in a later P3 commit.
+      this.docService.connect({
+        roomCode: minted.code,
+        deviceId: participantId,
       })
 
       await this.router.navigate(['/lobby'])
