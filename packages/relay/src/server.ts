@@ -1,31 +1,39 @@
 /**
- * HTTP server for the hnch relay.
+ * HTTP + WS server for the hnch relay.
  *
- * This module is the routing spine of the relay. Current routes:
+ * Routes:
  *
  *   - `GET /health` — liveness probe.
  *   - `POST /rooms` — mints a room, returns `{ uuid, code }`
  *     (ADR-0008, ADR-0016).
  *   - `GET /rooms/:code` — resolves a code to a UUID and reports the
- *     room's access mode, per ADR-0016. Responds `404 { reason:
- *     'unknown-room' }` if the code is not live.
+ *     room's access mode, per ADR-0016. Responds
+ *     `404 { reason: 'unknown-room' }` if the code is not live.
+ *   - `WS /ws/:uuid` — handed to the y-websocket-compatible handler
+ *     (see `ws-connection.ts`) after the `upgrade` event. Carries
+ *     `JoinCredentials` as URL query params per ADR-0016; in this
+ *     commit the relay is in *permissive* mode (plan §2.4): any
+ *     well-formed handshake with a known UUID is accepted. The
+ *     handshake-shape gate and Phase-5 enforcement hook land next to
+ *     the sync-provider wiring in later P3 commits.
  *
- * Coming in subsequent Phase 3 commits:
- *
- *   - `upgrade` → `WS /ws/:uuid` handoff to the y-websocket helper
- *     per ADR-0001 and ADR-0016, with the 24h in-memory snapshot
- *     lifecycle per ADR-0012.
- *   - Pre-upgrade shape validation of `JoinCredentials`, returning
- *     HTTP 400 with `reason: 'malformed-credentials'` for fail-fast
- *     per ADR-0016.
- *
- * The server is exposed as a factory so tests can stand an instance
- * up on an ephemeral port and tear it down cleanly.
+ * Pre-upgrade rejections close the raw socket with a minimal HTTP
+ * response so the client sees a clean `4xx` rather than a mysterious
+ * closed WS — the post-upgrade close-code table from ADR-0016 is only
+ * meaningful once the socket has been handed to the WS protocol.
  */
 
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
+import {
+  createServer,
+  type IncomingMessage,
+  type Server,
+  type ServerResponse,
+} from 'node:http'
+import type { Duplex } from 'node:stream'
+import { WebSocketServer, type WebSocket } from 'ws'
 import { normalizeRoomCode, type JoinRejectionReason } from '@hnch/shared'
-import { accessModeOf, type AccessMode, type RoomStore } from './room-store.js'
+import { accessModeOf, type AccessMode, type RoomRecord, type RoomStore } from './room-store.js'
+import { setupWSConnection, type WsRoom } from './ws-connection.js'
 
 /** Payload of a successful `GET /health` response. */
 export interface HealthPayload {
@@ -53,22 +61,20 @@ export interface RelayServerDeps {
   readonly roomStore: RoomStore
 }
 
-/** Max bytes we'll read on a JSON body before giving up. The relay's
- *  request bodies are all empty objects or small credential blobs, so
- *  anything larger is either misconfiguration or abuse. */
+/** Max bytes we'll read on a JSON body before giving up. */
 const MAX_BODY_BYTES = 4 * 1024
 
+/** Regex for `WS /ws/:uuid` (strict, path-only — query strings are
+ *  parsed separately via `URL`). */
+const WS_PATH_RE = /^\/ws\/([0-9a-fA-F-]{36})\/?$/
+
 /**
- * Creates the relay's HTTP server. The returned server is not yet
- * listening; callers invoke `.listen(port, host?)` themselves. This
- * keeps test and production paths symmetric and lets tests use port 0
- * to pick an ephemeral port.
+ * Creates the relay's HTTP + WebSocket server. The returned server is
+ * not yet listening; callers invoke `.listen(port, host?)` themselves.
  */
 export function createRelayServer(deps: RelayServerDeps): Server {
-  return createServer((req, res) => {
-    handleRequest(req, res, deps).catch((err: unknown) => {
-      // Last-ditch catch — individual handlers should already have
-      // responded. This only fires on truly unexpected failures.
+  const httpServer = createServer((req, res) => {
+    handleHttpRequest(req, res, deps).catch((err: unknown) => {
       console.error('relay: unhandled error', err)
       if (!res.headersSent) {
         sendJson(res, 500, { error: 'internal-error' })
@@ -77,24 +83,39 @@ export function createRelayServer(deps: RelayServerDeps): Server {
       }
     })
   })
+
+  // `noServer: true` hands upgrade wiring to our listener so we can
+  // route based on pathname and authoritatively reject unknown UUIDs
+  // before the protocol handshake completes.
+  const wss = new WebSocketServer({ noServer: true })
+
+  httpServer.on('upgrade', (req, socket, head) => {
+    handleUpgrade(req, socket, head, wss, deps)
+  })
+
+  // When the HTTP server closes, also stop accepting new upgrades and
+  // close live sockets so tests can tear down cleanly.
+  httpServer.on('close', () => {
+    wss.close()
+  })
+
+  return httpServer
 }
 
-async function handleRequest(
+async function handleHttpRequest(
   req: IncomingMessage,
   res: ServerResponse,
   deps: RelayServerDeps,
 ): Promise<void> {
-  // `req.url` is always defined for incoming requests on a node http
-  // server, but the type allows undefined; guard and 400 defensively.
   const url = req.url
   if (url === undefined) {
     sendJson(res, 400, { error: 'bad-request' })
     return
   }
 
-  // Strip any query string before routing. `/ws/:uuid` is handled by
-  // the `upgrade` event, not by this HTTP router, so we never need to
-  // inspect query params on the request path.
+  // Strip query string before routing. `/ws/:uuid` is handled by the
+  // `upgrade` event, not by this HTTP router, so query params never
+  // need to flow through here.
   const path = url.split('?', 1)[0] ?? url
 
   if (req.method === 'GET' && path === '/health') {
@@ -110,9 +131,6 @@ async function handleRequest(
 
   const roomCodeMatch = path.match(/^\/rooms\/([^/]+)\/?$/)
   if (req.method === 'GET' && roomCodeMatch !== null) {
-    // The capture group is guaranteed non-empty by the regex. The
-    // `!` is safe under `noUncheckedIndexedAccess` because match()
-    // populates the group on a successful match.
     const raw = decodeURIComponent(roomCodeMatch[1]!)
     handleResolveRoom(raw, res, deps)
     return
@@ -126,8 +144,6 @@ async function handleCreateRoom(
   res: ServerResponse,
   deps: RelayServerDeps,
 ): Promise<void> {
-  // Phase 3 accepts an empty body or `{}`. Phase 5 will parse
-  // `{ passwordHash?, inviteTokens? }` from the same endpoint.
   try {
     const body = await readJsonBody(req)
     if (body !== null && typeof body !== 'object') {
@@ -152,8 +168,6 @@ function handleResolveRoom(
   res: ServerResponse,
   deps: RelayServerDeps,
 ): void {
-  // Tolerate lowercase and dash-separated inputs — the ADR-0008 helper
-  // handles both. Rejection for an unknown code is 404 per ADR-0016.
   const normalized = normalizeRoomCode(rawCode)
   const record = deps.roomStore.getByCode(normalized)
   if (record === undefined) {
@@ -166,6 +180,71 @@ function handleResolveRoom(
     accessMode: accessModeOf(record),
   }
   sendJson(res, 200, payload)
+}
+
+function handleUpgrade(
+  req: IncomingMessage,
+  socket: Duplex,
+  head: Buffer,
+  wss: WebSocketServer,
+  deps: RelayServerDeps,
+): void {
+  const url = req.url ?? ''
+  const host = req.headers.host ?? 'localhost'
+  let parsed: URL
+  try {
+    parsed = new URL(url, `http://${host}`)
+  } catch {
+    denyUpgrade(socket, 400, 'Bad Request')
+    return
+  }
+
+  const match = parsed.pathname.match(WS_PATH_RE)
+  if (match === null) {
+    denyUpgrade(socket, 404, 'Not Found')
+    return
+  }
+
+  const uuid = match[1]!
+  const record: RoomRecord | undefined = deps.roomStore.getByUuid(uuid)
+  if (record === undefined) {
+    // The resolve step may have succeeded earlier but the room's TTL
+    // lapsed in the interval. ADR-0016 allows recovering via the
+    // close-code table post-upgrade *or* by rejecting at the upgrade
+    // itself — we prefer the HTTP 404 here so the client's sync
+    // provider can tell the difference from a transient disconnect
+    // without parsing a close code.
+    denyUpgrade(socket, 404, 'Not Found')
+    return
+  }
+
+  // Phase 3 is permissive: any caller with a well-formed UUID in the
+  // path is accepted. Phase 5 adds `JoinCredentials` shape validation
+  // (and Phase-5 enforcement) in this exact spot per ADR-0016.
+  wss.handleUpgrade(req, socket, head, (ws: WebSocket) => {
+    const wsRoom: WsRoom = {
+      doc: record.doc,
+      awareness: record.awareness,
+      onConnectionOpen(): void {
+        record.connections += 1
+        record.lastEmptyAt = undefined
+      },
+      onConnectionClose(): void {
+        record.connections = Math.max(0, record.connections - 1)
+        if (record.connections === 0) {
+          record.lastEmptyAt = Date.now()
+        }
+      },
+    }
+    setupWSConnection(ws, wsRoom)
+  })
+}
+
+function denyUpgrade(socket: Duplex, status: number, reason: string): void {
+  socket.write(
+    `HTTP/1.1 ${status} ${reason}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n`,
+  )
+  socket.destroy()
 }
 
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {
