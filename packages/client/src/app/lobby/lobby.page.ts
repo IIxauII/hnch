@@ -150,7 +150,7 @@ import { SessionSettingsSheetComponent } from '../session-settings/session-setti
           <ion-label>Participants ({{ participants().length }})</ion-label>
         </ion-list-header>
         @for (p of participants(); track p.id) {
-          <ion-item>
+          <ion-item [class.offline]="!onlineIds().has(p.id)">
             <ion-avatar slot="start" aria-hidden="true">
               <ion-icon name="person-circle-outline"></ion-icon>
             </ion-avatar>
@@ -241,6 +241,9 @@ import { SessionSettingsSheetComponent } from '../session-settings/session-setti
         font-size: 2rem;
         color: var(--ion-color-medium);
       }
+      ion-item.offline {
+        opacity: 0.5;
+      }
     `,
   ],
 })
@@ -254,6 +257,7 @@ export class LobbyPage {
 
   protected readonly hasSession = this.docService.hasSession
   protected readonly participants = this.docService.participants
+  protected readonly onlineIds = this.docService.onlineParticipantIds
   protected readonly rounds = this.docService.rounds
 
   /** Round-start modal visibility. Two-way bound to `ion-modal`. */
