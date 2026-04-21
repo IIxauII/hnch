@@ -6,7 +6,7 @@
 
 ## Context
 
-The optional round timer (configurable per round, triggers auto-reveal on expiry) needs a canonical notion of "when did this start" so that all participants see a consistent countdown. In a distributed-client architecture with no authoritative server (ADR-0001), this isn't automatic: each peer has its own clock, and host-side `setTimeout` calls can be throttled in backgrounded browser tabs.
+The optional round timer (configurable for the session, triggers auto-reveal on expiry; see [ADR-0015](0015-v1-scope-session-level-reveal-and-timer.md) for scope) needs a canonical notion of "when did this start" so that all participants see a consistent countdown. In a distributed-client architecture with no authoritative server (ADR-0001), this isn't automatic: each peer has its own clock, and host-side `setTimeout` calls can be throttled in backgrounded browser tabs.
 
 ## Decision
 
