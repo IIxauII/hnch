@@ -13,6 +13,7 @@ import {
   hashPassword,
   isValidRoomCode,
   normalizeRoomCode,
+  parseInviteContent,
   type JoinRejectionReason,
 } from '@hnch/shared'
 import {
@@ -22,6 +23,7 @@ import {
   IonContent,
   IonFooter,
   IonHeader,
+  IonIcon,
   IonInput,
   IonItem,
   IonLabel,
@@ -29,11 +31,14 @@ import {
   IonToolbar,
   ToastController,
 } from '@ionic/angular/standalone'
+import { addIcons } from 'ionicons'
+import { qrCodeOutline } from 'ionicons/icons'
 
 import { environment } from '../../environments/environment'
 import { DisplayNameService } from '../core/display-name.service'
 import { DocService } from '../core/doc/doc.service'
 import { ParticipantIdService } from '../core/participant-id.service'
+import { QrScannerService } from '../core/qr-scanner.service'
 import { RelayRejectionError, resolveRoom } from '../core/relay/relay-api'
 
 /**
@@ -49,8 +54,8 @@ import { RelayRejectionError, resolveRoom } from '../core/relay/relay-api'
  * user-visible copy wired already so Phase 5 doesn't need template
  * churn to turn on password / invite enforcement.
  *
- * Password + invite UI, QR scan, and deep-link auto-population all
- * land in Phase 5; this screen only owns the manual-entry flow.
+ * Three join paths feed this screen: manual code entry, `?code=`
+ * deep link (auto-populates), and QR scan (auto-populates + submits).
  */
 @Component({
   selector: 'app-join',
@@ -62,6 +67,7 @@ import { RelayRejectionError, resolveRoom } from '../core/relay/relay-api'
     IonContent,
     IonFooter,
     IonHeader,
+    IonIcon,
     IonInput,
     IonItem,
     IonLabel,
@@ -100,6 +106,14 @@ import { RelayRejectionError, resolveRoom } from '../core/relay/relay-api'
           placeholder="XXX-XXX"
           (keydown.enter)="submit()"
         ></ion-input>
+      </ion-item>
+      <ion-item button class="scan-item" (click)="onScanQr()">
+        <ion-icon
+          slot="start"
+          name="qr-code-outline"
+          aria-hidden="true"
+        ></ion-icon>
+        <ion-label>Scan QR code</ion-label>
       </ion-item>
       @if (needsPassword()) {
         <ion-item
@@ -145,6 +159,10 @@ import { RelayRejectionError, resolveRoom } from '../core/relay/relay-api'
       .password-item {
         --border-radius: 8px;
       }
+      .scan-item {
+        margin-block-start: 0.75rem;
+        --border-radius: 8px;
+      }
       .password-item {
         margin-block-start: 0.75rem;
       }
@@ -166,6 +184,7 @@ export class JoinPage {
   private readonly docService = inject(DocService)
   private readonly displayNameService = inject(DisplayNameService)
   private readonly participantIdService = inject(ParticipantIdService)
+  private readonly qrScanner = inject(QrScannerService)
   private readonly toastCtrl = inject(ToastController)
 
   /**
@@ -208,6 +227,8 @@ export class JoinPage {
   protected readonly isSubmitting = signal(false)
 
   constructor() {
+    addIcons({ 'qr-code-outline': qrCodeOutline })
+
     // Live-reformat the field as the user types: normalize to strip
     // dashes + uppercase, then re-insert the dash once we have six
     // characters so the chrome matches ux.md §5.3's `XXX-XXX` hint.
@@ -294,6 +315,22 @@ export class JoinPage {
     } finally {
       this.isSubmitting.set(false)
     }
+  }
+
+  protected async onScanQr(): Promise<void> {
+    const raw = await this.qrScanner.scanForCode()
+    if (raw === null) return // cancelled or permission denied
+
+    const code = parseInviteContent(raw)
+    if (!code) {
+      await this.toast("That doesn't look like an hnch invite")
+      return
+    }
+
+    // Populate the input and auto-submit — the existing submit()
+    // handles open rooms (→ lobby) and password rooms (→ show field).
+    this.codeControl.setValue(formatRoomCode(code))
+    await this.submit()
   }
 
   private async showRejectionToast(reason: JoinRejectionReason): Promise<void> {

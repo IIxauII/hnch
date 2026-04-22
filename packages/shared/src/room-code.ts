@@ -85,3 +85,33 @@ export function formatRoomCode(code: string, withDash = true): string {
   if (!withDash || normalized.length !== CODE_LENGTH) return normalized
   return `${normalized.slice(0, 3)}-${normalized.slice(3)}`
 }
+
+/**
+ * Extract a 6-char room code from a scanned QR payload or pasted URL.
+ *
+ * Accepts two forms:
+ * - A URL containing a `?code=` query param (e.g. `https://hnch.app/join?code=K7P9MR`)
+ * - A bare room code (e.g. `K7P9MR` or `k7p-9mr`)
+ *
+ * Returns the normalized code if valid, or `null` if the input
+ * doesn't contain a recognizable room code.
+ */
+export function parseInviteContent(raw: string): string | null {
+  const trimmed = raw.trim()
+
+  // Case 1: URL form — extract the `code` query param.
+  try {
+    const url = new URL(trimmed)
+    const code = url.searchParams.get('code')
+    if (code) {
+      const normalized = normalizeRoomCode(code)
+      return isValidRoomCode(normalized) ? normalized : null
+    }
+  } catch {
+    // Not a URL — fall through to bare-code path.
+  }
+
+  // Case 2: bare code.
+  const normalized = normalizeRoomCode(trimmed)
+  return isValidRoomCode(normalized) ? normalized : null
+}
