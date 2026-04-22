@@ -27,6 +27,7 @@ export const HOME = {
 export const JOIN = {
   codeInput: 'ion-input.code-input',
   passwordInput: 'ion-input[type="password"]',
+  scanQrBtn: 'ion-item:has-text("Scan QR code")',
   joinBtn: 'ion-button:has-text("Join")',
 } as const
 

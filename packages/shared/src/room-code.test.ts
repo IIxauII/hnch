@@ -4,6 +4,7 @@ import {
   normalizeRoomCode,
   isValidRoomCode,
   formatRoomCode,
+  parseInviteContent,
 } from './room-code.js'
 
 describe('room code alphabet', () => {
@@ -91,5 +92,51 @@ describe('formatRoomCode', () => {
 
   it('passes through shorter input without dashing (safe on partial input)', () => {
     expect(formatRoomCode('K7P')).toBe('K7P')
+  })
+})
+
+describe('parseInviteContent', () => {
+  it('extracts code from a valid invite URL', () => {
+    expect(parseInviteContent('https://hnch.app/join?code=K7P9MR')).toBe('K7P9MR')
+  })
+
+  it('extracts code from a localhost invite URL', () => {
+    expect(parseInviteContent('http://localhost:4200/join?code=K7P9MR')).toBe('K7P9MR')
+  })
+
+  it('normalizes the code from a URL', () => {
+    expect(parseInviteContent('https://hnch.app/join?code=k7p9mr')).toBe('K7P9MR')
+  })
+
+  it('returns null for a URL with missing code param', () => {
+    expect(parseInviteContent('https://hnch.app/join')).toBeNull()
+  })
+
+  it('returns null for a URL with an invalid code', () => {
+    expect(parseInviteContent('https://hnch.app/join?code=BADCODE')).toBeNull()
+  })
+
+  it('accepts a bare valid code', () => {
+    expect(parseInviteContent('K7P9MR')).toBe('K7P9MR')
+  })
+
+  it('accepts a bare code with dash', () => {
+    expect(parseInviteContent('K7P-9MR')).toBe('K7P9MR')
+  })
+
+  it('accepts a bare lowercase code', () => {
+    expect(parseInviteContent('k7p9mr')).toBe('K7P9MR')
+  })
+
+  it('returns null for an arbitrary string', () => {
+    expect(parseInviteContent('hello world')).toBeNull()
+  })
+
+  it('returns null for an empty string', () => {
+    expect(parseInviteContent('')).toBeNull()
+  })
+
+  it('trims whitespace', () => {
+    expect(parseInviteContent('  K7P9MR  ')).toBe('K7P9MR')
   })
 })
