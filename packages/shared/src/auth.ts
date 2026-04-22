@@ -4,8 +4,8 @@
  * The wire format for the join handshake — how these values ride on
  * the `GET /rooms/:code` resolve call and on the subsequent WebSocket
  * upgrade to `/ws/:uuid` — is pinned in ADR-0016. Password hashing
- * scheme and invite URL format are still open (tracked on ADR-0009's
- * action items) and land in Phase 5.
+ * uses PBKDF2-SHA-256 per ADR-0017. Invite-only is dropped from v1
+ * (ADR-0017); invite types are retained as reserved placeholders.
  *
  * The relay treats `PasswordHash` and `InviteToken` as opaque byte
  * sequences; it compares but does not interpret them. Plaintext
@@ -14,10 +14,10 @@
 
 /**
  * A password hash submitted by a joiner to a password-protected room.
- * The hashing scheme is client-owned (TBD — argon2id is the planned
- * default per ADR-0009 action items). From the relay's perspective,
- * this is an opaque string that either matches the registered hash
- * or does not.
+ * Hashing uses PBKDF2-SHA-256 with 100K iterations, 32-byte output,
+ * hex-encoded (ADR-0017). Salt is the room UUID. From the relay's
+ * perspective, this is an opaque string that either matches the
+ * registered hash or does not.
  */
 export type PasswordHash = string
 

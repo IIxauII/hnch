@@ -213,6 +213,9 @@ import { SessionSettingsSheetComponent } from '../session-settings/session-setti
     >
       <ng-template>
         <app-session-settings-sheet
+          [accessMode]="lobbyAccessMode()"
+          [accessPassword]="lobbyAccessPassword()"
+          (accessChanged)="onAccessChanged($event)"
           (closeRequested)="closeSessionSettings()"
         />
       </ng-template>
@@ -280,6 +283,13 @@ export class LobbyPage {
 
   /** Session-settings modal visibility. Two-way bound to `ion-modal`. */
   protected readonly sessionSettingsOpen = signal(false)
+
+  /**
+   * Access state lives here (not in SessionSettingsSheetComponent) so
+   * it survives the modal's destroy/recreate lifecycle.
+   */
+  protected readonly lobbyAccessMode = signal<'open' | 'password'>('open')
+  protected readonly lobbyAccessPassword = signal('')
 
   protected readonly myId = this.participantIdService.id
 
@@ -406,6 +416,11 @@ export class LobbyPage {
   protected async closeSessionSettings(): Promise<void> {
     await this.sessionSettingsModalRef()?.dismiss()
     this.sessionSettingsOpen.set(false)
+  }
+
+  protected onAccessChanged(selection: { mode: 'open' | 'password'; password: string | null }): void {
+    this.lobbyAccessMode.set(selection.mode)
+    this.lobbyAccessPassword.set(selection.password ?? '')
   }
 
   protected async onShareInvite(): Promise<void> {

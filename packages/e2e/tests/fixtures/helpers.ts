@@ -26,6 +26,7 @@ export const HOME = {
 // ---------------------------------------------------------------------------
 export const JOIN = {
   codeInput: 'ion-input.code-input',
+  passwordInput: 'ion-input[type="password"]',
   joinBtn: 'ion-button:has-text("Join")',
 } as const
 
@@ -86,8 +87,10 @@ export const REVEALED = {
 export const SETTINGS_SHEET = {
   scaleRow: 'app-session-settings-sheet ion-item:has(h3:text-is("Scale"))',
   timerRow: 'app-session-settings-sheet ion-item:has(h3:text-is("Timer"))',
+  accessRow: 'app-session-settings-sheet ion-item:has(h3:text-is("Access"))',
   scaleValue: 'app-session-settings-sheet ion-item:has(h3:text-is("Scale")) ion-note',
   timerValue: 'app-session-settings-sheet ion-item:has(h3:text-is("Timer")) ion-note',
+  accessValue: 'app-session-settings-sheet ion-item:has(h3:text-is("Access")) ion-note',
   doneBtn: 'app-session-settings-sheet ion-button:has-text("Done")',
 } as const
 
@@ -99,6 +102,12 @@ export const SCALE_PICKER = {
 export const TIMER_PICKER = {
   option: (label: string) => `app-timer-picker-sheet ion-item:has(ion-label:text-is("${label}"))`,
   doneBtn: 'app-timer-picker-sheet ion-button:has-text("Done")',
+} as const
+
+export const ACCESS_PICKER = {
+  option: (label: string) => `app-access-picker-sheet ion-item:has(h3:text-is("${label}"))`,
+  passwordInput: 'app-access-picker-sheet ion-input[type="password"]',
+  doneBtn: 'app-access-picker-sheet ion-button:has-text("Done")',
 } as const
 
 // ---------------------------------------------------------------------------

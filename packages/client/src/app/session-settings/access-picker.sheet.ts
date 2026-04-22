@@ -21,8 +21,8 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone'
 
-/** Tri-state for the access picker per ADR-0009. */
-export type AccessMode = 'open' | 'password' | 'invite'
+/** Access modes per ADR-0009. Invite-only dropped from v1 (ADR-0017). */
+export type AccessMode = 'open' | 'password'
 
 /**
  * What the picker emits on change. `password` is only populated when
@@ -44,7 +44,6 @@ interface AccessOption {
 const OPTIONS: readonly AccessOption[] = [
   { mode: 'open', label: 'Open', hint: 'Anyone with the code' },
   { mode: 'password', label: 'Password', hint: 'Set a shared password' },
-  { mode: 'invite', label: 'Invite only', hint: 'Single-use links' },
 ]
 
 /**
@@ -121,10 +120,6 @@ const OPTIONS: readonly AccessOption[] = [
         </ion-list>
       }
 
-      <ion-note class="phase-note">
-        <!-- Phase 5: relay handshake enforces this; see ADR-0009 / roadmap §7. -->
-        Access control takes effect once relay sync lands.
-      </ion-note>
     </ion-content>
   `,
   styles: [
@@ -134,12 +129,6 @@ const OPTIONS: readonly AccessOption[] = [
       }
       .password-list {
         margin-top: 1rem;
-      }
-      .phase-note {
-        display: block;
-        margin-top: 1rem;
-        padding: 0 1rem;
-        font-style: italic;
       }
     `,
   ],

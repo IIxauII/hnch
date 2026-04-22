@@ -45,21 +45,50 @@ export class RelayRejectionError extends Error {
   }
 }
 
-/**
- * `POST /rooms`. No request body in v1 — ADR-0009 access-control bits
- * ride on a body object starting in Phase 5.
- */
-export async function mintRoom(httpBaseUrl: string): Promise<MintedRoom> {
+export interface MintRoomOptions {
+  readonly passwordHash?: string
+}
+
+/** `POST /rooms` — mints a fresh room, optionally password-protected (ADR-0017). */
+export async function mintRoom(
+  httpBaseUrl: string,
+  options?: MintRoomOptions,
+): Promise<MintedRoom> {
   const res = await fetch(`${httpBaseUrl}/rooms`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: '{}',
+    body: JSON.stringify(options?.passwordHash ? { passwordHash: options.passwordHash } : {}),
   })
   if (!res.ok) {
     throw new Error(`POST /rooms failed: ${res.status}`)
   }
   const body = (await res.json()) as MintedRoom
   return body
+}
+
+/** Response from `PATCH /rooms/:uuid/access` (ADR-0017). */
+export interface PatchAccessResponse {
+  readonly accessMode: ResolvedAccessMode
+}
+
+/**
+ * `PATCH /rooms/:uuid/access` — set or remove the password on a live
+ * room. Pass `passwordHash` to protect, `null` to revert to open.
+ */
+export async function patchRoomAccess(
+  httpBaseUrl: string,
+  uuid: string,
+  passwordHash: string | null,
+): Promise<PatchAccessResponse> {
+  const res = await fetch(`${httpBaseUrl}/rooms/${uuid}/access`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ passwordHash }),
+  })
+  if (!res.ok) {
+    throw new Error(`PATCH /rooms/:uuid/access failed: ${res.status}`)
+  }
+  return (await res.json()) as PatchAccessResponse
 }
 
 /**

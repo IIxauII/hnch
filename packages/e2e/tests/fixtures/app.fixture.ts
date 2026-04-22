@@ -11,6 +11,7 @@ import {
   SETTINGS_SHEET,
   SCALE_PICKER,
   TIMER_PICKER,
+  ACCESS_PICKER,
 } from './helpers'
 
 // ---------------------------------------------------------------------------
@@ -145,6 +146,43 @@ export class Participant {
     const doneBtn = this.page.locator(TIMER_PICKER.doneBtn)
     await doneBtn.waitFor({ state: 'visible' })
     await doneBtn.evaluate((el: HTMLElement) => el.click())
+  }
+
+  /** Change the access mode. Assumes settings sheet is open. */
+  async changeAccess(modeLabel: string, password?: string): Promise<void> {
+    await this.page.locator(SETTINGS_SHEET.accessRow).click()
+    await this.page.locator(ACCESS_PICKER.option(modeLabel)).click()
+    if (password) {
+      const input = this.page.locator(ACCESS_PICKER.passwordInput).locator('input')
+      await input.fill(password)
+      // Trigger commit (blur)
+      await input.press('Enter')
+    }
+    const doneBtn = this.page.locator(ACCESS_PICKER.doneBtn)
+    await doneBtn.waitFor({ state: 'visible' })
+    await doneBtn.evaluate((el: HTMLElement) => el.click())
+  }
+
+  /** Join with a password — enters code, waits for password field, fills it. */
+  async joinSessionWithPassword(code: string, password: string): Promise<void> {
+    await this.page.goto(`${BASE_URL}/home`)
+    await this.page.waitForURL(/\/(home|onboarding)/)
+    if (this.page.url().includes('/onboarding')) {
+      await this.onboard()
+    }
+    await this.page.locator(HOME.joinCard).click()
+    await this.page.waitForURL(/\/join/)
+    const codeInput = this.page.locator(JOIN.codeInput).locator('input')
+    await codeInput.fill(code)
+    // First submit resolves the room and reveals the password field
+    await this.page.locator(JOIN.joinBtn).click()
+    // Wait for the password input to appear
+    const pwInput = this.page.locator(JOIN.passwordInput).locator('input')
+    await pwInput.waitFor({ state: 'visible', timeout: 5_000 })
+    await pwInput.fill(password)
+    // Second submit connects with the password
+    await this.page.locator(JOIN.joinBtn).click()
+    await this.page.waitForURL(/\/lobby/, { timeout: 10_000 })
   }
 
   /** Close the session settings sheet. */

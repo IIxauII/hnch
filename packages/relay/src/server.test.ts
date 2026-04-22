@@ -11,6 +11,8 @@ import type { Server } from 'node:http'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createCodePool } from './code-pool.js'
 import { createRoomStore, type RoomStore } from './room-store.js'
+import WebSocket from 'ws'
+import { hashPassword } from '@hnch/shared'
 import {
   createRelayServer,
   type CreateRoomResponse,
@@ -137,6 +139,145 @@ describe('relay server', () => {
       roomStore.deleteRoom(record.uuid)
       const res = await fetch(`${baseUrl}/rooms/${record.code}`)
       expect(res.status).toBe(404)
+    })
+  })
+
+  describe('POST /rooms with passwordHash', () => {
+    it('creates a password-protected room', async () => {
+      const pw = await hashPassword('secret', 'test-salt')
+      const res = await fetch(`${baseUrl}/rooms`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ passwordHash: pw }),
+      })
+      expect(res.status).toBe(201)
+      const body = (await res.json()) as CreateRoomResponse
+      const record = roomStore.getByUuid(body.uuid)!
+      expect(record.passwordHash).toBe(pw)
+    })
+
+    it('resolves a password-protected room with accessMode "password"', async () => {
+      const pw = await hashPassword('secret', 'test-salt')
+      const createRes = await fetch(`${baseUrl}/rooms`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ passwordHash: pw }),
+      })
+      const { code } = (await createRes.json()) as CreateRoomResponse
+      const res = await fetch(`${baseUrl}/rooms/${code}`)
+      const body = (await res.json()) as ResolveRoomResponse
+      expect(body.accessMode).toBe('password')
+    })
+
+    it('rejects a malformed passwordHash with 400', async () => {
+      const res = await fetch(`${baseUrl}/rooms`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ passwordHash: 'not-valid-hex' }),
+      })
+      expect(res.status).toBe(400)
+      expect(roomStore.roomCount).toBe(0)
+    })
+  })
+
+  describe('WS /ws/:uuid password enforcement', () => {
+    it('accepts connection to open room without pw', async () => {
+      const record = roomStore.createRoom()
+      const wsUrl = baseUrl.replace('http', 'ws')
+      const ws = new WebSocket(`${wsUrl}/ws/${record.uuid}?did=device-1`)
+      await new Promise<void>((resolve, reject) => {
+        ws.on('open', () => { ws.close(); resolve() })
+        ws.on('error', reject)
+      })
+    })
+
+    it('accepts connection to password-protected room with correct pw', async () => {
+      const pw = await hashPassword('secret', 'room-uuid-1')
+      const record = roomStore.createRoom({ passwordHash: pw })
+      const wsUrl = baseUrl.replace('http', 'ws')
+      const ws = new WebSocket(`${wsUrl}/ws/${record.uuid}?did=device-1&pw=${pw}`)
+      await new Promise<void>((resolve, reject) => {
+        ws.on('open', () => { ws.close(); resolve() })
+        ws.on('error', reject)
+      })
+    })
+
+    it('rejects connection to password-protected room with wrong pw', async () => {
+      const correctPw = await hashPassword('secret', 'room-uuid-1')
+      const wrongPw = await hashPassword('wrong', 'room-uuid-1')
+      const record = roomStore.createRoom({ passwordHash: correctPw })
+      const wsUrl = baseUrl.replace('http', 'ws')
+      const ws = new WebSocket(`${wsUrl}/ws/${record.uuid}?did=device-1&pw=${wrongPw}`)
+      await new Promise<void>((resolve) => {
+        ws.on('error', () => resolve())
+        ws.on('unexpected-response', (_req, res) => {
+          expect(res.statusCode).toBe(403)
+          resolve()
+        })
+      })
+    })
+
+    it('rejects connection to password-protected room with missing pw', async () => {
+      const pw = await hashPassword('secret', 'room-uuid-1')
+      const record = roomStore.createRoom({ passwordHash: pw })
+      const wsUrl = baseUrl.replace('http', 'ws')
+      const ws = new WebSocket(`${wsUrl}/ws/${record.uuid}?did=device-1`)
+      await new Promise<void>((resolve) => {
+        ws.on('error', () => resolve())
+        ws.on('unexpected-response', (_req, res) => {
+          expect(res.statusCode).toBe(400)
+          resolve()
+        })
+      })
+    })
+  })
+
+  describe('PATCH /rooms/:uuid/access', () => {
+    it('sets a password on an open room', async () => {
+      const record = roomStore.createRoom()
+      const pw = await hashPassword('secret', record.uuid)
+      const res = await fetch(`${baseUrl}/rooms/${record.uuid}/access`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ passwordHash: pw }),
+      })
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { accessMode: string }
+      expect(body.accessMode).toBe('password')
+      expect(roomStore.getByUuid(record.uuid)!.passwordHash).toBe(pw)
+    })
+
+    it('removes a password (reverts to open)', async () => {
+      const pw = await hashPassword('secret', 'salt')
+      const record = roomStore.createRoom({ passwordHash: pw })
+      const res = await fetch(`${baseUrl}/rooms/${record.uuid}/access`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ passwordHash: null }),
+      })
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { accessMode: string }
+      expect(body.accessMode).toBe('open')
+      expect(roomStore.getByUuid(record.uuid)!.passwordHash).toBeUndefined()
+    })
+
+    it('returns 404 for unknown UUID', async () => {
+      const res = await fetch(`${baseUrl}/rooms/00000000-0000-0000-0000-000000000000/access`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ passwordHash: null }),
+      })
+      expect(res.status).toBe(404)
+    })
+
+    it('rejects malformed passwordHash with 400', async () => {
+      const record = roomStore.createRoom()
+      const res = await fetch(`${baseUrl}/rooms/${record.uuid}/access`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ passwordHash: 'bad' }),
+      })
+      expect(res.status).toBe(400)
     })
   })
 
