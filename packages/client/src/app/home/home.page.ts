@@ -65,6 +65,7 @@ import {
  */
 @Component({
   selector: 'app-home',
+  host: { class: 'ion-page' },
   imports: [
     IonButton,
     IonButtons,
@@ -131,9 +132,6 @@ import {
   `,
   styles: [
     `
-      :host {
-        display: block;
-      }
       .row {
         display: flex;
         align-items: center;

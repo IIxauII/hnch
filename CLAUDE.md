@@ -10,7 +10,7 @@ Core mechanic: team members independently select an estimate (typically Fibonacc
 
 ## Status
 
-Greenfield project. Core architectural decisions are resolved and documented as ADRs; implementation has not yet begun. See `project.md` for the product/design overview and the `adr/` folder for the authoritative record of *why* each structural decision was made.
+Implementation through Phase 4 (timer + host election). Phases 1-3 shipped the scaffold, doc/CRDT layer, relay sync, and multi-client sessions. Phase 4 adds timer-driven reveal and host election. See `roadmap.md` for the phased plan and `project.md` for the product/design overview. ADRs in `adr/` document every structural decision.
 
 ## Documentation layout
 

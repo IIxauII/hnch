@@ -42,6 +42,7 @@ export interface RoundStartSubmission {
  */
 @Component({
   selector: 'app-round-start-sheet',
+  host: { class: 'ion-page' },
   imports: [
     IonButton,
     IonContent,
@@ -92,9 +93,6 @@ export interface RoundStartSubmission {
   `,
   styles: [
     `
-      :host {
-        display: block;
-      }
       .helper {
         display: block;
         margin-top: 0.5rem;

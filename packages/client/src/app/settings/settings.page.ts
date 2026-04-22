@@ -15,6 +15,7 @@ import {
  */
 @Component({
   selector: 'app-settings',
+  host: { class: 'ion-page' },
   imports: [
     IonBackButton,
     IonButtons,
