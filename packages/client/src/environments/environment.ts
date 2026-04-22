@@ -14,6 +14,7 @@ export const environment = {
   production: false,
   relayHttpUrl: 'http://localhost:1234',
   relayWsUrl: 'ws://localhost:1234',
+  appBaseUrl: 'http://localhost:4200',
 }
 
 /*
