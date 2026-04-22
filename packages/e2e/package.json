@@ -1,0 +1,16 @@
+{
+  "name": "@hnch/e2e",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "test": "playwright test --project chromium",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed --project chromium",
+    "test:chromium": "playwright test --project chromium",
+    "test:webkit": "playwright test --project webkit",
+    "test:firefox": "playwright test --project firefox"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0"
+  }
+}
