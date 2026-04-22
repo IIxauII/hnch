@@ -80,7 +80,9 @@ export class Participant {
     if (title) {
       await modal.locator('ion-input').locator('input').fill(title)
     }
-    await this.page.locator(ROUND_START.startBtn).click()
+    const startBtn = this.page.locator(ROUND_START.startBtn)
+    await startBtn.waitFor({ state: 'visible' })
+    await startBtn.evaluate((el: HTMLElement) => el.click())
     await this.page.waitForURL('**/estimating')
   }
 

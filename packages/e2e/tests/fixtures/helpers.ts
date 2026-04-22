@@ -58,7 +58,7 @@ export const ESTIMATING = {
   timer: 'p.timer',
   timerUrgent: 'p.timer.urgent',
   cardGrid: 'div.grid',
-  card: (value: string) => `ion-card.card[aria-label="Card ${value}"]`,
+  card: (value: string) => `ion-card.card:has(ion-card-content:text-is("${value}"))`,
   selectedCard: 'ion-card.card.selected',
   voteDots: 'app-avatar-vote-row .dot',
   votedDots: 'app-avatar-vote-row .dot.voted',
