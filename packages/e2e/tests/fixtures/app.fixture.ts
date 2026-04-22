@@ -216,11 +216,8 @@ export class Participant {
 
   /** Assert participant count shown in lobby. */
   async expectParticipantCount(n: number): Promise<void> {
-    await this.page.locator(LOBBY.participantCount).waitFor({ state: 'visible' })
-    const text = await this.page.locator(LOBBY.participantCount).textContent()
-    if (!text?.includes(`(${n})`)) {
-      throw new Error(`Expected participant count ${n} but got: ${text}`)
-    }
+    const { expect } = await import('@playwright/test')
+    await expect(this.page.locator(LOBBY.participantCount)).toContainText(`(${n})`)
   }
 }
 
