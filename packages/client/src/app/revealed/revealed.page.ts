@@ -101,8 +101,8 @@ const DIDNT_VOTE_KEY = '__didnt_vote__'
           <p class="descriptor">{{ round.title }}</p>
         }
 
-        @for (group of voteGroups(); track group.card) {
-          <ion-item-group class="group">
+        @for (group of voteGroups(); track group.card; let i = $index) {
+          <ion-item-group class="group" [style.--i]="i">
             <div class="group-header">
               <span class="card">{{ group.card }}</span>
               <span class="count">({{ voteCountLabel(group.voterNames.length) }})</span>
@@ -118,7 +118,7 @@ const DIDNT_VOTE_KEY = '__didnt_vote__'
         }
 
         @if (didntVoteNames().length > 0) {
-          <ion-item-group class="group didnt-vote">
+          <ion-item-group class="group didnt-vote" [style.--i]="voteGroups().length">
             <div class="group-header">
               <span class="card">Didn't vote</span>
               <span class="count">({{ didntVoteNames().length }})</span>
@@ -228,6 +228,40 @@ const DIDNT_VOTE_KEY = '__didnt_vote__'
         color: var(--ion-color-medium);
         margin: 2rem 0;
         text-align: center;
+      }
+
+      /* Reveal animation — ux.md §6: 80ms stagger, 200ms fade-in-up */
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      @keyframes fadeInUpMuted {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 0.65;
+          transform: translateY(0);
+        }
+      }
+      .group {
+        animation: fadeInUp 200ms ease-out both;
+        animation-delay: calc(var(--i, 0) * 80ms);
+      }
+      .group.didnt-vote {
+        animation-name: fadeInUpMuted;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .group {
+          animation: none;
+        }
       }
     `,
   ],
