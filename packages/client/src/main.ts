@@ -12,6 +12,7 @@ import { IonicRouteStrategy, provideIonicAngular } from '@ionic/angular/standalo
 import { AppComponent } from './app/app.component'
 import { routes } from './app/app.routes'
 import { ParticipantIdService } from './app/core/participant-id.service'
+import { ThemeService } from './app/core/theme.service'
 
 // Ionic's `mode` is intentionally left unset — Ionic auto-detects per
 // platform (iOS on iPhone, Material on Android / PWA). See ux.md §2.
@@ -30,6 +31,7 @@ bootstrapApplication(AppComponent, {
     // once here keeps Home / Lobby / Estimating from ever observing a
     // transient `null`.
     provideAppInitializer(() => inject(ParticipantIdService).ensureLoaded()),
+    provideAppInitializer(() => inject(ThemeService).ensureLoaded()),
   ],
 }).catch((err: unknown) => {
   // eslint-disable-next-line no-console

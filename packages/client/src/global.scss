@@ -22,11 +22,10 @@
 @import "@ionic/angular/css/flex-utils.css";
 
 /*
- * Dark mode: system-preference only for v1.
+ * Dark mode: class-based toggling via ThemeService.
  *
- * `dark.system.css` respects the user's OS `prefers-color-scheme`
- * and flips the full Ionic palette automatically. A manual theme
- * picker (light / dark / system) is deferred to Phase 6 — see
- * ux.md §7 and roadmap.md Phase 6.
+ * `dark.class.css` activates dark palette when `.ion-palette-dark`
+ * is present on <html>. ThemeService manages the class based on
+ * user preference (system / light / dark) persisted in Preferences.
  */
-@import "@ionic/angular/css/palettes/dark.system.css";
+@import "@ionic/angular/css/palettes/dark.class.css";
