@@ -12,6 +12,7 @@ import { DocService } from './core/doc/doc.service'
 import { HostElectionService } from './core/host-election.service'
 import { ParticipantIdService } from './core/participant-id.service'
 import { RoundTimerService } from './core/round-timer.service'
+import { ThemeService } from './core/theme.service'
 
 /**
  * Root shell. Provides the `ion-app` container and the single nav stack
@@ -42,6 +43,7 @@ export class AppComponent {
   // self-gates on `docService.hasSession()`.
   private readonly _roundTimer = inject(RoundTimerService)
   private readonly _hostElection = inject(HostElectionService)
+  private readonly _theme = inject(ThemeService)
 
   /**
    * Scratch signal tracking the previous `hostParticipantId` so we can

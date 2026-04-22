@@ -122,6 +122,27 @@ export const ACCESS_PICKER = {
 } as const
 
 // ---------------------------------------------------------------------------
+// App settings (settings page, not session settings)
+// ---------------------------------------------------------------------------
+export const APP_SETTINGS = {
+  nameRow: 'app-settings ion-item:has(ion-label:text-is("Display name"))',
+  nameValue: 'app-settings ion-item:has(ion-label:text-is("Display name")) ion-note',
+  themeRow: 'app-settings ion-item:has(ion-label:text-is("Theme"))',
+  themeValue: 'app-settings ion-item:has(ion-label:text-is("Theme")) ion-note',
+  versionValue: 'app-settings ion-item:has(ion-label:text-is("Version")) ion-note',
+} as const
+
+export const THEME_PICKER = {
+  option: (label: string) => `app-theme-picker-sheet ion-item:has(ion-label:text-is("${label}"))`,
+  doneBtn: 'app-theme-picker-sheet ion-button:has-text("Done")',
+} as const
+
+export const NAME_EDITOR = {
+  input: 'app-display-name-editor-sheet ion-input',
+  doneBtn: 'app-display-name-editor-sheet ion-button:has-text("Done")',
+} as const
+
+// ---------------------------------------------------------------------------
 // Shared constants
 // ---------------------------------------------------------------------------
 export const BASE_URL = 'http://localhost:4200'
