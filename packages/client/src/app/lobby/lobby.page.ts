@@ -49,6 +49,7 @@ import {
   type RoundStartSubmission,
 } from '../round-start/round-start.sheet'
 import { SessionSettingsSheetComponent } from '../session-settings/session-settings.sheet'
+import { QrDisplaySheetComponent } from './qr-display.sheet'
 
 /**
  * Lobby — ux.md §5.4 host variant.
@@ -89,6 +90,7 @@ import { SessionSettingsSheetComponent } from '../session-settings/session-setti
     IonModal,
     IonTitle,
     IonToolbar,
+    QrDisplaySheetComponent,
     RoundStartSheetComponent,
     SessionSettingsSheetComponent,
   ],
@@ -223,6 +225,19 @@ import { SessionSettingsSheetComponent } from '../session-settings/session-setti
         />
       </ng-template>
     </ion-modal>
+
+    <ion-modal
+      [isOpen]="qrOpen()"
+      (didDismiss)="qrOpen.set(false)"
+    >
+      <ng-template>
+        <app-qr-display-sheet
+          [inviteUrl]="inviteUrl()"
+          [roomCode]="formattedRoomCode()"
+          (closeRequested)="qrOpen.set(false)"
+        />
+      </ng-template>
+    </ion-modal>
   `,
   styles: [
     `
@@ -287,6 +302,9 @@ export class LobbyPage {
   /** Session-settings modal visibility. Two-way bound to `ion-modal`. */
   protected readonly sessionSettingsOpen = signal(false)
 
+  /** QR display modal visibility. */
+  protected readonly qrOpen = signal(false)
+
   /**
    * Access state lives here (not in SessionSettingsSheetComponent) so
    * it survives the modal's destroy/recreate lifecycle.
@@ -313,6 +331,18 @@ export class LobbyPage {
    * from the service's dedicated signal rather than `meta()`.
    */
   protected readonly roomCode = this.docService.roomCode
+
+  /** Invite URL derived from the room code + environment base. */
+  protected readonly inviteUrl = computed(() => {
+    const code = this.roomCode()
+    return code ? `${environment.appBaseUrl}/join?code=${code}` : ''
+  })
+
+  /** Dash-formatted room code for human display. */
+  protected readonly formattedRoomCode = computed(() => {
+    const code = this.roomCode()
+    return code ? formatRoomCode(code) : ''
+  })
 
   /** 1-based index for the "Start Round N" label. */
   protected readonly nextRoundNumber = computed(() => this.rounds().length + 1)
@@ -427,11 +457,9 @@ export class LobbyPage {
   }
 
   protected async onShareInvite(): Promise<void> {
-    const rawCode = this.roomCode()
-    if (!rawCode) return
-
-    const formatted = formatRoomCode(rawCode)
-    const url = `${environment.appBaseUrl}/join?code=${rawCode}`
+    const url = this.inviteUrl()
+    const formatted = this.formattedRoomCode()
+    if (!url) return
 
     try {
       await Share.share({
@@ -460,9 +488,8 @@ export class LobbyPage {
     }
   }
 
-  protected async onShowQr(): Promise<void> {
-    // Phase 5: full-screen QR modal (ux.md §5.8).
-    await this.toast('QR code lands in Phase 5')
+  protected onShowQr(): void {
+    this.qrOpen.set(true)
   }
 
   /**

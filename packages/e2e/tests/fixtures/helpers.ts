@@ -44,6 +44,16 @@ export const LOBBY = {
 } as const
 
 // ---------------------------------------------------------------------------
+// QR display modal
+// ---------------------------------------------------------------------------
+export const QR_MODAL = {
+  showBtn: 'ion-item:has-text("Show QR code")',
+  img: 'app-qr-display-sheet img',
+  codeText: 'app-qr-display-sheet .room-code',
+  doneBtn: 'app-qr-display-sheet ion-button:has-text("Done")',
+} as const
+
+// ---------------------------------------------------------------------------
 // Round-start modal
 // ---------------------------------------------------------------------------
 export const ROUND_START = {
