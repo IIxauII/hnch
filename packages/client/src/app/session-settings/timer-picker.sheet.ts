@@ -40,6 +40,7 @@ interface TimerOption {
 
 const OPTIONS: readonly TimerOption[] = [
   { label: 'None', value: null, key: 'none' },
+  { label: '5 seconds', value: 5_000, key: '5s' },
   { label: '30 seconds', value: 30_000, key: '30s' },
   { label: '1 minute', value: 60_000, key: '1min' },
   { label: '2 minutes', value: 120_000, key: '2min' },

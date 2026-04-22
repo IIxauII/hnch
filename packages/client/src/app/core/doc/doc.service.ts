@@ -15,6 +15,7 @@ import {
   DOC_ROUNDS_KEY,
   DOC_SETTINGS_KEY,
   initDoc,
+  joinDoc,
   patchSettings,
   projectDoc,
   revealRound as revealRoundY,
@@ -99,6 +100,8 @@ export interface StartRoundInit {
  */
 export interface ConnectOptions {
   readonly wsBaseUrl?: string
+  /** Override room UUID — required when joining via {@link DocService.joinSession} since meta hasn't synced yet. */
+  readonly roomUuid?: string
 }
 
 /**
@@ -270,6 +273,32 @@ export class DocService {
   }
 
   /**
+   * Join an existing session on the relay. Unlike {@link createSession},
+   * this only writes the participant entry — settings, meta, and
+   * `hostParticipantId` are received from the relay via Yjs sync,
+   * avoiding CRDT-merge conflicts with the creator's initial writes.
+   */
+  joinSession(init: {
+    participantId: string
+    displayName: string
+    roomCode?: string
+  }): void {
+    if (this.doc !== null) {
+      throw new Error('DocService.joinSession: a session is already active')
+    }
+
+    const doc = new Y.Doc()
+    joinDoc(doc, {
+      participantId: init.participantId,
+      displayName: init.displayName,
+    })
+
+    this.attach(doc)
+    this.roomCodeSignal.set(init.roomCode ?? null)
+    this.initAwareness(doc, init.participantId)
+  }
+
+  /**
    * Open a sync connection to the relay for the active session.
    * Throws if no session exists; idempotently no-ops if a provider is
    * already attached. Credentials follow ADR-0016's query-param
@@ -279,7 +308,7 @@ export class DocService {
   connect(credentials: JoinCredentials, opts: ConnectOptions = {}): void {
     const doc = this.requireDoc('connect')
     if (this.provider !== null) return
-    const roomUuid = this.meta()?.roomUuid
+    const roomUuid = opts.roomUuid ?? this.meta()?.roomUuid
     if (roomUuid === undefined) {
       throw new Error('DocService.connect: session has no roomUuid')
     }

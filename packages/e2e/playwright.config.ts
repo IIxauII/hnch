@@ -6,13 +6,15 @@ export default defineConfig({
   testDir: './tests',
   fullyParallel: false,
   forbidOnly: isCI,
-  retries: isCI ? 2 : 0,
+  retries: isCI ? 1 : 0,
   workers: 1,
   reporter: isCI ? 'github' : 'html',
+  timeout: 15_000,
   use: {
     baseURL: 'http://localhost:4200',
-    trace: 'on-first-retry',
-    screenshot: 'only-on-failure',
+    trace: isCI ? 'on-first-retry' : 'on',
+    screenshot: isCI ? 'only-on-failure' : 'on',
+    video: isCI ? 'off' : 'on',
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },

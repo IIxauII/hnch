@@ -28,13 +28,13 @@ export class Participant {
 
   /** Complete the onboarding flow by entering a display name. */
   async onboard(): Promise<void> {
-    await this.page.waitForURL('**/onboarding')
+    await this.page.waitForURL(/\/onboarding/)
     const input = this.page.locator(ONBOARDING.nameInput)
     // Ionic wraps <input> inside shadow DOM of ion-input.
     // Use .fill() which works through shadow DOM in Playwright.
     await input.locator('input').fill(this.displayName)
     await this.page.locator(ONBOARDING.continueBtn).click()
-    await this.page.waitForURL('**/home')
+    await this.page.waitForURL(/\/home/)
   }
 
   // -- Session lifecycle ----------------------------------------------------
@@ -42,12 +42,12 @@ export class Participant {
   /** Create a new session from /home. Returns the room code. */
   async createSession(): Promise<string> {
     await this.page.goto(`${BASE_URL}/home`)
-    // If redirected to onboarding, complete it first
+    await this.page.waitForURL(/\/(home|onboarding)/)
     if (this.page.url().includes('/onboarding')) {
       await this.onboard()
     }
     await this.page.locator(HOME.createCard).click()
-    await this.page.waitForURL('**/lobby')
+    await this.page.waitForURL(/\/lobby/)
     const codeEl = this.page.locator(LOBBY.roomCode)
     await codeEl.waitFor({ state: 'visible' })
     const code = await codeEl.textContent()
@@ -58,15 +58,16 @@ export class Participant {
   /** Join an existing session from /home using a room code. */
   async joinSession(code: string): Promise<void> {
     await this.page.goto(`${BASE_URL}/home`)
+    await this.page.waitForURL(/\/(home|onboarding)/)
     if (this.page.url().includes('/onboarding')) {
       await this.onboard()
     }
     await this.page.locator(HOME.joinCard).click()
-    await this.page.waitForURL('**/join')
+    await this.page.waitForURL(/\/join/)
     const input = this.page.locator(JOIN.codeInput).locator('input')
     await input.fill(code)
     await this.page.locator(JOIN.joinBtn).click()
-    await this.page.waitForURL('**/lobby')
+    await this.page.waitForURL(/\/lobby/)
   }
 
   // -- Lobby actions --------------------------------------------------------
@@ -83,12 +84,12 @@ export class Participant {
     const startBtn = this.page.locator(ROUND_START.startBtn)
     await startBtn.waitFor({ state: 'visible' })
     await startBtn.evaluate((el: HTMLElement) => el.click())
-    await this.page.waitForURL('**/estimating')
+    await this.page.waitForURL(/\/estimating/)
   }
 
   /** Wait for auto-navigation to /estimating (non-host clients). */
   async waitForEstimating(): Promise<void> {
-    await this.page.waitForURL('**/estimating', { timeout: 10_000 })
+    await this.page.waitForURL(/\/estimating/, { timeout: 10_000 })
   }
 
   // -- Voting ---------------------------------------------------------------
@@ -101,7 +102,7 @@ export class Participant {
   /** Tap the Reveal Votes button (host only). */
   async reveal(): Promise<void> {
     await this.page.locator(ESTIMATING.revealBtn).click()
-    await this.page.waitForURL('**/revealed')
+    await this.page.waitForURL(/\/revealed/)
   }
 
   // -- Revealed page --------------------------------------------------------
@@ -117,7 +118,7 @@ export class Participant {
     const startBtn = this.page.locator(ROUND_START.startBtn)
     await startBtn.waitFor({ state: 'visible' })
     await startBtn.evaluate((el: HTMLElement) => el.click())
-    await this.page.waitForURL('**/estimating')
+    await this.page.waitForURL(/\/estimating/)
   }
 
   // -- Settings (from lobby) ------------------------------------------------
@@ -166,24 +167,27 @@ export class Participant {
   async reconnect(code: string): Promise<void> {
     this.page = await this.context.newPage()
     await this.page.goto(`${BASE_URL}/home`)
+    await this.page.waitForURL(/\/(home|onboarding)/)
     if (this.page.url().includes('/onboarding')) {
       // Same context, so onboarding should be skipped (localStorage persists)
       // But if somehow needed:
       await this.onboard()
     }
     await this.page.locator(HOME.joinCard).click()
-    await this.page.waitForURL('**/join')
+    await this.page.waitForURL(/\/join/)
     const input = this.page.locator(JOIN.codeInput).locator('input')
     await input.fill(code)
     await this.page.locator(JOIN.joinBtn).click()
-    await this.page.waitForURL('**/lobby')
+    // After joining, the player lands on /lobby. If there's an active
+    // round the lobby's auto-navigate effect may redirect to /estimating.
+    await this.page.waitForURL(/\/(lobby|estimating)/, { timeout: 10_000 })
   }
 
   // -- Assertions -----------------------------------------------------------
 
   /** Assert the revealed page shows the given vote values (unordered). */
   async expectRevealedVotes(expected: string[]): Promise<void> {
-    await this.page.waitForURL('**/revealed')
+    await this.page.waitForURL(/\/revealed/)
     const cards = this.page.locator(REVEALED.groupCard)
     await cards.first().waitFor({ state: 'visible' })
     // Collect all card values from vote groups
@@ -208,7 +212,7 @@ export class Participant {
   async expectVotesHidden(): Promise<void> {
     // On the estimating page, there is no revealed data — just dot indicators
     // Verify we are on estimating (not revealed)
-    await this.page.waitForURL('**/estimating')
+    await this.page.waitForURL(/\/estimating/)
   }
 
   /** Assert this participant sees host controls. */

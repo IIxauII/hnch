@@ -15,7 +15,7 @@ test.describe('Manual reveal', () => {
     await host.reveal()
 
     // Player auto-navigates to revealed page
-    await player.page.waitForURL('**/revealed', { timeout: 10_000 })
+    await player.page.waitForURL(/\/revealed/, { timeout: 10_000 })
 
     // Both see the correct votes
     await host.expectRevealedVotes(['5', '8'])

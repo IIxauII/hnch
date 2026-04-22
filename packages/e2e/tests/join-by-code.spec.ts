@@ -10,12 +10,14 @@ test.describe('Join by code', () => {
     await host.expectParticipantCount(2)
     await player.expectParticipantCount(2)
 
-    // Both see the Start Round button (currently shown to all participants)
-    await expect(
-      host.page.locator('ion-button', { hasText: LOBBY.startRoundBtn }),
-    ).toBeVisible()
+    // Player does NOT see the Start Round button (host-only control)
     await expect(
       player.page.locator('ion-button', { hasText: LOBBY.startRoundBtn }),
+    ).not.toBeVisible()
+
+    // Host still sees Start Round
+    await expect(
+      host.page.locator('ion-button', { hasText: LOBBY.startRoundBtn }),
     ).toBeVisible()
   })
 })
