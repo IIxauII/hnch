@@ -29,8 +29,9 @@ interface ChipState {
  * Debounce window for disconnected → warning. Plan §3.9 specifies
  * 5 s: anything briefer is treated as a transit blip and stays
  * invisible so the toolbar doesn't flap during normal network
- * jitter. Exported for `// TODO timer` authors in Phase 4 who want
- * to line their own timer windows up with this.
+ * jitter. Exported so other debounce windows (e.g.
+ * `HOST_ABSENCE_ELECTION_DEBOUNCE_MS`) can reference the value if
+ * needed, though they are intentionally kept as separate constants.
  */
 export const DISCONNECTED_WARNING_DELAY_MS = 5_000
 

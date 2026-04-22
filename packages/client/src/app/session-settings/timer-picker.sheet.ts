@@ -52,10 +52,12 @@ const OPTIONS: readonly TimerOption[] = [
  *
  * Per ADR-0015 and plan §2.4, the timer is session-level and applies to
  * every round; changing it mid-round does not affect the running timer
- * (that's a Phase 4 concern). Commits on selection, no Save button.
+ * (the live countdown reads `round.timerStartedAt` which is frozen at
+ * round start). Commits on selection, no Save button.
  */
 @Component({
   selector: 'app-timer-picker-sheet',
+  host: { class: 'ion-page' },
   imports: [
     IonButton,
     IonButtons,
@@ -96,13 +98,7 @@ const OPTIONS: readonly TimerOption[] = [
       </ion-list>
     </ion-content>
   `,
-  styles: [
-    `
-      :host {
-        display: block;
-      }
-    `,
-  ],
+  styles: [],
 })
 export class TimerPickerSheetComponent {
   /**

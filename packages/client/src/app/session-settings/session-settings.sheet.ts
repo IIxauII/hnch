@@ -55,6 +55,7 @@ import {
  */
 @Component({
   selector: 'app-session-settings-sheet',
+  host: { class: 'ion-page' },
   imports: [
     AccessPickerSheetComponent,
     IonButton,
@@ -173,9 +174,6 @@ import {
   `,
   styles: [
     `
-      :host {
-        display: block;
-      }
       .value {
         color: var(--ion-color-medium);
         font-size: 0.95rem;

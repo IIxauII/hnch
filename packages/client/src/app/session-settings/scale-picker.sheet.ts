@@ -35,6 +35,7 @@ import {
  */
 @Component({
   selector: 'app-scale-picker-sheet',
+  host: { class: 'ion-page' },
   imports: [
     IonButton,
     IonButtons,
@@ -81,9 +82,6 @@ import {
   `,
   styles: [
     `
-      :host {
-        display: block;
-      }
       ion-note {
         font-size: 0.85rem;
       }

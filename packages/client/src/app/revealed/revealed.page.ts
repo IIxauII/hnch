@@ -67,6 +67,7 @@ const DIDNT_VOTE_KEY = '__didnt_vote__'
  */
 @Component({
   selector: 'app-revealed',
+  host: { class: 'ion-page' },
   imports: [
     IonBackButton,
     IonButton,
@@ -177,9 +178,6 @@ const DIDNT_VOTE_KEY = '__didnt_vote__'
   `,
   styles: [
     `
-      :host {
-        display: block;
-      }
       .title {
         font-size: 1.75rem;
         font-weight: 700;
@@ -343,10 +341,9 @@ export class RevealedPage {
   })
 
   /**
-   * Names of participants who have no entry in `round.votes`. Phase 2
-   * only populates this when the user clears their vote pre-reveal
-   * (see plan §3.9); Phase 4 will populate it for timer-expiry
-   * joiners as well — the rendering path is identical.
+   * Names of participants who have no entry in `round.votes`. Covers
+   * both users who cleared their vote pre-reveal and participants
+   * who joined mid-round without voting before the timer expired.
    */
   protected readonly didntVoteNames = computed<readonly string[]>(() => {
     const round = this.revealedRound()

@@ -18,6 +18,7 @@ import {
   patchSettings,
   projectDoc,
   revealRound as revealRoundY,
+  startRoundTimer as startRoundTimerY,
   upsertParticipant as upsertParticipantY,
   type DocProjection,
   type InitDocInit,
@@ -351,24 +352,31 @@ export class DocService {
    */
   startRound(descriptor: StartRoundInit, opts: { now?: () => number } = {}): string {
     const doc = this.requireDoc('startRound')
-    const createdBy = this.settings()?.hostParticipantId
+    const settings = this.settings()
+    const createdBy = settings?.hostParticipantId
     if (!createdBy) {
       throw new Error('DocService.startRound: no hostParticipantId in settings')
     }
     const id = crypto.randomUUID()
     const now = opts.now ?? (() => Date.now())
-    appendRoundY(doc, {
-      id,
-      createdAt: now(),
-      createdBy,
-      ...(descriptor.title !== undefined && { title: descriptor.title }),
-      ...(descriptor.description !== undefined && {
-        description: descriptor.description,
-      }),
-      ...(descriptor.ticketId !== undefined && { ticketId: descriptor.ticketId }),
-      ...(descriptor.parentRoundId !== undefined && {
-        parentRoundId: descriptor.parentRoundId,
-      }),
+    const timestamp = now()
+    doc.transact(() => {
+      appendRoundY(doc, {
+        id,
+        createdAt: timestamp,
+        createdBy,
+        ...(descriptor.title !== undefined && { title: descriptor.title }),
+        ...(descriptor.description !== undefined && {
+          description: descriptor.description,
+        }),
+        ...(descriptor.ticketId !== undefined && { ticketId: descriptor.ticketId }),
+        ...(descriptor.parentRoundId !== undefined && {
+          parentRoundId: descriptor.parentRoundId,
+        }),
+      })
+      if (settings?.revealMode === 'timer' && (settings.timerDurationMs ?? 0) > 0) {
+        startRoundTimerY(doc, id, timestamp)
+      }
     })
     return id
   }

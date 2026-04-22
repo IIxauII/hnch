@@ -33,6 +33,7 @@ import { DisplayNameService } from '../core/display-name.service'
  */
 @Component({
   selector: 'app-onboarding',
+  host: { class: 'ion-page' },
   imports: [
     IonButton,
     IonContent,
@@ -81,9 +82,6 @@ import { DisplayNameService } from '../core/display-name.service'
   `,
   styles: [
     `
-      :host {
-        display: block;
-      }
       h1 {
         font-size: 2rem;
         font-weight: 700;

@@ -54,6 +54,7 @@ import { RelayRejectionError, resolveRoom } from '../core/relay/relay-api'
  */
 @Component({
   selector: 'app-join',
+  host: { class: 'ion-page' },
   imports: [
     IonBackButton,
     IonButton,
@@ -116,9 +117,6 @@ import { RelayRejectionError, resolveRoom } from '../core/relay/relay-api'
   `,
   styles: [
     `
-      :host {
-        display: block;
-      }
       h1 {
         font-size: 2rem;
         font-weight: 700;

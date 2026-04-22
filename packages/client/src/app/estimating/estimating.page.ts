@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
 } from '@angular/core'
 import { Router } from '@angular/router'
@@ -22,6 +23,7 @@ import { ConnectionChipComponent } from '../core/connection-chip.component'
 import { DocService } from '../core/doc/doc.service'
 import { LastSessionService } from '../core/last-session.service'
 import { ParticipantIdService } from '../core/participant-id.service'
+import { TimerTickService } from '../core/timer-tick.service'
 import { AvatarVoteRowComponent } from './avatar-vote-row.component'
 
 /**
@@ -30,20 +32,20 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
  * Pick-your-card screen. Presence of a vote is public (shown in the
  * avatar row); the value stays hidden until the host taps Reveal.
  *
- * Phase 2 shape:
+ * Features:
  *  - Title "Round N" uses the current round's 1-based index in
  *    `rounds()` so re-votes and next-rounds number correctly.
  *  - Descriptor from `currentRound.title` when present.
- *  - Timer display reads `settings.timerDurationMs` for visual realism
- *    only — `timerStartedAt` is never written here because timer-driven
- *    reveal is Phase 4 (plan §2.4). Countdown therefore stays pinned at
- *    the configured duration; we mark it `// Phase 4` below.
+ *  - Timer display shows a live countdown derived from
+ *    `round.timerStartedAt` + `settings.timerDurationMs`, ticked by
+ *    `TimerTickService` at ~4 Hz. Last-30-seconds styling applies a
+ *    danger color per ux.md §5.5.
  *  - Card grid renders `currentRound.scale.cards`. Tapping a card
  *    casts/overwrites the vote; tapping the selected card clears it
  *    (ADR-0013: vote change allowed until reveal).
- *  - Host-only Reveal button. In Phase 2 the host is always you; the
- *    check still guards the button so Phase 3 joiners see the empty
- *    footer without further work.
+ *  - Host-only Reveal button; non-host clients see no footer.
+ *  - Auto-navigation to Revealed when `revealedAt` is written (timer
+ *    or manual reveal by any peer).
  *  - Haptics on card tap (ux.md §7) are Phase 6; no plugin dependency
  *    added here.
  *
@@ -52,6 +54,7 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
  */
 @Component({
   selector: 'app-estimating',
+  host: { class: 'ion-page' },
   imports: [
     AvatarVoteRowComponent,
     ConnectionChipComponent,
@@ -87,8 +90,7 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
         }
 
         @if (timerLabel(); as label) {
-          <!-- Phase 4: drive from round.timerStartedAt + settings.timerDurationMs. -->
-          <p class="timer">{{ label }}</p>
+          <p class="timer" [class.urgent]="timerUrgent()">{{ label }}</p>
         }
 
         <app-avatar-vote-row
@@ -136,9 +138,6 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
   `,
   styles: [
     `
-      :host {
-        display: block;
-      }
       .title {
         font-size: 1.75rem;
         font-weight: 700;
@@ -154,6 +153,9 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
         font-variant-numeric: tabular-nums;
         margin: 0.5rem 0 1rem;
         color: var(--ion-color-medium);
+      }
+      .timer.urgent {
+        color: var(--ion-color-danger);
       }
       .section {
         margin: 1.5rem 0 0.5rem;
@@ -196,6 +198,7 @@ export class EstimatingPage {
   private readonly docService = inject(DocService)
   private readonly participantIdService = inject(ParticipantIdService)
   private readonly lastSessionService = inject(LastSessionService)
+  private readonly timerTick = inject(TimerTickService)
 
   protected readonly currentRound = this.docService.currentRound
   protected readonly onlineParticipants = this.docService.onlineParticipants
@@ -214,6 +217,18 @@ export class EstimatingPage {
         lastScreen: 'estimating',
       })
     }
+
+    // Auto-navigate to Revealed when `revealedAt` is written — covers
+    // timer-driven reveal (local or remote) and host manual reveal
+    // received by non-host clients. The effect is scoped to this
+    // component's lifetime, so it only fires while the user is on
+    // `/estimating`.
+    effect(() => {
+      const round = this.docService.currentRound()
+      if (round?.revealedAt !== undefined) {
+        void this.router.navigate(['/revealed'], { replaceUrl: true })
+      }
+    })
   }
 
   private readonly myId = this.participantIdService.id
@@ -264,17 +279,36 @@ export class EstimatingPage {
   })
 
   /**
-   * Countdown label derived from `settings.timerDurationMs`. Phase 2
-   * renders the configured duration verbatim — see the class docstring
-   * and the template comment for why the value never decrements.
-   * `null` hides the label entirely for `revealMode: 'manual'` sessions.
+   * Live countdown label driven by `round.timerStartedAt`,
+   * `settings.timerDurationMs`, and the 4 Hz wall-clock tick. Returns
+   * `null` (hiding the label) for `revealMode: 'manual'` sessions or
+   * when the current round has no timer.
    */
   protected readonly timerLabel = computed<string | null>(() => {
     const settings = this.docService.settings()
     if (!settings || settings.revealMode !== 'timer') return null
-    const ms = settings.timerDurationMs
-    if (ms === undefined || ms <= 0) return null
-    return formatCountdown(ms)
+    const round = this.docService.currentRound()
+    if (!round || round.timerStartedAt === undefined) return null
+    const duration = settings.timerDurationMs
+    if (duration === undefined || duration <= 0) return null
+    const elapsed = this.timerTick.now() - round.timerStartedAt
+    return formatCountdown(Math.max(0, duration - elapsed))
+  })
+
+  /**
+   * `true` when the remaining countdown is 30 s or less (and still
+   * positive). Drives a muted-red style on the timer label per
+   * ux.md §5.5.
+   */
+  protected readonly timerUrgent = computed<boolean>(() => {
+    const settings = this.docService.settings()
+    if (!settings || settings.revealMode !== 'timer') return false
+    const round = this.docService.currentRound()
+    if (!round || round.timerStartedAt === undefined) return false
+    const duration = settings.timerDurationMs
+    if (duration === undefined || duration <= 0) return false
+    const remaining = duration - (this.timerTick.now() - round.timerStartedAt)
+    return remaining <= 30_000 && remaining > 0
   })
 
   protected onCardTap(card: string): void {
@@ -307,7 +341,7 @@ export class EstimatingPage {
 /**
  * Format a millisecond duration as `M:SS` above 60s and `0:SS` below,
  * per ux.md §5.5. Sub-second values round down to 0:00 (the timer has
- * already expired at that point; Phase 4 deals with the reveal).
+ * already expired at that point; `RoundTimerService` handles the reveal).
  */
 function formatCountdown(ms: number): string {
   const totalSec = Math.max(0, Math.floor(ms / 1000))

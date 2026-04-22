@@ -59,6 +59,7 @@ const OPTIONS: readonly AccessOption[] = [
  */
 @Component({
   selector: 'app-access-picker-sheet',
+  host: { class: 'ion-page' },
   imports: [
     IonButton,
     IonButtons,
@@ -128,9 +129,6 @@ const OPTIONS: readonly AccessOption[] = [
   `,
   styles: [
     `
-      :host {
-        display: block;
-      }
       ion-note {
         font-size: 0.85rem;
       }

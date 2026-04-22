@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   signal,
   viewChild,
@@ -11,7 +12,6 @@ import {
   ActionSheetController,
   AlertController,
   IonAvatar,
-  IonBadge,
   IonButton,
   IonButtons,
   IonContent,
@@ -34,6 +34,7 @@ import {
   personCircleOutline,
   qrCodeOutline,
   shareOutline,
+  starOutline,
 } from 'ionicons/icons'
 
 import { ConnectionChipComponent } from '../core/connection-chip.component'
@@ -68,10 +69,10 @@ import { SessionSettingsSheetComponent } from '../session-settings/session-setti
  */
 @Component({
   selector: 'app-lobby',
+  host: { class: 'ion-page' },
   imports: [
     ConnectionChipComponent,
     IonAvatar,
-    IonBadge,
     IonButton,
     IonButtons,
     IonContent,
@@ -160,10 +161,14 @@ import { SessionSettingsSheetComponent } from '../session-settings/session-setti
             </ion-avatar>
             <ion-label>
               {{ p.id === myId() ? 'You (' + p.displayName + ')' : p.displayName }}
+              @if (p.id === hostId()) {
+                <ion-icon
+                  name="star-outline"
+                  class="host-icon"
+                  aria-label="Host"
+                ></ion-icon>
+              }
             </ion-label>
-            @if (p.id === hostId()) {
-              <ion-badge slot="end" color="primary">Host</ion-badge>
-            }
           </ion-item>
         }
       </ion-list>
@@ -213,9 +218,6 @@ import { SessionSettingsSheetComponent } from '../session-settings/session-setti
   `,
   styles: [
     `
-      :host {
-        display: block;
-      }
       .room-code {
         font-size: 2.5rem;
         font-weight: 700;
@@ -247,6 +249,12 @@ import { SessionSettingsSheetComponent } from '../session-settings/session-setti
       }
       ion-item.offline {
         opacity: 0.5;
+      }
+      .host-icon {
+        font-size: 1rem;
+        color: var(--ion-color-medium);
+        vertical-align: middle;
+        margin-inline-start: 0.25rem;
       }
     `,
   ],
@@ -312,12 +320,24 @@ export class LobbyPage {
       'person-circle-outline': personCircleOutline,
       'qr-code-outline': qrCodeOutline,
       'share-outline': shareOutline,
+      'star-outline': starOutline,
     })
     // Refresh the jump-back-in cache on every mount (plan §3.8).
     // Lobby is the default landing after Create / Join / resume, so
     // bumping `lastSeenAt` here keeps the 24-h TTL tracking actual
     // activity rather than whenever the session was first opened.
     this.recordLastSession()
+
+    // Auto-navigate to Estimating when a round starts. Covers
+    // non-host clients who are sitting on the Lobby when the host
+    // taps "Start Round" — without this, only the host's click
+    // handler navigates.
+    effect(() => {
+      const round = this.docService.currentRound()
+      if (round && round.revealedAt === undefined) {
+        void this.router.navigate(['/estimating'])
+      }
+    })
   }
 
   private recordLastSession(): void {
