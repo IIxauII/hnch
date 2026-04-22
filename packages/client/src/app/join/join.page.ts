@@ -9,7 +9,6 @@ import { toSignal } from '@angular/core/rxjs-interop'
 import { FormControl, ReactiveFormsModule } from '@angular/forms'
 import { Router } from '@angular/router'
 import {
-  FIBONACCI_SCALE,
   formatRoomCode,
   isValidRoomCode,
   normalizeRoomCode,
@@ -201,25 +200,22 @@ export class JoinPage {
         resolveRoom(environment.relayHttpUrl, code),
       ])
 
-      // Tear down any leftover session so `createSession`'s
-      // single-session invariant holds across a back-nav from Lobby.
+      // Tear down any leftover session so the single-session invariant
+      // holds across a back-nav from Lobby.
       this.docService.endSession()
-      this.docService.createSession({
+      this.docService.joinSession({
         participantId,
         displayName: displayName ?? '',
-        defaultScale: FIBONACCI_SCALE,
-        revealMode: 'manual',
-        roomUuid: resolved.uuid,
         roomCode: code,
       })
 
       // Permissive mode for Phase 3 — `deviceId` is enough. Phase 5
       // threads in the Phase-5 password / invite fields without
       // touching this call site.
-      this.docService.connect({
-        roomCode: code,
-        deviceId: participantId,
-      })
+      this.docService.connect(
+        { roomCode: code, deviceId: participantId },
+        { roomUuid: resolved.uuid },
+      )
 
       await this.router.navigate(['/lobby'])
     } catch (err) {

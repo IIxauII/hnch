@@ -92,7 +92,7 @@ export const SETTINGS_SHEET = {
 } as const
 
 export const SCALE_PICKER = {
-  option: (label: string) => `app-scale-picker-sheet ion-radio:has(ion-label:text-is("${label}"))`,
+  option: (label: string) => `app-scale-picker-sheet ion-item:has(h3:text-is("${label}"))`,
   doneBtn: 'app-scale-picker-sheet ion-button:has-text("Done")',
 } as const
 

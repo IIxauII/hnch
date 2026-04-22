@@ -287,7 +287,11 @@ export class LobbyPage {
     () => this.docService.settings()?.hostParticipantId ?? null,
   )
 
-  protected readonly isHost = computed(() => this.hostId() === this.myId())
+  protected readonly isHost = computed(() => {
+    const hostId = this.hostId()
+    const myId = this.myId()
+    return !!myId && !!hostId && myId === hostId
+  })
 
   /**
    * Relay-assigned 6-character room code (ADR-0008). The code is

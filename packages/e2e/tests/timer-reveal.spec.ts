@@ -3,14 +3,11 @@ import { ESTIMATING } from './fixtures/helpers'
 
 test.describe('Timer reveal', () => {
   test('votes auto-reveal when timer expires', async ({ host, player }) => {
-    // Increase test timeout to accommodate 30s timer + sync overhead
-    test.setTimeout(60_000)
-
     const code = await host.createSession()
 
-    // Configure timer before anyone joins round
+    // Configure a short timer
     await host.openSettings()
-    await host.changeTimer('30 seconds')
+    await host.changeTimer('5 seconds')
     await host.closeSettings()
 
     await player.joinSession(code)
@@ -27,9 +24,9 @@ test.describe('Timer reveal', () => {
     await expect(host.page.locator(ESTIMATING.timer)).toBeVisible()
     await expect(player.page.locator(ESTIMATING.timer)).toBeVisible()
 
-    // Wait for auto-reveal (30s timer + up to 10s sync buffer)
-    await host.page.waitForURL('**/revealed', { timeout: 45_000 })
-    await player.page.waitForURL('**/revealed', { timeout: 10_000 })
+    // Wait for auto-reveal (5s timer + sync buffer)
+    await host.page.waitForURL(/\/revealed/, { timeout: 10_000 })
+    await player.page.waitForURL(/\/revealed/, { timeout: 10_000 })
 
     // Both see the correct votes
     await host.expectRevealedVotes(['3', '5'])

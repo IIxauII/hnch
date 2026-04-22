@@ -22,7 +22,7 @@ test.describe('Vote change', () => {
     await host.castVote('5')
     await host.reveal()
 
-    await player.page.waitForURL('**/revealed', { timeout: 10_000 })
+    await player.page.waitForURL(/\/revealed/, { timeout: 10_000 })
 
     // Revealed votes show the CHANGED value (8), not the original (3)
     await host.expectRevealedVotes(['5', '8'])

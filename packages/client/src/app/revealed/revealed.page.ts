@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   signal,
   viewChild,
@@ -260,6 +261,18 @@ export class RevealedPage {
         lastScreen: 'revealed',
       })
     }
+
+    // Auto-navigate to Estimating when the host starts a new round.
+    // Mirrors the same effect on LobbyPage — non-host clients sitting
+    // on Revealed must be driven forward when currentRound() switches
+    // to a new unrevealed round (ux.md §4.4: "all clients navigate to
+    // Estimating").
+    effect(() => {
+      const round = this.docService.currentRound()
+      if (round && round.revealedAt === undefined) {
+        void this.router.navigate(['/estimating'], { replaceUrl: true })
+      }
+    })
   }
 
   /**

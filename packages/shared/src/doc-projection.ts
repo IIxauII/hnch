@@ -251,6 +251,31 @@ export function initDoc(doc: Y.Doc, init: InitDocInit): void {
   })
 }
 
+/**
+ * Arguments for joining an existing session — only the participant's
+ * own entry is written. Settings, meta, and `hostParticipantId` are
+ * received from the relay via Yjs sync rather than locally seeded,
+ * avoiding CRDT-merge conflicts with the creator's initial writes.
+ */
+export interface JoinDocInit {
+  readonly participantId: string
+  readonly displayName: string
+}
+
+/**
+ * Add this client's participant entry to the doc without touching
+ * `meta` or `settings`. Used when joining an existing room — the
+ * authoritative state arrives via the relay's Yjs snapshot.
+ */
+export function joinDoc(doc: Y.Doc, init: JoinDocInit): void {
+  doc.transact(() => {
+    const pMap = new Y.Map<unknown>()
+    pMap.set('displayName', init.displayName)
+    pMap.set('joinedAt', Date.now())
+    participantsMap(doc).set(init.participantId, pMap)
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Mutations (plain JS -> Y)
 // ---------------------------------------------------------------------------
