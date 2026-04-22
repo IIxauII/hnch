@@ -1,12 +1,14 @@
 import { defineConfig, devices } from '@playwright/test'
 
+const isCI = !!process.env['CI']
+
 export default defineConfig({
   testDir: './tests',
   fullyParallel: false,
-  forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  forbidOnly: isCI,
+  retries: isCI ? 2 : 0,
   workers: 1,
-  reporter: process.env.CI ? 'github' : 'html',
+  reporter: isCI ? 'github' : 'html',
   use: {
     baseURL: 'http://localhost:4200',
     trace: 'on-first-retry',
@@ -21,12 +23,12 @@ export default defineConfig({
     {
       command: 'pnpm --filter @hnch/relay dev',
       port: 1234,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: !isCI,
     },
     {
       command: 'pnpm --filter @hnch/client dev',
       port: 4200,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: !isCI,
     },
   ],
 })
