@@ -4,18 +4,19 @@
  * Routes:
  *
  *   - `GET /health` — liveness probe.
- *   - `POST /rooms` — mints a room, returns `{ uuid, code }`
- *     (ADR-0008, ADR-0016).
+ *   - `POST /rooms` — mints a room, returns `{ uuid, code }`. Accepts
+ *     optional `{ passwordHash }` to create a password-protected room
+ *     (ADR-0008, ADR-0016, ADR-0017).
  *   - `GET /rooms/:code` — resolves a code to a UUID and reports the
  *     room's access mode, per ADR-0016. Responds
  *     `404 { reason: 'unknown-room' }` if the code is not live.
+ *   - `PATCH /rooms/:uuid/access` — set or remove the password on a
+ *     live room (ADR-0017). Existing connections are not evicted.
  *   - `WS /ws/:uuid` — handed to the y-websocket-compatible handler
  *     (see `ws-connection.ts`) after the `upgrade` event. Carries
- *     `JoinCredentials` as URL query params per ADR-0016; in this
- *     commit the relay is in *permissive* mode (plan §2.4): any
- *     well-formed handshake with a known UUID is accepted. The
- *     handshake-shape gate and Phase-5 enforcement hook land next to
- *     the sync-provider wiring in later P3 commits.
+ *     `JoinCredentials` as URL query params per ADR-0016. Password-
+ *     protected rooms require a matching `pw` query param; mismatches
+ *     are rejected pre-upgrade (ADR-0017).
  *
  * Pre-upgrade rejections close the raw socket with a minimal HTTP
  * response so the client sees a clean `4xx` rather than a mysterious
@@ -29,6 +30,7 @@ import {
   type Server,
   type ServerResponse,
 } from 'node:http'
+import { timingSafeEqual } from 'node:crypto'
 import type { Duplex } from 'node:stream'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { normalizeRoomCode, type JoinRejectionReason } from '@hnch/shared'
@@ -110,7 +112,7 @@ async function handleHttpRequest(
   // CORS: allow the dev client (and any origin in dev mode) to reach
   // the relay. In production this would be locked to the app's origin.
   res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
 
   if (req.method === 'OPTIONS') {
@@ -141,6 +143,13 @@ async function handleHttpRequest(
     return
   }
 
+  // PATCH /rooms/:uuid/access — set or remove password (ADR-0017)
+  const accessMatch = path.match(/^\/rooms\/([0-9a-fA-F-]{36})\/access\/?$/)
+  if (req.method === 'PATCH' && accessMatch !== null) {
+    await handlePatchAccess(accessMatch[1]!, req, res, deps)
+    return
+  }
+
   const roomCodeMatch = path.match(/^\/rooms\/([^/]+)\/?$/)
   if (req.method === 'GET' && roomCodeMatch !== null) {
     const raw = decodeURIComponent(roomCodeMatch[1]!)
@@ -156,8 +165,9 @@ async function handleCreateRoom(
   res: ServerResponse,
   deps: RelayServerDeps,
 ): Promise<void> {
+  let body: unknown
   try {
-    const body = await readJsonBody(req)
+    body = await readJsonBody(req)
     if (body !== null && typeof body !== 'object') {
       sendJson(res, 400, { error: 'bad-request' })
       return
@@ -167,7 +177,16 @@ async function handleCreateRoom(
     return
   }
 
-  const record = deps.roomStore.createRoom()
+  const obj = (body ?? {}) as Record<string, unknown>
+  const passwordHash = obj['passwordHash'] as string | undefined
+  if (passwordHash !== undefined && !isValidPasswordHash(passwordHash)) {
+    sendJson(res, 400, { error: 'bad-request', detail: 'passwordHash must be a 64-character hex string' })
+    return
+  }
+
+  const record = deps.roomStore.createRoom(
+    passwordHash !== undefined ? { passwordHash } : undefined,
+  )
   const payload: CreateRoomResponse = {
     uuid: record.uuid,
     code: record.code,
@@ -230,9 +249,19 @@ function handleUpgrade(
     return
   }
 
-  // Phase 3 is permissive: any caller with a well-formed UUID in the
-  // path is accepted. Phase 5 adds `JoinCredentials` shape validation
-  // (and Phase-5 enforcement) in this exact spot per ADR-0016.
+  // Password enforcement per ADR-0017.
+  if (record.passwordHash !== undefined) {
+    const pw = parsed.searchParams.get('pw')
+    if (!pw) {
+      denyUpgrade(socket, 400, 'Bad Request')
+      return
+    }
+    if (!passwordHashesMatch(pw, record.passwordHash)) {
+      denyUpgrade(socket, 403, 'Forbidden')
+      return
+    }
+  }
+
   wss.handleUpgrade(req, socket, head, (ws: WebSocket) => {
     const wsRoom: WsRoom = {
       doc: record.doc,
@@ -250,6 +279,61 @@ function handleUpgrade(
     }
     setupWSConnection(ws, wsRoom)
   })
+}
+
+async function handlePatchAccess(
+  uuid: string,
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: RelayServerDeps,
+): Promise<void> {
+  let body: unknown
+  try {
+    body = await readJsonBody(req)
+  } catch {
+    sendJson(res, 400, { error: 'bad-request' })
+    return
+  }
+
+  const obj = (body ?? {}) as Record<string, unknown>
+  const passwordHash = obj['passwordHash']
+
+  if (passwordHash !== undefined && passwordHash !== null) {
+    if (typeof passwordHash !== 'string' || !isValidPasswordHash(passwordHash)) {
+      sendJson(res, 400, { error: 'bad-request', detail: 'passwordHash must be a 64-character hex string or null' })
+      return
+    }
+  }
+
+  const found = deps.roomStore.setPasswordHash(
+    uuid,
+    passwordHash === null || passwordHash === undefined ? null : (passwordHash as string),
+  )
+  if (!found) {
+    sendJson(res, 404, { reason: 'unknown-room' })
+    return
+  }
+
+  const record = deps.roomStore.getByUuid(uuid)!
+  sendJson(res, 200, { accessMode: accessModeOf(record) })
+}
+
+/** A valid password hash is a 64-character lowercase hex string (32 bytes). */
+function isValidPasswordHash(value: unknown): value is string {
+  return typeof value === 'string' && /^[0-9a-f]{64}$/.test(value)
+}
+
+/**
+ * Constant-time comparison of two hex-encoded password hashes.
+ * Returns `false` immediately if lengths differ (no timing leak
+ * since length is always 64 for valid hashes — the caller rejects
+ * malformed hashes before reaching this point).
+ */
+function passwordHashesMatch(submitted: string, stored: string): boolean {
+  const a = Buffer.from(submitted, 'utf-8')
+  const b = Buffer.from(stored, 'utf-8')
+  if (a.length !== b.length) return false
+  return timingSafeEqual(a, b)
 }
 
 function denyUpgrade(socket: Duplex, status: number, reason: string): void {

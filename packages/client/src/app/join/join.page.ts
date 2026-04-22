@@ -10,6 +10,7 @@ import { FormControl, ReactiveFormsModule } from '@angular/forms'
 import { Router } from '@angular/router'
 import {
   formatRoomCode,
+  hashPassword,
   isValidRoomCode,
   normalizeRoomCode,
   type JoinRejectionReason,
@@ -100,6 +101,21 @@ import { RelayRejectionError, resolveRoom } from '../core/relay/relay-api'
           (keydown.enter)="submit()"
         ></ion-input>
       </ion-item>
+      @if (needsPassword()) {
+        <ion-item
+          fill="solid"
+          lines="none"
+          class="password-item"
+        >
+          <ion-label position="floating">Password</ion-label>
+          <ion-input
+            [formControl]="passwordControl"
+            type="password"
+            enterkeyhint="go"
+            (keydown.enter)="submit()"
+          ></ion-input>
+        </ion-item>
+      }
     </ion-content>
     <ion-footer>
       <ion-toolbar>
@@ -125,8 +141,12 @@ import { RelayRejectionError, resolveRoom } from '../core/relay/relay-api'
         color: var(--ion-color-medium);
         margin-block-end: 1.25rem;
       }
-      .code-item {
+      .code-item,
+      .password-item {
         --border-radius: 8px;
+      }
+      .password-item {
+        margin-block-start: 0.75rem;
       }
       .code-input {
         font-family: var(--ion-font-family-monospace, ui-monospace, monospace);
@@ -154,9 +174,14 @@ export class JoinPage {
    * dash, uppercase) form that `isValidRoomCode` expects.
    */
   protected readonly codeControl = new FormControl('', { nonNullable: true })
+  protected readonly passwordControl = new FormControl('', { nonNullable: true })
 
   private readonly rawValue = toSignal(this.codeControl.valueChanges, {
     initialValue: this.codeControl.value,
+  })
+
+  private readonly rawPassword = toSignal(this.passwordControl.valueChanges, {
+    initialValue: this.passwordControl.value,
   })
 
   /**
@@ -167,9 +192,17 @@ export class JoinPage {
     normalizeRoomCode(this.rawValue()),
   )
 
-  protected readonly canJoin = computed(() =>
-    isValidRoomCode(this.normalizedCode()),
-  )
+  /** Set after resolving the room code — `true` when accessMode is `'password'`. */
+  protected readonly needsPassword = signal(false)
+
+  /** The resolved room UUID, cached between resolve and connect. */
+  private resolvedUuid: string | null = null
+
+  protected readonly canJoin = computed(() => {
+    if (!isValidRoomCode(this.normalizedCode())) return false
+    if (this.needsPassword() && !this.rawPassword().trim()) return false
+    return true
+  })
 
   protected readonly isSubmitting = signal(false)
 
@@ -185,6 +218,13 @@ export class JoinPage {
       if (formatted !== value) {
         this.codeControl.setValue(formatted, { emitEvent: false })
       }
+      // Reset password state when the code changes — a different code
+      // may resolve to a different access mode.
+      if (this.resolvedUuid !== null) {
+        this.resolvedUuid = null
+        this.needsPassword.set(false)
+        this.passwordControl.reset()
+      }
     })
   }
 
@@ -194,14 +234,33 @@ export class JoinPage {
 
     const code = this.normalizedCode()
     try {
-      const [displayName, participantId, resolved] = await Promise.all([
+      // Phase 1: resolve the code to get UUID + accessMode.
+      // If we already resolved (user is submitting with a password),
+      // skip the resolve step and go straight to connect.
+      let uuid = this.resolvedUuid
+      if (uuid === null) {
+        const resolved = await resolveRoom(environment.relayHttpUrl, code)
+        uuid = resolved.uuid
+
+        if (resolved.accessMode === 'password') {
+          // Show the password field and wait for the user to fill it in.
+          this.resolvedUuid = uuid
+          this.needsPassword.set(true)
+          this.isSubmitting.set(false)
+          return
+        }
+      }
+
+      // Phase 2: connect with credentials.
+      const [displayName, participantId] = await Promise.all([
         this.displayNameService.getDisplayName(),
         this.participantIdService.getOrCreateId(),
-        resolveRoom(environment.relayHttpUrl, code),
       ])
 
-      // Tear down any leftover session so the single-session invariant
-      // holds across a back-nav from Lobby.
+      const passwordHash = this.needsPassword()
+        ? await hashPassword(this.passwordControl.value, uuid)
+        : undefined
+
       this.docService.endSession()
       this.docService.joinSession({
         participantId,
@@ -209,12 +268,9 @@ export class JoinPage {
         roomCode: code,
       })
 
-      // Permissive mode for Phase 3 — `deviceId` is enough. Phase 5
-      // threads in the Phase-5 password / invite fields without
-      // touching this call site.
       this.docService.connect(
-        { roomCode: code, deviceId: participantId },
-        { roomUuid: resolved.uuid },
+        { roomCode: code, deviceId: participantId, passwordHash },
+        { roomUuid: uuid },
       )
 
       await this.router.navigate(['/lobby'])

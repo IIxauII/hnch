@@ -36,6 +36,7 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0014](0014-repo-layout-pnpm-workspaces.md) | Repo layout: pnpm workspaces monorepo | Accepted |
 | [0015](0015-v1-scope-session-level-reveal-and-timer.md) | v1 scope: session-level reveal mode and timer duration | Accepted |
 | [0016](0016-client-relay-connection-handshake.md) | Client ↔ relay connection handshake | Accepted |
+| [0017](0017-password-hashing-drop-invite-only.md) | Password hashing scheme and invite-only removal | Accepted |
 
 ## When to write an ADR
 

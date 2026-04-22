@@ -100,6 +100,42 @@ describe('room store', () => {
     expect(uuids).toEqual([a.uuid, b.uuid].sort())
   })
 
+  it('createRoom accepts an optional passwordHash', () => {
+    const { store } = freshStore()
+    const record = store.createRoom({ passwordHash: 'a'.repeat(64) })
+    expect(record.passwordHash).toBe('a'.repeat(64))
+  })
+
+  it('createRoom without options leaves passwordHash undefined', () => {
+    const { store } = freshStore()
+    const record = store.createRoom()
+    expect(record.passwordHash).toBeUndefined()
+  })
+
+  describe('setPasswordHash', () => {
+    it('sets a password on an existing room', () => {
+      const { store } = freshStore()
+      const record = store.createRoom()
+      const result = store.setPasswordHash(record.uuid, 'b'.repeat(64))
+      expect(result).toBe(true)
+      expect(record.passwordHash).toBe('b'.repeat(64))
+    })
+
+    it('removes a password when set to null', () => {
+      const { store } = freshStore()
+      const record = store.createRoom({ passwordHash: 'c'.repeat(64) })
+      const result = store.setPasswordHash(record.uuid, null)
+      expect(result).toBe(true)
+      expect(record.passwordHash).toBeUndefined()
+    })
+
+    it('returns false for unknown UUID', () => {
+      const { store } = freshStore()
+      const result = store.setPasswordHash('unknown-uuid', 'd'.repeat(64))
+      expect(result).toBe(false)
+    })
+  })
+
   describe('accessModeOf', () => {
     it('is "open" for a plain new record', () => {
       const { store } = freshStore()

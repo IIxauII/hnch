@@ -37,7 +37,7 @@ import type { CodePool } from './code-pool.js'
 export interface RoomRecord {
   readonly uuid: string
   readonly code: string
-  readonly passwordHash?: PasswordHash
+  passwordHash?: PasswordHash
   readonly invitesOutstanding: Set<string>
   readonly doc: Y.Doc
   readonly awareness: Awareness
@@ -84,13 +84,22 @@ export interface RoomStoreOptions {
   readonly uuidGenerator?: () => string
 }
 
+export interface CreateRoomOptions {
+  readonly passwordHash?: PasswordHash
+}
+
 export interface RoomStore {
   /** Mints a new room with a fresh UUID, a unique code, and an empty Y.Doc. */
-  createRoom(): RoomRecord
+  createRoom(options?: CreateRoomOptions): RoomRecord
   /** Returns the record for a given code, or `undefined` if not live. */
   getByCode(code: string): RoomRecord | undefined
   /** Returns the record for a given UUID, or `undefined` if not live. */
   getByUuid(uuid: string): RoomRecord | undefined
+  /**
+   * Set or remove the password hash on a live room. Returns `true` if
+   * the room was found and updated, `false` if the UUID is unknown.
+   */
+  setPasswordHash(uuid: string, hash: PasswordHash | null): boolean
   /**
    * Removes the room from both indexes, releases its code back to
    * the pool, and tears down its `Y.Doc` / `Awareness`. No-op if the
@@ -112,7 +121,7 @@ export function createRoomStore(
   const byCode = new Map<string, string>()
 
   return {
-    createRoom(): RoomRecord {
+    createRoom(options?: CreateRoomOptions): RoomRecord {
       const uuid = uuidGenerator()
       const code = codePool.mint()
       const doc = new Y.Doc()
@@ -120,6 +129,7 @@ export function createRoomStore(
       const record: RoomRecord = {
         uuid,
         code,
+        passwordHash: options?.passwordHash,
         invitesOutstanding: new Set<string>(),
         doc,
         awareness,
@@ -137,6 +147,12 @@ export function createRoomStore(
     },
     getByUuid(uuid: string): RoomRecord | undefined {
       return byUuid.get(uuid)
+    },
+    setPasswordHash(uuid: string, hash: PasswordHash | null): boolean {
+      const record = byUuid.get(uuid)
+      if (record === undefined) return false
+      record.passwordHash = hash === null ? undefined : hash
+      return true
     },
     deleteRoom(uuid: string): void {
       const record = byUuid.get(uuid)

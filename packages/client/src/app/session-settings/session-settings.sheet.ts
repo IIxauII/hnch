@@ -3,11 +3,12 @@ import {
   Component,
   computed,
   inject,
+  input,
   output,
   signal,
   viewChild,
 } from '@angular/core'
-import type { Scale } from '@hnch/shared'
+import { hashPassword, type Scale } from '@hnch/shared'
 import {
   IonButton,
   IonButtons,
@@ -21,11 +22,14 @@ import {
   IonNote,
   IonTitle,
   IonToolbar,
+  ToastController,
 } from '@ionic/angular/standalone'
 import { addIcons } from 'ionicons'
 import { chevronForwardOutline } from 'ionicons/icons'
 
+import { environment } from '../../environments/environment'
 import { DocService } from '../core/doc/doc.service'
+import { patchRoomAccess } from '../core/relay/relay-api'
 import {
   AccessPickerSheetComponent,
   type AccessMode,
@@ -184,6 +188,7 @@ import {
 })
 export class SessionSettingsSheetComponent {
   private readonly docService = inject(DocService)
+  private readonly toastCtrl = inject(ToastController)
 
   private readonly settings = this.docService.settings
 
@@ -193,18 +198,19 @@ export class SessionSettingsSheetComponent {
    */
   readonly closeRequested = output<void>()
 
+  /**
+   * Access state is owned by the parent (LobbyPage) so it survives
+   * modal dismiss/recreate cycles. The settings sheet reads and
+   * updates it via input/output bindings.
+   */
+  readonly accessMode = input<AccessMode>('open')
+  readonly accessPassword = input<string>('')
+  readonly accessChanged = output<AccessSelection>()
+
   /** Inner picker visibility flags. */
   protected readonly scaleOpen = signal(false)
   protected readonly timerOpen = signal(false)
   protected readonly accessOpen = signal(false)
-
-  /**
-   * Access picker state — held locally, never written to the doc.
-   * ADR-0009: access enforcement is the relay's job; the client-side
-   * UI ships this phase so the flow is exercisable.
-   */
-  protected readonly accessMode = signal<AccessMode>('open')
-  protected readonly accessPassword = signal<string>('')
 
   /** Current settings.defaultScale, or `null` until session boots. */
   protected readonly currentScale = computed<Scale | null>(
@@ -294,10 +300,32 @@ export class SessionSettingsSheetComponent {
   }
 
   protected onAccessSelected(selection: AccessSelection): void {
-    // Phase 2: held locally only. Phase 5 wires this to the relay
-    // handshake (ADR-0009 / roadmap §7).
-    this.accessMode.set(selection.mode)
-    this.accessPassword.set(selection.password ?? '')
+    this.accessChanged.emit(selection)
+
+    // Fire-and-forget relay PATCH — update access mode on the relay.
+    void this.syncAccessToRelay(selection)
+  }
+
+  private async syncAccessToRelay(selection: AccessSelection): Promise<void> {
+    const roomUuid = this.docService.meta()?.roomUuid
+    if (!roomUuid) return
+
+    try {
+      if (selection.mode === 'password' && selection.password) {
+        const hash = await hashPassword(selection.password, roomUuid)
+        await patchRoomAccess(environment.relayHttpUrl, roomUuid, hash)
+      } else if (selection.mode === 'open') {
+        await patchRoomAccess(environment.relayHttpUrl, roomUuid, null)
+      }
+      // 'invite' mode is a no-op per ADR-0017 (dropped from v1).
+    } catch {
+      const t = await this.toastCtrl.create({
+        message: 'Failed to update access mode. Try again.',
+        duration: 2400,
+        position: 'bottom',
+      })
+      await t.present()
+    }
   }
 
   protected async closeAccessPicker(): Promise<void> {
@@ -334,7 +362,5 @@ function formatAccessMode(mode: AccessMode): string {
       return 'Open'
     case 'password':
       return 'Password'
-    case 'invite':
-      return 'Invite only'
   }
 }
