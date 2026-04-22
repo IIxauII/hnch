@@ -114,7 +114,9 @@ export class Participant {
     if (title) {
       await modal.locator('ion-input').locator('input').fill(title)
     }
-    await this.page.locator(ROUND_START.startBtn).click()
+    const startBtn = this.page.locator(ROUND_START.startBtn)
+    await startBtn.waitFor({ state: 'visible' })
+    await startBtn.evaluate((el: HTMLElement) => el.click())
     await this.page.waitForURL('**/estimating')
   }
 
@@ -130,19 +132,25 @@ export class Participant {
   async changeScale(scaleLabel: string): Promise<void> {
     await this.page.locator(SETTINGS_SHEET.scaleRow).click()
     await this.page.locator(SCALE_PICKER.option(scaleLabel)).click()
-    await this.page.locator(SCALE_PICKER.doneBtn).click()
+    const doneBtn = this.page.locator(SCALE_PICKER.doneBtn)
+    await doneBtn.waitFor({ state: 'visible' })
+    await doneBtn.evaluate((el: HTMLElement) => el.click())
   }
 
   /** Change the timer setting. Assumes settings sheet is open. */
   async changeTimer(optionLabel: string): Promise<void> {
     await this.page.locator(SETTINGS_SHEET.timerRow).click()
     await this.page.locator(TIMER_PICKER.option(optionLabel)).click()
-    await this.page.locator(TIMER_PICKER.doneBtn).click()
+    const doneBtn = this.page.locator(TIMER_PICKER.doneBtn)
+    await doneBtn.waitFor({ state: 'visible' })
+    await doneBtn.evaluate((el: HTMLElement) => el.click())
   }
 
   /** Close the session settings sheet. */
   async closeSettings(): Promise<void> {
-    await this.page.locator(SETTINGS_SHEET.doneBtn).click()
+    const doneBtn = this.page.locator(SETTINGS_SHEET.doneBtn)
+    await doneBtn.waitFor({ state: 'visible' })
+    await doneBtn.evaluate((el: HTMLElement) => el.click())
     // Wait for modal dismiss animation
     await this.page.locator('app-session-settings-sheet').waitFor({ state: 'hidden' })
   }
