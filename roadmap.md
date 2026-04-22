@@ -18,10 +18,11 @@ Implementation phases are intentionally *vertical slices* — each phase ends at
 4. [Phase 2 — Local session loop](#4-phase-2--local-session-loop)
 5. [Phase 3 — Relay + multi-client sync](#5-phase-3--relay--multi-client-sync)
 6. [Phase 4 — Timer + host election](#6-phase-4--timer--host-election)
-7. [Phase 5 — Access control + invite paths](#7-phase-5--access-control--invite-paths)
-8. [Phase 6 — Polish + native build](#8-phase-6--polish--native-build)
-9. [Cross-cutting concerns](#9-cross-cutting-concerns)
-10. [Explicit non-goals for v1](#10-explicit-non-goals-for-v1)
+7. [Phase 5 — Access control + join paths](#7-phase-5--access-control--join-paths)
+8. [Phase 6a — PWA polish](#8-phase-6a--pwa-polish)
+9. [Phase 6b — Native iOS build](#9-phase-6b--native-ios-build)
+10. [Cross-cutting concerns](#10-cross-cutting-concerns)
+11. [Explicit non-goals for v1](#11-explicit-non-goals-for-v1)
 
 ---
 
@@ -46,7 +47,8 @@ Concrete implication: Phase 1 starts with real work on three fronts (client boot
 | 3 | Relay + multi-client sync | Two or more clients create / join / play a session together in real time via a running relay. Manual code-entry join path only. |
 | 4 | Timer + host election | Timer-based rounds work reliably. Host drops are handled with a 5-second debounce + lowest-peer-ID election. |
 | 5 | Access control + join paths | Password-protected rooms work. Share sheet, QR display, QR scan, and `/join?code=` deep links all resolve to Join. Universal links deferred to Phase 6. |
-| 6 | Polish + native build | Haptics, theme picker, settings screen, a11y pass. iOS native build boots on device with Capawesome SQLite for rejoin memory. v1 candidate. |
+| 6a | PWA polish | Theme picker, settings screen, reveal animation, haptic wiring, a11y pass. All testable in a browser. |
+| 6b | Native iOS build | Capacitor iOS project, universal links, SQLite persistence, on-device smoke test. v1 candidate. |
 
 Each phase assumes the previous one passes its exit bar. Within a phase, ordering is opportunistic — use whatever sequence keeps the dev loop fastest.
 
@@ -192,24 +194,43 @@ This design work is ~1 hour; resolve it before relay code lands.
 
 ---
 
-## 8. Phase 6 — Polish + native build
+## 8. Phase 6a — PWA polish
 
-**Scope.** Everything that `ux.md` calls for but doesn't affect correctness, plus the native-app path.
+**Scope.** UI polish, theming, accessibility, and animations — everything testable in a browser without a native iOS build.
 
 **Work.**
-- Haptics (`@capacitor/haptics`): wire the full haptic map from `ux.md` §6.
 - Theme: Settings screen with display-name editor and theme picker (System / Light / Dark). Persist via Preferences; apply pre-first-paint.
 - Settings screen's remaining content: version, open-source licenses, privacy.
+- Reveal animation (staggered 80 ms fade-in-up) — easy to add late, intentionally deferred to polish.
+- Haptics (`@capacitor/haptics`): wire the full haptic map from `ux.md` §6. The plugin is a no-op on web, but the wiring can be written and structurally verified now; actual feedback fires once the native build lands.
 - Accessibility sweep:
   - VoiceOver labels on non-text interactive elements (estimate cards, QR buttons, avatar rows).
-  - Verify touch targets on the smallest supported iPhone.
+  - Verify touch targets on the smallest supported iPhone (Safari responsive mode).
   - `prefers-reduced-motion` → instant transitions for reveal and card-press animations.
-- Reveal animation (staggered 80 ms fade-in-up) — easy to add late, intentionally deferred to polish.
-- Native iOS build via Capacitor: `npx cap add ios`, ensure the Capacitor plugins (Preferences, Haptics, Share, Device, BarcodeScanner, MLKit BarcodeScanning) resolve correctly on native.
-- Universal links: Apple App Site Association (AASA) file on `hnch.app/.well-known/`, Associated Domains entitlement in Xcode, `App.addListener('appUrlOpen')` handler to parse incoming URLs and navigate to `/join?code=`. The client-side `/join?code=` handling already works from Phase 5; this step wires the native OS interception so tapped links open the app directly instead of Safari. Also requires `NSCameraUsageDescription` in Info.plist for the QR scanner.
+- Apple HIG review checkpoint (visual): verify look and feel in Safari iOS simulator / responsive mode. Fix regressions before moving to native.
+
+**ADRs touched.** None expected.
+
+**Risks.** Low. All work is verifiable in a browser.
+
+**Exit bar.** PWA in mobile Safari looks polished: theme picker works, reveal animates, a11y labels present, reduced-motion respected. Settings screen is complete. Ready for native build.
+
+---
+
+## 9. Phase 6b — Native iOS build
+
+**Scope.** Capacitor iOS project setup, native-only features, and on-device validation.
+
+**Requires:** Apple Developer account, Xcode, physical iPhone for testing.
+
+**Work.**
+- Native iOS build via Capacitor: `npx cap add ios`, ensure all Capacitor plugins (Preferences, Haptics, Share, Device, MLKit BarcodeScanning) resolve correctly on native.
+- `NSCameraUsageDescription` in Info.plist for the QR scanner.
+- Universal links: Apple App Site Association (AASA) file on `hnch.app/.well-known/`, Associated Domains entitlement in Xcode, `App.addListener('appUrlOpen')` handler to parse incoming URLs and navigate to `/join?code=`. The client-side `/join?code=` handling already works from Phase 5; this step wires the native OS interception so tapped links open the app directly instead of Safari.
 - Capawesome SQLite persistence ([ADR-0004](adr/0004-local-persistence-sqlite-indexeddb.md)) on native: Yjs provider's IndexedDB path swapped for SQLite on native. PWA keeps IndexedDB.
+- Verify haptics actually fire on device (wiring landed in Phase 6a).
 - Dev-device smoke test on a real iPhone: install, onboard, create a room, have a second device join, play a full round.
-- Apple HIG review checkpoint: do we still match the intended look and feel after everything above has landed? Fix regressions.
+- Apple HIG review checkpoint (on-device): final pass on a real device for layout, safe area, keyboard behavior, and haptic feel.
 
 **ADRs touched.** None expected; any implementation surprise surfaces as a new ADR.
 
@@ -220,7 +241,7 @@ This design work is ~1 hour; resolve it before relay code lands.
 
 ---
 
-## 9. Cross-cutting concerns
+## 10. Cross-cutting concerns
 
 These apply across phases; flagging them once here saves repeating per phase.
 
@@ -239,7 +260,7 @@ These apply across phases; flagging them once here saves repeating per phase.
 
 ---
 
-## 10. Explicit non-goals for v1
+## 11. Explicit non-goals for v1
 
 These are *not* in this roadmap and will be called out if they drift in:
 
