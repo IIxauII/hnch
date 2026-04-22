@@ -45,7 +45,7 @@ Concrete implication: Phase 1 starts with real work on three fronts (client boot
 | 2 | Local session loop | One client plays through a full session locally: Home → Lobby → Estimating → Revealed → re-vote → next round. Manual reveal only, no relay, no timer. |
 | 3 | Relay + multi-client sync | Two or more clients create / join / play a session together in real time via a running relay. Manual code-entry join path only. |
 | 4 | Timer + host election | Timer-based rounds work reliably. Host drops are handled with a 5-second debounce + lowest-peer-ID election. |
-| 5 | Access control + invite paths | Password-protected and invite-only rooms work. Share sheet, QR display, QR scan, and URL deep links all resolve to Join. |
+| 5 | Access control + join paths | Password-protected rooms work. Share sheet, QR display, QR scan, and `/join?code=` deep links all resolve to Join. Universal links deferred to Phase 6. |
 | 6 | Polish + native build | Haptics, theme picker, settings screen, a11y pass. iOS native build boots on device with Capawesome SQLite for rejoin memory. v1 candidate. |
 
 Each phase assumes the previous one passes its exit bar. Within a phase, ordering is opportunistic — use whatever sequence keeps the dev loop fastest.
@@ -165,35 +165,30 @@ This design work is ~1 hour; resolve it before relay code lands.
 
 ## 7. Phase 5 — Access control + invite paths
 
-**Scope.** Private rooms and the three join paths.
+**Scope.** Private rooms, join paths (share, QR, deep link), and expired-room handling. Invite-only was dropped from v1 per [ADR-0017](adr/0017-password-hashing-drop-invite-only.md); universal links deferred to Phase 6 (requires native iOS build + deployed domain).
 
-**Pre-phase design.** Finalize outstanding ADR-0009 action items if they weren't resolved in Phase 3's pre-phase ADR:
-- Password hashing scheme on the client (argon2id is the planned default; pin a specific library and parameters).
-- Invite URL format (universal link vs. custom scheme? hash fragment vs. query param for tokens?).
-
-Small new ADR may be warranted if the decisions are non-obvious.
+**Pre-phase design.** [ADR-0017](adr/0017-password-hashing-drop-invite-only.md) resolved the outstanding ADR-0009 action items: PBKDF2-SHA-256 via Web Crypto for password hashing, invite-only dropped, `PATCH /rooms/:uuid/access` for mid-session access changes. Invite URL format decided as `https://hnch.app/join?code=XXXXXX` (query param, configurable via `environment.appBaseUrl`).
 
 **Work.**
 - Relay:
-  - Register password hash or invite tokens at room-create time.
-  - Enforce at join (validate `passwordHash` or consume `inviteToken`); return structured `JoinRejectionReason`.
-  - Invite tokens are single-use — mark redeemed on first accept.
+  - `POST /rooms` accepts optional `passwordHash`; `PATCH /rooms/:uuid/access` for mid-session access changes.
+  - Password enforcement on WS upgrade with `timingSafeEqual`.
 - Client:
-  - Access picker on Session Settings writes the chosen mode; host's create-room / update-settings flow registers the credential with the relay.
+  - Access picker on Session Settings writes the chosen mode; host's create-room / update-settings flow registers the credential with the relay via `PATCH`.
   - Join Room screen: renders the password field inline when the entered code resolves to a password-protected room; surfaces error toasts for the rejection reasons.
-  - Share sheet (`@capacitor/share`) from the Lobby Share button; content per `ux.md` §6.
-  - QR display modal on Lobby: invite URL encoded as a large full-screen QR.
-  - QR scanning on Join Room via `@capacitor-mlkit/barcode-scanning`; validate that scanned content is an hnch invite URL.
-  - Universal link / custom URL handler: launch → onboarding (if needed) → Join Room with code pre-filled → auto-connect if open, or prompt for password / invite token.
+  - Share sheet (`@capacitor/share`) from the Lobby Share button with clipboard fallback on web; content per `ux.md` §6.
+  - Deep-link join via `/join?code=` query param with onboarding resume support.
+  - QR display modal on Lobby: full-screen `ion-modal` with invite URL encoded as a large QR via `qrcode` library.
+  - QR scanning on Join Room via `@capacitor-mlkit/barcode-scanning`; auto-submits on valid scan, shows password field if room is password-protected.
 - Expired-room handling: when relay returns `unknown-room`, show the toast + return to Home (per `ux.md` §4.6).
 
-**ADRs touched.** Possibly one new ADR if hashing / URL format decisions are non-trivial. [0009](adr/0009-access-control-relay-tokens.md) stays Accepted.
+**ADRs touched.** [ADR-0017](adr/0017-password-hashing-drop-invite-only.md) — password hashing scheme and invite-only removal.
 
 **Risks.**
-- Password hashing on mobile browsers is slow — choose argon2 parameters that are reasonable on low-end iPhones.
-- Invite-token single-use semantics must survive relay restarts within the 24-hour window; revisit if the in-memory-only snapshot store loses tokens under the relay process restarts expected in dev.
+- QR scanning on web relies on the browser's `BarcodeDetector` API or ZXing fallback — quality varies by device. Native ML Kit scanning (Phase 6) will be more reliable.
+- `PATCH /rooms/:uuid/access` has no host authentication in v1 — mitigated by UUID unguessability, flagged for future hardening.
 
-**Exit bar.** A user can create a password-protected room, share the invite URL, and have another user join via (a) URL deep link, (b) QR scan, or (c) manual code entry with the password. Invalid / expired / already-redeemed cases produce the expected error states.
+**Exit bar.** A user can create a password-protected room, share the invite URL, and have another user join via (a) QR scan, (b) manual code entry with the password, or (c) `/join?code=` deep link. Invalid / expired cases produce the expected error states. Universal link interception (native OS opening the app directly from a tapped URL) lands in Phase 6 alongside the iOS build.
 
 ---
 
@@ -210,7 +205,8 @@ Small new ADR may be warranted if the decisions are non-obvious.
   - Verify touch targets on the smallest supported iPhone.
   - `prefers-reduced-motion` → instant transitions for reveal and card-press animations.
 - Reveal animation (staggered 80 ms fade-in-up) — easy to add late, intentionally deferred to polish.
-- Native iOS build via Capacitor: `npx cap add ios`, ensure the Capacitor plugins (Preferences, Haptics, Share, Device, BarcodeScanner) resolve correctly on native.
+- Native iOS build via Capacitor: `npx cap add ios`, ensure the Capacitor plugins (Preferences, Haptics, Share, Device, BarcodeScanner, MLKit BarcodeScanning) resolve correctly on native.
+- Universal links: Apple App Site Association (AASA) file on `hnch.app/.well-known/`, Associated Domains entitlement in Xcode, `App.addListener('appUrlOpen')` handler to parse incoming URLs and navigate to `/join?code=`. The client-side `/join?code=` handling already works from Phase 5; this step wires the native OS interception so tapped links open the app directly instead of Safari. Also requires `NSCameraUsageDescription` in Info.plist for the QR scanner.
 - Capawesome SQLite persistence ([ADR-0004](adr/0004-local-persistence-sqlite-indexeddb.md)) on native: Yjs provider's IndexedDB path swapped for SQLite on native. PWA keeps IndexedDB.
 - Dev-device smoke test on a real iPhone: install, onboard, create a room, have a second device join, play a full round.
 - Apple HIG review checkpoint: do we still match the intended look and feel after everything above has landed? Fix regressions.
