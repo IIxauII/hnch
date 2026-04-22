@@ -14,7 +14,8 @@
     "test": "pnpm -r --if-present run test",
     "build": "pnpm -r --if-present run build",
     "dev": "pnpm -r --if-present --parallel run dev",
-    "typecheck": "pnpm -r --if-present run typecheck"
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "test:e2e": "pnpm --filter @hnch/e2e test"
   },
   "devDependencies": {
     "typescript": "^5.5.0"
