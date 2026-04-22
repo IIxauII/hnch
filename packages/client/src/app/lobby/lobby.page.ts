@@ -8,6 +8,8 @@ import {
   viewChild,
 } from '@angular/core'
 import { Router } from '@angular/router'
+import { Share } from '@capacitor/share'
+import { formatRoomCode } from '@hnch/shared'
 import {
   ActionSheetController,
   AlertController,
@@ -37,6 +39,7 @@ import {
   starOutline,
 } from 'ionicons/icons'
 
+import { environment } from '../../environments/environment'
 import { ConnectionChipComponent } from '../core/connection-chip.component'
 import { DocService } from '../core/doc/doc.service'
 import { LastSessionService } from '../core/last-session.service'
@@ -56,8 +59,8 @@ import { SessionSettingsSheetComponent } from '../session-settings/session-setti
  * myParticipantId`.
  *
  * Session-settings sheet is wired through the ⋯ menu and the
- * subtitle tap. The Share / QR invite rows are stubbed because
- * relay-minted codes and universal links are Phase 5.
+ * subtitle tap. Share invite uses `@capacitor/share` with a
+ * clipboard fallback on web (ux.md §6.5).
  *
  * The Lobby owns the session's lifetime (plan §3.10): leaving here
  * — either via the top-left back control or the ⋯ → "Leave
@@ -424,8 +427,37 @@ export class LobbyPage {
   }
 
   protected async onShareInvite(): Promise<void> {
-    // Phase 5: Capacitor Share plugin + relay-minted invite URL.
-    await this.toast('Share invite lands in Phase 5')
+    const rawCode = this.roomCode()
+    if (!rawCode) return
+
+    const formatted = formatRoomCode(rawCode)
+    const url = `${environment.appBaseUrl}/join?code=${rawCode}`
+
+    try {
+      await Share.share({
+        title: 'Join my hnch session',
+        text: `Room code: ${formatted}`,
+        url,
+        dialogTitle: 'Share invite',
+      })
+    } catch (err: unknown) {
+      // User-cancelled share sheets throw — silently ignore.
+      if (err instanceof Error && err.message?.includes('cancel')) return
+      // navigator.share unavailable or other failure — clipboard fallback.
+      await this.copyToClipboard(url, formatted)
+    }
+  }
+
+  private async copyToClipboard(
+    url: string,
+    formattedCode: string,
+  ): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(url)
+      await this.toast(`Invite link copied! (${formattedCode})`)
+    } catch {
+      await this.toast('Could not share the invite link.')
+    }
   }
 
   protected async onShowQr(): Promise<void> {

@@ -185,6 +185,24 @@ export class Participant {
     await this.page.waitForURL(/\/lobby/, { timeout: 10_000 })
   }
 
+  /** Join via deep-link URL (/join?code=...). */
+  async joinViaDeepLink(code: string): Promise<void> {
+    await this.page.goto(`${BASE_URL}/join?code=${code}`)
+    await this.page.waitForURL(/\/(join|onboarding)/)
+    if (this.page.url().includes('/onboarding')) {
+      // Can't use onboard() here — it waits for /home, but the
+      // pending-join-URL flow resumes to /join?code=... instead.
+      const input = this.page.locator(ONBOARDING.nameInput).locator('input')
+      await input.fill(this.displayName)
+      await this.page.locator(ONBOARDING.continueBtn).click()
+      await this.page.waitForURL(/\/join/)
+    }
+    await this.page.locator(JOIN.joinBtn).click()
+    // Wait for lobby content rather than URL — Ionic's SPA navigation
+    // can complete before waitForURL starts listening.
+    await this.page.locator(LOBBY.roomCode).waitFor({ state: 'visible', timeout: 10_000 })
+  }
+
   /** Close the session settings sheet. */
   async closeSettings(): Promise<void> {
     const doneBtn = this.page.locator(SETTINGS_SHEET.doneBtn)

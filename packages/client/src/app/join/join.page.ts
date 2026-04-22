@@ -7,7 +7,7 @@ import {
 } from '@angular/core'
 import { toSignal } from '@angular/core/rxjs-interop'
 import { FormControl, ReactiveFormsModule } from '@angular/forms'
-import { Router } from '@angular/router'
+import { ActivatedRoute, Router } from '@angular/router'
 import {
   formatRoomCode,
   hashPassword,
@@ -161,6 +161,7 @@ import { RelayRejectionError, resolveRoom } from '../core/relay/relay-api'
   ],
 })
 export class JoinPage {
+  private readonly route = inject(ActivatedRoute)
   private readonly router = inject(Router)
   private readonly docService = inject(DocService)
   private readonly displayNameService = inject(DisplayNameService)
@@ -226,6 +227,16 @@ export class JoinPage {
         this.passwordControl.reset()
       }
     })
+
+    // Deep-link auto-fill: if navigated via /join?code=K7P9MR, seed
+    // the input so the user just taps Join. The displayNameGuard
+    // stashes /join?code=... for post-onboarding resume, so this
+    // also fires after the onboarding → resume flow.
+    const codeParam = this.route.snapshot.queryParamMap.get('code')
+    if (codeParam) {
+      const formatted = formatRoomCode(normalizeRoomCode(codeParam))
+      this.codeControl.setValue(formatted)
+    }
   }
 
   protected async submit(): Promise<void> {
