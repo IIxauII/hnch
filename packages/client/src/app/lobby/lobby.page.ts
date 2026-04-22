@@ -174,18 +174,20 @@ import { SessionSettingsSheetComponent } from '../session-settings/session-setti
       </ion-list>
     </ion-content>
 
-    <ion-footer>
-      <ion-toolbar>
-        <ion-button
-          expand="block"
-          color="primary"
-          [disabled]="!hasSession()"
-          (click)="openRoundStart()"
-        >
-          Start Round {{ nextRoundNumber() }}
-        </ion-button>
-      </ion-toolbar>
-    </ion-footer>
+    @if (isHost()) {
+      <ion-footer>
+        <ion-toolbar>
+          <ion-button
+            expand="block"
+            color="primary"
+            [disabled]="!hasSession()"
+            (click)="openRoundStart()"
+          >
+            Start Round {{ nextRoundNumber() }}
+          </ion-button>
+        </ion-toolbar>
+      </ion-footer>
+    }
 
     <ion-modal
       #roundStartModal
@@ -284,6 +286,8 @@ export class LobbyPage {
   protected readonly hostId = computed(
     () => this.docService.settings()?.hostParticipantId ?? null,
   )
+
+  protected readonly isHost = computed(() => this.hostId() === this.myId())
 
   /**
    * Relay-assigned 6-character room code (ADR-0008). The code is
