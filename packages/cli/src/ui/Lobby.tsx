@@ -1,7 +1,8 @@
 import React from 'react'
 import { Box, Text, useInput } from 'ink'
 import { ParticipantList } from './components/ParticipantList.js'
-import type { DocProjection, Round } from '@hnch/shared'
+import { SettingsPanel } from './components/SettingsPanel.js'
+import type { DocProjection, Round, Scale } from '@hnch/shared'
 
 interface Props {
   projection: DocProjection
@@ -11,9 +12,14 @@ interface Props {
   rounds: readonly Round[]
   /** The latest revealed round (null if no rounds revealed yet). */
   currentRound: Round | null
+  settingsOpen: boolean
   onStartRound: () => void
   onNewRound: () => void
   onRevote: () => void
+  onOpenSettings: () => void
+  onCloseSettings: () => void
+  onChangeName: (name: string | undefined) => void
+  onChangeScale: (scale: Scale) => void
 }
 
 function computeStats(votes: Record<string, string>): {
@@ -88,25 +94,46 @@ export function Lobby({
   participantId,
   rounds,
   currentRound,
+  settingsOpen,
   onStartRound,
   onNewRound,
   onRevote,
+  onOpenSettings,
+  onCloseSettings,
+  onChangeName,
+  onChangeScale,
 }: Props): React.ReactElement {
-  useInput((input) => {
-    if (isHost) {
-      if (input === 's' || input === 'S') onStartRound()
-      if (currentRound?.revealedAt !== undefined) {
-        if (input === 'n' || input === 'N') onNewRound()
-        if (input === 'v' || input === 'V') onRevote()
+  useInput(
+    (input) => {
+      if (isHost) {
+        if (input === 'e' || input === 'E') onOpenSettings()
+        if (input === 's' || input === 'S') onStartRound()
+        if (currentRound?.revealedAt !== undefined) {
+          if (input === 'n' || input === 'N') onNewRound()
+          if (input === 'v' || input === 'V') onRevote()
+        }
       }
-    }
-  })
+    },
+    { isActive: !settingsOpen },
+  )
 
   const hasRounds = rounds.length > 0
   const revealedRounds = rounds.filter((r) => r.revealedAt !== undefined)
 
   // Past rounds = all revealed rounds except the latest (shown in full)
   const pastRounds = currentRound !== null ? revealedRounds.slice(0, -1) : revealedRounds
+
+  if (settingsOpen) {
+    return (
+      <SettingsPanel
+        currentName={projection.settings.name}
+        currentScale={projection.settings.defaultScale}
+        onChangeName={onChangeName}
+        onChangeScale={onChangeScale}
+        onClose={onCloseSettings}
+      />
+    )
+  }
 
   return (
     <Box flexDirection="column" gap={1}>
@@ -150,9 +177,13 @@ export function Lobby({
               <>
                 <Text color="yellow">[v] Re-vote</Text>
                 <Text color="yellow">[n] Next round</Text>
+                <Text color="yellow">[e] Settings</Text>
               </>
             ) : (
-              <Text color="yellow">[s] Start round</Text>
+              <>
+                <Text color="yellow">[s] Start round</Text>
+                <Text color="yellow">[e] Settings</Text>
+              </>
             )}
           </>
         ) : (
