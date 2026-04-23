@@ -4,6 +4,7 @@ import {
   computed,
   effect,
   inject,
+  signal,
 } from '@angular/core'
 import { Router } from '@angular/router'
 import {
@@ -21,6 +22,7 @@ import {
 
 import { ConnectionChipComponent } from '../core/connection-chip.component'
 import { DocService } from '../core/doc/doc.service'
+import { HapticService } from '../core/haptic.service'
 import { LastSessionService } from '../core/last-session.service'
 import { ParticipantIdService } from '../core/participant-id.service'
 import { TimerTickService } from '../core/timer-tick.service'
@@ -197,6 +199,7 @@ export class EstimatingPage {
   private readonly router = inject(Router)
   private readonly docService = inject(DocService)
   private readonly participantIdService = inject(ParticipantIdService)
+  private readonly haptic = inject(HapticService)
   private readonly lastSessionService = inject(LastSessionService)
   private readonly timerTick = inject(TimerTickService)
 
@@ -229,7 +232,27 @@ export class EstimatingPage {
         void this.router.navigate(['/revealed'], { replaceUrl: true })
       }
     })
+
+    // Haptic at t-10s: fire once when remaining crosses the 10s mark.
+    effect(() => {
+      const remaining = this.timerRemaining()
+      if (remaining === null) {
+        // No timer — reset so re-entering a timed round fires again.
+        this.hapticFiredAt10s.set(false)
+        return
+      }
+      if (!this.hapticFiredAt10s() && remaining <= 10_000 && remaining > 0) {
+        this.hapticFiredAt10s.set(true)
+        this.haptic.impactLight()
+      }
+    })
   }
+
+  /**
+   * Whether the t-10s haptic has already fired for the current round.
+   * Reset when `timerRemaining` returns `null` (new round or manual mode).
+   */
+  private readonly hapticFiredAt10s = signal(false)
 
   private readonly myId = this.participantIdService.id
 
@@ -279,20 +302,29 @@ export class EstimatingPage {
   })
 
   /**
-   * Live countdown label driven by `round.timerStartedAt`,
-   * `settings.timerDurationMs`, and the 4 Hz wall-clock tick. Returns
-   * `null` (hiding the label) for `revealMode: 'manual'` sessions or
-   * when the current round has no timer.
+   * Milliseconds remaining on the current round's timer, or `null`
+   * when in manual mode or no timer is active. Driven by the 4 Hz
+   * wall-clock tick. Shared by `timerLabel`, `timerUrgent`, and the
+   * t-10s haptic effect.
    */
-  protected readonly timerLabel = computed<string | null>(() => {
+  private readonly timerRemaining = computed<number | null>(() => {
     const settings = this.docService.settings()
     if (!settings || settings.revealMode !== 'timer') return null
     const round = this.docService.currentRound()
     if (!round || round.timerStartedAt === undefined) return null
     const duration = settings.timerDurationMs
     if (duration === undefined || duration <= 0) return null
-    const elapsed = this.timerTick.now() - round.timerStartedAt
-    return formatCountdown(Math.max(0, duration - elapsed))
+    return duration - (this.timerTick.now() - round.timerStartedAt)
+  })
+
+  /**
+   * Live countdown label. Returns `null` (hiding the label) for
+   * `revealMode: 'manual'` sessions or when no timer is active.
+   */
+  protected readonly timerLabel = computed<string | null>(() => {
+    const remaining = this.timerRemaining()
+    if (remaining === null) return null
+    return formatCountdown(Math.max(0, remaining))
   })
 
   /**
@@ -301,13 +333,8 @@ export class EstimatingPage {
    * ux.md §5.5.
    */
   protected readonly timerUrgent = computed<boolean>(() => {
-    const settings = this.docService.settings()
-    if (!settings || settings.revealMode !== 'timer') return false
-    const round = this.docService.currentRound()
-    if (!round || round.timerStartedAt === undefined) return false
-    const duration = settings.timerDurationMs
-    if (duration === undefined || duration <= 0) return false
-    const remaining = duration - (this.timerTick.now() - round.timerStartedAt)
+    const remaining = this.timerRemaining()
+    if (remaining === null) return false
     return remaining <= 30_000 && remaining > 0
   })
 
@@ -321,11 +348,13 @@ export class EstimatingPage {
     } else {
       this.docService.castVote(round.id, id, card)
     }
+    this.haptic.impactLight()
   }
 
   protected async onReveal(): Promise<void> {
     const round = this.currentRound()
     if (!round) return
+    this.haptic.impactMedium()
     this.docService.revealRound(round.id)
     // replaceUrl: back-nav from Revealed should pop to Lobby, not
     // bounce through the Estimating screen we just left

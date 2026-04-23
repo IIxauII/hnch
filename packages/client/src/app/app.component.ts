@@ -9,6 +9,7 @@ import { IonApp, IonRouterOutlet } from '@ionic/angular/standalone'
 import { ToastController } from '@ionic/angular/standalone'
 
 import { DocService } from './core/doc/doc.service'
+import { HapticService } from './core/haptic.service'
 import { HostElectionService } from './core/host-election.service'
 import { ParticipantIdService } from './core/participant-id.service'
 import { RoundTimerService } from './core/round-timer.service'
@@ -35,6 +36,7 @@ import { ThemeService } from './core/theme.service'
 })
 export class AppComponent {
   private readonly docService = inject(DocService)
+  private readonly haptic = inject(HapticService)
   private readonly participantIdService = inject(ParticipantIdService)
   private readonly toastCtrl = inject(ToastController)
 
@@ -89,6 +91,7 @@ export class AppComponent {
       const name = participant?.displayName ?? newHostId
       message = `${name} is now hosting`
     }
+    this.haptic.notificationWarning()
     const toast = await this.toastCtrl.create({
       message,
       duration: 2500,

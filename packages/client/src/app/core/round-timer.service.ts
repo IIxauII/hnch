@@ -1,6 +1,7 @@
 import { effect, inject, Injectable, type Signal, computed } from '@angular/core'
 
 import { DocService } from './doc/doc.service'
+import { HapticService } from './haptic.service'
 import { ParticipantIdService } from './participant-id.service'
 import { TimerTickService } from './timer-tick.service'
 
@@ -27,6 +28,7 @@ export const HOST_EXPIRY_FALLBACK_GRACE_MS = 2_000
 @Injectable({ providedIn: 'root' })
 export class RoundTimerService {
   private readonly docService = inject(DocService)
+  private readonly haptic = inject(HapticService)
   private readonly participantIdService = inject(ParticipantIdService)
   private readonly timerTick = inject(TimerTickService)
 
@@ -80,6 +82,7 @@ export class RoundTimerService {
       this.revealedRoundIds.add(round.id)
       this.cancelFallback()
       this.docService.revealRound(round.id)
+      this.haptic.notificationWarning()
       return
     }
 
@@ -100,6 +103,7 @@ export class RoundTimerService {
         ) {
           this.revealedRoundIds.add(round.id)
           this.docService.revealRound(round.id)
+          this.haptic.notificationWarning()
         }
       }, HOST_EXPIRY_FALLBACK_GRACE_MS)
     }

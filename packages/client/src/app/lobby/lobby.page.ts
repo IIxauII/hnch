@@ -42,6 +42,7 @@ import {
 import { environment } from '../../environments/environment'
 import { ConnectionChipComponent } from '../core/connection-chip.component'
 import { DocService } from '../core/doc/doc.service'
+import { HapticService } from '../core/haptic.service'
 import { LastSessionService } from '../core/last-session.service'
 import { ParticipantIdService } from '../core/participant-id.service'
 import {
@@ -285,6 +286,7 @@ import { QrDisplaySheetComponent } from './qr-display.sheet'
 export class LobbyPage {
   private readonly router = inject(Router)
   private readonly docService = inject(DocService)
+  private readonly haptic = inject(HapticService)
   private readonly participantIdService = inject(ParticipantIdService)
   private readonly lastSessionService = inject(LastSessionService)
   private readonly actionSheetCtrl = inject(ActionSheetController)
@@ -508,6 +510,7 @@ export class LobbyPage {
           text: 'Leave',
           role: 'destructive',
           handler: () => {
+            this.haptic.impactHeavy()
             void this.leaveSession()
           },
         },
