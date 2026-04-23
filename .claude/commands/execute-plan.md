@@ -2,7 +2,7 @@ Execute the implementation plan at: $ARGUMENTS
 
 ## Instructions
 
-You are the team lead / orchestrator. You NEVER write code. You create a team, spawn specialist teammates, assign tasks, and manage the build-review-rework loop.
+You are the team lead / orchestrator. You are in **full control** of what happens and when. You NEVER write code. You NEVER read implementation files to verify code — that's the reviewer's job. You dispatch tasks one at a time, route completed work to review, and manage the rework loop.
 
 ### Step 1: Read the plan
 
@@ -23,9 +23,9 @@ Read only the agent files you need:
 
 1. **Create a team** with `TeamCreate` — name it after the plan (e.g., `fix-duplicate-buttons`)
 2. **Create tasks** with `TaskCreate` for each discrete unit of work from the plan. Include:
-   - Implementation tasks (assigned to mobile/cli teammates)
-   - A final review task (assigned to reviewer teammate)
-   - Set `addBlockedBy` on the review task so it waits for implementation tasks
+   - Implementation tasks (assigned to implementer teammates)
+   - **Per-task review tasks** — one review task per implementation task (e.g., "Review: extend SessionHandle"). Each review task is blocked only by its corresponding impl task.
+   - Do NOT create a single monolithic "review all changes" task. Pipeline review with implementation.
 
 ### Step 4: Spawn teammates
 
@@ -37,27 +37,37 @@ Spawn each specialist as a real teammate using the `Agent` tool with these param
 
 **Only spawn specialists needed by the plan.** Don't spawn cli for a mobile-only plan.
 
-**Always spawn a reviewer.** Tell the reviewer to wait — it will pick up the review task once implementation tasks are done.
+**Always spawn a reviewer.** Tell the reviewer: "Do NOT read any files or do any work until I send you a task. Wait idle. I will message you when there is work to review."
 
-Prompt each teammate with:
-- Their specific tasks from the plan (reference task IDs)
-- File paths and what to change
+Prompt each implementer with:
+- Only their **first** task — do NOT hand out all tasks upfront
+- File paths and what to change for that task
 - Clear success criteria (build must pass)
-- Instruction to mark tasks completed via TaskUpdate and check TaskList for next work
+- Instruction: "When done, mark the task completed and wait. I will send your next task."
 
-### Step 5: Monitor and coordinate
+### Step 5: Active dispatch loop
 
-- Teammates send messages automatically when they complete tasks or need help
-- If a teammate reports build errors, send them back with error details via `SendMessage`
-- Don't proceed to review until all implementation tasks are completed
-- When implementation tasks are done, send the reviewer a message to begin
+You are the dispatcher. You hand out work one task at a time and route results immediately.
+
+**The loop:**
+1. When an implementer completes a task → immediately send that task's review to the reviewer
+2. While reviewer is reviewing task N → send the implementer task N+1
+3. Both agents should be working simultaneously whenever possible
+4. When reviewer reports findings → route BUG/REGRESSION/SECURITY fixes to implementer (see Step 6)
+5. When reviewer passes a task → move to next
+
+**Rules for dispatch:**
+- Never let an agent sit idle if there's work it can do
+- Never hand out more than one task at a time to the same agent
+- Never let implementer self-assign — you decide what they work on next
+- Never read implementation code yourself — trust the reviewer to verify
 
 ### Step 6: Rework loop
 
 If reviewer reports **BUG**, **REGRESSION**, or **SECURITY** findings:
 1. Create new fix tasks with `TaskCreate`
-2. Assign to the appropriate implementer via `SendMessage`
-3. After fixes, send reviewer to re-review
+2. Send to the implementer via `SendMessage` with exact error details and suggested fix
+3. After fix, send back to reviewer for re-review
 4. Repeat until clean
 
 **CONVENTION** and **EDGE CASE** findings: report to the user for decision. Don't auto-fix.
@@ -71,8 +81,11 @@ When all tasks pass review:
 
 ## Rules
 
-1. NEVER write code yourself. You dispatch, verify, and route.
-2. NEVER skip the reviewer. Every implementation gets reviewed.
-3. Only spawn specialists the plan actually needs.
-4. Refer to teammates by name, never by UUID.
-5. If the plan is ambiguous, ask the user before dispatching.
+1. NEVER write code yourself. You dispatch and route.
+2. NEVER read implementation files to verify code. That's the reviewer's job.
+3. NEVER skip the reviewer. Every implementation task gets its own review.
+4. NEVER hand out all tasks at once. One task at a time per agent.
+5. NEVER let both agents idle simultaneously if there's unfinished work.
+6. Only spawn specialists the plan actually needs.
+7. Refer to teammates by name, never by UUID.
+8. If the plan is ambiguous, ask the user before dispatching.
