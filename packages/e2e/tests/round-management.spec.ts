@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/app.fixture'
-import { REVEALED, ESTIMATING } from './fixtures/helpers'
+import { ESTIMATING, LOBBY } from './fixtures/helpers'
 
 test.describe('Round management', () => {
   test('start a new round after reveal, previous round votes are preserved', async ({
@@ -15,18 +15,17 @@ test.describe('Round management', () => {
     await host.castVote('5')
     await player.castVote('8')
     await host.reveal()
-    await player.page.waitForURL(/\/revealed/, { timeout: 10_000 })
+    await player.page.waitForURL(/\/lobby/, { timeout: 10_000 })
 
-    // Verify Round 1 results — scope to app-revealed to avoid strict-mode
-    // violation (estimating page stays in Ionic's DOM stack alongside revealed)
-    await expect(host.page.locator('app-revealed h1.title')).toContainText('Round 1 Results')
+    // Verify Round 1 results visible on lobby
+    await expect(host.page.locator(LOBBY.resultsHeading)).toContainText('Round 1 Results')
 
     // Start Round 2
     await host.nextRound()
     await player.waitForEstimating()
 
     // Verify we're in Round 2 — scope to app-estimating to avoid strict-mode
-    // violation (revealed page stays in Ionic's DOM stack alongside estimating)
+    // violation (lobby stays in Ionic's DOM stack alongside estimating)
     await expect(host.page.locator('app-estimating h1.title')).toContainText('Round 2')
     await expect(player.page.locator('app-estimating h1.title')).toContainText('Round 2')
 

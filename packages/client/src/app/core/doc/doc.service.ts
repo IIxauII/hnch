@@ -19,7 +19,6 @@ import {
   patchSettings,
   projectDoc,
   revealRound as revealRoundY,
-  startRoundTimer as startRoundTimerY,
   upsertParticipant as upsertParticipantY,
   type DocProjection,
   type InitDocInit,
@@ -52,16 +51,14 @@ const AWARENESS_PARTICIPANT_ID_FIELD = 'participantId'
 
 /**
  * Caller-facing init for {@link DocService.createSession}. Mirrors the
- * fields in {@link InitDocInit} but the service fills in `createdAt`
- * (and `revealMode` when missing); `roomUuid` is the one the relay
- * minted at `POST /rooms` and `roomCode` is its human-typeable twin.
+ * fields in {@link InitDocInit} but the service fills in `createdAt`;
+ * `roomUuid` is the one the relay minted at `POST /rooms` and
+ * `roomCode` is its human-typeable twin.
  */
 export interface CreateSessionInit {
   readonly participantId: string
   readonly displayName: string
   readonly defaultScale: Scale
-  readonly revealMode?: Settings['revealMode']
-  readonly timerDurationMs?: number
   readonly sessionName?: string
   /**
    * The room's UUID, minted by the relay's `POST /rooms` response
@@ -258,10 +255,6 @@ export class DocService {
       participantId: init.participantId,
       displayName: init.displayName,
       defaultScale: init.defaultScale,
-      revealMode: init.revealMode ?? 'manual',
-      ...(init.timerDurationMs !== undefined && {
-        timerDurationMs: init.timerDurationMs,
-      }),
       ...(init.sessionName !== undefined && { sessionName: init.sessionName }),
     }
     initDoc(doc, seed)
@@ -389,23 +382,18 @@ export class DocService {
     const id = crypto.randomUUID()
     const now = opts.now ?? (() => Date.now())
     const timestamp = now()
-    doc.transact(() => {
-      appendRoundY(doc, {
-        id,
-        createdAt: timestamp,
-        createdBy,
-        ...(descriptor.title !== undefined && { title: descriptor.title }),
-        ...(descriptor.description !== undefined && {
-          description: descriptor.description,
-        }),
-        ...(descriptor.ticketId !== undefined && { ticketId: descriptor.ticketId }),
-        ...(descriptor.parentRoundId !== undefined && {
-          parentRoundId: descriptor.parentRoundId,
-        }),
-      })
-      if (settings?.revealMode === 'timer' && (settings.timerDurationMs ?? 0) > 0) {
-        startRoundTimerY(doc, id, timestamp)
-      }
+    appendRoundY(doc, {
+      id,
+      createdAt: timestamp,
+      createdBy,
+      ...(descriptor.title !== undefined && { title: descriptor.title }),
+      ...(descriptor.description !== undefined && {
+        description: descriptor.description,
+      }),
+      ...(descriptor.ticketId !== undefined && { ticketId: descriptor.ticketId }),
+      ...(descriptor.parentRoundId !== undefined && {
+        parentRoundId: descriptor.parentRoundId,
+      }),
     })
     return id
   }

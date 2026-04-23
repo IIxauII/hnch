@@ -12,7 +12,6 @@ import { DocService } from './core/doc/doc.service'
 import { HapticService } from './core/haptic.service'
 import { HostElectionService } from './core/host-election.service'
 import { ParticipantIdService } from './core/participant-id.service'
-import { RoundTimerService } from './core/round-timer.service'
 import { ThemeService } from './core/theme.service'
 
 /**
@@ -20,9 +19,9 @@ import { ThemeService } from './core/theme.service'
  * (`ion-router-outlet`). Per ux.md §2 the app uses a single nav stack —
  * no tabs, no side menu — so this shell stays deliberately minimal.
  *
- * Services that run global effects (timer-driven reveal, host election,
- * host-change toast) are injected here so Angular instantiates them at
- * app start. Each service no-ops internally when no session is active.
+ * Services that run global effects (host election, host-change toast)
+ * are injected here so Angular instantiates them at app start. Each
+ * service no-ops internally when no session is active.
  */
 @Component({
   selector: 'app-root',
@@ -43,7 +42,6 @@ export class AppComponent {
   // Eager-instantiate global effect services. The inject() calls
   // ensure Angular creates these singletons; each service's effect
   // self-gates on `docService.hasSession()`.
-  private readonly _roundTimer = inject(RoundTimerService)
   private readonly _hostElection = inject(HostElectionService)
   private readonly _theme = inject(ThemeService)
 

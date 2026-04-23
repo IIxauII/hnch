@@ -72,8 +72,6 @@ const META_FIELDS = ['roomUuid', 'createdAt', 'createdBy'] as const
 const SETTINGS_FIELDS = [
   'name',
   'defaultScale',
-  'revealMode',
-  'timerDurationMs',
   'hostParticipantId',
 ] as const
 const PARTICIPANT_FIELDS = ['displayName', 'joinedAt'] as const
@@ -211,8 +209,6 @@ export interface InitDocInit {
   readonly participantId: string
   readonly displayName: string
   readonly defaultScale: Scale
-  readonly revealMode: Settings['revealMode']
-  readonly timerDurationMs?: number
   readonly sessionName?: string
 }
 
@@ -238,10 +234,6 @@ export function initDoc(doc: Y.Doc, init: InitDocInit): void {
       settings.set('name', init.sessionName)
     }
     settings.set('defaultScale', init.defaultScale)
-    settings.set('revealMode', init.revealMode)
-    if (init.timerDurationMs !== undefined) {
-      settings.set('timerDurationMs', init.timerDurationMs)
-    }
     settings.set('hostParticipantId', init.participantId)
 
     const pMap = new Y.Map<unknown>()
@@ -282,8 +274,7 @@ export function joinDoc(doc: Y.Doc, init: JoinDocInit): void {
 
 /**
  * Shallow-merge patch into `settings`. `undefined` values explicitly
- * delete the key — use that to clear `timerDurationMs` when flipping
- * `revealMode` back to `'manual'` (see Phase 2 plan §3.6 timer picker).
+ * delete the key.
  */
 export function patchSettings(doc: Y.Doc, patch: Partial<Settings>): void {
   doc.transact(() => {
@@ -353,6 +344,7 @@ export function appendRound(doc: Y.Doc, init: AppendRoundInit): string {
     if (init.parentRoundId !== undefined) {
       round.set('parentRoundId', init.parentRoundId)
     }
+    round.set('timerStartedAt', init.createdAt)
     round.set('votes', new Y.Map<string>())
     roundsArray(doc).push([round])
   })
@@ -408,10 +400,8 @@ export function clearVote(
 }
 
 /**
- * Mark a round as revealed at the given timestamp. Idempotent — a
- * second reveal overwrites the first, which matters only if a later
- * phase changes the source of truth for `revealedAt` (timer reveal
- * vs host reveal — ADR-0011).
+ * Mark a round as revealed at the given timestamp. Idempotent — concurrent
+ * writes from multiple clients (unanimous auto-reveal) merge harmlessly.
  */
 export function revealRound(
   doc: Y.Doc,
@@ -422,23 +412,6 @@ export function revealRound(
   if (!round) throw new Error(`revealRound: round ${roundId} not found`)
   doc.transact(() => {
     round.set('revealedAt', revealedAt)
-  })
-}
-
-/**
- * Write `timerStartedAt` on a round. Not called by Phase 2 code
- * (reveal is host-tap-only this phase) — shipped now so Phase 4's
- * timer-driven reveal is a pure UI wiring change.
- */
-export function startRoundTimer(
-  doc: Y.Doc,
-  roundId: string,
-  startedAt: number,
-): void {
-  const round = findRoundMap(doc, roundId)
-  if (!round) throw new Error(`startRoundTimer: round ${roundId} not found`)
-  doc.transact(() => {
-    round.set('timerStartedAt', startedAt)
   })
 }
 

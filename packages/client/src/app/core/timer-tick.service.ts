@@ -3,16 +3,8 @@ import { DestroyRef, inject, Injectable, signal, type Signal } from '@angular/co
 /**
  * Shared wall-clock signal that ticks ~4 Hz (every 250 ms).
  *
- * The countdown label on Estimating and the timer-expiry watcher in
- * `RoundTimerService` both need a "now" that advances faster than
- * Angular's normal change-detection cadence. Consumers read the signal;
- * non-timer screens never subscribe, so the cost is zero for them.
- *
- * Uses `setInterval` (not `requestAnimationFrame`) deliberately:
- * `rAF` pauses in background tabs, but the host-writes-reveal path
- * needs to fire even when the tab is backgrounded. Browsers may
- * throttle the interval to ~1 Hz in background tabs — the fallback
- * reveal path (§2.4(c)) handles any resulting delay.
+ * Drives the elapsed-time stopwatch on the Estimating screen.
+ * Non-estimating screens never subscribe, so the cost is zero for them.
  */
 @Injectable({ providedIn: 'root' })
 export class TimerTickService {

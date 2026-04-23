@@ -94,7 +94,5 @@ function screenCopy(screen: LastSessionScreen): string {
       return 'In the lobby'
     case 'estimating':
       return 'Estimating now'
-    case 'revealed':
-      return 'Results revealed'
   }
 }

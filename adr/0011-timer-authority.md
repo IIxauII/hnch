@@ -1,6 +1,6 @@
 # ADR-0011: Timer canonical time authority
 
-**Status:** Accepted
+**Status:** Superseded by ADR-0018
 **Date:** 2026-04-21
 **Deciders:** Xau
 

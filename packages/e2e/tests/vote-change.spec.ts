@@ -18,11 +18,11 @@ test.describe('Vote change', () => {
     // Original card is deselected
     await expect(player.page.locator(ESTIMATING.card('3'))).not.toHaveClass(/selected/)
 
-    // Host votes and reveals
+    // Host votes and reveals — navigates to /lobby
     await host.castVote('5')
     await host.reveal()
 
-    await player.page.waitForURL(/\/revealed/, { timeout: 10_000 })
+    await player.page.waitForURL(/\/lobby/, { timeout: 10_000 })
 
     // Revealed votes show the CHANGED value (8), not the original (3)
     await host.expectRevealedVotes(['5', '8'])

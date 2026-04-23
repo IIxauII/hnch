@@ -217,7 +217,6 @@ export class HomePage {
         participantId,
         displayName: displayName ?? '',
         defaultScale: FIBONACCI_SCALE,
-        revealMode: 'manual',
         roomUuid: minted.uuid,
         roomCode: minted.code,
       })
@@ -276,7 +275,6 @@ export class HomePage {
         participantId,
         displayName: displayName ?? '',
         defaultScale: FIBONACCI_SCALE,
-        revealMode: 'manual',
         roomUuid: cache.roomUuid,
         roomCode: cache.roomCode,
       })
@@ -415,8 +413,6 @@ function routeForScreen(screen: LastSessionScreen): string {
       return '/lobby'
     case 'estimating':
       return '/estimating'
-    case 'revealed':
-      return '/revealed'
   }
 }
 

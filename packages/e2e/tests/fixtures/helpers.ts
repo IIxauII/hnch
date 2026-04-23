@@ -42,6 +42,15 @@ export const LOBBY = {
   participantCount: 'ion-list.participants ion-list-header ion-label',
   hostIcon: '.host-icon',
   startRoundBtn: /Start Round \d+/,
+  /** Results section shown after a round is revealed */
+  resultsSection: 'section.results-section',
+  resultsHeading: 'section.results-section h2',
+  voteGroups: 'section.results-section ion-item-group.group:not(.didnt-vote)',
+  groupCard: 'section.results-section ion-item-group .card',
+  voterChips: 'section.results-section ion-chip ion-label',
+  didntVoteGroup: 'section.results-section ion-item-group.didnt-vote',
+  revoteBtn: 'ion-button:has-text("Re-vote")',
+  nextRoundBtn: /Next Round \d+/,
 } as const
 
 // ---------------------------------------------------------------------------
@@ -67,8 +76,7 @@ export const ROUND_START = {
 // ---------------------------------------------------------------------------
 export const ESTIMATING = {
   roundTitle: 'h1.title',
-  timer: 'p.timer',
-  timerUrgent: 'p.timer.urgent',
+  elapsed: 'p.elapsed',
   cardGrid: 'div.grid',
   card: (value: string) => `ion-card.card:has(ion-card-content:text-is("${value}"))`,
   selectedCard: 'ion-card.card.selected',
@@ -79,28 +87,12 @@ export const ESTIMATING = {
 } as const
 
 // ---------------------------------------------------------------------------
-// Revealed
-// ---------------------------------------------------------------------------
-export const REVEALED = {
-  resultsTitle: 'h1.title',
-  voteGroups: 'ion-item-group.group:not(.didnt-vote)',
-  groupCard: 'ion-item-group .card',
-  groupCount: 'ion-item-group .count',
-  voterChips: 'ion-chip ion-label',
-  revoteBtn: 'ion-button:has-text("Re-vote")',
-  nextRoundBtn: 'ion-button:has-text("Next Round")',
-  didntVoteGroup: 'ion-item-group.didnt-vote',
-} as const
-
-// ---------------------------------------------------------------------------
 // Session settings
 // ---------------------------------------------------------------------------
 export const SETTINGS_SHEET = {
   scaleRow: 'app-session-settings-sheet ion-item:has(h3:text-is("Scale"))',
-  timerRow: 'app-session-settings-sheet ion-item:has(h3:text-is("Timer"))',
   accessRow: 'app-session-settings-sheet ion-item:has(h3:text-is("Access"))',
   scaleValue: 'app-session-settings-sheet ion-item:has(h3:text-is("Scale")) ion-note',
-  timerValue: 'app-session-settings-sheet ion-item:has(h3:text-is("Timer")) ion-note',
   accessValue: 'app-session-settings-sheet ion-item:has(h3:text-is("Access")) ion-note',
   doneBtn: 'app-session-settings-sheet ion-button:has-text("Done")',
 } as const
@@ -108,11 +100,6 @@ export const SETTINGS_SHEET = {
 export const SCALE_PICKER = {
   option: (label: string) => `app-scale-picker-sheet ion-item:has(h3:text-is("${label}"))`,
   doneBtn: 'app-scale-picker-sheet ion-button:has-text("Done")',
-} as const
-
-export const TIMER_PICKER = {
-  option: (label: string) => `app-timer-picker-sheet ion-item:has(ion-label:text-is("${label}"))`,
-  doneBtn: 'app-timer-picker-sheet ion-button:has-text("Done")',
 } as const
 
 export const ACCESS_PICKER = {

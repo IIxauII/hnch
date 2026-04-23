@@ -2,12 +2,12 @@ import { Injectable } from '@angular/core'
 import { Preferences } from '@capacitor/preferences'
 
 /**
- * The three screens that count as "inside a session" for the purposes
- * of the jump-back-in cache (plan §2.3). Matches the Phase-3 route
- * set; if we add a fourth in-session screen later, extend this union
+ * The screens that count as "inside a session" for the purposes
+ * of the jump-back-in cache (plan §2.3). Matches the current route
+ * set; if we add another in-session screen later, extend this union
  * and the `isLastSessionScreen` guard.
  */
-export type LastSessionScreen = 'lobby' | 'estimating' | 'revealed'
+export type LastSessionScreen = 'lobby' | 'estimating'
 
 /**
  * Aspirational "resume this session" cache, persisted via Capacitor
@@ -116,7 +116,7 @@ export class LastSessionService {
 }
 
 function isLastSessionScreen(v: unknown): v is LastSessionScreen {
-  return v === 'lobby' || v === 'estimating' || v === 'revealed'
+  return v === 'lobby' || v === 'estimating'
 }
 
 function isLastSessionCache(v: unknown): v is LastSessionCache {

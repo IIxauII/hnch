@@ -13,11 +13,14 @@
     "lint": "pnpm -r --if-present run lint",
     "test": "pnpm -r --if-present run test",
     "build": "pnpm -r --if-present run build",
-    "dev": "pnpm -r --if-present --parallel run dev",
+    "dev:client": "pnpm --filter @hnch/client dev",
+    "dev:relay": "pnpm --filter @hnch/relay dev",
+    "dev:cli": "pnpm --filter @hnch/cli dev",
     "typecheck": "pnpm -r --if-present run typecheck",
     "test:e2e": "pnpm --filter @hnch/e2e test"
   },
   "devDependencies": {
+    "tsx": "^4.19.0",
     "typescript": "^5.5.0"
   }
 }
