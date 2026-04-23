@@ -56,3 +56,7 @@ For quick orientation without reading all 17 ADRs:
 - **Password protection:** PBKDF2-SHA-256 via Web Crypto (100k iterations, room UUID as salt). Invite-only mode dropped from v1 scope. (ADR-0017)
 - **Repo layout:** pnpm workspaces monorepo with `packages/client`, `packages/relay`, `packages/shared`, `packages/e2e` (Playwright). (ADR-0014)
 - **v1 scope (reveal/timer):** reveal modes are `manual | timer` only (no `unanimous`); `revealMode` and `timerDurationMs` live on `settings`, not on rounds. (ADR-0015)
+
+## Commit conventions
+
+- Do **not** add a `Co-Authored-By` trailer to commit messages.
