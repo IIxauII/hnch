@@ -24,6 +24,7 @@ import {
 } from '@ionic/angular/standalone'
 
 import { DocService } from '../core/doc/doc.service'
+import { HapticService } from '../core/haptic.service'
 import { LastSessionService } from '../core/last-session.service'
 import { ParticipantIdService } from '../core/participant-id.service'
 import {
@@ -269,6 +270,7 @@ const DIDNT_VOTE_KEY = '__didnt_vote__'
 export class RevealedPage {
   private readonly router = inject(Router)
   private readonly docService = inject(DocService)
+  private readonly haptic = inject(HapticService)
   private readonly participantIdService = inject(ParticipantIdService)
   private readonly lastSessionService = inject(LastSessionService)
 
@@ -307,7 +309,26 @@ export class RevealedPage {
         void this.router.navigate(['/estimating'], { replaceUrl: true })
       }
     })
+
+    // Fire haptic after the stagger animation completes. Delay =
+    // (totalGroups - 1) * 80ms stagger + 200ms animation duration.
+    // Fires once per revealed round.
+    effect(() => {
+      const groups = this.voteGroups()
+      const didntVote = this.didntVoteNames()
+      const totalGroups = groups.length + (didntVote.length > 0 ? 1 : 0)
+      if (totalGroups === 0) return
+      const round = this.revealedRound()
+      if (!round) return
+      if (this.hapticFiredForRound === round.id) return
+      this.hapticFiredForRound = round.id
+      const delay = Math.max(0, totalGroups - 1) * 80 + 200
+      setTimeout(() => this.haptic.notificationSuccess(), delay)
+    })
   }
+
+  /** Tracks which round the reveal-complete haptic has fired for. */
+  private hapticFiredForRound: string | null = null
 
   /**
    * The round whose results we're showing — the current round on the
