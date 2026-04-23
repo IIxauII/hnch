@@ -135,7 +135,7 @@ export const NAME_EDITOR = {
 export const BASE_URL = 'http://localhost:4200'
 
 /** Default Fibonacci scale card values. */
-export const FIBONACCI_CARDS = ['0', '1', '2', '3', '5', '8', '13', '21', '?', '☕']
+export const FIBONACCI_CARDS = ['0', '1', '2', '3', '5', '8', '13', '21']
 
 /** T-shirt scale card values. */
-export const TSHIRT_CARDS = ['XS', 'S', 'M', 'L', 'XL', '?', '☕']
+export const TSHIRT_CARDS = ['XS', 'S', 'M', 'L', 'XL']

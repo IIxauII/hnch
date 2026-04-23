@@ -29,6 +29,7 @@ import { DisplayNameService } from '../core/display-name.service'
 import { ParticipantIdService } from '../core/participant-id.service'
 import { ThemeService, type Theme } from '../core/theme.service'
 import { DisplayNameEditorSheetComponent } from './display-name-editor.sheet'
+import { ScaleManagementSheetComponent } from './scale-management.sheet'
 import { ThemePickerSheetComponent } from './theme-picker.sheet'
 
 const THEME_LABELS: Record<Theme, string> = {
@@ -40,15 +41,16 @@ const THEME_LABELS: Record<Theme, string> = {
 /**
  * App Settings screen — ux.md §5.7.
  *
- * Three sections: Profile (display name), Appearance (theme picker),
- * and About (version, licenses, privacy). Each editable row opens a
- * half-sheet picker/editor.
+ * Four sections: Profile (display name), Appearance (theme picker),
+ * Scales (manage presets and custom scales), and About (version, licenses,
+ * privacy). Each editable row opens a half-sheet picker/editor.
  */
 @Component({
   selector: 'app-settings',
   host: { class: 'ion-page' },
   imports: [
     DisplayNameEditorSheetComponent,
+    ScaleManagementSheetComponent,
     IonBackButton,
     IonButtons,
     IonContent,
@@ -93,6 +95,16 @@ const THEME_LABELS: Record<Theme, string> = {
         <ion-item button (click)="openThemePicker()">
           <ion-label>Theme</ion-label>
           <ion-note slot="end">{{ themeLabel() }}</ion-note>
+        </ion-item>
+      </ion-list>
+
+      <!-- Scales -->
+      <ion-list-header>
+        <ion-label>Scales</ion-label>
+      </ion-list-header>
+      <ion-list lines="inset">
+        <ion-item button (click)="openScaleManagement()">
+          <ion-label>Manage scales</ion-label>
         </ion-item>
       </ion-list>
 
@@ -148,6 +160,21 @@ const THEME_LABELS: Record<Theme, string> = {
           />
         </ng-template>
       </ion-modal>
+
+      <!-- Scale management half-sheet -->
+      <ion-modal
+        #scaleModal
+        [isOpen]="scaleManagementOpen()"
+        [breakpoints]="[0, 0.6, 0.95]"
+        [initialBreakpoint]="0.95"
+        (didDismiss)="scaleManagementOpen.set(false)"
+      >
+        <ng-template>
+          <app-scale-management-sheet
+            (closeRequested)="closeScaleManagement()"
+          />
+        </ng-template>
+      </ion-modal>
     </ion-content>
   `,
 })
@@ -168,9 +195,11 @@ export class SettingsPage {
 
   protected readonly nameEditorOpen = signal(false)
   protected readonly themePickerOpen = signal(false)
+  protected readonly scaleManagementOpen = signal(false)
 
   private readonly nameModalRef = viewChild<IonModal>('nameModal')
   private readonly themeModalRef = viewChild<IonModal>('themeModal')
+  private readonly scaleModalRef = viewChild<IonModal>('scaleModal')
 
   constructor() {
     addIcons({ 'chevron-forward-outline': chevronForwardOutline })
@@ -229,5 +258,18 @@ export class SettingsPage {
 
   protected onThemeSelected(value: Theme): void {
     void this.themeService.setTheme(value)
+  }
+
+  // ---------------------------------------------------------------------------
+  // Scale management
+  // ---------------------------------------------------------------------------
+
+  protected openScaleManagement(): void {
+    this.scaleManagementOpen.set(true)
+  }
+
+  protected async closeScaleManagement(): Promise<void> {
+    await this.scaleModalRef()?.dismiss()
+    this.scaleManagementOpen.set(false)
   }
 }

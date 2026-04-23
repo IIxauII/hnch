@@ -14,6 +14,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { createInterface } from 'node:readline'
+import type { PresetOverrides, CustomScale } from '@hnch/shared'
 
 export interface CliConfig {
   participantId: string
@@ -22,6 +23,8 @@ export interface CliConfig {
   defaultScale?: string
   defaultSessionName?: string
   defaultPassword?: boolean
+  presetOverrides?: PresetOverrides
+  customScales?: CustomScale[]
 }
 
 const DEFAULT_RELAY_URL = 'http://localhost:1234'
@@ -53,6 +56,11 @@ export function readConfig(): Partial<CliConfig> {
   }
 }
 
+/**
+ * Merge `config` into the stored config file. Uses a shallow spread, so
+ * nested objects (e.g. `presetOverrides`, `customScales`) are replaced
+ * wholesale — pass the full updated value, not a partial nested patch.
+ */
 export function writeConfig(config: Partial<CliConfig>): void {
   ensureDir()
   const existing = readConfig()
@@ -108,6 +116,8 @@ export async function loadConfig(): Promise<CliConfig> {
     defaultScale: stored.defaultScale,
     defaultSessionName: stored.defaultSessionName,
     defaultPassword: stored.defaultPassword,
+    presetOverrides: stored.presetOverrides,
+    customScales: stored.customScales,
   }
 }
 

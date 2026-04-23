@@ -2,7 +2,7 @@ import React from 'react'
 import { Box, Text, useInput } from 'ink'
 import { ParticipantList } from './components/ParticipantList.js'
 import { SettingsPanel } from './components/SettingsPanel.js'
-import type { DocProjection, Round, Scale } from '@hnch/shared'
+import type { DocProjection, Round, Scale, PresetOverrides, CustomScale } from '@hnch/shared'
 
 interface Props {
   projection: DocProjection
@@ -13,6 +13,8 @@ interface Props {
   /** The latest revealed round (null if no rounds revealed yet). */
   currentRound: Round | null
   settingsOpen: boolean
+  presetOverrides?: PresetOverrides
+  customScales?: CustomScale[]
   onStartRound: () => void
   onNewRound: () => void
   onRevote: () => void
@@ -95,6 +97,8 @@ export function Lobby({
   rounds,
   currentRound,
   settingsOpen,
+  presetOverrides,
+  customScales,
   onStartRound,
   onNewRound,
   onRevote,
@@ -128,6 +132,8 @@ export function Lobby({
       <SettingsPanel
         currentName={projection.settings.name}
         currentScale={projection.settings.defaultScale}
+        presetOverrides={presetOverrides}
+        customScales={customScales}
         onChangeName={onChangeName}
         onChangeScale={onChangeScale}
         onClose={onCloseSettings}

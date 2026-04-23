@@ -24,12 +24,11 @@
  * between client versions and a round's scale is frozen against later
  * edits to `settings.defaultScale`.
  *
- * `cards` entries are arbitrary strings — numbers, t-shirt sizes, emoji,
- * and sentinels like `"?"` (unsure) and `"☕"` (coffee break) are all
- * just string values.
+ * `cards` entries are arbitrary strings — numbers, t-shirt sizes, risk
+ * labels, or any other values a custom scale defines.
  */
 export interface Scale {
-  /** `'fibonacci' | 't-shirt' | `custom-${uuid}`` */
+  /** Builtin IDs: `'fibonacci'`, `'t-shirt'`, `'powers-of-2'`, `'linear'`, `'risk'`. Custom scales use a `custom-` prefix. */
   id: string
   /** Card faces, in display order. */
   cards: string[]
@@ -106,7 +105,7 @@ export interface Round {
   createdAt: number
   /**
    * Votes keyed by `participantId`. Value is the card face string (e.g.
-   * `"5"`, `"?"`, `"☕"`). Vote-change-before-reveal is just overwriting
+   * `"5"`, `"M"`, `"High"`). Vote-change-before-reveal is just overwriting
    * this key — only the final value is retained (ADR-0013).
    *
    * In the Yjs doc this is a `Y.Map<string, string>`; the `Record` shape
@@ -138,12 +137,11 @@ export interface AwarenessPayload {
 // ---------------------------------------------------------------------------
 
 /**
- * Modified-Fibonacci with `?` (unsure) and `☕` (coffee break) sentinels.
- * Same sequence used by most planning-poker tools.
+ * Modified-Fibonacci sequence. Same sequence used by most planning-poker tools.
  */
 export const FIBONACCI_SCALE: Scale = {
   id: 'fibonacci',
-  cards: ['0', '1', '2', '3', '5', '8', '13', '21', '?', '☕'],
+  cards: ['0', '1', '2', '3', '5', '8', '13', '21'],
 }
 
 /**
@@ -152,15 +150,70 @@ export const FIBONACCI_SCALE: Scale = {
  */
 export const TSHIRT_SCALE: Scale = {
   id: 't-shirt',
-  cards: ['XS', 'S', 'M', 'L', 'XL', '?', '☕'],
+  cards: ['XS', 'S', 'M', 'L', 'XL'],
 }
 
 /**
- * Convenience lookup for the v1 builtin scales. Custom scales created by
+ * Powers-of-two sequence. Common in engineering sub-teams that think in
+ * binary multiples.
+ */
+export const POWERS_OF_2_SCALE: Scale = {
+  id: 'powers-of-2',
+  cards: ['1', '2', '4', '8', '16', '32', '64'],
+}
+
+/**
+ * Simple linear 1–10 scale for teams unfamiliar with Fibonacci.
+ */
+export const LINEAR_SCALE: Scale = {
+  id: 'linear',
+  cards: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'],
+}
+
+/**
+ * Risk assessment scale for risk-estimation ceremonies.
+ */
+export const RISK_SCALE: Scale = {
+  id: 'risk',
+  cards: ['Low', 'Medium', 'High', 'Critical'],
+}
+
+/**
+ * Convenience lookup for the builtin scales. Custom scales created by
  * users at runtime are not registered here — they live inline in the
  * `Scale` values stored on `settings` and individual rounds.
  */
 export const BUILTIN_SCALES: Readonly<Record<string, Scale>> = {
   [FIBONACCI_SCALE.id]: FIBONACCI_SCALE,
   [TSHIRT_SCALE.id]: TSHIRT_SCALE,
+  [POWERS_OF_2_SCALE.id]: POWERS_OF_2_SCALE,
+  [LINEAR_SCALE.id]: LINEAR_SCALE,
+  [RISK_SCALE.id]: RISK_SCALE,
+}
+
+/**
+ * Human-readable display names for the builtin scale IDs.
+ */
+export const SCALE_DISPLAY_NAMES: Readonly<Record<string, string>> = {
+  fibonacci: 'Fibonacci',
+  't-shirt': 'T-shirt',
+  'powers-of-2': 'Powers of 2',
+  linear: 'Linear (1–10)',
+  risk: 'Risk',
+}
+
+/**
+ * Returns a human-readable label for a scale ID. For builtin scales this is
+ * the value from SCALE_DISPLAY_NAMES. For custom IDs (prefixed `custom-`) the
+ * prefix is stripped and each hyphen-separated word is title-cased. Any other
+ * unknown ID is title-cased word-by-word as a best-effort fallback.
+ */
+export function formatScaleId(id: string): string {
+  if (id in SCALE_DISPLAY_NAMES) return SCALE_DISPLAY_NAMES[id]!
+  if (id.length === 0) return id
+  const stripped = id.startsWith('custom-') ? id.slice('custom-'.length) : id
+  return stripped
+    .split('-')
+    .map((word) => (word.length === 0 ? word : word.charAt(0).toUpperCase() + word.slice(1)))
+    .join(' ')
 }

@@ -7,7 +7,14 @@
  */
 
 import { describe, it, expect, vi } from 'vitest'
-import { FIBONACCI_SCALE, TSHIRT_SCALE } from '@hnch/shared'
+import {
+  FIBONACCI_SCALE,
+  TSHIRT_SCALE,
+  POWERS_OF_2_SCALE,
+  LINEAR_SCALE,
+  RISK_SCALE,
+  buildAvailableScales,
+} from '@hnch/shared'
 
 // ── TextInput logic ──────────────────────────────────────────────────────────
 
@@ -114,30 +121,81 @@ describe('SettingsPanel name submission', () => {
 })
 
 describe('SettingsPanel scale selection', () => {
+  const scales = buildAvailableScales()
+
+  it('buildAvailableScales returns all 5 builtins by default', () => {
+    expect(scales).toHaveLength(5)
+    expect(scales.map((s) => s.id)).toEqual([
+      'fibonacci',
+      't-shirt',
+      'powers-of-2',
+      'linear',
+      'risk',
+    ])
+  })
+
+  it('no builtin scale contains sentinel cards', () => {
+    for (const s of scales) {
+      expect(s.cards).not.toContain('?')
+      expect(s.cards).not.toContain('☕')
+    }
+  })
+
   it('selecting fibonacci scale fires callback with fibonacci scale', () => {
     const onChangeScale = vi.fn()
-    const scales = [FIBONACCI_SCALE, TSHIRT_SCALE]
-    const cursor = 0
-    const chosen = scales[cursor]!
-    onChangeScale(chosen)
+    const cursor = scales.findIndex((s) => s.id === 'fibonacci')
+    onChangeScale(scales[cursor]!)
     expect(onChangeScale).toHaveBeenCalledWith(FIBONACCI_SCALE)
   })
 
   it('selecting t-shirt scale fires callback with t-shirt scale', () => {
     const onChangeScale = vi.fn()
-    const scales = [FIBONACCI_SCALE, TSHIRT_SCALE]
-    const cursor = 1
-    const chosen = scales[cursor]!
-    onChangeScale(chosen)
+    const cursor = scales.findIndex((s) => s.id === 't-shirt')
+    onChangeScale(scales[cursor]!)
     expect(onChangeScale).toHaveBeenCalledWith(TSHIRT_SCALE)
   })
 
+  it('selecting powers-of-2 scale fires callback with powers-of-2 scale', () => {
+    const onChangeScale = vi.fn()
+    const cursor = scales.findIndex((s) => s.id === 'powers-of-2')
+    onChangeScale(scales[cursor]!)
+    expect(onChangeScale).toHaveBeenCalledWith(POWERS_OF_2_SCALE)
+  })
+
+  it('selecting linear scale fires callback with linear scale', () => {
+    const onChangeScale = vi.fn()
+    const cursor = scales.findIndex((s) => s.id === 'linear')
+    onChangeScale(scales[cursor]!)
+    expect(onChangeScale).toHaveBeenCalledWith(LINEAR_SCALE)
+  })
+
+  it('selecting risk scale fires callback with risk scale', () => {
+    const onChangeScale = vi.fn()
+    const cursor = scales.findIndex((s) => s.id === 'risk')
+    onChangeScale(scales[cursor]!)
+    expect(onChangeScale).toHaveBeenCalledWith(RISK_SCALE)
+  })
+
   it('scale cursor clamps to valid range', () => {
-    const scales = [FIBONACCI_SCALE, TSHIRT_SCALE]
     const clamp = (c: number) => Math.max(0, Math.min(scales.length - 1, c))
     expect(clamp(-1)).toBe(0)
     expect(clamp(0)).toBe(0)
-    expect(clamp(1)).toBe(1)
-    expect(clamp(2)).toBe(1)
+    expect(clamp(scales.length - 1)).toBe(scales.length - 1)
+    expect(clamp(scales.length)).toBe(scales.length - 1)
+  })
+
+  it('buildAvailableScales appends custom scales after builtins', () => {
+    const withCustom = buildAvailableScales({}, [
+      { id: 'custom-team', label: 'Team', cards: ['S', 'M', 'L'] },
+    ])
+    expect(withCustom).toHaveLength(6)
+    expect(withCustom[5]!.id).toBe('custom-team')
+  })
+
+  it('buildAvailableScales applies preset overrides', () => {
+    const withOverride = buildAvailableScales({ fibonacci: [0] }) // disable '0'
+    const fib = withOverride.find((s) => s.id === 'fibonacci')!
+    expect(fib.cards).not.toContain('0')
+    expect(fib.cards).toContain('1')
   })
 })
