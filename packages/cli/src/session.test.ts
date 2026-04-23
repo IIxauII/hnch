@@ -10,7 +10,7 @@ import { createCodePool } from '../../relay/src/code-pool.js'
 import { createRoomStore } from '../../relay/src/room-store.js'
 import { createRelayServer } from '../../relay/src/server.js'
 import { createSession, joinSession } from './session.js'
-import { FIBONACCI_SCALE } from '@hnch/shared'
+import { FIBONACCI_SCALE, TSHIRT_SCALE } from '@hnch/shared'
 
 let server: Server
 let port: number
@@ -156,6 +156,53 @@ describe('session integration', () => {
     const round2 = p.rounds.find((r) => r.id === round2Id)
     expect(round2).toBeDefined()
     expect(round2!.parentRoundId).toBe(round1Id)
+
+    host.disconnect()
+  })
+
+  it('updateName sets and removes room name', async () => {
+    const host = await createSession({
+      participantId: 'host-name',
+      displayName: 'Alice',
+      relayUrl,
+    })
+
+    await sleep(300)
+
+    // Set a name
+    host.updateName('Sprint 42')
+    await sleep(300)
+    expect(host.projection().settings.name).toBe('Sprint 42')
+
+    // Update name
+    host.updateName('Sprint 43')
+    await sleep(300)
+    expect(host.projection().settings.name).toBe('Sprint 43')
+
+    // Remove name by passing undefined
+    host.updateName(undefined)
+    await sleep(300)
+    expect(host.projection().settings.name).toBeUndefined()
+
+    host.disconnect()
+  })
+
+  it('updateScale changes default scale', async () => {
+    const host = await createSession({
+      participantId: 'host-scale',
+      displayName: 'Alice',
+      relayUrl,
+      defaultScale: FIBONACCI_SCALE,
+    })
+
+    await sleep(300)
+
+    expect(host.projection().settings.defaultScale.id).toBe('fibonacci')
+
+    host.updateScale(TSHIRT_SCALE)
+    await sleep(300)
+
+    expect(host.projection().settings.defaultScale.id).toBe('t-shirt')
 
     host.disconnect()
   })

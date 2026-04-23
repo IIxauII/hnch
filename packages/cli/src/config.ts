@@ -19,6 +19,9 @@ export interface CliConfig {
   participantId: string
   displayName: string
   relayUrl: string
+  defaultScale?: string
+  defaultSessionName?: string
+  defaultPassword?: boolean
 }
 
 const DEFAULT_RELAY_URL = 'http://localhost:1234'
@@ -57,7 +60,7 @@ export function writeConfig(config: Partial<CliConfig>): void {
   writeFileSync(configPath(), JSON.stringify(merged, null, 2) + '\n', 'utf-8')
 }
 
-async function promptLine(question: string): Promise<string> {
+export async function promptLine(question: string): Promise<string> {
   const rl = createInterface({ input: process.stdin, output: process.stderr })
   return new Promise((resolve) => {
     rl.question(question, (answer) => {
@@ -102,12 +105,26 @@ export async function loadConfig(): Promise<CliConfig> {
     participantId: stored.participantId!,
     displayName: stored.displayName!,
     relayUrl,
+    defaultScale: stored.defaultScale,
+    defaultSessionName: stored.defaultSessionName,
+    defaultPassword: stored.defaultPassword,
   }
 }
 
 /**
  * Update specific config fields (used by `hnch config` subcommand).
+ * String fields set to empty string are deleted from config.
  */
-export function updateConfig(patch: Partial<Pick<CliConfig, 'displayName' | 'relayUrl'>>): void {
-  writeConfig(patch)
+export function updateConfig(patch: Partial<CliConfig>): void {
+  ensureDir()
+  const existing = readConfig()
+  const merged: Record<string, unknown> = { ...existing }
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === '') {
+      delete merged[key]
+    } else if (value !== undefined) {
+      merged[key] = value
+    }
+  }
+  writeFileSync(configPath(), JSON.stringify(merged, null, 2) + '\n', 'utf-8')
 }

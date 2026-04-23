@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { Box, useApp, useInput } from 'ink'
 import type { SessionHandle } from '../session.js'
 import type { SyncStatus } from '../sync.js'
-import type { DocProjection, Round } from '@hnch/shared'
+import type { DocProjection, Round, Scale } from '@hnch/shared'
 import { currentRound } from '@hnch/shared'
 import { StatusBar } from './components/StatusBar.js'
 import { Lobby } from './Lobby.js'
@@ -28,6 +28,7 @@ export function App({ session, participantId }: Props): React.ReactElement {
   const [status, setStatus] = useState<SyncStatus>('connecting')
   const [onlineIds, setOnlineIds] = useState<Set<string>>(session.onlineIds())
   const [elapsedMs, setElapsedMs] = useState<number | undefined>(undefined)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   useEffect(() => {
     const unsub1 = session.onChange(() => {
@@ -55,15 +56,23 @@ export function App({ session, participantId }: Props): React.ReactElement {
     }
   }, [session])
 
-  // Global quit handler
-  useInput((input) => {
-    if (input === 'q' || input === 'Q') {
-      session.disconnect()
-      exit()
-    }
-  })
+  // Global quit handler — inactive when settings panel is open
+  useInput(
+    (input) => {
+      if (input === 'q' || input === 'Q') {
+        session.disconnect()
+        exit()
+      }
+    },
+    { isActive: !settingsOpen },
+  )
 
   const screen = deriveScreen(projection)
+
+  // Reset settings panel if screen leaves lobby (e.g. another client starts a round)
+  useEffect(() => {
+    if (screen !== 'lobby') setSettingsOpen(false)
+  }, [screen])
   const round = currentRound(projection)
   const isHost = projection.settings.hostParticipantId === participantId
 
@@ -91,6 +100,22 @@ export function App({ session, participantId }: Props): React.ReactElement {
     session.revote()
   }, [session])
 
+  const handleChangeName = useCallback((name: string | undefined) => {
+    session.updateName(name)
+  }, [session])
+
+  const handleChangeScale = useCallback((scale: Scale) => {
+    session.updateScale(scale)
+  }, [session])
+
+  const handleOpenSettings = useCallback(() => {
+    setSettingsOpen(true)
+  }, [])
+
+  const handleCloseSettings = useCallback(() => {
+    setSettingsOpen(false)
+  }, [])
+
   // The latest revealed round for results display in Lobby
   const revealedRounds = projection.rounds.filter((r) => r.revealedAt !== undefined)
   const latestRevealedRound: Round | null =
@@ -113,9 +138,14 @@ export function App({ session, participantId }: Props): React.ReactElement {
           participantId={participantId}
           rounds={projection.rounds}
           currentRound={latestRevealedRound}
+          settingsOpen={settingsOpen}
           onStartRound={handleStartRound}
           onNewRound={handleNewRound}
           onRevote={handleRevote}
+          onOpenSettings={handleOpenSettings}
+          onCloseSettings={handleCloseSettings}
+          onChangeName={handleChangeName}
+          onChangeScale={handleChangeScale}
         />
       )}
 

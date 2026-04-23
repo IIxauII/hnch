@@ -13,7 +13,7 @@ import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
 import React from 'react'
 import { render } from 'ink'
-import { loadConfig, readConfig, updateConfig } from './config.js'
+import { loadConfig, readConfig, updateConfig, promptLine } from './config.js'
 import { createSession, joinSession } from './session.js'
 import { FIBONACCI_SCALE, TSHIRT_SCALE, type Scale } from '@hnch/shared'
 import { App } from './ui/App.js'
@@ -38,17 +38,22 @@ async function promptPassword(): Promise<string> {
 async function handleCreate(argv: {
   name?: string
   password?: boolean
-  scale: string
+  scale?: string
 }): Promise<void> {
   const config = await loadConfig()
+
+  const resolvedScale = argv.scale ?? config.defaultScale ?? 'fibonacci'
+  const resolvedName = argv.name ?? config.defaultSessionName
+  const resolvedPassword = argv.password ?? config.defaultPassword ?? false
+
   let password: string | undefined
-  if (argv.password) {
+  if (resolvedPassword) {
     password = await promptPassword()
   }
 
-  const scale = SCALES[argv.scale]
+  const scale = SCALES[resolvedScale]
   if (!scale) {
-    console.error(`Unknown scale: ${argv.scale}. Use: fibonacci, tshirt`)
+    console.error(`Unknown scale: ${resolvedScale}. Use: fibonacci, tshirt`)
     process.exit(1)
   }
 
@@ -56,7 +61,7 @@ async function handleCreate(argv: {
     participantId: config.participantId,
     displayName: config.displayName,
     relayUrl: config.relayUrl,
-    sessionName: argv.name,
+    sessionName: resolvedName,
     password,
     defaultScale: scale,
   })
@@ -110,19 +115,103 @@ async function handleJoin(argv: {
   process.exit(0)
 }
 
-function handleConfig(argv: {
+async function runConfigMenu(): Promise<void> {
+  const SETTINGS = [
+    {
+      label: 'Display name',
+      key: 'displayName' as const,
+      display: (v: unknown) => (typeof v === 'string' && v ? v : 'not set'),
+    },
+    {
+      label: 'Relay URL',
+      key: 'relayUrl' as const,
+      display: (v: unknown) => (typeof v === 'string' && v ? v : 'not set'),
+    },
+    {
+      label: 'Default scale',
+      key: 'defaultScale' as const,
+      display: (v: unknown) => (typeof v === 'string' && v ? v : 'not set'),
+    },
+    {
+      label: 'Default session name',
+      key: 'defaultSessionName' as const,
+      display: (v: unknown) => (typeof v === 'string' && v ? v : 'not set'),
+    },
+    {
+      label: 'Default password',
+      key: 'defaultPassword' as const,
+      display: (v: unknown) => (v === true ? 'on' : 'off'),
+    },
+  ]
+
+  while (true) {
+    const current = readConfig()
+    const maxLabel = Math.max(...SETTINGS.map((s) => s.label.length))
+    process.stderr.write('\n')
+    for (let i = 0; i < SETTINGS.length; i++) {
+      const s = SETTINGS[i]!
+      const val = current[s.key as keyof typeof current]
+      const label = s.label.padEnd(maxLabel)
+      process.stderr.write(`  ${i + 1}. ${label}  [${s.display(val)}]\n`)
+    }
+    process.stderr.write('\n')
+    const pick = await promptLine('Pick a setting to edit (1-5), or q to quit: ')
+    if (pick === 'q' || pick === '') break
+    const idx = parseInt(pick, 10) - 1
+    if (isNaN(idx) || idx < 0 || idx >= SETTINGS.length) {
+      process.stderr.write('Invalid choice.\n')
+      continue
+    }
+    const setting = SETTINGS[idx]!
+    if (setting.key === 'defaultPassword') {
+      const answer = await promptLine(`Default password on/off [current: ${setting.display(current[setting.key])}] (on/off): `)
+      if (answer === 'on') updateConfig({ defaultPassword: true })
+      else if (answer === 'off') updateConfig({ defaultPassword: false })
+      else process.stderr.write('Enter "on" or "off".\n')
+    } else if (setting.key === 'defaultScale') {
+      const answer = await promptLine(`Default scale (fibonacci|tshirt, leave blank to clear): `)
+      if (answer !== '' && !Object.keys(SCALES).includes(answer)) {
+        process.stderr.write(`Invalid scale "${answer}". Use: ${Object.keys(SCALES).join(', ')}\n`)
+      } else {
+        updateConfig({ defaultScale: answer })
+      }
+    } else {
+      const answer = await promptLine(`${setting.label} (leave blank to clear): `)
+      updateConfig({ [setting.key]: answer } as Parameters<typeof updateConfig>[0])
+    }
+  }
+}
+
+async function handleConfig(argv: {
   name?: string
   relayUrl?: string
-}): void {
-  if (!argv.name && !argv.relayUrl) {
+  scale?: string
+  sessionName?: string
+  password?: boolean
+}): Promise<void> {
+  const hasFlags =
+    argv.name !== undefined ||
+    argv.relayUrl !== undefined ||
+    argv.scale !== undefined ||
+    argv.sessionName !== undefined ||
+    argv.password !== undefined
+
+  if (!hasFlags) {
     const current = readConfig()
     console.log(JSON.stringify(current, null, 2))
+    const answer = await promptLine('\nEdit settings? [y/N] ')
+    if (answer.toLowerCase() === 'y') {
+      await runConfigMenu()
+    }
     return
   }
 
-  const patch: Record<string, string> = {}
-  if (argv.name) patch['displayName'] = argv.name
-  if (argv.relayUrl) patch['relayUrl'] = argv.relayUrl
+  const patch: Parameters<typeof updateConfig>[0] = {}
+  if (argv.name !== undefined) patch.displayName = argv.name
+  if (argv.relayUrl !== undefined) patch.relayUrl = argv.relayUrl
+  if (argv.scale !== undefined) patch.defaultScale = argv.scale
+  if (argv.sessionName !== undefined) patch.defaultSessionName = argv.sessionName
+  if (argv.password !== undefined) patch.defaultPassword = argv.password
   updateConfig(patch)
   console.log('Config updated.')
 }
@@ -142,13 +231,11 @@ const cli = yargs(hideBin(process.argv))
         .option('password', {
           type: 'boolean',
           describe: 'Protect room with a password',
-          default: false,
         })
         .option('scale', {
           type: 'string',
           describe: 'Estimation scale',
           choices: ['fibonacci', 'tshirt'],
-          default: 'fibonacci',
         }),
     (argv) => {
       handleCreate(argv as Parameters<typeof handleCreate>[0]).catch((err) => {
@@ -191,9 +278,25 @@ const cli = yargs(hideBin(process.argv))
         .option('relay-url', {
           type: 'string',
           describe: 'Set relay URL',
+        })
+        .option('scale', {
+          type: 'string',
+          describe: 'Set default estimation scale (fibonacci|tshirt, empty string clears)',
+          choices: ['fibonacci', 'tshirt', ''],
+        })
+        .option('session-name', {
+          type: 'string',
+          describe: 'Set default session name (empty string clears)',
+        })
+        .option('password', {
+          type: 'boolean',
+          describe: 'Set default password prompt on (--password) or off (--no-password)',
         }),
     (argv) => {
-      handleConfig(argv as Parameters<typeof handleConfig>[0])
+      handleConfig(argv as Parameters<typeof handleConfig>[0]).catch((err) => {
+        console.error(err instanceof Error ? err.message : err)
+        process.exit(1)
+      })
     },
   )
   .demandCommand(1, 'Specify a command: create, join, or config')

@@ -16,6 +16,7 @@ import {
   clearVote,
   revealRound as revealRoundMutation,
   appendRound,
+  patchSettings,
   hashPassword,
   FIBONACCI_SCALE,
   type DocProjection,
@@ -69,6 +70,10 @@ export interface SessionHandle {
   newRound(title?: string): string
   /** Re-vote: start new round linked to current. */
   revote(): string
+  /** Update the room name. Pass undefined to remove. */
+  updateName(name: string | undefined): void
+  /** Update the default estimation scale. */
+  updateScale(scale: Scale): void
 
   /** Subscribe to doc changes. Returns unsubscribe fn. */
   onChange(cb: () => void): () => void
@@ -286,6 +291,14 @@ function wireSession(opts: WireOptions): SessionHandle {
         title: round?.title,
       })
       return id
+    },
+
+    updateName(name: string | undefined) {
+      patchSettings(doc, { name })
+    },
+
+    updateScale(scale: Scale) {
+      patchSettings(doc, { defaultScale: scale })
     },
 
     onChange(cb: () => void) {
