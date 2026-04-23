@@ -27,9 +27,17 @@ See `.claude/commands/execute-plan.md` for the full protocol:
 
 1. **Read plan** → identify affected packages, tasks, dependencies
 2. **Create team** → `TeamCreate(team_name: "plan-name")`
-3. **Create tasks** → `TaskCreate` for each work item + review task (blocked by implementation)
-4. **Spawn teammates** → `Agent(team_name, name, subagent_type, model)` for each specialist needed
-5. **Monitor** → teammates auto-report via messages; route errors back for fixes
-6. **Review** → reviewer picks up review task after implementation completes
-7. **Rework loop** → BUG/REGRESSION/SECURITY → new fix tasks → re-review
-8. **Report + cleanup** → summarize to user, shutdown teammates, `TeamDelete`
+3. **Create tasks** → impl tasks + **per-task review tasks** (each review blocked only by its impl task)
+4. **Spawn teammates** → implementers get only their first task; reviewer told to wait idle
+5. **Active dispatch loop** → hand out tasks one at a time, route completed impl to reviewer immediately, keep both agents busy in parallel
+6. **Rework loop** → BUG/REGRESSION/SECURITY → new fix tasks → re-review
+7. **Report + cleanup** → summarize to user, shutdown teammates, `TeamDelete`
+
+## Key principles
+
+- **Orchestrator is the dispatcher.** No agent self-assigns. Orchestrator hands out every task.
+- **Pipeline, don't batch.** Reviewer reviews task N while implementer works on task N+1.
+- **Orchestrator never reads code.** Verifying implementation is the reviewer's job.
+- **Reviewer never pre-reads.** No file reading until the orchestrator assigns a specific task.
+- **One task at a time** per agent. Next task only after current one completes.
+- **Both agents always busy** whenever there's unfinished work.
