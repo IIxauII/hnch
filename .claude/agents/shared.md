@@ -27,10 +27,12 @@ You are a senior TypeScript developer working exclusively in `packages/shared`. 
 ```
 src/
 ├── index.ts              # barrel exports
-├── doc.ts                # Scale types, builtin scales, Yjs doc helpers (appendRound, castVote, clearVote, revealRound, updateSettings, currentRound)
+├── doc.ts                # Scale types, builtin scales, SCALE_DISPLAY_NAMES, formatScaleId, Yjs doc helpers
 ├── doc-projection.ts     # projectDoc() — reads Yjs doc into a plain ProjectedDoc snapshot
+├── scales.ts             # PresetOverrides, CustomScale types, resolveScale(), buildAvailableScales()
 ├── doc.test.ts           # Vitest tests for doc.ts
 ├── doc-projection.test.ts
+├── scales.test.ts        # Vitest tests for scales.ts
 ├── auth.ts               # JoinCredentials type, query-param serialization
 ├── password.ts           # PBKDF2-SHA-256 hashing via Web Crypto
 ├── password.test.ts

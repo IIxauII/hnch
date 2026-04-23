@@ -17,6 +17,7 @@ color: green
 
 | Teammate | `subagent_type` | Model | Scope | Agent file |
 |----------|----------------|-------|-------|------------|
+| **shared** | `"shared"` | `sonnet` | `packages/shared` | `.claude/agents/shared.md` |
 | **mobile** | `"mobile"` | `sonnet` | `packages/client`, `packages/e2e` | `.claude/agents/mobile.md` |
 | **cli** | `"cli"` | `sonnet` | `packages/cli` | `.claude/agents/cli.md` |
 | **reviewer** | `"reviewer"` | `opus` | All packages (read-only) | `.claude/agents/reviewer.md` |
