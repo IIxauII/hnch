@@ -92,7 +92,7 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
         }
 
         @if (timerLabel(); as label) {
-          <p class="timer" [class.urgent]="timerUrgent()">{{ label }}</p>
+          <p class="timer" [class.urgent]="timerUrgent()" role="timer" aria-live="polite" aria-atomic="true">{{ label }}</p>
         }
 
         <app-avatar-vote-row
@@ -102,7 +102,7 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
 
         <h2 class="section">Pick your estimate</h2>
 
-        <div class="grid">
+        <div class="grid" role="group" aria-label="Choose your estimate">
           @for (card of round.scale.cards; track card) {
             <ion-card
               button
@@ -186,6 +186,11 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
         min-height: 4.5rem;
         font-size: 1.75rem;
         font-weight: 700;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .card {
+          transition: none;
+        }
       }
       .empty {
         color: var(--ion-color-medium);
