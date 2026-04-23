@@ -1,11 +1,19 @@
 import React, { useState } from 'react'
 import { Box, Text, useInput } from 'ink'
-import { BUILTIN_SCALES, type Scale } from '@hnch/shared'
+import {
+  buildAvailableScales,
+  formatScaleId,
+  type Scale,
+  type PresetOverrides,
+  type CustomScale,
+} from '@hnch/shared'
 import { TextInput } from './TextInput.js'
 
 interface SettingsPanelProps {
   currentName: string | undefined
   currentScale: Scale
+  presetOverrides?: PresetOverrides
+  customScales?: CustomScale[]
   onChangeName: (name: string | undefined) => void
   onChangeScale: (scale: Scale) => void
   onClose: () => void
@@ -13,20 +21,22 @@ interface SettingsPanelProps {
 
 type PanelState = 'idle' | 'editing-name' | 'picking-scale'
 
-const SCALES = Object.values(BUILTIN_SCALES)
 const MENU_ITEMS = ['Room name', 'Scale'] as const
 
 export function SettingsPanel({
   currentName,
   currentScale,
+  presetOverrides,
+  customScales,
   onChangeName,
   onChangeScale,
   onClose,
 }: SettingsPanelProps): React.ReactElement {
+  const scales = buildAvailableScales(presetOverrides, customScales)
   const [state, setState] = useState<PanelState>('idle')
   const [menuCursor, setMenuCursor] = useState(0)
   const [scaleCursor, setScaleCursor] = useState(
-    Math.max(0, SCALES.findIndex((s) => s.id === currentScale.id)),
+    Math.max(0, scales.findIndex((s) => s.id === currentScale.id)),
   )
   const [nameInput, setNameInput] = useState(currentName ?? '')
 
@@ -42,7 +52,7 @@ export function SettingsPanel({
             setNameInput(currentName ?? '')
             setState('editing-name')
           } else {
-            setScaleCursor(Math.max(0, SCALES.findIndex((s) => s.id === currentScale.id)))
+            setScaleCursor(Math.max(0, scales.findIndex((s) => s.id === currentScale.id)))
             setState('picking-scale')
           }
         } else if (key.escape) {
@@ -52,9 +62,9 @@ export function SettingsPanel({
         if (key.upArrow) {
           setScaleCursor((c) => Math.max(0, c - 1))
         } else if (key.downArrow) {
-          setScaleCursor((c) => Math.min(SCALES.length - 1, c + 1))
+          setScaleCursor((c) => Math.min(scales.length - 1, c + 1))
         } else if (key.return) {
-          const chosen = SCALES[scaleCursor]
+          const chosen = scales[scaleCursor]
           if (chosen) onChangeScale(chosen)
           setState('idle')
         } else if (key.escape) {
@@ -71,12 +81,6 @@ export function SettingsPanel({
     setState('idle')
   }
 
-  const scaleLabel = (s: Scale): string => {
-    if (s.id === 'fibonacci') return 'Fibonacci'
-    if (s.id === 't-shirt') return 'T-shirt'
-    return s.id
-  }
-
   return (
     <Box flexDirection="column" gap={1}>
       <Text bold>── Settings ──</Text>
@@ -88,7 +92,7 @@ export function SettingsPanel({
             const valueLabel =
               i === 0
                 ? (currentName ?? '(none)')
-                : scaleLabel(currentScale)
+                : formatScaleId(currentScale.id)
             return (
               <Box key={item} gap={1}>
                 <Text color={isCursor ? 'cyan' : undefined}>
@@ -120,7 +124,7 @@ export function SettingsPanel({
 
       {state === 'picking-scale' && (
         <Box flexDirection="column">
-          {SCALES.map((s, i) => {
+          {scales.map((s, i) => {
             const isCursor = i === scaleCursor
             const isCurrent = s.id === currentScale.id
             return (
@@ -128,7 +132,7 @@ export function SettingsPanel({
                 <Text color={isCursor ? 'cyan' : undefined}>
                   {isCursor ? '>' : ' '}
                 </Text>
-                <Text bold={isCurrent}>{scaleLabel(s)}</Text>
+                <Text bold={isCurrent}>{formatScaleId(s.id)}</Text>
                 {isCurrent && <Text dimColor>(current)</Text>}
               </Box>
             )

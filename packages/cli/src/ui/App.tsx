@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { Box, useApp, useInput } from 'ink'
 import type { SessionHandle } from '../session.js'
 import type { SyncStatus } from '../sync.js'
-import type { DocProjection, Round, Scale } from '@hnch/shared'
+import type { DocProjection, Round, Scale, PresetOverrides, CustomScale } from '@hnch/shared'
 import { currentRound } from '@hnch/shared'
 import { StatusBar } from './components/StatusBar.js'
 import { Lobby } from './Lobby.js'
@@ -11,6 +11,8 @@ import { Voting } from './Voting.js'
 interface Props {
   session: SessionHandle
   participantId: string
+  presetOverrides?: PresetOverrides
+  customScales?: CustomScale[]
 }
 
 type Screen = 'lobby' | 'voting'
@@ -22,7 +24,7 @@ function deriveScreen(projection: DocProjection): Screen {
   return 'voting'
 }
 
-export function App({ session, participantId }: Props): React.ReactElement {
+export function App({ session, participantId, presetOverrides, customScales }: Props): React.ReactElement {
   const { exit } = useApp()
   const [projection, setProjection] = useState<DocProjection>(session.projection())
   const [status, setStatus] = useState<SyncStatus>('connecting')
@@ -139,6 +141,8 @@ export function App({ session, participantId }: Props): React.ReactElement {
           rounds={projection.rounds}
           currentRound={latestRevealedRound}
           settingsOpen={settingsOpen}
+          presetOverrides={presetOverrides}
+          customScales={customScales}
           onStartRound={handleStartRound}
           onNewRound={handleNewRound}
           onRevote={handleRevote}

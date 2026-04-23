@@ -12,6 +12,7 @@ This document describes the shape of the Yjs doc that represents a single hnch s
 - [ADR-0010](adr/0010-host-election.md) — host election mechanics (`hostParticipantId` storage)
 - [ADR-0013](adr/0013-round-model-flat-parentroundid.md) — flat rounds with `parentRoundId` lineage
 - [ADR-0018](adr/0018-remove-timer-add-unanimous-reveal.md) — removed countdown timer; added unanimous auto-reveal; `timerStartedAt` repurposed as stopwatch origin
+- [ADR-0019](adr/0019-scale-customization.md) — scale customization: 5 builtin presets, sentinel removal, device-local overrides and custom scales
 
 **Not covered here.** Teams are local-only and never enter the Yjs doc (see [ADR-0007](adr/0007-teams-local-only.md)). Access control tokens (password hash, invite tokens) are managed by the relay and not stored in the doc ([ADR-0009](adr/0009-access-control-relay-tokens.md)). Room codes are a relay-side lookup to `roomUuid` and do not appear in the doc ([ADR-0008](adr/0008-room-code-format.md), [ADR-0012](adr/0012-snapshot-policy.md)).
 
@@ -85,7 +86,7 @@ Each round's `Y.Map`:
 | `revealedAt?` | `number` | Unix milliseconds when the round was revealed. Written by the host (manual reveal) or by any client when all online participants have voted (unanimous auto-reveal, [ADR-0018](adr/0018-remove-timer-add-unanimous-reveal.md)). Absent means not yet revealed. |
 | `createdBy` | `string` | `participantId` of whoever created the round. |
 | `createdAt` | `number` | Unix milliseconds when the round was created. |
-| `votes` | `Y.Map<participantId, string>` | Votes keyed by participant. The value is the card face (e.g. `"5"`, `"?"`, `"☕"`). Vote-change-before-reveal ([ADR-0013](adr/0013-round-model-flat-parentroundid.md)) is just overwriting this key. Only the final value is retained. |
+| `votes` | `Y.Map<participantId, string>` | Votes keyed by participant. The value is the card face (e.g. `"5"`, `"M"`, `"High"`). Vote-change-before-reveal ([ADR-0013](adr/0013-round-model-flat-parentroundid.md)) is just overwriting this key. Only the final value is retained. |
 
 Note: `revealMode` and `timerDurationMs` were removed in [ADR-0018](adr/0018-remove-timer-add-unanimous-reveal.md). Reveal is always manual + unanimous auto-reveal. `timerStartedAt` is retained as a stopwatch origin.
 
@@ -93,8 +94,8 @@ Note: `revealMode` and `timerDurationMs` were removed in [ADR-0018](adr/0018-rem
 
 ```ts
 type Scale = {
-  id: string        // 'fibonacci' | 't-shirt' | `custom-${uuid}`
-  cards: string[]   // e.g. ["0","1","2","3","5","8","13","21","?","☕"]
+  id: string        // builtin preset ID or 'custom-${uuid}'
+  cards: string[]   // e.g. ["0","1","2","3","5","8","13","21"]
 }
 ```
 
@@ -102,7 +103,21 @@ Scales are represented inline (not as a lookup to a shared registry) so that:
 - Custom scales work without coordination between client versions.
 - A scale's definition at round creation is frozen in the round record, preserving historical meaning if the session's default scale is later changed.
 
-Card values are arbitrary strings — numbers, t-shirt sizes, emoji, and sentinels like `"?"` (unsure) and `"☕"` (coffee break) are all just string values.
+Card values are arbitrary strings — numbers, t-shirt sizes, risk labels, or any domain-specific values a team defines.
+
+**Builtin presets** (defined in `packages/shared/src/doc.ts`):
+
+| ID | Cards |
+|----|-------|
+| `fibonacci` | 0, 1, 2, 3, 5, 8, 13, 21 |
+| `t-shirt` | XS, S, M, L, XL |
+| `powers-of-2` | 1, 2, 4, 8, 16, 32, 64 |
+| `linear` | 1–10 |
+| `risk` | Low, Medium, High, Critical |
+
+The `?` (unsure) and `☕` (coffee break) sentinel cards have been removed from all builtin scales (ADR-0019). They were not estimates.
+
+**Device-local customization** (ADR-0019): users can toggle individual cards on/off per preset (`PresetOverrides`) and define fully custom scales (`CustomScale`, ID prefixed `custom-`). Customization is resolved client-side before writing to the doc — the wire format is always a flat `{ id, cards }` with all enabled cards present. `PresetOverrides` and `CustomScale` are defined in `packages/shared/src/scales.ts` and are not part of the Yjs doc schema.
 
 ## Derived state (not stored)
 
