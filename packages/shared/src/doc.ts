@@ -13,21 +13,6 @@
  */
 
 // ---------------------------------------------------------------------------
-// Reveal mode (settings-level per ADR-0015)
-// ---------------------------------------------------------------------------
-
-/**
- * How rounds reveal in a session.
- *
- * - `manual` — host taps Reveal Votes.
- * - `timer`  — auto-reveal when `timerDurationMs` elapses from
- *              `round.timerStartedAt` (ADR-0011, ADR-0015).
- *
- * Per ADR-0015, v1 has no `'unanimous'` mode and no per-round override.
- */
-export type RevealMode = 'manual' | 'timer'
-
-// ---------------------------------------------------------------------------
 // Scale
 // ---------------------------------------------------------------------------
 
@@ -72,14 +57,6 @@ export interface Settings {
   name?: string
   /** Scale inherited by newly-created rounds. Snapshotted into each round at creation. */
   defaultScale: Scale
-  /** How rounds reveal; applies session-wide per ADR-0015. */
-  revealMode: RevealMode
-  /**
-   * Timer duration applied to every round when `revealMode === 'timer'`.
-   * Absent or `0` means no timer (and `revealMode` should be `'manual'`).
-   * Session-level only; no per-round override (ADR-0015).
-   */
-  timerDurationMs?: number
   /** The `participantId` currently holding host authority (ADR-0010). */
   hostParticipantId: string
 }
@@ -113,15 +90,14 @@ export interface Round {
   /** Snapshotted at round creation from `settings.defaultScale`; independent after creation. */
   scale: Scale
   /**
-   * Unix milliseconds when the timer started. Written by the host at round
-   * start (ADR-0011). Absent means voting has not started. Duration is
-   * read from `settings.timerDurationMs` (ADR-0015).
+   * Unix milliseconds when voting started (written at round creation).
+   * Used as a stopwatch origin to show elapsed voting time (ADR-0018).
    */
   timerStartedAt?: number
   /**
-   * Unix milliseconds when the round was revealed. Written by the host, or
-   * as a fallback by any client if the timer expires with no host present
-   * (ADR-0011). Absent means the round has not been revealed.
+   * Unix milliseconds when the round was revealed. Written by the host
+   * (manual reveal) or by any client when all online participants have
+   * voted (unanimous auto-reveal, ADR-0018). Absent means not yet revealed.
    */
   revealedAt?: number
   /** `participantId` of whoever created the round. */

@@ -10,9 +10,8 @@ This document describes the shape of the Yjs doc that represents a single hnch s
 - [ADR-0006](adr/0006-ephemeral-sessions.md) — sessions are per-meeting
 - [ADR-0008](adr/0008-room-code-format.md) — room codes resolve to `roomUuid`
 - [ADR-0010](adr/0010-host-election.md) — host election mechanics (`hostParticipantId` storage)
-- [ADR-0011](adr/0011-timer-authority.md) — timer fields (`timerStartedAt`, `timerDurationMs`)
 - [ADR-0013](adr/0013-round-model-flat-parentroundid.md) — flat rounds with `parentRoundId` lineage
-- [ADR-0015](adr/0015-v1-scope-session-level-reveal-and-timer.md) — v1 scope: session-level `revealMode` and `timerDurationMs`; no per-round overrides; no `'unanimous'` reveal
+- [ADR-0018](adr/0018-remove-timer-add-unanimous-reveal.md) — removed countdown timer; added unanimous auto-reveal; `timerStartedAt` repurposed as stopwatch origin
 
 **Not covered here.** Teams are local-only and never enter the Yjs doc (see [ADR-0007](adr/0007-teams-local-only.md)). Access control tokens (password hash, invite tokens) are managed by the relay and not stored in the doc ([ADR-0009](adr/0009-access-control-relay-tokens.md)). Room codes are a relay-side lookup to `roomUuid` and do not appear in the doc ([ADR-0008](adr/0008-room-code-format.md), [ADR-0012](adr/0012-snapshot-policy.md)).
 
@@ -46,8 +45,6 @@ Host-editable. Changes propagate to all clients via Yjs. The "host" at any momen
 |---|---|---|
 | `name?` | `string` | Human-readable session name, e.g. `"Sprint 42 planning"`. Optional. |
 | `defaultScale` | `Scale` | Scale inherited by newly-created rounds. See "Scale type" below. |
-| `revealMode` | `'manual' \| 'timer'` | How rounds reveal in this session. `manual` = host triggers; `timer` = auto on expiry. Applies to every round; there is no per-round override ([ADR-0015](adr/0015-v1-scope-session-level-reveal-and-timer.md)). |
-| `timerDurationMs?` | `number` | Timer duration applied to every round when `revealMode = 'timer'`. Absent or `0` means no timer (in which case `revealMode` should be `'manual'`). Session-level only; no per-round override ([ADR-0015](adr/0015-v1-scope-session-level-reveal-and-timer.md)). |
 | `hostParticipantId` | `string` | The `participantId` currently holding host authority. Updated by the election mechanism described in ADR-0010. |
 
 ### Host authority mechanics (summary)
@@ -84,13 +81,13 @@ Each round's `Y.Map`:
 | `ticketId?` | `string` | Tracker reference like `"PROJ-1234"`; inherited from parent on re-vote. |
 | `parentRoundId?` | `string` | If this is a re-vote, the `id` of the previous round in the chain. |
 | `scale` | `Scale` | Snapshotted at round creation from `settings.defaultScale` (or chosen per-round by the host). Independent after creation — changing `settings.defaultScale` later does not alter existing rounds. |
-| `timerStartedAt?` | `number` | Unix milliseconds when the timer started. Written by the host at round start ([ADR-0011](adr/0011-timer-authority.md)). Absent means voting has not started. Duration is read from `settings.timerDurationMs` ([ADR-0015](adr/0015-v1-scope-session-level-reveal-and-timer.md)). |
-| `revealedAt?` | `number` | Unix milliseconds when the round was revealed. Written by the host, or by any client as a fallback if the timer expires with no host present ([ADR-0011](adr/0011-timer-authority.md)). Absent means the round has not been revealed. |
+| `timerStartedAt?` | `number` | Unix milliseconds when voting started. Always written at round creation. Used as a stopwatch origin for elapsed voting time display ([ADR-0018](adr/0018-remove-timer-add-unanimous-reveal.md)). |
+| `revealedAt?` | `number` | Unix milliseconds when the round was revealed. Written by the host (manual reveal) or by any client when all online participants have voted (unanimous auto-reveal, [ADR-0018](adr/0018-remove-timer-add-unanimous-reveal.md)). Absent means not yet revealed. |
 | `createdBy` | `string` | `participantId` of whoever created the round. |
 | `createdAt` | `number` | Unix milliseconds when the round was created. |
 | `votes` | `Y.Map<participantId, string>` | Votes keyed by participant. The value is the card face (e.g. `"5"`, `"?"`, `"☕"`). Vote-change-before-reveal ([ADR-0013](adr/0013-round-model-flat-parentroundid.md)) is just overwriting this key. Only the final value is retained. |
 
-Note: there are no per-round `revealMode` or `timerDurationMs` fields — both are session-level only ([ADR-0015](adr/0015-v1-scope-session-level-reveal-and-timer.md)). ADR-0013's original action-item round shape listed these fields; it was written before the v1 scope narrowing, and the authoritative shape is the table above.
+Note: `revealMode` and `timerDurationMs` were removed in [ADR-0018](adr/0018-remove-timer-add-unanimous-reveal.md). Reveal is always manual + unanimous auto-reveal. `timerStartedAt` is retained as a stopwatch origin.
 
 ## Scale type
 
@@ -113,7 +110,8 @@ These are computed on the client from the doc; they are not persisted:
 
 - **Round status:** `revealedAt ? 'revealed' : (timerStartedAt ? 'voting' : 'pending')`.
 - **Current round:** the last round in `rounds` whose `revealedAt` is unset; if all are revealed, the last round overall.
-- **Timer remaining:** when `settings.revealMode === 'timer'` and `round.timerStartedAt` is set, `remaining = settings.timerDurationMs - (Date.now() - round.timerStartedAt)` ([ADR-0011](adr/0011-timer-authority.md), [ADR-0015](adr/0015-v1-scope-session-level-reveal-and-timer.md)).
+- **Elapsed voting time:** `Date.now() - round.timerStartedAt` (counting up, displayed as a stopwatch).
+- **All voted:** every online participant (awareness set) has a key in `round.votes`. When true, any client writes `revealedAt` (unanimous auto-reveal, ADR-0018).
 - **Lineage chain:** walk `parentRoundId` backwards from a round to collect the full re-vote history for that item (useful for UI display and exports).
 - **Host liveness:** awareness has an entry for `settings.hostParticipantId`. Absence for longer than the 5-second debounce triggers election (ADR-0010).
 

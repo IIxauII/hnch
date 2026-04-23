@@ -23,7 +23,7 @@ UX decisions touching architecture cross-linked to governing ADR in [`adr/`](adr
 
 **Session-first, not navigation-first.** Users open hnch to be in pointing-poker session; rest is infrastructure. Single nav stack (no tabs, no side menu) — no meaningful second destination mid-session. Home = launchpad, not parallel destination.
 
-**Defaults make common path one-tap.** Create room → straight to Lobby with Fibonacci scale, no access control, no timer. Every setting has sensible default; config available but never required.
+**Defaults make common path one-tap.** Create room → straight to Lobby with Fibonacci scale, no access control. Every setting has sensible default; config available but never required.
 
 **"Leaving" is reversible.** Per [ADR-0012](adr/0012-relay-snapshots-24h-in-memory.md), relay snapshots live 24h. Back-out, app close, or connectivity loss → rejoin without losing seat — `participantId` (per [ADR-0005](adr/0005-identity-device-id.md)) and vote history persist in Yjs doc. Back button = *navigation*, not *destruction*. Explicit "leave session" / "end session for everyone" in ⋯ menu with destructive confirmation.
 
@@ -69,7 +69,7 @@ Every screen with ⋯ menu:
 
 Single primary action (Onboarding Continue, Lobby Start Round, Join Room Join) → `ion-footer` with `ion-toolbar` + `ion-button expand="block" color="primary"`.
 
-Two paired actions (Revealed Re-vote / Next Round) → `ion-footer` flex row, primary filled, secondary outlined.
+Two paired actions (Lobby Re-vote / Next Round, shown after results) → `ion-footer` flex row, primary filled, secondary outlined.
 
 No primary action (Estimating for joiners, Settings) → empty/omitted footer.
 
@@ -88,9 +88,8 @@ Leave session, End session for everyone → ⋯ action sheet with `role: 'destru
 | **Onboarding** | Capture display name on first launch | First-ever launch only; never shown again once name set |
 | **Home** | Launchpad for Create / Join, rejoin via Jump-back-in banner | Every launch after onboarding |
 | **Join Room** | Enter room code, scan QR, or provide password | From Home Join, or invite URL / QR deep link |
-| **Lobby** | Pre-round: share invite, see participants, configure settings, start first round | After Create, Join, or Jump-back-in tap |
+| **Lobby** | Pre-round: share invite, see participants, configure settings, start first round; shows inline results after a round is revealed | After Create, Join, or Jump-back-in tap |
 | **Estimating** | Pick estimate from scale; see who voted | When host taps Start Round N |
-| **Revealed** | See grouped results; Re-vote or Next Round | When reveal fires (manual or timer expiry) |
 | **Settings** | App prefs: display name, theme, about | From Home ⋯ → Settings |
 
 ### Overlays
@@ -98,10 +97,9 @@ Leave session, End session for everyone → ⋯ action sheet with `role: 'destru
 | Overlay | Component | Invoked from |
 |---------|-----------|--------------|
 | iOS share sheet | `Share` plugin (`@capacitor/share`) | Lobby → Share Invite |
-| ⋯ action sheet | `ion-action-sheet` | Nav bar ⋯ on Home / Lobby / Estimating / Revealed / Settings |
-| Session settings sheet | `ion-modal` half-sheet (breakpoints `[0, 0.6, 0.95]`) | ⋯ → Session settings on Lobby / Estimating / Revealed |
+| ⋯ action sheet | `ion-action-sheet` | Nav bar ⋯ on Home / Lobby / Estimating / Settings |
+| Session settings sheet | `ion-modal` half-sheet (breakpoints `[0, 0.6, 0.95]`) | ⋯ → Session settings on Lobby / Estimating |
 | Scale picker | `ion-modal` half-sheet | Session settings → Scale row |
-| Timer picker | `ion-modal` half-sheet | Session settings → Timer row |
 | Access picker | `ion-modal` half-sheet | Session settings → Access row |
 | Round-start modal | `ion-modal` half-sheet | Lobby → Start Round N (optional descriptor input) |
 | Display name editor | `ion-modal` half-sheet | Settings → Display name row |
@@ -140,7 +138,7 @@ Home
     → Navigate to Lobby (as host)
 
 Lobby (host)
-  → Optionally adjust Scale, Timer, Access
+  → Optionally adjust Scale, Access
   → Share invite (share sheet) and/or read code aloud
   → Wait for participants (appear in list as they connect)
   → Tap Start Round 1
@@ -187,7 +185,7 @@ Home
       → Same as URL flow from "auto-attempt connect"
 ```
 
-### 4.4 Round cycle (Estimating → Revealed → next)
+### 4.4 Round cycle (Estimating → Lobby → next)
 
 ```
 Estimating
@@ -195,11 +193,12 @@ Estimating
   → Avatar row updates in real time (presence, voted-state)
   → Reveal fires when:
       - Host taps Reveal Votes (manual), OR
-      - Timer expires (host's client writes the reveal event per ADR-0011)
-  → Navigate to Revealed (all participants simultaneously)
+      - All online participants have voted (unanimous auto-reveal, ADR-0018)
+  → All participants navigate to Lobby (results shown inline)
 
-Revealed
-  → Results shown grouped by vote value
+Lobby (post-reveal)
+  → Latest round results shown in full (grouped by vote value, voter chips, stats, elapsed time)
+  → Below results, past rounds shown as compact history list
   → Host taps:
       - Re-vote: creates new Round with parentRoundId = current, reuses descriptor → Estimating
       - Next Round: opens round-start modal → Estimating
@@ -211,7 +210,7 @@ Revealed
 **Back (graceful disconnect):**
 
 ```
-User taps back (or swipes back) from Lobby / Estimating / Revealed
+User taps back (or swipes back) from Lobby / Estimating
   → WebSocket disconnects; awareness broadcasts offline
   → Navigate to Home
   → Home shows "Jump back in — Room K7P-9MR" banner
@@ -222,7 +221,7 @@ User taps back (or swipes back) from Lobby / Estimating / Revealed
 **Leave session (explicit, destructive):**
 
 ```
-Lobby / Estimating / Revealed → ⋯ → Leave session
+Lobby / Estimating → ⋯ → Leave session
   → Confirmation alert: "Leave this session? You'll need the code to rejoin."
     → Confirm: remove local participant entry, disconnect, navigate to Home (no banner)
     → Cancel: dismiss alert, stay on current screen
@@ -250,13 +249,13 @@ Host's connection is lost
   → If former host rejoins within snapshot window: they rejoin as a regular participant
 ```
 
-**Round times out with nobody voted:**
+**Host reveals with nobody voted:**
 
 ```
-Timer expires during Estimating
-  → Reveal event written to doc (ADR-0011)
-  → All clients navigate to Revealed
-  → Revealed shows only a "Didn't vote" group with every participant in it
+Host taps Reveal with zero votes
+  → Reveal event written to doc
+  → All clients navigate to Lobby
+  → Lobby results section shows only a "Didn't vote" group with every participant in it
   → Host can tap Re-vote to try again
 ```
 
@@ -380,16 +379,21 @@ From Home Join button, invite URL deep link, or QR scan. Same screen for all thr
 
 ### 5.4 Lobby
 
-Pre-round holding room. Two variants — host vs joiner — differ in settings mutation and Start button.
+Persistent session hub. Lobby serves two roles depending on session state:
 
-**Lobby (host):**
+1. **Pre-round / between rounds:** Share invite, see participants, configure settings, start the next round.
+2. **Post-reveal:** Shows latest round results inline (full grouped cards, voter chips, stats, elapsed time), plus a compact history list of past rounds below. Re-vote and Next Round buttons appear for the host.
+
+After a round is revealed, all participants navigate from Estimating back to Lobby. No separate Revealed screen exists — results live here.
+
+**Lobby (host, pre-round):**
 
 ```
 ┌─────────────────────────────────────────┐
 │ ←                                  ⋯    │  nav bar
 │                                         │
 │   K7P-9MR                               │  large title = room code
-│   Round 1 • Fibonacci • No timer        │  subtitle (settings summary)
+│   Round 1 • Fibonacci                   │  subtitle (settings summary)
 │                                         │
 │   ┌───────────────────────────────┐     │
 │   │ 📤  Share invite              │     │  ion-item button
@@ -416,6 +420,46 @@ Pre-round holding room. Two variants — host vs joiner — differ in settings m
 └─────────────────────────────────────────┘
 ```
 
+**Lobby (host, post-reveal — results + history):**
+
+```
+┌─────────────────────────────────────────┐
+│ ←                                  ⋯    │  nav bar
+│                                         │
+│   K7P-9MR                               │
+│   Round 3 • Fibonacci                   │
+│                                         │
+│   Participants (6)                      │  section header
+│   ┌───────────────────────────────┐     │
+│   │ 👑  You (Xau)                 │     │
+│   │ 🟢  Alice  🟢  Bob  🟢  Carol │     │
+│   └───────────────────────────────┘     │
+│                                         │
+│   ── Round 2 Results ──                 │  results section
+│   ┌───────────────────────────────┐     │
+│   │ 5    (3 votes)                │     │  ion-item-group
+│   │   🟢 Alice  🟢 Bob  🟢 You   │     │  ion-chip row of voters
+│   ├───────────────────────────────┤     │
+│   │ 8    (2 votes)                │     │
+│   │   🟢 Carol  🟢 Dave           │     │
+│   ├───────────────────────────────┤     │
+│   │ Didn't vote (1)               │     │  muted trailing group
+│   │   🟢 Eve                      │     │
+│   └───────────────────────────────┘     │
+│   ⏱ 0:42                               │  elapsed time
+│                                         │
+│   ── History ──────────────────         │  past rounds (compact)
+│   Round 1: Auth migration               │
+│     5×3, 8×1, 13×1 — 0:38              │
+│                                         │
+│   .                                     │
+├─────────────────────────────────────────┤
+│ ┌──────────────┐ ┌──────────────────┐   │  host-only footer row
+│ │   Re-vote    │ │   Next Round 3   │   │  outlined / filled
+│ └──────────────┘ └──────────────────┘   │
+└─────────────────────────────────────────┘
+```
+
 **Lobby (joiner):**
 
 ```
@@ -423,7 +467,7 @@ Pre-round holding room. Two variants — host vs joiner — differ in settings m
 │ ←                                  ⋯    │
 │                                         │
 │   K7P-9MR                               │
-│   Round 1 • Fibonacci • No timer        │
+│   Round 1 • Fibonacci                   │
 │                                         │
 │   Waiting for Xau to start the round…   │  status line (italic, muted)
 │                                         │
@@ -438,13 +482,18 @@ Pre-round holding room. Two variants — host vs joiner — differ in settings m
 │   │ 🟢  Bob                       │     │
 │   └───────────────────────────────┘     │
 │                                         │
-│   .                                     │
+│   .  (results section appears here      │
+│      after a round is revealed;         │
+│      no Re-vote / Next Round buttons)   │
 └─────────────────────────────────────────┘
 ```
 
 - Large title = room code — most important info, read aloud in co-located meetings.
-- Subtitle summarizes settings (scale, timer, access). Tapping subtitle opens Session settings sheet (also via ⋯ → **Session settings**). Discoverability affordance, not substitute for menu.
+- Subtitle summarizes settings (scale). Tapping subtitle opens Session settings sheet (also via ⋯ → **Session settings**). Discoverability affordance, not substitute for menu.
 - Show QR = secondary invite for co-located meetings. Opens `ion-modal` with full-screen QR encoding invite URL.
+- Results section (`VoteResultsComponent`): each group = `ion-item-group` with vote value as large heading + `(N votes)` caption. Voters rendered as `ion-chip` row (avatar + name). Non-voters = trailing "Didn't vote" group, muted style. Elapsed time shown below groups.
+- History (`RoundHistoryComponent`): compact one-liner per past revealed round (all revealed rounds except the latest), reverse chronological. Skipped when only one round revealed.
+- Footer when results shown (host only): **Re-vote** (reuses descriptor, creates new Round with `parentRoundId` = current, per ADR-0013) and **Next Round N** (opens round-start modal). Joiners see no footer — wait for host.
 - ⋯ menu: **Session settings**, **Leave session** (destructive), **End session for everyone** (destructive, host only).
 
 ### 5.5 Estimating
@@ -458,8 +507,7 @@ Core interaction screen. Every participant sees card grid; vote presence public,
 │   Round 1                               │  large title
 │   API rate-limit middleware             │  descriptor (if present)
 │                                         │
-│   2:14                                  │  timer (if enabled) — large,
-│                                         │    monospaced, muted red <30s
+│   2:14                                  │  elapsed time — large, mono
 │   ● ● ● ○ ○   3 of 5 voted              │  avatar row — filled = voted
 │                                         │  tap row → popover of voters
 │                                         │
@@ -488,50 +536,12 @@ Core interaction screen. Every participant sees card grid; vote presence public,
 
 - Cards = `ion-card` tiles with large numerals. Selecting sets vote + fires `Haptics.impact({ style: 'Light' })`. Selected card gets primary-color border + filled background; others outlined. Re-tap deselects (ADR-0013: vote change allowed until reveal).
 - Avatar row = compact "who voted" indicator — grey circle = connected no vote; filled = voted. Tap row → `ion-popover` listing names grouped voted/not-voted.
-- Timer only rendered when session has timer. Format: `M:SS` above 60s, `0:SS` below. Subtle red in final 30s. Uses `font-variant-numeric: tabular-nums` to prevent digit jitter.
+- Elapsed time counts up from round start. Format: `M:SS`. Uses `font-variant-numeric: tabular-nums` to prevent digit jitter. Auto-reveal fires when all online participants have voted (ADR-0018).
 - Only host sees **Reveal Votes** footer. Joiners see empty/no footer.
 - ⋯ menu (host): **Session settings**, **Leave session**, **End session for everyone**.
 - ⋯ menu (joiner): **Session settings** (read-only), **Leave session**.
 
-### 5.6 Revealed
-
-Results appear all at once; grouped by vote value descending by count, ties broken by value ascending.
-
-```
-┌─────────────────────────────────────────┐
-│ ←                                  ⋯    │
-│                                         │
-│   Round 1 Results                       │  large title
-│   API rate-limit middleware             │  descriptor (if present)
-│                                         │
-│   ┌───────────────────────────────┐     │
-│   │ 5    (3 votes)                │     │  ion-item-group
-│   │   🟢 Alice  🟢 Bob  🟢 Carol  │     │  ion-chip row of voters
-│   ├───────────────────────────────┤     │
-│   │ 3    (1 vote)                 │     │
-│   │   🟢 You                      │     │
-│   ├───────────────────────────────┤     │
-│   │ 8    (1 vote)                 │     │
-│   │   🟢 Xau                      │     │
-│   ├───────────────────────────────┤     │
-│   │ ☕   (1 pass)                 │     │
-│   │   🟢 Dave                     │     │
-│   └───────────────────────────────┘     │
-│                                         │
-│   .                                     │
-├─────────────────────────────────────────┤
-│ ┌──────────────┐ ┌──────────────────┐   │  host-only footer row
-│ │   Re-vote    │ │   Next Round     │   │  outlined / filled
-│ └──────────────┘ └──────────────────┘   │
-└─────────────────────────────────────────┘
-```
-
-- Each group = `ion-item-group` with vote value as large heading + `(N votes)` caption. Voters rendered as `ion-chip` row (avatar + name). Scales naturally 2–20+ people without grid reflow.
-- Non-voters (timer expiry case) = trailing **Didn't vote** group, muted style — dominant visual stays on actual vote distribution.
-- Footer buttons host-only. **Re-vote** reuses descriptor, creates new Round with `parentRoundId` = current (ADR-0013). **Next Round** opens round-start modal fresh (no parent, no descriptor prefilled).
-- Joiners see no footer — wait for host.
-
-### 5.7 Settings
+### 5.6 Settings
 
 App-level prefs. From Home ⋯ → **Settings**. No session context; safe to navigate mid-session (session state persists on relay).
 
@@ -564,11 +574,11 @@ App-level prefs. From Home ⋯ → **Settings**. No session context; safe to nav
 
 No ⋯ menu on Settings — nothing destructive. Rows open half-sheet modals (name editor, theme picker) not new routes; Settings = leaf, not hub.
 
-### 5.8 Overlays
+### 5.7 Overlays
 
 #### Session settings (half-sheet modal)
 
-From ⋯ → **Session settings** on Lobby / Estimating / Revealed, or tapping settings-summary subtitle on Lobby. Host can mutate; joiners read-only.
+From ⋯ → **Session settings** on Lobby / Estimating, or tapping settings-summary subtitle on Lobby. Host can mutate; joiners read-only.
 
 ```
 ┌─────────────────────────────────────────┐
@@ -577,7 +587,6 @@ From ⋯ → **Session settings** on Lobby / Estimating / Revealed, or tapping s
 │                                         │
 │   ┌───────────────────────────────┐     │
 │   │ Scale          Fibonacci     ›│     │  → scale picker
-│   │ Timer          None          ›│     │  → timer picker
 │   │ Access         Open          ›│     │  → access picker
 │   └───────────────────────────────┘     │
 │                                         │
@@ -607,25 +616,6 @@ Breakpoints `[0, 0.6, 0.95]` — dismiss by drag down, comfortable view at 60%, 
 
 Radio selection commits immediately (no Save button) — iOS picker idiom. Value written to Yjs doc, all peers observe.
 
-#### Timer picker (half-sheet)
-
-```
-┌─────────────────────────────────────────┐
-│        ━━━━                             │
-│   Timer                                 │
-│                                         │
-│   ○ None                                │
-│   ○ 30 seconds                          │
-│   ● 1 minute                            │
-│   ○ 2 minutes                           │
-│   ○ 3 minutes                           │
-│   ○ 5 minutes                           │
-│                                         │
-└─────────────────────────────────────────┘
-```
-
-Timer session-level, applies to every subsequent round. Mid-round change does not affect running timer — takes effect at next Start Round.
-
 #### Access picker (half-sheet)
 
 ```
@@ -649,7 +639,7 @@ Per [ADR-0009](adr/0009-access-control.md), relay enforces access via opaque tok
 
 #### Round-start modal (half-sheet)
 
-Host taps **Start Round N** on Lobby, or **Next Round** on Revealed.
+Host taps **Start Round N** on Lobby (before any round), or **Next Round** from the Lobby results section after a round is revealed.
 
 ```
 ┌─────────────────────────────────────────┐
@@ -747,7 +737,7 @@ Tapping estimate card on Estimating:
 
 ### Reveal animation
 
-Transition to Revealed: cards enter with 80ms staggered fade-in-and-up (`opacity 0 → 1, translateY 8px → 0`, duration 200ms). Groups render top-down. After last group settles, `Haptics.notification({ type: 'Success' })` fires once — "results final."
+When the results section appears in Lobby after reveal: cards enter with 80ms staggered fade-in-and-up (`opacity 0 → 1, translateY 8px → 0`, duration 200ms). Groups render top-down. After last group settles, `Haptics.notification({ type: 'Success' })` fires once — "results final."
 
 ### Share sheet
 
@@ -811,8 +801,7 @@ Common toasts: host handoff ("Alice is now hosting"), link copied ("Invite link 
 | Host taps Reveal Votes | `impact`, `Medium` |
 | Reveal animation completes | `notification`, `Success` |
 | Destructive confirm (Leave / End) | `impact`, `Heavy` on confirm tap |
-| Timer reaches final 10 seconds | `impact`, `Light` once, at t-10s |
-| Timer expires | `notification`, `Warning` |
+| Unanimous auto-reveal fires | `notification`, `Success` |
 | Host handoff toast | `notification`, `Warning` |
 
 Haptics fire via `@capacitor/haptics` on native; web = no-ops (safe stub).
@@ -837,7 +826,7 @@ Follows `prefers-color-scheme` by default via Ionic `.ion-palette-dark` class on
 
 ### Typography
 
-Ionic per-platform font stack — iOS uses Apple system fonts (`-apple-system, BlinkMacSystemFont, ...`), Material uses Roboto/platform system font. No custom font in v1. Matching OS = the point. Timer display and estimate cards use `font-variant-numeric: tabular-nums` to prevent layout jitter.
+Ionic per-platform font stack — iOS uses Apple system fonts (`-apple-system, BlinkMacSystemFont, ...`), Material uses Roboto/platform system font. No custom font in v1. Matching OS = the point. Elapsed time display and estimate cards use `font-variant-numeric: tabular-nums` to prevent layout jitter.
 
 ### Safe areas
 
@@ -861,9 +850,9 @@ All screens built with `ion-header` / `ion-footer` — Ionic handles safe-area i
 
 Acknowledged gaps and deferred decisions. Not blocking v1 but should be answered (or re-deferred) before corresponding feature built.
 
-**Consensus indicator on Revealed.** All votes match → celebratory state (checkmark, "Consensus!" banner, distinct haptic)? Deferred — see real usage first before adding ornament.
+**Consensus indicator in Lobby results.** All votes match → celebratory state (checkmark, "Consensus!" banner, distinct haptic)? Deferred — see real usage first before adding ornament.
 
-**Re-vote breadcrumb.** On re-voted round, Revealed doesn't surface attempt count. `parentRoundId` in doc — could show "Round 2 • re-vote of Round 1." Deferred; resolve when designing optional session-history view (post-v1).
+**Re-vote breadcrumb.** On re-voted round, the Lobby results section doesn't surface attempt count. `parentRoundId` in doc — could show "Round 2 • re-vote of Round 1." Deferred; resolve when designing optional session-history view (post-v1).
 
 **Reconnecting banner.** During momentary disconnect, show non-blocking "Reconnecting…" banner above content? Not yet designed — tracks with y-websocket reconnection events wiring.
 
@@ -871,18 +860,10 @@ Acknowledged gaps and deferred decisions. Not blocking v1 but should be answered
 
 **Expired-room error screen.** Dedicated screen vs toast vs inline error on Join Room — currently picked toast + return to Home, but full screen may be warranted if URL deep-link path feels jarring. Revisit after real-device testing.
 
-**Timer display at low durations.** `M:SS` above 60s, `0:SS` below. Switch to large center-screen countdown in final 10s, or keep inline? Current thinking: keep inline, add haptic at t-10s.
-
 **Invite URL shape with credentials.** For password-protected rooms, does invite URL embed hint that password required (skip round-trip, show field immediately)? TBD — interacts with [ADR-0009](adr/0009-access-control.md) opaque-token model.
 
 **Liquid Glass adoption timeline.** When (if ever) adopt `@rdlabo/ionic-theme-ios26`. See [§7](#7-theming).
 
-**Round-times-out-with-nobody-voted.** Currently = "Revealed with only Didn't-vote group." Right UX, or skip reveal and offer direct re-start? Revisit with real usage.
-
 **Schema implications of this document (resolved).**
 
-UX decisions narrowed v1 schema relative to earlier ADRs. Narrowing formalized in [ADR-0015](adr/0015-v1-scope-session-level-reveal-and-timer.md) and reflected in [`schema.md`](schema.md):
-
-1. **Timer session-level, not per-round.** `timerDurationMs` on `settings`, not rounds. ADR-0011 Context minor-corrected; authority mechanism unchanged.
-2. **Reveal modes `manual | timer` only.** `'unanimous'` variant removed from schema.
-3. **Rounds have optional descriptor.** `description?: string` already in `schema.md` — no change needed.
+UX decisions narrowed v1 schema relative to earlier ADRs. Timer countdown and `revealMode` removed in [ADR-0018](adr/0018-remove-timer-add-unanimous-reveal.md); reveal is now always manual + unanimous auto-reveal. `timerStartedAt` retained as stopwatch origin.

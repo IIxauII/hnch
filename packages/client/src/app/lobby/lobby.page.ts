@@ -51,6 +51,8 @@ import {
   type RoundStartSubmission,
 } from '../round-start/round-start.sheet'
 import { SessionSettingsSheetComponent } from '../session-settings/session-settings.sheet'
+import { RoundHistoryComponent } from '../shared/round-history.component'
+import { VoteResultsComponent } from '../shared/vote-results.component'
 import { QrDisplaySheetComponent } from './qr-display.sheet'
 
 /**
@@ -72,6 +74,11 @@ import { QrDisplaySheetComponent } from './qr-display.sheet'
  * before popping to Home. The native `ion-back-button` would pop
  * without running our confirmation, so we render a custom back
  * chevron that routes through the same handler.
+ *
+ * After a round is revealed, Estimating navigates back to Lobby.
+ * Lobby shows the full VoteResultsComponent for the latest revealed
+ * round, and RoundHistoryComponent for any older revealed rounds.
+ * The host gets Re-vote and Next Round controls in the footer.
  */
 @Component({
   selector: 'app-lobby',
@@ -94,8 +101,10 @@ import { QrDisplaySheetComponent } from './qr-display.sheet'
     IonTitle,
     IonToolbar,
     QrDisplaySheetComponent,
+    RoundHistoryComponent,
     RoundStartSheetComponent,
     SessionSettingsSheetComponent,
+    VoteResultsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -183,19 +192,59 @@ import { QrDisplaySheetComponent } from './qr-display.sheet'
           </ion-item>
         }
       </ion-list>
+
+      @if (lastRevealedRound(); as round) {
+        <section class="results-section" aria-label="Round {{ lastRevealedRoundIndex() }} Results">
+          <h2 class="results-heading">Round {{ lastRevealedRoundIndex() }} Results</h2>
+          @if (round.title) {
+            <p class="results-descriptor">{{ round.title }}</p>
+          }
+          <app-vote-results
+            [round]="round"
+            [participants]="participants()"
+            [myId]="myId()"
+          />
+        </section>
+      }
+
+      @if (pastRevealedRounds().length > 0) {
+        <app-round-history
+          [rounds]="pastRevealedRounds()"
+          [participants]="participants()"
+        />
+      }
     </ion-content>
 
     @if (isHost()) {
       <ion-footer>
         <ion-toolbar>
-          <ion-button
-            expand="block"
-            color="primary"
-            [disabled]="!hasSession()"
-            (click)="openRoundStart()"
-          >
-            Start Round {{ nextRoundNumber() }}
-          </ion-button>
+          @if (lastRevealedRound()) {
+            <div class="footer-row">
+              <ion-button
+                expand="block"
+                fill="outline"
+                (click)="onRevote()"
+              >
+                Re-vote
+              </ion-button>
+              <ion-button
+                expand="block"
+                color="primary"
+                (click)="openRoundStart()"
+              >
+                Next Round {{ nextRoundNumber() }}
+              </ion-button>
+            </div>
+          } @else {
+            <ion-button
+              expand="block"
+              color="primary"
+              [disabled]="!hasSession()"
+              (click)="openRoundStart()"
+            >
+              Start Round {{ nextRoundNumber() }}
+            </ion-button>
+          }
         </ion-toolbar>
       </ion-footer>
     }
@@ -285,6 +334,26 @@ import { QrDisplaySheetComponent } from './qr-display.sheet'
         vertical-align: middle;
         margin-inline-start: 0.25rem;
       }
+      .results-section {
+        margin-top: 1.5rem;
+        padding-top: 1rem;
+        border-top: 2px solid var(--ion-color-step-200, rgba(0, 0, 0, 0.12));
+      }
+      .results-heading {
+        font-size: 1.25rem;
+        font-weight: 700;
+        margin: 0 0 0.25rem;
+      }
+      .results-descriptor {
+        margin: 0 0 0.75rem;
+        color: var(--ion-color-medium);
+      }
+      .footer-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+        padding: 0.25rem 0.5rem;
+      }
     `,
   ],
 })
@@ -351,7 +420,7 @@ export class LobbyPage {
     return code ? formatRoomCode(code) : ''
   })
 
-  /** 1-based index for the "Start Round N" label. */
+  /** 1-based index for the "Start Round N" / "Next Round N" label. */
   protected readonly nextRoundNumber = computed(() => this.rounds().length + 1)
 
   protected readonly subtitle = computed(() => {
@@ -359,11 +428,44 @@ export class LobbyPage {
     if (!settings) return ''
     const round = this.nextRoundNumber()
     const scaleName = formatScaleId(settings.defaultScale.id)
-    const timer =
-      settings.revealMode === 'timer' && settings.timerDurationMs
-        ? formatTimerMs(settings.timerDurationMs)
-        : 'No timer'
-    return `Round ${round} • ${scaleName} • ${timer}`
+    return `Round ${round} • ${scaleName}`
+  })
+
+  /**
+   * The most recently revealed round, or null if no rounds have been
+   * revealed yet. Drives the inline results display.
+   */
+  protected readonly lastRevealedRound = computed(() => {
+    const rounds = this.rounds()
+    for (let i = rounds.length - 1; i >= 0; i--) {
+      const r = rounds[i]!
+      if (r.revealedAt !== undefined) return r
+    }
+    return null
+  })
+
+  /**
+   * 1-based index of `lastRevealedRound` within `rounds()`.
+   */
+  protected readonly lastRevealedRoundIndex = computed(() => {
+    const round = this.lastRevealedRound()
+    if (!round) return null
+    const idx = this.rounds().findIndex((r) => r.id === round.id)
+    return idx >= 0 ? idx + 1 : null
+  })
+
+  /**
+   * All revealed rounds except the most recent. Passed to
+   * RoundHistoryComponent — only shown when there are 2+ revealed rounds
+   * so there is at least one past entry alongside the current results.
+   */
+  protected readonly pastRevealedRounds = computed(() => {
+    const rounds = this.rounds()
+    const last = this.lastRevealedRound()
+    if (!last) return []
+    return rounds.filter(
+      (r) => r.revealedAt !== undefined && r.id !== last.id,
+    )
   })
 
   private readonly modalRef = viewChild<IonModal>('roundStartModal')
@@ -420,6 +522,25 @@ export class LobbyPage {
     })
     await this.modalRef()?.dismiss()
     this.roundStartOpen.set(false)
+    await this.router.navigate(['/estimating'])
+  }
+
+  /**
+   * Re-vote path (ADR-0013). Appends a new round with
+   * `parentRoundId = lastRevealedRound.id`, inheriting `title` /
+   * `description` / `ticketId` so the descriptor carries over to
+   * Estimating without another trip through the round-start sheet.
+   */
+  protected async onRevote(): Promise<void> {
+    const round = this.lastRevealedRound()
+    if (!round) return
+
+    this.docService.startRound({
+      parentRoundId: round.id,
+      ...(round.title !== undefined && { title: round.title }),
+      ...(round.description !== undefined && { description: round.description }),
+      ...(round.ticketId !== undefined && { ticketId: round.ticketId }),
+    })
     await this.router.navigate(['/estimating'])
   }
 
@@ -557,17 +678,4 @@ export class LobbyPage {
 function formatScaleId(id: string): string {
   if (id.length === 0) return id
   return id.charAt(0).toUpperCase() + id.slice(1)
-}
-
-/**
- * Format the session timer duration as it reads in the Lobby subtitle.
- * Matches the timer picker's preset values (30s / 1min / 2min / 3min /
- * 5min); non-preset values round down to the nearest second.
- */
-function formatTimerMs(ms: number): string {
-  if (ms < 60_000) {
-    return `${Math.floor(ms / 1000)}s`
-  }
-  const mins = ms / 60_000
-  return Number.isInteger(mins) ? `${mins}min` : `${mins.toFixed(1)}min`
 }

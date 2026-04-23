@@ -10,7 +10,7 @@ Core mechanic: team members independently select an estimate (typically Fibonacc
 
 ## Status
 
-Implementation through Phase 6a (PWA polish). Phases 1–4 shipped the scaffold, doc/CRDT layer, relay sync, multi-client sessions, timer-driven reveal, and host election. Phase 5 added password-protected rooms, share/QR/deep-link join paths, and a Playwright e2e suite. Phase 6a added settings screen, theme picker, reveal animation, haptic wiring, and an accessibility pass. Next up: Phase 6b (native iOS build). See `roadmap.md` for the phased plan and `project.md` for the product/design overview. ADRs in `adr/` document every structural decision.
+Implementation through Phase 6a (PWA polish). Phases 1–4 shipped the scaffold, doc/CRDT layer, relay sync, multi-client sessions, timer-driven reveal, and host election. Phase 5 added password-protected rooms, share/QR/deep-link join paths, and a Playwright e2e suite. Phase 6a added settings screen, theme picker, reveal animation, haptic wiring, and an accessibility pass. The separate Revealed page has since been removed — after a round is revealed, Estimating navigates back to Lobby, which shows results inline (VoteResultsComponent) and a compact round history list (RoundHistoryComponent). Next up: Phase 6b (native iOS build). See `roadmap.md` for the phased plan and `project.md` for the product/design overview. ADRs in `adr/` document every structural decision.
 
 ## Documentation layout
 
@@ -39,7 +39,7 @@ When proposing a code change that conflicts with an existing ADR, either adjust 
 
 ## Current decisions at a glance
 
-For quick orientation without reading all 17 ADRs:
+For quick orientation without reading all 18 ADRs:
 
 - **Architecture:** Yjs CRDTs synchronized via a content-blind y-websocket relay. No direct WebRTC. No authoritative session server. (ADR-0001, ADR-0003)
 - **Stack:** Angular + Ionic + Capacitor for the client; Node.js y-websocket relay for the server. (ADR-0002)
@@ -50,12 +50,11 @@ For quick orientation without reading all 17 ADRs:
 - **Access control:** relay-enforced via opaque tokens (password hash, single-use invite tokens). (ADR-0009)
 - **Connection handshake:** HTTP `GET /rooms/:code` resolves code → UUID; WebSocket to `/ws/:uuid` carries `JoinCredentials` as query params; rejections use private-use WS close codes 4001–4099. (ADR-0016)
 - **Host authority:** creator is initial host; on drop, 5-second debounce then lowest-peer-ID election. (ADR-0010)
-- **Timer:** host writes `timerStartedAt` to the round at round start; all clients compute locally against `settings.timerDurationMs`; host's client authoritatively triggers reveal. (ADR-0011, ADR-0015)
+- **Reveal:** manual (host taps Reveal) + unanimous auto-reveal (fires when all online participants have voted). No countdown timer. `timerStartedAt` written at round creation as stopwatch origin for elapsed time display. (ADR-0018, supersedes ADR-0011/ADR-0015)
 - **Snapshots:** 24-hour in-memory TTL on the relay, keyed by room UUID; no disk persistence. (ADR-0012)
 - **Rounds:** flat list with optional `parentRoundId` for re-vote lineage; vote change allowed until reveal. (ADR-0013)
 - **Password protection:** PBKDF2-SHA-256 via Web Crypto (100k iterations, room UUID as salt). Invite-only mode dropped from v1 scope. (ADR-0017)
 - **Repo layout:** pnpm workspaces monorepo with `packages/client`, `packages/relay`, `packages/shared`, `packages/e2e` (Playwright). (ADR-0014)
-- **v1 scope (reveal/timer):** reveal modes are `manual | timer` only (no `unanimous`); `revealMode` and `timerDurationMs` live on `settings`, not on rounds. (ADR-0015)
 
 ## Commit conventions
 

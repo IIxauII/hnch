@@ -1,6 +1,6 @@
 # ADR-0015: v1 scope — session-level reveal mode and timer duration
 
-**Status:** Accepted
+**Status:** Superseded by ADR-0018
 **Date:** 2026-04-21
 **Deciders:** Xau
 

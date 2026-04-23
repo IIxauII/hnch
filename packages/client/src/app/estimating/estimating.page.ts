@@ -4,7 +4,6 @@ import {
   computed,
   effect,
   inject,
-  signal,
 } from '@angular/core'
 import { Router } from '@angular/router'
 import {
@@ -32,27 +31,16 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
  * Estimating — ux.md §5.5.
  *
  * Pick-your-card screen. Presence of a vote is public (shown in the
- * avatar row); the value stays hidden until the host taps Reveal.
+ * avatar row); the value stays hidden until reveal.
  *
  * Features:
- *  - Title "Round N" uses the current round's 1-based index in
- *    `rounds()` so re-votes and next-rounds number correctly.
- *  - Descriptor from `currentRound.title` when present.
- *  - Timer display shows a live countdown derived from
- *    `round.timerStartedAt` + `settings.timerDurationMs`, ticked by
- *    `TimerTickService` at ~4 Hz. Last-30-seconds styling applies a
- *    danger color per ux.md §5.5.
- *  - Card grid renders `currentRound.scale.cards`. Tapping a card
- *    casts/overwrites the vote; tapping the selected card clears it
- *    (ADR-0013: vote change allowed until reveal).
- *  - Host-only Reveal button; non-host clients see no footer.
- *  - Auto-navigation to Revealed when `revealedAt` is written (timer
- *    or manual reveal by any peer).
- *  - Haptics on card tap (ux.md §7) are Phase 6; no plugin dependency
- *    added here.
- *
- * Back-nav defaults to /lobby. The session stays alive (plan §3.10);
- * only Lobby's Leave action tears it down.
+ *  - Title "Round N" uses the current round's 1-based index.
+ *  - Elapsed time stopwatch counting up from round start.
+ *  - Card grid with tap-to-vote / tap-again-to-unvote (ADR-0013).
+ *  - Unanimous auto-reveal: when all online participants have voted,
+ *    `revealedAt` is written automatically (ADR-0018).
+ *  - Host-only manual Reveal button.
+ *  - Auto-navigation to Lobby (with inline results) when `revealedAt` is written.
  */
 @Component({
   selector: 'app-estimating',
@@ -91,8 +79,8 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
           <p class="descriptor">{{ round.title }}</p>
         }
 
-        @if (timerLabel(); as label) {
-          <p class="timer" [class.urgent]="timerUrgent()" role="timer" aria-live="polite" aria-atomic="true">{{ label }}</p>
+        @if (elapsedLabel(); as label) {
+          <p class="elapsed" role="status" aria-live="off">{{ label }}</p>
         }
 
         <app-avatar-vote-row
@@ -149,15 +137,12 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
         margin: 0 0 1rem;
         color: var(--ion-color-medium);
       }
-      .timer {
+      .elapsed {
         font-size: 2rem;
         font-weight: 600;
         font-variant-numeric: tabular-nums;
         margin: 0.5rem 0 1rem;
         color: var(--ion-color-medium);
-      }
-      .timer.urgent {
-        color: var(--ion-color-danger);
       }
       .section {
         margin: 1.5rem 0 0.5rem;
@@ -226,38 +211,31 @@ export class EstimatingPage {
       })
     }
 
-    // Auto-navigate to Revealed when `revealedAt` is written — covers
-    // timer-driven reveal (local or remote) and host manual reveal
-    // received by non-host clients. The effect is scoped to this
-    // component's lifetime, so it only fires while the user is on
-    // `/estimating`.
+    // Auto-navigate to Lobby when `revealedAt` is written — covers
+    // unanimous auto-reveal and host manual reveal. Scoped to this
+    // component's lifetime.
     effect(() => {
       const round = this.docService.currentRound()
       if (round?.revealedAt !== undefined) {
-        void this.router.navigate(['/revealed'], { replaceUrl: true })
+        void this.router.navigate(['/lobby'], { replaceUrl: true })
       }
     })
 
-    // Haptic at t-10s: fire once when remaining crosses the 10s mark.
+    // Unanimous auto-reveal: when all online participants have voted,
+    // write `revealedAt`. Every client runs this check; Yjs merges
+    // concurrent writes idempotently (ADR-0018).
     effect(() => {
-      const remaining = this.timerRemaining()
-      if (remaining === null) {
-        // No timer — reset so re-entering a timed round fires again.
-        this.hapticFiredAt10s.set(false)
-        return
-      }
-      if (!this.hapticFiredAt10s() && remaining <= 10_000 && remaining > 0) {
-        this.hapticFiredAt10s.set(true)
-        this.haptic.impactLight()
+      const round = this.docService.currentRound()
+      if (!round || round.revealedAt !== undefined) return
+      const online = this.docService.onlineParticipantIds()
+      if (online.size === 0) return
+      const votedCount = Object.keys(round.votes).filter((id) => online.has(id)).length
+      if (votedCount >= online.size) {
+        this.haptic.notificationSuccess()
+        this.docService.revealRound(round.id)
       }
     })
   }
-
-  /**
-   * Whether the t-10s haptic has already fired for the current round.
-   * Reset when `timerRemaining` returns `null` (new round or manual mode).
-   */
-  private readonly hapticFiredAt10s = signal(false)
 
   private readonly myId = this.participantIdService.id
 
@@ -307,40 +285,14 @@ export class EstimatingPage {
   })
 
   /**
-   * Milliseconds remaining on the current round's timer, or `null`
-   * when in manual mode or no timer is active. Driven by the 4 Hz
-   * wall-clock tick. Shared by `timerLabel`, `timerUrgent`, and the
-   * t-10s haptic effect.
+   * Elapsed voting time label (M:SS counting up), or `null` before the
+   * round's stopwatch has started. Driven by the 4 Hz wall-clock tick.
    */
-  private readonly timerRemaining = computed<number | null>(() => {
-    const settings = this.docService.settings()
-    if (!settings || settings.revealMode !== 'timer') return null
+  protected readonly elapsedLabel = computed<string | null>(() => {
     const round = this.docService.currentRound()
     if (!round || round.timerStartedAt === undefined) return null
-    const duration = settings.timerDurationMs
-    if (duration === undefined || duration <= 0) return null
-    return duration - (this.timerTick.now() - round.timerStartedAt)
-  })
-
-  /**
-   * Live countdown label. Returns `null` (hiding the label) for
-   * `revealMode: 'manual'` sessions or when no timer is active.
-   */
-  protected readonly timerLabel = computed<string | null>(() => {
-    const remaining = this.timerRemaining()
-    if (remaining === null) return null
-    return formatCountdown(Math.max(0, remaining))
-  })
-
-  /**
-   * `true` when the remaining countdown is 30 s or less (and still
-   * positive). Drives a muted-red style on the timer label per
-   * ux.md §5.5.
-   */
-  protected readonly timerUrgent = computed<boolean>(() => {
-    const remaining = this.timerRemaining()
-    if (remaining === null) return false
-    return remaining <= 30_000 && remaining > 0
+    const elapsed = this.timerTick.now() - round.timerStartedAt
+    return formatElapsed(Math.max(0, elapsed))
   })
 
   protected onCardTap(card: string): void {
@@ -361,10 +313,9 @@ export class EstimatingPage {
     if (!round) return
     this.haptic.impactMedium()
     this.docService.revealRound(round.id)
-    // replaceUrl: back-nav from Revealed should pop to Lobby, not
-    // bounce through the Estimating screen we just left
-    // (plan §3.10).
-    await this.router.navigate(['/revealed'], { replaceUrl: true })
+    // replaceUrl: back-nav from Lobby (results view) should pop to the
+    // screen before Estimating, not bounce back here (plan §3.10).
+    await this.router.navigate(['/lobby'], { replaceUrl: true })
   }
 }
 
@@ -372,12 +323,8 @@ export class EstimatingPage {
 // Module-private formatters
 // ---------------------------------------------------------------------------
 
-/**
- * Format a millisecond duration as `M:SS` above 60s and `0:SS` below,
- * per ux.md §5.5. Sub-second values round down to 0:00 (the timer has
- * already expired at that point; `RoundTimerService` handles the reveal).
- */
-function formatCountdown(ms: number): string {
+/** Format a millisecond duration as `M:SS`. */
+function formatElapsed(ms: number): string {
   const totalSec = Math.max(0, Math.floor(ms / 1000))
   const minutes = Math.floor(totalSec / 60)
   const seconds = totalSec % 60

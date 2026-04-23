@@ -20,7 +20,6 @@ import {
   patchSettings,
   projectDoc,
   revealRound,
-  startRoundTimer,
   upsertParticipant,
   type DocProjection,
   type InitDocInit,
@@ -43,7 +42,6 @@ function seedDoc(
     participantId: 'p-host',
     displayName: 'Alice',
     defaultScale: FIBONACCI_SCALE,
-    revealMode: 'manual',
     sessionName: 'Sprint 42 planning',
     ...overrides,
   }
@@ -69,7 +67,6 @@ describe('initDoc', () => {
     expect(snap.settings).toEqual({
       name: init.sessionName,
       defaultScale: FIBONACCI_SCALE,
-      revealMode: 'manual',
       hostParticipantId: init.participantId,
     })
     expect(snap.participants).toEqual([
@@ -83,19 +80,10 @@ describe('initDoc', () => {
   })
 
   it('omits optional settings keys when not provided', () => {
-    const { doc } = seedDoc({ sessionName: undefined, timerDurationMs: undefined })
+    const { doc } = seedDoc({ sessionName: undefined })
     const snap = projectDoc(doc)
 
     expect('name' in snap.settings).toBe(false)
-    expect('timerDurationMs' in snap.settings).toBe(false)
-  })
-
-  it('stores timerDurationMs when supplied', () => {
-    const { doc } = seedDoc({ revealMode: 'timer', timerDurationMs: 90_000 })
-    const snap = projectDoc(doc)
-
-    expect(snap.settings.revealMode).toBe('timer')
-    expect(snap.settings.timerDurationMs).toBe(90_000)
   })
 
   it('throws when called on an already-seeded doc', () => {
@@ -107,7 +95,6 @@ describe('initDoc', () => {
         participantId: 'p-other',
         displayName: 'Bob',
         defaultScale: TSHIRT_SCALE,
-        revealMode: 'manual',
       }),
     ).toThrow(/already seeded/)
   })
@@ -126,7 +113,6 @@ describe('initDoc', () => {
       participantId: 'p',
       displayName: 'A',
       defaultScale: FIBONACCI_SCALE,
-      revealMode: 'manual',
     })
 
     doc.off('afterTransaction', handler)
@@ -141,24 +127,21 @@ describe('initDoc', () => {
 describe('patchSettings', () => {
   it('shallow-merges a partial patch', () => {
     const { doc } = seedDoc()
-    patchSettings(doc, { name: 'Renamed', revealMode: 'timer', timerDurationMs: 60_000 })
+    patchSettings(doc, { name: 'Renamed' })
     const snap = projectDoc(doc)
 
     expect(snap.settings.name).toBe('Renamed')
-    expect(snap.settings.revealMode).toBe('timer')
-    expect(snap.settings.timerDurationMs).toBe(60_000)
     // Untouched keys survive the patch.
     expect(snap.settings.defaultScale).toEqual(FIBONACCI_SCALE)
     expect(snap.settings.hostParticipantId).toBe('p-host')
   })
 
   it('treats `undefined` as explicit key deletion', () => {
-    const { doc } = seedDoc({ revealMode: 'timer', timerDurationMs: 30_000 })
-    patchSettings(doc, { revealMode: 'manual', timerDurationMs: undefined })
+    const { doc } = seedDoc()
+    patchSettings(doc, { name: undefined })
     const snap = projectDoc(doc)
 
-    expect(snap.settings.revealMode).toBe('manual')
-    expect('timerDurationMs' in snap.settings).toBe(false)
+    expect('name' in snap.settings).toBe(false)
   })
 
   it('replaces the defaultScale wholesale (no per-card merge)', () => {
@@ -337,10 +320,10 @@ describe('castVote / clearVote', () => {
 })
 
 // ---------------------------------------------------------------------------
-// revealRound / startRoundTimer
+// revealRound
 // ---------------------------------------------------------------------------
 
-describe('revealRound / startRoundTimer', () => {
+describe('revealRound', () => {
   it('stamps revealedAt', () => {
     const { doc } = seedDoc()
     appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' })
@@ -348,19 +331,23 @@ describe('revealRound / startRoundTimer', () => {
     expect(projectDoc(doc).rounds[0]!.revealedAt).toBe(1_700_000_200_000)
   })
 
-  it('stamps timerStartedAt (Phase 4 wiring path)', () => {
-    const { doc } = seedDoc({ revealMode: 'timer', timerDurationMs: 60_000 })
-    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' })
-    startRoundTimer(doc, 'r1', 1_700_000_150_000)
-    expect(projectDoc(doc).rounds[0]!.timerStartedAt).toBe(1_700_000_150_000)
-    // Phase 2 invariant: starting the timer never reveals the round.
-    expect(projectDoc(doc).rounds[0]!.revealedAt).toBeUndefined()
-  })
-
   it('throws on unknown round ids', () => {
     const { doc } = seedDoc()
     expect(() => revealRound(doc, 'nope', 1)).toThrow(/not found/)
-    expect(() => startRoundTimer(doc, 'nope', 1)).toThrow(/not found/)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// appendRound always writes timerStartedAt (stopwatch)
+// ---------------------------------------------------------------------------
+
+describe('appendRound timerStartedAt', () => {
+  it('always writes timerStartedAt equal to createdAt', () => {
+    const { doc } = seedDoc()
+    appendRound(doc, { id: 'r1', createdAt: 1_700_000_100_000, createdBy: 'p-host' })
+    const snap = projectDoc(doc)
+    expect(snap.rounds[0]!.timerStartedAt).toBe(1_700_000_100_000)
+    expect(snap.rounds[0]!.revealedAt).toBeUndefined()
   })
 })
 

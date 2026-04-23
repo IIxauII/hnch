@@ -1,0 +1,166 @@
+/**
+ * Integration test: spin up relay, create + join session via CLI
+ * session API, verify votes sync and reveal works.
+ */
+
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { createServer, type Server } from 'node:http'
+import { randomUUID } from 'node:crypto'
+import { createCodePool } from '../../relay/src/code-pool.js'
+import { createRoomStore } from '../../relay/src/room-store.js'
+import { createRelayServer } from '../../relay/src/server.js'
+import { createSession, joinSession } from './session.js'
+import { FIBONACCI_SCALE } from '@hnch/shared'
+
+let server: Server
+let port: number
+let relayUrl: string
+
+beforeAll(async () => {
+  const codePool = createCodePool()
+  const roomStore = createRoomStore(codePool)
+  server = createRelayServer({ roomStore })
+
+  await new Promise<void>((resolve) => {
+    server.listen(0, () => {
+      const addr = server.address()
+      port = typeof addr === 'object' && addr !== null ? addr.port : 0
+      relayUrl = `http://localhost:${port}`
+      resolve()
+    })
+  })
+})
+
+afterAll(async () => {
+  await new Promise<void>((resolve) => {
+    server.close(() => resolve())
+  })
+})
+
+describe('session integration', () => {
+  it('create + join + vote + reveal', async () => {
+    // Host creates session
+    const host = await createSession({
+      participantId: 'host-1',
+      displayName: 'Alice',
+      relayUrl,
+      sessionName: 'Test Sprint',
+      defaultScale: FIBONACCI_SCALE,
+    })
+
+    expect(host.roomCode).toBeTruthy()
+    expect(host.roomCode.length).toBe(6)
+
+    // Wait for sync
+    await sleep(500)
+
+    // Joiner joins
+    const joiner = await joinSession({
+      participantId: 'joiner-1',
+      displayName: 'Bob',
+      relayUrl,
+      roomCode: host.roomCode,
+    })
+
+    // Wait for sync
+    await sleep(1000)
+
+    // Host starts a round
+    const roundId = host.newRound('Test Story')
+
+    // Wait for round to propagate
+    await sleep(500)
+
+    // Both vote
+    host.vote('5')
+    joiner.vote('8')
+
+    // Wait for votes to propagate
+    await sleep(500)
+
+    // Verify both see votes
+    const hostProjection = host.projection()
+    const joinerProjection = joiner.projection()
+
+    const hostRound = hostProjection.rounds.find((r) => r.id === roundId)
+    const joinerRound = joinerProjection.rounds.find((r) => r.id === roundId)
+
+    expect(hostRound).toBeDefined()
+    expect(hostRound!.votes['host-1']).toBe('5')
+    expect(hostRound!.votes['joiner-1']).toBe('8')
+
+    expect(joinerRound).toBeDefined()
+    expect(joinerRound!.votes['host-1']).toBe('5')
+    expect(joinerRound!.votes['joiner-1']).toBe('8')
+
+    // Host reveals
+    host.reveal()
+    await sleep(500)
+
+    const revealedRound = host.projection().rounds.find((r) => r.id === roundId)
+    expect(revealedRound!.revealedAt).toBeDefined()
+
+    // Cleanup
+    host.disconnect()
+    joiner.disconnect()
+  })
+
+  it('create password-protected room + join with password', async () => {
+    const host = await createSession({
+      participantId: 'host-pw',
+      displayName: 'Alice',
+      relayUrl,
+      password: 'secret123',
+    })
+
+    await sleep(500)
+
+    const joiner = await joinSession({
+      participantId: 'joiner-pw',
+      displayName: 'Bob',
+      relayUrl,
+      roomCode: host.roomCode,
+      password: 'secret123',
+    })
+
+    await sleep(500)
+
+    // Both should be connected
+    expect(joiner.projection().participants.length).toBeGreaterThanOrEqual(1)
+
+    host.disconnect()
+    joiner.disconnect()
+  })
+
+  it('new round and re-vote', async () => {
+    const host = await createSession({
+      participantId: 'host-rv',
+      displayName: 'Alice',
+      relayUrl,
+    })
+
+    await sleep(500)
+
+    // Start round, vote, reveal
+    const round1Id = host.newRound('Story 1')
+    host.vote('3')
+    await sleep(300)
+    host.reveal()
+    await sleep(300)
+
+    // Re-vote should create new round linked to original
+    const round2Id = host.revote()
+    await sleep(300)
+
+    const p = host.projection()
+    const round2 = p.rounds.find((r) => r.id === round2Id)
+    expect(round2).toBeDefined()
+    expect(round2!.parentRoundId).toBe(round1Id)
+
+    host.disconnect()
+  })
+})
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}

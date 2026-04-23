@@ -7,10 +7,8 @@ import {
   LOBBY,
   ROUND_START,
   ESTIMATING,
-  REVEALED,
   SETTINGS_SHEET,
   SCALE_PICKER,
-  TIMER_PICKER,
   ACCESS_PICKER,
 } from './helpers'
 
@@ -100,17 +98,17 @@ export class Participant {
     await this.page.locator(ESTIMATING.card(value)).click()
   }
 
-  /** Tap the Reveal Votes button (host only). */
+  /** Tap the Reveal Votes button (host only). Navigates to /lobby with results. */
   async reveal(): Promise<void> {
     await this.page.locator(ESTIMATING.revealBtn).click()
-    await this.page.waitForURL(/\/revealed/)
+    await this.page.waitForURL(/\/lobby/)
   }
 
-  // -- Revealed page --------------------------------------------------------
+  // -- Lobby results actions -------------------------------------------------
 
-  /** Tap "Next Round" and confirm the modal. */
+  /** Tap "Next Round N" from the lobby results section and confirm the modal. */
   async nextRound(title?: string): Promise<void> {
-    await this.page.locator(REVEALED.nextRoundBtn).click()
+    await this.page.locator('ion-button', { hasText: LOBBY.nextRoundBtn }).click()
     const modal = this.page.locator('app-round-start-sheet')
     await modal.waitFor({ state: 'visible' })
     if (title) {
@@ -135,15 +133,6 @@ export class Participant {
     await this.page.locator(SETTINGS_SHEET.scaleRow).click()
     await this.page.locator(SCALE_PICKER.option(scaleLabel)).click()
     const doneBtn = this.page.locator(SCALE_PICKER.doneBtn)
-    await doneBtn.waitFor({ state: 'visible' })
-    await doneBtn.evaluate((el: HTMLElement) => el.click())
-  }
-
-  /** Change the timer setting. Assumes settings sheet is open. */
-  async changeTimer(optionLabel: string): Promise<void> {
-    await this.page.locator(SETTINGS_SHEET.timerRow).click()
-    await this.page.locator(TIMER_PICKER.option(optionLabel)).click()
-    const doneBtn = this.page.locator(TIMER_PICKER.doneBtn)
     await doneBtn.waitFor({ state: 'visible' })
     await doneBtn.evaluate((el: HTMLElement) => el.click())
   }
@@ -241,16 +230,21 @@ export class Participant {
 
   // -- Assertions -----------------------------------------------------------
 
-  /** Assert the revealed page shows the given vote values (unordered). */
+  /**
+   * Assert the lobby results section shows the given vote values (unordered).
+   * Waits for /lobby and for the results section to appear.
+   */
   async expectRevealedVotes(expected: string[]): Promise<void> {
-    await this.page.waitForURL(/\/revealed/)
-    const cards = this.page.locator(REVEALED.groupCard)
+    await this.page.waitForURL(/\/lobby/)
+    const resultsSection = this.page.locator(LOBBY.resultsSection)
+    await resultsSection.waitFor({ state: 'visible', timeout: 10_000 })
+    const cards = this.page.locator(LOBBY.groupCard)
     await cards.first().waitFor({ state: 'visible' })
-    // Collect all card values from vote groups
+    // Collect all card values from vote groups (scoped to results section)
     const allChips: string[] = []
-    const groupCount = await this.page.locator(REVEALED.voteGroups).count()
+    const groupCount = await this.page.locator(LOBBY.voteGroups).count()
     for (let i = 0; i < groupCount; i++) {
-      const group = this.page.locator(REVEALED.voteGroups).nth(i)
+      const group = this.page.locator(LOBBY.voteGroups).nth(i)
       const cardValue = await group.locator('.card').textContent()
       const chipLabels = await group.locator('ion-chip ion-label').allTextContents()
       for (const _ of chipLabels) {
@@ -273,14 +267,19 @@ export class Participant {
 
   /** Assert this participant sees host controls. */
   async expectIsHost(): Promise<void> {
-    // Host sees "Reveal Votes" on estimating or "Start Round" on lobby
+    // Host sees "Reveal Votes" on estimating or "Start Round" / "Next Round" on lobby
     const url = this.page.url()
     if (url.includes('/estimating')) {
       await this.page.locator(ESTIMATING.revealBtn).waitFor({ state: 'visible' })
     } else if (url.includes('/lobby')) {
-      await this.page.locator('ion-button', { hasText: LOBBY.startRoundBtn }).waitFor({ state: 'visible' })
-    } else if (url.includes('/revealed')) {
-      await this.page.locator(REVEALED.nextRoundBtn).waitFor({ state: 'visible' })
+      // Either Start Round or Next Round button is visible for host
+      const startBtn = this.page.locator('ion-button', { hasText: LOBBY.startRoundBtn })
+      const nextBtn = this.page.locator('ion-button', { hasText: LOBBY.nextRoundBtn })
+      const startVisible = await startBtn.isVisible().catch(() => false)
+      const nextVisible = await nextBtn.isVisible().catch(() => false)
+      if (!startVisible && !nextVisible) {
+        throw new Error('Expected host controls to be visible on lobby')
+      }
     }
   }
 

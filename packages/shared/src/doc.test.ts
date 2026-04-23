@@ -6,7 +6,6 @@ import {
   type AwarenessPayload,
   type Meta,
   type Participant,
-  type RevealMode,
   type Round,
   type Scale,
   type Settings,
@@ -51,25 +50,18 @@ describe('builtin scales', () => {
 describe('shape types', () => {
   // These are compile-time checks; the assertions just force evaluation.
 
-  it('RevealMode is the documented literal union', () => {
-    expectTypeOf<RevealMode>().toEqualTypeOf<'manual' | 'timer'>()
-  })
-
-  it('Settings accepts a revealMode + optional timerDurationMs', () => {
-    const manual: Settings = {
+  it('Settings has required and optional fields', () => {
+    const settings: Settings = {
       defaultScale: FIBONACCI_SCALE,
-      revealMode: 'manual',
       hostParticipantId: 'device-abc',
     }
-    const timer: Settings = {
+    const named: Settings = {
       defaultScale: TSHIRT_SCALE,
-      revealMode: 'timer',
-      timerDurationMs: 90_000,
       hostParticipantId: 'device-abc',
       name: 'Sprint 42 planning',
     }
-    expect(manual.revealMode).toBe('manual')
-    expect(timer.timerDurationMs).toBe(90_000)
+    expect(settings.hostParticipantId).toBe('device-abc')
+    expect(named.name).toBe('Sprint 42 planning')
   })
 
   it('Round.votes is keyed by participantId', () => {

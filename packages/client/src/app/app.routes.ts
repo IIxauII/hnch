@@ -42,12 +42,6 @@ export const routes: Routes = [
       import('./estimating/estimating.page').then((m) => m.EstimatingPage),
   },
   {
-    path: 'revealed',
-    canMatch: [displayNameGuard],
-    loadComponent: () =>
-      import('./revealed/revealed.page').then((m) => m.RevealedPage),
-  },
-  {
     path: 'settings',
     canMatch: [displayNameGuard],
     loadComponent: () =>

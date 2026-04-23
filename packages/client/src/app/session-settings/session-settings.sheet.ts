@@ -36,26 +36,14 @@ import {
   type AccessSelection,
 } from './access-picker.sheet'
 import { ScalePickerSheetComponent } from './scale-picker.sheet'
-import {
-  TimerPickerSheetComponent,
-  type TimerSelection,
-} from './timer-picker.sheet'
 
 /**
  * Session settings half-sheet — ux.md §5.8.
  *
- * Three rows (Scale, Timer, Access) with chevrons that open the
- * corresponding picker half-sheets. Scale and Timer write through
- * to `DocService` immediately on selection (iOS picker idiom, no
- * Save button). Access is held in a local signal per plan §3.6 —
- * access enforcement is a Phase-5 relay concern (ADR-0009) and
- * writing to the doc prematurely would be wrong.
- *
- * Phase 2 only surfaces the host view. Joiners-as-readonly
- * (ux.md §5.8: "Joiners see the same sheet without chevrons") is
- * Phase 3; the necessary `isHost` signal lives on the DocService's
- * consumers already and would just gate the chevrons + row taps
- * when toggled off.
+ * Two rows (Scale, Access) with chevrons that open the corresponding
+ * picker half-sheets. Scale writes through to `DocService` immediately
+ * on selection (iOS picker idiom, no Save button). Access is held in a
+ * local signal — access enforcement is a relay concern (ADR-0009).
  */
 @Component({
   selector: 'app-session-settings-sheet',
@@ -75,7 +63,6 @@ import {
     IonTitle,
     IonToolbar,
     ScalePickerSheetComponent,
-    TimerPickerSheetComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -94,17 +81,6 @@ import {
             <h3>Scale</h3>
           </ion-label>
           <ion-note slot="end" class="value">{{ scaleLabel() }}</ion-note>
-          <ion-icon
-            slot="end"
-            name="chevron-forward-outline"
-            aria-hidden="true"
-          ></ion-icon>
-        </ion-item>
-        <ion-item button (click)="openTimerPicker()">
-          <ion-label>
-            <h3>Timer</h3>
-          </ion-label>
-          <ion-note slot="end" class="value">{{ timerLabel() }}</ion-note>
           <ion-icon
             slot="end"
             name="chevron-forward-outline"
@@ -140,22 +116,6 @@ import {
             (closeRequested)="closeScalePicker()"
           />
         }
-      </ng-template>
-    </ion-modal>
-
-    <ion-modal
-      #timerModal
-      [isOpen]="timerOpen()"
-      [breakpoints]="[0, 0.6, 0.95]"
-      [initialBreakpoint]="0.6"
-      (didDismiss)="timerOpen.set(false)"
-    >
-      <ng-template>
-        <app-timer-picker-sheet
-          [currentMs]="currentTimerMs()"
-          (selected)="onTimerSelected($event)"
-          (closeRequested)="closeTimerPicker()"
-        />
       </ng-template>
     </ion-modal>
 
@@ -209,7 +169,6 @@ export class SessionSettingsSheetComponent {
 
   /** Inner picker visibility flags. */
   protected readonly scaleOpen = signal(false)
-  protected readonly timerOpen = signal(false)
   protected readonly accessOpen = signal(false)
 
   /** Current settings.defaultScale, or `null` until session boots. */
@@ -217,24 +176,10 @@ export class SessionSettingsSheetComponent {
     () => this.settings()?.defaultScale ?? null,
   )
 
-  /** Current timer duration in ms, or `null` when revealMode = 'manual'. */
-  protected readonly currentTimerMs = computed<number | null>(() => {
-    const s = this.settings()
-    if (!s) return null
-    if (s.revealMode !== 'timer') return null
-    return s.timerDurationMs ?? null
-  })
-
   protected readonly scaleLabel = computed(() => {
     const id = this.currentScale()?.id
     if (!id) return ''
     return formatScaleId(id)
-  })
-
-  protected readonly timerLabel = computed(() => {
-    const ms = this.currentTimerMs()
-    if (ms === null) return 'None'
-    return formatTimerMs(ms)
   })
 
   protected readonly accessLabel = computed(() =>
@@ -242,7 +187,6 @@ export class SessionSettingsSheetComponent {
   )
 
   private readonly scaleModalRef = viewChild<IonModal>('scaleModal')
-  private readonly timerModalRef = viewChild<IonModal>('timerModal')
   private readonly accessModalRef = viewChild<IonModal>('accessModal')
 
   constructor() {
@@ -257,10 +201,6 @@ export class SessionSettingsSheetComponent {
 
   protected openScalePicker(): void {
     this.scaleOpen.set(true)
-  }
-
-  protected openTimerPicker(): void {
-    this.timerOpen.set(true)
   }
 
   protected openAccessPicker(): void {
@@ -278,25 +218,6 @@ export class SessionSettingsSheetComponent {
   protected async closeScalePicker(): Promise<void> {
     await this.scaleModalRef()?.dismiss()
     this.scaleOpen.set(false)
-  }
-
-  protected onTimerSelected(selection: TimerSelection): void {
-    if (selection.ms === null) {
-      this.docService.updateSettings({
-        revealMode: 'manual',
-        timerDurationMs: undefined,
-      })
-    } else {
-      this.docService.updateSettings({
-        revealMode: 'timer',
-        timerDurationMs: selection.ms,
-      })
-    }
-  }
-
-  protected async closeTimerPicker(): Promise<void> {
-    await this.timerModalRef()?.dismiss()
-    this.timerOpen.set(false)
   }
 
   protected onAccessSelected(selection: AccessSelection): void {
@@ -342,18 +263,6 @@ export class SessionSettingsSheetComponent {
 function formatScaleId(id: string): string {
   if (id.length === 0) return id
   return id.charAt(0).toUpperCase() + id.slice(1)
-}
-
-/**
- * Mirrors the Lobby subtitle's timer formatting: `<60s` as "Ns",
- * >=60s as "Nmin" with one decimal for fractional minutes.
- */
-function formatTimerMs(ms: number): string {
-  if (ms < 60_000) {
-    return `${Math.floor(ms / 1000)}s`
-  }
-  const mins = ms / 60_000
-  return Number.isInteger(mins) ? `${mins}min` : `${mins.toFixed(1)}min`
 }
 
 function formatAccessMode(mode: AccessMode): string {
