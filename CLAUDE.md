@@ -10,7 +10,7 @@ Core mechanic: team members independently select an estimate (typically Fibonacc
 
 ## Status
 
-Implementation through Phase 4 (timer + host election). Phases 1-3 shipped the scaffold, doc/CRDT layer, relay sync, and multi-client sessions. Phase 4 adds timer-driven reveal and host election. See `roadmap.md` for the phased plan and `project.md` for the product/design overview. ADRs in `adr/` document every structural decision.
+Implementation through Phase 6a (PWA polish). Phases 1–4 shipped the scaffold, doc/CRDT layer, relay sync, multi-client sessions, timer-driven reveal, and host election. Phase 5 added password-protected rooms, share/QR/deep-link join paths, and a Playwright e2e suite. Phase 6a added settings screen, theme picker, reveal animation, haptic wiring, and an accessibility pass. Next up: Phase 6b (native iOS build). See `roadmap.md` for the phased plan and `project.md` for the product/design overview. ADRs in `adr/` document every structural decision.
 
 ## Documentation layout
 
@@ -21,7 +21,6 @@ Implementation through Phase 4 (timer + host election). Phases 1-3 shipped the s
 - `angular.md` — Angular and TypeScript coding conventions for the client package: signals, standalone components, control-flow syntax, accessibility baseline, and other house rules. Consult before writing or reviewing client code.
 - `ionic.md` — Ionic-specific conventions: platform mode, dark mode / theming (class-based toggling via `ThemeService`), half-sheet modal pattern, component imports, icons, safe areas. Consult alongside `angular.md`.
 - `adr/` — Architecture Decision Records. The authoritative source for *why* each structural choice was made, what alternatives were considered, and under what conditions a decision should be revisited. See `adr/README.md` for conventions and the index.
-- `networking-analysis.md` — research artifact that informed ADR-0001 (networking architecture). Kept as a reference; not updated as decisions evolve.
 
 ## ADR requirement
 
@@ -40,7 +39,7 @@ When proposing a code change that conflicts with an existing ADR, either adjust 
 
 ## Current decisions at a glance
 
-For quick orientation without reading all 16 ADRs:
+For quick orientation without reading all 17 ADRs:
 
 - **Architecture:** Yjs CRDTs synchronized via a content-blind y-websocket relay. No direct WebRTC. No authoritative session server. (ADR-0001, ADR-0003)
 - **Stack:** Angular + Ionic + Capacitor for the client; Node.js y-websocket relay for the server. (ADR-0002)
@@ -54,5 +53,6 @@ For quick orientation without reading all 16 ADRs:
 - **Timer:** host writes `timerStartedAt` to the round at round start; all clients compute locally against `settings.timerDurationMs`; host's client authoritatively triggers reveal. (ADR-0011, ADR-0015)
 - **Snapshots:** 24-hour in-memory TTL on the relay, keyed by room UUID; no disk persistence. (ADR-0012)
 - **Rounds:** flat list with optional `parentRoundId` for re-vote lineage; vote change allowed until reveal. (ADR-0013)
-- **Repo layout:** pnpm workspaces monorepo with `packages/client`, `packages/relay`, `packages/shared`. (ADR-0014)
+- **Password protection:** PBKDF2-SHA-256 via Web Crypto (100k iterations, room UUID as salt). Invite-only mode dropped from v1 scope. (ADR-0017)
+- **Repo layout:** pnpm workspaces monorepo with `packages/client`, `packages/relay`, `packages/shared`, `packages/e2e` (Playwright). (ADR-0014)
 - **v1 scope (reveal/timer):** reveal modes are `manual | timer` only (no `unanimous`); `revealMode` and `timerDurationMs` live on `settings`, not on rounds. (ADR-0015)

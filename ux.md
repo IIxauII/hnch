@@ -1,8 +1,8 @@
 # ux.md — UX design for hnch v1
 
-This document is the authoritative reference for hnch's user experience: screen inventory, user flows, per-screen wireframes, interaction patterns, and theming decisions. It is a sibling of [`project.md`](project.md) (what the product does) and [`schema.md`](schema.md) (the shape of session state); where `project.md` defines *what* and `schema.md` defines *state*, this document defines *what the user sees and does*.
+Authoritative ref for hnch UX: screen inventory, user flows, per-screen wireframes, interaction patterns, theming. Sibling of [`project.md`](project.md) (what product does) and [`schema.md`](schema.md) (session state shape); `project.md` = *what*, `schema.md` = *state*, this doc = *what user sees and does*.
 
-UX decisions that touch architectural or structural concerns are cross-linked to their governing ADR in [`adr/`](adr/README.md). Changes here that would conflict with an ADR need either an adjustment to the UX decision or a superseding ADR — see [`CLAUDE.md`](CLAUDE.md) for the convention.
+UX decisions touching architecture cross-linked to governing ADR in [`adr/`](adr/README.md). Conflicts need UX adjustment or superseding ADR — see [`CLAUDE.md`](CLAUDE.md) for convention.
 
 ## Table of contents
 
@@ -19,17 +19,17 @@ UX decisions that touch architectural or structural concerns are cross-linked to
 
 ## 1. Goals & principles
 
-**iPhone is the primary design target.** hnch is a mobile-first app targeting iPhone via Capacitor. Ionic's `mode` is left at its default — auto-detected per platform — so iPhone users get iOS-style rendering, Android and web users get Material Design, and each platform feels native to itself. Wireframes and interaction notes in this document describe the iPhone experience; where the iOS and Material defaults diverge, we flag the difference rather than overriding one.
+**iPhone is primary design target.** Mobile-first via Capacitor. Ionic `mode` left at default — auto-detected per platform — iPhone gets iOS rendering, Android/web get Material. Each platform feels native. Wireframes describe iPhone experience; iOS/Material divergences flagged, not overridden.
 
-**Session-first, not navigation-first.** Users open hnch to be in a pointing-poker session; the rest of the app is infrastructure for that. The top-level navigation pattern is a single nav stack (not tabs, not a side menu) because there is no meaningful second destination when you're mid-session. Home is a launchpad, not a parallel destination.
+**Session-first, not navigation-first.** Users open hnch to be in pointing-poker session; rest is infrastructure. Single nav stack (no tabs, no side menu) — no meaningful second destination mid-session. Home = launchpad, not parallel destination.
 
-**Defaults make the common path one-tap.** Creating a room drops you straight into the Lobby with Fibonacci scale, no access control, no timer. Every setting has a sensible default; nobody has to configure anything before starting a round. Configuration is available but never required.
+**Defaults make common path one-tap.** Create room → straight to Lobby with Fibonacci scale, no access control, no timer. Every setting has sensible default; config available but never required.
 
-**"Leaving" is reversible.** Per [ADR-0012](adr/0012-relay-snapshots-24h-in-memory.md), relay-side session snapshots live for 24 hours. A user who taps back out of a session, closes the app, or loses connectivity can rejoin without losing their seat — their `participantId` (per [ADR-0005](adr/0005-identity-device-id.md)) and vote history persist in the Yjs doc. Because of this, the back button is *navigation*, not *destruction*. Explicit "leave session" and "end session for everyone" actions live in the ⋯ menu and use destructive confirmation patterns.
+**"Leaving" is reversible.** Per [ADR-0012](adr/0012-relay-snapshots-24h-in-memory.md), relay snapshots live 24h. Back-out, app close, or connectivity loss → rejoin without losing seat — `participantId` (per [ADR-0005](adr/0005-identity-device-id.md)) and vote history persist in Yjs doc. Back button = *navigation*, not *destruction*. Explicit "leave session" / "end session for everyone" in ⋯ menu with destructive confirmation.
 
-**Accessibility, dark mode, and safe areas are baseline, not polish.** VoiceOver labels on non-text content (QR codes, card grids). Dark mode follows system preference by default with explicit override. Safe areas handled via `ion-header` / `ion-footer` (not raw layout) so content respects notches, dynamic islands, and home indicators.
+**Accessibility, dark mode, safe areas = baseline, not polish.** VoiceOver labels on non-text content (QR codes, card grids). Dark mode follows system pref by default with explicit override. Safe areas via `ion-header` / `ion-footer` — content respects notches, dynamic islands, home indicators.
 
-**Non-goals for v1.** The following are deliberately out of scope for the first shipping version: the Team concept from [ADR-0007](adr/0007-team-local-only-concept.md) (present in the architecture, no UI in v1), full session history (only a single "Jump back in" banner for the most recent backed-out session), iPad-specific or landscape-first layouts (iPhone portrait is the design target), and offline session creation (relay is assumed reachable at Create time).
+**Non-goals for v1.** Deliberately out of scope: Team concept from [ADR-0007](adr/0007-team-local-only-concept.md) (architecture present, no UI), full session history (only single "Jump back in" banner for most recent backed-out session), iPad/landscape layouts (iPhone portrait = design target), offline session creation (relay assumed reachable at Create time).
 
 ---
 
@@ -37,21 +37,21 @@ UX decisions that touch architectural or structural concerns are cross-linked to
 
 ### Platform mode
 
-Ionic's `mode` is not set explicitly — we rely on its per-platform auto-detection. That means iPhone (Capacitor WebView or mobile Safari) renders iOS-style components, Android renders Material, and desktop/PWA falls back to Material. We do not override this globally, and we avoid per-component `mode="ios"` overrides — if a component looks meaningfully worse on one platform, we fix it there rather than forcing a look on the other.
+Ionic `mode` not set explicitly — per-platform auto-detection. iPhone (Capacitor WebView / mobile Safari) → iOS components, Android → Material, desktop/PWA → Material. No global override, no per-component `mode="ios"` overrides — fix platform-specific issues there instead of forcing look on other.
 
-The rest of this document describes the iPhone-first experience in detail. Where a pattern depends on iOS specifically (large titles, swipe-to-go-back, iOS-flavored action sheets) the description notes this, and the Material equivalent is whatever Ionic renders by default.
+Rest of doc describes iPhone-first experience. Platform-specific patterns (large titles, swipe-to-go-back, iOS action sheets) noted; Material equivalent = whatever Ionic renders by default.
 
 ### Navigation pattern
 
-Single nav stack — no tabs (`ion-tabs`), no side menu (`ion-menu`). Every user-visible screen is pushed onto the Angular router stack; back navigation pops it.
+Single nav stack — no `ion-tabs`, no `ion-menu`. Every screen pushed onto Angular router stack; back nav pops.
 
-**Large titles.** On iOS, Ionic renders the screen's title as a large title at the top of the content area and collapses it into the nav bar on scroll — we use that behavior throughout, and where possible the large title replaces duplicated chrome (e.g., the room code is the Lobby's large title rather than appearing separately in the content). On Material, titles render normally in the toolbar; this is a visual difference, not a structural one.
+**Large titles.** iOS: Ionic renders large title at top of content, collapses into nav bar on scroll — used throughout. Where possible large title replaces duplicated chrome (e.g., room code = Lobby large title). Material: titles render normally in toolbar; visual difference, not structural.
 
-**Swipe-to-go-back** is enabled everywhere. On iOS this is the familiar edge-swipe gesture; on Material it's Ionic's equivalent back-gesture. Because leaving a session is reversible (snapshots live 24h; rejoin via the Jump-back-in banner on Home), an accidental swipe does not lose session state.
+**Swipe-to-go-back** enabled everywhere. iOS = edge-swipe gesture; Material = Ionic equivalent. Leaving session reversible (snapshots live 24h; rejoin via Jump-back-in banner), so accidental swipe safe.
 
 ### Nav bar pattern
 
-Every screen with a ⋯ menu follows this layout:
+Every screen with ⋯ menu:
 
 ```
 ┌─────────────────────────────────────────┐
@@ -61,21 +61,21 @@ Every screen with a ⋯ menu follows this layout:
 └─────────────────────────────────────────┘
 ```
 
-- Left: Ionic's platform-appropriate back control (chevron + previous title on iOS, arrow icon on Material), or absent on Home / Onboarding.
-- Right: `ion-icon name="ellipsis-horizontal-circle"` button that opens an `ion-action-sheet`.
-- Large title: the screen's primary heading on iOS (collapses on scroll); a regular toolbar title on Material.
+- Left: Ionic platform-appropriate back control (chevron + prev title on iOS, arrow on Material), absent on Home / Onboarding.
+- Right: `ion-icon name="ellipsis-horizontal-circle"` → `ion-action-sheet`.
+- Large title: primary heading on iOS (collapses on scroll); regular toolbar title on Material.
 
 ### Primary action placement
 
-Screens with a single primary action (Onboarding's "Continue", Lobby's "Start Round N", Join Room's "Join") use `ion-footer` containing an `ion-toolbar` with an `ion-button expand="block" color="primary"`.
+Single primary action (Onboarding Continue, Lobby Start Round, Join Room Join) → `ion-footer` with `ion-toolbar` + `ion-button expand="block" color="primary"`.
 
-Screens with two paired actions (Revealed's "Re-vote" / "Next Round") use `ion-footer` with a flex row of two `ion-button` components, the primary filled and the secondary outlined.
+Two paired actions (Revealed Re-vote / Next Round) → `ion-footer` flex row, primary filled, secondary outlined.
 
-Screens with no primary action at footer level (Estimating for joiners, Settings) leave the footer empty or omit it entirely.
+No primary action (Estimating for joiners, Settings) → empty/omitted footer.
 
 ### Destructive actions
 
-Destructive actions (Leave session, End session for everyone) live in the ⋯ action sheet with `role: 'destructive'` styling (red text on both modes; Ionic handles the per-platform rendering). Tapping a destructive menu item fires an `ion-alert` confirmation before the action commits.
+Leave session, End session for everyone → ⋯ action sheet with `role: 'destructive'` (red text both modes; Ionic handles per-platform rendering). Destructive item tap → `ion-alert` confirmation before commit.
 
 ---
 
@@ -85,30 +85,30 @@ Destructive actions (Leave session, End session for everyone) live in the ⋯ ac
 
 | Screen | Purpose | When shown |
 |--------|---------|------------|
-| **Onboarding** | Capture the user's display name on first launch | First-ever launch only; never shown again once name is set |
-| **Home** | Launchpad for Create / Join, and rejoin entry via Jump-back-in banner | Every launch after onboarding |
-| **Join Room** | Enter a room code, scan a QR, or (if password required) provide credentials | Pushed from Home's Join button, or when opened via an invite URL / QR deep link |
-| **Lobby** | Pre-round: share invite, see participants, configure session settings, start first round | Pushed after Create, after Join, or after "Jump back in" banner tap |
-| **Estimating** | Pick an estimate from the scale; see who has voted | Pushed when host taps Start Round N |
-| **Revealed** | See the grouped results; choose Re-vote or Next Round | Pushed when reveal fires (manual by host, or timer expiry) |
-| **Settings** | App-level preferences: display name, theme, about | Pushed from Home's ⋯ menu → Settings |
+| **Onboarding** | Capture display name on first launch | First-ever launch only; never shown again once name set |
+| **Home** | Launchpad for Create / Join, rejoin via Jump-back-in banner | Every launch after onboarding |
+| **Join Room** | Enter room code, scan QR, or provide password | From Home Join, or invite URL / QR deep link |
+| **Lobby** | Pre-round: share invite, see participants, configure settings, start first round | After Create, Join, or Jump-back-in tap |
+| **Estimating** | Pick estimate from scale; see who voted | When host taps Start Round N |
+| **Revealed** | See grouped results; Re-vote or Next Round | When reveal fires (manual or timer expiry) |
+| **Settings** | App prefs: display name, theme, about | From Home ⋯ → Settings |
 
 ### Overlays
 
 | Overlay | Component | Invoked from |
 |---------|-----------|--------------|
-| iOS share sheet | `Share` plugin (`@capacitor/share`) | Lobby → Share Invite button |
-| ⋯ action sheet | `ion-action-sheet` | Nav bar ⋯ button on Home / Lobby / Estimating / Revealed / Settings |
-| Session settings sheet | `ion-modal` half-sheet (breakpoints `[0, 0.6, 0.95]`) | ⋯ menu on Lobby / Estimating / Revealed → Session settings |
+| iOS share sheet | `Share` plugin (`@capacitor/share`) | Lobby → Share Invite |
+| ⋯ action sheet | `ion-action-sheet` | Nav bar ⋯ on Home / Lobby / Estimating / Revealed / Settings |
+| Session settings sheet | `ion-modal` half-sheet (breakpoints `[0, 0.6, 0.95]`) | ⋯ → Session settings on Lobby / Estimating / Revealed |
 | Scale picker | `ion-modal` half-sheet | Session settings → Scale row |
 | Timer picker | `ion-modal` half-sheet | Session settings → Timer row |
 | Access picker | `ion-modal` half-sheet | Session settings → Access row |
-| Round-start modal | `ion-modal` half-sheet | Lobby → Start Round N button (when round has optional descriptor input) |
+| Round-start modal | `ion-modal` half-sheet | Lobby → Start Round N (optional descriptor input) |
 | Display name editor | `ion-modal` half-sheet | Settings → Display name row |
 | Theme picker | `ion-modal` half-sheet | Settings → Theme row |
-| Voted-participants popover | `ion-popover` | Estimating → tap on the avatar row |
-| Leave-session confirm | `ion-alert` with destructive role | ⋯ menu → Leave session |
-| End-session-for-all confirm | `ion-alert` with destructive role | ⋯ menu → End session for everyone (host only) |
+| Voted-participants popover | `ion-popover` | Estimating → tap avatar row |
+| Leave-session confirm | `ion-alert` destructive | ⋯ → Leave session |
+| End-session-for-all confirm | `ion-alert` destructive | ⋯ → End session for everyone (host only) |
 | Toast (host changed, link copied, etc.) | `ion-toast`, `position: 'top'`, duration 2000ms | Various system events |
 
 ---
@@ -239,7 +239,7 @@ Lobby / Estimating / Revealed → ⋯ → Leave session
 
 ### 4.6 Edge-case flows
 
-**Host drops during an active session:**
+**Host drops during active session:**
 
 ```
 Host's connection is lost
@@ -260,7 +260,7 @@ Timer expires during Estimating
   → Host can tap Re-vote to try again
 ```
 
-**Invite URL to an expired or nonexistent room:**
+**Invite URL to expired/nonexistent room:**
 
 ```
 User taps URL whose room code no longer exists (snapshot TTL expired)
@@ -273,11 +273,11 @@ User taps URL whose room code no longer exists (snapshot TTL expired)
 
 ## 5. Per-screen wireframes
 
-Wireframes below are ASCII sketches — they communicate structure, hierarchy, and component choice, not pixel layout. Every wireframe assumes portrait iPhone (the primary design target) and the nav bar pattern from [§2](#2-app-shell--navigation). On Material platforms, Ionic renders the same components with its Material defaults; the structure shown here is the same, but chrome (back control, large-vs-toolbar title, action-sheet look) differs per mode.
+ASCII sketches — communicate structure/hierarchy/component choice, not pixel layout. Portrait iPhone assumed. Nav bar pattern from [§2](#2-app-shell--navigation). Material renders same components with Material defaults; structure identical, chrome differs per mode.
 
 ### 5.1 Onboarding
 
-Shown once, on first launch (or after a user clears app data). No back button; no ⋯ menu. The sole job is to capture a display name so it can be attached to the `participantId` (per [ADR-0005](adr/0005-identity-device-id.md)).
+Shown once, first launch (or after data clear). No back button; no ⋯ menu. Sole job: capture display name for `participantId` (per [ADR-0005](adr/0005-identity-device-id.md)).
 
 ```
 ┌─────────────────────────────────────────┐
@@ -304,11 +304,11 @@ Shown once, on first launch (or after a user clears app data). No back button; n
 └─────────────────────────────────────────┘
 ```
 
-Continue is disabled while the input is empty or whitespace-only. On tap: name is saved to `@capacitor/preferences`, and the app navigates either to a pending Join URL (if that's what triggered launch) or to Home.
+Continue disabled while input empty/whitespace-only. On tap: name saved to `@capacitor/preferences`, navigates to pending Join URL (if launch trigger) or Home.
 
 ### 5.2 Home
 
-Launchpad for every subsequent launch. Two primary entry points (Create, Join), plus the conditional "Jump back in" banner for the most recent backed-out session, plus ⋯ for Settings and About.
+Launchpad for every post-onboarding launch. Two primary entries (Create, Join), conditional Jump-back-in banner for most recent backed-out session, ⋯ for Settings/About.
 
 ```
 ┌─────────────────────────────────────────┐
@@ -337,12 +337,12 @@ Launchpad for every subsequent launch. Two primary entry points (Create, Join), 
 └─────────────────────────────────────────┘
 ```
 
-- Jump-back-in banner is rendered iff there's a non-expired "last backed-out session" in local state (session id, room code, screen snapshot, last-seen timestamp within 24h per [ADR-0012](adr/0012-relay-snapshots-24h-in-memory.md)). If the relay has since evicted the room, the banner shows a muted appearance and, on tap, surfaces a toast ("This room has expired") and removes itself.
-- ⋯ menu items: **Settings**, **About hnch**.
+- Jump-back-in banner rendered iff non-expired "last backed-out session" in local state (session id, room code, screen snapshot, last-seen timestamp within 24h per [ADR-0012](adr/0012-relay-snapshots-24h-in-memory.md)). If relay evicted room, banner shows muted appearance; on tap → toast ("This room has expired") + self-removes.
+- ⋯ menu: **Settings**, **About hnch**.
 
 ### 5.3 Join Room
 
-Reached from Home's Join Room button, from an invite URL deep link, or from a QR scan. The same screen serves all three entry modes — the difference is what's pre-populated.
+From Home Join button, invite URL deep link, or QR scan. Same screen for all three entry modes — difference is pre-population.
 
 ```
 ┌─────────────────────────────────────────┐
@@ -373,14 +373,14 @@ Reached from Home's Join Room button, from an invite URL deep link, or from a QR
 └─────────────────────────────────────────┘
 ```
 
-- Code input uses a monospace hint style and formats as `XXX-XXX` live; excludes look-alike characters per [ADR-0008](adr/0008-room-codes.md).
-- Scan QR opens `@capacitor-mlkit/barcode-scanning` in a modal camera view; on a successful scan the code is written into the input and the Join button becomes active.
-- Password field materializes inline only after the relay responds that the entered code maps to a password-protected room (per [ADR-0009](adr/0009-access-control.md)). For invite-token URLs the token is consumed silently with no extra input.
-- Join is disabled until the code is well-formed. On tap: connects to the relay; on success, pushes Lobby; on failure, shows an inline error (invalid, expired, wrong password).
+- Code input: monospace hint, formats `XXX-XXX` live; excludes look-alike chars per [ADR-0008](adr/0008-room-codes.md).
+- Scan QR opens `@capacitor-mlkit/barcode-scanning` modal camera; on success → code written to input, Join activates.
+- Password field materializes inline only after relay confirms code maps to password-protected room (per [ADR-0009](adr/0009-access-control.md)). Invite-token URLs consume token silently.
+- Join disabled until code well-formed. On tap: connects to relay; success → Lobby; failure → inline error (invalid, expired, wrong password).
 
 ### 5.4 Lobby
 
-The pre-round holding room. Two variants — host vs. joiner — differ in who can mutate settings and who has the Start button.
+Pre-round holding room. Two variants — host vs joiner — differ in settings mutation and Start button.
 
 **Lobby (host):**
 
@@ -442,14 +442,14 @@ The pre-round holding room. Two variants — host vs. joiner — differ in who c
 └─────────────────────────────────────────┘
 ```
 
-- Large title is the room code because it's the single most important piece of information in this screen — it's what gets read aloud in co-located meetings.
-- Subtitle summarizes session settings at a glance (scale, timer, access). Tapping the subtitle opens the Session settings sheet (also reachable via ⋯ menu → **Session settings**). This is a discoverability affordance, not a substitute for the menu entry.
-- Show QR code is a secondary invite path for co-located meetings where the inviter doesn't want to open the share sheet. It opens an `ion-modal` with a full-screen QR encoding the invite URL.
-- ⋯ menu items: **Session settings**, **Leave session** (destructive), **End session for everyone** (destructive, host only).
+- Large title = room code — most important info, read aloud in co-located meetings.
+- Subtitle summarizes settings (scale, timer, access). Tapping subtitle opens Session settings sheet (also via ⋯ → **Session settings**). Discoverability affordance, not substitute for menu.
+- Show QR = secondary invite for co-located meetings. Opens `ion-modal` with full-screen QR encoding invite URL.
+- ⋯ menu: **Session settings**, **Leave session** (destructive), **End session for everyone** (destructive, host only).
 
 ### 5.5 Estimating
 
-The core interaction screen. Every participant sees the card grid; presence of a vote is public, the value is hidden until reveal.
+Core interaction screen. Every participant sees card grid; vote presence public, value hidden until reveal.
 
 ```
 ┌─────────────────────────────────────────┐
@@ -486,16 +486,16 @@ The core interaction screen. Every participant sees the card grid; presence of a
 └─────────────────────────────────────────┘
 ```
 
-- Cards are `ion-card` tiles with large numerals. Selecting a card sets your vote (and fires `Haptics.impact({ style: 'Light' })`). The selected card shows a primary-color border and a filled background; other cards remain outlined. Tapping the selected card again deselects (ADR-0013: vote change allowed until reveal).
-- The avatar row at the top is a compact "who has voted" indicator — grey circle = connected, no vote; filled circle = voted. Tapping the row opens an `ion-popover` listing names grouped by voted / not-voted.
-- Timer display is only rendered when the session has a timer configured. Format: `M:SS` above 60 seconds, `0:SS` below. Turns subtle red in the final 30 seconds. Font is the iOS monospaced variant (`font-variant-numeric: tabular-nums`) to prevent digit jitter.
-- Only the host sees the **Reveal Votes** footer button. Joiners see an empty footer area (or no footer at all) and wait.
-- ⋯ menu items (host): **Session settings**, **Leave session**, **End session for everyone**.
-- ⋯ menu items (joiner): **Session settings** (read-only), **Leave session**.
+- Cards = `ion-card` tiles with large numerals. Selecting sets vote + fires `Haptics.impact({ style: 'Light' })`. Selected card gets primary-color border + filled background; others outlined. Re-tap deselects (ADR-0013: vote change allowed until reveal).
+- Avatar row = compact "who voted" indicator — grey circle = connected no vote; filled = voted. Tap row → `ion-popover` listing names grouped voted/not-voted.
+- Timer only rendered when session has timer. Format: `M:SS` above 60s, `0:SS` below. Subtle red in final 30s. Uses `font-variant-numeric: tabular-nums` to prevent digit jitter.
+- Only host sees **Reveal Votes** footer. Joiners see empty/no footer.
+- ⋯ menu (host): **Session settings**, **Leave session**, **End session for everyone**.
+- ⋯ menu (joiner): **Session settings** (read-only), **Leave session**.
 
 ### 5.6 Revealed
 
-Results appear all at once; the ordering is grouped by vote value descending by count, with ties broken by value ascending.
+Results appear all at once; grouped by vote value descending by count, ties broken by value ascending.
 
 ```
 ┌─────────────────────────────────────────┐
@@ -526,14 +526,14 @@ Results appear all at once; the ordering is grouped by vote value descending by 
 └─────────────────────────────────────────┘
 ```
 
-- Each group is an `ion-item-group` with the vote value as a large heading and `(N votes)` as a caption. Beneath it, the voters are rendered as an `ion-chip` row (avatar + name). This scales naturally from 2 people to 20+ without grid reflow weirdness.
-- Non-voters (timer expiry case) appear as a trailing group labeled **Didn't vote** with a muted style, so the dominant visual is still the actual vote distribution.
-- Footer buttons only render for the host. **Re-vote** reuses the descriptor and creates a new Round with `parentRoundId` set to this round (ADR-0013). **Next Round** opens the round-start modal fresh (no parent, no descriptor prefilled).
-- Joiners see no footer — they wait for the host to decide the next step.
+- Each group = `ion-item-group` with vote value as large heading + `(N votes)` caption. Voters rendered as `ion-chip` row (avatar + name). Scales naturally 2–20+ people without grid reflow.
+- Non-voters (timer expiry case) = trailing **Didn't vote** group, muted style — dominant visual stays on actual vote distribution.
+- Footer buttons host-only. **Re-vote** reuses descriptor, creates new Round with `parentRoundId` = current (ADR-0013). **Next Round** opens round-start modal fresh (no parent, no descriptor prefilled).
+- Joiners see no footer — wait for host.
 
 ### 5.7 Settings
 
-App-level preferences. Reached from Home's ⋯ menu → **Settings**. No session context; safe to navigate to mid-session because your session state persists on the relay.
+App-level prefs. From Home ⋯ → **Settings**. No session context; safe to navigate mid-session (session state persists on relay).
 
 ```
 ┌─────────────────────────────────────────┐
@@ -562,13 +562,13 @@ App-level preferences. Reached from Home's ⋯ menu → **Settings**. No session
 └─────────────────────────────────────────┘
 ```
 
-No ⋯ menu on Settings — there's nothing destructive to hide. Rows open half-sheet modals (name editor, theme picker) rather than pushing new routes; Settings is a leaf, not a hub.
+No ⋯ menu on Settings — nothing destructive. Rows open half-sheet modals (name editor, theme picker) not new routes; Settings = leaf, not hub.
 
 ### 5.8 Overlays
 
 #### Session settings (half-sheet modal)
 
-Invoked from ⋯ → **Session settings** on Lobby / Estimating / Revealed, or by tapping the settings-summary subtitle on Lobby. Host can mutate; joiners see read-only.
+From ⋯ → **Session settings** on Lobby / Estimating / Revealed, or tapping settings-summary subtitle on Lobby. Host can mutate; joiners read-only.
 
 ```
 ┌─────────────────────────────────────────┐
@@ -588,7 +588,7 @@ Invoked from ⋯ → **Session settings** on Lobby / Estimating / Revealed, or b
 └─────────────────────────────────────────┘
 ```
 
-Breakpoints `[0, 0.6, 0.95]` so the user can dismiss by dragging down, view comfortably at 60%, or expand nearly full-screen for the pickers.
+Breakpoints `[0, 0.6, 0.95]` — dismiss by drag down, comfortable view at 60%, near full-screen for pickers.
 
 #### Scale picker (half-sheet)
 
@@ -605,7 +605,7 @@ Breakpoints `[0, 0.6, 0.95]` so the user can dismiss by dragging down, view comf
 └─────────────────────────────────────────┘
 ```
 
-Selecting a radio commits immediately (no Save button) — this is the iOS picker idiom. Committed value is written to the Yjs doc, which all peers observe.
+Radio selection commits immediately (no Save button) — iOS picker idiom. Value written to Yjs doc, all peers observe.
 
 #### Timer picker (half-sheet)
 
@@ -624,7 +624,7 @@ Selecting a radio commits immediately (no Save button) — this is the iOS picke
 └─────────────────────────────────────────┘
 ```
 
-Timer is session-level and applies to every subsequent round (per our decision earlier). Changing it mid-round does not affect the running timer — the change takes effect at the next Start Round.
+Timer session-level, applies to every subsequent round. Mid-round change does not affect running timer — takes effect at next Start Round.
 
 #### Access picker (half-sheet)
 
@@ -645,11 +645,11 @@ Timer is session-level and applies to every subsequent round (per our decision e
 └─────────────────────────────────────────┘
 ```
 
-Per [ADR-0009](adr/0009-access-control.md), the relay enforces access via opaque tokens. Changing this mid-session does not evict existing participants — it only affects future joins.
+Per [ADR-0009](adr/0009-access-control.md), relay enforces access via opaque tokens. Mid-session change does not evict existing participants — only affects future joins.
 
 #### Round-start modal (half-sheet)
 
-Invoked by the host tapping **Start Round N** on Lobby, or **Next Round** on Revealed.
+Host taps **Start Round N** on Lobby, or **Next Round** on Revealed.
 
 ```
 ┌─────────────────────────────────────────┐
@@ -670,7 +670,7 @@ Invoked by the host tapping **Start Round N** on Lobby, or **Next Round** on Rev
 └─────────────────────────────────────────┘
 ```
 
-Descriptor is optional (empty is valid). Start is always enabled. On tap: writes the new round to the doc; all clients navigate to Estimating.
+Descriptor optional (empty valid). Start always enabled. On tap: writes new round to doc; all clients navigate to Estimating.
 
 #### Display name editor (half-sheet)
 
@@ -692,7 +692,7 @@ Descriptor is optional (empty is valid). Start is always enabled. On tap: writes
 └─────────────────────────────────────────┘
 ```
 
-Save is disabled when empty or whitespace-only. Change is persisted to Preferences immediately; if the user is mid-session, their awareness state updates and peers see the new name via Yjs awareness.
+Save disabled when empty/whitespace-only. Change persisted to Preferences immediately; mid-session → awareness state updates, peers see new name via Yjs awareness.
 
 #### Theme picker (half-sheet)
 
@@ -708,11 +708,11 @@ Save is disabled when empty or whitespace-only. Change is persisted to Preferenc
 └─────────────────────────────────────────┘
 ```
 
-**System** is the default and respects `prefers-color-scheme`. Explicit Light / Dark overrides the system preference app-wide.
+**System** = default, respects `prefers-color-scheme`. Light/Dark override system pref app-wide.
 
 #### ⋯ action sheet
 
-Invoked by tapping the ⋯ nav-bar button. Content varies by screen (see per-screen notes above for which items appear where). Styling follows Ionic's per-platform action-sheet defaults: destructive items in red, Cancel always present as the last item (on iOS visually separated; on Material it appears at the end of the list).
+From ⋯ nav-bar button. Content varies by screen (see per-screen notes). Ionic per-platform defaults: destructive items red, Cancel always last (iOS visually separated; Material at end of list).
 
 ```
 ┌─────────────────────────────────────────┐
@@ -738,51 +738,51 @@ Invoked by tapping the ⋯ nav-bar button. Content varies by screen (see per-scr
 
 ### Card selection and vote change
 
-Tapping an estimate card on Estimating:
+Tapping estimate card on Estimating:
 
-1. Immediate visual feedback: the card gets a primary-color border, filled background, and a subtle scale-down-then-up press animation (`transform: scale(0.95)` → `scale(1.0)` over 120ms).
+1. Immediate visual feedback: primary-color border, filled background, subtle scale-down-then-up press animation (`transform: scale(0.95)` → `scale(1.0)` over 120ms).
 2. `Haptics.impact({ style: 'Light' })` fires.
-3. The vote is written to the Yjs doc. Presence (your avatar fills in on everyone's screen) is immediate; the *value* is hidden until reveal.
-4. Tapping the same card again deselects (vote cleared). Tapping a different card replaces the vote. Both are allowed any time before reveal — see [ADR-0013](adr/0013-rounds-lineage.md).
+3. Vote written to Yjs doc. Presence (avatar fills on everyone's screen) immediate; *value* hidden until reveal.
+4. Re-tap same card = deselect (vote cleared). Tap different card = replace vote. Both allowed before reveal — see [ADR-0013](adr/0013-rounds-lineage.md).
 
 ### Reveal animation
 
-On transition to Revealed, cards enter with an 80 ms staggered fade-in-and-up (`opacity 0 → 1, translateY 8px → 0`, duration 200 ms). Groups render top-down. After the last group settles, `Haptics.notification({ type: 'Success' })` fires once, signaling "results are final."
+Transition to Revealed: cards enter with 80ms staggered fade-in-and-up (`opacity 0 → 1, translateY 8px → 0`, duration 200ms). Groups render top-down. After last group settles, `Haptics.notification({ type: 'Success' })` fires once — "results final."
 
 ### Share sheet
 
-Tapping **Share invite** calls `Share.share({ title, text, url })` from `@capacitor/share`. Content:
+**Share invite** calls `Share.share({ title, text, url })` from `@capacitor/share`:
 
 - `title`: `"Join my hnch session"`
 - `text`: `"Room code: K7P-9MR"` (or equivalent)
-- `url`: the invite URL
+- `url`: invite URL
 
-On native, this produces the iOS share sheet with AirDrop, Messages, Mail, Slack, etc. On web, it falls back to the browser's native share or (if unavailable) copies the URL to clipboard and shows a toast.
+Native → iOS share sheet (AirDrop, Messages, Mail, Slack, etc.). Web → browser native share or clipboard copy + toast fallback.
 
 ### QR scanning
 
-Tapping **Scan QR code** on Join Room opens `@capacitor-mlkit/barcode-scanning` in full-screen camera mode. On a successful scan (QR containing an hnch invite URL), the code is extracted, the scanner dismisses, and the code input auto-populates. If the scanned content is not an hnch URL, show a toast ("That doesn't look like an hnch invite") and stay in the scanner.
+**Scan QR code** on Join Room opens `@capacitor-mlkit/barcode-scanning` full-screen camera. Successful scan (QR containing hnch invite URL) → code extracted, scanner dismisses, code input auto-populates. Non-hnch content → toast ("That doesn't look like an hnch invite"), stay in scanner.
 
 ### QR display
 
-Tapping **Show QR code** on Lobby opens an `ion-modal` (not half-sheet — full-screen, dark background) with the invite URL encoded as a large QR. A "Done" button dismisses.
+**Show QR code** on Lobby → `ion-modal` (full-screen, dark background) with invite URL as large QR. "Done" dismisses.
 
 ### Half-sheet modal dismissal
 
-All half-sheets accept the three standard dismissal gestures:
-- Drag the grabber down past the lowest breakpoint.
-- Tap the scrim (region above the sheet).
-- Tap an explicit Cancel / Done button where present.
+Three standard dismissal gestures:
+- Drag grabber down past lowest breakpoint.
+- Tap scrim (region above sheet).
+- Tap explicit Cancel / Done where present.
 
-Dismissing an unsaved picker discards the change (pickers commit on radio selection, so there is no "unsaved" state — this only applies to editors with a Save button).
+Dismissing unsaved picker discards change (pickers commit on radio selection — "unsaved" state only applies to editors with Save button).
 
 ### Swipe-to-go-back
 
-Enabled globally via Ionic's default `swipeGesture`. Because leaving a session is reversible ([§1](#1-goals--principles)), accidental swipes on Lobby / Estimating / Revealed do not destroy session state — the user can tap the Jump-back-in banner on Home to return.
+Enabled globally via Ionic default `swipeGesture`. Leaving session reversible ([§1](#1-goals--principles)), accidental swipes safe — Jump-back-in banner on Home to return.
 
 ### Destructive confirmation
 
-Any destructive action (Leave session, End session for everyone) is confirmed via `ion-alert` before committing. Alert structure:
+Destructive actions confirmed via `ion-alert` before committing:
 
 ```
 Title:   "Leave this session?"
@@ -790,16 +790,16 @@ Message: "You'll need the code to rejoin."
 Buttons: [Cancel]   [Leave]   (Leave role: destructive)
 ```
 
-For **End session for everyone**: the destructive button is **End session** and the message calls out that "all participants will be disconnected." No "don't ask again" option — destructive actions should be intentional every time.
+**End session for everyone**: destructive button = **End session**, message: "all participants will be disconnected." No "don't ask again" — destructive actions intentional every time.
 
 ### Toast patterns
 
-`ion-toast` is used for transient system messages. Conventions:
+`ion-toast` for transient system messages:
 
-- Position: `top` (so it doesn't clash with the footer primary-action area).
-- Duration: 2000 ms for informational, 4000 ms for errors.
-- No close button on short toasts; a close icon for the 4000 ms error variant.
-- Non-blocking — toasts never prevent user action.
+- Position: `top` (no clash with footer primary-action area).
+- Duration: 2000ms informational, 4000ms errors.
+- No close button on short toasts; close icon for 4000ms error variant.
+- Non-blocking — never prevents user action.
 
 Common toasts: host handoff ("Alice is now hosting"), link copied ("Invite link copied"), room expired ("This room has expired or no longer exists"), scan failure ("That doesn't look like an hnch invite").
 
@@ -811,11 +811,11 @@ Common toasts: host handoff ("Alice is now hosting"), link copied ("Invite link 
 | Host taps Reveal Votes | `impact`, `Medium` |
 | Reveal animation completes | `notification`, `Success` |
 | Destructive confirm (Leave / End) | `impact`, `Heavy` on confirm tap |
-| Timer reaches the final 10 seconds | `impact`, `Light` once, at t-10s |
+| Timer reaches final 10 seconds | `impact`, `Light` once, at t-10s |
 | Timer expires | `notification`, `Warning` |
 | Host handoff toast | `notification`, `Warning` |
 
-Haptics fire via `@capacitor/haptics` on native; on web they are no-ops (the API is a safe stub).
+Haptics fire via `@capacitor/haptics` on native; web = no-ops (safe stub).
 
 ---
 
@@ -823,66 +823,66 @@ Haptics fire via `@capacitor/haptics` on native; on web they are no-ops (the API
 
 ### Platform mode
 
-Ionic's `mode` is left at its default and auto-detected per platform: iOS on iPhone (Capacitor WebView or mobile Safari), Material on Android and desktop/PWA. We do not force a single mode globally, and we avoid per-component `mode="ios"` overrides. The goal is a design that feels native on each platform rather than identical across all of them. See [§2](#2-app-shell--navigation) for the context.
+Ionic `mode` left at default, auto-detected per platform: iOS on iPhone (Capacitor WebView / mobile Safari), Material on Android/desktop/PWA. No single mode forced globally, no per-component `mode="ios"` overrides. Goal: feels native on each platform, not identical across all. See [§2](#2-app-shell--navigation).
 
 ### Palette (v1 placeholder)
 
-Until brand direction is set, v1 uses Ionic's default palette on each platform, untouched. Primary action color is Ionic's default `--ion-color-primary`; destructive actions use the default danger red via the `role: 'destructive'` property on action-sheet items and button `color="danger"` in alerts.
+Until brand direction set, v1 uses Ionic default palette per platform, untouched. Primary action = `--ion-color-primary`; destructive = default danger red via `role: 'destructive'` and `color="danger"`.
 
-A palette revision (custom brand blue, accent, card grid colors) is a future pass and should be driven by a small style-guide doc once brand direction exists. Palette changes are *not* architectural and do not require an ADR.
+Palette revision (custom brand blue, accent, card grid colors) = future pass driven by style-guide doc once brand direction exists. Not architectural, no ADR needed.
 
 ### Dark mode
 
-Dark mode follows `prefers-color-scheme` by default, via Ionic's `.ion-palette-dark` class toggled at the `<html>` level. The Settings → Theme picker provides explicit **System / Light / Dark** overrides; the chosen value is persisted in Preferences and applied at app boot before the first paint.
+Follows `prefers-color-scheme` by default via Ionic `.ion-palette-dark` class on `<html>`. Settings → Theme picker provides **System / Light / Dark** overrides; persisted in Preferences, applied at boot before first paint.
 
 ### Typography
 
-We rely on Ionic's per-platform font stack — iOS uses the Apple system fonts (`-apple-system, BlinkMacSystemFont, ...`), Material uses Roboto or the platform system font — and do not ship a custom font in v1. Matching the OS on each platform is the point. Numerals in the timer display and on estimate cards use `font-variant-numeric: tabular-nums` to prevent layout jitter during countdowns and reveal.
+Ionic per-platform font stack — iOS uses Apple system fonts (`-apple-system, BlinkMacSystemFont, ...`), Material uses Roboto/platform system font. No custom font in v1. Matching OS = the point. Timer display and estimate cards use `font-variant-numeric: tabular-nums` to prevent layout jitter.
 
 ### Safe areas
 
-All screens are built with `ion-header` and `ion-footer` rather than raw CSS — Ionic handles safe-area insets for notches, dynamic islands, and home indicators automatically. Custom content (the card grid, the participant list) goes inside `ion-content`, which also respects insets.
+All screens built with `ion-header` / `ion-footer` — Ionic handles safe-area insets for notches, dynamic islands, home indicators automatically. Custom content (card grid, participant list) inside `ion-content`, which also respects insets.
 
 ### Liquid Glass / iOS 26 theming (deferred)
 
-The community package `@rdlabo/ionic-theme-ios26` provides iOS 26-style Liquid Glass theming that layers on top of Ionic's iOS rendering. We are *not* adopting it in v1 — our floor is "looks good and platform-native on each supported OS." Revisit for v1.1+ once the package stabilizes and our minimum-supported iOS version is settled; any adoption would be iOS-only and would not affect Material rendering.
+`@rdlabo/ionic-theme-ios26` provides iOS 26 Liquid Glass theming. Not adopting in v1 — floor = "looks good and platform-native." Revisit v1.1+ once package stabilizes and minimum iOS version settled; adoption iOS-only, no Material impact.
 
 ### Accessibility baseline
 
 - All non-text interactive elements (QR button, estimate cards, avatars, ⋯ button) have explicit `aria-label` / `alt` text.
-- Touch targets are ≥ 44×44 pt per Apple HIG. Estimate cards in the 3-column grid are sized so that even on the smallest supported iPhone the tap target clears this.
-- Focus indicators use Ionic's default iOS focus rings — we do not suppress them.
-- Motion preferences are respected: the reveal stagger and card press animations honor `prefers-reduced-motion` by collapsing to instant transitions.
-- Dynamic Type scales text within reason; the card numerals are intentionally capped so they stay readable in the grid.
+- Touch targets ≥ 44×44 pt per Apple HIG. Estimate cards in 3-col grid sized so smallest supported iPhone clears this.
+- Focus indicators use Ionic default iOS focus rings — not suppressed.
+- Motion: reveal stagger and card press animations honor `prefers-reduced-motion` by collapsing to instant transitions.
+- Dynamic Type scales text within reason; card numerals intentionally capped for grid readability.
 
 ---
 
 ## 8. Open UX questions
 
-These are acknowledged gaps and deferred decisions. They are not blocking v1 implementation but should be answered (or explicitly re-deferred) before the corresponding feature is built.
+Acknowledged gaps and deferred decisions. Not blocking v1 but should be answered (or re-deferred) before corresponding feature built.
 
-**Consensus indicator on Revealed.** When all votes match, should we surface a celebratory state (checkmark, "Consensus!" banner, distinct haptic)? Deferred — we'll see real usage first before adding ornament.
+**Consensus indicator on Revealed.** All votes match → celebratory state (checkmark, "Consensus!" banner, distinct haptic)? Deferred — see real usage first before adding ornament.
 
-**Re-vote breadcrumb.** On a re-voted round, the Revealed screen currently doesn't surface that this is the second (or third) attempt on a story. `parentRoundId` is in the doc — we could show "Round 2 • re-vote of Round 1" or similar. Deferred; resolve when we design the optional session-history view (post-v1).
+**Re-vote breadcrumb.** On re-voted round, Revealed doesn't surface attempt count. `parentRoundId` in doc — could show "Round 2 • re-vote of Round 1." Deferred; resolve when designing optional session-history view (post-v1).
 
-**Reconnecting banner.** During a momentary disconnect, we should probably show a non-blocking banner ("Reconnecting…") above content. Not yet designed — tracks with how we wire y-websocket's reconnection events.
+**Reconnecting banner.** During momentary disconnect, show non-blocking "Reconnecting…" banner above content? Not yet designed — tracks with y-websocket reconnection events wiring.
 
-**Host-election transition state.** During the 5-second debounce ([ADR-0010](adr/0010-host-election.md)) after a host drop, joiners briefly have no host. Do we show a status line ("Waiting for a new host…"), or is the 5-second gap short enough to skip the UI? Resolve during implementation.
+**Host-election transition state.** During 5-second debounce ([ADR-0010](adr/0010-host-election.md)) after host drop, joiners have no host. Show status line ("Waiting for a new host…") or is 5s gap short enough to skip UI? Resolve during implementation.
 
-**Expired-room error screen.** A dedicated screen vs. a toast vs. an inline error on Join Room — we've picked toast + return to Home, but a full screen may be warranted if the URL-deep-link path feels jarring. Revisit after first testing on real devices.
+**Expired-room error screen.** Dedicated screen vs toast vs inline error on Join Room — currently picked toast + return to Home, but full screen may be warranted if URL deep-link path feels jarring. Revisit after real-device testing.
 
-**Timer display at low durations.** Current format is `M:SS` above 60s, `0:SS` below. Do we switch to a large center-screen countdown in the final 10 seconds, or keep it inline? Current thinking: keep inline, add a haptic at t-10s.
+**Timer display at low durations.** `M:SS` above 60s, `0:SS` below. Switch to large center-screen countdown in final 10s, or keep inline? Current thinking: keep inline, add haptic at t-10s.
 
-**Invite URL shape with credentials.** For password-protected rooms, does the invite URL embed a hint that a password is required (so the Join Room screen can skip the round-trip and show the field immediately)? TBD — decision interacts with [ADR-0009](adr/0009-access-control.md)'s opaque-token model.
+**Invite URL shape with credentials.** For password-protected rooms, does invite URL embed hint that password required (skip round-trip, show field immediately)? TBD — interacts with [ADR-0009](adr/0009-access-control.md) opaque-token model.
 
-**Liquid Glass adoption timeline.** When (if ever) we adopt `@rdlabo/ionic-theme-ios26`. See [§7](#7-theming).
+**Liquid Glass adoption timeline.** When (if ever) adopt `@rdlabo/ionic-theme-ios26`. See [§7](#7-theming).
 
-**Round-times-out-with-nobody-voted.** Currently handled as "Revealed with only a Didn't-vote group." Is that the right UX, or should we skip reveal and offer a direct re-start? Revisit with real usage.
+**Round-times-out-with-nobody-voted.** Currently = "Revealed with only Didn't-vote group." Right UX, or skip reveal and offer direct re-start? Revisit with real usage.
 
 **Schema implications of this document (resolved).**
 
-The UX decisions in this document narrowed the v1 schema relative to what earlier ADRs left open. The narrowing is now formalized in [ADR-0015](adr/0015-v1-scope-session-level-reveal-and-timer.md) and reflected in [`schema.md`](schema.md):
+UX decisions narrowed v1 schema relative to earlier ADRs. Narrowing formalized in [ADR-0015](adr/0015-v1-scope-session-level-reveal-and-timer.md) and reflected in [`schema.md`](schema.md):
 
-1. **Timer is session-level, not per-round.** `timerDurationMs` lives on `settings`, not on rounds. ADR-0011's Context line has been minor-corrected; its authority mechanism is unchanged.
-2. **Reveal modes are `manual | timer` only.** The `'unanimous'` variant has been removed from the schema.
-3. **Rounds have an optional descriptor.** `description?: string` was already in `schema.md` — no change needed.
+1. **Timer session-level, not per-round.** `timerDurationMs` on `settings`, not rounds. ADR-0011 Context minor-corrected; authority mechanism unchanged.
+2. **Reveal modes `manual | timer` only.** `'unanimous'` variant removed from schema.
+3. **Rounds have optional descriptor.** `description?: string` already in `schema.md` — no change needed.
