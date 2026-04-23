@@ -105,11 +105,13 @@ const THEME_LABELS: Record<Theme, string> = {
           <ion-label>Version</ion-label>
           <ion-note slot="end">{{ version }}</ion-note>
         </ion-item>
-        <ion-item>
+        <ion-item disabled>
           <ion-label>Open source licenses</ion-label>
+          <ion-note slot="end">Coming soon</ion-note>
         </ion-item>
-        <ion-item>
+        <ion-item disabled>
           <ion-label>Privacy</ion-label>
+          <ion-note slot="end">Coming soon</ion-note>
         </ion-item>
       </ion-list>
 

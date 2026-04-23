@@ -25,6 +25,7 @@ import {
   IonList,
   IonListHeader,
   IonModal,
+  IonNote,
   IonTitle,
   IonToolbar,
   ToastController,
@@ -89,6 +90,7 @@ import { QrDisplaySheetComponent } from './qr-display.sheet'
     IonList,
     IonListHeader,
     IonModal,
+    IonNote,
     IonTitle,
     IonToolbar,
     QrDisplaySheetComponent,
@@ -175,6 +177,9 @@ import { QrDisplaySheetComponent } from './qr-display.sheet'
                 ></ion-icon>
               }
             </ion-label>
+            @if (!onlineIds().has(p.id)) {
+              <ion-note slot="end">Offline</ion-note>
+            }
           </ion-item>
         }
       </ion-list>
@@ -271,8 +276,8 @@ import { QrDisplaySheetComponent } from './qr-display.sheet'
         font-size: 2rem;
         color: var(--ion-color-medium);
       }
-      ion-item.offline {
-        opacity: 0.5;
+      ion-item.offline ion-label {
+        color: var(--ion-color-medium);
       }
       .host-icon {
         font-size: 1rem;
