@@ -15,6 +15,7 @@ Read the plan file above. Identify:
 ### Step 2: Read agent definitions
 
 Read only the agent files you need:
+- `.claude/agents/shared.md` — if plan touches `packages/shared`
 - `.claude/agents/mobile.md` — if plan touches `packages/client` or `packages/e2e`
 - `.claude/agents/cli.md` — if plan touches `packages/cli`
 - `.claude/agents/reviewer.md` — always (review is mandatory)
