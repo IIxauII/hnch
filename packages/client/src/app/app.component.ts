@@ -81,13 +81,13 @@ export class AppComponent {
     const myId = this.participantIdService.id()
     let message: string
     if (newHostId === myId) {
-      message = 'You are now hosting'
+      message = 'You are now the host'
     } else {
       const participant = this.docService
         .participants()
         .find((p) => p.id === newHostId)
       const name = participant?.displayName ?? newHostId
-      message = `${name} is now hosting`
+      message = `${name} is now the host`
     }
     this.haptic.notificationWarning()
     const toast = await this.toastCtrl.create({
