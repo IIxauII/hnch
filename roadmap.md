@@ -43,7 +43,7 @@ Concrete implication: Phase 1 starts with real work on three fronts (client boot
 | Phase | Name | Exit bar |
 |---|---|---|
 | 1 | Foundation | Launch app → onboard (first-run only) → land on Home. Routing scaffolded, dark mode respected, Ionic left at its default platform auto-detect. No sync, no real session state yet. |
-| 2 | Local session loop | One client plays through a full session locally: Home → Lobby → Estimating → Revealed → re-vote → next round. Manual reveal only, no relay, no timer. |
+| 2 | Local session loop | One client plays through a full session locally: Home → Lobby → Estimating → (reveal in Lobby) → re-vote → next round. Manual reveal only, no relay, no timer. |
 | 3 | Relay + multi-client sync | Two or more clients create / join / play a session together in real time via a running relay. Manual code-entry join path only. |
 | 4 | Timer + host election | Timer-based rounds work reliably. Host drops are handled with a 5-second debounce + lowest-peer-ID election. |
 | 5 | Access control + join paths | Password-protected rooms work. Share sheet, QR display, QR scan, and `/join?code=` deep links all resolve to Join. Universal links deferred to Phase 6. |
@@ -85,7 +85,7 @@ Each phase assumes the previous one passes its exit bar. Within a phase, orderin
 - Session Settings half-sheet ([`ux.md` §5.8](ux.md#58-overlays)): scale picker, timer picker, access picker. Timer and Access have no runtime effect yet — just write to `settings`.
 - Round-start modal: captures optional descriptor, writes a new Round.
 - Estimating screen: 3-column card grid, vote cast + change, avatar row (just you, trivially), host-only Reveal button.
-- Revealed screen: grouped-by-vote-value list. Re-vote (creates Round with `parentRoundId`) and Next Round both work.
+- Lobby post-reveal: results shown inline (grouped by vote value, voter chips, stats). Re-vote (creates Round with `parentRoundId`) and Next Round both work.
 - Reveal is **manual only** this phase. Timer UI may render but must not auto-reveal.
 - Back-navigation leaves the Lobby, returns to Home. The Jump-back-in banner still isn't wired (it needs persistence / relay state that arrives in Phase 3).
 
@@ -271,5 +271,5 @@ These are *not* in this roadmap and will be called out if they drift in:
 - Integrations with trackers (Jira, Linear, etc.).
 - Account sign-in or cross-device identity.
 - Export formats beyond a future clipboard markdown dump ([ADR-0013](adr/0013-round-model-flat-parentroundid.md) action item, not v1).
-- Consensus indicator on Revealed ([`ux.md` §8](ux.md#8-open-ux-questions)).
+- Consensus indicator in Lobby results ([`ux.md` §8](ux.md#8-open-ux-questions)).
 - Liquid Glass / iOS 26 theme ([`ux.md` §7](ux.md#7-theming)).

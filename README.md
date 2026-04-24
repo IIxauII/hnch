@@ -6,7 +6,7 @@ Team members pick an estimate independently; all choices reveal simultaneously t
 
 ## Status
 
-Greenfield. Architectural decisions are resolved (see [`adr/`](adr/README.md)); repo scaffolding is in place; feature implementation has not yet begun.
+Implementation through Phase 6a (PWA polish). Phases 1–4 shipped scaffold, sync, relay, and timer/host election. Phase 5 added access control and join paths. Phase 6a added settings, theming, animations, haptics, and accessibility. Next: Phase 6b (native iOS build). See [`roadmap.md`](roadmap.md) for the phased plan.
 
 ## Design docs
 

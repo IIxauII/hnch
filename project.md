@@ -186,4 +186,4 @@ Mobile-first design. Desktop adapts up. Target platforms: web browser, iOS, Andr
 
 ## Status
 
-Tech stack decided. Core design questions resolved (see `open-questions.md`). Next: Yjs document schema, screen inventory, and validation spikes.
+Implementation through Phase 6a (PWA polish). Phases 1–4 shipped the scaffold, Yjs doc/CRDT layer, relay sync, multi-client sessions, timer-driven reveal, and host election. Phase 5 added password-protected rooms, share/QR/deep-link join paths, and a Playwright e2e suite. Phase 6a added settings screen, theme picker, reveal animation, haptic wiring, and an accessibility pass. Next: Phase 6b (native iOS build).
