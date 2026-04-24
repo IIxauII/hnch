@@ -40,9 +40,9 @@ export function PresetEditor({
       setCursor((c) => Math.max(0, c - 1))
     } else if (key.rightArrow) {
       setCursor((c) => Math.min(cards.length - 1, c + 1))
-    } else if (key.return || (input === ' ')) {
+    } else if (input === ' ') {
       toggleCard(cursor)
-    } else if (key.escape) {
+    } else if (key.return || key.escape) {
       onClose()
     }
   })
@@ -67,7 +67,7 @@ export function PresetEditor({
           )
         })}
       </Box>
-      <Text dimColor>  ←→ navigate  ⏎ space toggle  esc done</Text>
+      <Text dimColor>  ←→ navigate  space toggle  ⏎/esc done</Text>
     </Box>
   )
 }

@@ -67,14 +67,15 @@ export function ScalePicker({
           }
 
           const isBuiltin = scale.id in BUILTIN_SCALES
-          const isExpanded = expandedId === scale.id
 
-          if (isBuiltin && !isExpanded) {
-            setExpandedId(scale.id)
-          } else if (isExpanded) {
-            onSelect(scale.id)
-            setExpandedId(null)
+          if (isBuiltin) {
+            setExpandedId(expandedId === scale.id ? null : scale.id)
           } else {
+            onSelect(scale.id)
+          }
+        } else if (input === ' ') {
+          const scale = displayScales[cursor]
+          if (scale && scale.id !== '__create-custom__') {
             onSelect(scale.id)
           }
         } else if (input === 'e' || input === 'E') {
@@ -103,7 +104,7 @@ export function ScalePicker({
         }
       }
     },
-    { isActive: state === 'browsing' || state === 'confirming-delete' },
+    { isActive: (state === 'browsing' && expandedId === null) || state === 'confirming-delete' },
   )
 
   if (state === 'creating') {
@@ -216,9 +217,16 @@ export function ScalePicker({
         })}
       </Box>
       <Text dimColor>
-        {cursor < displayScales.length && displayScales[cursor]?.id.startsWith('custom-')
-          ? `↑↓ select  ⏎ expand${onCustomScaleEdit ? '  [e] edit' : ''}${onCustomScaleDelete ? '  [d] delete' : ''}  esc back`
-          : '↑↓ select  ⏎ expand/select  esc back'}
+        {(() => {
+          const scale = cursor < displayScales.length ? displayScales[cursor] : null
+          if (scale?.id.startsWith('custom-')) {
+            return `↑↓ navigate  space select${onCustomScaleEdit ? '  [e] edit' : ''}${onCustomScaleDelete ? '  [d] delete' : ''}  esc back`
+          }
+          if (scale && scale.id in BUILTIN_SCALES) {
+            return '↑↓ navigate  ⏎ customize  space select  esc back'
+          }
+          return '↑↓ navigate  ⏎/space select  esc back'
+        })()}
       </Text>
     </Box>
   )
