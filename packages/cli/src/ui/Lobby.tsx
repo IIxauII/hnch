@@ -26,6 +26,7 @@ interface Props {
   onChangeAccess: (mode: 'open' | 'password', password?: string) => Promise<void>
   displayName: string
   accessMode: 'open' | 'password'
+  confirmingQuit: boolean
 }
 
 function computeStats(votes: Record<string, string>): {
@@ -114,6 +115,7 @@ export function Lobby({
   onChangeAccess,
   displayName,
   accessMode,
+  confirmingQuit,
 }: Props): React.ReactElement {
   useInput(
     (input) => {
@@ -126,7 +128,7 @@ export function Lobby({
         }
       }
     },
-    { isActive: !settingsOpen },
+    { isActive: !settingsOpen && !confirmingQuit },
   )
 
   const hasRounds = rounds.length > 0
