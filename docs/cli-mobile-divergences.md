@@ -7,7 +7,6 @@ Updated 2026-04-24. Compares `packages/cli` and `packages/client` for functional
 | Feature | Detail |
 |---------|--------|
 | Session resume | Mobile caches last session (room UUID, code, credentials) in Capacitor Preferences, offers "Jump back in" banner on Home if <24h old. CLI has `hnch resume` but no automatic prompt. |
-| Host change notification | Neither platform notifies — listed under "both missing" below. |
 
 ## Mobile missing (CLI has)
 
@@ -24,7 +23,6 @@ Updated 2026-04-24. Compares `packages/cli` and `packages/client` for functional
 
 | Feature | Detail |
 |---------|--------|
-| Host change notification | When host drops and election runs, neither platform notifies participants of the new host. |
 | Manual host handoff | No mechanism for host to explicitly pass host role to another participant. |
 
 ## Platform-appropriate differences (not gaps)

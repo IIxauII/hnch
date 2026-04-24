@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { Box, Text, useInput } from 'ink'
 import { ParticipantList } from './components/ParticipantList.js'
 import { LobbySettings } from './components/LobbySettings.js'
@@ -24,6 +24,7 @@ interface Props {
   onChangeScale: (scale: Scale) => void
   onChangeDisplayName: (name: string) => void
   onChangeAccess: (mode: 'open' | 'password', password?: string) => Promise<void>
+  onHandoffHost: (targetId: string) => void
   displayName: string
   accessMode: 'open' | 'password'
   confirmingQuit: boolean
@@ -113,22 +114,72 @@ export function Lobby({
   onChangeScale,
   onChangeDisplayName,
   onChangeAccess,
+  onHandoffHost,
   displayName,
   accessMode,
   confirmingQuit,
 }: Props): React.ReactElement {
+  const [handoffMode, setHandoffMode] = React.useState<'idle' | 'picking' | 'confirming'>('idle')
+  const [handoffTargetId, setHandoffTargetId] = React.useState<string | null>(null)
+
+  // Reset handoff state when host role lost
+  useEffect(() => {
+    if (!isHost) {
+      setHandoffMode('idle')
+      setHandoffTargetId(null)
+    }
+  }, [isHost])
+
   useInput(
     (input) => {
       if (isHost) {
         if (input === 'e' || input === 'E') onOpenSettings()
         if (input === 's' || input === 'S') onStartRound()
+        if (input === 'h' || input === 'H') setHandoffMode('picking')
         if (currentRound?.revealedAt !== undefined) {
           if (input === 'n' || input === 'N') onNewRound()
           if (input === 'v' || input === 'V') onRevote()
         }
       }
     },
-    { isActive: !settingsOpen && !confirmingQuit },
+    { isActive: !settingsOpen && !confirmingQuit && handoffMode === 'idle' },
+  )
+
+  // Handoff picking mode: number selection from online participants (excluding self)
+  const otherOnlineParticipants = projection.participants.filter(
+    (p) => p.id !== participantId && onlineIds.has(p.id),
+  )
+
+  useInput(
+    (input) => {
+      if (handoffMode === 'picking') {
+        const num = parseInt(input, 10)
+        if (!isNaN(num) && num >= 1 && num <= otherOnlineParticipants.length) {
+          setHandoffTargetId(otherOnlineParticipants[num - 1]!.id)
+          setHandoffMode('confirming')
+        } else if (input === 'Escape' || input === 'q' || input === 'Q') {
+          setHandoffMode('idle')
+        }
+      }
+    },
+    { isActive: handoffMode === 'picking' },
+  )
+
+  // Handoff confirmation: y/n
+  useInput(
+    (input) => {
+      if (handoffMode === 'confirming' && handoffTargetId) {
+        if (input === 'y' || input === 'Y') {
+          onHandoffHost(handoffTargetId)
+          setHandoffMode('idle')
+          setHandoffTargetId(null)
+        } else if (input === 'n' || input === 'N' || input === 'Escape') {
+          setHandoffMode('idle')
+          setHandoffTargetId(null)
+        }
+      }
+    },
+    { isActive: handoffMode === 'confirming' },
   )
 
   const hasRounds = rounds.length > 0
@@ -190,27 +241,58 @@ export function Lobby({
         </Box>
       )}
 
-      <Box gap={2}>
-        {isHost ? (
-          <>
-            {currentRound?.revealedAt !== undefined ? (
-              <>
-                <Text color="yellow">[v] Re-vote</Text>
-                <Text color="yellow">[n] Next round</Text>
-                <Text color="yellow">[e] Settings</Text>
-              </>
-            ) : (
-              <>
-                <Text color="yellow">[s] Start round</Text>
-                <Text color="yellow">[e] Settings</Text>
-              </>
-            )}
-          </>
-        ) : (
-          <Text dimColor>Waiting for host to start a round...</Text>
-        )}
-        <Text>[q] Quit</Text>
-      </Box>
+      {handoffMode === 'picking' && otherOnlineParticipants.length > 0 && (
+        <Box flexDirection="column" gap={1}>
+          <Text>Hand off to:</Text>
+          {otherOnlineParticipants.map((p, idx) => (
+            <Text key={p.id}>
+              [{idx + 1}] {p.displayName}
+            </Text>
+          ))}
+          <Text dimColor>[q] Cancel</Text>
+        </Box>
+      )}
+
+      {handoffMode === 'picking' && otherOnlineParticipants.length === 0 && (
+        <Box flexDirection="column" gap={1}>
+          <Text dimColor>No other online participants</Text>
+          <Text dimColor>[q] Cancel</Text>
+        </Box>
+      )}
+
+      {handoffMode === 'confirming' && handoffTargetId && (
+        <Box flexDirection="column">
+          <Text>
+            Hand off to {projection.participants.find((p) => p.id === handoffTargetId)?.displayName}? [y/n]
+          </Text>
+        </Box>
+      )}
+
+      {handoffMode === 'idle' && (
+        <Box gap={2}>
+          {isHost ? (
+            <>
+              {currentRound?.revealedAt !== undefined ? (
+                <>
+                  <Text color="yellow">[v] Re-vote</Text>
+                  <Text color="yellow">[n] Next round</Text>
+                  <Text color="yellow">[h] Hand off</Text>
+                  <Text color="yellow">[e] Settings</Text>
+                </>
+              ) : (
+                <>
+                  <Text color="yellow">[s] Start round</Text>
+                  <Text color="yellow">[h] Hand off</Text>
+                  <Text color="yellow">[e] Settings</Text>
+                </>
+              )}
+            </>
+          ) : (
+            <Text dimColor>Waiting for host to start a round...</Text>
+          )}
+          <Text>[q] Quit</Text>
+        </Box>
+      )}
     </Box>
   )
 }

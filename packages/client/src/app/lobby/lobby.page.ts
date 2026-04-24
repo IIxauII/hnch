@@ -172,7 +172,18 @@ import { QrDisplaySheetComponent } from './qr-display.sheet'
           <ion-label>Participants ({{ participants().length }})</ion-label>
         </ion-list-header>
         @for (p of participants(); track p.id) {
-          <ion-item [class.offline]="!onlineIds().has(p.id)">
+          <ion-item
+            [class.offline]="!onlineIds().has(p.id)"
+            [button]="isHost() && onlineIds().has(p.id) && p.id !== myId()"
+            [attr.aria-label]="
+              p.id === myId()
+                ? 'You (' + p.displayName + ')'
+                : isHost() && onlineIds().has(p.id) && p.id !== myId()
+                  ? 'Make ' + p.displayName + ' the host'
+                  : p.displayName
+            "
+            (click)="canHandoffTo(p.id) && onHandoffTap(p.id, p.displayName)"
+          >
             <ion-avatar slot="start" aria-hidden="true">
               <ion-icon name="person-circle-outline"></ion-icon>
             </ion-avatar>
@@ -393,6 +404,16 @@ export class LobbyPage {
   protected readonly hostId = computed(
     () => this.docService.settings()?.hostParticipantId ?? null,
   )
+
+  /**
+   * Determine if a participant can receive a handoff. True when current
+   * user is host, target is online, and target is not self.
+   */
+  protected canHandoffTo(participantId: string): boolean {
+    if (!this.isHost()) return false
+    if (participantId === this.myId()) return false
+    return this.onlineIds().has(participantId)
+  }
 
   protected readonly isHost = computed(() => {
     const hostId = this.hostId()
@@ -661,6 +682,28 @@ export class LobbyPage {
       position: 'bottom',
     })
     await t.present()
+  }
+
+  /**
+   * Handoff tap handler. Shows confirmation dialog, and on confirm calls
+   * updateSettings to transfer host to the target participant.
+   */
+  protected async onHandoffTap(participantId: string, displayName: string): Promise<void> {
+    const alert = await this.alertCtrl.create({
+      header: 'Make host?',
+      message: `Make ${displayName} the host?`,
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        {
+          text: 'Confirm',
+          handler: () => {
+            this.haptic.impactMedium()
+            this.docService.updateSettings({ hostParticipantId: participantId })
+          },
+        },
+      ],
+    })
+    await alert.present()
   }
 }
 
