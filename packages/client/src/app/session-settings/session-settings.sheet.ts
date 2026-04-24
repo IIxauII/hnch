@@ -15,6 +15,7 @@ import {
   IonContent,
   IonHeader,
   IonIcon,
+  IonInput,
   IonItem,
   IonLabel,
   IonList,
@@ -28,6 +29,7 @@ import { addIcons } from 'ionicons'
 import { chevronForwardOutline } from 'ionicons/icons'
 
 import { environment } from '../../environments/environment'
+import { AppPreferenceService } from '../core/app-preference.service'
 import { DocService } from '../core/doc/doc.service'
 import { patchRoomAccess } from '../core/relay/relay-api'
 import {
@@ -56,6 +58,7 @@ import { formatScaleId } from '@hnch/shared'
     IonContent,
     IonHeader,
     IonIcon,
+    IonInput,
     IonItem,
     IonLabel,
     IonList,
@@ -77,6 +80,19 @@ import { formatScaleId } from '@hnch/shared'
     </ion-header>
     <ion-content class="ion-padding-top">
       <ion-list lines="inset">
+        <ion-item [disabled]="!isHost()">
+          <ion-label position="floating">Session name</ion-label>
+          <ion-input
+            #sessionNameInput
+            type="text"
+            placeholder="Session name"
+            [value]="settings()?.name"
+            [disabled]="!isHost()"
+            (ionBlur)="onSessionNameBlur()"
+            clearInput
+            aria-label="Session name"
+          ></ion-input>
+        </ion-item>
         <ion-item button (click)="openScalePicker()">
           <ion-label>
             <h3>Scale</h3>
@@ -146,10 +162,11 @@ import { formatScaleId } from '@hnch/shared'
   ],
 })
 export class SessionSettingsSheetComponent {
+  private readonly appPrefs = inject(AppPreferenceService)
   private readonly docService = inject(DocService)
   private readonly toastCtrl = inject(ToastController)
 
-  private readonly settings = this.docService.settings
+  protected readonly settings = this.docService.settings
 
   /**
    * Fires when the user taps Done. The Lobby owns the outer sheet's
@@ -165,6 +182,12 @@ export class SessionSettingsSheetComponent {
   readonly accessMode = input<AccessMode>('open')
   readonly accessPassword = input<string>('')
   readonly accessChanged = output<AccessSelection>()
+
+  /**
+   * Host state — controls whether room name input is editable.
+   * Only the host can edit session name.
+   */
+  readonly isHost = input<boolean>(false)
 
   /** Inner picker visibility flags. */
   protected readonly scaleOpen = signal(false)
@@ -185,6 +208,7 @@ export class SessionSettingsSheetComponent {
     formatAccessLabel(this.accessMode()),
   )
 
+  private readonly sessionNameInput = viewChild<IonInput>('sessionNameInput')
   private readonly scaleModalRef = viewChild<IonModal>('scaleModal')
   private readonly accessModalRef = viewChild<IonModal>('accessModal')
 
@@ -197,6 +221,13 @@ export class SessionSettingsSheetComponent {
   // ---------------------------------------------------------------------------
   // Row handlers
   // ---------------------------------------------------------------------------
+
+  protected onSessionNameBlur(): void {
+    const input = this.sessionNameInput()
+    if (!input) return
+    const trimmed = (input.value as string).trim()
+    this.docService.updateSettings({ name: trimmed || undefined })
+  }
 
   protected openScalePicker(): void {
     this.scaleOpen.set(true)
@@ -233,9 +264,17 @@ export class SessionSettingsSheetComponent {
     try {
       if (selection.mode === 'password' && selection.password) {
         const hash = await hashPassword(selection.password, roomUuid)
-        await patchRoomAccess(environment.relayHttpUrl, roomUuid, hash)
+        await patchRoomAccess(
+          this.appPrefs.relayHttpUrl() ?? environment.relayHttpUrl,
+          roomUuid,
+          hash,
+        )
       } else if (selection.mode === 'open') {
-        await patchRoomAccess(environment.relayHttpUrl, roomUuid, null)
+        await patchRoomAccess(
+          this.appPrefs.relayHttpUrl() ?? environment.relayHttpUrl,
+          roomUuid,
+          null,
+        )
       }
       // 'invite' mode is a no-op per ADR-0017 (dropped from v1).
     } catch {

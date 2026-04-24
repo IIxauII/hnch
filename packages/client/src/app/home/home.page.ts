@@ -5,9 +5,10 @@ import {
   inject,
   Injector,
   signal,
+  viewChild,
 } from '@angular/core'
 import { Router } from '@angular/router'
-import { type JoinRejectionReason } from '@hnch/shared'
+import { hashPassword, type JoinRejectionReason } from '@hnch/shared'
 import {
   ActionSheetController,
   IonButton,
@@ -17,6 +18,7 @@ import {
   IonContent,
   IonHeader,
   IonIcon,
+  IonModal,
   IonTitle,
   IonToolbar,
   ToastController,
@@ -30,6 +32,7 @@ import {
 } from 'ionicons/icons'
 
 import { environment } from '../../environments/environment'
+import { AppPreferenceService } from '../core/app-preference.service'
 import { DisplayNameService } from '../core/display-name.service'
 import { DocService } from '../core/doc/doc.service'
 import {
@@ -39,11 +42,12 @@ import {
 } from '../core/last-session.service'
 import { ParticipantIdService } from '../core/participant-id.service'
 import { ScalePreferenceService } from '../core/scale-preference.service'
-import { mintRoom } from '../core/relay/relay-api'
+import { mintRoom, patchRoomAccess } from '../core/relay/relay-api'
 import {
   JumpBackInBannerComponent,
   type JumpBackInSummary,
 } from './jump-back-in-banner.component'
+import { PasswordPromptSheetComponent } from './password-prompt.sheet'
 
 /**
  * Home launchpad — ux.md §5.2.
@@ -75,9 +79,11 @@ import {
     IonContent,
     IonHeader,
     IonIcon,
+    IonModal,
     IonTitle,
     IonToolbar,
     JumpBackInBannerComponent,
+    PasswordPromptSheetComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -129,6 +135,22 @@ import {
           </div>
         </ion-card-content>
       </ion-card>
+
+      <!-- Password prompt half-sheet -->
+      <ion-modal
+        #passwordModal
+        [isOpen]="passwordPromptOpen()"
+        [breakpoints]="[0, 0.6, 0.95]"
+        [initialBreakpoint]="0.6"
+        (didDismiss)="passwordPromptOpen.set(false)"
+      >
+        <ng-template>
+          <app-password-prompt-sheet
+            (passwordSubmitted)="onPasswordSubmitted($event)"
+            (closeRequested)="onPasswordPromptClosed()"
+          />
+        </ng-template>
+      </ion-modal>
     </ion-content>
   `,
   styles: [
@@ -154,6 +176,7 @@ export class HomePage {
   private readonly router = inject(Router)
   private readonly actionSheetCtrl = inject(ActionSheetController)
   private readonly toastCtrl = inject(ToastController)
+  private readonly appPrefs = inject(AppPreferenceService)
   private readonly displayNameService = inject(DisplayNameService)
   private readonly participantIdService = inject(ParticipantIdService)
   private readonly scalePrefs = inject(ScalePreferenceService)
@@ -183,6 +206,20 @@ export class HomePage {
    */
   private creating = false
 
+  /**
+   * State for the password prompt half-sheet. Opened after room is
+   * minted if appPrefs.defaultPassword() is true.
+   */
+  protected readonly passwordPromptOpen = signal(false)
+
+  /**
+   * Cached room UUID from the successful mintRoom call, used to
+   * patchRoomAccess if user sets a password.
+   */
+  private pendingRoomUuid: string | null = null
+
+  private readonly passwordModalRef = viewChild<IonModal>('passwordModal')
+
   constructor() {
     addIcons({
       'add-outline': addOutline,
@@ -208,7 +245,10 @@ export class HomePage {
         // Mint the room on the relay (ADR-0016 `POST /rooms`). Until
         // we introduce a local-session cache we do this eagerly; if
         // the relay is unreachable the promise rejects and we bail.
-        mintRoom(environment.relayHttpUrl),
+        // Use AppPreferenceService relay URL override, fallback to environment default.
+        mintRoom(
+          this.appPrefs.relayHttpUrl() ?? environment.relayHttpUrl,
+        ),
       ])
 
       // Tear down any leftover session (e.g. back-nav from a prior
@@ -219,6 +259,7 @@ export class HomePage {
         participantId,
         displayName: displayName ?? '',
         defaultScale: this.scalePrefs.defaultScale(),
+        sessionName: this.appPrefs.defaultSessionName() || undefined,
         roomUuid: minted.uuid,
         roomCode: minted.code,
       })
@@ -232,7 +273,14 @@ export class HomePage {
         deviceId: participantId,
       })
 
-      await this.router.navigate(['/lobby'])
+      // If defaultPassword is enabled, show password prompt; otherwise
+      // navigate to lobby directly.
+      if (this.appPrefs.defaultPassword()) {
+        this.pendingRoomUuid = minted.uuid
+        this.passwordPromptOpen.set(true)
+      } else {
+        await this.router.navigate(['/lobby'])
+      }
     } finally {
       this.creating = false
     }
@@ -395,6 +443,55 @@ export class HomePage {
       position: 'bottom',
     })
     await t.present()
+  }
+
+  // ---------------------------------------------------------------------------
+  // Password prompt handlers
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Handler for password submission from the password prompt sheet.
+   * If password is non-empty, hash it and patchRoomAccess; otherwise
+   * treat as no password (open mode). Then navigate to lobby.
+   */
+  protected async onPasswordSubmitted(password: string): Promise<void> {
+    try {
+      const uuid = this.pendingRoomUuid
+      if (!uuid) {
+        await this.router.navigate(['/lobby'])
+        return
+      }
+
+      // Dismiss the modal and close the signal
+      await this.passwordModalRef()?.dismiss()
+      this.passwordPromptOpen.set(false)
+
+      // If password is non-empty, hash and apply it
+      if (password.trim()) {
+        const hash = await hashPassword(password, uuid)
+        await patchRoomAccess(
+          this.appPrefs.relayHttpUrl() ?? environment.relayHttpUrl,
+          uuid,
+          hash,
+        )
+      }
+      // If empty password, room stays in open mode (created that way by default)
+
+      await this.router.navigate(['/lobby'])
+    } catch (e) {
+      await this.toast('Failed to set password. Room created without password.')
+      await this.router.navigate(['/lobby'])
+    }
+  }
+
+  /**
+   * Handler for cancel/close from the password prompt sheet.
+   * Navigates to lobby without setting a password (open mode).
+   */
+  protected async onPasswordPromptClosed(): Promise<void> {
+    await this.passwordModalRef()?.dismiss()
+    this.passwordPromptOpen.set(false)
+    await this.router.navigate(['/lobby'])
   }
 }
 
