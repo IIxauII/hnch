@@ -35,6 +35,7 @@ import { addIcons } from 'ionicons'
 import { qrCodeOutline } from 'ionicons/icons'
 
 import { environment } from '../../environments/environment'
+import { AppPreferenceService } from '../core/app-preference.service'
 import { DisplayNameService } from '../core/display-name.service'
 import { DocService } from '../core/doc/doc.service'
 import { ParticipantIdService } from '../core/participant-id.service'
@@ -179,6 +180,7 @@ import { RelayRejectionError, resolveRoom } from '../core/relay/relay-api'
   ],
 })
 export class JoinPage {
+  private readonly appPrefs = inject(AppPreferenceService)
   private readonly route = inject(ActivatedRoute)
   private readonly router = inject(Router)
   private readonly docService = inject(DocService)
@@ -271,7 +273,10 @@ export class JoinPage {
       // skip the resolve step and go straight to connect.
       let uuid = this.resolvedUuid
       if (uuid === null) {
-        const resolved = await resolveRoom(environment.relayHttpUrl, code)
+        const resolved = await resolveRoom(
+          this.appPrefs.relayHttpUrl() ?? environment.relayHttpUrl,
+          code,
+        )
         uuid = resolved.uuid
 
         if (resolved.accessMode === 'password') {

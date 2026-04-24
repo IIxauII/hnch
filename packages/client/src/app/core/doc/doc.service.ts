@@ -1,5 +1,6 @@
 import {
   computed,
+  inject,
   Injectable,
   signal,
   type Signal,
@@ -35,6 +36,7 @@ import { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
 
 import { environment } from '../../../environments/environment'
+import { AppPreferenceService } from '../app-preference.service'
 import {
   createSyncProvider,
   type SyncProvider,
@@ -121,6 +123,8 @@ export interface ConnectOptions {
  */
 @Injectable({ providedIn: 'root' })
 export class DocService {
+  private readonly appPrefs = inject(AppPreferenceService)
+
   // ---------------------------------------------------------------------------
   // Private Yjs + sync state
   // ---------------------------------------------------------------------------
@@ -311,8 +315,11 @@ export class DocService {
     // first `status` event fires.
     this.syncStatusSignal.set('connecting')
 
+    // Use AppPreferenceService relay URL override if set; fallback to environment default.
+    const wsUrl = opts.wsBaseUrl ?? this.appPrefs.relayWsUrl() ?? environment.relayWsUrl
+
     this.provider = createSyncProvider({
-      wsBaseUrl: opts.wsBaseUrl ?? environment.relayWsUrl,
+      wsBaseUrl: wsUrl,
       roomUuid,
       doc,
       credentials,

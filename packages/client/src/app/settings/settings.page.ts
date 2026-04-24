@@ -18,6 +18,7 @@ import {
   IonModal,
   IonNote,
   IonTitle,
+  IonToggle,
   IonToolbar,
 } from '@ionic/angular/standalone'
 import { addIcons } from 'ionicons'
@@ -26,6 +27,7 @@ import { chevronForwardOutline } from 'ionicons/icons'
 import { formatScaleId, type Scale } from '@hnch/shared'
 
 import { environment } from '../../environments/environment'
+import { AppPreferenceService } from '../core/app-preference.service'
 import { DocService } from '../core/doc/doc.service'
 import { DisplayNameService } from '../core/display-name.service'
 import { ParticipantIdService } from '../core/participant-id.service'
@@ -33,6 +35,8 @@ import { ScalePreferenceService } from '../core/scale-preference.service'
 import { ThemeService, type Theme } from '../core/theme.service'
 import { ScalePickerSheetComponent } from '../session-settings/scale-picker.sheet'
 import { DisplayNameEditorSheetComponent } from './display-name-editor.sheet'
+import { RelayUrlEditorSheetComponent } from './relay-url-editor.sheet'
+import { SessionNameEditorSheetComponent } from './session-name-editor.sheet'
 import { ThemePickerSheetComponent } from './theme-picker.sheet'
 
 const THEME_LABELS: Record<Theme, string> = {
@@ -53,7 +57,9 @@ const THEME_LABELS: Record<Theme, string> = {
   host: { class: 'ion-page' },
   imports: [
     DisplayNameEditorSheetComponent,
+    RelayUrlEditorSheetComponent,
     ScalePickerSheetComponent,
+    SessionNameEditorSheetComponent,
     IonBackButton,
     IonButtons,
     IonContent,
@@ -65,6 +71,7 @@ const THEME_LABELS: Record<Theme, string> = {
     IonModal,
     IonNote,
     IonTitle,
+    IonToggle,
     IonToolbar,
     ThemePickerSheetComponent,
   ],
@@ -109,6 +116,37 @@ const THEME_LABELS: Record<Theme, string> = {
         <ion-item button (click)="openScalePicker()">
           <ion-label>Default scale</ion-label>
           <ion-note slot="end">{{ scaleLabel() }}</ion-note>
+        </ion-item>
+      </ion-list>
+
+      <!-- Session Defaults -->
+      <ion-list-header>
+        <ion-label>Session Defaults</ion-label>
+      </ion-list-header>
+      <ion-list lines="inset">
+        <ion-item button (click)="openSessionNameEditor()">
+          <ion-label>Default session name</ion-label>
+          <ion-note slot="end">{{ sessionNameLabel() }}</ion-note>
+        </ion-item>
+        <ion-item>
+          <ion-label>Password by default</ion-label>
+          <ion-toggle
+            slot="end"
+            [checked]="appPrefs.defaultPassword()"
+            (ionChange)="onDefaultPasswordToggle($event.detail.checked)"
+            aria-label="Enable password by default"
+          ></ion-toggle>
+        </ion-item>
+      </ion-list>
+
+      <!-- Advanced -->
+      <ion-list-header>
+        <ion-label>Advanced</ion-label>
+      </ion-list-header>
+      <ion-list lines="inset">
+        <ion-item button (click)="openRelayUrlEditor()">
+          <ion-label>Relay URL</ion-label>
+          <ion-note slot="end">{{ relayUrlLabel() }}</ion-note>
         </ion-item>
       </ion-list>
 
@@ -181,6 +219,40 @@ const THEME_LABELS: Record<Theme, string> = {
           />
         </ng-template>
       </ion-modal>
+
+      <!-- Session name editor half-sheet -->
+      <ion-modal
+        #sessionNameModal
+        [isOpen]="sessionNameEditorOpen()"
+        [breakpoints]="[0, 0.6, 0.95]"
+        [initialBreakpoint]="0.6"
+        (didDismiss)="sessionNameEditorOpen.set(false)"
+      >
+        <ng-template>
+          <app-session-name-editor-sheet
+            [currentName]="appPrefs.defaultSessionName()"
+            (saved)="onSessionNameSaved($event)"
+            (closeRequested)="closeSessionNameEditor()"
+          />
+        </ng-template>
+      </ion-modal>
+
+      <!-- Relay URL editor half-sheet -->
+      <ion-modal
+        #relayUrlModal
+        [isOpen]="relayUrlEditorOpen()"
+        [breakpoints]="[0, 0.6, 0.95]"
+        [initialBreakpoint]="0.6"
+        (didDismiss)="relayUrlEditorOpen.set(false)"
+      >
+        <ng-template>
+          <app-relay-url-editor-sheet
+            [currentUrl]="appPrefs.relayHttpUrl()"
+            (saved)="onRelayUrlSaved($event)"
+            (closeRequested)="closeRelayUrlEditor()"
+          />
+        </ng-template>
+      </ion-modal>
     </ion-content>
   `,
 })
@@ -190,6 +262,7 @@ export class SettingsPage {
   private readonly participantIdService = inject(ParticipantIdService)
   protected readonly scalePrefs = inject(ScalePreferenceService)
   protected readonly themeService = inject(ThemeService)
+  protected readonly appPrefs = inject(AppPreferenceService)
 
   protected readonly version = environment.appVersion
 
@@ -205,13 +278,27 @@ export class SettingsPage {
     return formatScaleId(scale.id)
   })
 
+  protected readonly sessionNameLabel = computed(() => {
+    const name = this.appPrefs.defaultSessionName()
+    return name || 'None'
+  })
+
+  protected readonly relayUrlLabel = computed(() => {
+    const url = this.appPrefs.relayHttpUrl()
+    return url || 'Default'
+  })
+
   protected readonly nameEditorOpen = signal(false)
   protected readonly themePickerOpen = signal(false)
   protected readonly scalePickerOpen = signal(false)
+  protected readonly sessionNameEditorOpen = signal(false)
+  protected readonly relayUrlEditorOpen = signal(false)
 
   private readonly nameModalRef = viewChild<IonModal>('nameModal')
   private readonly themeModalRef = viewChild<IonModal>('themeModal')
   private readonly scalePickerModalRef = viewChild<IonModal>('scalePickerModal')
+  private readonly sessionNameModalRef = viewChild<IonModal>('sessionNameModal')
+  private readonly relayUrlModalRef = viewChild<IonModal>('relayUrlModal')
 
   constructor() {
     addIcons({ 'chevron-forward-outline': chevronForwardOutline })
@@ -287,5 +374,47 @@ export class SettingsPage {
 
   protected onScaleSelected(scale: Scale): void {
     void this.scalePrefs.setDefaultScaleId(scale.id)
+  }
+
+  // ---------------------------------------------------------------------------
+  // Session name editor
+  // ---------------------------------------------------------------------------
+
+  protected openSessionNameEditor(): void {
+    this.sessionNameEditorOpen.set(true)
+  }
+
+  protected async closeSessionNameEditor(): Promise<void> {
+    await this.sessionNameModalRef()?.dismiss()
+    this.sessionNameEditorOpen.set(false)
+  }
+
+  protected onSessionNameSaved(name: string | undefined): void {
+    void this.appPrefs.setDefaultSessionName(name)
+  }
+
+  // ---------------------------------------------------------------------------
+  // Default password toggle
+  // ---------------------------------------------------------------------------
+
+  protected onDefaultPasswordToggle(checked: boolean): void {
+    void this.appPrefs.setDefaultPassword(checked)
+  }
+
+  // ---------------------------------------------------------------------------
+  // Relay URL editor
+  // ---------------------------------------------------------------------------
+
+  protected openRelayUrlEditor(): void {
+    this.relayUrlEditorOpen.set(true)
+  }
+
+  protected async closeRelayUrlEditor(): Promise<void> {
+    await this.relayUrlModalRef()?.dismiss()
+    this.relayUrlEditorOpen.set(false)
+  }
+
+  protected onRelayUrlSaved(url: string | undefined): void {
+    void this.appPrefs.setRelayUrl(url)
   }
 }

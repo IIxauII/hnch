@@ -49,11 +49,17 @@ export interface MintRoomOptions {
   readonly passwordHash?: string
 }
 
-/** `POST /rooms` — mints a fresh room, optionally password-protected (ADR-0017). */
+/**
+ * `POST /rooms` — mints a fresh room, optionally password-protected (ADR-0017).
+ * Uses the relay URL override from AppPreferenceService if set; otherwise falls back to environment default.
+ */
 export async function mintRoom(
-  httpBaseUrl: string,
+  httpBaseUrl: string | undefined,
   options?: MintRoomOptions,
 ): Promise<MintedRoom> {
+  if (!httpBaseUrl) {
+    throw new Error('mintRoom: httpBaseUrl is required')
+  }
   const res = await fetch(`${httpBaseUrl}/rooms`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -72,14 +78,18 @@ export interface PatchAccessResponse {
 }
 
 /**
- * `PATCH /rooms/:uuid/access` — set or remove the password on a live
- * room. Pass `passwordHash` to protect, `null` to revert to open.
+ * `PATCH /rooms/:uuid/access` — set or remove the password on a live room.
+ * Pass `passwordHash` to protect, `null` to revert to open.
+ * Uses the relay URL override from AppPreferenceService if set; otherwise falls back to environment default.
  */
 export async function patchRoomAccess(
-  httpBaseUrl: string,
+  httpBaseUrl: string | undefined,
   uuid: string,
   passwordHash: string | null,
 ): Promise<PatchAccessResponse> {
+  if (!httpBaseUrl) {
+    throw new Error('patchRoomAccess: httpBaseUrl is required')
+  }
   const res = await fetch(`${httpBaseUrl}/rooms/${uuid}/access`, {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
@@ -92,14 +102,17 @@ export async function patchRoomAccess(
 }
 
 /**
- * `GET /rooms/:code`. Throws {@link RelayRejectionError} on a 404 the
- * relay reports as `{ reason }`; any other non-ok status surfaces as a
- * generic `Error`.
+ * `GET /rooms/:code`. Throws {@link RelayRejectionError} on a 404 the relay
+ * reports as `{ reason }`; any other non-ok status surfaces as a generic `Error`.
+ * Uses the relay URL override from AppPreferenceService if set; otherwise falls back to environment default.
  */
 export async function resolveRoom(
-  httpBaseUrl: string,
+  httpBaseUrl: string | undefined,
   code: string,
 ): Promise<ResolvedRoom> {
+  if (!httpBaseUrl) {
+    throw new Error('resolveRoom: httpBaseUrl is required')
+  }
   const res = await fetch(`${httpBaseUrl}/rooms/${encodeURIComponent(code)}`)
   if (res.status === 404) {
     const body = (await res.json().catch(() => null)) as {

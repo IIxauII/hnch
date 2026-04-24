@@ -286,6 +286,7 @@ import { QrDisplaySheetComponent } from './qr-display.sheet'
         <app-session-settings-sheet
           [accessMode]="lobbyAccessMode()"
           [accessPassword]="lobbyAccessPassword()"
+          [isHost]="isHost()"
           (accessChanged)="onAccessChanged($event)"
           (closeRequested)="closeSessionSettings()"
         />

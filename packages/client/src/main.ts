@@ -11,6 +11,7 @@ import { IonicRouteStrategy, provideIonicAngular } from '@ionic/angular/standalo
 
 import { AppComponent } from './app/app.component'
 import { routes } from './app/app.routes'
+import { AppPreferenceService } from './app/core/app-preference.service'
 import { ParticipantIdService } from './app/core/participant-id.service'
 import { ScalePreferenceService } from './app/core/scale-preference.service'
 import { ThemeService } from './app/core/theme.service'
@@ -34,6 +35,7 @@ bootstrapApplication(AppComponent, {
     provideAppInitializer(() => inject(ParticipantIdService).ensureLoaded()),
     provideAppInitializer(() => inject(ThemeService).ensureLoaded()),
     provideAppInitializer(() => inject(ScalePreferenceService).ensureLoaded()),
+    provideAppInitializer(() => inject(AppPreferenceService).ensureLoaded()),
   ],
 }).catch((err: unknown) => {
   // eslint-disable-next-line no-console
