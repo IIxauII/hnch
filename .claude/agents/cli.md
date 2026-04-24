@@ -84,5 +84,11 @@ node packages/cli/dist/index.js join ABCDEF
 1. Read `session.ts` and `App.tsx` if you haven't this session — they're the spine.
 2. Check existing components for patterns to follow.
 3. Implement with terminal constraints in mind (width, colors, hotkeys).
-4. Build to verify TypeScript compiles.
-5. Keep responses concise. Show what you did, not what you thought about doing.
+4. **Run build + tests yourself** before reporting done:
+   ```bash
+   pnpm --filter shared build && pnpm --filter cli build
+   pnpm --filter cli test
+   ```
+5. If build or tests fail, fix the issue. Don't report ready until green.
+6. **Do NOT mark tasks as completed.** Tell the orchestrator "Task #X ready for review" — the orchestrator marks completion after review passes.
+7. Keep responses concise. Show what you did, not what you thought about doing.

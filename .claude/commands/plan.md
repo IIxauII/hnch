@@ -2,107 +2,89 @@ Refine and plan: $ARGUMENTS
 
 ## Instructions
 
-You are a collaborative planning partner. Your job is to work WITH the user to scope and plan an implementation, decision by decision. The output is a plan file in `docs/` ready for `/execute-plan`.
+You are a collaborative planning partner. Your job is to understand the request, research, draft a plan, and surface only the decisions that genuinely need user input. The output is a plan file in `plans/` ready for `/execute-plan`.
 
-### Phase 1: Understand scope
+### Phase 0: Clarify (only if needed)
+
+If the request is ambiguous or you lack enough context to even begin research, ask clarifying questions FIRST. Don't research blindly — a wrong assumption wastes more time than a quick question.
+
+Skip this phase if the request is clear enough to start exploring.
+
+### Phase 1: Silent research
 
 1. Read relevant project docs (`roadmap.md`, `project.md`, `ux.md`, `schema.md`, ADRs) to understand current state
-2. Explore the codebase areas related to the topic — read key files, understand existing patterns
-3. Present a **1-paragraph summary** of what you think the goal is and ask the user to confirm or correct
+2. Explore codebase areas related to the topic — read key files, understand existing patterns
+3. Form your own understanding of scope, approach, and decisions
 
-### Phase 2: User journey
+**Do NOT ask the user questions during this phase.** You are gathering context, not interviewing.
 
-Walk through the feature from the user's perspective. Present **one interaction at a time**:
+### Phase 2: Present draft plan with decision points
 
-1. Describe a step in the user journey (who does what, what they see, what happens)
-2. Ask user to confirm, adjust, or expand
-3. Move to next step
+Present a single cohesive draft covering:
 
-Cover:
-- Happy path end-to-end
-- Edge cases (errors, empty states, concurrent users, offline)
-- Entry/exit points (how does the user get here? where do they go after?)
+- **Context** — what and why (2-3 sentences)
+- **User journey** — numbered steps (happy path + key error/edge states)
+- **Decision points** — ONLY decisions where multiple valid paths exist AND user preference matters. For each:
+  ```
+  **D1: <question>**
+  A) Option one — brief tradeoff ← recommended (if you have one)
+  B) Option two — brief tradeoff
+  Pick: ___
+  ```
+- **Tasks** — numbered, with files + intent (not line-level implementation detail)
 
-### Phase 3: UX / UI
+**Decisions you make yourself (no question to user):**
+- Anything dictated by existing patterns, conventions, or ADRs
+- Implementation details (method names, signal types, file structure matching existing code)
+- Obvious technical choices with one clearly superior path
 
-For each screen or component touched by the feature, present **one at a time**:
+**Decisions you surface to user:**
+- Genuine UX/product tradeoffs (e.g., modal vs inline, auto vs manual trigger)
+- Architecture choices with real tradeoffs (e.g., new service vs extending existing)
+- Scope boundaries (include feature X in this plan or defer?)
+- Anything that conflicts with or isn't covered by existing ADRs
 
-1. What changes on this screen (new elements, modified behavior, removed elements)
-2. States to handle: loading, empty, error, disabled
-3. Mobile vs CLI differences (if both platforms affected)
-4. Interaction details: gestures, hotkeys, focus, transitions
+**Scale with complexity.** A simple bug fix might have zero decision points and 2 tasks. A new feature might have 4 decisions and 10 tasks. A cross-cutting refactor might need several rounds of discussion. Match the depth to the work.
 
-Wait for user confirmation before moving to the next screen.
+### Phase 3: Estimation
 
-### Phase 4: Architecture
+After the plan draft is aligned (decisions resolved, tasks agreed), do a story point estimation round:
 
-Surface technical decisions **one at a time**:
+1. Present your estimate for the overall plan with brief reasoning (use the project's own scale if one is active, otherwise Fibonacci: 1, 2, 3, 5, 8, 13)
+2. Ask the user for their estimate
+3. Compare:
+   - **Match or adjacent** (e.g., 5 vs 5, 5 vs 8) — note it and move on
+   - **Gap of 2+ steps** (e.g., 3 vs 8) — discuss. The gap reveals a scope misunderstanding. Clarify what each side is counting/expecting, adjust plan if needed, re-estimate
 
-1. Data model / schema changes (Yjs doc shape, new fields, migrations)
-2. New or modified services, components, utilities
-3. Relay changes (endpoints, validation, protocol)
-4. Cross-cutting concerns (auth, persistence, sync)
+The agreed estimate goes into the final plan file.
 
-For each:
-- State the question clearly
-- Give your recommendation with brief reasoning
-- List alternatives if relevant
-- Flag conflicts with existing ADRs
-- Wait for user's answer before moving on
+### Phase 4: Finalize
 
-### Phase 5: Acceptance criteria
+User picks options, adjusts tasks, adds/removes scope. This may take one round or several depending on complexity — follow the user's lead.
 
-Synthesize everything from Phases 2–4 into acceptance criteria. Present them **in batches of 3–5** as checkboxes:
-
-```markdown
-- [ ] Criterion one
-- [ ] Criterion two
-- [ ] Criterion three
-```
-
-Ask user to confirm, add, remove, or reword. Iterate until the full set is agreed.
-
-### Phase 6: Break into tasks
-
-Once all the above is settled, propose the task breakdown **incrementally**:
-
-1. Present one task at a time
-2. Get user's nod (or adjustment)
-3. Present next task
-4. Continue until full sequence covered
-
-Each task should include:
-- Clear title (T1, T2, ...)
-- Which file(s) are affected
-- What behavior to add/change (intent, not exact code)
-- Which acceptance criteria it addresses
-
-Don't specify: exact method names, signal types, line-by-line implementation details. The implementer reads the codebase and figures out the how.
-
-The final task should always be a build + browser verification task.
-
-### Phase 7: Write the plan file
-
-Once all tasks are agreed, write the plan to `docs/plan-<slug>.md` using this format:
+When aligned, write the plan to `plans/plan-<slug>.md` using this format:
 
 ```markdown
 # Plan: <title>
 
-## Summary
+**Estimate:** <agreed story points>
 
-<1-3 sentences: what and why>
+## Context
+
+<What and why — the problem/need, what prompted it, intended outcome>
 
 ## User Journey
 
-<Numbered steps describing the end-to-end user experience, including edge cases>
+<Numbered steps: end-to-end user experience including edge cases>
 
 ## UX / UI
 
-<Per-screen breakdown: what changes, states, platform differences>
+<Per-screen breakdown if applicable: what changes, states, platform differences>
+<Omit this section for backend-only or type-only changes>
 
 ## Decisions
 
-<Numbered list of each architecture/design decision made, with the chosen answer>
+<Numbered list of each decision made, with the chosen answer>
 
 ## Acceptance Criteria
 
@@ -117,22 +99,25 @@ Once all tasks are agreed, write the plan to `docs/plan-<slug>.md` using this fo
   - What: <behavior to add/change>
   - AC: <which acceptance criteria this covers>
 
-- [ ] **T2: <title>**
-  - ...
-
-- [ ] **TN: Verify build + test in browser**
+- [ ] **TN: Build + verify**
   - `pnpm build` passes
-  - Specific manual test steps
+  - Manual test steps
+
+## Key Files Reference
+
+<Paths to files the implementer will need to read>
 ```
 
-Tell the user the plan file path and that they can run `/execute-plan docs/plan-<slug>.md` when ready.
+Tell the user the plan file path and that they can run `/execute-plan plans/plan-<slug>.md` when ready.
 
 ## Rules
 
-1. NEVER present a complete plan without walking through it decision by decision first.
-2. NEVER skip any phase — even "obvious" plans benefit from user journey and UX review.
-3. ALWAYS read relevant code before proposing anything — don't plan against assumptions.
-4. Keep each message focused. One question, one screen, one task at a time.
-5. If the user says "just do it" or wants to skip ahead, compress remaining items into short batches — but still ask before writing the final plan.
-6. If a decision requires a new ADR, note it in the plan's Decisions section. The execute-plan pipeline will handle drafting it.
-7. Track all decisions, AC, and tasks as you go — the final plan file must reflect everything agreed.
+1. If you don't have enough info to research effectively, ask first (Phase 0). Otherwise research silently.
+2. Default on obvious decisions — only surface genuine tradeoffs.
+3. Present options (2-4) with recommendations, not open-ended questions.
+4. Scale depth with complexity — don't over-plan simple things or under-plan complex ones.
+5. Always do an estimation round — don't skip it. Gaps reveal scope misunderstandings.
+6. Read relevant code before proposing anything — don't plan against assumptions.
+7. If a decision requires a new ADR, note it in the Decisions section.
+8. Track all decisions, AC, and tasks — the final plan file must reflect everything agreed.
+9. Save final plan to `plans/plan-<slug>.md` (create `plans/` dir if needed).

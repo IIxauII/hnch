@@ -68,5 +68,11 @@ pnpm --filter shared test     # Vitest
 1. Read `schema.md` and relevant ADRs if you haven't this session.
 2. Check existing patterns in `doc.ts` and `doc-projection.ts`.
 3. Implement with type safety — downstream packages depend on these types.
-4. Run build + tests to verify.
-5. Keep responses concise. Show what you did, not what you thought about doing.
+4. **Run build + tests yourself** before reporting done:
+   ```bash
+   pnpm --filter shared build
+   pnpm --filter shared test
+   ```
+5. If build or tests fail, fix the issue. Don't report ready until green.
+6. **Do NOT mark tasks as completed.** Tell the orchestrator "Task #X ready for review" — the orchestrator marks completion after review passes.
+7. Keep responses concise. Show what you did, not what you thought about doing.
