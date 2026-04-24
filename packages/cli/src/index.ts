@@ -6,6 +6,7 @@
  * Usage:
  *   hnch create [--name "Sprint 42"] [--password] [--scale <id>]
  *   hnch join <code> [--password]
+ *   hnch resume
  *   hnch config [--name "Alice"] [--relay-url ws://...]
  */
 
@@ -13,10 +14,13 @@ import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
 import React from 'react'
 import { render } from 'ink'
+import * as Y from 'yjs'
+import { Awareness } from 'y-protocols/awareness'
 import { loadConfig, readConfig, updateConfig } from './config.js'
-import { createSession, joinSession } from './session.js'
+import { createSession, joinSession, wireSession } from './session.js'
 import { resolveRoom } from './relay-api.js'
-import { resolveScale, BUILTIN_SCALES } from '@hnch/shared'
+import { resolveScale, BUILTIN_SCALES, hashPassword, joinDoc } from '@hnch/shared'
+import { writeLastSession, clearLastSession, readLastSession } from './last-session.js'
 import { App } from './ui/App.js'
 import { ConfigSettings } from './ui/components/ConfigSettings.js'
 import { createInterface } from 'node:readline'
@@ -64,6 +68,18 @@ async function handleCreate(argv: {
     defaultScale: scale,
   })
 
+  let passwordHash: string | undefined
+  if (password) {
+    passwordHash = await hashPassword(password, session.roomUuid)
+  }
+
+  writeLastSession({
+    roomCode: session.roomCode,
+    roomUuid: session.roomUuid,
+    passwordHash,
+    lastSeenAt: Date.now(),
+  })
+
   console.error(`Room created: ${session.roomCode}`)
   console.error(`Share: hnch join ${session.roomCode}`)
   console.error('')
@@ -81,6 +97,7 @@ async function handleCreate(argv: {
 
   await waitUntilExit()
   session.disconnect()
+  clearLastSession()
   process.exit(0)
 }
 
@@ -111,6 +128,18 @@ async function handleJoin(argv: {
     password: passwordInput,
   })
 
+  let passwordHash: string | undefined
+  if (passwordInput) {
+    passwordHash = await hashPassword(passwordInput, session.roomUuid)
+  }
+
+  writeLastSession({
+    roomCode: session.roomCode,
+    roomUuid: session.roomUuid,
+    passwordHash,
+    lastSeenAt: Date.now(),
+  })
+
   console.error(`Joined room: ${session.roomCode}`)
   console.error('')
 
@@ -127,6 +156,98 @@ async function handleJoin(argv: {
 
   await waitUntilExit()
   session.disconnect()
+  clearLastSession()
+  process.exit(0)
+}
+
+async function handleResume(): Promise<void> {
+  const config = await loadConfig()
+  const cache = readLastSession()
+
+  if (!cache) {
+    console.error('No recent session to resume.')
+    process.exit(0)
+  }
+
+  let resolved: Awaited<ReturnType<typeof resolveRoom>>
+  try {
+    resolved = await resolveRoom(config.relayUrl, cache.roomCode)
+  } catch (err) {
+    // Distinguish 404 (room gone) from network errors
+    const message = err instanceof Error ? err.message : String(err)
+    if (message.includes('Room not found')) {
+      console.error("That session isn't active anymore.")
+      clearLastSession()
+    } else {
+      console.error('Could not reach relay — try again later.')
+    }
+    process.exit(0)
+  }
+
+  if (resolved.accessMode === 'password' && !cache.passwordHash) {
+    console.error(`Password changed — rejoin with: hnch join ${cache.roomCode} --password`)
+    clearLastSession()
+    process.exit(0)
+  }
+
+  console.error(`Rejoining room ${cache.roomCode}…`)
+  console.error('')
+
+  const doc = new Y.Doc()
+  const awareness = new Awareness(doc)
+
+  joinDoc(doc, {
+    participantId: config.participantId,
+    displayName: config.displayName,
+  })
+
+  awareness.setLocalStateField('participantId', config.participantId)
+
+  let hadWrongPassword = false
+
+  const session = wireSession({
+    doc,
+    awareness,
+    roomCode: cache.roomCode,
+    roomUuid: cache.roomUuid,
+    participantId: config.participantId,
+    relayUrl: config.relayUrl,
+    passwordHash: cache.passwordHash,
+    onRejection(reason) {
+      if (reason === 'wrong-password') {
+        hadWrongPassword = true
+      }
+    },
+  })
+
+  writeLastSession({
+    roomCode: session.roomCode,
+    roomUuid: session.roomUuid,
+    passwordHash: cache.passwordHash,
+    lastSeenAt: Date.now(),
+  })
+
+  const { waitUntilExit } = render(
+    React.createElement(App, {
+      session,
+      participantId: config.participantId,
+      displayName: config.displayName,
+      accessMode: resolved.accessMode,
+      presetOverrides: config.presetOverrides,
+      customScales: config.customScales,
+    }),
+  )
+
+  await waitUntilExit()
+
+  if (hadWrongPassword) {
+    console.error(`Password changed — rejoin with: hnch join ${cache.roomCode} --password`)
+    clearLastSession()
+    process.exit(0)
+  }
+
+  session.disconnect()
+  clearLastSession()
   process.exit(0)
 }
 
@@ -226,6 +347,17 @@ const cli = yargs(hideBin(process.argv))
     },
   )
   .command(
+    'resume',
+    'Rejoin your last session',
+    (y) => y,
+    () => {
+      handleResume().catch((err) => {
+        console.error(err instanceof Error ? err.message : err)
+        process.exit(1)
+      })
+    },
+  )
+  .command(
     'config',
     'View or update CLI config',
     (y) =>
@@ -257,7 +389,7 @@ const cli = yargs(hideBin(process.argv))
       })
     },
   )
-  .demandCommand(1, 'Specify a command: create, join, or config')
+  .demandCommand(1, 'Specify a command: create, join, resume, or config')
   .strict()
   .help()
 

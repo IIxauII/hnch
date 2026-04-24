@@ -23,6 +23,7 @@ import {
   type DocProjection,
   type Scale,
   type Round,
+  type JoinRejectionReason,
 } from '@hnch/shared'
 import { randomUUID } from 'node:crypto'
 import { mintRoom, resolveRoom, patchRoomAccess } from './relay-api.js'
@@ -158,7 +159,7 @@ export async function joinSession(opts: JoinSessionOptions): Promise<SessionHand
   })
 }
 
-interface WireOptions {
+export interface WireOptions {
   doc: Y.Doc
   awareness: Awareness
   roomCode: string
@@ -166,9 +167,10 @@ interface WireOptions {
   participantId: string
   relayUrl: string
   passwordHash?: string
+  onRejection?: (reason: JoinRejectionReason) => void
 }
 
-function wireSession(opts: WireOptions): SessionHandle {
+export function wireSession(opts: WireOptions): SessionHandle {
   const { doc, awareness, participantId, relayUrl, roomUuid } = opts
 
   const statusCallbacks = new Set<(status: SyncStatus) => void>()
@@ -187,6 +189,7 @@ function wireSession(opts: WireOptions): SessionHandle {
     },
     onRejection(reason) {
       console.error(`Connection rejected: ${reason}`)
+      opts.onRejection?.(reason)
     },
   })
 
