@@ -4,6 +4,7 @@ import {
   computed,
   inject,
   input,
+  OnDestroy,
   OnInit,
   output,
   signal,
@@ -15,7 +16,6 @@ import {
   IonButtons,
   IonChip,
   IonContent,
-  IonFooter,
   IonHeader,
   IonIcon,
   IonInput,
@@ -43,6 +43,9 @@ import { ScalePreferenceService } from '../core/scale-preference.service'
  * Edit mode (`existingScale` provided): pre-fills name and cards, calls
  * `updateCustomScale()`, emits `updated` with the same id.
  *
+ * Auto-saves on every card mutation and after a 250ms debounce on name
+ * changes. In create mode, first save mints the id and emits `created`.
+ *
  * Validation: name required, at least 2 cards required.
  * UX: chip-based card list; `ion-reorder-group` for ordering; X on each
  * chip to remove. Add card via text input + Add button or Enter key.
@@ -56,7 +59,6 @@ import { ScalePreferenceService } from '../core/scale-preference.service'
     IonButtons,
     IonChip,
     IonContent,
-    IonFooter,
     IonHeader,
     IonIcon,
     IonInput,
@@ -74,7 +76,9 @@ import { ScalePreferenceService } from '../core/scale-preference.service'
     <ion-header>
       <ion-toolbar>
         <ion-buttons slot="start">
-          <ion-button (click)="closeRequested.emit()">Cancel</ion-button>
+          <ion-button (click)="closeRequested.emit()">
+            {{ persistedId() ? 'Done' : 'Cancel' }}
+          </ion-button>
         </ion-buttons>
         <ion-title>{{ title() }}</ion-title>
       </ion-toolbar>
@@ -92,7 +96,7 @@ import { ScalePreferenceService } from '../core/scale-preference.service'
             maxlength="40"
             autocapitalize="words"
             [ngModel]="name()"
-            (ionInput)="name.set($any($event.detail.value) ?? '')"
+            (ionInput)="onNameInput($any($event.detail.value) ?? '')"
             aria-label="Scale name"
           ></ion-input>
         </ion-item>
@@ -168,21 +172,6 @@ import { ScalePreferenceService } from '../core/scale-preference.service'
       }
 
     </ion-content>
-
-    <ion-footer>
-      <ion-toolbar>
-        <div class="save-row">
-          <ion-button
-            expand="block"
-            [disabled]="!canSave()"
-            (click)="onSave()"
-            aria-label="Save custom scale"
-          >
-            Save
-          </ion-button>
-        </div>
-      </ion-toolbar>
-    </ion-footer>
   `,
   styles: [
     `
@@ -198,9 +187,6 @@ import { ScalePreferenceService } from '../core/scale-preference.service'
         font-size: 0.8rem;
         color: var(--ion-color-medium);
       }
-      .save-row {
-        padding: 0.5rem 1rem;
-      }
       ion-chip {
         --background: var(--ion-color-primary-tint);
         --color: var(--ion-color-primary-contrast);
@@ -208,9 +194,13 @@ import { ScalePreferenceService } from '../core/scale-preference.service'
     `,
   ],
 })
-export class CustomScaleEditorSheetComponent implements OnInit {
+export class CustomScaleEditorSheetComponent implements OnInit, OnDestroy {
   private readonly scalePrefs = inject(ScalePreferenceService)
   private readonly haptics = inject(HapticService)
+
+  private nameDebounceHandle: ReturnType<typeof setTimeout> | null = null
+  private savingInProgress = false
+  private saveNeeded = false
 
   /**
    * If provided, the sheet opens in edit mode: pre-fills name and cards,
@@ -231,6 +221,9 @@ export class CustomScaleEditorSheetComponent implements OnInit {
   protected newCard = ''
   protected readonly cards = signal<string[]>([])
 
+  /** Null in create mode until first auto-save mints the id. */
+  protected readonly persistedId = signal<string | null>(null)
+
   protected readonly isEditMode = computed(() => !!this.existingScale())
 
   protected readonly title = computed(() =>
@@ -250,7 +243,25 @@ export class CustomScaleEditorSheetComponent implements OnInit {
     if (existing) {
       this.name.set(existing.label)
       this.cards.set([...existing.cards])
+      this.persistedId.set(existing.id)
     }
+  }
+
+  ngOnDestroy(): void {
+    if (this.nameDebounceHandle !== null) {
+      clearTimeout(this.nameDebounceHandle)
+    }
+  }
+
+  protected onNameInput(value: string): void {
+    this.name.set(value)
+    if (this.nameDebounceHandle !== null) {
+      clearTimeout(this.nameDebounceHandle)
+    }
+    this.nameDebounceHandle = setTimeout(() => {
+      this.nameDebounceHandle = null
+      void this.autoSave()
+    }, 250)
   }
 
   protected onAddCard(): void {
@@ -259,12 +270,14 @@ export class CustomScaleEditorSheetComponent implements OnInit {
     this.haptics.impactLight()
     this.cards.update((prev) => [...prev, face])
     this.newCard = ''
+    void this.autoSave()
   }
 
   protected onDeleteCard(index: number, event: Event): void {
     event.stopPropagation()
     this.haptics.impactLight()
     this.cards.update((prev) => prev.filter((_, i) => i !== index))
+    void this.autoSave()
   }
 
   protected onReorder(
@@ -282,22 +295,37 @@ export class CustomScaleEditorSheetComponent implements OnInit {
       return reordered
     })
     complete(false)
+    void this.autoSave()
   }
 
-  protected async onSave(): Promise<void> {
-    const label = this.name().trim()
-    const cards = this.cards()
-    if (!label || cards.length < 2) return
-    this.haptics.notificationSuccess()
-
-    const existing = this.existingScale()
-    if (existing) {
-      await this.scalePrefs.updateCustomScale(existing.id, label, cards)
-      this.updated.emit(existing.id)
-    } else {
-      const id = await this.scalePrefs.addCustomScale(label, cards)
-      this.created.emit(id)
+  private async autoSave(): Promise<void> {
+    if (!this.canSave()) return
+    if (this.savingInProgress) {
+      this.saveNeeded = true
+      return
     }
-    this.closeRequested.emit()
+
+    this.savingInProgress = true
+    try {
+      const label = this.name().trim()
+      const cards = this.cards()
+      const currentId = this.persistedId()
+
+      if (currentId === null) {
+        const id = await this.scalePrefs.addCustomScale(label, cards)
+        this.persistedId.set(id)
+        this.created.emit(id)
+      } else {
+        await this.scalePrefs.updateCustomScale(currentId, label, cards)
+        this.updated.emit(currentId)
+      }
+    } finally {
+      this.savingInProgress = false
+    }
+
+    if (this.saveNeeded) {
+      this.saveNeeded = false
+      void this.autoSave()
+    }
   }
 }

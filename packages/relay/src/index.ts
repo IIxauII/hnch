@@ -43,10 +43,16 @@ function main(): void {
 
   // Graceful shutdown so `pnpm dev`'s Ctrl-C in a tsx-watch loop
   // actually closes the socket instead of leaking handles.
+  // server.close() only stops *new* connections — open WebSockets keep
+  // the process alive indefinitely. Force-exit after a short grace
+  // period so tsx-watch restarts don't hit EADDRINUSE.
   const shutdown = (): void => {
     server.close(() => {
       process.exit(0)
     })
+    setTimeout(() => {
+      process.exit(0)
+    }, 500).unref()
   }
   process.on('SIGINT', shutdown)
   process.on('SIGTERM', shutdown)

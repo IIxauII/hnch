@@ -171,15 +171,13 @@ import { ScaleEditorSheetComponent } from '../session-settings/scale-editor.shee
     <ion-modal
       #customEditorModal
       [isOpen]="customEditorOpen()"
-      [breakpoints]="[0, 0.6, 0.95]"
-      [initialBreakpoint]="0.95"
+      [breakpoints]="[0, 0.6, 1]"
+      [initialBreakpoint]="1"
       (didDismiss)="customEditorOpen.set(false)"
     >
       <ng-template>
         <app-custom-scale-editor-sheet
           [existingScale]="editingCustomScale()"
-          (created)="closeCustomEditor()"
-          (updated)="closeCustomEditor()"
           (closeRequested)="closeCustomEditor()"
         />
       </ng-template>

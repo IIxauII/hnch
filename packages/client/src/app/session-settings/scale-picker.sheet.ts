@@ -139,8 +139,8 @@ import { ScaleEditorSheetComponent } from './scale-editor.sheet'
     <ion-modal
       #customEditorModal
       [isOpen]="customEditorOpen()"
-      [breakpoints]="[0, 0.6, 0.95]"
-      [initialBreakpoint]="0.95"
+      [breakpoints]="[0, 0.6, 1]"
+      [initialBreakpoint]="1"
       (didDismiss)="customEditorOpen.set(false)"
     >
       <ng-template>
