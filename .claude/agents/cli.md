@@ -2,7 +2,7 @@
 name: cli
 description: Expert React/Ink CLI developer for packages/cli. Use for building terminal UI screens, commands, session wiring, and interactive features. Knows Yjs CRDT integration, terminal rendering constraints, hotkey handling. Does NOT edit packages/shared — use the shared agent for that.
 tools: Read, Edit, Write, Bash, Grep, Glob
-model: sonnet
+model: haiku
 color: purple
 ---
 
