@@ -116,6 +116,8 @@ export const APP_SETTINGS = {
   nameValue: 'app-settings ion-item:has(ion-label:text-is("Display name")) ion-note',
   themeRow: 'app-settings ion-item:has(ion-label:text-is("Theme"))',
   themeValue: 'app-settings ion-item:has(ion-label:text-is("Theme")) ion-note',
+  defaultScaleRow: 'app-settings ion-item:has(ion-label:text-is("Default scale"))',
+  defaultScaleValue: 'app-settings ion-item:has(ion-label:text-is("Default scale")) ion-note',
   versionValue: 'app-settings ion-item:has(ion-label:text-is("Version")) ion-note',
 } as const
 
@@ -130,12 +132,25 @@ export const NAME_EDITOR = {
 } as const
 
 // ---------------------------------------------------------------------------
+// App settings scale picker (picker mode - builtin scales only)
+// ---------------------------------------------------------------------------
+export const APP_SETTINGS_SCALE_PICKER = {
+  scaleRadio: (scaleId: string) => `app-scale-picker-sheet ion-radio[value="${scaleId}"]`,
+  scaleItem: (scaleId: string) => `app-scale-picker-sheet ion-item:has(ion-radio[value="${scaleId}"])`,
+  editBtn: (scaleId: string) => `app-scale-picker-sheet ion-item:has(ion-radio[value="${scaleId}"]) ion-button`,
+  doneBtn: 'app-scale-picker-sheet ion-button:has-text("Done")',
+} as const
+
+// ---------------------------------------------------------------------------
+// Preset card toggle editor (scale-editor-sheet)
+// ---------------------------------------------------------------------------
+export const PRESET_CARD_EDITOR = {
+  cardToggle: (cardFace: string) => `app-scale-editor-sheet ion-item:has(h3:text-is("${cardFace}")) ion-toggle`,
+  doneBtn: 'app-scale-editor-sheet ion-button:has-text("Done")',
+  cardList: 'app-scale-editor-sheet ion-list',
+} as const
+
+// ---------------------------------------------------------------------------
 // Shared constants
 // ---------------------------------------------------------------------------
 export const BASE_URL = 'http://localhost:4200'
-
-/** Default Fibonacci scale card values. */
-export const FIBONACCI_CARDS = ['0', '1', '2', '3', '5', '8', '13', '21']
-
-/** T-shirt scale card values. */
-export const TSHIRT_CARDS = ['XS', 'S', 'M', 'L', 'XL']
