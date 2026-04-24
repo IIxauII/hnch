@@ -42,3 +42,12 @@ See `.claude/commands/execute-plan.md` for the full protocol:
 - **Reviewer never pre-reads.** No file reading until the orchestrator assigns a specific task.
 - **One task at a time** per agent. Next task only after current one completes.
 - **Both agents always busy** whenever there's unfinished work.
+- **Every code change gets reviewed.** Original impl tasks, bug fixes, convention fixes, re-fixes — all go through the reviewer. The loop is: implement → review → fix → re-review → ... → clean. Never skip the re-review step after a fix. Nothing is done until the reviewer says it's clean.
+
+## Agent lifecycle
+
+Haiku implementers have a 200k context window and degrade after sustained use.
+
+- **Restart every 4 tasks.** After an implementer completes its 4th task (impl + rework fixes both count), shut it down and spawn a fresh one before sending task 5. The new agent has no memory — include full context in its first message.
+- **Stuck detection.** If an implementer goes idle without completing its task, retry once. If still stuck, restart immediately regardless of task count.
+- **Opus reviewer** has 1M context — no proactive restart needed. Only restart if stuck.
