@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core'
 import { Preferences } from '@capacitor/preferences'
+import { LastSessionCache as SharedLastSessionCache } from '@hnch/shared'
 
 /**
  * The screens that count as "inside a session" for the purposes
@@ -21,15 +22,9 @@ export type LastSessionScreen = 'lobby' | 'estimating'
  * (ADR-0012). Consumers must tolerate a `close(4404)` /
  * `unknown-room` response and fall back to Home + clear this entry.
  */
-export interface LastSessionCache {
-  /** Normalized room code (no dash, uppercase) — ADR-0008. */
-  readonly roomCode: string
-  /** The UUID the relay minted for this room — ADR-0016. */
-  readonly roomUuid: string
+export interface LastSessionCache extends SharedLastSessionCache {
   /** Last rendered in-session screen; drives where rejoin lands. */
   readonly lastScreen: LastSessionScreen
-  /** Epoch ms of the last write; anything older than `TTL_MS` is stale. */
-  readonly lastSeenAt: number
 }
 
 /**
@@ -123,9 +118,11 @@ function isLastSessionCache(v: unknown): v is LastSessionCache {
   if (!v || typeof v !== 'object') return false
   const o = v as Record<string, unknown>
   return (
+    // Base fields from SharedLastSessionCache
     typeof o['roomCode'] === 'string' &&
     typeof o['roomUuid'] === 'string' &&
     typeof o['lastSeenAt'] === 'number' &&
+    // Client-specific field
     isLastSessionScreen(o['lastScreen'])
   )
 }

@@ -29,7 +29,7 @@ export interface CliConfig {
 
 const DEFAULT_RELAY_URL = 'http://localhost:1234'
 
-function configDir(): string {
+export function configDir(): string {
   const xdg = process.env['XDG_CONFIG_HOME']
   const base = xdg || join(homedir(), '.config')
   return join(base, 'hnch')
