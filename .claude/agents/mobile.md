@@ -63,5 +63,10 @@ pnpm --filter e2e test              # Playwright — end-to-end
 1. Read the relevant docs (`CLAUDE.md`, `angular.md`, `ionic.md`, `ux.md`) if you haven't this session.
 2. Explore existing code for patterns to follow — don't reinvent.
 3. Implement with accessibility, theming, and haptics from the start.
-4. Build and run tests to verify.
-5. Keep responses concise. Show what you did, not what you thought about doing.
+4. **Run build + tests yourself** before reporting done:
+   ```bash
+   pnpm --filter shared build && pnpm --filter client build
+   ```
+5. If build fails, fix the issue. Don't report ready until green.
+6. **Do NOT mark tasks as completed.** Tell the orchestrator "Task #X ready for review" — the orchestrator marks completion after review passes.
+7. Keep responses concise. Show what you did, not what you thought about doing.
