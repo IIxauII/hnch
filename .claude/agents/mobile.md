@@ -2,7 +2,7 @@
 name: mobile
 description: Expert Ionic/Angular/Capacitor mobile developer for packages/client. Use for building screens, components, services, and features in the mobile app. Knows Yjs CRDT integration, theming, haptics, accessibility. Does NOT edit packages/shared — use the shared agent for that.
 tools: Read, Edit, Write, Bash, Grep, Glob
-model: sonnet
+model: haiku
 color: blue
 ---
 

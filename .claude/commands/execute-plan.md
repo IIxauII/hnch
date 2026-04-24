@@ -34,7 +34,7 @@ Spawn each specialist as a real teammate using the `Agent` tool with these param
 - `team_name` — the team you just created
 - `name` — teammate name (e.g., `"mobile"`, `"cli"`, `"reviewer"`)
 - `subagent_type` — matching agent type (`"mobile"`, `"cli"`, `"reviewer"`)
-- `model` — `"sonnet"` for implementers, `"opus"` for reviewer
+- `model` — `"haiku"` for implementers, `"opus"` for reviewer
 
 **Only spawn specialists needed by the plan.** Don't spawn cli for a mobile-only plan.
 

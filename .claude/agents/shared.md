@@ -2,7 +2,7 @@
 name: shared
 description: TypeScript developer for packages/shared. Builds types, Yjs doc mutations, projections, utilities, and Vitest tests for the shared package consumed by both CLI and mobile.
 tools: Read, Edit, Write, Bash, Grep, Glob
-model: sonnet
+model: haiku
 color: cyan
 ---
 
