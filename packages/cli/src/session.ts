@@ -19,6 +19,7 @@ import {
   patchSettings,
   hashPassword,
   upsertParticipant,
+  participantRole,
   FIBONACCI_SCALE,
   type DocProjection,
   type Scale,
@@ -45,6 +46,7 @@ export interface JoinSessionOptions {
   readonly relayUrl: string
   readonly roomCode: string
   readonly password?: string
+  readonly onRejection?: (reason: JoinRejectionReason) => void
 }
 
 export interface SessionHandle {
@@ -82,6 +84,8 @@ export interface SessionHandle {
   updateAccess(mode: 'open' | 'password', password?: string): Promise<void>
   /** Hand off host to target participant (host only, target must be online). */
   handoffHost(targetId: string): void
+  /** Toggle this participant's role between voter and viewer. */
+  toggleRole(): void
 
   /** Subscribe to doc changes. Returns unsubscribe fn. */
   onChange(cb: () => void): () => void
@@ -160,6 +164,7 @@ export async function joinSession(opts: JoinSessionOptions): Promise<SessionHand
     participantId: opts.participantId,
     relayUrl: opts.relayUrl,
     passwordHash,
+    onRejection: opts.onRejection,
   })
 }
 
@@ -219,7 +224,8 @@ export function wireSession(opts: WireOptions): SessionHandle {
     return ids
   }
 
-  // Unanimous auto-reveal: if all online participants have voted, reveal automatically.
+  // Unanimous auto-reveal: if all online voters have voted, reveal automatically.
+  // Viewers (role='viewer') are excluded from the count (ADR-0018, ADR-0020).
   const revealedByAuto = new Set<string>()
   const autoRevealInterval = setInterval(() => {
     const projection = projectDoc(doc)
@@ -230,10 +236,14 @@ export function wireSession(opts: WireOptions): SessionHandle {
     const onlineIds = getOnlineIds()
     if (onlineIds.size === 0) return
 
-    const votedOnlineCount = Object.keys(round.votes).filter((id) =>
-      onlineIds.has(id),
-    ).length
-    if (votedOnlineCount >= onlineIds.size) {
+    // Only voters count toward unanimous reveal
+    const onlineVoters = projection.participants.filter(
+      (p) => onlineIds.has(p.id) && participantRole(p) === 'voter',
+    )
+    if (onlineVoters.length === 0) return
+
+    const votedOnlineVoterCount = onlineVoters.filter((p) => p.id in round.votes).length
+    if (votedOnlineVoterCount >= onlineVoters.length) {
       revealedByAuto.add(round.id)
       revealRoundMutation(doc, round.id, Date.now())
     }
@@ -352,6 +362,19 @@ export function wireSession(opts: WireOptions): SessionHandle {
         throw new Error('Target participant does not exist')
       }
       patchSettings(doc, { hostParticipantId: targetId })
+    },
+
+    toggleRole() {
+      const projection = projectDoc(doc)
+      const participant = projection.participants.find((p) => p.id === participantId)
+      const currentRoleValue = participantRole(participant ?? {})
+      const newRole: 'voter' | 'viewer' = currentRoleValue === 'viewer' ? 'voter' : 'viewer'
+      const joinedAt = participant?.joinedAt ?? Date.now()
+      upsertParticipant(doc, participantId, {
+        displayName: participant?.displayName ?? '',
+        joinedAt,
+        role: newRole,
+      })
     },
 
     onChange(cb: () => void) {

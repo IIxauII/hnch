@@ -33,7 +33,7 @@ import {
 import { timingSafeEqual } from 'node:crypto'
 import type { Duplex } from 'node:stream'
 import { WebSocketServer, type WebSocket } from 'ws'
-import { normalizeRoomCode, type JoinRejectionReason } from '@hnch/shared'
+import { normalizeRoomCode, MAX_ROOM_PARTICIPANTS, JOIN_REJECTION_CLOSE_CODES, type JoinRejectionReason } from '@hnch/shared'
 import { accessModeOf, type AccessMode, type RoomRecord, type RoomStore } from './room-store.js'
 import { setupWSConnection, type WsRoom } from './ws-connection.js'
 
@@ -263,6 +263,14 @@ function handleUpgrade(
   }
 
   wss.handleUpgrade(req, socket, head, (ws: WebSocket) => {
+    // Participant cap enforcement (ADR-0020). Check post-upgrade so the
+    // client receives a WS close code (4006) per the ADR-0016 close-code
+    // table rather than a raw HTTP 403.
+    if (record.connections >= MAX_ROOM_PARTICIPANTS) {
+      ws.close(JOIN_REJECTION_CLOSE_CODES['room-full'], 'room-full')
+      return
+    }
+
     const wsRoom: WsRoom = {
       doc: record.doc,
       awareness: record.awareness,

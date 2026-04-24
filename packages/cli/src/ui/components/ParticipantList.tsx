@@ -1,6 +1,6 @@
 import React from 'react'
 import { Box, Text } from 'ink'
-import type { ParticipantSnapshot } from '@hnch/shared'
+import { participantRole, type ParticipantSnapshot } from '@hnch/shared'
 
 interface Props {
   participants: readonly ParticipantSnapshot[]
@@ -19,16 +19,19 @@ export function ParticipantList({ participants, onlineIds, hostId, votes, reveal
         const dot = online ? '●' : '○'
         const dotColor = online ? 'green' : 'gray'
         const isHost = p.id === hostId
+        const isViewer = participantRole(p) === 'viewer'
         const voted = p.id in votes
-        const voteIndicator = revealed
-          ? (votes[p.id] ? ` → ${votes[p.id]}` : '')
-          : (voted ? ' ✓' : ' ·')
+        const voteIndicator = isViewer
+          ? ' (viewer)'
+          : revealed
+            ? (votes[p.id] ? ` → ${votes[p.id]}` : '')
+            : (voted ? ' ✓' : ' ·')
 
         return (
           <Box key={p.id} gap={1}>
             <Text color={dotColor}>{dot}</Text>
             <Text>{p.displayName}{isHost ? ' (host)' : ''}</Text>
-            <Text color={voted ? 'green' : 'gray'}>{voteIndicator}</Text>
+            <Text color={isViewer ? 'gray' : (voted ? 'green' : 'gray')}>{voteIndicator}</Text>
           </Box>
         )
       })}

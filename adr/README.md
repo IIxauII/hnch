@@ -39,6 +39,7 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0017](0017-password-hashing-drop-invite-only.md) | Password hashing scheme and invite-only removal | Accepted |
 | [0018](0018-remove-timer-add-unanimous-reveal.md) | Remove countdown timer; add unanimous auto-reveal | Accepted |
 | [0019](0019-scale-customization.md) | Scale customization — builtin presets, sentinel removal, device-local overrides | Accepted |
+| [0020](0020-participant-viewer-voter-role.md) | Participant Viewer/Voter Role | Accepted |
 
 ## When to write an ADR
 

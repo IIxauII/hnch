@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   signal,
 } from '@angular/core'
@@ -231,6 +232,19 @@ export class JoinPage {
   constructor() {
     addIcons({ 'qr-code-outline': qrCodeOutline })
 
+    // Room-full arrives via WS close code 4006 → lastRejection signal,
+    // not from the HTTP resolve step. Watch here and handle it.
+    effect(() => {
+      const reason = this.docService.lastRejection()
+      if (reason === 'room-full') {
+        void (async () => {
+          this.docService.endSession()
+          await this.showRejectionToast('room-full')
+          await this.router.navigate(['/home'])
+        })()
+      }
+    })
+
     // Live-reformat the field as the user types: normalize to strip
     // dashes + uppercase, then re-insert the dash once we have six
     // characters so the chrome matches ux.md §5.3's `XXX-XXX` hint.
@@ -381,7 +395,7 @@ function rejectionCopy(reason: JoinRejectionReason): string {
     case 'invite-already-redeemed':
       return 'That invite link has already been used.'
     case 'room-full':
-      return 'That room is full.'
+      return 'This room is full (max 20 participants). Navigate back and try another room.'
     case 'malformed-credentials':
       return "Couldn't join with the info provided."
   }

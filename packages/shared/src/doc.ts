@@ -69,6 +69,20 @@ export interface Participant {
   displayName: string
   /** Unix milliseconds when this participant first joined the session. */
   joinedAt: number
+  /**
+   * Participant role in the session (ADR-0020). Absent means `'voter'`.
+   * Voters cast estimates; viewers observe without voting and are excluded
+   * from unanimous auto-reveal (ADR-0018).
+   */
+  role?: 'voter' | 'viewer'
+}
+
+/**
+ * Returns the effective role for a participant. Absent field → `'voter'`
+ * (backward-compatible default — existing sessions have no role field).
+ */
+export function participantRole(p: Pick<Participant, 'role'>): 'voter' | 'viewer' {
+  return p.role ?? 'voter'
 }
 
 // ---------------------------------------------------------------------------

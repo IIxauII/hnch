@@ -871,7 +871,7 @@ All screens built with `ion-header` / `ion-footer` — Ionic handles safe-area i
 
 Acknowledged gaps and deferred decisions. Not blocking v1 but should be answered (or re-deferred) before corresponding feature built.
 
-**Consensus indicator in Lobby results.** All votes match → celebratory state (checkmark, "Consensus!" banner, distinct haptic)? Deferred — see real usage first before adding ornament.
+**Consensus indicator in Lobby results.** All votes match → celebratory state (checkmark, "Consensus!" banner, distinct haptic)? Consensus indicator: when all votes match, a full-screen "Consensus!" banner animates in with haptic feedback, then auto-dismisses.
 
 **Re-vote breadcrumb.** On re-voted round, the Lobby results section doesn't surface attempt count. `parentRoundId` in doc — could show "Round 2 • re-vote of Round 1." Deferred; resolve when designing optional session-history view (post-v1).
 
