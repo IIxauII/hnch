@@ -29,7 +29,6 @@ Present a single cohesive draft covering:
   **D1: <question>**
   A) Option one — brief tradeoff ← recommended (if you have one)
   B) Option two — brief tradeoff
-  Pick: ___
   ```
 - **Tasks** — numbered, with files + intent (not line-level implementation detail)
 

@@ -22,21 +22,20 @@ Evaluate the plan and present a **checkbox selection** to the user. Mark your re
 ```
 ## Execution mode
 
-- [ ] **A) Multi-agent team** ← recommended
-  Agents: 1x shared, 2x cli, 1x mobile, 1x reviewer (opus)
-  Reason: phases 2+3 have independent CLI tasks → parallel wins
-- [ ] **B) Sequential**
-  Agents: 1x cli, 1x reviewer (opus)
-  Reason: cheaper, simpler, but ~2x slower
-- [ ] **C) Custom:** ___
+**A) Multi-agent team** ← recommended
+   Agents: 1x shared, 2x cli, 1x mobile, 1x reviewer (opus)
+   Reason: phases 2+3 have independent CLI tasks → parallel wins
+**B) Sequential**
+   Agents: 1x cli, 1x reviewer (opus)
+   Reason: cheaper, simpler, but ~2x slower
+**C) Custom** — describe
 
 ## Agent roster (if multi-agent)
 
-- [x] 1x shared (haiku) — T1 only, shutdown after
-- [x] 2x cli (haiku) — T3-T4 parallel, T5-T6 parallel
-- [x] 1x mobile (haiku) — T2 only, shutdown after
-- [x] 1x reviewer (opus) — always
-- [ ] Custom: ___
+- 1x shared (haiku) — T1 only, shutdown after
+- 2x cli (haiku) — T3-T4 parallel, T5-T6 parallel
+- 1x mobile (haiku) — T2 only, shutdown after
+- 1x reviewer (opus) — always
 ```
 
 **Guidelines for your recommendation:**
