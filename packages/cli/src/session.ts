@@ -18,13 +18,14 @@ import {
   appendRound,
   patchSettings,
   hashPassword,
+  upsertParticipant,
   FIBONACCI_SCALE,
   type DocProjection,
   type Scale,
   type Round,
 } from '@hnch/shared'
 import { randomUUID } from 'node:crypto'
-import { mintRoom, resolveRoom } from './relay-api.js'
+import { mintRoom, resolveRoom, patchRoomAccess } from './relay-api.js'
 import { connect, type SyncConnection, type SyncStatus } from './sync.js'
 import { startElection, type ElectionHandle } from './host-election.js'
 
@@ -74,6 +75,10 @@ export interface SessionHandle {
   updateName(name: string | undefined): void
   /** Update the default estimation scale. */
   updateScale(scale: Scale): void
+  /** Update this participant's display name. */
+  updateDisplayName(name: string): void
+  /** Update room access mode (open or password-protected). */
+  updateAccess(mode: 'open' | 'password', password?: string): Promise<void>
 
   /** Subscribe to doc changes. Returns unsubscribe fn. */
   onChange(cb: () => void): () => void
@@ -92,12 +97,7 @@ export async function createSession(opts: CreateSessionOptions): Promise<Session
   if (opts.password) {
     passwordHash = await hashPassword(opts.password, minted.uuid)
     // Update room with password
-    const res = await fetch(`${opts.relayUrl}/rooms/${minted.uuid}/access`, {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ passwordHash }),
-    })
-    if (!res.ok) throw new Error(`Failed to set room password: ${res.status}`)
+    await patchRoomAccess(opts.relayUrl, minted.uuid, passwordHash)
   }
 
   const doc = new Y.Doc()
@@ -169,7 +169,7 @@ interface WireOptions {
 }
 
 function wireSession(opts: WireOptions): SessionHandle {
-  const { doc, awareness, participantId } = opts
+  const { doc, awareness, participantId, relayUrl, roomUuid } = opts
 
   const statusCallbacks = new Set<(status: SyncStatus) => void>()
   const changeCallbacks = new Set<() => void>()
@@ -299,6 +299,24 @@ function wireSession(opts: WireOptions): SessionHandle {
 
     updateScale(scale: Scale) {
       patchSettings(doc, { defaultScale: scale })
+    },
+
+    updateDisplayName(name: string) {
+      const projection = projectDoc(doc)
+      const participant = projection.participants.find((p) => p.id === participantId)
+      const joinedAt = participant?.joinedAt ?? Date.now()
+      upsertParticipant(doc, participantId, { displayName: name, joinedAt })
+    },
+
+    async updateAccess(mode: 'open' | 'password', password?: string) {
+      let passwordHash: string | null = null
+      if (mode === 'password') {
+        if (!password) throw new Error('Password required for password mode')
+        passwordHash = await hashPassword(password, roomUuid)
+      }
+      await patchRoomAccess(relayUrl, roomUuid, passwordHash)
+      // Update stored credentials so reconnect uses new passwordHash
+      conn.updateCredentials({ passwordHash })
     },
 
     onChange(cb: () => void) {

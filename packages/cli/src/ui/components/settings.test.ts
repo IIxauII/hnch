@@ -1,5 +1,5 @@
 /**
- * Unit tests for TextInput and SettingsPanel callback logic.
+ * Unit tests for TextInput and scale selection callback logic.
  *
  * Since Ink components require a TTY to render, these tests verify the
  * underlying logic by simulating the state transitions and callback
@@ -94,10 +94,10 @@ describe('TextInput logic', () => {
   })
 })
 
-// ── SettingsPanel callback logic ─────────────────────────────────────────────
+// ── Name submission logic ────────────────────────────────────────────────────
 
 /**
- * Simulates SettingsPanel's name submission logic:
+ * Simulates name submission logic:
  * empty/whitespace-only → undefined (remove), otherwise trimmed string.
  */
 function resolveNameSubmit(raw: string): string | undefined {
@@ -105,7 +105,7 @@ function resolveNameSubmit(raw: string): string | undefined {
   return trimmed === '' ? undefined : trimmed
 }
 
-describe('SettingsPanel name submission', () => {
+describe('Name submission', () => {
   it('non-empty string is trimmed and returned', () => {
     expect(resolveNameSubmit('Sprint 42')).toBe('Sprint 42')
     expect(resolveNameSubmit('  Sprint 42  ')).toBe('Sprint 42')
@@ -120,7 +120,7 @@ describe('SettingsPanel name submission', () => {
   })
 })
 
-describe('SettingsPanel scale selection', () => {
+describe('Scale selection', () => {
   const scales = buildAvailableScales()
 
   it('buildAvailableScales returns all 5 builtins by default', () => {

@@ -1,13 +1,14 @@
 import React from 'react'
 import { Text, useInput } from 'ink'
 
-interface TextInputProps {
+export interface TextInputProps {
   value: string
   onChange: (value: string) => void
   onSubmit: (value: string) => void
   onCancel?: () => void
   placeholder?: string
   isActive?: boolean
+  mask?: boolean
 }
 
 export function TextInput({
@@ -17,6 +18,7 @@ export function TextInput({
   onCancel,
   placeholder,
   isActive = true,
+  mask = false,
 }: TextInputProps): React.ReactElement {
   useInput(
     (input, key) => {
@@ -33,7 +35,8 @@ export function TextInput({
     { isActive },
   )
 
-  const display = value.length > 0 ? value : (placeholder ?? '')
+  const displayValue = mask && value.length > 0 ? '*'.repeat(value.length) : value
+  const display = displayValue.length > 0 ? displayValue : (placeholder ?? '')
   const isPlaceholder = value.length === 0 && placeholder !== undefined
 
   return (

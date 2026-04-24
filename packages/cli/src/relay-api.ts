@@ -57,3 +57,21 @@ export async function resolveRoom(
   }
   return (await res.json()) as ResolvedRoom
 }
+
+/**
+ * `PATCH /rooms/:uuid/access` — updates room access mode and password.
+ */
+export async function patchRoomAccess(
+  httpBaseUrl: string,
+  uuid: string,
+  passwordHash: string | null,
+): Promise<void> {
+  const res = await fetch(`${httpBaseUrl}/rooms/${uuid}/access`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ passwordHash }),
+  })
+  if (!res.ok) {
+    throw new Error(`PATCH /rooms/:uuid/access failed: ${res.status}`)
+  }
+}

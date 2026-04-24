@@ -1,7 +1,7 @@
 import React from 'react'
 import { Box, Text, useInput } from 'ink'
 import { ParticipantList } from './components/ParticipantList.js'
-import { SettingsPanel } from './components/SettingsPanel.js'
+import { LobbySettings } from './components/LobbySettings.js'
 import type { DocProjection, Round, Scale, PresetOverrides, CustomScale } from '@hnch/shared'
 
 interface Props {
@@ -22,6 +22,10 @@ interface Props {
   onCloseSettings: () => void
   onChangeName: (name: string | undefined) => void
   onChangeScale: (scale: Scale) => void
+  onChangeDisplayName: (name: string) => void
+  onChangeAccess: (mode: 'open' | 'password', password?: string) => Promise<void>
+  displayName: string
+  accessMode: 'open' | 'password'
 }
 
 function computeStats(votes: Record<string, string>): {
@@ -106,6 +110,10 @@ export function Lobby({
   onCloseSettings,
   onChangeName,
   onChangeScale,
+  onChangeDisplayName,
+  onChangeAccess,
+  displayName,
+  accessMode,
 }: Props): React.ReactElement {
   useInput(
     (input) => {
@@ -129,13 +137,17 @@ export function Lobby({
 
   if (settingsOpen) {
     return (
-      <SettingsPanel
-        currentName={projection.settings.name}
+      <LobbySettings
+        sessionName={projection.settings.name}
+        displayName={displayName}
         currentScale={projection.settings.defaultScale}
+        accessMode={accessMode}
         presetOverrides={presetOverrides}
         customScales={customScales}
         onChangeName={onChangeName}
         onChangeScale={onChangeScale}
+        onChangeDisplayName={onChangeDisplayName}
+        onChangeAccess={onChangeAccess}
         onClose={onCloseSettings}
       />
     )
