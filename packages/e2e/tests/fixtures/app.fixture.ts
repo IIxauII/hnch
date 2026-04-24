@@ -10,6 +10,9 @@ import {
   SETTINGS_SHEET,
   SCALE_PICKER,
   ACCESS_PICKER,
+  APP_SETTINGS,
+  APP_SETTINGS_SCALE_PICKER,
+  PRESET_CARD_EDITOR,
 } from './helpers'
 
 // ---------------------------------------------------------------------------
@@ -199,6 +202,57 @@ export class Participant {
     await doneBtn.evaluate((el: HTMLElement) => el.click())
     // Wait for modal dismiss animation
     await this.page.locator('app-session-settings-sheet').waitFor({ state: 'hidden' })
+  }
+
+  // -- App settings (device-level preferences) -----
+
+  /** Navigate to the app settings page (/settings). */
+  async navigateToAppSettings(): Promise<void> {
+    await this.page.goto(`${BASE_URL}/settings`)
+    await this.page.waitForURL(/\/settings/)
+  }
+
+  /** Open the default scale picker and select a builtin scale by its label. */
+  async setDefaultScale(scaleLabel: string): Promise<void> {
+    await this.page.locator(APP_SETTINGS.defaultScaleRow).click()
+    // Format the scale label to match the scale ID (e.g., "Fibonacci" -> "fibonacci")
+    const scaleId = scaleLabel.toLowerCase().replace(/\s+/g, '-')
+    await this.page.locator(APP_SETTINGS_SCALE_PICKER.scaleRadio(scaleId)).click()
+    const doneBtn = this.page.locator(APP_SETTINGS_SCALE_PICKER.doneBtn)
+    await doneBtn.waitFor({ state: 'visible' })
+    await doneBtn.evaluate((el: HTMLElement) => el.click())
+    // Wait for modal dismiss animation
+    await this.page.locator('app-scale-picker-sheet').waitFor({ state: 'hidden' })
+  }
+  /** Toggle a preset scale card on or off. */
+  async togglePresetCard(presetLabel: string, cardValue: string): Promise<void> {
+    await this.page.locator(APP_SETTINGS.defaultScaleRow).click()
+
+    // Format the preset label to match scale ID (e.g., "Fibonacci" -> "fibonacci")
+    const presetId = presetLabel.toLowerCase().replace(/\s+/g, '-')
+    const editBtn = this.page.locator(APP_SETTINGS_SCALE_PICKER.editBtn(presetId))
+    await editBtn.waitFor({ state: 'visible' })
+    await editBtn.click()
+
+    // Wait for the scale editor to appear
+    await this.page.locator('app-scale-editor-sheet').waitFor({ state: 'visible' })
+
+    // Click the toggle for the target card
+    const cardToggle = this.page.locator(PRESET_CARD_EDITOR.cardToggle(cardValue))
+    await cardToggle.waitFor({ state: 'visible' })
+    await cardToggle.click()
+
+    // Close the editor
+    const doneBtn = this.page.locator(PRESET_CARD_EDITOR.doneBtn)
+    await doneBtn.waitFor({ state: 'visible' })
+    await doneBtn.evaluate((el: HTMLElement) => el.click())
+    await this.page.locator('app-scale-editor-sheet').waitFor({ state: 'hidden' })
+
+    // Close the scale picker
+    const pickerDoneBtn = this.page.locator(APP_SETTINGS_SCALE_PICKER.doneBtn)
+    await pickerDoneBtn.waitFor({ state: 'visible' })
+    await pickerDoneBtn.evaluate((el: HTMLElement) => el.click())
+    await this.page.locator('app-scale-picker-sheet').waitFor({ state: 'hidden' })
   }
 
   // -- Disconnect / reconnect -----------------------------------------------
