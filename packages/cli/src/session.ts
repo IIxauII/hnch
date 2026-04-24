@@ -80,6 +80,8 @@ export interface SessionHandle {
   updateDisplayName(name: string): void
   /** Update room access mode (open or password-protected). */
   updateAccess(mode: 'open' | 'password', password?: string): Promise<void>
+  /** Hand off host to target participant (host only, target must be online). */
+  handoffHost(targetId: string): void
 
   /** Subscribe to doc changes. Returns unsubscribe fn. */
   onChange(cb: () => void): () => void
@@ -334,6 +336,22 @@ export function wireSession(opts: WireOptions): SessionHandle {
       await patchRoomAccess(relayUrl, roomUuid, passwordHash)
       // Update stored credentials so reconnect uses new passwordHash
       conn.updateCredentials({ passwordHash })
+    },
+
+    handoffHost(targetId: string) {
+      if (!this.isHost()) {
+        throw new Error('Only the current host can hand off')
+      }
+      const onlineIds = getOnlineIds()
+      if (!onlineIds.has(targetId)) {
+        throw new Error('Target participant is not online')
+      }
+      const projection = projectDoc(doc)
+      const targetExists = projection.participants.some((p) => p.id === targetId)
+      if (!targetExists) {
+        throw new Error('Target participant does not exist')
+      }
+      patchSettings(doc, { hostParticipantId: targetId })
     },
 
     onChange(cb: () => void) {

@@ -165,6 +165,14 @@ export function App({ session, participantId, displayName, accessMode: initialAc
     setAccessMode(mode)
   }, [session])
 
+  const handleHandoffHost = useCallback((targetId: string) => {
+    try {
+      session.handoffHost(targetId)
+    } catch (err) {
+      console.error(`Handoff failed: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }, [session])
+
   const handleOpenSettings = useCallback(() => {
     setSettingsOpen(true)
   }, [])
@@ -215,6 +223,7 @@ export function App({ session, participantId, displayName, accessMode: initialAc
           onChangeScale={handleChangeScale}
           onChangeDisplayName={handleChangeDisplayName}
           onChangeAccess={handleChangeAccess}
+          onHandoffHost={handleHandoffHost}
           confirmingQuit={confirmingQuit}
         />
       )}
