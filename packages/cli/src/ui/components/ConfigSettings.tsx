@@ -3,14 +3,14 @@ import { Box, Text, useApp, useInput } from 'ink'
 import {
   buildAvailableScales,
   formatScaleId,
-  BUILTIN_SCALES,
-  type Scale,
   type PresetOverrides,
   type CustomScale,
+  type Scale,
 } from '@hnch/shared'
 import { readConfig, writeConfig, updateConfig, type CliConfig } from '../../config.js'
 import { MenuList, type MenuItem } from './MenuList.js'
 import { TextInput } from './TextInput.js'
+import { ScalePicker } from './ScalePicker.js'
 
 interface ConfigSettingsProps {
   presetOverrides?: PresetOverrides
@@ -147,6 +147,17 @@ export function ConfigSettings({
     setState('main-menu')
   }
 
+  function handleScaleOverrideChange(scaleId: string, disabledIndices: number[]) {
+    // Update preset overrides in config
+    const updated = { ...presetOverrides }
+    if (disabledIndices.length === 0) {
+      delete updated[scaleId]
+    } else {
+      updated[scaleId] = disabledIndices
+    }
+    writeConfig({ presetOverrides: Object.keys(updated).length > 0 ? updated : undefined })
+  }
+
   function handlePasswordToggle(value: string) {
     const isOn = value === 'on'
     const updated = { ...config, defaultPassword: isOn }
@@ -221,21 +232,18 @@ export function ConfigSettings({
   }
 
   if (state === 'picking-scale') {
-    const scaleItems = scales.map((s) => ({
-      label: formatScaleId(s.id),
-      value: s.id,
-      detail: s.id === currentScale ? '[current]' : undefined,
-    }))
-    scaleItems.unshift({ label: '(none)', value: '', detail: currentScale === undefined ? '[current]' : undefined })
-
+    const scalesWithNone: Scale[] = [{ id: '', cards: [] }, ...scales]
     return (
       <Box flexDirection="column" gap={1}>
         <Text bold>── Config Settings ──</Text>
-        <MenuList
-          title="Select default scale:"
-          items={scaleItems}
+        <ScalePicker
+          scales={scalesWithNone}
+          selectedScaleId={currentScale ?? ''}
+          presetOverrides={presetOverrides}
           onSelect={handleScaleSelect}
+          onOverrideChange={handleScaleOverrideChange}
           onClose={() => setState('main-menu')}
+          showNoneOption
         />
       </Box>
     )

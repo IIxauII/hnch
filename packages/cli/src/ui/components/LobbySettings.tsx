@@ -10,6 +10,7 @@ import {
 import { MenuList } from './MenuList.js'
 import { AccessPicker } from './AccessPicker.js'
 import { TextInput } from './TextInput.js'
+import { ScalePicker } from './ScalePicker.js'
 import { writeConfig } from '../../config.js'
 
 export interface LobbySettingsProps {
@@ -119,6 +120,17 @@ export function LobbySettings({
     setState('main-menu')
   }
 
+  function handleScaleOverrideChange(scaleId: string, disabledIndices: number[]) {
+    // Update preset overrides in config
+    const updated = { ...presetOverrides }
+    if (disabledIndices.length === 0) {
+      delete updated[scaleId]
+    } else {
+      updated[scaleId] = disabledIndices
+    }
+    writeConfig({ presetOverrides: Object.keys(updated).length > 0 ? updated : undefined })
+  }
+
   async function handleAccessSubmit(mode: 'open' | 'password', password?: string) {
     setIsUpdating(true)
     try {
@@ -188,14 +200,12 @@ export function LobbySettings({
     return (
       <Box flexDirection="column" gap={1}>
         <Text bold>── Settings ──</Text>
-        <MenuList
-          title="Select scale:"
-          items={scales.map((s) => ({
-            label: formatScaleId(s.id),
-            value: s.id,
-            detail: s.id === currentScale.id ? '[current]' : undefined,
-          }))}
+        <ScalePicker
+          scales={scales}
+          selectedScaleId={currentScale.id}
+          presetOverrides={presetOverrides}
           onSelect={handleScaleSelect}
+          onOverrideChange={handleScaleOverrideChange}
           onClose={() => setState('main-menu')}
         />
       </Box>
