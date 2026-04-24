@@ -23,13 +23,16 @@ import {
 import { addIcons } from 'ionicons'
 import { chevronForwardOutline } from 'ionicons/icons'
 
+import { formatScaleId, type Scale } from '@hnch/shared'
+
 import { environment } from '../../environments/environment'
 import { DocService } from '../core/doc/doc.service'
 import { DisplayNameService } from '../core/display-name.service'
 import { ParticipantIdService } from '../core/participant-id.service'
+import { ScalePreferenceService } from '../core/scale-preference.service'
 import { ThemeService, type Theme } from '../core/theme.service'
+import { ScalePickerSheetComponent } from '../session-settings/scale-picker.sheet'
 import { DisplayNameEditorSheetComponent } from './display-name-editor.sheet'
-import { ScaleManagementSheetComponent } from './scale-management.sheet'
 import { ThemePickerSheetComponent } from './theme-picker.sheet'
 
 const THEME_LABELS: Record<Theme, string> = {
@@ -42,15 +45,15 @@ const THEME_LABELS: Record<Theme, string> = {
  * App Settings screen — ux.md §5.7.
  *
  * Four sections: Profile (display name), Appearance (theme picker),
- * Scales (manage presets and custom scales), and About (version, licenses,
- * privacy). Each editable row opens a half-sheet picker/editor.
+ * Scales (default scale picker), and About (version, licenses, privacy).
+ * Each editable row opens a half-sheet picker/editor.
  */
 @Component({
   selector: 'app-settings',
   host: { class: 'ion-page' },
   imports: [
     DisplayNameEditorSheetComponent,
-    ScaleManagementSheetComponent,
+    ScalePickerSheetComponent,
     IonBackButton,
     IonButtons,
     IonContent,
@@ -103,8 +106,9 @@ const THEME_LABELS: Record<Theme, string> = {
         <ion-label>Scales</ion-label>
       </ion-list-header>
       <ion-list lines="inset">
-        <ion-item button (click)="openScaleManagement()">
-          <ion-label>Manage scales</ion-label>
+        <ion-item button (click)="openScalePicker()">
+          <ion-label>Default scale</ion-label>
+          <ion-note slot="end">{{ scaleLabel() }}</ion-note>
         </ion-item>
       </ion-list>
 
@@ -161,17 +165,19 @@ const THEME_LABELS: Record<Theme, string> = {
         </ng-template>
       </ion-modal>
 
-      <!-- Scale management half-sheet -->
+      <!-- Scale picker half-sheet -->
       <ion-modal
-        #scaleModal
-        [isOpen]="scaleManagementOpen()"
+        #scalePickerModal
+        [isOpen]="scalePickerOpen()"
         [breakpoints]="[0, 0.6, 0.95]"
-        [initialBreakpoint]="0.95"
-        (didDismiss)="scaleManagementOpen.set(false)"
+        [initialBreakpoint]="0.6"
+        (didDismiss)="scalePickerOpen.set(false)"
       >
         <ng-template>
-          <app-scale-management-sheet
-            (closeRequested)="closeScaleManagement()"
+          <app-scale-picker-sheet
+            [selectedScaleId]="scalePrefs.defaultScaleId()"
+            (scaleSelected)="onScaleSelected($event)"
+            (closeRequested)="closeScalePicker()"
           />
         </ng-template>
       </ion-modal>
@@ -182,6 +188,7 @@ export class SettingsPage {
   private readonly displayNameService = inject(DisplayNameService)
   private readonly docService = inject(DocService)
   private readonly participantIdService = inject(ParticipantIdService)
+  protected readonly scalePrefs = inject(ScalePreferenceService)
   protected readonly themeService = inject(ThemeService)
 
   protected readonly version = environment.appVersion
@@ -193,13 +200,18 @@ export class SettingsPage {
     () => THEME_LABELS[this.themeService.theme()],
   )
 
+  protected readonly scaleLabel = computed(() => {
+    const scale = this.scalePrefs.defaultScale()
+    return formatScaleId(scale.id)
+  })
+
   protected readonly nameEditorOpen = signal(false)
   protected readonly themePickerOpen = signal(false)
-  protected readonly scaleManagementOpen = signal(false)
+  protected readonly scalePickerOpen = signal(false)
 
   private readonly nameModalRef = viewChild<IonModal>('nameModal')
   private readonly themeModalRef = viewChild<IonModal>('themeModal')
-  private readonly scaleModalRef = viewChild<IonModal>('scaleModal')
+  private readonly scalePickerModalRef = viewChild<IonModal>('scalePickerModal')
 
   constructor() {
     addIcons({ 'chevron-forward-outline': chevronForwardOutline })
@@ -261,15 +273,19 @@ export class SettingsPage {
   }
 
   // ---------------------------------------------------------------------------
-  // Scale management
+  // Scale picker
   // ---------------------------------------------------------------------------
 
-  protected openScaleManagement(): void {
-    this.scaleManagementOpen.set(true)
+  protected openScalePicker(): void {
+    this.scalePickerOpen.set(true)
   }
 
-  protected async closeScaleManagement(): Promise<void> {
-    await this.scaleModalRef()?.dismiss()
-    this.scaleManagementOpen.set(false)
+  protected async closeScalePicker(): Promise<void> {
+    await this.scalePickerModalRef()?.dismiss()
+    this.scalePickerOpen.set(false)
+  }
+
+  protected onScaleSelected(scale: Scale): void {
+    void this.scalePrefs.setDefaultScaleId(scale.id)
   }
 }

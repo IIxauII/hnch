@@ -7,7 +7,7 @@ import {
   signal,
 } from '@angular/core'
 import { Router } from '@angular/router'
-import { FIBONACCI_SCALE, type JoinRejectionReason } from '@hnch/shared'
+import { type JoinRejectionReason } from '@hnch/shared'
 import {
   ActionSheetController,
   IonButton,
@@ -38,6 +38,7 @@ import {
   type LastSessionScreen,
 } from '../core/last-session.service'
 import { ParticipantIdService } from '../core/participant-id.service'
+import { ScalePreferenceService } from '../core/scale-preference.service'
 import { mintRoom } from '../core/relay/relay-api'
 import {
   JumpBackInBannerComponent,
@@ -155,6 +156,7 @@ export class HomePage {
   private readonly toastCtrl = inject(ToastController)
   private readonly displayNameService = inject(DisplayNameService)
   private readonly participantIdService = inject(ParticipantIdService)
+  private readonly scalePrefs = inject(ScalePreferenceService)
   private readonly lastSessionService = inject(LastSessionService)
   private readonly docService = inject(DocService)
   private readonly injector = inject(Injector)
@@ -216,7 +218,7 @@ export class HomePage {
       this.docService.createSession({
         participantId,
         displayName: displayName ?? '',
-        defaultScale: FIBONACCI_SCALE,
+        defaultScale: this.scalePrefs.defaultScale(),
         roomUuid: minted.uuid,
         roomCode: minted.code,
       })
@@ -274,7 +276,7 @@ export class HomePage {
       this.docService.createSession({
         participantId,
         displayName: displayName ?? '',
-        defaultScale: FIBONACCI_SCALE,
+        defaultScale: this.scalePrefs.defaultScale(),
         roomUuid: cache.roomUuid,
         roomCode: cache.roomCode,
       })

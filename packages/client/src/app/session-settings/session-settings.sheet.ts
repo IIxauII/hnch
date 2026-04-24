@@ -36,6 +36,7 @@ import {
   type AccessSelection,
 } from './access-picker.sheet'
 import { ScalePickerSheetComponent } from './scale-picker.sheet'
+import { formatScaleId } from '@hnch/shared'
 
 /**
  * Session settings half-sheet — ux.md §5.8.
@@ -109,13 +110,11 @@ import { ScalePickerSheetComponent } from './scale-picker.sheet'
       (didDismiss)="scaleOpen.set(false)"
     >
       <ng-template>
-        @if (currentScale(); as scale) {
-          <app-scale-picker-sheet
-            [currentScale]="scale"
-            (selected)="onScaleSelected($event)"
-            (closeRequested)="closeScalePicker()"
-          />
-        }
+        <app-scale-picker-sheet
+          [selectedScaleId]="currentScale()?.id"
+          (scaleSelected)="onScaleSelected($event)"
+          (closeRequested)="closeScalePicker()"
+        />
       </ng-template>
     </ion-modal>
 
@@ -183,7 +182,7 @@ export class SessionSettingsSheetComponent {
   })
 
   protected readonly accessLabel = computed(() =>
-    formatAccessMode(this.accessMode()),
+    formatAccessLabel(this.accessMode()),
   )
 
   private readonly scaleModalRef = viewChild<IonModal>('scaleModal')
@@ -259,13 +258,7 @@ export class SessionSettingsSheetComponent {
 // Module-private formatters
 // ---------------------------------------------------------------------------
 
-/** "fibonacci" → "Fibonacci"; "t-shirt" → "T-shirt". */
-function formatScaleId(id: string): string {
-  if (id.length === 0) return id
-  return id.charAt(0).toUpperCase() + id.slice(1)
-}
-
-function formatAccessMode(mode: AccessMode): string {
+function formatAccessLabel(mode: AccessMode): string {
   switch (mode) {
     case 'open':
       return 'Open'

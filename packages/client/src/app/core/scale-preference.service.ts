@@ -11,9 +11,10 @@ import {
 /**
  * Per-device scale customization — ADR-0019.
  *
- * Persists two blobs under Capacitor Preferences:
- *   - `hnch.presetOverrides` — which card indices are disabled per builtin scale
- *   - `hnch.customScales`   — fully user-defined scales
+ * Persists three blobs under Capacitor Preferences:
+ *   - `hnch.presetOverrides`  — which card indices are disabled per builtin scale
+ *   - `hnch.customScales`     — fully user-defined scales
+ *   - `hnch.defaultScaleId`   — the default scale ID (string, defaults to 'fibonacci')
  *
  * Exposes signals so pickers and the settings page can react without
  * polling. An `APP_INITIALIZER` pre-warms {@link ensureLoaded} so every
@@ -23,9 +24,11 @@ import {
 export class ScalePreferenceService {
   static readonly PRESET_OVERRIDES_KEY = 'hnch.presetOverrides'
   static readonly CUSTOM_SCALES_KEY = 'hnch.customScales'
+  static readonly DEFAULT_SCALE_ID_KEY = 'hnch.defaultScaleId'
 
   private readonly presetOverridesSignal = signal<PresetOverrides>({})
   private readonly customScalesSignal = signal<CustomScale[]>([])
+  private readonly defaultScaleIdSignal = signal<string>('fibonacci')
 
   /** Disabled card-index sets per builtin scale id. */
   readonly presetOverrides: Signal<PresetOverrides> =
@@ -35,6 +38,10 @@ export class ScalePreferenceService {
   readonly customScales: Signal<CustomScale[]> =
     this.customScalesSignal.asReadonly()
 
+  /** Default scale ID (stored in Preferences, defaults to 'fibonacci'). */
+  readonly defaultScaleId: Signal<string> =
+    this.defaultScaleIdSignal.asReadonly()
+
   /**
    * Full ordered list of scales available for picking: builtin presets
    * (with per-index overrides applied) followed by custom scales.
@@ -43,6 +50,21 @@ export class ScalePreferenceService {
   readonly availableScales: Signal<Scale[]> = computed(() =>
     buildAvailableScales(this.presetOverridesSignal(), this.customScalesSignal()),
   )
+
+  /**
+   * The resolved default scale object, looking up the current defaultScaleId
+   * against availableScales. Falls back to the Fibonacci scale if the ID is
+   * not found.
+   */
+  readonly defaultScale: Signal<Scale> = computed(() => {
+    const id = this.defaultScaleIdSignal()
+    const scales = this.availableScales()
+    const found = scales.find((s) => s.id === id)
+    if (found) return found
+    const fibonacci = scales.find((s) => s.id === 'fibonacci')
+    if (fibonacci) return fibonacci
+    return scales[0]!
+  })
 
   private loading: Promise<void> | null = null
 
@@ -151,10 +173,23 @@ export class ScalePreferenceService {
     })
   }
 
+  /**
+   * Set the default scale ID. The ID is persisted to Capacitor Preferences
+   * and the signal is updated so dependent screens react immediately.
+   */
+  async setDefaultScaleId(id: string): Promise<void> {
+    this.defaultScaleIdSignal.set(id)
+    await Preferences.set({
+      key: ScalePreferenceService.DEFAULT_SCALE_ID_KEY,
+      value: id,
+    })
+  }
+
   private async load(): Promise<void> {
-    const [overridesResult, customsResult] = await Promise.all([
+    const [overridesResult, customsResult, defaultIdResult] = await Promise.all([
       Preferences.get({ key: ScalePreferenceService.PRESET_OVERRIDES_KEY }),
       Preferences.get({ key: ScalePreferenceService.CUSTOM_SCALES_KEY }),
+      Preferences.get({ key: ScalePreferenceService.DEFAULT_SCALE_ID_KEY }),
     ])
 
     if (overridesResult.value) {
@@ -169,6 +204,10 @@ export class ScalePreferenceService {
       if (isCustomScaleArray(parsed)) {
         this.customScalesSignal.set(parsed)
       }
+    }
+
+    if (defaultIdResult.value) {
+      this.defaultScaleIdSignal.set(defaultIdResult.value)
     }
   }
 }
