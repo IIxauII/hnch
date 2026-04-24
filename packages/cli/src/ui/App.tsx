@@ -38,6 +38,8 @@ export function App({ session, participantId, displayName, accessMode: initialAc
   )
   const [displayNameLocal, setDisplayNameLocal] = useState(displayName)
   const [confirmingQuit, setConfirmingQuit] = useState(false)
+  const [hostNotification, setHostNotification] = useState<string | null>(null)
+  const hostNotificationTimeoutRef = React.useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     const unsub1 = session.onChange(() => {
@@ -45,6 +47,26 @@ export function App({ session, participantId, displayName, accessMode: initialAc
       setOnlineIds(session.onlineIds())
     })
     const unsub2 = session.onStatusChange(setStatus)
+    const unsub3 = session.onHostChange((newHostId) => {
+      // Clear previous timeout if any
+      if (hostNotificationTimeoutRef.current) {
+        clearTimeout(hostNotificationTimeoutRef.current)
+      }
+
+      const proj = session.projection()
+      const newHost = proj.participants.find((p) => p.id === newHostId)
+      const message = newHostId === participantId
+        ? 'You are now the host'
+        : `${newHost?.displayName || 'Unknown'} is now the host`
+
+      setHostNotification(message)
+
+      // Auto-clear after 3s
+      hostNotificationTimeoutRef.current = setTimeout(() => {
+        setHostNotification(null)
+        hostNotificationTimeoutRef.current = null
+      }, 3000)
+    })
 
     // Poll awareness for online IDs and update elapsed time each second
     const awarenessInterval = setInterval(() => {
@@ -61,9 +83,13 @@ export function App({ session, participantId, displayName, accessMode: initialAc
     return () => {
       unsub1()
       unsub2()
+      unsub3()
       clearInterval(awarenessInterval)
+      if (hostNotificationTimeoutRef.current) {
+        clearTimeout(hostNotificationTimeoutRef.current)
+      }
     }
-  }, [session])
+  }, [session, participantId])
 
   // Global quit handler — inactive when settings panel is open
   useInput(
@@ -160,6 +186,12 @@ export function App({ session, participantId, displayName, accessMode: initialAc
         status={status}
         isHost={isHost}
       />
+
+      {hostNotification && (
+        <Box paddingX={1}>
+          <Text color="yellow">{hostNotification}</Text>
+        </Box>
+      )}
 
       {screen === 'lobby' && (
         <Lobby

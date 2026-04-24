@@ -1,13 +1,12 @@
 # CLI vs Mobile — Feature Divergences
 
-Generated 2026-04-24. Compares `packages/cli` and `packages/client` for functional gaps. Platform-appropriate differences (QR, haptics, theme picker, deep links, share API) excluded.
+Updated 2026-04-24. Compares `packages/cli` and `packages/client` for functional gaps. Platform-appropriate differences (QR, haptics, theme picker, deep links, share API) excluded.
 
 ## CLI missing (mobile has)
 
 | Feature | Detail |
 |---------|--------|
-| Session resume | Mobile caches last session (room UUID, code, credentials) in Capacitor Preferences, offers "Jump back in" banner on Home if <24h old. CLI has no equivalent — exiting loses the session. |
-| Leave confirmation | Mobile shows destructive alert before navigating away. CLI exits immediately on Q/Ctrl+C with no confirmation. |
+| Session resume | Mobile caches last session (room UUID, code, credentials) in Capacitor Preferences, offers "Jump back in" banner on Home if <24h old. CLI has `hnch resume` but no automatic prompt. |
 | Host change notification | Neither platform notifies — listed under "both missing" below. |
 
 ## Mobile missing (CLI has)

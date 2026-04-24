@@ -85,6 +85,8 @@ export interface SessionHandle {
   onChange(cb: () => void): () => void
   /** Subscribe to sync status changes. Returns unsubscribe fn. */
   onStatusChange(cb: (status: SyncStatus) => void): () => void
+  /** Subscribe to host changes. Skips initial value, fires only on actual changes. Returns unsubscribe fn. */
+  onHostChange(cb: (newHostId: string) => void): () => void
 
   /** Disconnect and clean up. */
   disconnect(): void
@@ -175,6 +177,7 @@ export function wireSession(opts: WireOptions): SessionHandle {
 
   const statusCallbacks = new Set<(status: SyncStatus) => void>()
   const changeCallbacks = new Set<() => void>()
+  const hostChangeCallbacks = new Set<(newHostId: string) => void>()
 
   // Connect to relay
   const conn: SyncConnection = connect({
@@ -233,6 +236,17 @@ export function wireSession(opts: WireOptions): SessionHandle {
       revealRoundMutation(doc, round.id, Date.now())
     }
   }, 250)
+
+  // Track host changes: record initial value, fire callback only on actual changes
+  let lastHostId = doc.getMap('settings').get('hostParticipantId') as string | undefined
+  const hostChangeHandler = (): void => {
+    const currentHostId = doc.getMap('settings').get('hostParticipantId') as string | undefined
+    if (currentHostId !== lastHostId && currentHostId !== undefined) {
+      hostChangeCallbacks.forEach((cb) => cb(currentHostId))
+    }
+    lastHostId = currentHostId
+  }
+  doc.getMap('settings').observe(hostChangeHandler)
 
   let disposed = false
 
@@ -332,6 +346,11 @@ export function wireSession(opts: WireOptions): SessionHandle {
       return () => statusCallbacks.delete(cb)
     },
 
+    onHostChange(cb: (newHostId: string) => void) {
+      hostChangeCallbacks.add(cb)
+      return () => hostChangeCallbacks.delete(cb)
+    },
+
     disconnect() {
       if (disposed) return
       disposed = true
@@ -339,6 +358,7 @@ export function wireSession(opts: WireOptions): SessionHandle {
       election.stop()
       doc.getMap('meta').unobserveDeep(observeHandler)
       doc.getMap('settings').unobserveDeep(observeHandler)
+      doc.getMap('settings').unobserve(hostChangeHandler)
       doc.getMap('participants').unobserveDeep(observeHandler)
       doc.getArray('rounds').unobserveDeep(observeHandler)
       conn.disconnect()
