@@ -14,6 +14,7 @@ interface Props {
   onVote: (card: string) => void
   onClearVote: () => void
   onReveal: () => void
+  confirmingQuit: boolean
 }
 
 function formatElapsed(ms: number): string {
@@ -33,12 +34,16 @@ export function Voting({
   onVote,
   onClearVote,
   onReveal,
+  confirmingQuit,
 }: Props): React.ReactElement {
-  useInput((input) => {
-    if (isHost && (input === 'r' || input === 'R')) {
-      onReveal()
-    }
-  })
+  useInput(
+    (input) => {
+      if (isHost && (input === 'r' || input === 'R')) {
+        onReveal()
+      }
+    },
+    { isActive: !confirmingQuit },
+  )
 
   const myVote = round.votes[myId]
   const roundNum = projection.rounds.indexOf(round) + 1
@@ -67,6 +72,7 @@ export function Voting({
           selected={myVote}
           onSelect={onVote}
           onClear={onClearVote}
+          disabled={confirmingQuit}
         />
       </Box>
 

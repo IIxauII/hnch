@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Box, useApp, useInput } from 'ink'
+import { Box, Text, useApp, useInput } from 'ink'
 import type { SessionHandle } from '../session.js'
 import type { SyncStatus } from '../sync.js'
 import type { DocProjection, Round, Scale, PresetOverrides, CustomScale } from '@hnch/shared'
@@ -37,6 +37,7 @@ export function App({ session, participantId, displayName, accessMode: initialAc
     initialAccessMode === 'password' ? 'password' : 'open',
   )
   const [displayNameLocal, setDisplayNameLocal] = useState(displayName)
+  const [confirmingQuit, setConfirmingQuit] = useState(false)
 
   useEffect(() => {
     const unsub1 = session.onChange(() => {
@@ -68,11 +69,23 @@ export function App({ session, participantId, displayName, accessMode: initialAc
   useInput(
     (input) => {
       if (input === 'q' || input === 'Q') {
-        session.disconnect()
-        exit()
+        setConfirmingQuit(true)
       }
     },
-    { isActive: !settingsOpen },
+    { isActive: !settingsOpen && !confirmingQuit },
+  )
+
+  // Confirm quit handler — active only during confirmation
+  useInput(
+    (input, key) => {
+      if (input === 'y' || input === 'Y') {
+        session.disconnect()
+        exit()
+      } else if (input === 'n' || input === 'N' || key.escape) {
+        setConfirmingQuit(false)
+      }
+    },
+    { isActive: confirmingQuit },
   )
 
   const screen = deriveScreen(projection)
@@ -170,6 +183,7 @@ export function App({ session, participantId, displayName, accessMode: initialAc
           onChangeScale={handleChangeScale}
           onChangeDisplayName={handleChangeDisplayName}
           onChangeAccess={handleChangeAccess}
+          confirmingQuit={confirmingQuit}
         />
       )}
 
@@ -184,7 +198,14 @@ export function App({ session, participantId, displayName, accessMode: initialAc
           onVote={handleVote}
           onClearVote={handleClearVote}
           onReveal={handleReveal}
+          confirmingQuit={confirmingQuit}
         />
+      )}
+
+      {confirmingQuit && (
+        <Box>
+          <Text dimColor>Leave session? y/n</Text>
+        </Box>
       )}
     </Box>
   )
