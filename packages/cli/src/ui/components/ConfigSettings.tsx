@@ -37,6 +37,7 @@ export function ConfigSettings({
   const [relayUrlInput, setRelayUrlInput] = useState(config.relayUrl ?? '')
   const [sessionNameInput, setSessionNameInput] = useState(config.defaultSessionName ?? '')
   const [localCustomScales, setLocalCustomScales] = useState<CustomScale[]>(customScales ?? [])
+  const [localOverrides, setLocalOverrides] = useState<PresetOverrides>(presetOverrides ?? {})
 
   // Global quit handler
   useInput(
@@ -49,8 +50,8 @@ export function ConfigSettings({
   )
 
   const scales = useMemo(
-    () => buildAvailableScales(presetOverrides, localCustomScales),
-    [presetOverrides, localCustomScales],
+    () => buildAvailableScales(localOverrides, localCustomScales),
+    [localOverrides, localCustomScales],
   )
   const currentScale = config.defaultScale
   const currentScaleObj = currentScale
@@ -150,13 +151,13 @@ export function ConfigSettings({
   }
 
   function handleScaleOverrideChange(scaleId: string, disabledIndices: number[]) {
-    // Update preset overrides in config
-    const updated = { ...presetOverrides }
+    const updated = { ...localOverrides }
     if (disabledIndices.length === 0) {
       delete updated[scaleId]
     } else {
       updated[scaleId] = disabledIndices
     }
+    setLocalOverrides(updated)
     writeConfig({ presetOverrides: Object.keys(updated).length > 0 ? updated : undefined })
   }
 
@@ -271,7 +272,7 @@ export function ConfigSettings({
         <ScalePicker
           scales={scalesWithNone}
           selectedScaleId={currentScale ?? ''}
-          presetOverrides={presetOverrides}
+          presetOverrides={localOverrides}
           customScales={localCustomScales}
           onSelect={handleScaleSelect}
           onOverrideChange={handleScaleOverrideChange}

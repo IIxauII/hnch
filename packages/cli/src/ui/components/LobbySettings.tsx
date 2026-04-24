@@ -47,9 +47,10 @@ export function LobbySettings({
   onChangeAccess,
   onClose,
 }: LobbySettingsProps): React.ReactElement {
+  const [localOverrides, setLocalOverrides] = useState<PresetOverrides>(presetOverrides ?? {})
   const scales = useMemo(
-    () => buildAvailableScales(presetOverrides, customScales),
-    [presetOverrides, customScales],
+    () => buildAvailableScales(localOverrides, customScales),
+    [localOverrides, customScales],
   )
   const [state, setState] = useState<SettingsState>('main-menu')
   const [roomNameInput, setRoomNameInput] = useState(sessionName ?? '')
@@ -121,13 +122,13 @@ export function LobbySettings({
   }
 
   function handleScaleOverrideChange(scaleId: string, disabledIndices: number[]) {
-    // Update preset overrides in config
-    const updated = { ...presetOverrides }
+    const updated = { ...localOverrides }
     if (disabledIndices.length === 0) {
       delete updated[scaleId]
     } else {
       updated[scaleId] = disabledIndices
     }
+    setLocalOverrides(updated)
     writeConfig({ presetOverrides: Object.keys(updated).length > 0 ? updated : undefined })
   }
 
@@ -203,7 +204,7 @@ export function LobbySettings({
         <ScalePicker
           scales={scales}
           selectedScaleId={currentScale.id}
-          presetOverrides={presetOverrides}
+          presetOverrides={localOverrides}
           onSelect={handleScaleSelect}
           onOverrideChange={handleScaleOverrideChange}
           onClose={() => setState('main-menu')}
