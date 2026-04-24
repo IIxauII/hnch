@@ -1,7 +1,9 @@
 import React, { useEffect } from 'react'
 import { Box, Text, useInput } from 'ink'
+import { isConsensus } from '@hnch/shared'
 import { ParticipantList } from './components/ParticipantList.js'
 import { LobbySettings } from './components/LobbySettings.js'
+import { TextInput } from './components/TextInput.js'
 import type { DocProjection, Round, Scale, PresetOverrides, CustomScale } from '@hnch/shared'
 
 interface Props {
@@ -18,6 +20,11 @@ interface Props {
   onStartRound: () => void
   onNewRound: () => void
   onRevote: () => void
+  roundTitlePromptActive: boolean
+  roundTitleInput: string
+  onRoundTitleChange: (value: string) => void
+  onRoundTitleSubmit: (value: string) => void
+  onRoundTitleCancel: () => void
   onOpenSettings: () => void
   onCloseSettings: () => void
   onChangeName: (name: string | undefined) => void
@@ -118,6 +125,11 @@ export function Lobby({
   displayName,
   accessMode,
   confirmingQuit,
+  roundTitlePromptActive,
+  roundTitleInput,
+  onRoundTitleChange,
+  onRoundTitleSubmit,
+  onRoundTitleCancel,
 }: Props): React.ReactElement {
   const [handoffMode, setHandoffMode] = React.useState<'idle' | 'picking' | 'confirming'>('idle')
   const [handoffTargetId, setHandoffTargetId] = React.useState<string | null>(null)
@@ -142,7 +154,7 @@ export function Lobby({
         }
       }
     },
-    { isActive: !settingsOpen && !confirmingQuit && handoffMode === 'idle' },
+    { isActive: !settingsOpen && !confirmingQuit && handoffMode === 'idle' && !roundTitlePromptActive },
   )
 
   // Handoff picking mode: number selection from online participants (excluding self)
@@ -268,7 +280,24 @@ export function Lobby({
         </Box>
       )}
 
-      {handoffMode === 'idle' && (
+      {roundTitlePromptActive && (
+        <Box flexDirection="column">
+          <Box gap={1}>
+            <Text>Round title (optional, Enter to skip):</Text>
+            <TextInput
+              value={roundTitleInput}
+              onChange={onRoundTitleChange}
+              onSubmit={onRoundTitleSubmit}
+              onCancel={onRoundTitleCancel}
+              placeholder="Enter to skip"
+              isActive={roundTitlePromptActive}
+            />
+          </Box>
+          <Text dimColor>[Esc] Cancel</Text>
+        </Box>
+      )}
+
+      {handoffMode === 'idle' && !roundTitlePromptActive && (
         <Box gap={2}>
           {isHost ? (
             <>
@@ -318,11 +347,19 @@ function ResultsSection({
       ? formatElapsed(round.timerStartedAt, round.revealedAt)
       : null
 
+  const uniqueVote = Object.values(round.votes)[0]
+
   return (
     <Box flexDirection="column" gap={1}>
       <Text bold>
         Round {roundNum}{title} — Results
       </Text>
+
+      {isConsensus(round) && (
+        <Text bold color="green">
+          Consensus! Everyone voted {uniqueVote}
+        </Text>
+      )}
 
       <Box flexDirection="column">
         <Box gap={2}>

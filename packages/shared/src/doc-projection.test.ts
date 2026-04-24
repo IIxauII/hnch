@@ -4,6 +4,7 @@ import * as Y from 'yjs'
 import {
   FIBONACCI_SCALE,
   TSHIRT_SCALE,
+  participantRole,
   type Participant,
   type Scale,
 } from './doc.js'
@@ -17,6 +18,7 @@ import {
   DOC_ROUNDS_KEY,
   DOC_SETTINGS_KEY,
   initDoc,
+  isConsensus,
   patchSettings,
   projectDoc,
   revealRound,
@@ -462,5 +464,167 @@ describe('custom scales round-trip', () => {
     const snap = projectDoc(doc)
     expect(snap.settings.defaultScale).toEqual(custom)
     expect(snap.rounds[0]!.scale).toEqual(custom)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// isConsensus
+// ---------------------------------------------------------------------------
+
+describe('isConsensus', () => {
+  it('returns false when no votes exist', () => {
+    const { doc } = seedDoc()
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' })
+    const snap = projectDoc(doc)
+    expect(isConsensus(snap.rounds[0]!)).toBe(false)
+  })
+
+  it('returns false when only one vote exists', () => {
+    const { doc } = seedDoc()
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' })
+    castVote(doc, 'r1', 'p-host', '5')
+    const snap = projectDoc(doc)
+    expect(isConsensus(snap.rounds[0]!)).toBe(false)
+  })
+
+  it('returns true when two identical votes exist', () => {
+    const { doc } = seedDoc()
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' })
+    castVote(doc, 'r1', 'p-host', '5')
+    castVote(doc, 'r1', 'p-bob', '5')
+    const snap = projectDoc(doc)
+    expect(isConsensus(snap.rounds[0]!)).toBe(true)
+  })
+
+  it('returns false when two different votes exist', () => {
+    const { doc } = seedDoc()
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' })
+    castVote(doc, 'r1', 'p-host', '5')
+    castVote(doc, 'r1', 'p-bob', '8')
+    const snap = projectDoc(doc)
+    expect(isConsensus(snap.rounds[0]!)).toBe(false)
+  })
+
+  it('returns false when three votes with one outlier exist', () => {
+    const { doc } = seedDoc()
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' })
+    castVote(doc, 'r1', 'p-host', '5')
+    castVote(doc, 'r1', 'p-bob', '5')
+    castVote(doc, 'r1', 'p-charlie', '13')
+    const snap = projectDoc(doc)
+    expect(isConsensus(snap.rounds[0]!)).toBe(false)
+  })
+
+  it('returns true when three identical votes exist', () => {
+    const { doc } = seedDoc()
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' })
+    castVote(doc, 'r1', 'p-host', '5')
+    castVote(doc, 'r1', 'p-bob', '5')
+    castVote(doc, 'r1', 'p-charlie', '5')
+    const snap = projectDoc(doc)
+    expect(isConsensus(snap.rounds[0]!)).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// participant role (ADR-0020)
+// ---------------------------------------------------------------------------
+
+describe('participant role projection round-trip', () => {
+  it('projects voter role when explicitly set', () => {
+    const { doc } = seedDoc()
+    upsertParticipant(doc, 'p-host', {
+      displayName: 'Alice',
+      joinedAt: 1_700_000_000_000,
+      role: 'voter',
+    })
+    const snap = projectDoc(doc)
+    expect(snap.participants[0]!.role).toBe('voter')
+  })
+
+  it('projects viewer role when explicitly set', () => {
+    const { doc } = seedDoc()
+    upsertParticipant(doc, 'p-host', {
+      displayName: 'Alice',
+      joinedAt: 1_700_000_000_000,
+      role: 'viewer',
+    })
+    const snap = projectDoc(doc)
+    expect(snap.participants[0]!.role).toBe('viewer')
+  })
+
+  it('omits role field when not provided (backward-compat absent = voter)', () => {
+    const { doc } = seedDoc()
+    // initDoc does not set role — simulates a pre-ADR-0020 participant.
+    const snap = projectDoc(doc)
+    expect('role' in snap.participants[0]!).toBe(false)
+  })
+
+  it('upsert can change role from viewer to voter', () => {
+    const { doc } = seedDoc()
+    upsertParticipant(doc, 'p-host', {
+      displayName: 'Alice',
+      joinedAt: 1_700_000_000_000,
+      role: 'viewer',
+    })
+    upsertParticipant(doc, 'p-host', {
+      displayName: 'Alice',
+      joinedAt: 1_700_000_000_000,
+      role: 'voter',
+    })
+    const snap = projectDoc(doc)
+    expect(snap.participants[0]!.role).toBe('voter')
+  })
+
+  it('new participant with role appears correctly', () => {
+    const { doc } = seedDoc()
+    upsertParticipant(doc, 'p-observer', {
+      displayName: 'Observer',
+      joinedAt: 1_700_000_001_000,
+      role: 'viewer',
+    })
+    const snap = projectDoc(doc)
+    const observer = snap.participants.find((p) => p.id === 'p-observer')!
+    expect(observer.role).toBe('viewer')
+  })
+
+  it('updating displayName without role preserves existing viewer role (partial-update)', () => {
+    const { doc } = seedDoc()
+    // Set viewer role first.
+    upsertParticipant(doc, 'p-host', {
+      displayName: 'Alice',
+      joinedAt: 1_700_000_000_000,
+      role: 'viewer',
+    })
+    // Update displayName only — no role field.
+    upsertParticipant(doc, 'p-host', {
+      displayName: 'Alice (renamed)',
+      joinedAt: 1_700_000_000_000,
+    })
+    const snap = projectDoc(doc)
+    expect(snap.participants[0]!.displayName).toBe('Alice (renamed)')
+    expect(snap.participants[0]!.role).toBe('viewer')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// participantRole helper
+// ---------------------------------------------------------------------------
+
+describe('participantRole', () => {
+  it('returns voter when role is explicitly voter', () => {
+    expect(participantRole({ role: 'voter' })).toBe('voter')
+  })
+
+  it('returns viewer when role is explicitly viewer', () => {
+    expect(participantRole({ role: 'viewer' })).toBe('viewer')
+  })
+
+  it('returns voter when role is absent (backward-compat default)', () => {
+    expect(participantRole({})).toBe('voter')
+  })
+
+  it('returns voter when role is undefined', () => {
+    expect(participantRole({ role: undefined })).toBe('voter')
   })
 })

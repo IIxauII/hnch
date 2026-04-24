@@ -3,7 +3,7 @@ import { Box, Text, useApp, useInput } from 'ink'
 import type { SessionHandle } from '../session.js'
 import type { SyncStatus } from '../sync.js'
 import type { DocProjection, Round, Scale, PresetOverrides, CustomScale } from '@hnch/shared'
-import { currentRound } from '@hnch/shared'
+import { currentRound, participantRole } from '@hnch/shared'
 import { StatusBar } from './components/StatusBar.js'
 import { Lobby } from './Lobby.js'
 import { Voting } from './Voting.js'
@@ -38,6 +38,8 @@ export function App({ session, participantId, displayName, accessMode: initialAc
   )
   const [displayNameLocal, setDisplayNameLocal] = useState(displayName)
   const [confirmingQuit, setConfirmingQuit] = useState(false)
+  const [roundTitlePromptActive, setRoundTitlePromptActive] = useState(false)
+  const [roundTitleInput, setRoundTitleInput] = useState('')
   const [hostNotification, setHostNotification] = useState<string | null>(null)
   const hostNotificationTimeoutRef = React.useRef<NodeJS.Timeout | null>(null)
 
@@ -91,14 +93,14 @@ export function App({ session, participantId, displayName, accessMode: initialAc
     }
   }, [session, participantId])
 
-  // Global quit handler — inactive when settings panel is open
+  // Global quit handler — inactive when settings panel or title prompt is open
   useInput(
     (input) => {
       if (input === 'q' || input === 'Q') {
         setConfirmingQuit(true)
       }
     },
-    { isActive: !settingsOpen && !confirmingQuit },
+    { isActive: !settingsOpen && !confirmingQuit && !roundTitlePromptActive },
   )
 
   // Confirm quit handler — active only during confirmation
@@ -122,10 +124,25 @@ export function App({ session, participantId, displayName, accessMode: initialAc
   }, [screen])
   const round = currentRound(projection)
   const isHost = projection.settings.hostParticipantId === participantId
+  const myParticipant = projection.participants.find((p) => p.id === participantId)
+  const myRole = participantRole(myParticipant ?? {})
 
-  const handleStartRound = useCallback(() => {
-    session.newRound()
+  const handleStartRoundPrompt = useCallback(() => {
+    setRoundTitleInput('')
+    setRoundTitlePromptActive(true)
+  }, [])
+
+  const handleRoundTitleSubmit = useCallback((title: string) => {
+    setRoundTitlePromptActive(false)
+    setRoundTitleInput('')
+    session.newRound(title.trim() || undefined)
   }, [session])
+
+  const handleRoundTitleCancel = useCallback(() => {
+    setRoundTitlePromptActive(false)
+    setRoundTitleInput('')
+  }, [])
+
 
   const handleVote = useCallback((card: string) => {
     session.vote(card)
@@ -140,11 +157,16 @@ export function App({ session, participantId, displayName, accessMode: initialAc
   }, [session])
 
   const handleNewRound = useCallback(() => {
-    session.newRound()
-  }, [session])
+    setRoundTitleInput('')
+    setRoundTitlePromptActive(true)
+  }, [])
 
   const handleRevote = useCallback(() => {
     session.revote()
+  }, [session])
+
+  const handleToggleRole = useCallback(() => {
+    session.toggleRole()
   }, [session])
 
   const handleChangeName = useCallback((name: string | undefined) => {
@@ -214,8 +236,13 @@ export function App({ session, participantId, displayName, accessMode: initialAc
           customScales={customScales}
           displayName={displayNameLocal}
           accessMode={accessMode}
-          onStartRound={handleStartRound}
+          onStartRound={handleStartRoundPrompt}
           onNewRound={handleNewRound}
+          roundTitlePromptActive={roundTitlePromptActive}
+          roundTitleInput={roundTitleInput}
+          onRoundTitleChange={setRoundTitleInput}
+          onRoundTitleSubmit={handleRoundTitleSubmit}
+          onRoundTitleCancel={handleRoundTitleCancel}
           onRevote={handleRevote}
           onOpenSettings={handleOpenSettings}
           onCloseSettings={handleCloseSettings}
@@ -235,10 +262,12 @@ export function App({ session, participantId, displayName, accessMode: initialAc
           onlineIds={onlineIds}
           isHost={isHost}
           myId={participantId}
+          myRole={myRole}
           elapsedMs={elapsedMs}
           onVote={handleVote}
           onClearVote={handleClearVote}
           onReveal={handleReveal}
+          onToggleRole={handleToggleRole}
           confirmingQuit={confirmingQuit}
         />
       )}

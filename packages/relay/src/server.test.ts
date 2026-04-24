@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createCodePool } from './code-pool.js'
 import { createRoomStore, type RoomStore } from './room-store.js'
 import WebSocket from 'ws'
-import { hashPassword } from '@hnch/shared'
+import { hashPassword, MAX_ROOM_PARTICIPANTS, JOIN_REJECTION_CLOSE_CODES } from '@hnch/shared'
 import {
   createRelayServer,
   type CreateRoomResponse,
@@ -287,6 +287,42 @@ describe('relay server', () => {
       expect(res.status).toBe(404)
       const body = (await res.json()) as unknown
       expect(body).toEqual({ error: 'not-found' })
+    })
+  })
+
+  describe('WS participant cap', () => {
+    it('rejects the connection that would exceed MAX_ROOM_PARTICIPANTS', async () => {
+      const record = roomStore.createRoom()
+      const wsUrl = baseUrl.replace('http', 'ws')
+      const sockets: WebSocket[] = []
+
+      // Open MAX_ROOM_PARTICIPANTS connections — all must succeed.
+      for (let i = 0; i < MAX_ROOM_PARTICIPANTS; i += 1) {
+        const ws = new WebSocket(`${wsUrl}/ws/${record.uuid}?did=device-${i}`)
+        await new Promise<void>((resolve, reject) => {
+          ws.on('open', () => resolve())
+          ws.on('error', reject)
+          ws.on('unexpected-response', (_req, res) => {
+            reject(new Error(`unexpected rejection at connection ${i}: ${res.statusCode}`))
+          })
+        })
+        sockets.push(ws)
+      }
+
+      // The (MAX_ROOM_PARTICIPANTS + 1)th connection must be closed with WS 4006.
+      const overflow = new WebSocket(`${wsUrl}/ws/${record.uuid}?did=device-overflow`)
+      await new Promise<void>((resolve) => {
+        overflow.on('close', (code) => {
+          expect(code).toBe(JOIN_REJECTION_CLOSE_CODES['room-full'])
+          resolve()
+        })
+        overflow.on('error', () => resolve())
+      })
+
+      // Clean up.
+      for (const ws of sockets) {
+        ws.close()
+      }
     })
   })
 })

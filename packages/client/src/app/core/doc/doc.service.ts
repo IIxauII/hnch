@@ -17,6 +17,7 @@ import {
   DOC_SETTINGS_KEY,
   initDoc,
   joinDoc,
+  participantRole,
   patchSettings,
   projectDoc,
   revealRound as revealRoundY,
@@ -370,6 +371,22 @@ export class DocService {
 
   upsertParticipant(id: string, value: Participant): void {
     upsertParticipantY(this.requireDoc('upsertParticipant'), id, value)
+  }
+
+  /**
+   * Flip a participant's role between `'voter'` and `'viewer'`.
+   * Reads the current participant snapshot to preserve all other fields.
+   */
+  toggleRole(participantId: string): void {
+    const participant = this.participants().find((p) => p.id === participantId)
+    if (!participant) return
+    const currentRole = participantRole(participant)
+    const nextRole = currentRole === 'voter' ? 'viewer' : 'voter'
+    upsertParticipantY(this.requireDoc('toggleRole'), participantId, {
+      displayName: participant.displayName,
+      joinedAt: participant.joinedAt,
+      role: nextRole,
+    })
   }
 
   /**

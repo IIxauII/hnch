@@ -10,10 +10,12 @@ interface Props {
   onlineIds: Set<string>
   isHost: boolean
   myId: string
+  myRole: 'voter' | 'viewer'
   elapsedMs?: number
   onVote: (card: string) => void
   onClearVote: () => void
   onReveal: () => void
+  onToggleRole: () => void
   confirmingQuit: boolean
 }
 
@@ -30,16 +32,21 @@ export function Voting({
   onlineIds,
   isHost,
   myId,
+  myRole,
   elapsedMs,
   onVote,
   onClearVote,
   onReveal,
+  onToggleRole,
   confirmingQuit,
 }: Props): React.ReactElement {
   useInput(
     (input) => {
       if (isHost && (input === 'r' || input === 'R')) {
         onReveal()
+      }
+      if (input === 'w' || input === 'W') {
+        onToggleRole()
       }
     },
     { isActive: !confirmingQuit },
@@ -67,17 +74,24 @@ export function Voting({
           revealed={false}
         />
 
-        <CardPicker
-          scale={round.scale}
-          selected={myVote}
-          onSelect={onVote}
-          onClear={onClearVote}
-          disabled={confirmingQuit}
-        />
+        {myRole === 'viewer' ? (
+          <Box flexDirection="column">
+            <Text dimColor>You're observing</Text>
+          </Box>
+        ) : (
+          <CardPicker
+            scale={round.scale}
+            selected={myVote}
+            onSelect={onVote}
+            onClear={onClearVote}
+            disabled={confirmingQuit}
+          />
+        )}
       </Box>
 
       <Box gap={2}>
         {isHost && <Text color="yellow">[r] Reveal</Text>}
+        <Text color="yellow">[w] {myRole === 'viewer' ? 'Vote' : 'Observe'}</Text>
         <Text>[q] Quit</Text>
       </Box>
     </Box>

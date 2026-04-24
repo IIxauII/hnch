@@ -9,7 +9,7 @@ import {
 } from '@angular/core'
 import { Router } from '@angular/router'
 import { Share } from '@capacitor/share'
-import { formatRoomCode } from '@hnch/shared'
+import { formatRoomCode, participantRole } from '@hnch/shared'
 import {
   ActionSheetController,
   AlertController,
@@ -197,7 +197,9 @@ import { QrDisplaySheetComponent } from './qr-display.sheet'
                 ></ion-icon>
               }
             </ion-label>
-            @if (!onlineIds().has(p.id)) {
+            @if (isParticipantViewer(p)) {
+              <ion-note slot="end" aria-label="Observer">observer</ion-note>
+            } @else if (!onlineIds().has(p.id)) {
               <ion-note slot="end">Offline</ion-note>
             }
           </ion-item>
@@ -405,6 +407,11 @@ export class LobbyPage {
   protected readonly hostId = computed(
     () => this.docService.settings()?.hostParticipantId ?? null,
   )
+
+  /** True when a participant's effective role is `'viewer'`. */
+  protected isParticipantViewer(p: { role?: 'voter' | 'viewer' }): boolean {
+    return participantRole(p) === 'viewer'
+  }
 
   /**
    * Determine if a participant can receive a handoff. True when current

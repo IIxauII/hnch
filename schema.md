@@ -65,6 +65,7 @@ Host-editable. Changes propagate to all clients via Yjs. The "host" at any momen
 |---|---|---|
 | `displayName` | `string` | The name shown to other participants. User-editable. |
 | `joinedAt` | `number` | Unix milliseconds when this participant first joined the session. |
+| `role?` | `'voter' \| 'viewer'` | Optional participant role ([ADR-0020](adr/0020-participant-viewer-voter-role.md)). Defaults to `'voter'` if absent. Viewers cannot vote and are excluded from unanimous auto-reveal checks. |
 
 A participant stays in this map even if they disconnect — the map is cumulative for the session's lifetime. Online status is derived from **awareness**, not from this map.
 

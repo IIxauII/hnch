@@ -6,15 +6,18 @@ import {
   inject,
 } from '@angular/core'
 import { Router } from '@angular/router'
+import { participantRole } from '@hnch/shared'
 import {
   IonBackButton,
   IonButton,
   IonButtons,
   IonCard,
   IonCardContent,
+  IonChip,
   IonContent,
   IonFooter,
   IonHeader,
+  IonLabel,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone'
@@ -53,9 +56,11 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
     IonButtons,
     IonCard,
     IonCardContent,
+    IonChip,
     IonContent,
     IonFooter,
     IonHeader,
+    IonLabel,
     IonTitle,
     IonToolbar,
   ],
@@ -68,6 +73,14 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
         </ion-buttons>
         <ion-title>Estimating</ion-title>
         <ion-buttons slot="end">
+          <ion-chip
+            [color]="isViewer() ? 'medium' : 'primary'"
+            [attr.aria-label]="isViewer() ? 'You are observing. Tap to switch to voter.' : 'You are a voter. Tap to switch to observer.'"
+            [attr.aria-pressed]="isViewer()"
+            (click)="onToggleRole()"
+          >
+            <ion-label>{{ isViewer() ? 'Observing' : 'Voter' }}</ion-label>
+          </ion-chip>
           <app-connection-chip></app-connection-chip>
         </ion-buttons>
       </ion-toolbar>
@@ -88,24 +101,30 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
           [votedIds]="votedIds()"
         />
 
-        <h2 class="section">Pick your estimate</h2>
+        @if (isViewer()) {
+          <p class="observer-notice" role="status" aria-live="polite">
+            You're observing this round
+          </p>
+        } @else {
+          <h2 class="section">Pick your estimate</h2>
 
-        <div class="grid" role="group" aria-label="Choose your estimate">
-          @for (card of round.scale.cards; track card) {
-            <ion-card
-              button
-              class="card"
-              [class.selected]="card === myVote()"
-              [attr.aria-pressed]="card === myVote()"
-              [attr.aria-label]="'Card ' + card"
-              (click)="onCardTap(card)"
-            >
-              <ion-card-content class="card-face">
-                {{ card }}
-              </ion-card-content>
-            </ion-card>
-          }
-        </div>
+          <div class="grid" role="group" aria-label="Choose your estimate">
+            @for (card of round.scale.cards; track card) {
+              <ion-card
+                button
+                class="card"
+                [class.selected]="card === myVote()"
+                [attr.aria-pressed]="card === myVote()"
+                [attr.aria-label]="'Card ' + card"
+                (click)="onCardTap(card)"
+              >
+                <ion-card-content class="card-face">
+                  {{ card }}
+                </ion-card-content>
+              </ion-card>
+            }
+          </div>
+        }
       } @else {
         <p class="empty">No active round.</p>
       }
@@ -182,6 +201,12 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
         margin: 2rem 0;
         text-align: center;
       }
+      .observer-notice {
+        margin: 2rem 0;
+        text-align: center;
+        color: var(--ion-color-medium);
+        font-size: 1.1rem;
+      }
     `,
   ],
 })
@@ -221,16 +246,24 @@ export class EstimatingPage {
       }
     })
 
-    // Unanimous auto-reveal: when all online participants have voted,
-    // write `revealedAt`. Every client runs this check; Yjs merges
-    // concurrent writes idempotently (ADR-0018).
+    // Unanimous auto-reveal: when all online voters have voted,
+    // write `revealedAt`. Viewers are excluded from the count.
+    // Guard: require at least 1 online voter with a vote (ADR-0018).
     effect(() => {
       const round = this.docService.currentRound()
       if (!round || round.revealedAt !== undefined) return
       const online = this.docService.onlineParticipantIds()
       if (online.size === 0) return
-      const votedCount = Object.keys(round.votes).filter((id) => online.has(id)).length
-      if (votedCount >= online.size) {
+      const allParticipants = this.docService.participants()
+      // Online voters only — exclude viewers
+      const onlineVoterIds = new Set(
+        allParticipants
+          .filter((p) => online.has(p.id) && participantRole(p) !== 'viewer')
+          .map((p) => p.id),
+      )
+      if (onlineVoterIds.size === 0) return
+      const votedCount = Object.keys(round.votes).filter((id) => onlineVoterIds.has(id)).length
+      if (votedCount >= onlineVoterIds.size) {
         this.haptic.notificationSuccess()
         this.docService.revealRound(round.id)
       }
@@ -284,6 +317,14 @@ export class EstimatingPage {
     return !!myId && !!hostId && myId === hostId
   })
 
+  /** True when the current user's effective role is `'viewer'`. */
+  protected readonly isViewer = computed(() => {
+    const myId = this.myId()
+    if (!myId) return false
+    const me = this.docService.participants().find((p) => p.id === myId)
+    return me ? participantRole(me) === 'viewer' : false
+  })
+
   /**
    * Elapsed voting time label (M:SS counting up), or `null` before the
    * round's stopwatch has started. Driven by the 4 Hz wall-clock tick.
@@ -294,6 +335,13 @@ export class EstimatingPage {
     const elapsed = this.timerTick.now() - round.timerStartedAt
     return formatElapsed(Math.max(0, elapsed))
   })
+
+  protected onToggleRole(): void {
+    const id = this.myId()
+    if (!id) return
+    this.haptic.impactLight()
+    this.docService.toggleRole(id)
+  }
 
   protected onCardTap(card: string): void {
     const id = this.myId()

@@ -120,12 +120,21 @@ async function handleJoin(argv: {
     passwordInput = password
   }
 
+  let unmountInk: (() => void) | undefined
+  let hadRoomFull = false
+
   const session = await joinSession({
     participantId: config.participantId,
     displayName: config.displayName,
     relayUrl: config.relayUrl,
     roomCode: argv.code.toUpperCase(),
     password: passwordInput,
+    onRejection(reason) {
+      if (reason === 'room-full') {
+        hadRoomFull = true
+        unmountInk?.()
+      }
+    },
   })
 
   let passwordHash: string | undefined
@@ -143,7 +152,7 @@ async function handleJoin(argv: {
   console.error(`Joined room: ${session.roomCode}`)
   console.error('')
 
-  const { waitUntilExit } = render(
+  const inkInstance = render(
     React.createElement(App, {
       session,
       participantId: config.participantId,
@@ -153,8 +162,17 @@ async function handleJoin(argv: {
       customScales: config.customScales,
     }),
   )
+  unmountInk = inkInstance.unmount
 
-  await waitUntilExit()
+  await inkInstance.waitUntilExit()
+
+  if (hadRoomFull) {
+    console.error('This room is full (max 20 participants).')
+    session.disconnect()
+    clearLastSession()
+    process.exit(1)
+  }
+
   session.disconnect()
   clearLastSession()
   process.exit(0)
@@ -204,6 +222,8 @@ async function handleResume(): Promise<void> {
   awareness.setLocalStateField('participantId', config.participantId)
 
   let hadWrongPassword = false
+  let hadRoomFull = false
+  let unmountInkResume: (() => void) | undefined
 
   const session = wireSession({
     doc,
@@ -216,6 +236,11 @@ async function handleResume(): Promise<void> {
     onRejection(reason) {
       if (reason === 'wrong-password') {
         hadWrongPassword = true
+        unmountInkResume?.()
+      }
+      if (reason === 'room-full') {
+        hadRoomFull = true
+        unmountInkResume?.()
       }
     },
   })
@@ -227,7 +252,7 @@ async function handleResume(): Promise<void> {
     lastSeenAt: Date.now(),
   })
 
-  const { waitUntilExit } = render(
+  const inkInstanceResume = render(
     React.createElement(App, {
       session,
       participantId: config.participantId,
@@ -237,8 +262,15 @@ async function handleResume(): Promise<void> {
       customScales: config.customScales,
     }),
   )
+  unmountInkResume = inkInstanceResume.unmount
 
-  await waitUntilExit()
+  await inkInstanceResume.waitUntilExit()
+
+  if (hadRoomFull) {
+    console.error('This room is full (max 20 participants).')
+    clearLastSession()
+    process.exit(1)
+  }
 
   if (hadWrongPassword) {
     console.error(`Password changed — rejoin with: hnch join ${cache.roomCode} --password`)

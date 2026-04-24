@@ -74,7 +74,7 @@ const SETTINGS_FIELDS = [
   'defaultScale',
   'hostParticipantId',
 ] as const
-const PARTICIPANT_FIELDS = ['displayName', 'joinedAt'] as const
+const PARTICIPANT_FIELDS = ['displayName', 'joinedAt', 'role'] as const
 const ROUND_FIELDS = [
   'id',
   'title',
@@ -303,6 +303,12 @@ export function upsertParticipant(
     const target = existing ?? new Y.Map<unknown>()
     target.set('displayName', value.displayName)
     target.set('joinedAt', value.joinedAt)
+    // role is a partial-update field: omitting it (undefined) preserves the
+    // existing value. Callers that update displayName without touching role
+    // must not silently revert a viewer back to voter.
+    if (value.role !== undefined) {
+      target.set('role', value.role)
+    }
     if (existing === undefined) {
       map.set(id, target)
     }
@@ -432,4 +438,15 @@ export function currentRound(projection: DocProjection): Round | null {
     if (r.revealedAt === undefined) return r
   }
   return rounds[rounds.length - 1]!
+}
+
+/**
+ * Check if all votes in a round are identical. Returns `false` if fewer
+ * than 2 votes exist (consensus requires agreement; single or zero votes
+ * is not consensus).
+ */
+export function isConsensus(round: Round): boolean {
+  const values = Object.values(round.votes)
+  if (values.length < 2) return false
+  return values.every((v) => v === values[0])
 }

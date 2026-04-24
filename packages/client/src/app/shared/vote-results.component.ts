@@ -3,10 +3,13 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   effect,
   inject,
   input,
+  signal,
 } from '@angular/core'
+import { isConsensus } from '@hnch/shared'
 import type { ParticipantSnapshot, Round } from '@hnch/shared'
 import {
   IonChip,
@@ -164,6 +167,18 @@ function formatElapsed(ms: number): string {
         <span class="stat">{{ s.agreementPct }}% agreement</span>
       </div>
     }
+
+    @if (consensus() && showOverlay()) {
+      <div
+        class="consensus-overlay"
+        role="status"
+        aria-live="polite"
+        aria-label="Consensus reached"
+        (click)="showOverlay.set(false)"
+      >
+        <span class="consensus-text" aria-hidden="true">Consensus!</span>
+      </div>
+    }
   `,
   styles: [
     `
@@ -240,6 +255,62 @@ function formatElapsed(ms: number): string {
           animation: none;
         }
       }
+
+      /* Consensus overlay */
+      @keyframes consensusScaleIn {
+        from {
+          opacity: 0;
+          transform: translate(-50%, -50%) scale(0.4);
+        }
+        60% {
+          transform: translate(-50%, -50%) scale(1.15);
+        }
+        to {
+          opacity: 1;
+          transform: translate(-50%, -50%) scale(1);
+        }
+      }
+      @keyframes consensusPulse {
+        0%, 100% {
+          transform: translate(-50%, -50%) scale(1);
+        }
+        50% {
+          transform: translate(-50%, -50%) scale(1.06);
+        }
+      }
+      .consensus-overlay {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        background: rgba(0, 0, 0, 0.45);
+        cursor: pointer;
+        animation: none;
+      }
+      .consensus-text {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 3rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: var(--ion-color-success-contrast, #fff);
+        background: var(--ion-color-success, #2dd36f);
+        border-radius: 1.25rem;
+        padding: 1rem 2rem;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+        white-space: nowrap;
+        animation: consensusScaleIn 380ms cubic-bezier(0.34, 1.56, 0.64, 1) both,
+                   consensusPulse 900ms ease-in-out 380ms 3;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .consensus-text {
+          animation: none;
+        }
+      }
     `,
   ],
 })
@@ -249,12 +320,40 @@ export class VoteResultsComponent {
   readonly myId = input<string | null>(null)
 
   private readonly haptic = inject(HapticService)
+  private readonly destroyRef = inject(DestroyRef)
 
   /** Tracks which round the reveal-complete haptic has already fired for. */
   private hapticFiredForRound: string | null = null
 
+  /** True when all votes in the round are identical (and ≥ 2 voters). */
+  readonly consensus = computed(() => isConsensus(this.round()))
+
+  /** Controls overlay visibility — resets per round, auto-dismisses after 3s. */
+  readonly showOverlay = signal(false)
+
+  private overlayDismissTimer: ReturnType<typeof setTimeout> | null = null
+
   constructor() {
+    this.destroyRef.onDestroy(() => {
+      if (this.overlayDismissTimer !== null) {
+        clearTimeout(this.overlayDismissTimer)
+        this.overlayDismissTimer = null
+      }
+    })
+    // Reset overlay when round changes.
+    effect(() => {
+      const roundId = this.round().id
+      // Access roundId to track; reset overlay for new round.
+      void roundId
+      this.showOverlay.set(false)
+      if (this.overlayDismissTimer !== null) {
+        clearTimeout(this.overlayDismissTimer)
+        this.overlayDismissTimer = null
+      }
+    })
+
     // Fire haptic after the stagger animation completes once per round.
+    // On consensus, show overlay and auto-dismiss after 3s.
     effect(() => {
       const groups = this.voteGroups()
       const didntVote = this.didntVoteNames()
@@ -264,7 +363,18 @@ export class VoteResultsComponent {
       if (this.hapticFiredForRound === round.id) return
       this.hapticFiredForRound = round.id
       const delay = Math.max(0, totalGroups - 1) * 80 + 200
-      setTimeout(() => this.haptic.notificationSuccess(), delay)
+      const consensus = this.consensus()
+      setTimeout(() => {
+        this.haptic.notificationSuccess()
+        if (consensus) {
+          this.showOverlay.set(true)
+          setTimeout(() => this.haptic.impactMedium(), 120)
+          this.overlayDismissTimer = setTimeout(() => {
+            this.showOverlay.set(false)
+            this.overlayDismissTimer = null
+          }, 3000)
+        }
+      }, delay)
     })
   }
 
