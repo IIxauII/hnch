@@ -40,6 +40,7 @@ export interface SyncConnection {
   readonly doc: Y.Doc
   readonly awareness: Awareness
   disconnect(): void
+  updateCredentials(opts: { passwordHash?: string | null }): void
 }
 
 /**
@@ -80,9 +81,25 @@ export function connect(opts: ConnectOptions): SyncConnection {
   provider.on('connection-close', onConnectionClose)
 
   let disposed = false
+  let currentPasswordHash = opts.passwordHash
   return {
     doc: opts.doc,
     awareness: provider.awareness,
+    updateCredentials(opts: { passwordHash?: string | null }): void {
+      if (opts.passwordHash === currentPasswordHash) return
+      currentPasswordHash = opts.passwordHash ?? undefined
+      // Reconnect with new credentials
+      provider.shouldConnect = false
+      provider.disconnect()
+      // Update params and reconnect
+      const did = provider.params['did'] ?? ''
+      const params: Record<string, string> = { did }
+      if (currentPasswordHash !== undefined) {
+        params['pw'] = currentPasswordHash
+      }
+      provider.params = params
+      provider.connect()
+    },
     disconnect(): void {
       if (disposed) return
       disposed = true

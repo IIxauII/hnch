@@ -11,6 +11,8 @@ import { Voting } from './Voting.js'
 interface Props {
   session: SessionHandle
   participantId: string
+  displayName: string
+  accessMode: 'open' | 'password' | 'invite'
   presetOverrides?: PresetOverrides
   customScales?: CustomScale[]
 }
@@ -24,13 +26,17 @@ function deriveScreen(projection: DocProjection): Screen {
   return 'voting'
 }
 
-export function App({ session, participantId, presetOverrides, customScales }: Props): React.ReactElement {
+export function App({ session, participantId, displayName, accessMode: initialAccessMode, presetOverrides, customScales }: Props): React.ReactElement {
   const { exit } = useApp()
   const [projection, setProjection] = useState<DocProjection>(session.projection())
   const [status, setStatus] = useState<SyncStatus>('connecting')
   const [onlineIds, setOnlineIds] = useState<Set<string>>(session.onlineIds())
   const [elapsedMs, setElapsedMs] = useState<number | undefined>(undefined)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [accessMode, setAccessMode] = useState<'open' | 'password'>(
+    initialAccessMode === 'password' ? 'password' : 'open',
+  )
+  const [displayNameLocal, setDisplayNameLocal] = useState(displayName)
 
   useEffect(() => {
     const unsub1 = session.onChange(() => {
@@ -110,6 +116,16 @@ export function App({ session, participantId, presetOverrides, customScales }: P
     session.updateScale(scale)
   }, [session])
 
+  const handleChangeDisplayName = useCallback((name: string) => {
+    session.updateDisplayName(name)
+    setDisplayNameLocal(name)
+  }, [session])
+
+  const handleChangeAccess = useCallback(async (mode: 'open' | 'password', password?: string) => {
+    await session.updateAccess(mode, password)
+    setAccessMode(mode)
+  }, [session])
+
   const handleOpenSettings = useCallback(() => {
     setSettingsOpen(true)
   }, [])
@@ -143,6 +159,8 @@ export function App({ session, participantId, presetOverrides, customScales }: P
           settingsOpen={settingsOpen}
           presetOverrides={presetOverrides}
           customScales={customScales}
+          displayName={displayNameLocal}
+          accessMode={accessMode}
           onStartRound={handleStartRound}
           onNewRound={handleNewRound}
           onRevote={handleRevote}
@@ -150,6 +168,8 @@ export function App({ session, participantId, presetOverrides, customScales }: P
           onCloseSettings={handleCloseSettings}
           onChangeName={handleChangeName}
           onChangeScale={handleChangeScale}
+          onChangeDisplayName={handleChangeDisplayName}
+          onChangeAccess={handleChangeAccess}
         />
       )}
 
