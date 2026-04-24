@@ -94,23 +94,6 @@ Prompt each implementer with:
 - Clear success criteria (build + tests must pass)
 - Instruction: "Run build + tests yourself. Do NOT mark the task completed. Tell me 'Task #X ready for review' when done. I will send your next task."
 
-**Caveman ultra injection (always active):**
-
-**Always prepend this block to every agent's prompt** (both implementers and reviewer):
-
-```
-## Communication mode: CAVEMAN ULTRA
-
-Respond terse like smart caveman. All technical substance stay. Only fluff die.
-ACTIVE EVERY RESPONSE. No revert.
-
-Rules: Drop articles (a/an/the), filler, pleasantries, hedging. Fragments OK. Short synonyms. Technical terms exact. Code blocks unchanged. Errors quoted exact.
-Pattern: [thing] [action] [reason]. [next step].
-Abbreviate: DB/auth/config/req/res/fn/impl. Strip conjunctions. Arrows for causality (X → Y). One word when one word enough.
-
-Boundaries: Code/commits write normal. Security warnings write normal.
-```
-
 ### Step 6: Active dispatch loop
 
 You are the dispatcher. You hand out work one task at a time per agent.

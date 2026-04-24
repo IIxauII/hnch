@@ -29,6 +29,8 @@ When idle with no assigned task: do nothing. Just wait.
 
 You will typically receive **batched reviews** — multiple tasks reviewed together as a phase. This is normal. Review all changed files across the batch in one pass.
 
+**When you finish a review, use the `SendMessage` tool to send your findings to the orchestrator.** Plain text output is not visible to the orchestrator — you MUST use SendMessage.
+
 ## What you do
 
 1. **Read every changed file in full.** You are looking for:

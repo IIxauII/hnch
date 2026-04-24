@@ -81,5 +81,5 @@ pnpm --filter e2e test              # Playwright — end-to-end
    pnpm --filter shared build && pnpm --filter client build
    ```
 5. If build fails, fix the issue. Don't report ready until green.
-6. **Do NOT mark tasks as completed.** Tell the orchestrator "Task #X ready for review" — the orchestrator marks completion after review passes.
+6. **Do NOT mark tasks as completed.** Use the `SendMessage` tool to tell the orchestrator "Task #X ready for review" — the orchestrator marks completion after review passes. **You MUST use SendMessage** — plain text output is not visible to the orchestrator.
 7. Keep responses concise. Show what you did, not what you thought about doing.
