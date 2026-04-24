@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import { Box, Text, useApp, useInput } from 'ink'
+import { randomUUID } from 'node:crypto'
 import {
   buildAvailableScales,
   formatScaleId,
@@ -35,6 +36,7 @@ export function ConfigSettings({
   const [displayNameInput, setDisplayNameInput] = useState(config.displayName ?? '')
   const [relayUrlInput, setRelayUrlInput] = useState(config.relayUrl ?? '')
   const [sessionNameInput, setSessionNameInput] = useState(config.defaultSessionName ?? '')
+  const [localCustomScales, setLocalCustomScales] = useState<CustomScale[]>(customScales ?? [])
 
   // Global quit handler
   useInput(
@@ -47,8 +49,8 @@ export function ConfigSettings({
   )
 
   const scales = useMemo(
-    () => buildAvailableScales(presetOverrides, customScales),
-    [presetOverrides, customScales],
+    () => buildAvailableScales(presetOverrides, localCustomScales),
+    [presetOverrides, localCustomScales],
   )
   const currentScale = config.defaultScale
   const currentScaleObj = currentScale
@@ -166,6 +168,36 @@ export function ConfigSettings({
     setState('main-menu')
   }
 
+  function handleCustomScaleCreate(name: string, cards: string[]) {
+    const id = `custom-${randomUUID()}`
+    const newCustomScales = [...localCustomScales, { id, label: name, cards }]
+    setLocalCustomScales(newCustomScales)
+    setConfig({ ...config, customScales: newCustomScales })
+    writeConfig({ customScales: newCustomScales })
+  }
+
+  function handleCustomScaleEdit(id: string, name: string, cards: string[]) {
+    const newCustomScales = localCustomScales.map((s) =>
+      s.id === id ? { id, label: name, cards } : s
+    )
+    setLocalCustomScales(newCustomScales)
+    setConfig({ ...config, customScales: newCustomScales })
+    writeConfig({ customScales: newCustomScales })
+  }
+
+  function handleCustomScaleDelete(id: string) {
+    const newCustomScales = localCustomScales.filter((s) => s.id !== id)
+    setLocalCustomScales(newCustomScales)
+    let updated = { ...config, customScales: newCustomScales }
+    if (config.defaultScale === id) {
+      updated.defaultScale = 'fibonacci'
+      writeConfig({ customScales: newCustomScales, defaultScale: 'fibonacci' })
+    } else {
+      writeConfig({ customScales: newCustomScales })
+    }
+    setConfig(updated)
+  }
+
   if (state === 'main-menu') {
     return (
       <MenuList
@@ -240,8 +272,12 @@ export function ConfigSettings({
           scales={scalesWithNone}
           selectedScaleId={currentScale ?? ''}
           presetOverrides={presetOverrides}
+          customScales={localCustomScales}
           onSelect={handleScaleSelect}
           onOverrideChange={handleScaleOverrideChange}
+          onCustomScaleCreate={handleCustomScaleCreate}
+          onCustomScaleEdit={handleCustomScaleEdit}
+          onCustomScaleDelete={handleCustomScaleDelete}
           onClose={() => setState('main-menu')}
           showNoneOption
         />
