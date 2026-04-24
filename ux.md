@@ -90,7 +90,7 @@ Leave session, End session for everyone → ⋯ action sheet with `role: 'destru
 | **Join Room** | Enter room code, scan QR, or provide password | From Home Join, or invite URL / QR deep link |
 | **Lobby** | Pre-round: share invite, see participants, configure settings, start first round; shows inline results after a round is revealed | After Create, Join, or Jump-back-in tap |
 | **Estimating** | Pick estimate from scale; see who voted | When host taps Start Round N |
-| **Settings** | App prefs: display name, theme, about | From Home ⋯ → Settings |
+| **Settings** | App prefs: display name, theme, scales, session defaults, relay URL, about | From Home ⋯ → Settings |
 
 ### Overlays
 
@@ -104,6 +104,10 @@ Leave session, End session for everyone → ⋯ action sheet with `role: 'destru
 | Round-start modal | `ion-modal` half-sheet | Lobby → Start Round N (optional descriptor input) |
 | Display name editor | `ion-modal` half-sheet | Settings → Display name row |
 | Theme picker | `ion-modal` half-sheet | Settings → Theme row |
+| Scale picker (settings) | `ion-modal` half-sheet | Settings → Default scale row |
+| Session name editor | `ion-modal` half-sheet | Settings → Default session name row |
+| Relay URL editor | `ion-modal` half-sheet | Settings → Relay URL row |
+| Password prompt | `ion-modal` half-sheet | Home → Create Room (when password-by-default enabled) |
 | Voted-participants popover | `ion-popover` | Estimating → tap avatar row |
 | Leave-session confirm | `ion-alert` destructive | ⋯ → Leave session |
 | End-session-for-all confirm | `ion-alert` destructive | ⋯ → End session for everyone (host only) |
@@ -561,6 +565,22 @@ App-level prefs. From Home ⋯ → **Settings**. No session context; safe to nav
 │   │ Theme              System    ›│     │  tap → theme picker
 │   └───────────────────────────────┘     │
 │                                         │
+│   Scales                                │
+│   ┌───────────────────────────────┐     │
+│   │ Default scale    Fibonacci   ›│     │  tap → scale picker
+│   └───────────────────────────────┘     │
+│                                         │
+│   Session Defaults                      │
+│   ┌───────────────────────────────┐     │
+│   │ Default session name    None ›│     │  tap → session name editor
+│   │ Password by default      [ ] │     │  ion-toggle
+│   └───────────────────────────────┘     │
+│                                         │
+│   Advanced                              │
+│   ┌───────────────────────────────┐     │
+│   │ Relay URL          Default   ›│     │  tap → relay URL editor
+│   └───────────────────────────────┘     │
+│                                         │
 │   About                                 │
 │   ┌───────────────────────────────┐     │
 │   │ Version              1.0.0    │     │  no chevron (read-only)
@@ -586,6 +606,7 @@ From ⋯ → **Session settings** on Lobby / Estimating, or tapping settings-sum
 │   Session settings                      │
 │                                         │
 │   ┌───────────────────────────────┐     │
+│   │ Session name       [       ] │     │  ion-input, host-only (disabled for joiners)
 │   │ Scale          Fibonacci     ›│     │  → scale picker
 │   │ Access         Open          ›│     │  → access picker
 │   └───────────────────────────────┘     │
