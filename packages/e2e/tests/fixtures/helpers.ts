@@ -84,6 +84,7 @@ export const ESTIMATING = {
   votedDots: 'app-avatar-vote-row .dot.voted',
   voteCount: 'app-avatar-vote-row .count',
   revealBtn: 'ion-button:has-text("Reveal Votes")',
+  roleChip: 'ion-header ion-chip',
 } as const
 
 // ---------------------------------------------------------------------------

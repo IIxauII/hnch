@@ -101,9 +101,19 @@ export class Participant {
     await this.page.locator(ESTIMATING.card(value)).click()
   }
 
+  /** Toggle role between voter and viewer on the estimating page. */
+  async toggleRole(): Promise<void> {
+    // Chip shows either "Voter" or "Observing" text — use evaluate to force click
+    const chip = this.page.locator('ion-chip').filter({ hasText: /Voter|Observing/ })
+    await chip.waitFor({ state: 'visible' })
+    await chip.evaluate((el: HTMLElement) => el.click())
+  }
+
   /** Tap the Reveal Votes button (host only). Navigates to /lobby with results. */
   async reveal(): Promise<void> {
-    await this.page.locator(ESTIMATING.revealBtn).click()
+    await this.page
+      .locator(ESTIMATING.revealBtn)
+      .evaluate((el: HTMLElement) => el.click())
     await this.page.waitForURL(/\/lobby/)
   }
 
@@ -121,6 +131,14 @@ export class Participant {
     await startBtn.waitFor({ state: 'visible' })
     await startBtn.evaluate((el: HTMLElement) => el.click())
     await this.page.waitForURL(/\/estimating/)
+  }
+
+  /** Tap "Re-vote" from the lobby results section — navigates to /estimating. */
+  async revote(): Promise<void> {
+    await this.page
+      .locator('ion-button', { hasText: LOBBY.revoteBtn })
+      .evaluate((el: HTMLElement) => el.click())
+    await this.page.waitForURL(/\/estimating/, { timeout: 10_000 })
   }
 
   // -- Settings (from lobby) ------------------------------------------------
@@ -202,6 +220,30 @@ export class Participant {
     await doneBtn.evaluate((el: HTMLElement) => el.click())
     // Wait for modal dismiss animation
     await this.page.locator('app-session-settings-sheet').waitFor({ state: 'hidden' })
+  }
+
+  /** Leave the current session via action sheet → confirm. Navigates to /home. */
+  async leaveSession(): Promise<void> {
+    // Open action sheet by clicking the last button in the header (menu/more button)
+    const actionBtn = this.page.locator('ion-header').locator('ion-button').last()
+    await actionBtn.click()
+
+    // Wait for action sheet and tap "Leave session"
+    const actionSheet = this.page.locator('ion-action-sheet')
+    await actionSheet.waitFor({ state: 'visible', timeout: 5_000 })
+    const leaveOption = this.page.locator(
+      'ion-action-sheet button:has-text("Leave session")',
+    )
+    await leaveOption.click()
+
+    // Confirm in alert
+    const alert = this.page.locator('ion-alert')
+    await alert.waitFor({ state: 'visible', timeout: 5_000 })
+    const confirmBtn = this.page.locator('ion-alert button:has-text("Leave")')
+    await confirmBtn.click()
+
+    // Navigate to /home
+    await this.page.waitForURL(/\/home/, { timeout: 5_000 })
   }
 
   // -- App settings (device-level preferences) -----
