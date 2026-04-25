@@ -325,22 +325,8 @@ export class Participant {
 
   // -- Disconnect / reconnect -----------------------------------------------
 
-  /** Simulate disconnect by gracefully closing the sync connection, then the page. */
+  /** Simulate disconnect by closing the page (abrupt; awareness clears via WS close). */
   async disconnect(): Promise<void> {
-    // Call sync provider disconnect hook to clear awareness immediately.
-    // This allows awareness state to propagate to peers before page closes.
-    try {
-      await this.page.evaluate(() => {
-        const provider = (window as any).__hnch_syncProvider__
-        if (provider?.disconnect) {
-          provider.disconnect()
-        }
-      })
-      // Brief delay to allow awareness broadcast to propagate before page closes.
-      await this.page.waitForTimeout(500)
-    } catch {
-      // Page may already be closed or hook not available; continue.
-    }
     await this.page.close()
   }
 
