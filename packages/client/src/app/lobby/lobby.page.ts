@@ -311,7 +311,7 @@ import { QrDisplaySheetComponent } from './qr-display.sheet'
     </ion-modal>
 
     <ion-toast
-      [isOpen]="reconnecting()"
+      [isOpen]="reconnecting() && onPage()"
       message="Reconnecting…"
       position="bottom"
       color="warning"
@@ -407,6 +407,9 @@ export class LobbyPage {
 
   /** QR display modal visibility. */
   protected readonly qrOpen = signal(false)
+
+  /** Suppresses toasts while navigating away; reset on re-entry. */
+  protected readonly onPage = signal(true)
 
   /**
    * Access state lives here (not in SessionSettingsSheetComponent) so
@@ -540,6 +543,14 @@ export class LobbyPage {
         void this.router.navigate(['/estimating'])
       }
     })
+  }
+
+  ionViewWillLeave(): void {
+    this.onPage.set(false)
+  }
+
+  ionViewDidEnter(): void {
+    this.onPage.set(true)
   }
 
   private recordLastSession(): void {

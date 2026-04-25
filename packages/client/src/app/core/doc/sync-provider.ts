@@ -173,8 +173,39 @@ export function createSyncProvider(opts: SyncProviderOptions): SyncProvider {
   provider.on('status', onStatus)
   provider.on('connection-close', onConnectionClose)
 
+  // window online/offline listeners — handle network interface changes that
+  // may not close the WebSocket immediately (e.g. Chromium offline mode,
+  // flaky Wi-Fi transitions where the socket stays open until the next byte).
+  const onOffline = (): void => {
+    if (manuallyDisconnected()) return
+    status.set('disconnected')
+    opts.onStatusChange?.('disconnected')
+  }
+
+  const onOnline = (): void => {
+    if (manuallyDisconnected() || lastRejection() !== null) return
+    if (status() !== 'connected') {
+      // y-websocket's connect() is a no-op when ws !== null (stale socket still
+      // open — Chromium offline mode doesn't close sockets immediately). Force
+      // the socket closed so the onclose handler fires and schedules setupWS.
+      // Reset wsUnsuccessfulReconnects first so the backoff is 100 ms, not
+      // seconds from prior failed attempts.
+      if (provider.ws !== null) {
+        provider.wsUnsuccessfulReconnects = 0
+        provider.ws.close()
+      } else {
+        provider.connect()
+      }
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('offline', onOffline)
+    window.addEventListener('online', onOnline)
+  }
+
   let disposed = false
-  return {
+  const syncProvider = {
     status,
     lastRejection,
     reconnecting,
@@ -185,9 +216,15 @@ export function createSyncProvider(opts: SyncProviderOptions): SyncProvider {
       manuallyDisconnected.set(true)
       provider.off('status', onStatus)
       provider.off('connection-close', onConnectionClose)
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('offline', onOffline)
+        window.removeEventListener('online', onOnline)
+      }
       provider.shouldConnect = false
       provider.disconnect()
       provider.destroy()
     },
   }
+
+  return syncProvider
 }
