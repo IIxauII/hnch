@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/app.fixture'
-import { LOBBY } from './fixtures/helpers'
+import { LOBBY, expectToast } from './fixtures/helpers'
 
 /**
  * Helper: open action sheet and trigger "End session for everyone" flow.
@@ -71,10 +71,7 @@ test.describe('End session for everyone', () => {
     await player.page.waitForURL(/\/home/, { timeout: 10_000 })
 
     // Toast with "Session ended" text should appear on the joiner's page
-    const toast = player.page.locator('ion-toast')
-    await toast.waitFor({ state: 'visible', timeout: 5_000 })
-    const msg = await toast.getAttribute('message')
-    expect(msg).toMatch(/session ended/i)
+    await expectToast(player.page, /session ended/i)
   })
 
   test('host ends session during active round — joiner navigates to Home', async ({

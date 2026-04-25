@@ -2,15 +2,20 @@ import { test, expect } from './fixtures/app.fixture'
 import { ESTIMATING } from './fixtures/helpers'
 
 test.describe('Voting flow', () => {
-  test('both clients vote and votes remain hidden', async ({ host, player }) => {
+  test('both clients vote and votes remain hidden', async ({ host, player, createParticipant }) => {
+    // Add a 3rd non-voting participant to prevent unanimous auto-reveal
+    const nonVoter = await createParticipant('NonVoter')
+
     const code = await host.createSession()
     await player.joinSession(code)
+    await nonVoter.joinSession(code)
 
     // Host starts round
     await host.startRound()
     await player.waitForEstimating()
+    await nonVoter.waitForEstimating()
 
-    // Both cast votes
+    // Both host and player cast votes (nonVoter doesn't vote, so auto-reveal won't fire)
     await host.castVote('5')
     await player.castVote('8')
 
@@ -20,12 +25,13 @@ test.describe('Voting flow', () => {
     // Player's selected card is highlighted
     await expect(player.page.locator(ESTIMATING.card('8'))).toHaveClass(/selected/)
 
-    // Vote count shows "2 of 2 voted"
-    await expect(host.page.locator(ESTIMATING.voteCount)).toContainText('2 of 2')
-    await expect(player.page.locator(ESTIMATING.voteCount)).toContainText('2 of 2')
+    // Vote count shows "2 of 3 voted"
+    await expect(host.page.locator(ESTIMATING.voteCount)).toContainText('2 of 3')
+    await expect(player.page.locator(ESTIMATING.voteCount)).toContainText('2 of 3')
 
-    // Both are still on estimating (not revealed)
+    // All are still on estimating (not revealed) because nonVoter hasn't voted
     await host.expectVotesHidden()
     await player.expectVotesHidden()
+    await nonVoter.expectVotesHidden()
   })
 })

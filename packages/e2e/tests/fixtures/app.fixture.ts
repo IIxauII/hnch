@@ -16,6 +16,31 @@ import {
 } from './helpers'
 
 // ---------------------------------------------------------------------------
+// Scale label normalization
+// ---------------------------------------------------------------------------
+
+// Maps caller-provided scale names to the exact text rendered by formatScaleId()
+// in the scale-picker template. Angular [value] bindings set DOM properties,
+// not HTML attributes, so selectors must match by visible text instead.
+const SCALE_DISPLAY_LABELS: Record<string, string> = {
+  'fibonacci': 'Fibonacci',
+  'Fibonacci': 'Fibonacci',
+  't-shirt': 'T-shirt',
+  'T-Shirt': 'T-shirt',
+  'T-shirt': 'T-shirt',
+  'powers-of-2': 'Powers of 2',
+  'Powers of 2': 'Powers of 2',
+  'linear': 'Linear (1\u201310)',
+  'Linear': 'Linear (1\u201310)',
+  'risk': 'Risk',
+  'Risk': 'Risk',
+}
+
+function resolveScaleDisplayLabel(label: string): string {
+  return SCALE_DISPLAY_LABELS[label] ?? label
+}
+
+// ---------------------------------------------------------------------------
 // Participant — page-object wrapper around a single browser context
 // ---------------------------------------------------------------------------
 
@@ -98,7 +123,7 @@ export class Participant {
 
   /** Tap a card to cast (or change) a vote. */
   async castVote(value: string): Promise<void> {
-    await this.page.locator(ESTIMATING.card(value)).click()
+    await this.page.locator(ESTIMATING.card(value)).first().click()
   }
 
   /** Toggle role between voter and viewer on the estimating page. */
@@ -115,6 +140,9 @@ export class Participant {
       .locator(ESTIMATING.revealBtn)
       .evaluate((el: HTMLElement) => el.click())
     await this.page.waitForURL(/\/lobby/)
+    // Wait for results section to render (ensures lastRevealedRound() signal is computed)
+    // so Re-vote button is present before reveal() returns
+    await this.page.locator(LOBBY.resultsSection).waitFor({ state: 'visible', timeout: 5_000 })
   }
 
   // -- Lobby results actions -------------------------------------------------
@@ -136,7 +164,7 @@ export class Participant {
   /** Tap "Re-vote" from the lobby results section — navigates to /estimating. */
   async revote(): Promise<void> {
     await this.page
-      .locator('ion-button', { hasText: LOBBY.revoteBtn })
+      .locator(LOBBY.revoteBtn)
       .evaluate((el: HTMLElement) => el.click())
     await this.page.waitForURL(/\/estimating/, { timeout: 10_000 })
   }
@@ -257,9 +285,8 @@ export class Participant {
   /** Open the default scale picker and select a builtin scale by its label. */
   async setDefaultScale(scaleLabel: string): Promise<void> {
     await this.page.locator(APP_SETTINGS.defaultScaleRow).click()
-    // Format the scale label to match the scale ID (e.g., "Fibonacci" -> "fibonacci")
-    const scaleId = scaleLabel.toLowerCase().replace(/\s+/g, '-')
-    await this.page.locator(APP_SETTINGS_SCALE_PICKER.scaleRadio(scaleId)).click()
+    const displayLabel = resolveScaleDisplayLabel(scaleLabel)
+    await this.page.locator(APP_SETTINGS_SCALE_PICKER.scaleRadio(displayLabel)).click()
     const doneBtn = this.page.locator(APP_SETTINGS_SCALE_PICKER.doneBtn)
     await doneBtn.waitFor({ state: 'visible' })
     await doneBtn.evaluate((el: HTMLElement) => el.click())
@@ -270,9 +297,8 @@ export class Participant {
   async togglePresetCard(presetLabel: string, cardValue: string): Promise<void> {
     await this.page.locator(APP_SETTINGS.defaultScaleRow).click()
 
-    // Format the preset label to match scale ID (e.g., "Fibonacci" -> "fibonacci")
-    const presetId = presetLabel.toLowerCase().replace(/\s+/g, '-')
-    const editBtn = this.page.locator(APP_SETTINGS_SCALE_PICKER.editBtn(presetId))
+    const displayLabel = resolveScaleDisplayLabel(presetLabel)
+    const editBtn = this.page.locator(APP_SETTINGS_SCALE_PICKER.editBtn(displayLabel))
     await editBtn.waitFor({ state: 'visible' })
     await editBtn.click()
 
@@ -299,8 +325,22 @@ export class Participant {
 
   // -- Disconnect / reconnect -----------------------------------------------
 
-  /** Simulate disconnect by closing the page. */
+  /** Simulate disconnect by gracefully closing the sync connection, then the page. */
   async disconnect(): Promise<void> {
+    // Call sync provider disconnect hook to clear awareness immediately.
+    // This allows awareness state to propagate to peers before page closes.
+    try {
+      await this.page.evaluate(() => {
+        const provider = (window as any).__hnch_syncProvider__
+        if (provider?.disconnect) {
+          provider.disconnect()
+        }
+      })
+      // Brief delay to allow awareness broadcast to propagate before page closes.
+      await this.page.waitForTimeout(500)
+    } catch {
+      // Page may already be closed or hook not available; continue.
+    }
     await this.page.close()
   }
 
@@ -357,8 +397,13 @@ export class Participant {
   /** Assert votes are hidden (on the estimating page). */
   async expectVotesHidden(): Promise<void> {
     // On the estimating page, there is no revealed data — just dot indicators
-    // Verify we are on estimating (not revealed)
-    await this.page.waitForURL(/\/estimating/)
+    // Verify we are on estimating (not revealed, no results section visible)
+    const url = this.page.url()
+    if (!url.includes('/estimating')) {
+      throw new Error(`Expected to be on /estimating but URL is ${url}`)
+    }
+    // Ensure results section (shown after reveal) is not visible
+    await this.page.locator('section.results-section').waitFor({ state: 'hidden' })
   }
 
   /** Assert this participant sees host controls. */
@@ -397,9 +442,40 @@ interface AppFixtures {
   createParticipant: (name: string) => Promise<Participant>
 }
 
+async function clearStorage(context: BrowserContext): Promise<void> {
+  await context.addInitScript(() => {
+    // addInitScript fires on every frame navigation including sandboxed iframes
+    // (e.g. Ionic modal frames) where localStorage access throws SecurityError.
+    // Guard: bail out if localStorage is not accessible.
+    try { localStorage.length } catch { return }
+
+    // Preserve all user-identity and device-preference keys written by the
+    // app under the CapacitorStorage prefix. Only session-bleed keys (last
+    // session cache, room state) should be cleared. List what to KEEP so
+    // future keys default to preserved unless explicitly opted out.
+    const KEEP = new Set([
+      'CapacitorStorage.hnch.displayName',
+      'CapacitorStorage.hnch.pendingJoinUrl',
+      'CapacitorStorage.hnch.participantId',    // ParticipantIdService stable device ID
+      'CapacitorStorage.hnch.presetOverrides',
+      'CapacitorStorage.hnch.customScales',
+      'CapacitorStorage.hnch.defaultScaleId',
+      'CapacitorStorage.hnch.defaultSessionName',
+      'CapacitorStorage.hnch.defaultPassword',
+      'CapacitorStorage.hnch.relayHttpUrl',
+      '_capuid',                                // Capacitor Device plugin web fallback UUID
+    ])
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i)
+      if (key && !KEEP.has(key)) localStorage.removeItem(key)
+    }
+  })
+}
+
 export const test = base.extend<AppFixtures>({
   host: async ({ browser }, use) => {
     const context = await browser.newContext()
+    await clearStorage(context)
     const page = await context.newPage()
     const host = new Participant(context, page, 'Host')
     await use(host)
@@ -408,6 +484,7 @@ export const test = base.extend<AppFixtures>({
 
   player: async ({ browser }, use) => {
     const context = await browser.newContext()
+    await clearStorage(context)
     const page = await context.newPage()
     const player = new Participant(context, page, 'Player')
     await use(player)
@@ -418,6 +495,7 @@ export const test = base.extend<AppFixtures>({
     const contexts: BrowserContext[] = []
     const factory = async (name: string): Promise<Participant> => {
       const context = await browser.newContext()
+      await clearStorage(context)
       contexts.push(context)
       const page = await context.newPage()
       return new Participant(context, page, name)

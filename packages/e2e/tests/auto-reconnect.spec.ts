@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/app.fixture'
-import { LOBBY, ESTIMATING } from './fixtures/helpers'
+import { LOBBY, ESTIMATING, expectToast } from './fixtures/helpers'
 
 test.describe('Auto-reconnect after transient disconnect', () => {
   test('reconnecting toast appears while host is offline and clears on reconnect', async ({
@@ -18,15 +18,13 @@ test.describe('Auto-reconnect after transient disconnect', () => {
     // Reconnecting toast should appear (docService.reconnecting() fires after
     // hasEverConnected + disconnect, with a 5 s debounce before the chip
     // upgrades to warning. The ion-toast is wired directly to reconnecting().)
-    const reconnectingToast = host.page.locator('ion-toast[message="Reconnecting…"]')
-    await reconnectingToast.waitFor({ state: 'visible', timeout: 15_000 })
-    await expect(reconnectingToast).toBeVisible()
+    await expectToast(host.page, /reconnecting/i)
 
     // Come back online
     await host.page.context().setOffline(false)
 
     // Toast should disappear once reconnected
-    await reconnectingToast.waitFor({ state: 'hidden', timeout: 15_000 })
+    await host.page.locator('ion-toast[message="Reconnecting…"]').first().waitFor({ state: 'hidden', timeout: 15_000 })
 
     // Still on lobby, room code still visible
     await host.page.waitForURL(/\/lobby/)
@@ -71,10 +69,8 @@ test.describe('Auto-reconnect after transient disconnect', () => {
     await host.startRound()
     await player.waitForEstimating()
 
-    // Host casts a vote
-    await host.castVote('5')
-
-    // Player disconnects (full page close)
+    // Player disconnects (full page close) — no votes cast so unanimous
+    // auto-reveal does not fire; round stays active for rejoiner to land on.
     await player.disconnect()
 
     // Brief pause for relay to process disconnect
@@ -128,15 +124,13 @@ test.describe('Auto-reconnect after transient disconnect', () => {
     // Player goes offline while on estimating
     await player.page.context().setOffline(true)
 
-    const reconnectingToast = player.page.locator('ion-toast[message="Reconnecting…"]')
-    await reconnectingToast.waitFor({ state: 'visible', timeout: 15_000 })
-    await expect(reconnectingToast).toBeVisible()
+    await expectToast(player.page, /reconnecting/i)
 
     // Player comes back online
     await player.page.context().setOffline(false)
 
     // Toast dismisses
-    await reconnectingToast.waitFor({ state: 'hidden', timeout: 15_000 })
+    await player.page.locator('ion-toast[message="Reconnecting…"]').first().waitFor({ state: 'hidden', timeout: 15_000 })
 
     // Still on estimating, card grid intact
     await player.page.waitForURL(/\/estimating/)
