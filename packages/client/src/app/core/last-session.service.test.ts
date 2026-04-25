@@ -391,7 +391,7 @@ describe('LastSessionService', () => {
     it('get returns what record wrote', async () => {
       service = await createService()
       mockPreferences.set.mockResolvedValue(undefined)
-      mockPreferences.get.mockResolvedValue(undefined)
+      mockPreferences.get.mockResolvedValue({ value: null })
 
       // Capture what was written
       const payload = {

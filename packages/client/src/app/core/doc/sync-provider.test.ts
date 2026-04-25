@@ -110,7 +110,7 @@ function makeProvider(
     wsBaseUrl: 'ws://localhost:1234',
     roomUuid: 'room-uuid-test',
     doc: new Y.Doc(),
-    credentials: { deviceId: 'device-001' },
+    credentials: { deviceId: 'device-001', roomCode: 'ABC123' },
     WebSocketPolyfill: WS_POLYFILL,
     ...overrides,
   })
@@ -122,23 +122,24 @@ function makeProvider(
 
 describe('credentialsToParams', () => {
   it('always includes did', () => {
-    const params = credentialsToParams({ deviceId: 'abc' })
+    const params = credentialsToParams({ deviceId: 'abc', roomCode: 'ABC123' })
     expect(params).toEqual({ did: 'abc' })
   })
 
   it('includes pw when passwordHash is set', () => {
-    const params = credentialsToParams({ deviceId: 'abc', passwordHash: 'hash123' })
+    const params = credentialsToParams({ deviceId: 'abc', roomCode: 'ABC123', passwordHash: 'hash123' })
     expect(params).toEqual({ did: 'abc', pw: 'hash123' })
   })
 
   it('includes inv when inviteToken is set', () => {
-    const params = credentialsToParams({ deviceId: 'abc', inviteToken: 'tok-xyz' })
+    const params = credentialsToParams({ deviceId: 'abc', roomCode: 'ABC123', inviteToken: 'tok-xyz' })
     expect(params).toEqual({ did: 'abc', inv: 'tok-xyz' })
   })
 
   it('includes both pw and inv when both are set', () => {
     const params = credentialsToParams({
       deviceId: 'abc',
+      roomCode: 'ABC123',
       passwordHash: 'hash123',
       inviteToken: 'tok-xyz',
     })
@@ -146,7 +147,7 @@ describe('credentialsToParams', () => {
   })
 
   it('omits pw when passwordHash is undefined', () => {
-    const params = credentialsToParams({ deviceId: 'abc', passwordHash: undefined })
+    const params = credentialsToParams({ deviceId: 'abc', roomCode: 'ABC123', passwordHash: undefined })
     expect(params).not.toHaveProperty('pw')
   })
 })
