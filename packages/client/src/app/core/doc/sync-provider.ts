@@ -12,7 +12,7 @@
  * transport swap all land here without touching call sites.
  */
 
-import { signal, type Signal } from '@angular/core'
+import { computed, signal, type Signal } from '@angular/core'
 import type * as Y from 'yjs'
 import type { Awareness } from 'y-protocols/awareness'
 import {
@@ -63,8 +63,8 @@ export interface SyncProviderOptions {
 }
 
 /**
- * Public handle. Components read `status` / `lastRejection` as signals
- * and call `disconnect()` on session teardown.
+ * Public handle. Components read `status` / `lastRejection` / `reconnecting`
+ * as signals and call `disconnect()` on session teardown.
  */
 export interface SyncProvider {
   readonly status: Signal<SyncStatus>
@@ -74,6 +74,12 @@ export interface SyncProvider {
    * `null` on any subsequent successful connect.
    */
   readonly lastRejection: Signal<JoinRejectionReason | null>
+  /**
+   * True while the provider is attempting to reconnect after a transient
+   * disconnect (network error, unexpected close, no relay-issued close code).
+   * False when connected, permanently rejected, or manually disconnected.
+   */
+  readonly reconnecting: Signal<boolean>
   /** The underlying awareness instance — shared with `y-websocket`. */
   readonly awareness: Awareness
   /**
@@ -109,6 +115,18 @@ export function credentialsToParams(credentials: JoinCredentials): Record<string
 export function createSyncProvider(opts: SyncProviderOptions): SyncProvider {
   const status = signal<SyncStatus>('connecting')
   const lastRejection = signal<JoinRejectionReason | null>(null)
+  // True once the user explicitly calls disconnect() — suppresses reconnecting
+  // state so the UI does not show a spurious "reconnecting" banner on teardown.
+  const manuallyDisconnected = signal(false)
+
+  // Reconnecting: WS is not connected, no permanent rejection has been issued,
+  // and we have not intentionally torn down the session.
+  const reconnecting = computed(
+    () =>
+      status() !== 'connected' &&
+      lastRejection() === null &&
+      !manuallyDisconnected(),
+  )
 
   const serverUrl = `${opts.wsBaseUrl}/ws`
   const params = credentialsToParams(opts.credentials)
@@ -136,9 +154,16 @@ export function createSyncProvider(opts: SyncProviderOptions): SyncProvider {
   const onConnectionClose = (event: CloseEvent | null): void => {
     if (event === null) return
     const reason = JOIN_REJECTION_REASONS_BY_CODE.get(event.code)
-    if (reason === undefined) return
-    // A relay-issued rejection reason means reconnect-loop won't help;
-    // stop it so the UI can route the user somewhere appropriate.
+    if (reason === undefined) {
+      // Transient failure (network drop, no relay-issued code, unexpected
+      // close). y-websocket's built-in exponential-backoff reconnect loop
+      // will fire via the setTimeout in closeWebsocketConnection — do NOT
+      // set shouldConnect = false here. reconnecting signal becomes truthy
+      // automatically because status transitions to 'disconnected'.
+      return
+    }
+    // Permanent relay rejection — retry won't help. Stop the reconnect
+    // loop so the UI can route the user somewhere appropriate.
     lastRejection.set(reason)
     opts.onRejectionChange?.(reason)
     provider.shouldConnect = false
@@ -152,10 +177,12 @@ export function createSyncProvider(opts: SyncProviderOptions): SyncProvider {
   return {
     status,
     lastRejection,
+    reconnecting,
     awareness: provider.awareness,
     disconnect(): void {
       if (disposed) return
       disposed = true
+      manuallyDisconnected.set(true)
       provider.off('status', onStatus)
       provider.off('connection-close', onConnectionClose)
       provider.shouldConnect = false

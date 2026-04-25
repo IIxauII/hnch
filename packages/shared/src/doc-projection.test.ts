@@ -17,6 +17,7 @@ import {
   DOC_PARTICIPANTS_KEY,
   DOC_ROUNDS_KEY,
   DOC_SETTINGS_KEY,
+  endSessionForEveryone,
   initDoc,
   isConsensus,
   patchSettings,
@@ -604,6 +605,37 @@ describe('participant role projection round-trip', () => {
     const snap = projectDoc(doc)
     expect(snap.participants[0]!.displayName).toBe('Alice (renamed)')
     expect(snap.participants[0]!.role).toBe('viewer')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// endSessionForEveryone
+// ---------------------------------------------------------------------------
+
+describe('endSessionForEveryone', () => {
+  it('writes sessionEndedAt to meta projection', () => {
+    const { doc } = seedDoc()
+    const before = Date.now()
+    endSessionForEveryone(doc)
+    const after = Date.now()
+    const snap = projectDoc(doc)
+    expect(snap.meta.sessionEndedAt).toBeGreaterThanOrEqual(before)
+    expect(snap.meta.sessionEndedAt).toBeLessThanOrEqual(after)
+  })
+
+  it('sessionEndedAt is undefined when not set', () => {
+    const { doc } = seedDoc()
+    const snap = projectDoc(doc)
+    expect(snap.meta.sessionEndedAt).toBeUndefined()
+  })
+
+  it('is idempotent — second call overwrites with a new timestamp', () => {
+    const { doc } = seedDoc()
+    endSessionForEveryone(doc)
+    const first = projectDoc(doc).meta.sessionEndedAt!
+    endSessionForEveryone(doc)
+    const second = projectDoc(doc).meta.sessionEndedAt!
+    expect(second).toBeGreaterThanOrEqual(first)
   })
 })
 

@@ -27,6 +27,7 @@ import {
   IonModal,
   IonNote,
   IonTitle,
+  IonToast,
   IonToolbar,
   ToastController,
 } from '@ionic/angular/standalone'
@@ -99,6 +100,7 @@ import { QrDisplaySheetComponent } from './qr-display.sheet'
     IonModal,
     IonNote,
     IonTitle,
+    IonToast,
     IonToolbar,
     QrDisplaySheetComponent,
     RoundHistoryComponent,
@@ -307,6 +309,16 @@ import { QrDisplaySheetComponent } from './qr-display.sheet'
         />
       </ng-template>
     </ion-modal>
+
+    <ion-toast
+      [isOpen]="reconnecting()"
+      message="Reconnecting…"
+      position="bottom"
+      color="warning"
+      [duration]="0"
+      aria-live="assertive"
+      aria-atomic="true"
+    ></ion-toast>
   `,
   styles: [
     `
@@ -385,6 +397,7 @@ export class LobbyPage {
   protected readonly participants = this.docService.participants
   protected readonly onlineIds = this.docService.onlineParticipantIds
   protected readonly rounds = this.docService.rounds
+  protected readonly reconnecting = this.docService.reconnecting
 
   /** Round-start modal visibility. Two-way bound to `ion-modal`. */
   protected readonly roundStartOpen = signal(false)
@@ -574,29 +587,58 @@ export class LobbyPage {
   }
 
   protected async openActionSheet(): Promise<void> {
+    const buttons: { text: string; role?: string; handler?: () => void }[] = [
+      {
+        text: 'Session settings',
+        handler: () => {
+          this.openSessionSettings()
+        },
+      },
+      {
+        text: 'Leave session',
+        role: 'destructive',
+        handler: () => {
+          void this.confirmLeave()
+        },
+      },
+    ]
+
+    if (this.isHost()) {
+      buttons.splice(1, 0, {
+        text: 'End session for everyone',
+        role: 'destructive',
+        handler: () => {
+          void this.confirmEndSession()
+        },
+      })
+    }
+
+    buttons.push({ text: 'Cancel', role: 'cancel' })
+
     const sheet = await this.actionSheetCtrl.create({
       header: 'Session',
+      buttons,
+    })
+    await sheet.present()
+  }
+
+  protected async confirmEndSession(): Promise<void> {
+    const alert = await this.alertCtrl.create({
+      header: 'End this session?',
+      message: 'All participants will be disconnected.',
       buttons: [
+        { text: 'Cancel', role: 'cancel' },
         {
-          text: 'Session settings',
-          handler: () => {
-            this.openSessionSettings()
-          },
-        },
-        {
-          text: 'Leave session',
+          text: 'End session',
           role: 'destructive',
           handler: () => {
-            void this.confirmLeave()
+            this.haptic.impactHeavy()
+            this.docService.endSessionForEveryone()
           },
-        },
-        {
-          text: 'Cancel',
-          role: 'cancel',
         },
       ],
     })
-    await sheet.present()
+    await alert.present()
   }
 
   protected openSessionSettings(): void {

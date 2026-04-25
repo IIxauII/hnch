@@ -8,6 +8,8 @@ import {
 import { Router } from '@angular/router'
 import { participantRole } from '@hnch/shared'
 import {
+  ActionSheetController,
+  AlertController,
   IonBackButton,
   IonButton,
   IonButtons,
@@ -17,10 +19,14 @@ import {
   IonContent,
   IonFooter,
   IonHeader,
+  IonIcon,
   IonLabel,
   IonTitle,
+  IonToast,
   IonToolbar,
 } from '@ionic/angular/standalone'
+import { addIcons } from 'ionicons'
+import { ellipsisHorizontalCircle } from 'ionicons/icons'
 
 import { ConnectionChipComponent } from '../core/connection-chip.component'
 import { DocService } from '../core/doc/doc.service'
@@ -60,8 +66,10 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
     IonContent,
     IonFooter,
     IonHeader,
+    IonIcon,
     IonLabel,
     IonTitle,
+    IonToast,
     IonToolbar,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -82,6 +90,12 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
             <ion-label>{{ isViewer() ? 'Observing' : 'Voter' }}</ion-label>
           </ion-chip>
           <app-connection-chip></app-connection-chip>
+          <ion-button
+            aria-label="More options"
+            (click)="openActionSheet()"
+          >
+            <ion-icon slot="icon-only" name="ellipsis-horizontal-circle"></ion-icon>
+          </ion-button>
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
@@ -144,6 +158,16 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
         </ion-toolbar>
       </ion-footer>
     }
+
+    <ion-toast
+      [isOpen]="reconnecting()"
+      message="Reconnecting…"
+      position="bottom"
+      color="warning"
+      [duration]="0"
+      aria-live="assertive"
+      aria-atomic="true"
+    ></ion-toast>
   `,
   styles: [
     `
@@ -217,11 +241,16 @@ export class EstimatingPage {
   private readonly haptic = inject(HapticService)
   private readonly lastSessionService = inject(LastSessionService)
   private readonly timerTick = inject(TimerTickService)
+  private readonly actionSheetCtrl = inject(ActionSheetController)
+  private readonly alertCtrl = inject(AlertController)
 
   protected readonly currentRound = this.docService.currentRound
   protected readonly onlineParticipants = this.docService.onlineParticipants
+  protected readonly reconnecting = this.docService.reconnecting
 
   constructor() {
+    addIcons({ 'ellipsis-horizontal-circle': ellipsisHorizontalCircle })
+
     // Bump `hnch.lastSession` so a reopen lands on Estimating rather
     // than Lobby (plan §3.8). Safe to call unconditionally — the
     // service no-ops if `roomCode` / `roomUuid` aren't populated (e.g.
@@ -364,6 +393,81 @@ export class EstimatingPage {
     // replaceUrl: back-nav from Lobby (results view) should pop to the
     // screen before Estimating, not bounce back here (plan §3.10).
     await this.router.navigate(['/lobby'], { replaceUrl: true })
+  }
+
+  protected async openActionSheet(): Promise<void> {
+    const buttons: { text: string; role?: string; handler?: () => void }[] = [
+      {
+        text: 'Session settings',
+        handler: () => {
+          void this.router.navigate(['/lobby'])
+        },
+      },
+      {
+        text: 'Leave session',
+        role: 'destructive',
+        handler: () => {
+          void this.confirmLeave()
+        },
+      },
+    ]
+
+    if (this.isHost()) {
+      buttons.splice(1, 0, {
+        text: 'End session for everyone',
+        role: 'destructive',
+        handler: () => {
+          void this.confirmEndSession()
+        },
+      })
+    }
+
+    buttons.push({ text: 'Cancel', role: 'cancel' })
+
+    const sheet = await this.actionSheetCtrl.create({
+      header: 'Session',
+      buttons,
+    })
+    await sheet.present()
+  }
+
+  private async confirmLeave(): Promise<void> {
+    const alert = await this.alertCtrl.create({
+      header: 'Leave session?',
+      message: "You'll need the code to rejoin.",
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        {
+          text: 'Leave',
+          role: 'destructive',
+          handler: () => {
+            this.haptic.impactHeavy()
+            this.docService.endSession()
+            void this.router.navigate(['/home'])
+          },
+        },
+      ],
+    })
+    await alert.present()
+  }
+
+  private async confirmEndSession(): Promise<void> {
+    const alert = await this.alertCtrl.create({
+      header: 'End this session?',
+      message: 'All participants will be disconnected.',
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        {
+          text: 'End session',
+          role: 'destructive',
+          handler: () => {
+            this.haptic.impactHeavy()
+            this.docService.endSessionForEveryone()
+          },
+        },
+      ],
+    })
+    await alert.present()
   }
 }
 
