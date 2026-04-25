@@ -15,6 +15,7 @@ import {
   DOC_PARTICIPANTS_KEY,
   DOC_ROUNDS_KEY,
   DOC_SETTINGS_KEY,
+  endSessionForEveryone as endSessionForEveryoneY,
   initDoc,
   joinDoc,
   participantRole,
@@ -142,6 +143,14 @@ export class DocService {
     signal<SyncStatus | 'offline'>('offline')
   private readonly lastRejectionSignal: WritableSignal<JoinRejectionReason | null> =
     signal<JoinRejectionReason | null>(null)
+  /** Flips to true on the first `connected` event; resets on endSession. */
+  private readonly hasEverConnectedSignal: WritableSignal<boolean> = signal(false)
+  /**
+   * True while `endSessionForEveryone()` is in flight locally — guards the
+   * `SessionEndService` observer from treating a self-triggered end as a
+   * remote one.
+   */
+  readonly endingSessionLocally: WritableSignal<boolean> = signal(false)
   private awareness: Awareness | null = null
   private awarenessOff: (() => void) | null = null
   private readonly onlineParticipantIdsSignal: WritableSignal<
@@ -198,6 +207,25 @@ export class DocService {
    */
   readonly lastRejection: Signal<JoinRejectionReason | null> =
     this.lastRejectionSignal.asReadonly()
+
+  /**
+   * True while the provider is attempting to reconnect after a transient
+   * disconnect (network drop, no relay-issued close code). False when
+   * connected, permanently rejected (`lastRejection` is set), or no
+   * provider is active (`syncStatus === 'offline'`).
+   *
+   * Components should show a reconnecting indicator when this is truthy.
+   * `'connecting'` is included because y-websocket re-emits it on each
+   * retry attempt; `'offline'` is excluded because that means no provider.
+   */
+  readonly reconnecting: Signal<boolean> = computed(() => {
+    const s = this.syncStatusSignal()
+    return (
+      this.hasEverConnectedSignal() &&
+      (s === 'disconnected' || s === 'connecting') &&
+      this.lastRejectionSignal() === null
+    )
+  })
 
   /**
    * Set of participantIds that are currently online per awareness
@@ -325,7 +353,10 @@ export class DocService {
       doc,
       credentials,
       ...(this.awareness !== null && { awareness: this.awareness }),
-      onStatusChange: (status) => this.syncStatusSignal.set(status),
+      onStatusChange: (status) => {
+        this.syncStatusSignal.set(status)
+        if (status === 'connected') this.hasEverConnectedSignal.set(true)
+      },
       onRejectionChange: (reason) => this.lastRejectionSignal.set(reason),
     })
   }
@@ -359,6 +390,8 @@ export class DocService {
     this.projection.set(null)
     this.roomCodeSignal.set(null)
     this.lastRejectionSignal.set(null)
+    this.hasEverConnectedSignal.set(false)
+    this.endingSessionLocally.set(false)
   }
 
   // ---------------------------------------------------------------------------
@@ -433,6 +466,16 @@ export class DocService {
   revealRound(roundId: string, opts: { now?: () => number } = {}): void {
     const now = opts.now ?? (() => Date.now())
     revealRoundY(this.requireDoc('revealRound'), roundId, now())
+  }
+
+  /**
+   * Write `sessionEndedAt` to meta, broadcasting session termination to all
+   * peers. Sets `endingSessionLocally` so `SessionEndService` can distinguish
+   * this local trigger from a remote one.
+   */
+  endSessionForEveryone(): void {
+    this.endingSessionLocally.set(true)
+    endSessionForEveryoneY(this.requireDoc('endSessionForEveryone'))
   }
 
   // ---------------------------------------------------------------------------

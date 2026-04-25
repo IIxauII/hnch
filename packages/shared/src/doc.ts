@@ -45,6 +45,8 @@ export interface Meta {
   createdAt: number
   /** `participantId` of the creator. This is also the initial host (ADR-0010). */
   createdBy: string
+  /** Unix milliseconds when the host ended the session for everyone. Optional. Absent means session is still active. */
+  sessionEndedAt?: number
 }
 
 // ---------------------------------------------------------------------------

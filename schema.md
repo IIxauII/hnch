@@ -30,13 +30,14 @@ Ephemeral presence data (online status, typing indicators, cursors if we ever ad
 
 ## `meta` — session header
 
-Set once at session creation. Never modified afterwards.
+Set at session creation. Fields are immutable after creation except `sessionEndedAt`, which is written when the host ends the session for everyone.
 
 | Field | Type | Description |
 |---|---|---|
 | `roomUuid` | `string` | Internal UUID for this session. Room codes (ADR-0008) are a separate relay-side lookup to this UUID. |
 | `createdAt` | `number` | Unix milliseconds when the session was created. |
 | `createdBy` | `string` | `participantId` of the creator. This is also the initial host (ADR-0010). |
+| `sessionEndedAt?` | `number` | Optional. Unix milliseconds when the host ended the session for everyone. Additive field — absent means the session is still active. |
 
 ## `settings` — session config
 

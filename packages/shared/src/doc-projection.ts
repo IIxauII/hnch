@@ -68,7 +68,7 @@ export const DOC_SETTINGS_KEY = 'settings'
 export const DOC_PARTICIPANTS_KEY = 'participants'
 export const DOC_ROUNDS_KEY = 'rounds'
 
-const META_FIELDS = ['roomUuid', 'createdAt', 'createdBy'] as const
+const META_FIELDS = ['roomUuid', 'createdAt', 'createdBy', 'sessionEndedAt'] as const
 const SETTINGS_FIELDS = [
   'name',
   'defaultScale',
@@ -418,6 +418,17 @@ export function revealRound(
   if (!round) throw new Error(`revealRound: round ${roundId} not found`)
   doc.transact(() => {
     round.set('revealedAt', revealedAt)
+  })
+}
+
+/**
+ * Mark the session as ended by writing `sessionEndedAt` to meta. Only the
+ * host should call this. Idempotent — concurrent writes merge harmlessly
+ * (last-write-wins on a Y.Map key is fine for a monotonic timestamp).
+ */
+export function endSessionForEveryone(doc: Y.Doc): void {
+  doc.transact(() => {
+    metaMap(doc).set('sessionEndedAt', Date.now())
   })
 }
 

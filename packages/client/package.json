@@ -9,7 +9,7 @@
     "dev": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "echo 'no unit tests — e2e tests live in @hnch/e2e'",
+    "test": "vitest run",
     "lint": "ng lint"
   },
   "private": true,
@@ -62,7 +62,8 @@
     "eslint-plugin-jsdoc": "^48.2.1",
     "eslint-plugin-prefer-arrow": "1.2.2",
     "jsdom": "^29.0.2",
-    "typescript": "~5.9.0"
+    "typescript": "~5.9.0",
+    "vitest": "^3.1.1"
   },
   "description": "An Ionic project"
 }

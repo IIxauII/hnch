@@ -66,6 +66,22 @@ export interface RelayServerDeps {
 /** Max bytes we'll read on a JSON body before giving up. */
 const MAX_BODY_BYTES = 4 * 1024
 
+/**
+ * Room participant cap. Defaults to MAX_ROOM_PARTICIPANTS (20).
+ * Test-only: can be lowered via HNCH_ROOM_CAP env var for e2e testing
+ * (e.g., `HNCH_ROOM_CAP=3`). Clamped to [1, MAX_ROOM_PARTICIPANTS].
+ */
+const ROOM_CAP = (() => {
+  const envCap = process.env['HNCH_ROOM_CAP']
+  if (envCap) {
+    const parsed = parseInt(envCap, 10)
+    if (!isNaN(parsed) && parsed > 0) {
+      return Math.min(parsed, MAX_ROOM_PARTICIPANTS)
+    }
+  }
+  return MAX_ROOM_PARTICIPANTS
+})()
+
 /** Regex for `WS /ws/:uuid` (strict, path-only — query strings are
  *  parsed separately via `URL`). */
 const WS_PATH_RE = /^\/ws\/([0-9a-fA-F-]{36})\/?$/
@@ -266,7 +282,7 @@ function handleUpgrade(
     // Participant cap enforcement (ADR-0020). Check post-upgrade so the
     // client receives a WS close code (4006) per the ADR-0016 close-code
     // table rather than a raw HTTP 403.
-    if (record.connections >= MAX_ROOM_PARTICIPANTS) {
+    if (record.connections >= ROOM_CAP) {
       ws.close(JOIN_REJECTION_CLOSE_CODES['room-full'], 'room-full')
       return
     }

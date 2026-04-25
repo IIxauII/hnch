@@ -26,6 +26,7 @@ export default defineConfig({
       command: 'pnpm --filter @hnch/relay dev',
       port: 1234,
       reuseExistingServer: !isCI,
+      env: { HNCH_ROOM_CAP: '3' },
     },
     {
       command: 'pnpm --filter @hnch/client dev',
