@@ -5,6 +5,31 @@
  * require a single-file update.
  */
 
+import type { Page } from '@playwright/test'
+
+export async function expectToast(
+  page: Page,
+  message: RegExp | string,
+  opts?: { timeout?: number },
+): Promise<void> {
+  await page.waitForFunction(
+    ({ pattern, flags, isRegex }: { pattern: string; flags: string; isRegex: boolean }) => {
+      const toasts = Array.from(document.querySelectorAll('ion-toast:not(.overlay-hidden)'))
+      return toasts.some((t) => {
+        const msg = (t as unknown as { message?: string }).message ?? ''
+        if (isRegex) return new RegExp(pattern, flags).test(msg)
+        return msg === pattern || msg.includes(pattern)
+      })
+    },
+    {
+      pattern: typeof message === 'string' ? message : message.source,
+      flags: message instanceof RegExp ? message.flags : '',
+      isRegex: message instanceof RegExp,
+    },
+    { timeout: opts?.timeout ?? 5_000 },
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Onboarding
 // ---------------------------------------------------------------------------
@@ -78,7 +103,7 @@ export const ESTIMATING = {
   roundTitle: 'h1.title',
   elapsed: 'p.elapsed',
   cardGrid: 'div.grid',
-  card: (value: string) => `ion-card.card:has(ion-card-content:text-is("${value}"))`,
+  card: (value: string) => `app-estimating ion-card.card:has(ion-card-content:text-is("${value}"))`,
   selectedCard: 'ion-card.card.selected',
   voteDots: 'app-avatar-vote-row .dot',
   votedDots: 'app-avatar-vote-row .dot.voted',
@@ -135,10 +160,12 @@ export const NAME_EDITOR = {
 // ---------------------------------------------------------------------------
 // App settings scale picker (picker mode - builtin scales only)
 // ---------------------------------------------------------------------------
+// Selectors use display label text (h3) because Angular [value] bindings set
+// DOM properties, not HTML attributes, so CSS [value="..."] doesn't match.
 export const APP_SETTINGS_SCALE_PICKER = {
-  scaleRadio: (scaleId: string) => `app-scale-picker-sheet ion-radio[value="${scaleId}"]`,
-  scaleItem: (scaleId: string) => `app-scale-picker-sheet ion-item:has(ion-radio[value="${scaleId}"])`,
-  editBtn: (scaleId: string) => `app-scale-picker-sheet ion-item:has(ion-radio[value="${scaleId}"]) ion-button`,
+  scaleRadio: (label: string) => `app-scale-picker-sheet ion-radio:has(h3:text-is("${label}"))`,
+  scaleItem: (label: string) => `app-scale-picker-sheet ion-item:has(h3:text-is("${label}"))`,
+  editBtn: (label: string) => `app-scale-picker-sheet ion-item:has(h3:text-is("${label}")) ion-button`,
   doneBtn: 'app-scale-picker-sheet ion-button:has-text("Done")',
 } as const
 

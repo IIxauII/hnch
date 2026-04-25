@@ -185,7 +185,7 @@ test.describe('App Settings', () => {
     await host.page.locator(SETTINGS_SHEET.scaleRow).click()
 
     // The Risk radio should be pre-selected
-    const riskRadio = host.page.locator(APP_SETTINGS_SCALE_PICKER.scaleRadio('risk'))
+    const riskRadio = host.page.locator(APP_SETTINGS_SCALE_PICKER.scaleRadio('Risk'))
     const isChecked = await riskRadio.evaluate((el: HTMLElement) => {
       return (el as any).checked
     })
