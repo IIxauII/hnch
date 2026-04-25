@@ -4,6 +4,7 @@ import {
   computed,
   effect,
   inject,
+  signal,
 } from '@angular/core'
 import { Router } from '@angular/router'
 import { participantRole } from '@hnch/shared'
@@ -160,7 +161,7 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
     }
 
     <ion-toast
-      [isOpen]="reconnecting()"
+      [isOpen]="reconnecting() && onPage()"
       message="Reconnecting…"
       position="bottom"
       color="warning"
@@ -248,6 +249,9 @@ export class EstimatingPage {
   protected readonly onlineParticipants = this.docService.onlineParticipants
   protected readonly reconnecting = this.docService.reconnecting
 
+  /** Suppresses toasts while navigating away; reset on re-entry. */
+  protected readonly onPage = signal(true)
+
   constructor() {
     addIcons({ 'ellipsis-horizontal-circle': ellipsisHorizontalCircle })
 
@@ -297,6 +301,14 @@ export class EstimatingPage {
         this.docService.revealRound(round.id)
       }
     })
+  }
+
+  ionViewWillLeave(): void {
+    this.onPage.set(false)
+  }
+
+  ionViewDidEnter(): void {
+    this.onPage.set(true)
   }
 
   private readonly myId = this.participantIdService.id
