@@ -57,6 +57,8 @@ Run through every angle. Your hit list:
 4. **ADR conflicts** — plan contradicts an accepted ADR; cite the clause
 5. **Missing ADR triggers** — plan introduces a structural change but doesn't note an ADR is needed
 6. **Dependency chain errors** — task A claims to be unblocked but actually needs B; story ordering wrong
+6a. **Parallelism / critical path** — long sequential chain that could be parallelized; idle slots in the parallelism timeline; team recommendation that leaves agents idle while work remains
+6b. **File collisions** — two tasks meant to run concurrently both touch the same file in `files-touched`; missing `blockedBy` between them
 7. **Race conditions** — concurrent flows the plan handwaves over (host election overlap, simultaneous join, snapshot expiry mid-handshake, vote-during-reveal)
 8. **Security blind spots** — auth path changes without security-reviewer involvement; password / token handling subtly wrong; logging leaks
 9. **Schema invariants** — Yjs doc shape changes without yjs-schema-architect involvement; default-on-missing not specified; old/new client coexistence broken
