@@ -48,6 +48,7 @@ import {
   type JumpBackInSummary,
 } from './jump-back-in-banner.component'
 import { PasswordPromptSheetComponent } from './password-prompt.sheet'
+import { presentSheet } from '../utils/present-sheet'
 
 /**
  * Home launchpad — ux.md §5.2.
@@ -107,6 +108,7 @@ import { PasswordPromptSheetComponent } from './password-prompt.sheet'
       @if (jumpBackInSummary(); as summary) {
         <app-jump-back-in-banner
           [summary]="summary"
+          [stale]="jumpBackInStale()"
           [resuming]="resuming()"
           (resumeRequested)="onResumeJumpBack()"
         />
@@ -193,6 +195,13 @@ export class HomePage {
   protected readonly jumpBackInSummary = signal<JumpBackInSummary | null>(null)
 
   /**
+   * True when the cached session is stale (relay reported unknown-room).
+   * Banner remains visible but dimmed; tapping it shows the expired toast
+   * and clears the entry.
+   */
+  protected readonly jumpBackInStale = signal(false)
+
+  /**
    * `true` while a rejoin is in flight. Bound to the banner's
    * `disabled` state so double-taps are swallowed, and guards the
    * `onResumeJumpBack` handler against re-entry.
@@ -277,7 +286,8 @@ export class HomePage {
       // navigate to lobby directly.
       if (this.appPrefs.defaultPassword()) {
         this.pendingRoomUuid = minted.uuid
-        this.passwordPromptOpen.set(true)
+        const modal = this.passwordModalRef()
+        if (modal) void presentSheet({ modal })
       } else {
         await this.router.navigate(['/lobby'])
       }
@@ -305,6 +315,14 @@ export class HomePage {
     if (this.resuming()) return
     this.resuming.set(true)
     try {
+      // If banner is already marked stale, tapping it again clears the entry.
+      if (this.jumpBackInStale()) {
+        await this.lastSessionService.clear()
+        this.jumpBackInSummary.set(null)
+        this.jumpBackInStale.set(false)
+        return
+      }
+
       // Re-read the cache at tap time rather than trusting the signal:
       // the entry may have aged past TTL since the banner first
       // rendered (cold-start banners that idle for 24 h), and re-reading
@@ -312,6 +330,7 @@ export class HomePage {
       const cache = await this.lastSessionService.get()
       if (!cache) {
         this.jumpBackInSummary.set(null)
+        this.jumpBackInStale.set(false)
         return
       }
 
@@ -336,11 +355,10 @@ export class HomePage {
       const outcome = await this.waitForJoinOutcome()
       if (outcome === 'unknown-room') {
         // Relay has forgotten this room (ADR-0012's TTL lapsed or the
-        // server restarted). Tear the local session down, drop the
-        // banner, and stay on Home.
+        // server restarted). Mark banner as stale instead of immediately
+        // clearing — it renders dimmed and a second tap clears it.
         this.docService.endSession()
-        await this.lastSessionService.clear()
-        this.jumpBackInSummary.set(null)
+        this.jumpBackInStale.set(true)
         await this.toast(
           "That session isn't active anymore. Start a new one or join a fresh code.",
         )

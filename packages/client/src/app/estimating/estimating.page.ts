@@ -283,13 +283,10 @@ export class EstimatingPage {
     // write `revealedAt`. Guard: require at least 1 online voter (ADR-0018).
     effect(() => {
       const round = this.docService.currentRound()
-      if (!round || round.revealedAt !== undefined) return
       const onlineVoterIds = this.onlineVoterIds()
-      if (onlineVoterIds.size === 0) return
-      const votedCount = Object.keys(round.votes).filter((id) => onlineVoterIds.has(id)).length
-      if (votedCount >= onlineVoterIds.size) {
+      if (shouldAutoReveal(round, onlineVoterIds)) {
         this.haptic.notificationSuccess()
-        this.docService.revealRound(round.id)
+        this.docService.revealRound(round!.id)
       }
     })
   }
@@ -500,4 +497,19 @@ function formatElapsed(ms: number): string {
   const minutes = Math.floor(totalSec / 60)
   const seconds = totalSec % 60
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
+}
+
+/**
+ * Pure predicate: should the current round auto-reveal?
+ * Guards: round must exist + not already revealed, at least 1 online voter,
+ * all online voters have voted.
+ */
+export function shouldAutoReveal(
+  round: { readonly id: string; readonly revealedAt?: number; readonly votes: Record<string, string> } | null | undefined,
+  onlineVoterIds: ReadonlySet<string>,
+): boolean {
+  if (!round || round.revealedAt !== undefined) return false
+  if (onlineVoterIds.size === 0) return false
+  const votedCount = Object.keys(round.votes).filter((id) => onlineVoterIds.has(id)).length
+  return votedCount >= onlineVoterIds.size
 }

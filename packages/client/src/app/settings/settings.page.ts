@@ -38,6 +38,7 @@ import { DisplayNameEditorSheetComponent } from './display-name-editor.sheet'
 import { RelayUrlEditorSheetComponent } from './relay-url-editor.sheet'
 import { SessionNameEditorSheetComponent } from './session-name-editor.sheet'
 import { ThemePickerSheetComponent } from './theme-picker.sheet'
+import { presentSheet } from '../utils/present-sheet'
 
 const THEME_LABELS: Record<Theme, string> = {
   system: 'System',
@@ -315,7 +316,8 @@ export class SettingsPage {
   // ---------------------------------------------------------------------------
 
   protected openNameEditor(): void {
-    this.nameEditorOpen.set(true)
+    const modal = this.nameModalRef()
+    if (modal) void presentSheet({ modal })
   }
 
   protected async closeNameEditor(): Promise<void> {
@@ -347,7 +349,8 @@ export class SettingsPage {
   // ---------------------------------------------------------------------------
 
   protected openThemePicker(): void {
-    this.themePickerOpen.set(true)
+    const modal = this.themeModalRef()
+    if (modal) void presentSheet({ modal })
   }
 
   protected async closeThemePicker(): Promise<void> {
@@ -364,7 +367,8 @@ export class SettingsPage {
   // ---------------------------------------------------------------------------
 
   protected openScalePicker(): void {
-    this.scalePickerOpen.set(true)
+    const modal = this.scalePickerModalRef()
+    if (modal) void presentSheet({ modal })
   }
 
   protected async closeScalePicker(): Promise<void> {
@@ -381,7 +385,8 @@ export class SettingsPage {
   // ---------------------------------------------------------------------------
 
   protected openSessionNameEditor(): void {
-    this.sessionNameEditorOpen.set(true)
+    const modal = this.sessionNameModalRef()
+    if (modal) void presentSheet({ modal })
   }
 
   protected async closeSessionNameEditor(): Promise<void> {
@@ -406,7 +411,8 @@ export class SettingsPage {
   // ---------------------------------------------------------------------------
 
   protected openRelayUrlEditor(): void {
-    this.relayUrlEditorOpen.set(true)
+    const modal = this.relayUrlModalRef()
+    if (modal) void presentSheet({ modal })
   }
 
   protected async closeRelayUrlEditor(): Promise<void> {
