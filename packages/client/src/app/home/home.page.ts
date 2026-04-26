@@ -21,7 +21,6 @@ import {
   IonModal,
   IonTitle,
   IonToolbar,
-  ToastController,
 } from '@ionic/angular/standalone'
 import { addIcons } from 'ionicons'
 import {
@@ -33,6 +32,7 @@ import {
 
 import { environment } from '../../environments/environment'
 import { AppPreferenceService } from '../core/app-preference.service'
+import { ToastService } from '../services/toast.service'
 import { DisplayNameService } from '../core/display-name.service'
 import { DocService } from '../core/doc/doc.service'
 import {
@@ -175,7 +175,7 @@ import { PasswordPromptSheetComponent } from './password-prompt.sheet'
 export class HomePage {
   private readonly router = inject(Router)
   private readonly actionSheetCtrl = inject(ActionSheetController)
-  private readonly toastCtrl = inject(ToastController)
+  private readonly toastService = inject(ToastService)
   private readonly appPrefs = inject(AppPreferenceService)
   private readonly displayNameService = inject(DisplayNameService)
   private readonly participantIdService = inject(ParticipantIdService)
@@ -437,12 +437,7 @@ export class HomePage {
   }
 
   private async toast(message: string): Promise<void> {
-    const t = await this.toastCtrl.create({
-      message,
-      duration: 2400,
-      position: 'bottom',
-    })
-    await t.present()
+    await this.toastService.error(message)
   }
 
   // ---------------------------------------------------------------------------

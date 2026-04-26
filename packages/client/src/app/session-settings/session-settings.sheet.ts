@@ -23,7 +23,6 @@ import {
   IonNote,
   IonTitle,
   IonToolbar,
-  ToastController,
 } from '@ionic/angular/standalone'
 import { addIcons } from 'ionicons'
 import { chevronForwardOutline } from 'ionicons/icons'
@@ -32,6 +31,7 @@ import { environment } from '../../environments/environment'
 import { AppPreferenceService } from '../core/app-preference.service'
 import { DocService } from '../core/doc/doc.service'
 import { patchRoomAccess } from '../core/relay/relay-api'
+import { ToastService } from '../services/toast.service'
 import {
   AccessPickerSheetComponent,
   type AccessMode,
@@ -164,7 +164,7 @@ import { formatScaleId } from '@hnch/shared'
 export class SessionSettingsSheetComponent {
   private readonly appPrefs = inject(AppPreferenceService)
   private readonly docService = inject(DocService)
-  private readonly toastCtrl = inject(ToastController)
+  private readonly toastService = inject(ToastService)
 
   protected readonly settings = this.docService.settings
 
@@ -278,12 +278,7 @@ export class SessionSettingsSheetComponent {
       }
       // 'invite' mode is a no-op per ADR-0017 (dropped from v1).
     } catch {
-      const t = await this.toastCtrl.create({
-        message: 'Failed to update access mode. Try again.',
-        duration: 2400,
-        position: 'bottom',
-      })
-      await t.present()
+      await this.toastService.error('Failed to update access mode. Try again.')
     }
   }
 

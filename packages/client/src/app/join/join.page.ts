@@ -30,7 +30,6 @@ import {
   IonLabel,
   IonTitle,
   IonToolbar,
-  ToastController,
 } from '@ionic/angular/standalone'
 import { addIcons } from 'ionicons'
 import { qrCodeOutline } from 'ionicons/icons'
@@ -42,6 +41,7 @@ import { DocService } from '../core/doc/doc.service'
 import { ParticipantIdService } from '../core/participant-id.service'
 import { QrScannerService } from '../core/qr-scanner.service'
 import { RelayRejectionError, resolveRoom } from '../core/relay/relay-api'
+import { ToastService } from '../services/toast.service'
 
 /**
  * Join Room — ux.md §5.3 manual-entry path.
@@ -188,7 +188,7 @@ export class JoinPage {
   private readonly displayNameService = inject(DisplayNameService)
   private readonly participantIdService = inject(ParticipantIdService)
   private readonly qrScanner = inject(QrScannerService)
-  private readonly toastCtrl = inject(ToastController)
+  private readonly toastService = inject(ToastService)
 
   /**
    * Raw form control bound to the `ion-input`. We reformat the value on
@@ -363,12 +363,7 @@ export class JoinPage {
   }
 
   private async toast(message: string): Promise<void> {
-    const t = await this.toastCtrl.create({
-      message,
-      duration: 2400,
-      position: 'bottom',
-    })
-    await t.present()
+    await this.toastService.error(message)
   }
 }
 

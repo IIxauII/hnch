@@ -1,8 +1,8 @@
 import { effect, inject, Injectable } from '@angular/core'
 import { Router } from '@angular/router'
-import { ToastController } from '@ionic/angular/standalone'
 
 import { DocService } from './doc/doc.service'
+import { ToastService } from '../services/toast.service'
 
 /**
  * Observes `meta.sessionEndedAt` and handles both sides of the
@@ -19,7 +19,7 @@ import { DocService } from './doc/doc.service'
 export class SessionEndService {
   private readonly docService = inject(DocService)
   private readonly router = inject(Router)
-  private readonly toastCtrl = inject(ToastController)
+  private readonly toastService = inject(ToastService)
 
   /** The last `sessionEndedAt` value we acted on — prevents double-fire. */
   private handledAt: number | null = null
@@ -65,12 +65,7 @@ export class SessionEndService {
 
     this.docService.endSession()
 
-    const toast = await this.toastCtrl.create({
-      message,
-      duration: 2000,
-      position: 'top',
-    })
-    await toast.present()
+    await this.toastService.info(message)
 
     await this.router.navigate(['/home'])
   }
