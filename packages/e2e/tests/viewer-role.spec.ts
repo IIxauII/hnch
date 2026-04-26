@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/app.fixture'
+import { ESTIMATING } from './fixtures/helpers'
 
 test.describe('Viewer role', () => {
   test('can toggle between voter and observer roles', async ({ player }) => {
@@ -23,6 +24,36 @@ test.describe('Viewer role', () => {
     await expect(
       player.page.locator('ion-chip').filter({ hasText: 'Voter' })
     ).toBeVisible()
+  })
+
+  test('observer excluded from vote denominator: count shows voters only', async ({
+    host,
+    player,
+    createParticipant,
+  }) => {
+    const observer = await createParticipant('Observer')
+
+    const code = await host.createSession()
+    await player.joinSession(code)
+    await observer.joinSession(code)
+
+    await host.startRound()
+    await player.waitForEstimating()
+    await observer.waitForEstimating()
+
+    // Observer toggles to viewer role — excluded from denominator
+    await observer.toggleRole()
+    await expect(
+      observer.page.locator('ion-chip').filter({ hasText: 'Observing' }),
+    ).toBeVisible()
+
+    // Player votes — host has not, so auto-reveal won't fire (2 online voters)
+    await player.castVote('5')
+
+    // Count should show "1 of 2 voted" — observer not in denominator
+    await expect(host.page.locator(ESTIMATING.voteCount)).toContainText('1 of 2')
+    await expect(player.page.locator(ESTIMATING.voteCount)).toContainText('1 of 2')
+    await expect(observer.page.locator(ESTIMATING.voteCount)).toContainText('1 of 2')
   })
 
   test('observer excluded from auto-reveal: auto-reveals when only voter (host) votes', async ({

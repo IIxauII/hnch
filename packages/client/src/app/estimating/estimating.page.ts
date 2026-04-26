@@ -7,7 +7,7 @@ import {
   signal,
 } from '@angular/core'
 import { Router } from '@angular/router'
-import { participantRole } from '@hnch/shared'
+import { participantRole, type ParticipantSnapshot } from '@hnch/shared'
 import {
   ActionSheetController,
   AlertController,
@@ -112,7 +112,7 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
         }
 
         <app-avatar-vote-row
-          [participants]="onlineParticipants()"
+          [participants]="onlineVoterParticipants()"
           [votedIds]="votedIds()"
         />
 
@@ -280,20 +280,11 @@ export class EstimatingPage {
     })
 
     // Unanimous auto-reveal: when all online voters have voted,
-    // write `revealedAt`. Viewers are excluded from the count.
-    // Guard: require at least 1 online voter with a vote (ADR-0018).
+    // write `revealedAt`. Guard: require at least 1 online voter (ADR-0018).
     effect(() => {
       const round = this.docService.currentRound()
       if (!round || round.revealedAt !== undefined) return
-      const online = this.docService.onlineParticipantIds()
-      if (online.size === 0) return
-      const allParticipants = this.docService.participants()
-      // Online voters only — exclude viewers
-      const onlineVoterIds = new Set(
-        allParticipants
-          .filter((p) => online.has(p.id) && participantRole(p) !== 'viewer')
-          .map((p) => p.id),
-      )
+      const onlineVoterIds = this.onlineVoterIds()
       if (onlineVoterIds.size === 0) return
       const votedCount = Object.keys(round.votes).filter((id) => onlineVoterIds.has(id)).length
       if (votedCount >= onlineVoterIds.size) {
@@ -348,8 +339,24 @@ export class EstimatingPage {
   protected readonly votedIds = computed<ReadonlySet<string>>(() => {
     const round = this.currentRound()
     if (!round) return new Set()
+    const voterIds = this.onlineVoterIds()
+    return new Set(Object.keys(round.votes).filter((id) => voterIds.has(id)))
+  })
+
+  protected readonly onlineVoterIds = computed<ReadonlySet<string>>(() => {
     const online = this.docService.onlineParticipantIds()
-    return new Set(Object.keys(round.votes).filter((id) => online.has(id)))
+    const allParticipants = this.docService.participants()
+    return new Set(
+      allParticipants
+        .filter((p) => online.has(p.id) && participantRole(p) !== 'viewer')
+        .map((p) => p.id),
+    )
+  })
+
+  protected readonly onlineVoterParticipants = computed<readonly ParticipantSnapshot[]>(() => {
+    const voterIds = this.onlineVoterIds()
+    const allParticipants = this.docService.participants()
+    return allParticipants.filter((p) => voterIds.has(p.id))
   })
 
   protected readonly isHost = computed(() => {
