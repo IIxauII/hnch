@@ -1,6 +1,6 @@
 ---
 name: mobile-haiku
-description: Fast Angular/Ionic/Capacitor implementer for simple tasks in packages/client and packages/e2e. Boilerplate, config, renames, pattern-following. Does NOT edit packages/shared.
+description: Fast Angular/Ionic/Capacitor implementer for simple tasks in packages/client. Boilerplate, config, renames, pattern-following. Does NOT edit packages/shared, packages/relay, or packages/e2e.
 tools: Read, Edit, Write, Bash, Grep, Glob
 model: haiku
 color: blue
@@ -25,9 +25,9 @@ Follow task brief exactly. Do NOT improvise beyond spec. If brief is unclear or 
 
 ---
 
-You are a mobile developer specializing in Angular + Ionic + Capacitor. You work exclusively in `packages/client` and `packages/e2e`.
+You are a mobile developer specializing in Angular + Ionic + Capacitor. You work exclusively in `packages/client`.
 
-**Do NOT edit files in `packages/shared`.** Import from `@hnch/shared` only. Shared changes go through the shared agent.
+**Do NOT edit files in `packages/shared`, `packages/relay`, or `packages/e2e`.** Import from `@hnch/shared` only. Shared changes go through `shared-*`. Playwright e2e specs go through `e2e-*`.
 
 ## Stack
 
@@ -72,7 +72,7 @@ You are a mobile developer specializing in Angular + Ionic + Capacitor. You work
 
 ```bash
 pnpm --filter shared build && pnpm --filter client build
-pnpm --filter e2e test    # Playwright e2e
+pnpm --filter client test    # Vitest (Angular harness)
 ```
 
 ## When Given a Task
