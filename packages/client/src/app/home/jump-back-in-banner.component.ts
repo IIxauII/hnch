@@ -32,11 +32,16 @@ export interface JumpBackInSummary {
     <ion-card
       button
       [disabled]="resuming()"
+      [class.stale]="stale()"
       (click)="resumeRequested.emit()"
     >
       <ion-card-content>
         <div class="row">
-          <ion-icon name="return-up-back-outline" aria-hidden="true"></ion-icon>
+          <ion-icon
+            name="return-up-back-outline"
+            [class.hidden]="stale()"
+            aria-hidden="true"
+          ></ion-icon>
           <div class="text">
             <strong>Jump back in</strong>
             <span>Room {{ summary().roomCode }}</span>
@@ -60,6 +65,9 @@ export interface JumpBackInSummary {
         font-size: 1.5rem;
         color: var(--ion-color-primary);
       }
+      ion-icon.hidden {
+        display: none;
+      }
       .text {
         display: flex;
         flex-direction: column;
@@ -69,11 +77,20 @@ export interface JumpBackInSummary {
         color: var(--ion-color-medium);
         font-size: 0.85rem;
       }
+      ion-card.stale {
+        opacity: 0.6;
+      }
     `,
   ],
 })
 export class JumpBackInBannerComponent {
   readonly summary = input.required<JumpBackInSummary>()
+
+  /**
+   * True when the session is stale (relay reported unknown-room).
+   * Banner renders dimmed; tapping it clears the entry.
+   */
+  readonly stale = input<boolean>(false)
 
   /**
    * While `true` the card is `disabled` so repeated taps can't stack

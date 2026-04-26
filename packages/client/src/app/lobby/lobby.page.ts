@@ -55,6 +55,7 @@ import { SessionSettingsSheetComponent } from '../session-settings/session-setti
 import { RoundHistoryComponent } from '../shared/round-history.component'
 import { VoteResultsComponent } from '../shared/vote-results.component'
 import { QrDisplaySheetComponent } from './qr-display.sheet'
+import { presentSheet } from '../utils/present-sheet'
 
 /**
  * Lobby — ux.md §5.4 host variant.
@@ -298,6 +299,7 @@ import { QrDisplaySheetComponent } from './qr-display.sheet'
     </ion-modal>
 
     <ion-modal
+      #qrModal
       [isOpen]="qrOpen()"
       (didDismiss)="qrOpen.set(false)"
     >
@@ -517,6 +519,7 @@ export class LobbyPage {
   private readonly sessionSettingsModalRef = viewChild<IonModal>(
     'sessionSettingsModal',
   )
+  private readonly qrModalRef = viewChild<IonModal>('qrModal')
 
   constructor() {
     addIcons({
@@ -566,7 +569,8 @@ export class LobbyPage {
   }
 
   protected openRoundStart(): void {
-    this.roundStartOpen.set(true)
+    const modal = this.modalRef()
+    if (modal) void presentSheet({ modal })
   }
 
   protected async onRoundStart(submission: RoundStartSubmission): Promise<void> {
@@ -653,7 +657,8 @@ export class LobbyPage {
   }
 
   protected openSessionSettings(): void {
-    this.sessionSettingsOpen.set(true)
+    const modal = this.sessionSettingsModalRef()
+    if (modal) void presentSheet({ modal })
   }
 
   protected async closeSessionSettings(): Promise<void> {
@@ -699,7 +704,8 @@ export class LobbyPage {
   }
 
   protected onShowQr(): void {
-    this.qrOpen.set(true)
+    const modal = this.qrModalRef()
+    if (modal) void presentSheet({ modal })
   }
 
   /**

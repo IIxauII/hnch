@@ -38,6 +38,7 @@ import {
   type AccessSelection,
 } from './access-picker.sheet'
 import { ScalePickerSheetComponent } from './scale-picker.sheet'
+import { presentSheet } from '../utils/present-sheet'
 import { formatScaleId } from '@hnch/shared'
 
 /**
@@ -230,11 +231,13 @@ export class SessionSettingsSheetComponent {
   }
 
   protected openScalePicker(): void {
-    this.scaleOpen.set(true)
+    const modal = this.scaleModalRef()
+    if (modal) void presentSheet({ modal })
   }
 
   protected openAccessPicker(): void {
-    this.accessOpen.set(true)
+    const modal = this.accessModalRef()
+    if (modal) void presentSheet({ modal })
   }
 
   // ---------------------------------------------------------------------------
