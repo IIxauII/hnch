@@ -290,6 +290,14 @@ describe('relay server', () => {
     })
   })
 
+  describe('DELETE /test/rooms/:uuid (route disabled by default)', () => {
+    it('returns 404 when HNCH_ENABLE_TEST_ROUTES is not set', async () => {
+      const record = roomStore.createRoom()
+      const res = await fetch(`${baseUrl}/test/rooms/${record.uuid}`, { method: 'DELETE' })
+      expect(res.status).toBe(404)
+    })
+  })
+
   describe('WS participant cap', () => {
     it('rejects the connection that would exceed MAX_ROOM_PARTICIPANTS', async () => {
       const record = roomStore.createRoom()

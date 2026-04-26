@@ -265,14 +265,27 @@ export class JoinPage {
       }
     })
 
-    // Deep-link auto-fill: if navigated via /join?code=K7P9MR, seed
-    // the input so the user just taps Join. The displayNameGuard
-    // stashes /join?code=... for post-onboarding resume, so this
-    // also fires after the onboarding → resume flow.
+    // Deep-link auto-fill + auto-submit: if navigated via /join?code=K7P9MR,
+    // seed the input and immediately kick off the same flow as manual Join.
+    // The displayNameGuard stashes /join?code=... for post-onboarding resume,
+    // so this also fires after the onboarding → resume flow.
+    //
+    // Auto-submit only when arriving with a code param — direct nav with no
+    // code (e.g. Home → Join button, Back from Lobby) must not auto-submit.
     const codeParam = this.route.snapshot.queryParamMap.get('code')
     if (codeParam) {
       const formatted = formatRoomCode(normalizeRoomCode(codeParam))
       this.codeControl.setValue(formatted)
+      // Defer one microtask so valueChanges fires and normalizedCode() updates
+      // before submit() reads canJoin(). Only auto-submit if the user already
+      // has a display name — the guard handles the no-name case by stashing
+      // the URL and redirecting to onboarding; after onboarding completes and
+      // the user lands back here, getDisplayName() will resolve non-null.
+      void this.displayNameService.getDisplayName().then((name) => {
+        if (shouldAutoSubmitDeepLink(codeParam, name)) {
+          void this.submit()
+        }
+      })
     }
   }
 
@@ -368,6 +381,23 @@ export class JoinPage {
 }
 
 // ---------------------------------------------------------------------------
+// Exported helpers (also used in tests)
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns true when a deep-link auto-submit should be attempted.
+ * Both conditions must hold: a code param was present in the URL, and the
+ * user already has a display name (guard handles the no-name case separately).
+ */
+export function shouldAutoSubmitDeepLink(
+  codeParam: string | null,
+  displayName: string | null,
+): boolean {
+  if (!codeParam) return false
+  return displayName !== null && displayName.trim().length > 0
+}
+
+// ---------------------------------------------------------------------------
 // Module-private copy
 // ---------------------------------------------------------------------------
 
@@ -376,8 +406,10 @@ export class JoinPage {
  * surfaces `unknown-room` (the relay is permissive until Phase 5); the
  * rest are stubbed with generic copy so the exhaustive switch stays
  * compile-checked as new reasons land.
+ *
+ * Exported so tests can lock the close-code → copy mapping.
  */
-function rejectionCopy(reason: JoinRejectionReason): string {
+export function rejectionCopy(reason: JoinRejectionReason): string {
   switch (reason) {
     case 'unknown-room':
       return "That room code isn't active. Double-check with your host."
