@@ -282,6 +282,33 @@ If verification fails → route specific failures to the relevant impl agent →
 - Implementers NEVER mark tasks completed — only you do, after review
 - **When sending tasks to multiple agents, put ALL `SendMessage` calls in a single response** — parallel dispatch
 
+### Pre-Dispatch Collision Check (mandatory)
+
+Before dispatching task T to any implementer:
+
+1. Build the **in-flight file set** = union of `files-touched` from every task currently `in_progress` (whether the agent has reported "ready for review" yet or not — in-flight means the agent could still edit).
+2. Check T's `files-touched` against the in-flight set.
+3. **If overlap exists:** do NOT dispatch T. Either:
+   - Wait until the overlapping in-flight task finishes AND its review is approved, OR
+   - Dispatch a different non-conflicting task to that agent
+4. **If no overlap:** dispatch T and add its `files-touched` to the in-flight set.
+5. Rebuild the in-flight set on every dispatch cycle from `TaskList` + agent status. Do NOT cache across cycles.
+
+**Mid-task file expansion:** if an implementer sends `SendMessage` "need to edit `<file>` not in original `files-touched`":
+1. Re-run collision check with the proposed addition
+2. If clear → reply "approved, proceed" and update tracked file list
+3. If conflict → reply "blocked by task <X>, hold edit until <X> approved" — implementer waits
+
+### Idle-Utilization Rule
+
+If an agent has no in-flight task AND no eligible next task (every remaining task either depends on something in flight or has file collision):
+
+1. **Despawn the idle agent** to free a concurrency slot
+2. **Spawn the bottleneck role** — whichever agent type has the most remaining work
+3. **Resume dispatch.** Despawn-respawn loses context; only do this when the alternative is wasted slots while work remains.
+
+If despawn-respawn would happen in a tight loop (idle → despawn → respawn for next story), prefer holding the slot — orchestrator judgment call.
+
 ### Agent Lifecycle Management
 
 **Despawn when:**
@@ -371,3 +398,5 @@ When all stories pass review AND the verification story is green:
 22. Keep reviewers busy when stories are ready. If reviewers are idle while implementers work, stories are too large or dispatch is too slow.
 23. ALWAYS run `plan-critic` after planner delivers and before user approval, even on simple plans.
 24. ALWAYS end the plan with a verification story owned by `test-runner-haiku`.
+25. ALWAYS run pre-dispatch collision check on `files-touched`. Two concurrent tasks touching the same file = lost work.
+26. ALWAYS act on the idle-utilization rule. Idle agents while work remains is a dispatch failure.

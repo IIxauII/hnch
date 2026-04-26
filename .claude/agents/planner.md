@@ -40,15 +40,35 @@ You produce a single document with three sections:
   - Title
   - Story (which story this belongs to)
   - Package (client/cli/shared/relay/e2e)
-  - Files to create/modify (1-3 files; haiku tasks skew to 1-2)
+  - **`files-touched`** — exhaustive list of every file the task creates or modifies (1-3 files; haiku tasks skew to 1-2). Used by the orchestrator for collision detection.
   - Intent (what to change, not line-level detail)
   - Model tier recommendation (haiku/sonnet) with reason
-  - Blocked-by (task dependencies)
+  - **`blockedBy`** — task dependencies. MUST include a blocker for any other task that shares a file in `files-touched` (file-disjoint rule).
 
 Sizing rules:
 - **Task = single focus, one impl can complete in one shot without escalation.** 1-3 files for sonnet, 1-2 for haiku.
 - **No epic tasks.** If a task touches >3 files OR >2 concerns, split it.
 - **Story = related tasks reviewer can hold in head.** 2-4 tasks, 4-12 files total. Split if larger.
+
+## Parallelism Design
+
+You design plans for **maximum parallel throughput**. Idle agents while work remains is a planning failure.
+
+1. **Maximize concurrency.** Two tasks that can run concurrently SHOULD. Prefer flat dependency graphs over chains.
+2. **Critical path.** Identify the longest chain of `blockedBy` dependencies (the critical path). Minimize it. Tasks NOT on the critical path can run later, opportunistically filling idle slots — they should not gate other work.
+3. **Balance across packages.** If a story has 6 mobile tasks and 1 shared task, only one mobile agent can work at a time (file collisions). Split across packages or stories so multiple agents stay busy.
+4. **No fake parallelism.** Do NOT split a coherent task into N just to fake parallel work — dispatch overhead exceeds gain. Tasks must remain single-focus per the sizing rules above.
+5. **Spawn/despawn for bottlenecks.** When a story is gated by a single agent type, the team recommendation should despawn idle agents and spawn the bottleneck role. Note this in the concurrency timeline.
+
+## File Conflict Avoidance
+
+Two concurrently-running tasks that modify the same file will overwrite each other's work — `Edit` reads then writes; if the file changed between read and write, the second task loses the first's edits. This is a HARD constraint.
+
+1. **Per-task `files-touched`** (mandatory, exhaustive): list every file the task creates or modifies. The orchestrator uses this list to detect collisions before dispatch.
+2. **No two concurrent tasks may modify the same file.** If task A and task B both touch `packages/shared/src/index.ts`, mark explicit `blockedBy` between them (whichever is logically prior). The orchestrator will refuse to dispatch B while A is in flight.
+3. **Shared files visible.** Common collision hotspots: barrel `index.ts`, `schema.md`, `doc.ts`, `doc-projection.ts`, theme tokens, `app.routes.ts`, fixture files. Plan around them.
+4. **Cost of serialization is real.** When two features both need `doc.ts`, they cannot run in parallel. Note this in the plan — do not hide the cost. If the cost is high, consider whether the plan can be restructured (e.g., one task adds both fields together, then features build on top).
+5. **Mid-task file additions.** If an implementer needs a file not in its original `files-touched`, it must `SendMessage` the orchestrator BEFORE editing. The orchestrator re-runs collision check and either approves or blocks pending other in-flight work.
 - **Acceptance criteria**: testable assertions
 - **Key files reference**: paths implementers need to read
 - **Estimation**: story points with reasoning
@@ -207,10 +227,10 @@ When plan + spec are complete, format as:
 ### Story 1: <name — cohesive context description>
 - [ ] **T1: <title>** [haiku|sonnet]
   - Package: <pkg>
-  - File(s): `path/to/file`
+  - files-touched: `path/to/file.ts`, `path/to/other.ts`
   - What: <behavior to add/change>
   - AC: AC-1, AC-2
-  - Blocked by: —
+  - blockedBy: —
 - [ ] **T2: <title>** [haiku|sonnet]
   - ...
 
@@ -218,9 +238,26 @@ When plan + spec are complete, format as:
 - [ ] **T3: <title>** [haiku|sonnet]
   - ...
 
-### Story N: Build + verify
-- `pnpm build` passes
-- Manual test steps
+### Story N: Verification (test-runner-haiku)
+- Cross-package vitest matrix
+- Lint + typecheck on touched packages
+- E2e suite (chromium) if client/shared/relay touched
+- Flake-check new e2e specs (5x re-run)
+- Build all touched packages
+
+## Parallelism Timeline
+
+Per story, show which tasks run concurrently and which are gated. Example:
+
+```
+Story 1 — concurrent slots:
+  Slot A: T1 → T3 → T5     (mobile-sonnet)
+  Slot B: T2 → T4          (shared-sonnet)
+  Slot C: idle after T2    ← rebalance opportunity
+Critical path: T2 → T4 → T5  (length 3)
+```
+
+Note any idle slots and whether to despawn/respawn agents to reduce them.
 
 ## Team Recommendation
 
