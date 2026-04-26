@@ -66,6 +66,9 @@ export interface RelayServerDeps {
 /** Max bytes we'll read on a JSON body before giving up. */
 const MAX_BODY_BYTES = 4 * 1024
 
+/** Read once at boot — routes only exist when this is true. */
+const TEST_ROUTES_ENABLED = process.env['HNCH_ENABLE_TEST_ROUTES'] === '1'
+
 /**
  * Room participant cap. Defaults to MAX_ROOM_PARTICIPANTS (20).
  * Test-only: can be lowered via HNCH_ROOM_CAP env var for e2e testing
@@ -128,7 +131,7 @@ async function handleHttpRequest(
   // CORS: allow the dev client (and any origin in dev mode) to reach
   // the relay. In production this would be locked to the app's origin.
   res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, OPTIONS')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
 
   if (req.method === 'OPTIONS') {
@@ -171,6 +174,15 @@ async function handleHttpRequest(
     const raw = decodeURIComponent(roomCodeMatch[1]!)
     handleResolveRoom(raw, res, deps)
     return
+  }
+
+  // DELETE /test/rooms/:uuid — test-only eviction endpoint
+  if (TEST_ROUTES_ENABLED) {
+    const testDeleteMatch = path.match(/^\/test\/rooms\/([^/]+)\/?$/)
+    if (req.method === 'DELETE' && testDeleteMatch !== null) {
+      handleTestDeleteRoom(testDeleteMatch[1]!, res, deps)
+      return
+    }
   }
 
   sendJson(res, 404, { error: 'not-found' })
@@ -340,6 +352,26 @@ async function handlePatchAccess(
 
   const record = deps.roomStore.getByUuid(uuid)!
   sendJson(res, 200, { accessMode: accessModeOf(record) })
+}
+
+const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
+
+function handleTestDeleteRoom(
+  rawUuid: string,
+  res: ServerResponse,
+  deps: RelayServerDeps,
+): void {
+  if (!UUID_RE.test(rawUuid)) {
+    sendJson(res, 400, { error: 'bad-uuid' })
+    return
+  }
+  const record = deps.roomStore.getByUuid(rawUuid)
+  if (record === undefined) {
+    sendJson(res, 404, { error: 'not-found' })
+    return
+  }
+  deps.roomStore.deleteRoom(rawUuid)
+  sendJson(res, 200, { evicted: rawUuid })
 }
 
 /** A valid password hash is a 64-character lowercase hex string (32 bytes). */
