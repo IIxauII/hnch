@@ -378,7 +378,7 @@ From Home Join button, invite URL deep link, or QR scan. Same screen for all thr
 
 - Code input: monospace hint, formats `XXX-XXX` live; excludes look-alike chars per [ADR-0008](adr/0008-room-codes.md).
 - Scan QR opens `@capacitor-mlkit/barcode-scanning` modal camera; on success → code written to input, Join activates.
-- Password field materializes inline only after relay confirms code maps to password-protected room (per [ADR-0009](adr/0009-access-control.md)). Invite-token URLs consume token silently.
+- Password field materializes inline only after relay confirms code maps to password-protected room (per [ADR-0009](adr/0009-access-control-relay-tokens.md)).
 - Join disabled until code well-formed. On tap: connects to relay; success → Lobby; failure → inline error (invalid, expired, wrong password).
 
 ### 5.4 Lobby
@@ -413,7 +413,7 @@ After a round is revealed, all participants navigate from Estimating back to Lob
 │   ┌───────────────────────────────┐     │
 │   │ 👑  You (Xau)                 │     │  host badge
 │   │ 🟢  Alice                     │     │  online
-│   │ 🟢  Bob                       │     │
+│   │ 🟢  Bob  (observer)           │     │  viewer — role indicator
 │   └───────────────────────────────┘     │
 │                                         │
 │   .                                     │
@@ -437,6 +437,7 @@ After a round is revealed, all participants navigate from Estimating back to Lob
 │   ┌───────────────────────────────┐     │
 │   │ 👑  You (Xau)                 │     │
 │   │ 🟢  Alice  🟢  Bob  🟢  Carol │     │
+│   │ 🟢  Eve  (observer)           │     │  viewer — role indicator
 │   └───────────────────────────────┘     │
 │                                         │
 │   ── Round 2 Results ──                 │  results section
@@ -447,8 +448,8 @@ After a round is revealed, all participants navigate from Estimating back to Lob
 │   │ 8    (2 votes)                │     │
 │   │   🟢 Carol  🟢 Dave           │     │
 │   ├───────────────────────────────┤     │
-│   │ Didn't vote (1)               │     │  muted trailing group
-│   │   🟢 Eve                      │     │
+│   │ Observers (1)                 │     │  muted trailing group
+│   │   🟢 Eve  (observer)          │     │
 │   └───────────────────────────────┘     │
 │   ⏱ 0:42                               │  elapsed time
 │                                         │
@@ -483,7 +484,7 @@ After a round is revealed, all participants navigate from Estimating back to Lob
 │   ┌───────────────────────────────┐     │
 │   │ 👑  Xau                       │     │
 │   │ 🟢  You (Alice)               │     │
-│   │ 🟢  Bob                       │     │
+│   │ 🟢  Bob  (observer)           │     │  viewer — role indicator
 │   └───────────────────────────────┘     │
 │                                         │
 │   .  (results section appears here      │
@@ -495,14 +496,15 @@ After a round is revealed, all participants navigate from Estimating back to Lob
 - Large title = room code — most important info, read aloud in co-located meetings.
 - Subtitle summarizes settings (scale). Tapping subtitle opens Session settings sheet (also via ⋯ → **Session settings**). Discoverability affordance, not substitute for menu.
 - Show QR = secondary invite for co-located meetings. Opens `ion-modal` with full-screen QR encoding invite URL.
-- Results section (`VoteResultsComponent`): each group = `ion-item-group` with vote value as large heading + `(N votes)` caption. Voters rendered as `ion-chip` row (avatar + name). Non-voters = trailing "Didn't vote" group, muted style. Elapsed time shown below groups.
+- Participant list: viewers render with an `(observer)` suffix after their name. Voters have no suffix. Role is session-wide and visible in all three Lobby variants (ADR-0020).
+- Results section (`VoteResultsComponent`): each group = `ion-item-group` with vote value as large heading + `(N votes)` caption. Voters rendered as `ion-chip` row (avatar + name). Trailing muted groups: "Didn't vote" (voters who didn't cast a vote) and "Observers" (participants with `role = viewer`, per ADR-0020). Elapsed time shown below groups.
 - History (`RoundHistoryComponent`): compact one-liner per past revealed round (all revealed rounds except the latest), reverse chronological. Skipped when only one round revealed.
 - Footer when results shown (host only): **Re-vote** (reuses descriptor, creates new Round with `parentRoundId` = current, per ADR-0013) and **Next Round N** (opens round-start modal). Joiners see no footer — wait for host.
 - ⋯ menu: **Session settings**, **Leave session** (destructive), **End session for everyone** (destructive, host only).
 
 ### 5.5 Estimating
 
-Core interaction screen. Every participant sees card grid; vote presence public, value hidden until reveal.
+Core interaction screen. Every participant sees card grid (voters) or an observer notice (viewers); vote presence public, value hidden until reveal.
 
 ```
 ┌─────────────────────────────────────────┐
@@ -510,6 +512,8 @@ Core interaction screen. Every participant sees card grid; vote presence public,
 │                                         │
 │   Round 1                               │  large title
 │   API rate-limit middleware             │  descriptor (if present)
+│                                         │
+│   [● Voter]                             │  role chip — primary (blue) when voter
 │                                         │
 │   2:14                                  │  elapsed time — large, mono
 │   ● ● ● ○ ○   3 of 5 voted              │  avatar row — filled = voted
@@ -523,12 +527,9 @@ Core interaction screen. Every participant sees card grid; vote presence public,
 │   ┌─────┐ ┌─────┐ ┌─────┐               │
 │   │  3  │ │  5  │ │  8  │               │
 │   └─────┘ └─────┘ └─────┘               │
-│   ┌─────┐ ┌─────┐ ┌─────┐               │
-│   │ 13  │ │ 21  │ │  ?  │               │
-│   └─────┘ └─────┘ └─────┘               │
-│   ┌─────┐                               │
-│   │ ☕  │                               │  coffee (pass)
-│   └─────┘                               │
+│   ┌─────┐ ┌─────┐                       │
+│   │ 13  │ │ 21  │                       │  8 cards (canonical Fibonacci)
+│   └─────┘ └─────┘                       │
 │                                         │
 │   .                                     │
 ├─────────────────────────────────────────┤
@@ -538,9 +539,32 @@ Core interaction screen. Every participant sees card grid; vote presence public,
 └─────────────────────────────────────────┘
 ```
 
+**Observer variant** (when role = viewer):
+
+```
+┌─────────────────────────────────────────┐
+│ ←                                  ⋯    │
+│                                         │
+│   Round 1                               │
+│   API rate-limit middleware             │
+│                                         │
+│   [○ Observer]                          │  role chip — medium (gray) when viewer
+│                                         │
+│   2:14                                  │
+│   ● ● ●       3 of 3 voted              │  denominator = voters only
+│                                         │
+│                                         │
+│   You're observing this round           │  empty-state notice; no card grid
+│                                         │
+│   .                                     │
+└─────────────────────────────────────────┘
+```
+
 - Cards = `ion-card` tiles with large numerals. Selecting sets vote + fires `Haptics.impact({ style: 'Light' })`. Selected card gets primary-color border + filled background; others outlined. Re-tap deselects (ADR-0013: vote change allowed until reveal).
 - Avatar row = compact "who voted" indicator — grey circle = connected no vote; filled = voted. Tap row → `ion-popover` listing names grouped voted/not-voted.
-- Elapsed time counts up from round start. Format: `M:SS`. Uses `font-variant-numeric: tabular-nums` to prevent digit jitter. Auto-reveal fires when all online participants have voted (ADR-0018).
+- Elapsed time counts up from round start. Format: `M:SS`. Uses `font-variant-numeric: tabular-nums` to prevent digit jitter. Auto-reveal fires when all online **voters** have voted (ADR-0018, ADR-0020).
+- Role chip (`[● Voter]` / `[○ Observer]`) appears below the round title. Tap toggles between voter and viewer mid-session. Chip color: primary (blue) when voter, medium (gray) when viewer. Distinct aria-labels for screen readers. Switching to viewer hides the card grid and shows the observer notice; switching back to voter restores it.
+- Viewers are excluded from the "X of Y voted" denominator and from the unanimous auto-reveal check. If all online participants are viewers, auto-reveal does not fire.
 - Only host sees **Reveal Votes** footer. Joiners see empty/no footer.
 - ⋯ menu (host): **Session settings**, **Leave session**, **End session for everyone**.
 - ⋯ menu (joiner): **Session settings** (read-only), **Leave session**.
@@ -620,6 +644,8 @@ From ⋯ → **Session settings** on Lobby / Estimating, or tapping settings-sum
 
 Breakpoints `[0, 0.6, 0.95]` — dismiss by drag down, comfortable view at 60%, near full-screen for pickers.
 
+**Participant roles** — each participant defaults to `voter`. Any participant can toggle their own role to `viewer` (observer) via the role chip on the Estimating screen (see §5.5). Role persists in the Yjs doc for the session duration and survives reconnects. Viewers are excluded from the unanimous auto-reveal denominator; if all online participants are viewers, auto-reveal does not fire. See [ADR-0020](adr/0020-participant-viewer-voter-role.md).
+
 #### Scale picker (half-sheet)
 
 ```
@@ -627,10 +653,11 @@ Breakpoints `[0, 0.6, 0.95]` — dismiss by drag down, comfortable view at 60%, 
 │        ━━━━                             │
 │   Scale                                 │
 │                                         │
-│   ○ Fibonacci     0 1 2 3 5 8 13 21 ?  │  ion-radio-group
-│   ● Modified Fib  0 ½ 1 2 3 5 8 13 ?   │
-│   ○ T-shirt       XS S M L XL XXL ?     │
-│   ○ Powers of 2   1 2 4 8 16 32 64 ?    │
+│   ○ Fibonacci     0 1 2 3 5 8 13 21     │  ion-radio-group
+│   ○ T-shirt       XS S M L XL           │
+│   ○ Powers of 2   1 2 4 8 16 32 64      │
+│   ○ Linear        1 2 3 4 5 6 7 8 9 10  │
+│   ○ Risk        Low Medium High Critical│
 │                                         │
 └─────────────────────────────────────────┘
 ```
@@ -646,7 +673,6 @@ Radio selection commits immediately (no Save button) — iOS picker idiom. Value
 │                                         │
 │   ● Open           Anyone with the code │
 │   ○ Password       Set a shared password│
-│   ○ Invite only    Single-use links     │
 │                                         │
 │   ── if Password selected ──            │
 │   ┌───────────────────────────────┐     │
@@ -656,7 +682,7 @@ Radio selection commits immediately (no Save button) — iOS picker idiom. Value
 └─────────────────────────────────────────┘
 ```
 
-Per [ADR-0009](adr/0009-access-control.md), relay enforces access via opaque tokens. Mid-session change does not evict existing participants — only affects future joins.
+Per [ADR-0009](adr/0009-access-control-relay-tokens.md), relay enforces access via opaque tokens. Mid-session change does not evict existing participants — only affects future joins.
 
 #### Round-start modal (half-sheet)
 
@@ -881,7 +907,7 @@ Acknowledged gaps and deferred decisions. Not blocking v1 but should be answered
 
 **Expired-room error screen.** Dedicated screen vs toast vs inline error on Join Room — currently picked toast + return to Home, but full screen may be warranted if URL deep-link path feels jarring. Revisit after real-device testing.
 
-**Invite URL shape with credentials.** For password-protected rooms, does invite URL embed hint that password required (skip round-trip, show field immediately)? TBD — interacts with [ADR-0009](adr/0009-access-control.md) opaque-token model.
+**Invite URL shape with credentials.** For password-protected rooms, does invite URL embed hint that password required (skip round-trip, show field immediately)? TBD — interacts with [ADR-0009](adr/0009-access-control-relay-tokens.md) opaque-token model.
 
 **Liquid Glass adoption timeline.** When (if ever) adopt `@rdlabo/ionic-theme-ios26`. See [§7](#7-theming).
 

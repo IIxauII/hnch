@@ -24,21 +24,15 @@ The app supports multiple pointing poker styles out of the box and lets users de
 
 | Preset | Values |
 |---|---|
-| Fibonacci | 0, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89 |
-| Modified Fibonacci | 0, ½, 1, 2, 3, 5, 8, 13, 20, 40, 100 |
-| T-shirt sizes | XS, S, M, L, XL, XXL |
+| Fibonacci | 0, 1, 2, 3, 5, 8, 13, 21 |
+| T-shirt | XS, S, M, L, XL |
 | Powers of 2 | 1, 2, 4, 8, 16, 32, 64 |
-| Time-based (hours) | 1h, 2h, 4h, 8h, 16h, 24h, 40h |
-| Time-based (days) | ½d, 1d, 2d, 3d, 5d, 10d, 20d |
+| Linear | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 |
+| Risk | Low, Medium, High, Critical |
 
-All presets include a **?** (unsure / need discussion) option.
+### Reveal
 
-### Reveal mode
-
-Configurable per session by the host:
-
-- **Auto** — votes revealed once all voters have submitted
-- **Manual** — host triggers the reveal
+Reveal is fixed: the host can manually reveal at any time, and the round auto-reveals once every online voter has cast a vote (unanimous). There is no per-session reveal-mode setting (ADR-0018).
 
 ### Export
 
@@ -68,9 +62,7 @@ Before a round's reveal, a user may change their vote any number of times by tap
 
 ### Timer
 
-Optional countdown per round, configurable by the host. When the timer expires, votes are revealed regardless of completion.
-
-Canonical time is established by the host writing `timerStartedAt` into the shared doc at round start; every client computes its own remaining time locally from that. Sub-second clock skew between peers is imperceptible at these durations. The host's client is the single authority for writing the auto-reveal transition when its timer expires, so the reveal is a single event rather than a race. If the host changes mid-timer (see *Host Migration*), the new host takes over expiry duties using the same `timerStartedAt`.
+`timerStartedAt` is written at round creation and serves as a stopwatch origin. The estimating screen displays elapsed time counting up from this value. There is no countdown or auto-reveal-on-expiry (ADR-0018).
 
 ### Custom scales
 
@@ -101,7 +93,7 @@ Users can optionally change their nickname before joining any session. Each user
 
 ## Teams (local concept)
 
-A **Team** is a device-local, personal saved collection of "people I usually estimate with" plus optional default session settings (scale, reveal mode, timer). Teams let a user spin up a new session pre-populated with their usual attendees and defaults.
+A **Team** is a device-local, personal saved collection of "people I usually estimate with" plus optional default session settings (e.g. scale). Teams let a user spin up a new session pre-populated with their usual attendees and defaults.
 
 Teams are *not* synced via Yjs and are *not* part of the session document. Each user maintains their own Teams in local storage. There is no shared canonical team entity — Bob and Carol can each have their own "Platform Squad" Team definition, and they may differ.
 
@@ -111,10 +103,9 @@ A session is always ephemeral (per meeting) regardless of whether it was started
 
 Sessions are open by default (anyone with the link/code can join). Host can optionally enable:
 
-- **Password-protected** — on session creation, the host registers a password hash with the relay. Joiners submit their password as a hash (the join token); the relay compares and accepts or rejects at socket connect time.
-- **Invite-only** — the host's client issues short-lived, single-use join tokens on admission. The relay accepts connections presenting a valid unexpired token and revokes tokens on redemption.
+- **Password-protected** — on session creation, the host registers a password hash with the relay. Joiners submit their password as a hash; the relay compares and accepts or rejects at socket connect time.
 
-Access control is *relay-enforced*, not client-side. The relay now holds a small amount of per-active-room metadata (password hash, outstanding invite tokens and their expiries) but remains **content-blind** — it never parses session data, votes, or user identity. Tokens are opaque to the relay's semantics.
+Access control is *relay-enforced*, not client-side. The relay holds a small amount of per-active-room metadata (password hash) but remains **content-blind** — it never parses session data, votes, or user identity. The password hash is opaque to the relay's semantics.
 
 **Future consideration:** vote signing via device keys to prevent forgery. Not in scope initially.
 
@@ -143,7 +134,7 @@ Direct WebRTC peer-to-peer data channels were considered and dropped from the ro
 
 Lightweight self-hosted y-websocket server that forwards Yjs CRDT sync messages between clients in the same room. **Content-blind** — it never inspects, parses, or persists vote data, user identity, or round metadata. Messages pass through as opaque binary CRDT updates.
 
-The relay holds a small amount of *access-control and routing* metadata per active room: the internal room UUID, the current room code pointing at it, optional password hash, outstanding single-use invite tokens with expiries, and (when the room has gone empty) an in-memory snapshot. This is not session content — it is what the relay needs to do its job.
+The relay holds a small amount of *access-control and routing* metadata per active room: the internal room UUID, the current room code pointing at it, optional password hash, and (when the room has gone empty) an in-memory snapshot. This is not session content — it is what the relay needs to do its job.
 
 **Ephemeral room snapshots** — when a room goes empty, the relay retains the last Yjs state in memory, keyed by the internal room UUID, with a 24-hour TTL. Returning peers rehydrate from the snapshot even if no other client is currently connected. Snapshots are opaque CRDT blobs, not persisted to disk; a relay restart loses them (accepted v1 trade-off).
 
@@ -165,7 +156,7 @@ The session *creator* is the initial host. If the host disconnects, election pro
 
 Peer ID is the device identifier from *Identity*. Election happens in the shared Yjs doc; the relay is not involved.
 
-Host responsibilities — timer expiry authority, manual-reveal trigger, admitting invite-only joiners — are scoped to the current elected host. A subtle crown icon in the participant list surfaces who holds the role.
+Host responsibilities — manual-reveal trigger, access-mode and password management — are scoped to the current elected host. A subtle crown icon in the participant list surfaces who holds the role.
 
 ## UX
 
@@ -187,3 +178,5 @@ Mobile-first design. Desktop adapts up. Target platforms: web browser, iOS, Andr
 ## Status
 
 Implementation through Phase 6a (PWA polish). Phases 1–4 shipped the scaffold, Yjs doc/CRDT layer, relay sync, multi-client sessions, timer-driven reveal, and host election. Phase 5 added password-protected rooms, share/QR/deep-link join paths, and a Playwright e2e suite. Phase 6a added settings screen, theme picker, reveal animation, haptic wiring, and an accessibility pass. Next: Phase 6b (native iOS build).
+
+A CLI client (`@hnch/cli`, `packages/cli`) ships alongside the mobile/PWA client as a terminal interface for developers and automation. It speaks the same relay protocol with no feature delta. See [`cli.md`](cli.md) for conventions and commands.
