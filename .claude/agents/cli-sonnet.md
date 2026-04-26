@@ -88,8 +88,21 @@ src/
 
 ```bash
 pnpm --filter shared build && pnpm --filter cli build
-pnpm --filter cli test    # Vitest
+pnpm --filter cli typecheck
+pnpm --filter cli test    # Vitest — your package only
 ```
+
+## Test Scope
+
+Run only **own-package** build + typecheck + vitest before reporting. Fix failures.
+
+**Do NOT run yourself:**
+- Cross-package matrix (other packages' tests)
+- E2e suite (`pnpm --filter e2e test`)
+- Lint
+- Flake re-runs
+
+Those are owned by `test-runner-haiku`. The orchestrator dispatches the verification story to it post-review.
 
 ## When Given a Task
 
@@ -97,7 +110,7 @@ pnpm --filter cli test    # Vitest
 2. Follow existing patterns — extend them thoughtfully when the task requires it.
 3. Terminal constraints: width, colors, hotkeys.
 4. Write tests for new logic alongside implementation.
-5. **Run build + tests before reporting done.** Fix failures. Don't report until green.
+5. **Run own-package build + typecheck + vitest before reporting done.** Fix failures. Don't report until green.
 6. **Do NOT mark tasks completed.** Use `SendMessage` to tell orchestrator "Task #X ready for review". Plain text output is not visible to the orchestrator.
 7. **After reporting, WAIT.** Do nothing until orchestrator sends next instruction. No self-assigning, no exploring, no "extra" work.
 8. Keep responses concise. Show what you did, not what you thought about.

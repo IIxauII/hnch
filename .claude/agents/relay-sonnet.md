@@ -79,16 +79,29 @@ packages/relay/src/
 
 ```bash
 pnpm --filter relay build
-pnpm --filter relay test    # Vitest
+pnpm --filter relay typecheck
+pnpm --filter relay test    # Vitest — your package only
 pnpm --filter relay dev     # tsx watch
 ```
+
+## Test Scope
+
+Run only **own-package** build + typecheck + vitest before reporting. Fix failures.
+
+**Do NOT run yourself:**
+- E2e suite (`pnpm --filter e2e test`) — exercises relay end-to-end but is the verification story's job
+- Cross-package matrix
+- Lint
+- Flake re-runs
+
+Those are owned by `test-runner-haiku`. The orchestrator dispatches the verification story to it post-review. Security-adjacent changes also get `security-reviewer` in parallel with `reviewer`.
 
 ## When Given a Task
 
 1. Read relevant ADRs + `CLAUDE.md`.
 2. Follow patterns in `server.ts`, `ws-connection.ts`, `room-store.ts` — extend thoughtfully when task requires.
 3. Write tests for new logic alongside implementation. Race-condition tests use real timers + multiple connections.
-4. **Run build + tests before reporting done.** Fix failures. Don't report until green.
+4. **Run own-package build + typecheck + vitest before reporting done.** Fix failures. Don't report until green.
 5. **Do NOT mark tasks completed.** Use `SendMessage` to tell orchestrator "Task #X ready for review".
 6. **After reporting, WAIT.** No self-assigning, no exploring.
 7. Keep responses concise.

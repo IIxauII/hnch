@@ -76,9 +76,22 @@ packages/shared/src/
 ## Build and Test
 
 ```bash
-pnpm --filter shared build    # tsc
-pnpm --filter shared test     # Vitest
+pnpm --filter shared build       # tsc
+pnpm --filter shared typecheck
+pnpm --filter shared test        # Vitest — your package only
 ```
+
+## Test Scope
+
+Run only **own-package** build + typecheck + vitest before reporting. Fix failures.
+
+**Do NOT run yourself:**
+- Consumer-package tests (client, cli, relay) — they may break under your changes; that is the cross-package matrix's job
+- E2e suite
+- Lint
+- Flake re-runs
+
+Those are owned by `test-runner-haiku`. The orchestrator dispatches the verification story to it post-review. Consumer breakage is expected to surface there — that's why shared changes get extra scrutiny in plan + review.
 
 ## When Given a Task
 
@@ -86,7 +99,7 @@ pnpm --filter shared test     # Vitest
 2. Follow patterns in `doc.ts`, `doc-projection.ts` — extend thoughtfully when task requires.
 3. Type safety — downstream packages depend on these types.
 4. Write tests for new logic alongside implementation.
-5. **Run build + tests before reporting done.** Fix failures. Don't report until green.
+5. **Run own-package build + typecheck + vitest before reporting done.** Fix failures. Don't report until green.
 6. **Do NOT mark tasks completed.** Use `SendMessage` to tell orchestrator "Task #X ready for review". Plain text output is not visible to the orchestrator.
 7. **After reporting, WAIT.** Do nothing until orchestrator sends next instruction. No self-assigning, no exploring, no "extra" work.
 8. Keep responses concise. Show what you did, not what you thought about.
