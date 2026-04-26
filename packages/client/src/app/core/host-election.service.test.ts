@@ -8,6 +8,10 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+// Mock ESM-only packages that cascade in via doc.service.ts imports.
+vi.mock('@ionic/angular/standalone', () => ({}))
+vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false } }))
+
 import { HOST_ABSENCE_ELECTION_DEBOUNCE_MS } from './host-election.service'
 
 // ---------------------------------------------------------------------------

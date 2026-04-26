@@ -21,6 +21,7 @@ import {
   type JoinRejectionReason,
 } from '@hnch/shared'
 import { WebsocketProvider } from 'y-websocket'
+import type { ToastService } from '../../services/toast.service'
 
 /**
  * Connection state exposed to the UI. Mirrors the y-websocket `status`
@@ -60,6 +61,11 @@ export interface SyncProviderOptions {
    * (re)connect to clear any prior rejection surfaced to the UI.
    */
   readonly onRejectionChange?: (reason: JoinRejectionReason | null) => void
+  /**
+   * Toast service for displaying user-facing errors. Optional — if omitted,
+   * repeat-rejection warnings are silently suppressed (useful for tests).
+   */
+  readonly toastService?: ToastService
 }
 
 /**
@@ -118,6 +124,8 @@ export function createSyncProvider(opts: SyncProviderOptions): SyncProvider {
   // True once the user explicitly calls disconnect() — suppresses reconnecting
   // state so the UI does not show a spurious "reconnecting" banner on teardown.
   const manuallyDisconnected = signal(false)
+  // Rolling buffer for unknown close-code timestamps — triggers toast on 3+ events in 60s.
+  const unknownCloseCodeTimestamps: number[] = []
 
   // Reconnecting: WS is not connected, no permanent rejection has been issued,
   // and we have not intentionally torn down the session.
@@ -148,6 +156,8 @@ export function createSyncProvider(opts: SyncProviderOptions): SyncProvider {
     if (ev.status === 'connected') {
       lastRejection.set(null)
       opts.onRejectionChange?.(null)
+      // Clear rolling buffer to prevent accumulation in long sessions.
+      unknownCloseCodeTimestamps.length = 0
     }
   }
 
@@ -160,6 +170,20 @@ export function createSyncProvider(opts: SyncProviderOptions): SyncProvider {
       // will fire via the setTimeout in closeWebsocketConnection — do NOT
       // set shouldConnect = false here. reconnecting signal becomes truthy
       // automatically because status transitions to 'disconnected'.
+
+      // Rolling buffer for repeat unknown close codes.
+      const now = Date.now()
+      unknownCloseCodeTimestamps.push(now)
+      // Trim entries older than 60s.
+      const cutoff = now - 60_000
+      while (unknownCloseCodeTimestamps.length > 0 && unknownCloseCodeTimestamps[0]! < cutoff) {
+        unknownCloseCodeTimestamps.shift()
+      }
+      // Trigger toast if 3+ events in the window.
+      if (unknownCloseCodeTimestamps.length >= 3) {
+        opts.toastService?.error('Trouble reaching the room — retrying.')
+        unknownCloseCodeTimestamps.length = 0
+      }
       return
     }
     // Permanent relay rejection — retry won't help. Stop the reconnect

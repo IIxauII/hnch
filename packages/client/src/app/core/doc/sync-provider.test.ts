@@ -442,4 +442,106 @@ describe('createSyncProvider', () => {
     expect(provider.awareness).toBeDefined()
     provider.disconnect()
   })
+
+  // -------------------------------------------------------------------------
+  // repeat-rejection toast (rolling buffer for unknown close codes)
+  // -------------------------------------------------------------------------
+
+  it('does not call toastService when fewer than 3 unknown closes within 60s', () => {
+    const mockToast = { info: vi.fn(), error: vi.fn() }
+    const provider = makeProvider({ toastService: mockToast as any })
+    lastFakeWs!.simulateOpen()
+
+    // Simulate 2 unknown close codes.
+    lastFakeWs!.simulateClose(1006, '', false)
+    vi.advanceTimersByTime(100)
+    lastFakeWs!.simulateClose(1006, '', false)
+
+    expect(mockToast.error).not.toHaveBeenCalled()
+    provider.disconnect()
+  })
+
+  it('calls toastService.error when 3+ unknown closes happen within 60s', () => {
+    const mockToast = { info: vi.fn(), error: vi.fn() }
+    const provider = makeProvider({ toastService: mockToast as any })
+    lastFakeWs!.simulateOpen()
+
+    // Close #1: wsUnsuccessfulReconnects→1, backoff=2^1*100=200ms.
+    lastFakeWs!.simulateClose(1006, '', false)
+    vi.advanceTimersByTime(200) // Reconnect fires → new WS (lastFakeWs updated).
+    // Close #2: wsUnsuccessfulReconnects→2, backoff=2^2*100=400ms.
+    lastFakeWs!.simulateClose(1006, '', false)
+    vi.advanceTimersByTime(500) // 500ms > 400ms → reconnect fires → new WS.
+    // Close #3: all 3 timestamps within 60s → toast fires.
+    lastFakeWs!.simulateClose(1006, '', false)
+
+    expect(mockToast.error).toHaveBeenCalledOnce()
+    expect(mockToast.error).toHaveBeenCalledWith('Trouble reaching the room — retrying.')
+    provider.disconnect()
+  })
+
+  it('does not trigger toast if unknown closes span more than 60s', () => {
+    const mockToast = { info: vi.fn(), error: vi.fn() }
+    const provider = makeProvider({ toastService: mockToast as any })
+    lastFakeWs!.simulateOpen()
+
+    // First close.
+    lastFakeWs!.simulateClose(1006, '', false)
+    // Wait 40s.
+    vi.advanceTimersByTime(40_000)
+    lastFakeWs!.simulateClose(1006, '', false)
+    // Wait 25s more (total 65s from first close, so first is trimmed).
+    vi.advanceTimersByTime(25_000)
+    lastFakeWs!.simulateClose(1006, '', false)
+
+    // Only 2 entries in the window, so no toast.
+    expect(mockToast.error).not.toHaveBeenCalled()
+    provider.disconnect()
+  })
+
+  it('clears buffer on successful reconnect after toast', () => {
+    const mockToast = { info: vi.fn(), error: vi.fn() }
+    const provider = makeProvider({ toastService: mockToast as any })
+    lastFakeWs!.simulateOpen()
+
+    // wsUnsuccessfulReconnects=0 → backoff = 2^1*100=200ms after first close.
+    lastFakeWs!.simulateClose(1006, '', false)
+    vi.advanceTimersByTime(200) // Reconnect fires, new WS created (counter→1).
+    lastFakeWs!.simulateClose(1006, '', false)
+    // wsUnsuccessfulReconnects=2 → backoff = 2^2*100=400ms. Advance enough.
+    vi.advanceTimersByTime(500) // Reconnect fires, new WS created (counter→2).
+    lastFakeWs!.simulateClose(1006, '', false) // 3rd close — toast fires, buffer cleared.
+
+    expect(mockToast.error).toHaveBeenCalledOnce()
+
+    // Simulate reconnect success — buffer was cleared by toast, so open resets counter.
+    vi.advanceTimersByTime(500) // Let reconnect timer fire.
+    lastFakeWs!.simulateOpen()
+
+    // Reset the mock.
+    mockToast.error.mockClear()
+
+    // One more close — buffer is empty (cleared by toast), so 1 entry < 3 threshold.
+    vi.advanceTimersByTime(500)
+    lastFakeWs!.simulateClose(1006, '', false)
+    expect(mockToast.error).not.toHaveBeenCalled()
+
+    provider.disconnect()
+  })
+
+  it('silently skips toast if toastService is not provided', () => {
+    const provider = makeProvider() // No toastService passed.
+    lastFakeWs!.simulateOpen()
+
+    // Simulate 3 unknown close codes — should not throw.
+    lastFakeWs!.simulateClose(1006, '', false)
+    vi.advanceTimersByTime(100)
+    lastFakeWs!.simulateClose(1006, '', false)
+    vi.advanceTimersByTime(100)
+    lastFakeWs!.simulateClose(1006, '', false)
+
+    expect(() => {
+      provider.disconnect()
+    }).not.toThrow()
+  })
 })

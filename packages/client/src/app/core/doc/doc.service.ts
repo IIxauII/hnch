@@ -34,11 +34,14 @@ import {
   type Scale,
   type Settings,
 } from '@hnch/shared'
+import { Capacitor } from '@capacitor/core'
 import { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
+import { IndexeddbPersistence } from 'y-indexeddb'
 
 import { environment } from '../../../environments/environment'
 import { AppPreferenceService } from '../app-preference.service'
+import { ToastService } from '../../services/toast.service'
 import {
   createSyncProvider,
   type SyncProvider,
@@ -126,12 +129,14 @@ export interface ConnectOptions {
 @Injectable({ providedIn: 'root' })
 export class DocService {
   private readonly appPrefs = inject(AppPreferenceService)
+  private readonly toastService = inject(ToastService)
 
   // ---------------------------------------------------------------------------
   // Private Yjs + sync state
   // ---------------------------------------------------------------------------
 
   private doc: Y.Doc | null = null
+  private persistence: IndexeddbPersistence | null = null
   private observers: Array<() => void> = []
   private readonly projection: WritableSignal<DocProjection | null> =
     signal<DocProjection | null>(null)
@@ -347,12 +352,30 @@ export class DocService {
     // Use AppPreferenceService relay URL override if set; fallback to environment default.
     const wsUrl = opts.wsBaseUrl ?? this.appPrefs.relayWsUrl() ?? environment.relayWsUrl
 
+    void this.connectWithPersistence(doc, roomUuid, wsUrl, credentials)
+  }
+
+  private async connectWithPersistence(
+    doc: Y.Doc,
+    roomUuid: string,
+    wsUrl: string,
+    credentials: JoinCredentials,
+  ): Promise<void> {
+    // PWA: load local IndexedDB snapshot before opening WebSocket so the
+    // UI is immediately populated from cache (ADR-0004).
+    // Native: SQLite persistence deferred to Phase 6b (ADR-0004).
+    if (!Capacitor.isNativePlatform()) {
+      this.persistence = new IndexeddbPersistence(roomUuid, doc)
+      await this.persistence.whenSynced
+    }
+
     this.provider = createSyncProvider({
       wsBaseUrl: wsUrl,
       roomUuid,
       doc,
       credentials,
       ...(this.awareness !== null && { awareness: this.awareness }),
+      toastService: this.toastService,
       onStatusChange: (status) => {
         this.syncStatusSignal.set(status)
         if (status === 'connected') this.hasEverConnectedSignal.set(true)
@@ -383,6 +406,8 @@ export class DocService {
    */
   endSession(): void {
     this.disconnect()
+    this.persistence?.destroy()
+    this.persistence = null
     this.teardownAwareness()
     this.detach()
     this.doc?.destroy()
