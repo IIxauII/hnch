@@ -7,20 +7,6 @@ import {
 
 import type { ParticipantSnapshot } from '@hnch/shared'
 
-/**
- * Compact "who has voted" indicator for the Estimating screen —
- * ux.md §5.5 avatar row.
- *
- * Filled dot = participant has cast a vote this round; open dot =
- * connected but no vote yet. Tapping the row is (Phase 3+) supposed
- * to open a popover grouping voters vs. non-voters; in Phase 2 the
- * row is still tappable for layout parity but the popover isn't wired
- * yet — the single-participant case would render a trivial list and
- * a real popover adds no value until joiners exist.
- *
- * Kept as a standalone component so Phase 3 can feed in a real
- * participants list without touching the Estimating screen's template.
- */
 @Component({
   selector: 'app-avatar-vote-row',
   imports: [],
@@ -73,17 +59,7 @@ import type { ParticipantSnapshot } from '@hnch/shared'
   ],
 })
 export class AvatarVoteRowComponent {
-  /**
-   * All session participants, in any order. The row shows one dot per
-   * entry, in the order given.
-   */
   readonly participants = input.required<readonly ParticipantSnapshot[]>()
-
-  /**
-   * Set of `participantId`s who have cast a vote this round. Derived
-   * once at the call site from `Object.keys(round.votes)` so this
-   * component stays decoupled from the round shape.
-   */
   readonly votedIds = input.required<ReadonlySet<string>>()
 
   protected readonly votedCount = computed(() => this.votedIds().size)
