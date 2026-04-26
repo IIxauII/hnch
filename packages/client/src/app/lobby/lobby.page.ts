@@ -29,7 +29,6 @@ import {
   IonTitle,
   IonToast,
   IonToolbar,
-  ToastController,
 } from '@ionic/angular/standalone'
 import { addIcons } from 'ionicons'
 import {
@@ -43,6 +42,7 @@ import {
 
 import { environment } from '../../environments/environment'
 import { ConnectionChipComponent } from '../core/connection-chip.component'
+import { ToastService } from '../services/toast.service'
 import { DocService } from '../core/doc/doc.service'
 import { HapticService } from '../core/haptic.service'
 import { LastSessionService } from '../core/last-session.service'
@@ -391,7 +391,7 @@ export class LobbyPage {
   private readonly lastSessionService = inject(LastSessionService)
   private readonly actionSheetCtrl = inject(ActionSheetController)
   private readonly alertCtrl = inject(AlertController)
-  private readonly toastCtrl = inject(ToastController)
+  private readonly toastService = inject(ToastService)
 
   protected readonly hasSession = this.docService.hasSession
   protected readonly participants = this.docService.participants
@@ -692,9 +692,9 @@ export class LobbyPage {
   ): Promise<void> {
     try {
       await navigator.clipboard.writeText(url)
-      await this.toast(`Invite link copied! (${formattedCode})`)
+      await this.toastService.info(`Invite link copied! (${formattedCode})`)
     } catch {
-      await this.toast('Could not share the invite link.')
+      await this.toastService.error('Could not share the invite link.')
     }
   }
 
@@ -734,15 +734,6 @@ export class LobbyPage {
     // session, process kill — leaves the cache for Home to resurface.
     await this.lastSessionService.clear()
     await this.router.navigate(['/home'])
-  }
-
-  private async toast(message: string): Promise<void> {
-    const t = await this.toastCtrl.create({
-      message,
-      duration: 1800,
-      position: 'bottom',
-    })
-    await t.present()
   }
 
   /**

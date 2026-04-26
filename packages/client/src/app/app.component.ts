@@ -6,7 +6,6 @@ import {
   signal,
 } from '@angular/core'
 import { IonApp, IonRouterOutlet } from '@ionic/angular/standalone'
-import { ToastController } from '@ionic/angular/standalone'
 
 import { DocService } from './core/doc/doc.service'
 import { HapticService } from './core/haptic.service'
@@ -14,6 +13,7 @@ import { HostElectionService } from './core/host-election.service'
 import { ParticipantIdService } from './core/participant-id.service'
 import { SessionEndService } from './core/session-end.service'
 import { ThemeService } from './core/theme.service'
+import { ToastService } from './services/toast.service'
 
 /**
  * Root shell. Provides the `ion-app` container and the single nav stack
@@ -38,7 +38,7 @@ export class AppComponent {
   private readonly docService = inject(DocService)
   private readonly haptic = inject(HapticService)
   private readonly participantIdService = inject(ParticipantIdService)
-  private readonly toastCtrl = inject(ToastController)
+  private readonly toastService = inject(ToastService)
 
   // Eager-instantiate global effect services. The inject() calls
   // ensure Angular creates these singletons; each service's effect
@@ -92,11 +92,6 @@ export class AppComponent {
       message = `${name} is now the host`
     }
     this.haptic.notificationWarning()
-    const toast = await this.toastCtrl.create({
-      message,
-      duration: 2500,
-      position: 'bottom',
-    })
-    await toast.present()
+    await this.toastService.info(message)
   }
 }
