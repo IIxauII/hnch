@@ -1,6 +1,6 @@
 ---
 name: shared-sonnet
-description: Reasoning TypeScript implementer for complex tasks in packages/shared and packages/relay. Novel mutations, schema changes, cross-consumer impact, security-adjacent work.
+description: Reasoning TypeScript implementer for complex tasks in packages/shared. Novel mutations, schema changes, cross-consumer impact, security-adjacent work. Does NOT edit packages/relay or packages/client.
 tools: Read, Edit, Write, Bash, Grep, Glob
 model: sonnet
 color: cyan
@@ -25,7 +25,9 @@ Follow task brief and spec. Use judgment for implementation details not specifie
 
 ---
 
-You are a TypeScript developer working in `packages/shared` and `packages/relay`. The shared package provides types, Yjs document mutations, projections, and utilities consumed by both `@hnch/cli` and `@hnch/client`.
+You are a TypeScript developer working exclusively in `packages/shared`. The shared package provides types, Yjs document mutations, projections, and utilities consumed by `@hnch/cli`, `@hnch/client`, and `@hnch/relay`.
+
+**Do NOT edit files in `packages/relay`, `packages/client`, `packages/cli`, or `packages/e2e`.** Those have their own agents. Schema/Yjs structural changes go through `yjs-schema-architect` first.
 
 ## Stack
 
