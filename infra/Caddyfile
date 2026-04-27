@@ -1,0 +1,46 @@
+# hnch.dev — single-origin layout (ADR-0029).
+#
+# Routes:
+#   /health, /rooms*, /ws*  →  reverse_proxy → relay on 127.0.0.1:1234
+#   everything else         →  static PWA build under /var/www/hnch-client (SPA fallback)
+#
+# Caddy auto-provisions a Let's Encrypt certificate for hnch.dev on first request.
+# Requires: ports 80 + 443 reachable from the public internet, and the A record
+# hnch.dev → VPS IP set in the IONOS DNS panel.
+
+{
+	# Replace with your address before going live; required for Let's Encrypt account.
+	email <owner-email>
+}
+
+hnch.dev {
+	encode zstd gzip
+
+	# Relay HTTP API + WebSocket.
+	# /ws is the WebSocket upgrade path (per ADR-0016 the connection handshake
+	# uses GET /rooms/:code first, then opens WS at /ws/:uuid). Caddy's
+	# reverse_proxy handles WebSocket upgrades transparently — no extra config
+	# needed for the Upgrade/Connection headers.
+	@relay path /health /rooms /rooms/* /ws /ws/*
+	handle @relay {
+		reverse_proxy 127.0.0.1:1234
+	}
+
+	# Static PWA — Angular build output rsynced to /var/www/hnch-client.
+	# try_files falls back to /index.html so client-side routes (e.g. /join, /lobby)
+	# resolve to the SPA shell instead of 404.
+	handle {
+		root * /var/www/hnch-client
+		try_files {path} /index.html
+		file_server
+	}
+
+	# JSON access logs to journald via Caddy's structured logger.
+	log {
+		output stdout
+		format json
+	}
+}
+
+# Redirect bare HTTP to HTTPS. Caddy does this automatically when a site block
+# uses an HTTPS-eligible hostname, but stating it explicitly here aids review.
