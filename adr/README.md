@@ -48,6 +48,7 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0026](0026-deep-link-url-format.md) | Deep-link URL format — `${appBaseUrl}/join?code=XXXXXX` | Proposed |
 | [0027](0027-test-only-relay-surfaces.md) | Test-only relay surfaces — `HNCH_ENABLE_TEST_ROUTES` and `HNCH_ROOM_CAP` | Proposed |
 | [0028](0028-telemetry-posture.md) | Telemetry / analytics posture — none in v1 | Proposed |
+| [0029](0029-relay-deployment.md) | Relay deployment — bare-metal VPS with Caddy reverse proxy and single-origin layout | Proposed |
 
 ## When to write an ADR
 

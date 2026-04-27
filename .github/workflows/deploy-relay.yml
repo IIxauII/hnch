@@ -1,0 +1,126 @@
+name: Deploy relay
+
+# Triggered when semantic-release cuts a `relay-vX.Y.Z` tag (see release.yml).
+# Builds the relay, ships a tarball to the VPS, swaps the release symlink,
+# restarts the systemd unit, and smoke-tests via /health.
+#
+# Architecture + rollback: see infra/README.md and adr/0029-relay-deployment.md.
+
+on:
+  push:
+    tags:
+      - 'relay-v*'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref to deploy (defaults to current ref)'
+        required: false
+
+# Serialize deploys — no concurrent restarts of the same systemd unit.
+concurrency:
+  group: deploy-relay
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Build + ship relay
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build @hnch/shared (consumed by relay)
+        run: pnpm --filter @hnch/shared run build
+
+      - name: Build @hnch/relay
+        run: pnpm --filter @hnch/relay run build
+
+      - name: Stage production bundle
+        # `pnpm deploy` inlines workspace deps and prunes devDeps into a flat
+        # directory — the result is self-contained and runnable on the VPS
+        # without re-installing. The relay's build step has already populated
+        # packages/relay/dist; pnpm deploy preserves that under the target.
+        run: |
+          rm -rf .deploy/relay
+          pnpm --filter @hnch/relay deploy --prod .deploy/relay
+
+      - name: Pack tarball
+        id: pack
+        run: |
+          STAMP="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
+          TARBALL="hnch-relay-${STAMP}.tar.gz"
+          tar -C .deploy -czf "${TARBALL}" relay
+          echo "tarball=${TARBALL}" >> "$GITHUB_OUTPUT"
+          echo "stamp=${STAMP}" >> "$GITHUB_OUTPUT"
+
+      - name: Configure SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "${VPS_SSH_KEY}" > ~/.ssh/id_ed25519
+          chmod 0600 ~/.ssh/id_ed25519
+          ssh-keyscan -t ed25519 -H "${VPS_HOST}" >> ~/.ssh/known_hosts
+
+      - name: Ship tarball
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: |
+          scp -o StrictHostKeyChecking=yes "${TARBALL}" "${VPS_USER}@${VPS_HOST}:/tmp/${TARBALL}"
+
+      - name: Activate release on VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+          STAMP: ${{ steps.pack.outputs.stamp }}
+        run: |
+          ssh -o StrictHostKeyChecking=yes "${VPS_USER}@${VPS_HOST}" bash -se <<EOF
+          set -euo pipefail
+          BASE=/opt/hnch-relay
+          RELEASES="\${BASE}/releases"
+          TARGET="\${RELEASES}/release-${STAMP}"
+          mkdir -p "\${TARGET}"
+          tar -C "\${TARGET}" --strip-components=1 -xzf /tmp/${TARBALL}
+          rm /tmp/${TARBALL}
+          ln -sfn "\${TARGET}" "\${BASE}/current"
+          sudo /usr/bin/systemctl restart hnch-relay
+          # Keep last 3 releases, prune older.
+          ls -1dt \${RELEASES}/release-* | tail -n +4 | xargs -r rm -rf
+          EOF
+
+      - name: Smoke test /health
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          # Give the relay a couple of seconds to bind. If /health doesn't
+          # respond within ~10s of the restart, fail the job — the deploy is
+          # still on the VPS but the systemd unit is unhealthy and operator
+          # attention is warranted.
+          for attempt in 1 2 3 4 5; do
+            if curl -fsS --max-time 5 https://hnch.dev/health >/dev/null; then
+              echo "relay /health OK on attempt ${attempt}"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "relay /health failed after 5 attempts" >&2
+          exit 1
