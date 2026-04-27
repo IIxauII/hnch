@@ -11,6 +11,8 @@ The product supported two reveal modes: `manual` (host taps Reveal) and `timer` 
 
 Meanwhile, the most natural reveal trigger — "everyone has voted" — was explicitly deferred in ADR-0015 as out of v1 scope. Users expect this behavior from other planning poker tools.
 
+**Reversal of ADR-0015's reasoning:** [ADR-0015](0015-v1-scope-session-level-reveal-and-timer.md) explicitly rejected unanimous auto-reveal, stating: *"We deliberately rejected a "reveal when everyone has voted" auto-detection because it creates pressure on slow voters and surprises participants who change their minds at the last second."* That reasoning is reconsidered here on two grounds. First, the countdown timer this ADR removes applied substantially more time pressure than a unanimous trigger does — slow voters were already pressured, just by a different mechanism. Second, the change-of-mind concern is preserved by the existing rule that votes remain editable until reveal: a participant who changes their vote before the final voter casts theirs simply moves the unanimous threshold, and the host's manual reveal remains as an escape hatch when waiting on the last voter is undesirable.
+
 ## Decision
 
 1. **Remove the `RevealMode` type and `revealMode` / `timerDurationMs` settings entirely.** There is no reveal-mode setting. The reveal behavior is always: manual (host taps Reveal) + unanimous auto-reveal (fires when all online participants have voted).

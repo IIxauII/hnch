@@ -35,6 +35,8 @@ hnch/
 
 The `shared` package is the only cross-cutting module; `client` and `relay` both depend on it via the workspace protocol (`"@hnch/shared": "workspace:*"`). Each package keeps its own `package.json`, build scripts, and test setup — pnpm just hoists dependencies and wires up the workspace graph.
 
+> **Note (post-acceptance):** the workspace has since added `packages/e2e` (Playwright suite — a test harness, not a shipping deliverable, added without a dedicated ADR) and `packages/cli` (`@hnch/cli` — a shipping deliverable, see [ADR-0021](0021-cli-package.md) for rationale and the package-set extension). The decision recorded here is unchanged.
+
 No Nx, no Turborepo, no Lerna. If task-graph features become worth the overhead later, Nx can be layered on top of existing pnpm workspaces without restructuring.
 
 ## Options Considered

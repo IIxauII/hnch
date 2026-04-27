@@ -6,16 +6,23 @@
  *
  *   - `active`: codes bound to a live `RoomRecord`. Collisions against
  *     these must be retried at mint time.
- *   - `retired`: codes that were active in the recent past but whose
- *     room has been evicted. Per ADR-0008 / ADR-0012, a retired code
- *     is held out of rotation for the snapshot TTL so a returning user
- *     doesn't land in a freshly-minted unrelated room.
+ *   - `retired`: reserved for an additional defense-in-depth quarantine
+ *     window. Currently unpopulated — see note on `release` below.
  *
- * This commit lays down the mechanics. Actual population of `retired`
- * happens alongside the snapshot TTL sweeper in P3 #4 — until then,
- * `release(code)` immediately puts the code back in rotation via an
- * empty retired set. The API is stable so the sweeper can plug in
- * without a ripple.
+ * Per ADR-0008 / ADR-0012, a retired code must be held out of rotation
+ * for the snapshot TTL so a returning user doesn't land in a freshly
+ * minted unrelated room. In practice that quarantine is enforced by
+ * the `RoomStore`: a room (and therefore its code's `active` entry) is
+ * only deleted by the snapshot sweeper after the 24h TTL elapses on an
+ * empty room, at which point `RoomRecord.deleteRoom()` calls
+ * `release(code)`. So codes are effectively retired for the full TTL
+ * window via the room's own lifetime, not via this `retired` set.
+ *
+ * The `retired` set (and the corresponding miss in `mint`) is kept as
+ * scaffolding for a future ADR that may want to add an explicit cooldown
+ * window on top of the room-lifetime quarantine — for example to absorb
+ * sweep-cadence jitter. Until that lands, `retired` stays empty and
+ * `release` puts the code straight back into rotation.
  */
 
 import { generateRoomCode } from '@hnch/shared'
@@ -45,9 +52,12 @@ export interface CodePool {
    */
   mint(): string
   /**
-   * Moves a code out of `active`. The snapshot TTL sweeper (P3 #4)
-   * will eventually take it out of the retired set too; until that
-   * commit lands, release makes the code immediately available again.
+   * Moves a code out of `active`. Today this is only called by
+   * `RoomRecord.deleteRoom()` after the snapshot sweeper drops a room
+   * whose 24h TTL has elapsed, so the code has already been quarantined
+   * for at least that TTL via the room's own lifetime. The `retired`
+   * set is left untouched — see the file header for why it exists but
+   * is currently unpopulated.
    */
   release(code: string): void
   /** Inspection helpers for tests and `/health` style probes. */
@@ -77,10 +87,11 @@ export function createCodePool(options: CodePoolOptions = {}): CodePool {
     },
     release(code: string): void {
       active.delete(code)
-      // Retired tracking lands with the snapshot TTL sweeper in P3 #4.
-      // Until then the pool treats release as "immediately reusable",
-      // which is fine because no code actually gets released in a
-      // Phase-3 test run (rooms are not evicted).
+      // The TTL-bound quarantine required by ADR-0008 is enforced by
+      // the caller: `RoomRecord.deleteRoom()` only fires after the
+      // snapshot sweeper has held the room (and thus this `active`
+      // entry) for the full 24h TTL. The `retired` set stays empty;
+      // see the file header for the rationale.
     },
     get activeCount(): number {
       return active.size

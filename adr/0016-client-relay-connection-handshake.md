@@ -54,6 +54,8 @@ Post-upgrade rejections (e.g., the relay decides after accepting that a credenti
 | `4006` | `room-full` (reserved; unused in v1) |
 | `4010` | `malformed-credentials` |
 
+> **Status update:** Close code `4006 (room-full)` was reserved-as-unused at the time this ADR was written. It is now actively used per [ADR-0024](0024-participant-cap.md), which pins the participant cap and enforces it via this close code. The row above is preserved verbatim per the immutability convention; ADR-0024 is the authoritative source for `4006` semantics going forward.
+
 The close frame's `reason` string carries the same enum value as a readable label. The client's sync-provider wrapper maps the close code back to a `JoinResponse { ok: false, reason }` and surfaces the Phase-3 subset of reasons to the UI; Phase-5 reasons land in the same table without a wire-protocol revision.
 
 **Snapshot rehydration is not a new handshake step.** The relay holds a `Y.Doc` in memory per active room ([ADR-0012](0012-snapshot-policy.md)). On every accepted connection, y-websocket's built-in sync-step-1 / sync-step-2 messages run against that `Y.Doc` exactly as they do for a normal update exchange. A returning peer's first sync-step-2 reply is, by construction, the snapshot contents. This ADR pins the observation; nothing protocol-level needs to change.
