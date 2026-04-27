@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+# Releases must run to completion: a partial release leaves package.json,
+# CHANGELOG.md, the git tag, and the GitHub Release out of sync. Never cancel.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  release:
+    name: Release (per-package)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # semantic-release needs full history + all tags to compute the
+          # next version per package.
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build @hnch/shared (consumed by other packages)
+        run: pnpm --filter @hnch/shared run build
+
+      - name: Run semantic-release per package (sequential)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # If one package's release fails, later packages are skipped. semantic-release is idempotent on tags, so re-running the workflow after fixing the failure resumes safely.
+          set -euo pipefail
+          for PKG in shared relay client cli; do
+            echo "::group::semantic-release :: $PKG"
+            pnpm exec semantic-release --extends ./packages/$PKG/.releaserc.json
+            echo "::endgroup::"
+          done

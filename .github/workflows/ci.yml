@@ -47,6 +47,41 @@ jobs:
       - name: Build
         run: pnpm --filter @hnch/${{ matrix.package }} run --if-present build
 
+  version-audit:
+    name: Version audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Need tags so the audit script can compare package.json versions
+          # against the highest released tag per package.
+          fetch-depth: 0
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit per-package versions vs git tags
+        run: pnpm audit:versions
+
+  pr-title-lint:
+    name: PR title (Conventional Commits)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      pull-requests: read
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   e2e:
     name: E2E (Playwright)
     runs-on: ubuntu-latest

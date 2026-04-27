@@ -1,0 +1,40 @@
+{
+  "extends": "../../.releaserc.base.json",
+  "tagFormat": "client-v${version}",
+  "plugins": [
+    [
+      "@semantic-release/commit-analyzer",
+      {
+        "preset": "angular",
+        "releaseRules": [
+          { "scope": "client", "type": "feat", "release": "minor" },
+          { "scope": "client", "type": "fix", "release": "patch" },
+          { "scope": "client", "type": "perf", "release": "patch" },
+          { "scope": "client", "breaking": true, "release": "major" },
+          { "scope": "*", "release": false }
+        ]
+      }
+    ],
+    "@semantic-release/release-notes-generator",
+    [
+      "@semantic-release/changelog",
+      {
+        "changelogFile": "CHANGELOG.md"
+      }
+    ],
+    [
+      "@semantic-release/exec",
+      {
+        "publishCmd": "echo 'TODO(deploy): publish client ${nextRelease.version} - PWA static host + TestFlight TBD per roadmap.md L259'"
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": ["package.json", "CHANGELOG.md"],
+        "message": "chore(release): ${nextRelease.gitTag} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ],
+    "@semantic-release/github"
+  ]
+}
