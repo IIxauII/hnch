@@ -20,7 +20,9 @@ Every PR must satisfy all four:
 
 ## Commit style — Conventional Commits
 
-Commit subjects follow [Conventional Commits](https://www.conventionalcommits.org/):
+Because all PRs land via squash merge (see [Merge strategy](#merge-strategy)), the **PR title** is the conventional-commit surface that drives the release — not individual branch commits. Branch commits during review can be sloppy; only the squashed PR title and body end up on `main`.
+
+PR titles follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
 <type>(<optional-scope>): <subject>
@@ -79,14 +81,28 @@ If the change shifts user-visible behavior or product scope, update the relevant
 - [ ] `pnpm typecheck` passes.
 - [ ] `pnpm test` passes.
 - [ ] `pnpm test:e2e` passes (if touching client/relay/shared).
-- [ ] Commit subjects follow Conventional Commits.
+- [ ] PR title follows Conventional Commits (drives the release).
 - [ ] No `Co-Authored-By` trailers.
 - [ ] ADR added/updated if structural.
 - [ ] Related docs updated.
 
+## Merge strategy
+
+All PRs land via **squash merge**. Merge commits and rebase merging are disabled in repo settings (GitHub → Settings → General → Pull Requests). The squash default commit message is set to **"Pull request title"** so the PR title becomes the single commit on `main`.
+
+This isn't cosmetic — it's load-bearing for releases:
+
+- The **PR title is the release-driving commit message**. It MUST follow Conventional Commits (`<type>(<scope>): <subject>`). The CI **`PR title (Conventional Commits)`** job is a **required status check** in branch protection — a malformed title blocks merge automatically; reviewers don't have to police it manually.
+- For breaking changes: put the `BREAKING CHANGE:` footer in the **PR description** (which becomes the squash commit body when the GitHub default is "Pull request title and description"), or use `feat!(scope): …` in the title for the simpler case.
+- Branch commits during review can be sloppy; only the squashed PR title/body matter for release.
+
+A merge or rebase strategy would let multiple branch commits drive multiple releases per PR — noisy and incorrect. Keep squash-only.
+
 ## Releases
 
-Releases are automated from commit history using [semantic-release](https://semantic-release.gitbook.io/) on every push to `main`. There is no manual release step and no release PR — qualifying commits trigger a tag, changelog entry, GitHub Release, and deploy for the affected package.
+Releases are automated from commit history using [semantic-release](https://semantic-release.gitbook.io/) on every push to `main`. There is no manual release step and no release PR — qualifying commits trigger a tag, changelog entry, GitHub Release, and deploy hook for the affected package.
+
+> **iOS bundle-version caveat (deferred).** Capacitor sync uses `packages/client/package.json` `version` for the native bundle's `CFBundleShortVersionString`. Between releases that file holds the placeholder `0.0.0-semantically-released`, which is **not** a valid bundle version. The native iOS build process (deferred per `roadmap.md` line 259) will need to read the latest `client-v*` git tag rather than `package.json`. Address this when Phase 6b lands.
 
 ### Bump rules
 

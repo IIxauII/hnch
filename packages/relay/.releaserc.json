@@ -1,0 +1,40 @@
+{
+  "extends": "../../.releaserc.base.json",
+  "tagFormat": "relay-v${version}",
+  "plugins": [
+    [
+      "@semantic-release/commit-analyzer",
+      {
+        "preset": "angular",
+        "releaseRules": [
+          { "scope": "relay", "type": "feat", "release": "minor" },
+          { "scope": "relay", "type": "fix", "release": "patch" },
+          { "scope": "relay", "type": "perf", "release": "patch" },
+          { "scope": "relay", "breaking": true, "release": "major" },
+          { "scope": "*", "release": false }
+        ]
+      }
+    ],
+    "@semantic-release/release-notes-generator",
+    [
+      "@semantic-release/changelog",
+      {
+        "changelogFile": "CHANGELOG.md"
+      }
+    ],
+    [
+      "@semantic-release/exec",
+      {
+        "publishCmd": "echo 'TODO(deploy): publish relay ${nextRelease.version} - target TBD per roadmap.md L259'"
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": ["package.json", "CHANGELOG.md"],
+        "message": "chore(release): ${nextRelease.gitTag} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ],
+    "@semantic-release/github"
+  ]
+}
