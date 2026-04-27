@@ -27,12 +27,6 @@
       }
     ],
     [
-      "@semantic-release/exec",
-      {
-        "publishCmd": "echo 'TODO(deploy): publish relay ${nextRelease.version} - target TBD per roadmap.md L259'"
-      }
-    ],
-    [
       "@semantic-release/git",
       {
         "assets": ["packages/relay/package.json", "packages/relay/CHANGELOG.md"],

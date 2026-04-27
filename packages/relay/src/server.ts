@@ -105,14 +105,15 @@ export const ROOM_CAP: number = (() => {
  */
 export function logBootBanner(deps: {
   port: number
+  host: string
   roomCap: number
   testRoutesEnabled: boolean
   logger: { log: (msg: string) => void; warn: (msg: string) => void }
 }): void {
-  const { port, roomCap, testRoutesEnabled, logger } = deps
+  const { port, host, roomCap, testRoutesEnabled, logger } = deps
   const isWarn = roomCap < MAX_ROOM_PARTICIPANTS || testRoutesEnabled
   const logFn = isWarn ? logger.warn : logger.log
-  logFn(`hnch relay listening on :${port} (roomCap=${roomCap}, testRoutes=${testRoutesEnabled})`)
+  logFn(`hnch relay listening on ${host}:${port} (roomCap=${roomCap}, testRoutes=${testRoutesEnabled})`)
 }
 
 /** Regex for `WS /ws/:uuid` (strict, path-only — query strings are
