@@ -84,6 +84,9 @@ jobs:
         if: steps.pw-cache.outputs.cache-hit == 'true'
         run: pnpm --filter @hnch/e2e exec playwright install-deps chromium
 
+      - name: Build @hnch/shared (consumed by relay + client webServers)
+        run: pnpm --filter @hnch/shared run build
+
       - name: Run e2e
         run: pnpm --filter @hnch/e2e test
 
