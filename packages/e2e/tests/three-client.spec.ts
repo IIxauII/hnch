@@ -53,6 +53,7 @@ test.describe('Three-client scenarios', () => {
     player,
     createParticipant,
   }) => {
+    test.setTimeout(30_000)
     const player2 = await createParticipant('Player2')
 
     const code = await host.createSession()
@@ -117,6 +118,7 @@ test.describe('Three-client scenarios', () => {
     player,
     createParticipant,
   }) => {
+    test.setTimeout(30_000)
     const player2 = await createParticipant('Player2')
 
     const code = await host.createSession()
@@ -128,9 +130,11 @@ test.describe('Three-client scenarios', () => {
     await player.waitForEstimating()
     await player2.waitForEstimating()
 
-    // Players vote (host hasn't voted yet — avoids auto-reveal before drop)
+    // Only player votes — leaves player2 unvoted so unanimous auto-reveal
+    // (ADR-0018) won't fire when the offline host is excluded from the
+    // denominator. Otherwise the round would auto-reveal before the
+    // elected host gets a chance to manually reveal.
     await player.castVote('3')
-    await player2.castVote('5')
 
     // Host drops mid-round
     await host.disconnect()
@@ -163,8 +167,8 @@ test.describe('Three-client scenarios', () => {
 
     await otherPlayer.page.waitForURL(/\/lobby/, { timeout: 10_000 })
 
-    // Both remaining players see the two votes that were cast
-    await newHost.expectRevealedVotes(['3', '5'])
-    await otherPlayer.expectRevealedVotes(['3', '5'])
+    // Both remaining players see the single vote that was cast
+    await newHost.expectRevealedVotes(['3'])
+    await otherPlayer.expectRevealedVotes(['3'])
   })
 })

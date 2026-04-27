@@ -101,7 +101,13 @@ export class Participant {
 
   /** Tap "Start Round N" and confirm the modal. */
   async startRound(title?: string): Promise<void> {
-    await this.page.locator('ion-button', { hasText: LOBBY.startRoundBtn }).click()
+    // Scope to the active Ionic page so a hidden /join in the navigation
+    // stack can't intercept the click via pointer-event bubbling.
+    const startRoundBtn = this.page
+      .locator('app-lobby:not(.ion-page-hidden) ion-button')
+      .filter({ hasText: LOBBY.startRoundBtn })
+    await startRoundBtn.waitFor({ state: 'visible' })
+    await startRoundBtn.evaluate((el: HTMLElement) => el.click())
     // Wait for the round-start modal to appear
     const modal = this.page.locator('app-round-start-sheet')
     await modal.waitFor({ state: 'visible' })
