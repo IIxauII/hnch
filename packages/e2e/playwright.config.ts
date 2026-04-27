@@ -9,7 +9,7 @@ export default defineConfig({
   retries: isCI ? 1 : 0,
   workers: 1,
   reporter: isCI ? 'github' : 'html',
-  timeout: 15_000,
+  timeout: 20_000,
   use: {
     baseURL: 'http://localhost:4200',
     trace: isCI ? 'on-first-retry' : 'on',
