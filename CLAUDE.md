@@ -61,3 +61,5 @@ For quick orientation without reading all 19 ADRs:
 ## Commit conventions
 
 - Do **not** add a `Co-Authored-By` trailer to commit messages.
+- Follow [Conventional Commits](https://www.conventionalcommits.org/) — commit type drives the semantic-release version bump on merge to `main`.
+- See [CONTRIBUTING.md](CONTRIBUTING.md) for full PR requirements, release flow, and pre-push checklist.

@@ -102,4 +102,4 @@ pnpm --filter @hnch/cli build
 
 ## Contributing
 
-Any architectural or structural change requires a new ADR in `adr/` — see [adr/README.md](adr/README.md) for conventions. ADRs are immutable once accepted; direction changes land as new ADRs that supersede older ones. Commit messages should not include co-author trailers.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for PR requirements, commit style (Conventional Commits), ADR discipline, and the semantic-release flow that drives versioning + deploys from commit messages.
