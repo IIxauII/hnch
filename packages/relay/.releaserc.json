@@ -7,11 +7,14 @@
       {
         "preset": "angular",
         "releaseRules": [
+          { "type": "feat", "release": false },
+          { "type": "fix", "release": false },
+          { "type": "perf", "release": false },
+          { "breaking": true, "release": false },
           { "scope": "relay", "type": "feat", "release": "minor" },
           { "scope": "relay", "type": "fix", "release": "patch" },
           { "scope": "relay", "type": "perf", "release": "patch" },
-          { "scope": "relay", "breaking": true, "release": "major" },
-          { "scope": "*", "release": false }
+          { "scope": "relay", "breaking": true, "release": "major" }
         ]
       }
     ],
