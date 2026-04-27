@@ -18,12 +18,12 @@
     "@semantic-release/release-notes-generator",
     [
       "@semantic-release/npm",
-      { "npmPublish": false }
+      { "npmPublish": false, "pkgRoot": "packages/relay" }
     ],
     [
       "@semantic-release/changelog",
       {
-        "changelogFile": "CHANGELOG.md"
+        "changelogFile": "packages/relay/CHANGELOG.md"
       }
     ],
     [
@@ -35,7 +35,7 @@
     [
       "@semantic-release/git",
       {
-        "assets": ["package.json", "CHANGELOG.md"],
+        "assets": ["packages/relay/package.json", "packages/relay/CHANGELOG.md"],
         "message": "chore(release): ${nextRelease.gitTag} [skip ci]\n\n${nextRelease.notes}"
       }
     ],
