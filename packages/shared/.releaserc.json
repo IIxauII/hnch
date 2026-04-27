@@ -23,12 +23,6 @@
       }
     ],
     [
-      "@semantic-release/exec",
-      {
-        "publishCmd": ""
-      }
-    ],
-    [
       "@semantic-release/git",
       {
         "assets": ["package.json", "CHANGELOG.md"],
