@@ -42,7 +42,7 @@ import {
 } from '../core/last-session.service'
 import { ParticipantIdService } from '../core/participant-id.service'
 import { ScalePreferenceService } from '../core/scale-preference.service'
-import { mintRoom, patchRoomAccess } from '../core/relay/relay-api'
+import { mintRoom, patchRoomAccess, resolveRoom, RelayRejectionError } from '../core/relay/relay-api'
 import {
   JumpBackInBannerComponent,
   type JumpBackInSummary,
@@ -303,13 +303,10 @@ export class HomePage {
   /**
    * Fast-path rejoin per plan §3.8.
    *
-   * Skips `GET /rooms/:code` because we already have the UUID, then
-   * waits for the first `'connected'` / relay-rejection transition
-   * so we can detect `unknown-room` (the only rejection that Phase 3
-   * emits in practice, per §2.4) without navigating first and
-   * bouncing. Any other outcome — including a timeout — optimistically
-   * proceeds to the cached screen; the chip polish in commit §10 will
-   * surface lingering disconnects there.
+   * Prechecks via `GET /rooms/:code` to detect `unknown-room` (relay
+   * denies pre-upgrade with HTTP 404, not a WS close code), then opens
+   * the socket; any post-upgrade rejection is handled by the existing
+   * `waitForJoinOutcome` race.
    */
   protected async onResumeJumpBack(): Promise<void> {
     if (this.resuming()) return
@@ -332,6 +329,25 @@ export class HomePage {
         this.jumpBackInSummary.set(null)
         this.jumpBackInStale.set(false)
         return
+      }
+
+      try {
+        await resolveRoom(
+          this.appPrefs.relayHttpUrl() ?? environment.relayHttpUrl,
+          cache.roomCode,
+        )
+      } catch (err) {
+        if (err instanceof RelayRejectionError && err.reason === 'unknown-room') {
+          this.jumpBackInStale.set(true)
+          // Fire-and-forget: don't await so resuming resets before the
+          // animation finishes, allowing a second tap to clear the entry.
+          void this.toast(
+            "That session isn't active anymore. Start a new one or join a fresh code.",
+          )
+          return
+        }
+        // Any other error (network down, malformed response): fall through
+        // to the existing WS attempt, which will time out and the user can retry.
       }
 
       const [displayName, participantId] = await Promise.all([
