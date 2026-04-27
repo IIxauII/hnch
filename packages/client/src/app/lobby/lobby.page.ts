@@ -307,7 +307,7 @@ import { presentSheet } from '../utils/present-sheet'
         <app-qr-display-sheet
           [inviteUrl]="inviteUrl()"
           [roomCode]="formattedRoomCode()"
-          (closeRequested)="qrOpen.set(false)"
+          (closeRequested)="closeQr()"
         />
       </ng-template>
     </ion-modal>
@@ -706,6 +706,11 @@ export class LobbyPage {
   protected onShowQr(): void {
     const modal = this.qrModalRef()
     if (modal) void presentSheet({ modal })
+  }
+
+  protected async closeQr(): Promise<void> {
+    await this.qrModalRef()?.dismiss()
+    this.qrOpen.set(false)
   }
 
   /**
