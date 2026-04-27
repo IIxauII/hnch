@@ -107,9 +107,9 @@ export const ESTIMATING = {
   selectedCard: 'ion-card.card.selected',
   voteDots: 'app-avatar-vote-row .dot',
   votedDots: 'app-avatar-vote-row .dot.voted',
-  voteCount: 'app-avatar-vote-row .count',
+  voteCount: 'app-estimating:not(.ion-page-hidden) app-avatar-vote-row .count',
   revealBtn: 'ion-button:has-text("Reveal Votes")',
-  roleChip: 'ion-header ion-chip',
+  roleChip: 'app-estimating:not(.ion-page-hidden) ion-header ion-chip',
 } as const
 
 // ---------------------------------------------------------------------------
