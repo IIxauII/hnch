@@ -4,6 +4,8 @@
 **Date:** 2026-04-21
 **Deciders:** Xau
 
+> **Status update (post [ADR-0017](0017-password-hashing-drop-invite-only.md)):** Invite-only was dropped from v1; password-only enforcement is the live behavior. The invite-token sections below describe a possible future re-introduction trigger but do not reflect current code.
+
 ## Context
 
 `project.md` provides for two optional access-control modes on sessions: **password-protected** (anyone with the password joins) and **invite-only** (the host explicitly admits each joiner). ADR-0001 established that the relay is content-blind — it forwards opaque Yjs updates and does not parse session data. That raises a structural question: if the relay cannot read session content, where do password and invite-only gates actually run?
