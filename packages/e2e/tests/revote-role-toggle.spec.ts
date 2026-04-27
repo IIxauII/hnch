@@ -27,7 +27,7 @@ test.describe('Re-vote eligibility after voter↔viewer toggle', () => {
     // 4. Player toggles to viewer/observer mid-round.
     await player.toggleRole()
     await expect(
-      player.page.locator('ion-chip').filter({ hasText: 'Observing' }),
+      player.page.locator(ESTIMATING.roleChip).filter({ hasText: 'Observing' }).first(),
     ).toBeVisible()
 
     // 5. Host triggers reveal manually (player is now a viewer, excluded from denominator).
@@ -41,14 +41,14 @@ test.describe('Re-vote eligibility after voter↔viewer toggle', () => {
     // 7. Player toggles back to voter.
     await player.toggleRole()
     await expect(
-      player.page.locator('ion-chip').filter({ hasText: 'Voter' }),
+      player.page.locator(ESTIMATING.roleChip).filter({ hasText: 'Voter' }).first(),
     ).toBeVisible()
 
     // 8. Player casts a vote in round 2.
     await player.castVote('8')
 
     // Vote count confirms player is back in denominator (1 voted, host has not yet).
-    await expect(player.page.locator(ESTIMATING.voteCount)).toContainText('1 of 2')
+    await expect(player.page.locator(ESTIMATING.voteCount).first()).toContainText('1 of 2')
 
     // 9. Host votes — both voted, unanimous auto-reveal fires.
     await host.castVote('3')
@@ -78,7 +78,7 @@ test.describe('Re-vote eligibility after voter↔viewer toggle', () => {
     // Player toggles to viewer before voting — excluded from denominator.
     await player.toggleRole()
     await expect(
-      player.page.locator('ion-chip').filter({ hasText: 'Observing' }),
+      player.page.locator(ESTIMATING.roleChip).filter({ hasText: 'Observing' }).first(),
     ).toBeVisible()
 
     // Host is the only voter; auto-reveal fires when host votes.
@@ -98,7 +98,7 @@ test.describe('Re-vote eligibility after voter↔viewer toggle', () => {
 
     await player.toggleRole()
     await expect(
-      player.page.locator('ion-chip').filter({ hasText: 'Voter' }),
+      player.page.locator(ESTIMATING.roleChip).filter({ hasText: 'Voter' }).first(),
     ).toBeVisible()
 
     await player.castVote('13')

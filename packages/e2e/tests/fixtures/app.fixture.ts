@@ -129,7 +129,11 @@ export class Participant {
   /** Toggle role between voter and viewer on the estimating page. */
   async toggleRole(): Promise<void> {
     // Chip shows either "Voter" or "Observing" text — use evaluate to force click
-    const chip = this.page.locator('ion-chip').filter({ hasText: /Voter|Observing/ })
+    // .first() ensures we target the active (topmost) app-estimating page in the Ionic stack
+    const chip = this.page
+      .locator(ESTIMATING.roleChip)
+      .filter({ hasText: /Voter|Observing/ })
+      .first()
     await chip.waitFor({ state: 'visible' })
     await chip.evaluate((el: HTMLElement) => el.click())
   }

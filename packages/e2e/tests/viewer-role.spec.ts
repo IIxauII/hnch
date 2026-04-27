@@ -10,19 +10,19 @@ test.describe('Viewer role', () => {
 
     // Initially should show "Voter"
     await expect(
-      player.page.locator('ion-chip').filter({ hasText: 'Voter' })
+      player.page.locator(ESTIMATING.roleChip).filter({ hasText: 'Voter' }).first()
     ).toBeVisible()
 
     // Toggle to observer
     await player.toggleRole()
     await expect(
-      player.page.locator('ion-chip').filter({ hasText: 'Observing' })
+      player.page.locator(ESTIMATING.roleChip).filter({ hasText: 'Observing' }).first()
     ).toBeVisible()
 
     // Toggle back to voter
     await player.toggleRole()
     await expect(
-      player.page.locator('ion-chip').filter({ hasText: 'Voter' })
+      player.page.locator(ESTIMATING.roleChip).filter({ hasText: 'Voter' }).first()
     ).toBeVisible()
   })
 
@@ -44,16 +44,16 @@ test.describe('Viewer role', () => {
     // Observer toggles to viewer role — excluded from denominator
     await observer.toggleRole()
     await expect(
-      observer.page.locator('ion-chip').filter({ hasText: 'Observing' }),
+      observer.page.locator(ESTIMATING.roleChip).filter({ hasText: 'Observing' }).first(),
     ).toBeVisible()
 
     // Player votes — host has not, so auto-reveal won't fire (2 online voters)
     await player.castVote('5')
 
     // Count should show "1 of 2 voted" — observer not in denominator
-    await expect(host.page.locator(ESTIMATING.voteCount)).toContainText('1 of 2')
-    await expect(player.page.locator(ESTIMATING.voteCount)).toContainText('1 of 2')
-    await expect(observer.page.locator(ESTIMATING.voteCount)).toContainText('1 of 2')
+    await expect(host.page.locator(ESTIMATING.voteCount).first()).toContainText('1 of 2')
+    await expect(player.page.locator(ESTIMATING.voteCount).first()).toContainText('1 of 2')
+    await expect(observer.page.locator(ESTIMATING.voteCount).first()).toContainText('1 of 2')
   })
 
   test('observer excluded from auto-reveal: auto-reveals when only voter (host) votes', async ({
@@ -70,7 +70,7 @@ test.describe('Viewer role', () => {
     // Player toggles to observer role — now excluded from the voter count
     await player.toggleRole()
     await expect(
-      player.page.locator('ion-chip').filter({ hasText: 'Observing' }),
+      player.page.locator(ESTIMATING.roleChip).filter({ hasText: 'Observing' }).first(),
     ).toBeVisible()
 
     // Host votes — host is now the ONLY online voter.
