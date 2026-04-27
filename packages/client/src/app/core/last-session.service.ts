@@ -19,7 +19,7 @@ export type LastSessionScreen = 'lobby' | 'estimating'
  *
  * "Aspirational" because nothing on the device guarantees the relay
  * still knows about the room — the snapshot TTL is 24 h
- * (ADR-0012). Consumers must tolerate a `close(4404)` /
+ * (ADR-0012). Consumers must tolerate a `close(4001)` /
  * `unknown-room` response and fall back to Home + clear this entry.
  */
 export interface LastSessionCache extends SharedLastSessionCache {

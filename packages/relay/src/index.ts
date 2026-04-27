@@ -20,7 +20,7 @@
 
 import { createCodePool } from './code-pool.js'
 import { createRoomStore } from './room-store.js'
-import { createRelayServer } from './server.js'
+import { createRelayServer, logBootBanner, ROOM_CAP, TEST_ROUTES_ENABLED } from './server.js'
 
 const DEFAULT_PORT = 1234
 
@@ -38,7 +38,12 @@ function main(): void {
   server.listen(port, () => {
     const address = server.address()
     const boundPort = typeof address === 'object' && address !== null ? address.port : port
-    console.log(`hnch relay listening on :${boundPort}`)
+    logBootBanner({
+      port: boundPort,
+      roomCap: ROOM_CAP,
+      testRoutesEnabled: TEST_ROUTES_ENABLED,
+      logger: console,
+    })
   })
 
   // Graceful shutdown so `pnpm dev`'s Ctrl-C in a tsx-watch loop

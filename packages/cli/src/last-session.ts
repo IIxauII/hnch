@@ -5,7 +5,7 @@
  * quick session resumption. Entries older than 24 hours are discarded.
  */
 
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { LastSessionCache } from '@hnch/shared'
 import { configDir } from './config.js'
@@ -58,11 +58,11 @@ export function readLastSession(): CliLastSessionCache | null {
 
 export function writeLastSession(cache: CliLastSessionCache): void {
   const dir = configDir()
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true })
-  }
+  mkdirSync(dir, { recursive: true, mode: 0o700 })
+  chmodSync(dir, 0o700)
   const path = lastSessionPath()
-  writeFileSync(path, JSON.stringify(cache, null, 2) + '\n', 'utf-8')
+  writeFileSync(path, JSON.stringify(cache, null, 2) + '\n', { encoding: 'utf-8', mode: 0o600 })
+  chmodSync(path, 0o600)
 }
 
 export function clearLastSession(): void {

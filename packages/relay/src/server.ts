@@ -66,15 +66,26 @@ export interface RelayServerDeps {
 /** Max bytes we'll read on a JSON body before giving up. */
 const MAX_BODY_BYTES = 4 * 1024
 
-/** Read once at boot — routes only exist when this is true. */
-const TEST_ROUTES_ENABLED = process.env['HNCH_ENABLE_TEST_ROUTES'] === '1'
+/**
+ * Whether the test-only routes (DELETE /test/rooms/:uuid) are mounted.
+ *
+ * Frozen at module-load. Do not re-read for runtime branching — boot-time
+ * semantics by ADR-0027 §2. Reflected in the boot banner so operators can
+ * see the effective value at startup; emitted at WARN level when true.
+ */
+export const TEST_ROUTES_ENABLED: boolean = process.env['HNCH_ENABLE_TEST_ROUTES'] === '1'
 
 /**
- * Room participant cap. Defaults to MAX_ROOM_PARTICIPANTS (20).
- * Test-only: can be lowered via HNCH_ROOM_CAP env var for e2e testing
- * (e.g., `HNCH_ROOM_CAP=3`). Clamped to [1, MAX_ROOM_PARTICIPANTS].
+ * Effective room participant cap. Defaults to `MAX_ROOM_PARTICIPANTS` (20).
+ * Test-only: can be lowered via `HNCH_ROOM_CAP` env var for e2e testing
+ * (e.g., `HNCH_ROOM_CAP=3`). Clamped to `[1, MAX_ROOM_PARTICIPANTS]`.
+ *
+ * Frozen at module-load. Do not re-read for runtime branching — boot-time
+ * semantics by ADR-0027 §2. Reflected in the boot banner so operators can
+ * see the effective value at startup; emitted at WARN level when below the
+ * production maximum.
  */
-const ROOM_CAP = (() => {
+export const ROOM_CAP: number = (() => {
   const envCap = process.env['HNCH_ROOM_CAP']
   if (envCap) {
     const parsed = parseInt(envCap, 10)
@@ -84,6 +95,25 @@ const ROOM_CAP = (() => {
   }
   return MAX_ROOM_PARTICIPANTS
 })()
+
+/**
+ * Emit the single structured boot banner declaring the effective `roomCap`
+ * and `testRoutesEnabled` per ADR-0027 §6. Logs at WARN level when the relay
+ * is in a non-production state (`roomCap < MAX_ROOM_PARTICIPANTS` OR
+ * `testRoutesEnabled === true`) so operators notice misconfigured production
+ * deployments. Pure for testability — accepts an injected logger.
+ */
+export function logBootBanner(deps: {
+  port: number
+  roomCap: number
+  testRoutesEnabled: boolean
+  logger: { log: (msg: string) => void; warn: (msg: string) => void }
+}): void {
+  const { port, roomCap, testRoutesEnabled, logger } = deps
+  const isWarn = roomCap < MAX_ROOM_PARTICIPANTS || testRoutesEnabled
+  const logFn = isWarn ? logger.warn : logger.log
+  logFn(`hnch relay listening on :${port} (roomCap=${roomCap}, testRoutes=${testRoutesEnabled})`)
+}
 
 /** Regex for `WS /ws/:uuid` (strict, path-only — query strings are
  *  parsed separately via `URL`). */
@@ -291,7 +321,7 @@ function handleUpgrade(
   }
 
   wss.handleUpgrade(req, socket, head, (ws: WebSocket) => {
-    // Participant cap enforcement (ADR-0020). Check post-upgrade so the
+    // Participant cap enforcement (ADR-0024). Check post-upgrade so the
     // client receives a WS close code (4006) per the ADR-0016 close-code
     // table rather than a raw HTTP 403.
     if (record.connections >= ROOM_CAP) {
@@ -362,7 +392,12 @@ function handleTestDeleteRoom(
   deps: RelayServerDeps,
 ): void {
   if (!UUID_RE.test(rawUuid)) {
-    sendJson(res, 400, { error: 'bad-uuid' })
+    // Per ADR-0027 §5: malformed UUIDs return the same 404 as unknown UUIDs and
+    // as gate-off responses, so an attacker probing this path cannot distinguish
+    // "test routes enabled with bad UUID" from "test routes disabled". Do NOT
+    // change to a more informative status — this asymmetry vs. the WS-upgrade
+    // handler is intentional; only this gate has a secrecy contract.
+    sendJson(res, 404, { error: 'not-found' })
     return
   }
   const record = deps.roomStore.getByUuid(rawUuid)
