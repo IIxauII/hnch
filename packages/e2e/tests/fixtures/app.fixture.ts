@@ -449,6 +449,7 @@ async function clearStorage(context: BrowserContext): Promise<void> {
       'CapacitorStorage.hnch.defaultSessionName',
       'CapacitorStorage.hnch.defaultPassword',
       'CapacitorStorage.hnch.relayHttpUrl',
+      'CapacitorStorage.hnch.lastSession',
       '_capuid',                                // Capacitor Device plugin web fallback UUID
     ])
     for (let i = localStorage.length - 1; i >= 0; i--) {
