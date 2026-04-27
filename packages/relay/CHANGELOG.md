@@ -1,3 +1,15 @@
+# [1.1.0](https://github.com/IIxauII/hnch/compare/relay-v1.0.0...relay-v1.1.0) (2026-04-27)
+
+
+### Bug Fixes
+
+* **ci:** reorder semantic-release rules so scoped commits release ([#7](https://github.com/IIxauII/hnch/issues/7)) ([a5bdbf3](https://github.com/IIxauII/hnch/commit/a5bdbf38d4b14224a9207d2f9faf1467a2e790da))
+
+
+### Features
+
+* **relay:** wire production deployment (ADR-0029) ([#6](https://github.com/IIxauII/hnch/issues/6)) ([ed47efe](https://github.com/IIxauII/hnch/commit/ed47efe93d734471d8ca470d0f09c17da4b15ad0))
+
 # 1.0.0 (2026-04-27)
 
 
