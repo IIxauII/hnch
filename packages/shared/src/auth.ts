@@ -54,7 +54,7 @@ export interface JoinCredentials {
  * The set of reasons a join may be rejected by the relay.
  *
  * `room-full` is returned when a room has reached `MAX_ROOM_PARTICIPANTS`
- * (enforced at WS upgrade in the relay, ADR-0020). Enumerating it here
+ * (enforced at WS upgrade in the relay, ADR-0024). Enumerating it here
  * keeps the type closed so downstream code can exhaustively switch.
  */
 export type JoinRejectionReason =

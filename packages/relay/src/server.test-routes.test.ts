@@ -8,7 +8,7 @@
 
 import type { AddressInfo } from 'node:net'
 import type { Server } from 'node:http'
-import { beforeAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createCodePool } from './code-pool.js'
 import { createRoomStore, type RoomStore } from './room-store.js'
 import type { CreateRoomResponse, RelayServerDeps } from './server.js'
@@ -47,11 +47,11 @@ describe('DELETE /test/rooms/:uuid (HNCH_ENABLE_TEST_ROUTES=1)', () => {
     })
   })
 
-  it('returns 400 for a malformed UUID', async () => {
+  it('returns 404 (not 400) for a malformed UUID — secrecy contract per ADR-0027 §5', async () => {
     const res = await fetch(`${baseUrl}/test/rooms/not-a-uuid`, { method: 'DELETE' })
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(404)
     const body = (await res.json()) as unknown
-    expect(body).toEqual({ error: 'bad-uuid' })
+    expect(body).toEqual({ error: 'not-found' })
   })
 
   it('returns 404 for an unknown UUID', async () => {
@@ -84,5 +84,69 @@ describe('DELETE /test/rooms/:uuid (HNCH_ENABLE_TEST_ROUTES=1)', () => {
     await fetch(`${baseUrl}/test/rooms/${uuid}`, { method: 'DELETE' })
     const second = await fetch(`${baseUrl}/test/rooms/${uuid}`, { method: 'DELETE' })
     expect(second.status).toBe(404)
+  })
+})
+
+/**
+ * ADR-0027 §5 secrecy contract: a `DELETE /test/rooms/<malformed>` with the
+ * gate ON (HNCH_ENABLE_TEST_ROUTES=1) must be byte-identical to the same
+ * request with the gate OFF — same status, same body, same content-type. An
+ * attacker probing this path therefore cannot tell whether test routes are
+ * enabled. We re-import server.js after resetting modules and clearing the env
+ * var to obtain a gate-OFF createRelayServer alongside the gate-ON one.
+ */
+describe('DELETE /test/rooms gate-secrecy: byte-identical 404 across gate states', () => {
+  let onUrl: string
+  let offUrl: string
+  let onServer: Server
+  let offServer: Server
+
+  beforeAll(async () => {
+    // Gate ON server (env var was set at top of file).
+    const onMod = (await import('./server.js')) as {
+      createRelayServer: (deps: RelayServerDeps) => Server
+    }
+    onServer = onMod.createRelayServer({ roomStore: createRoomStore(createCodePool()) })
+    await new Promise<void>((resolve) => {
+      onServer.listen(0, '127.0.0.1', () => resolve())
+    })
+    onUrl = `http://127.0.0.1:${(onServer.address() as AddressInfo).port}`
+
+    // Gate OFF server: clear the env var, reset module cache, re-import.
+    delete process.env['HNCH_ENABLE_TEST_ROUTES']
+    vi.resetModules()
+    const offMod = (await import('./server.js')) as {
+      createRelayServer: (deps: RelayServerDeps) => Server
+    }
+    offServer = offMod.createRelayServer({ roomStore: createRoomStore(createCodePool()) })
+    await new Promise<void>((resolve) => {
+      offServer.listen(0, '127.0.0.1', () => resolve())
+    })
+    offUrl = `http://127.0.0.1:${(offServer.address() as AddressInfo).port}`
+  })
+
+  afterAll(async () => {
+    await new Promise<void>((resolve, reject) => {
+      onServer.close((err) => (err ? reject(err) : resolve()))
+    })
+    await new Promise<void>((resolve, reject) => {
+      offServer.close((err) => (err ? reject(err) : resolve()))
+    })
+  })
+
+  it('responses are byte-identical: status, body bytes, content-type', async () => {
+    const onRes = await fetch(`${onUrl}/test/rooms/not-a-uuid`, { method: 'DELETE' })
+    const offRes = await fetch(`${offUrl}/test/rooms/anything-goes`, { method: 'DELETE' })
+
+    expect(onRes.status).toBe(offRes.status)
+    expect(onRes.status).toBe(404)
+
+    expect(onRes.headers.get('content-type')).toBe(offRes.headers.get('content-type'))
+    expect(onRes.headers.get('content-type')).toBe('application/json; charset=utf-8')
+
+    const onBytes = new Uint8Array(await onRes.arrayBuffer())
+    const offBytes = new Uint8Array(await offRes.arrayBuffer())
+    expect(onBytes).toEqual(offBytes)
+    expect(new TextDecoder().decode(onBytes)).toBe('{"error":"not-found"}')
   })
 })

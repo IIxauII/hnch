@@ -46,6 +46,34 @@ describe('normalizeRoomCode', () => {
   it('handles already-normalized input idempotently', () => {
     expect(normalizeRoomCode('K7P9MR')).toBe('K7P9MR')
   })
+
+  it('baseline: uppercase only', () => {
+    expect(normalizeRoomCode('k7p9mr')).toBe('K7P9MR')
+  })
+
+  it('dash strip preserved', () => {
+    expect(normalizeRoomCode('k7p-9mr')).toBe('K7P9MR')
+  })
+
+  it('trim only', () => {
+    expect(normalizeRoomCode('  k7p9mr  ')).toBe('K7P9MR')
+  })
+
+  it('trim + dash', () => {
+    expect(normalizeRoomCode('  k7p-9mr  ')).toBe('K7P9MR')
+  })
+
+  it('all-whitespace returns empty', () => {
+    expect(normalizeRoomCode('   ')).toBe('')
+  })
+
+  it('empty stays empty', () => {
+    expect(normalizeRoomCode('')).toBe('')
+  })
+
+  it('embedded space preserved, only outer whitespace trimmed', () => {
+    expect(normalizeRoomCode('k7p 9mr')).toBe('K7P 9MR')
+  })
 })
 
 describe('isValidRoomCode', () => {

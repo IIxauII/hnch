@@ -2,6 +2,7 @@ import { effect, inject, Injectable } from '@angular/core'
 import { Router } from '@angular/router'
 
 import { DocService } from './doc/doc.service'
+import { LastSessionService } from './last-session.service'
 import { ToastService } from '../services/toast.service'
 
 /**
@@ -18,6 +19,7 @@ import { ToastService } from '../services/toast.service'
 @Injectable({ providedIn: 'root' })
 export class SessionEndService {
   private readonly docService = inject(DocService)
+  private readonly lastSession = inject(LastSessionService)
   private readonly router = inject(Router)
   private readonly toastService = inject(ToastService)
 
@@ -64,6 +66,12 @@ export class SessionEndService {
     }
 
     this.docService.endSession()
+
+    try {
+      await this.lastSession.clear()
+    } catch (err) {
+      console.warn('Failed to clear lastSession cache:', err)
+    }
 
     await this.toastService.info(message)
 

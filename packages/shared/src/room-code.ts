@@ -47,12 +47,12 @@ export function generateRoomCode(): string {
 }
 
 /**
- * Normalizes a room code input: strips dashes, converts to uppercase.
+ * Normalizes a room code input: trims outer whitespace, strips dashes, converts to uppercase.
  * Does not validate — use `isValidRoomCode` on the result if you need
  * to check whether the normalized form is well-formed.
  */
 export function normalizeRoomCode(input: string): string {
-  return input.replace(/-/g, '').toUpperCase()
+  return input.trim().replace(/-/g, '').toUpperCase()
 }
 
 /**

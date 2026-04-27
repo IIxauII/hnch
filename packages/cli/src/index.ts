@@ -20,7 +20,10 @@ import { loadConfig, readConfig, updateConfig } from './config.js'
 import { createSession, joinSession, wireSession } from './session.js'
 import { resolveRoom } from './relay-api.js'
 import { resolveScale, BUILTIN_SCALES, hashPassword, joinDoc } from '@hnch/shared'
+import { normalizeAndValidateRoomCode } from './room-code-input.js'
 import { writeLastSession, clearLastSession, readLastSession } from './last-session.js'
+import { onSessionExpired } from './session-expired.js'
+import { observeSessionEnd } from './session-end-observer.js'
 import { App } from './ui/App.js'
 import { ConfigSettings } from './ui/components/ConfigSettings.js'
 import { createInterface } from 'node:readline'
@@ -84,7 +87,7 @@ async function handleCreate(argv: {
   console.error(`Share: hnch join ${session.roomCode}`)
   console.error('')
 
-  const { waitUntilExit } = render(
+  const { waitUntilExit, unmount: unmountCreate } = render(
     React.createElement(App, {
       session,
       participantId: config.participantId,
@@ -94,6 +97,22 @@ async function handleCreate(argv: {
       customScales: config.customScales,
     }),
   )
+
+  observeSessionEnd({
+    doc: session.doc,
+    localParticipantId: config.participantId,
+    onEnded: async (info) => {
+      console.error(info.isLocal ? 'Session ended.' : `Session ended by ${info.hostName}.`)
+      unmountCreate()
+      try {
+        await clearLastSession()
+      } catch (err) {
+        console.error(`Failed to clear cached session: ${err instanceof Error ? err.message : String(err)}`)
+      }
+      session.disconnect()
+      process.exit(0)
+    },
+  })
 
   await waitUntilExit()
   session.disconnect()
@@ -106,12 +125,18 @@ async function handleJoin(argv: {
   password?: boolean
 }): Promise<void> {
   const config = await loadConfig()
+  const code = normalizeAndValidateRoomCode(argv.code)
+  if (code === null) {
+    console.error('invalid room code')
+    process.exit(1)
+  }
+
   let password: string | undefined
   if (argv.password) {
     password = await promptPassword()
   }
 
-  const resolved = await resolveRoom(config.relayUrl, argv.code.toUpperCase())
+  const resolved = await resolveRoom(config.relayUrl, code)
 
   let passwordInput: string | undefined
   if (resolved.accessMode === 'password' && !argv.password) {
@@ -127,9 +152,13 @@ async function handleJoin(argv: {
     participantId: config.participantId,
     displayName: config.displayName,
     relayUrl: config.relayUrl,
-    roomCode: argv.code.toUpperCase(),
+    roomCode: code,
     password: passwordInput,
     onRejection(reason) {
+      if (reason === 'unknown-room') {
+        void onSessionExpired({ clearLastSession, logger: console, exit: process.exit })
+        return
+      }
       if (reason === 'room-full') {
         hadRoomFull = true
         unmountInk?.()
@@ -164,6 +193,22 @@ async function handleJoin(argv: {
   )
   unmountInk = inkInstance.unmount
 
+  observeSessionEnd({
+    doc: session.doc,
+    localParticipantId: config.participantId,
+    onEnded: async (info) => {
+      console.error(info.isLocal ? 'Session ended.' : `Session ended by ${info.hostName}.`)
+      unmountInk?.()
+      try {
+        await clearLastSession()
+      } catch (err) {
+        console.error(`Failed to clear cached session: ${err instanceof Error ? err.message : String(err)}`)
+      }
+      session.disconnect()
+      process.exit(0)
+    },
+  })
+
   await inkInstance.waitUntilExit()
 
   if (hadRoomFull) {
@@ -191,15 +236,13 @@ async function handleResume(): Promise<void> {
   try {
     resolved = await resolveRoom(config.relayUrl, cache.roomCode)
   } catch (err) {
-    // Distinguish 404 (room gone) from network errors
     const message = err instanceof Error ? err.message : String(err)
     if (message.includes('Room not found')) {
-      console.error("That session isn't active anymore.")
-      clearLastSession()
+      return await onSessionExpired({ clearLastSession, logger: console, exit: process.exit })
     } else {
       console.error('Could not reach relay — try again later.')
+      process.exit(0)
     }
-    process.exit(0)
   }
 
   if (resolved.accessMode === 'password' && !cache.passwordHash) {
@@ -234,6 +277,10 @@ async function handleResume(): Promise<void> {
     relayUrl: config.relayUrl,
     passwordHash: cache.passwordHash,
     onRejection(reason) {
+      if (reason === 'unknown-room') {
+        void onSessionExpired({ clearLastSession, logger: console, exit: process.exit })
+        return
+      }
       if (reason === 'wrong-password') {
         hadWrongPassword = true
         unmountInkResume?.()
@@ -263,6 +310,22 @@ async function handleResume(): Promise<void> {
     }),
   )
   unmountInkResume = inkInstanceResume.unmount
+
+  observeSessionEnd({
+    doc: session.doc,
+    localParticipantId: config.participantId,
+    onEnded: async (info) => {
+      console.error(info.isLocal ? 'Session ended.' : `Session ended by ${info.hostName}.`)
+      unmountInkResume?.()
+      try {
+        await clearLastSession()
+      } catch (err) {
+        console.error(`Failed to clear cached session: ${err instanceof Error ? err.message : String(err)}`)
+      }
+      session.disconnect()
+      process.exit(0)
+    },
+  })
 
   await inkInstanceResume.waitUntilExit()
 
