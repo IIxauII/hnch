@@ -27,8 +27,9 @@ export interface CliConfig {
   customScales?: CustomScale[]
 }
 
-// Production relay. Override with HNCH_RELAY_URL env var or `hnch config --relay-url`.
-const DEFAULT_RELAY_URL = 'wss://hnch.dev'
+// Production relay (http scheme for Node.js fetch; ws scheme derived in sync.ts).
+// Override with HNCH_RELAY_URL env var or `hnch config --relay-url`.
+const DEFAULT_RELAY_URL = 'https://hnch.dev'
 
 export function configDir(): string {
   const xdg = process.env['XDG_CONFIG_HOME']
@@ -83,6 +84,12 @@ export async function promptLine(question: string): Promise<string> {
  * Load config, generating missing fields. Prompts for displayName on
  * first run. Returns a fully-resolved config.
  */
+function coerceRelayUrlToHttp(url: string): string {
+  if (url.startsWith('wss://')) return 'https://' + url.slice(6)
+  if (url.startsWith('ws://')) return 'http://' + url.slice(5)
+  return url
+}
+
 export async function loadConfig(): Promise<CliConfig> {
   const stored = readConfig()
   let changed = false
@@ -107,8 +114,9 @@ export async function loadConfig(): Promise<CliConfig> {
     writeConfig(stored)
   }
 
-  // Env override for relay URL
-  const relayUrl = process.env['HNCH_RELAY_URL'] || stored.relayUrl!
+  // Env override for relay URL; coerce stale ws:// / wss:// schemes to http(s)
+  let relayUrl = process.env['HNCH_RELAY_URL'] || stored.relayUrl!
+  relayUrl = coerceRelayUrlToHttp(relayUrl)
 
   return {
     participantId: stored.participantId!,
