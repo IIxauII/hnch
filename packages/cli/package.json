@@ -1,8 +1,14 @@
 {
   "name": "hnch",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Pointing poker CLI for agile teams",
-  "keywords": ["pointing-poker", "planning-poker", "agile", "cli", "estimation"],
+  "keywords": [
+    "pointing-poker",
+    "planning-poker",
+    "agile",
+    "cli",
+    "estimation"
+  ],
   "license": "UNLICENSED",
   "author": "xau",
   "repository": {
@@ -11,10 +17,20 @@
     "directory": "packages/cli"
   },
   "homepage": "https://github.com/IIxauII/hnch#readme",
-  "bugs": { "url": "https://github.com/IIxauII/hnch/issues" },
-  "engines": { "node": ">=22.0.0" },
-  "publishConfig": { "registry": "https://registry.npmjs.org/" },
-  "files": ["dist", "README.md", "LICENSE.md"],
+  "bugs": {
+    "url": "https://github.com/IIxauII/hnch/issues"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE.md"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
