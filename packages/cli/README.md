@@ -4,9 +4,9 @@ Terminal client for hnch (pointing poker for agile teams). Speaks the same Yjs-o
 
 ## Install
 
-    npm i -g hnch
+    npm i -g @xauyxau/hnch
     # or one-shot
-    npx hnch create
+    npx @xauyxau/hnch create
 
 ## Quick start
 
