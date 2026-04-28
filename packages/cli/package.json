@@ -1,20 +1,33 @@
 {
-  "name": "@hnch/cli",
+  "name": "hnch",
   "version": "1.0.0",
-  "private": true,
+  "description": "Pointing poker CLI for agile teams",
+  "keywords": ["pointing-poker", "planning-poker", "agile", "cli", "estimation"],
+  "license": "UNLICENSED",
+  "author": "xau",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IIxauII/hnch.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/IIxauII/hnch#readme",
+  "bugs": { "url": "https://github.com/IIxauII/hnch/issues" },
+  "engines": { "node": ">=22.0.0" },
+  "publishConfig": { "registry": "https://registry.npmjs.org/" },
+  "files": ["dist", "README.md", "LICENSE.md"],
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
     "hnch": "./dist/index.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsup",
+    "prepublishOnly": "pnpm run build",
     "typecheck": "tsc --noEmit",
     "dev": "tsx src/index.ts",
     "test": "vitest run"
   },
   "dependencies": {
-    "@hnch/shared": "workspace:*",
     "ink": "^5.2.0",
     "react": "^18.3.1",
     "ws": "^8.20.0",
@@ -24,10 +37,12 @@
     "yjs": "^13.6.30"
   },
   "devDependencies": {
+    "@hnch/shared": "workspace:*",
     "@types/node": "^22.0.0",
     "@types/react": "^18.3.0",
     "@types/ws": "^8.18.1",
     "@types/yargs": "^17.0.33",
+    "tsup": "^8.3.0",
     "tsx": "^4.19.0",
     "typescript": "^5.5.0",
     "vitest": "^3.1.1"

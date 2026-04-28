@@ -27,7 +27,8 @@ export interface CliConfig {
   customScales?: CustomScale[]
 }
 
-const DEFAULT_RELAY_URL = 'http://localhost:1234'
+// Production relay. Override with HNCH_RELAY_URL env var or `hnch config --relay-url`.
+const DEFAULT_RELAY_URL = 'wss://hnch.dev'
 
 export function configDir(): string {
   const xdg = process.env['XDG_CONFIG_HOME']
