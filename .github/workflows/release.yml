@@ -28,9 +28,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
           # Authenticate with RELEASE_TOKEN (fine-grained PAT) so commits + tags
-          # pushed by semantic-release trigger downstream workflows like
-          # deploy-relay.yml. Tags pushed under GITHUB_TOKEN are intentionally
-          # blocked by GitHub from firing other workflows (anti-loop guardrail).
+          # pushed by semantic-release land on main. PAT also needs actions:write
+          # so per-package publishCmd can dispatch deploy-*.yml via `gh workflow
+          # run` (tag-push events from PATs are not reliably delivered to other
+          # workflows, so we explicitly dispatch instead — see ../../packages/*/.releaserc.json).
           token: ${{ secrets.RELEASE_TOKEN }}
 
       - name: Enable Corepack
@@ -49,7 +50,8 @@ jobs:
 
       - name: Run semantic-release per package (sequential)
         env:
-          # PAT (not GITHUB_TOKEN) so the tag push triggers deploy-relay.yml.
+          # PAT (not GITHUB_TOKEN). Read by both semantic-release (push) and
+          # `gh` inside per-package publishCmd (workflow_dispatch on deploy-*.yml).
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           # npm granular automation token, used by @semantic-release/npm in
           # cli's releaserc (npmPublish: true). Other packages stay private.
