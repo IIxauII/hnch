@@ -54,6 +54,8 @@ import {
 import { SessionSettingsSheetComponent } from '../session-settings/session-settings.sheet'
 import { RoundHistoryComponent } from '../shared/round-history.component'
 import { VoteResultsComponent } from '../shared/vote-results.component'
+import { assertRoomCode } from '../core/room-join.service'
+import { shouldRecordCache } from '../core/cache-record-guard'
 import { QrDisplaySheetComponent } from './qr-display.sheet'
 import { presentSheet } from '../utils/present-sheet'
 
@@ -115,8 +117,8 @@ import { presentSheet } from '../utils/present-sheet'
       <ion-toolbar>
         <ion-buttons slot="start">
           <ion-button
-            aria-label="Back"
-            (click)="confirmLeave()"
+            aria-label="Back to home"
+            (click)="softExit()"
           >
             <ion-icon
               slot="icon-only"
@@ -521,6 +523,12 @@ export class LobbyPage {
   )
   private readonly qrModalRef = viewChild<IonModal>('qrModal')
 
+  // Tracks the last uuid written to the cache so the effect does not
+  // re-fire on every Yjs doc mutation (votes, awareness, etc.) while
+  // connected to the same room. Reset to null when status leaves
+  // 'connected' so a reconnect re-writes and bumps the TTL.
+  private lastRecordedUuid: string | null = null
+
   constructor() {
     addIcons({
       'chevron-back-outline': chevronBackOutline,
@@ -530,11 +538,27 @@ export class LobbyPage {
       'share-outline': shareOutline,
       'star-outline': starOutline,
     })
-    // Refresh the jump-back-in cache on every mount (plan §3.8).
-    // Lobby is the default landing after Create / Join / resume, so
-    // bumping `lastSeenAt` here keeps the 24-h TTL tracking actual
-    // activity rather than whenever the session was first opened.
-    this.recordLastSession()
+
+    // Refresh the jump-back-in cache only once per (uuid, screen)
+    // transition — deduped via lastRecordedUuid so we don't write on
+    // every Yjs doc mutation while staying connected (ADR-0022 §5).
+    effect(() => {
+      const code = this.docService.roomCode()
+      const uuid = this.docService.meta()?.roomUuid
+      const status = this.docService.syncStatus()
+      if (status !== 'connected') {
+        this.lastRecordedUuid = null
+        return
+      }
+      if (shouldRecordCache(code, uuid, status, this.lastRecordedUuid)) {
+        this.lastRecordedUuid = uuid ?? null
+        void this.lastSessionService.record({
+          roomCode: code!,
+          roomUuid: uuid!,
+          lastScreen: 'lobby',
+        })
+      }
+    })
 
     // Auto-navigate to Estimating when a round starts. Covers
     // non-host clients who are sitting on the Lobby when the host
@@ -543,7 +567,9 @@ export class LobbyPage {
     effect(() => {
       const round = this.docService.currentRound()
       if (round && round.revealedAt === undefined) {
-        void this.router.navigate(['/estimating'])
+        const code = this.docService.roomCode()
+        assertRoomCode(code, 'lobby.autoNav')
+        void this.router.navigate(['/estimating', code])
       }
     })
   }
@@ -554,18 +580,6 @@ export class LobbyPage {
 
   ionViewDidEnter(): void {
     this.onPage.set(true)
-  }
-
-  private recordLastSession(): void {
-    const code = this.docService.roomCode()
-    const uuid = this.docService.meta()?.roomUuid
-    if (code && uuid) {
-      void this.lastSessionService.record({
-        roomCode: code,
-        roomUuid: uuid,
-        lastScreen: 'lobby',
-      })
-    }
   }
 
   protected openRoundStart(): void {
@@ -579,7 +593,9 @@ export class LobbyPage {
     })
     await this.modalRef()?.dismiss()
     this.roundStartOpen.set(false)
-    await this.router.navigate(['/estimating'])
+    const code = this.docService.roomCode()
+    assertRoomCode(code, 'lobby.onRoundStart')
+    await this.router.navigate(['/estimating', code])
   }
 
   /**
@@ -598,7 +614,9 @@ export class LobbyPage {
       ...(round.description !== undefined && { description: round.description }),
       ...(round.ticketId !== undefined && { ticketId: round.ticketId }),
     })
-    await this.router.navigate(['/estimating'])
+    const code = this.docService.roomCode()
+    assertRoomCode(code, 'lobby.onRevote')
+    await this.router.navigate(['/estimating', code])
   }
 
   protected async openActionSheet(): Promise<void> {
@@ -714,10 +732,23 @@ export class LobbyPage {
   }
 
   /**
-   * Destructive-action confirmation (ux.md §2). Both entry points —
-   * the top-left back chevron and the ⋯ → "Leave session" row — go
-   * through here, so the session is never torn down without an
-   * explicit user confirmation.
+   * Soft exit — back-chevron path. Navigates to Home WITHOUT clearing
+   * the last-session cache, so the Jump-back-in banner remains visible.
+   * Does not tear down the WebSocket; the session stays alive in the
+   * background while the user is on Home.
+   *
+   * Per plan §4: back is NOT destructive, so no confirmation dialog.
+   */
+  protected softExit(): void {
+    void this.router.navigate(['/home'])
+  }
+
+  /**
+   * Destructive-action confirmation (ux.md §2). Wired ONLY to the
+   * ⋯ → "Leave session" action-sheet item so the session is never
+   * torn down without an explicit user confirmation.
+   *
+   * The back chevron uses `softExit()` instead — no dialog, cache kept.
    */
   protected async confirmLeave(): Promise<void> {
     const alert = await this.alertCtrl.create({
@@ -785,3 +816,4 @@ function formatScaleId(id: string): string {
   if (id.length === 0) return id
   return id.charAt(0).toUpperCase() + id.slice(1)
 }
+
