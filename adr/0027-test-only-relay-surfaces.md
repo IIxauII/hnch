@@ -1,6 +1,6 @@
 # ADR-0027: Test-only relay surfaces — `HNCH_ENABLE_TEST_ROUTES` and `HNCH_ROOM_CAP`
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-04-26
 **Deciders:** Xau
 

@@ -60,8 +60,8 @@ Each phase assumes the previous one passes its exit bar. Within a phase, orderin
 
 **Work.**
 - Bootstrap: `provideIonicAngular()` in `main.ts` with Ionic's default mode (auto-detected per platform — iOS on iPhone, Material on Android/PWA). See [`ux.md` §2](ux.md#2-app-shell--navigation).
-- Angular routing: seven routes for the v1 screens — `onboarding`, `home`, `join`, `lobby`, `estimating`, `revealed`, `settings`. Placeholder components, nothing more. Route guard that redirects to `onboarding` on first launch (no stored display name).
-- `packages/shared`: add `doc.ts` — TypeScript interfaces that mirror [`schema.md`](schema.md) one-to-one: `Meta`, `Settings`, `Participant`, `Round`, `Scale`, `RevealMode`, awareness payload. These are the types client and relay will share going forward. No Yjs bindings yet (those live in the client — shared is platform-neutral).
+- Angular routing: six routes for the v1 screens — `onboarding`, `home`, `join`, `lobby`, `estimating`, `settings`. Placeholder components, nothing more. Route guard that redirects to `onboarding` on first launch (no stored display name). (Note: a `revealed` route was scaffolded here originally; it was removed when Lobby was updated to show results inline — ADR-0018.)
+- `packages/shared`: add `doc.ts` — TypeScript interfaces that mirror [`schema.md`](schema.md) one-to-one: `Meta`, `Settings`, `Participant`, `Round`, `Scale`, awareness payload. These are the types client and relay will share going forward. No Yjs bindings yet (those live in the client — shared is platform-neutral).
 - Onboarding screen: name input + Continue button, writes to `@capacitor/preferences`. Handles the pending-join-URL case (if the app launched via deep link before onboarding, stash it and resume to Join after save).
 - Home screen: "Create Room" and "Join Room" buttons. Jump-back-in banner can be present as a shell (no wiring yet — that needs Phase 2+).
 - Dark mode: respect `prefers-color-scheme`; no explicit theme picker yet (that's Phase 6).
@@ -82,7 +82,7 @@ Each phase assumes the previous one passes its exit bar. Within a phase, orderin
 **Work.**
 - Doc service: a client-side service that owns a `Y.Doc`, exposes strongly-typed read/write helpers derived from the Phase-1 shared types, and emits observables for Settings / Participants / current Round. No persistence, no relay — the doc is in-memory.
 - Lobby screen: wired to the doc. Shows participants (just you), settings summary, Share / QR placeholders, and "Start Round 1" button.
-- Session Settings half-sheet ([`ux.md` §5.8](ux.md#58-overlays)): scale picker, timer picker, access picker. Timer and Access have no runtime effect yet — just write to `settings`.
+- Session Settings half-sheet ([`ux.md` §5.8](ux.md#58-overlays)): scale picker, access picker. Access has no runtime effect yet — just writes to `settings`.
 - Round-start modal: captures optional descriptor, writes a new Round.
 - Estimating screen: 3-column card grid, vote cast + change, avatar row (just you, trivially), host-only Reveal button.
 - Lobby post-reveal: results shown inline (grouped by vote value, voter chips, stats). Re-vote (creates Round with `parentRoundId`) and Next Round both work.
@@ -138,30 +138,24 @@ This design work is ~1 hour; resolve it before relay code lands.
 
 **Scope.** Robustness — the two coordination-flavored features that make the product feel reliable.
 
+> **Note:** The countdown-timer portion of this phase was later superseded by [ADR-0018](adr/0018-remove-timer-add-unanimous-reveal.md), which removed `revealMode` / `timerDurationMs` and replaced countdown-triggered reveal with unanimous auto-reveal. `timerStartedAt` is retained as a stopwatch origin. The host-election work below shipped unchanged.
+
 **Work.**
-- Timer ([ADR-0011](adr/0011-timer-authority.md) + [ADR-0015](adr/0015-v1-scope-session-level-reveal-and-timer.md)):
-  - Host writes `round.timerStartedAt` at round start (only when `settings.revealMode === 'timer'`).
-  - All clients compute local countdown from `settings.timerDurationMs` and `round.timerStartedAt`.
-  - Host client writes `round.revealedAt` at expiry.
-  - Idempotent-reveal fallback: any client may write `revealedAt` if expiry observed and field still empty (see ADR-0011 Consequences).
-  - Display uses `tabular-nums`; final 30 s uses the muted-red style from `ux.md` §5.5.
-  - Haptic at t-10 s and on expiry per `ux.md` §6 haptic map (partial — full haptic wiring is Phase 6).
+- Timer — originally a per-session countdown ([ADR-0011](adr/0011-timer-authority.md), [ADR-0015](adr/0015-v1-scope-session-level-reveal-and-timer.md)), then replaced by elapsed-time stopwatch + unanimous auto-reveal ([ADR-0018](adr/0018-remove-timer-add-unanimous-reveal.md)):
+  - `round.timerStartedAt` written at round creation; all clients display elapsed time counting up.
+  - When all online voters have cast votes, any client writes `round.revealedAt` (unanimous auto-reveal). Host can also reveal manually at any time.
 - Host election ([ADR-0010](adr/0010-host-election.md)):
   - `settings.hostParticipantId` read and observed.
-  - Client-side liveness check: awareness has an entry for the current host? If not, start the 5-second debounce timer; if absence persists, the client with lowest peer ID writes itself into `hostParticipantId`.
+  - Client-side liveness check: awareness has an entry for the current host? If not, start the 5-second debounce; if absence persists, the client with lowest peer ID writes itself into `hostParticipantId`.
   - "Alice is now hosting" toast on change.
   - "No reclaim": prior host reconnecting after the handoff does not reclaim automatically.
-- Tests (where feasible):
-  - Unit: timer-remaining calculation, election-lowest-peer-ID logic.
+- Tests:
+  - Unit: election-lowest-peer-ID logic.
   - Integration: a "simulated disconnect" test that runs two Yjs peers and verifies host handoff.
 
-**ADRs touched.** None structurally; consumers of [0010](adr/0010-host-election.md) and [0011](adr/0011-timer-authority.md). Any surprise here triggers a superseding ADR before code lands.
+**ADRs touched.** [ADR-0018](adr/0018-remove-timer-add-unanimous-reveal.md) (supersedes 0011 and 0015); [ADR-0010](adr/0010-host-election.md) unchanged.
 
-**Risks.**
-- The idempotent-reveal fallback is genuinely subtle. It's worth writing a small simulation test (two peers, timer expires, assert `revealedAt` ends up with exactly one committed value even under races).
-- Background-tab throttling: if the host tab is backgrounded, its timer may fire late. Verify the fallback path actually kicks in.
-
-**Exit bar.** Kill the host client mid-round; within ~5 seconds, one of the other clients becomes host and the round continues. Run a timer-based round end-to-end; reveal fires reliably even if the host has been backgrounded.
+**Exit bar.** Kill the host client mid-round; within ~5 seconds, one of the other clients becomes host and the round continues.
 
 ---
 
@@ -256,7 +250,7 @@ These apply across phases; flagging them once here saves repeating per phase.
 
 **Logging.** Client: `console.debug` gated behind a boot-time flag. Relay: plain `console.log` with a small structured prefix; no log framework in v1.
 
-**Deploy.** Not in scope for this roadmap — a separate doc will capture how the relay is hosted, how the client is distributed (TestFlight for iOS, static hosting for PWA), and the operational checklist. Write that when Phase 6 lands.
+**Deploy.** Relay deployment is covered by [ADR-0029](adr/0029-relay-deployment.md): bare-metal VPS, Caddy reverse proxy, systemd, auto-TLS, single-origin `hnch.dev`. Bootstrap script, Caddyfile, and systemd unit live in `infra/`. Client distribution (TestFlight for iOS, static hosting for PWA) is post-v1.
 
 **ADR hygiene.** Any phase that discovers the architecture is under-specified writes a new ADR *before* the code that depends on it. The current roadmap flags two likely candidates: the ADR-0009 connection handshake (Phase 3) and the access-control wire details (Phase 5).
 

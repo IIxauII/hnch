@@ -1,6 +1,6 @@
 # ADR-0026: Deep-link URL format — `${appBaseUrl}/join?code=XXXXXX`
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-04-26
 **Deciders:** Xau
 

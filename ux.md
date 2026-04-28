@@ -497,7 +497,7 @@ After a round is revealed, all participants navigate from Estimating back to Lob
 - Subtitle summarizes settings (scale). Tapping subtitle opens Session settings sheet (also via ⋯ → **Session settings**). Discoverability affordance, not substitute for menu.
 - Show QR = secondary invite for co-located meetings. Opens `ion-modal` with full-screen QR encoding invite URL.
 - Participant list: viewers render with an `(observer)` suffix after their name. Voters have no suffix. Role is session-wide and visible in all three Lobby variants (ADR-0020).
-- Results section (`VoteResultsComponent`): each group = `ion-item-group` with vote value as large heading + `(N votes)` caption. Voters rendered as `ion-chip` row (avatar + name). Trailing muted groups: "Didn't vote" (voters who didn't cast a vote) and "Observers" (participants with `role = viewer`, per ADR-0020). Elapsed time shown below groups.
+- Results section (`VoteResultsComponent`): each group = `ion-item-group` with vote value as large heading + `(N votes)` caption. Voters rendered as `ion-chip` row (avatar + name). Trailing muted groups: "Didn't vote" (voters who didn't cast a vote) and "Observers" (participants with `role = viewer`, per ADR-0020). Elapsed time and stats (avg, median, agreement %) shown below groups. When all votes match, a "Consensus!" overlay animates in with haptic feedback and auto-dismisses after 3 seconds.
 - History (`RoundHistoryComponent`): compact one-liner per past revealed round (all revealed rounds except the latest), reverse chronological. Skipped when only one round revealed.
 - Footer when results shown (host only): **Re-vote** (reuses descriptor, creates new Round with `parentRoundId` = current, per ADR-0013) and **Next Round N** (opens round-start modal). Joiners see no footer — wait for host.
 - ⋯ menu: **Session settings**, **Leave session** (destructive), **End session for everyone** (destructive, host only).
@@ -896,8 +896,6 @@ All screens built with `ion-header` / `ion-footer` — Ionic handles safe-area i
 ## 8. Open UX questions
 
 Acknowledged gaps and deferred decisions. Not blocking v1 but should be answered (or re-deferred) before corresponding feature built.
-
-**Consensus indicator in Lobby results.** All votes match → celebratory state (checkmark, "Consensus!" banner, distinct haptic)? Consensus indicator: when all votes match, a full-screen "Consensus!" banner animates in with haptic feedback, then auto-dismisses.
 
 **Re-vote breadcrumb.** On re-voted round, the Lobby results section doesn't surface attempt count. `parentRoundId` in doc — could show "Round 2 • re-vote of Round 1." Deferred; resolve when designing optional session-history view (post-v1).
 

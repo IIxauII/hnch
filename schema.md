@@ -88,7 +88,7 @@ Each round's `Y.Map`:
 | `revealedAt?` | `number` | Unix milliseconds when the round was revealed. Written by the host (manual reveal) or by any client when all online participants have voted (unanimous auto-reveal, [ADR-0018](adr/0018-remove-timer-add-unanimous-reveal.md)). Absent means not yet revealed. |
 | `createdBy` | `string` | `participantId` of whoever created the round. |
 | `createdAt` | `number` | Unix milliseconds when the round was created. |
-| `votes` | `Y.Map<participantId, string>` | Votes keyed by participant. The value is the card face (e.g. `"5"`, `"M"`, `"High"`). Vote-change-before-reveal ([ADR-0013](adr/0013-round-model-flat-parentroundid.md)) is just overwriting this key. Only the final value is retained. |
+| `votes` | `Y.Map<participantId, string>` | Votes keyed by participant. The value is the card face (e.g. `"5"`, `"M"`, `"High"`). Vote-change-before-reveal ([ADR-0013](adr/0013-round-model-flat-parentroundid.md)) is just overwriting this key; tapping an already-selected card removes the key entirely (unvote). Only the final value at reveal time is retained. |
 
 Note: `revealMode` and `timerDurationMs` were removed in [ADR-0018](adr/0018-remove-timer-add-unanimous-reveal.md). Reveal is always manual + unanimous auto-reveal. `timerStartedAt` is retained as a stopwatch origin.
 

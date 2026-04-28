@@ -18,8 +18,10 @@ Implementation through Phase 6a (PWA polish) plus mobile-parity gap closure. Pha
 - `schema.md` — the Yjs doc schema. Authoritative for the *shape* of session state, cross-linked to the ADRs that justify each field.
 - `ux.md` — user experience design: screen inventory, flows, per-screen wireframes, interaction patterns, theming. The authoritative source for *what the user sees and does*. Cross-links to ADRs where UX decisions touch architecture.
 - `roadmap.md` — phased implementation plan from the current scaffold to a v1 candidate. A map, not a spec: each phase has a scope and an exit bar.
+- `cli.md` — CLI client (`@hnch/cli`) commands, conventions, and platform divergences from the mobile client (ADR-0021).
 - `angular.md` — Angular and TypeScript coding conventions for the client package: signals, standalone components, control-flow syntax, accessibility baseline, and other house rules. Consult before writing or reviewing client code.
 - `ionic.md` — Ionic-specific conventions: platform mode, dark mode / theming (class-based toggling via `ThemeService`), half-sheet modal pattern, component imports, icons, safe areas. Consult alongside `angular.md`.
+- `references.md` — canonical external resources (Angular, Yjs, Capacitor, Ionic, pnpm) for AI-assisted development. Point AI tools here for upstream best-practices context.
 - `adr/` — Architecture Decision Records. The authoritative source for *why* each structural choice was made, what alternatives were considered, and under what conditions a decision should be revisited. See `adr/README.md` for conventions and the index.
 
 ## ADR requirement
@@ -39,7 +41,7 @@ When proposing a code change that conflicts with an existing ADR, either adjust 
 
 ## Current decisions at a glance
 
-For quick orientation without reading all 19 ADRs:
+For quick orientation without reading all 29 ADRs:
 
 - **Architecture:** Yjs CRDTs synchronized via a content-blind y-websocket relay. No direct WebRTC. No authoritative session server. (ADR-0001, ADR-0003)
 - **Stack:** Angular + Ionic + Capacitor for the client; Node.js y-websocket relay for the server. (ADR-0002)
@@ -56,7 +58,15 @@ For quick orientation without reading all 19 ADRs:
 - **Password protection:** PBKDF2-SHA-256 via Web Crypto (100k iterations, room UUID as salt). Invite-only mode dropped from v1 scope. (ADR-0017)
 - **Scales:** 5 builtin presets (`fibonacci`, `t-shirt`, `powers-of-2`, `linear`, `risk`); `?` and `☕` sentinel cards removed. Device-local customization via `PresetOverrides` (toggle cards per preset) and `CustomScale` (arbitrary card set, ID prefixed `custom-`). Resolved client-side before writing to the doc — wire format is always flat `{ id, cards }`. (ADR-0019)
 - **Participant roles:** every participant has a `role` field on their doc record — `voter` (default) or `viewer`. Viewers excluded from unanimous auto-reveal denominator so observers don't block reveals; toggleable in-session. (ADR-0020)
-- **Repo layout:** pnpm workspaces monorepo with `packages/client`, `packages/relay`, `packages/shared`, `packages/e2e` (Playwright). (ADR-0014)
+- **CLI package:** `@hnch/cli` (`packages/cli`) is a terminal client built with Ink + yargs. Same relay protocol, doc schema, and session behavior as the mobile client — no feature delta. Identity uses `crypto.randomUUID()` (no Capacitor Device plugin) persisted to `~/.config/hnch/config.json`; Yjs doc is in-memory per invocation (relay snapshot carries continuity). (ADR-0021)
+- **Last-session cache:** the Jump-back-in banner on Home is backed by a `{ roomCode, roomUuid, lastSeenAt }` record stored locally; TTL aligned to the relay's 24-hour snapshot window. (ADR-0022)
+- **Session-end broadcast:** host ending the session writes `meta.sessionEndedAt` into the Yjs doc; all connected peers observe it and navigate home. (ADR-0023)
+- **Participant cap:** hard limit of 20 per room, enforced at WS upgrade with close code 4006. (ADR-0024)
+- **Reconnect / backoff:** y-websocket default reconnect behavior plus an `online` event hook to reset backoff immediately when network restores. (ADR-0025)
+- **Deep-link format:** `${appBaseUrl}/join?code=XXXXXX` — single query param, no fragment, configurable base URL per environment. (ADR-0026)
+- **Test-only relay surfaces:** `HNCH_ENABLE_TEST_ROUTES=1` mounts `DELETE /test/rooms/:uuid`; `HNCH_ROOM_CAP` lowers the participant cap for e2e tests. Both are frozen at boot — not re-read at runtime. (ADR-0027)
+- **Telemetry:** none in v1. No analytics, crash reporting, or usage tracking. (ADR-0028)
+- **Repo layout:** pnpm workspaces monorepo with `packages/client`, `packages/relay`, `packages/shared`, `packages/cli`, `packages/e2e` (Playwright). (ADR-0014, ADR-0021)
 - **Deployment:** relay runs bare-metal on a single IONOS VPS, supervised by systemd, fronted by Caddy with auto-TLS via Let's Encrypt. PWA + relay served from a single origin (`hnch.dev`) with Caddy routing `/health`, `/rooms*`, `/ws*` to `127.0.0.1:1234`. Bootstrap script + Caddyfile + systemd unit live in `infra/`. Deploy via the `deploy-relay.yml` workflow on `relay-v*` tags. (ADR-0029)
 
 ## Commit conventions
