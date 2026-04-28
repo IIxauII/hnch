@@ -1,6 +1,7 @@
 import type { Routes } from '@angular/router'
 
 import { displayNameGuard } from './core/display-name.guard'
+import { sessionResumeGuard } from './core/session-resume.guard'
 
 /**
  * Route table for hnch v1 per roadmap.md §3 and ux.md §3.
@@ -13,6 +14,15 @@ import { displayNameGuard } from './core/display-name.guard'
  * before the lazy chunk is fetched, so an un-onboarded user never
  * downloads a page they cannot yet use — they bounce to /onboarding,
  * and a /join deep-link is remembered for resumption post-onboarding.
+ *
+ * In-session routes (`lobby/:code`, `estimating/:code`) additionally
+ * run `sessionResumeGuard` which restores the Yjs session from the
+ * URL code on reload, so a page refresh lands back in-room rather than
+ * dropping the user on Home.
+ *
+ * Legacy parameterless variants (`lobby`, `estimating`) redirect to
+ * `/home` so old bookmarks fall through to the Jump-back-in banner
+ * instead of 404-ing.
  */
 export const routes: Routes = [
   {
@@ -30,16 +40,28 @@ export const routes: Routes = [
     canMatch: [displayNameGuard],
     loadComponent: () => import('./join/join.page').then((m) => m.JoinPage),
   },
+  // Parameterized in-session routes (canonical) — code in the URL enables
+  // session restore on reload via sessionResumeGuard.
   {
-    path: 'lobby',
-    canMatch: [displayNameGuard],
+    path: 'lobby/:code',
+    canMatch: [displayNameGuard, sessionResumeGuard],
     loadComponent: () => import('./lobby/lobby.page').then((m) => m.LobbyPage),
   },
   {
-    path: 'estimating',
-    canMatch: [displayNameGuard],
+    path: 'estimating/:code',
+    canMatch: [displayNameGuard, sessionResumeGuard],
     loadComponent: () =>
       import('./estimating/estimating.page').then((m) => m.EstimatingPage),
+  },
+  // Legacy parameterless variants — redirect to home so old bookmarks
+  // fall through to the Jump-back-in banner rather than 404-ing.
+  {
+    path: 'lobby',
+    redirectTo: 'home',
+  },
+  {
+    path: 'estimating',
+    redirectTo: 'home',
   },
   {
     path: 'settings',

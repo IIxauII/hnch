@@ -11,7 +11,6 @@ import { participantRole, type ParticipantSnapshot } from '@hnch/shared'
 import {
   ActionSheetController,
   AlertController,
-  IonBackButton,
   IonButton,
   IonButtons,
   IonCard,
@@ -27,12 +26,14 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone'
 import { addIcons } from 'ionicons'
-import { ellipsisHorizontalCircle } from 'ionicons/icons'
+import { chevronBackOutline, ellipsisHorizontalCircle } from 'ionicons/icons'
 
 import { ConnectionChipComponent } from '../core/connection-chip.component'
 import { DocService } from '../core/doc/doc.service'
 import { HapticService } from '../core/haptic.service'
 import { LastSessionService } from '../core/last-session.service'
+import { assertRoomCode } from '../core/room-join.service'
+import { shouldRecordCache } from '../core/cache-record-guard'
 import { ParticipantIdService } from '../core/participant-id.service'
 import { TimerTickService } from '../core/timer-tick.service'
 import { AvatarVoteRowComponent } from './avatar-vote-row.component'
@@ -58,7 +59,6 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
   imports: [
     AvatarVoteRowComponent,
     ConnectionChipComponent,
-    IonBackButton,
     IonButton,
     IonButtons,
     IonCard,
@@ -78,7 +78,15 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
     <ion-header>
       <ion-toolbar>
         <ion-buttons slot="start">
-          <ion-back-button defaultHref="/lobby"></ion-back-button>
+          <ion-button
+            aria-label="Back to lobby"
+            (click)="softExit()"
+          >
+            <ion-icon
+              slot="icon-only"
+              name="chevron-back-outline"
+            ></ion-icon>
+          </ion-button>
         </ion-buttons>
         <ion-title>Estimating</ion-title>
         <ion-buttons slot="end">
@@ -252,22 +260,39 @@ export class EstimatingPage {
   /** Suppresses toasts while navigating away; reset on re-entry. */
   protected readonly onPage = signal(true)
 
+  // Tracks the last uuid written to the cache so the effect does not
+  // re-fire on every Yjs doc mutation while connected to the same room.
+  // Reset to null when status leaves 'connected' so a reconnect
+  // re-writes and bumps the TTL.
+  private lastRecordedUuid: string | null = null
+
   constructor() {
-    addIcons({ 'ellipsis-horizontal-circle': ellipsisHorizontalCircle })
+    addIcons({
+      'chevron-back-outline': chevronBackOutline,
+      'ellipsis-horizontal-circle': ellipsisHorizontalCircle,
+    })
 
     // Bump `hnch.lastSession` so a reopen lands on Estimating rather
-    // than Lobby (plan §3.8). Safe to call unconditionally — the
-    // service no-ops if `roomCode` / `roomUuid` aren't populated (e.g.
-    // deep-link with no active session, which shouldn't happen).
-    const code = this.docService.roomCode()
-    const uuid = this.docService.meta()?.roomUuid
-    if (code && uuid) {
-      void this.lastSessionService.record({
-        roomCode: code,
-        roomUuid: uuid,
-        lastScreen: 'estimating',
-      })
-    }
+    // than Lobby (plan §3.8). Deduped via lastRecordedUuid so we don't
+    // write on every Yjs doc mutation while staying connected
+    // (ADR-0022 §5).
+    effect(() => {
+      const code = this.docService.roomCode()
+      const uuid = this.docService.meta()?.roomUuid
+      const status = this.docService.syncStatus()
+      if (status !== 'connected') {
+        this.lastRecordedUuid = null
+        return
+      }
+      if (shouldRecordCache(code, uuid, status, this.lastRecordedUuid)) {
+        this.lastRecordedUuid = uuid ?? null
+        void this.lastSessionService.record({
+          roomCode: code!,
+          roomUuid: uuid!,
+          lastScreen: 'estimating',
+        })
+      }
+    })
 
     // Auto-navigate to Lobby when `revealedAt` is written — covers
     // unanimous auto-reveal and host manual reveal. Scoped to this
@@ -275,7 +300,9 @@ export class EstimatingPage {
     effect(() => {
       const round = this.docService.currentRound()
       if (round?.revealedAt !== undefined) {
-        void this.router.navigate(['/lobby'], { replaceUrl: true })
+        const activeCode = this.docService.roomCode()
+        assertRoomCode(activeCode, 'estimating.autoNav')
+        void this.router.navigate(['/lobby', activeCode], { replaceUrl: true })
       }
     })
 
@@ -406,9 +433,21 @@ export class EstimatingPage {
     if (!round) return
     this.haptic.impactMedium()
     this.docService.revealRound(round.id)
+    const code = this.docService.roomCode()
+    assertRoomCode(code, 'estimating.onReveal')
     // replaceUrl: back-nav from Lobby (results view) should pop to the
     // screen before Estimating, not bounce back here (plan §3.10).
-    await this.router.navigate(['/lobby'], { replaceUrl: true })
+    await this.router.navigate(['/lobby', code], { replaceUrl: true })
+  }
+
+  /**
+   * Soft exit — back-chevron path. Navigates back to Lobby in the SAME
+   * session WITHOUT clearing the cache. Does not tear down the WebSocket.
+   */
+  protected softExit(): void {
+    const code = this.docService.roomCode()
+    assertRoomCode(code, 'estimating.softExit')
+    void this.router.navigate(['/lobby', code])
   }
 
   protected async openActionSheet(): Promise<void> {
@@ -416,7 +455,10 @@ export class EstimatingPage {
       {
         text: 'Session settings',
         handler: () => {
-          void this.router.navigate(['/lobby'])
+          // Navigate to lobby (session settings sheet lives there).
+          const code = this.docService.roomCode()
+          assertRoomCode(code, 'estimating.openActionSheet[Session settings]')
+          void this.router.navigate(['/lobby', code])
         },
       },
       {
@@ -458,13 +500,20 @@ export class EstimatingPage {
           role: 'destructive',
           handler: () => {
             this.haptic.impactHeavy()
-            this.docService.endSession()
-            void this.router.navigate(['/home'])
+            void this.leaveSession()
           },
         },
       ],
     })
     await alert.present()
+  }
+
+  private async leaveSession(): Promise<void> {
+    this.docService.endSession()
+    // Destructive leave — clear the cache so the Jump-back-in banner
+    // does not reappear.
+    await this.lastSessionService.clear()
+    await this.router.navigate(['/home'])
   }
 
   private async confirmEndSession(): Promise<void> {
