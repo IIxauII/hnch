@@ -32,7 +32,7 @@
     [
       "@semantic-release/exec",
       {
-        "publishCmd": "gh workflow run 'Deploy relay' --ref ${nextRelease.gitTag}"
+        "publishCmd": "gh workflow run deploy-relay.yml --ref ${nextRelease.gitTag}"
       }
     ],
     [

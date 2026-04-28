@@ -31,7 +31,7 @@ jobs:
           # pushed by semantic-release land on main. PAT also needs actions:write
           # so per-package publishCmd can dispatch deploy-*.yml via `gh workflow
           # run` (tag-push events from PATs are not reliably delivered to other
-          # workflows, so we explicitly dispatch instead — see ../../../packages/*/.releaserc.json).
+          # workflows, so we explicitly dispatch instead — see ../../packages/*/.releaserc.json).
           token: ${{ secrets.RELEASE_TOKEN }}
 
       - name: Enable Corepack
