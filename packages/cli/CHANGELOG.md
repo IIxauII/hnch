@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/IIxauII/hnch/compare/cli-v1.1.0...cli-v1.1.1) (2026-04-28)
+
+
+### Bug Fixes
+
+* **cli:** rename to @xauyxau/hnch (npm rejected unscoped name) ([#13](https://github.com/IIxauII/hnch/issues/13)) ([34555dd](https://github.com/IIxauII/hnch/commit/34555ddba3d068dc6640ed6e8752b10adfe06094))
+
 # [1.1.0](https://github.com/IIxauII/hnch/compare/cli-v1.0.0...cli-v1.1.0) (2026-04-28)
 
 
