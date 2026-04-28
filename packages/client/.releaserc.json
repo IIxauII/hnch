@@ -32,7 +32,7 @@
     [
       "@semantic-release/exec",
       {
-        "publishCmd": "echo 'TODO(deploy): publish client ${nextRelease.version} - PWA static host + TestFlight TBD per roadmap.md L259'"
+        "publishCmd": "echo 'client-v${nextRelease.version} tagged — deploy-client.yml will fire on tag push'"
       }
     ],
     [
