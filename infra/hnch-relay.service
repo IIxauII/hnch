@@ -31,7 +31,10 @@ ProtectControlGroups=true
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 RestrictNamespaces=true
 LockPersonality=true
-MemoryDenyWriteExecute=true
+# MemoryDenyWriteExecute is intentionally NOT set — incompatible with Node.js V8.
+# V8's baseline JIT compiler must allocate executable memory pages (mprotect),
+# and MDWE blocks that, causing immediate fatal "Check failed: 12 == errno" on
+# startup or first hot function. See ADR-0029 for the deployment context.
 ReadWritePaths=/opt/hnch-relay
 
 # Memory ceiling — kill if the process balloons past ~700 MB on the 1 GB VPS,
