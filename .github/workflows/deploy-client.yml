@@ -1,0 +1,140 @@
+name: Deploy client (PWA)
+
+# Triggered when semantic-release cuts a `client-vX.Y.Z` tag (see release.yml).
+# Builds the Angular/Ionic PWA, ships a tarball to the VPS, atomically swaps
+# the release symlink, and smoke-tests via https://hnch.dev/.
+#
+# Architecture + rollback: see infra/README.md and adr/0029-relay-deployment.md.
+# Caddy serves /var/www/hnch-client and follows the symlink at request time —
+# no Caddy reload needed on swap.
+
+on:
+  push:
+    tags:
+      - 'client-v*'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref to deploy (defaults to current ref)'
+        required: false
+
+# Serialize deploys — separate group from relay so client + relay can deploy
+# independently, but never two client deploys at once.
+concurrency:
+  group: deploy-client
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Build + ship PWA
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build @hnch/shared (consumed by client)
+        run: pnpm --filter @hnch/shared run build
+
+      - name: Build @hnch/client (production)
+        env:
+          NODE_ENV: production
+        run: pnpm --filter @hnch/client run build
+
+      - name: Post-build hygiene asserts
+        # Hard-fail on source-map leak (unambiguous misconfig). Warn-only on
+        # surviving console.log calls — Angular's terser strips them by
+        # default, but minified third-party deps can produce false positives.
+        # Flip to hard-fail once verified clean over a few real deploys.
+        run: |
+          set -euo pipefail
+          if find packages/client/www -name '*.map' | grep -q .; then
+            echo "ERROR: source maps leaked into production bundle" >&2
+            find packages/client/www -name '*.map' >&2
+            exit 1
+          fi
+          if grep -rIln 'console\.log' packages/client/www --include='*.js' | head -1 | grep -q .; then
+            echo "WARNING: console.log calls survived minification" >&2
+          fi
+          du -sh packages/client/www
+          find packages/client/www -name '*.js' -size +500k
+
+      - name: Pack tarball
+        id: pack
+        run: |
+          STAMP="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
+          TARBALL="hnch-client-${STAMP}.tar.gz"
+          tar -C packages/client -czf "${TARBALL}" www
+          echo "tarball=${TARBALL}" >> "$GITHUB_OUTPUT"
+          echo "stamp=${STAMP}" >> "$GITHUB_OUTPUT"
+
+      - name: Configure SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "${VPS_SSH_KEY}" > ~/.ssh/id_ed25519
+          chmod 0600 ~/.ssh/id_ed25519
+          ssh-keyscan -t ed25519 -H "${VPS_HOST}" >> ~/.ssh/known_hosts
+
+      - name: Ship tarball
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: |
+          scp -o StrictHostKeyChecking=yes "${TARBALL}" "${VPS_USER}@${VPS_HOST}:/tmp/${TARBALL}"
+
+      - name: Activate release on VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+          STAMP: ${{ steps.pack.outputs.stamp }}
+        run: |
+          ssh -o StrictHostKeyChecking=yes "${VPS_USER}@${VPS_HOST}" bash -se <<EOF
+          set -euo pipefail
+          BASE=/var/www
+          RELEASES="\${BASE}/hnch-client-releases"
+          TARGET="\${RELEASES}/release-${STAMP}"
+          mkdir -p "\${TARGET}"
+          tar -C "\${TARGET}" --strip-components=1 -xzf /tmp/${TARBALL}
+          rm /tmp/${TARBALL}
+          ln -sfn "\${TARGET}" "\${BASE}/hnch-client"
+          # Caddy follows the symlink on next request — no reload needed.
+          # Keep last 3 releases, prune older.
+          ls -1dt \${RELEASES}/release-* | tail -n +4 | xargs -r rm -rf
+          EOF
+
+      - name: Smoke test
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          # Give Caddy a moment to pick up the new symlink target. If the PWA
+          # index.html doesn't serve <app-root within ~10s, fail the job — the
+          # release is on the VPS but routing/symlink is wrong and operator
+          # attention is warranted.
+          for attempt in 1 2 3 4 5; do
+            if curl -fsS --max-time 5 https://hnch.dev/ | grep -q '<app-root'; then
+              echo "PWA index.html OK on attempt ${attempt}"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "PWA smoke test failed after 5 attempts" >&2
+          exit 1

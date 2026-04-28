@@ -94,6 +94,68 @@ If the VPS is destroyed or you migrate to a new one:
 
 The deploy public key in `infra/deploy.pub` keeps working unchanged — the bootstrap re-seeds it on the new box.
 
+## PWA static host
+
+The Angular/Ionic client is served from the same Caddy instance as the relay, on the same origin (`hnch.dev`). Per ADR-0029's single-origin commitment, this avoids CORS, mixed-origin cookie quirks, and split certs.
+
+### Layout
+
+```
+/var/www/
+  hnch-client            -> hnch-client-releases/release-<STAMP>   # symlink
+  hnch-client-releases/
+    release-2026-04-28T12-00-00Z/   # rsynced contents of packages/client/www
+    release-2026-04-29T...
+    ...                              # last 3 kept, older pruned by deploy job
+```
+
+Caddy's `root * /var/www/hnch-client` (see `Caddyfile`) follows the symlink at request time, so swapping it is the entire activation step. No `caddy reload`, no `systemctl restart` — `ln -sfn` is `rename(2)`-equivalent on Linux and atomic.
+
+The bootstrap script provisions the layout idempotently and migrates an existing real `/var/www/hnch-client` directory into `release-bootstrap` if it finds one, so first-run is safe on a box that previously hosted static content directly.
+
+### Deploy flow
+
+1. Merge to `main` with a `feat(client):` / `fix(client):` commit.
+2. `release.yml` runs semantic-release per package; if client scope changed, it cuts tag `client-vX.Y.Z`.
+3. `deploy-client.yml` triggers on `client-v*` tag push.
+4. Build job: `pnpm install --frozen-lockfile`, build `@hnch/shared` then `@hnch/client` in production mode, post-build hygiene checks (no source maps, size sanity), tar `packages/client/www` into `hnch-client-<STAMP>.tar.gz`.
+5. Deploy job: `scp` tarball to VPS, extract into `/var/www/hnch-client-releases/release-<STAMP>/`, swap the `/var/www/hnch-client` symlink, prune to last 3 releases.
+6. Smoke: `curl -fsS https://hnch.dev/` from CI; the response must contain `<app-root` or the job fails.
+
+No Caddy reload at any step — the symlink swap is the activation.
+
+### Cache rules
+
+The Caddyfile static handler distinguishes hashed assets from the SPA shell:
+
+- **Hashed assets** (Angular `outputHashing=all` produces names like `main.4a8f2c1b.js`) match `\.[a-f0-9]{8,}\.(js|css|woff2|woff|ttf|svg|png|jpg|webp|avif)$` and get `Cache-Control: public, max-age=31536000, immutable`.
+- **HTML and the bare root** match `*.html` / `/` and get `Cache-Control: no-cache, must-revalidate`, so the SPA shell always re-validates and a deploy is visible to clients on next navigation.
+
+Verify after a deploy:
+
+```sh
+curl -I https://hnch.dev/                                 # → no-cache, must-revalidate
+curl -I https://hnch.dev/main.<somehash>.js               # → max-age=31536000, immutable
+```
+
+### Rollback
+
+Releases live under `/var/www/hnch-client-releases/`; the deploy job keeps the last 3. To revert, swap the symlink back to a prior release:
+
+```sh
+ssh deploy@hnch.dev
+ls -1dt /var/www/hnch-client-releases/release-*           # list available releases, newest first
+ln -sfn /var/www/hnch-client-releases/release-<prior-stamp> /var/www/hnch-client
+```
+
+One command, no restart, no Caddy reload. The next request to `hnch.dev/` resolves the symlink to the prior release.
+
+If a bad release got tagged via semantic-release, also revert the offending commit on `main` so the next deploy doesn't re-publish the broken artifact.
+
+### Service worker / installable PWA — deferred
+
+v1 ships as a plain SPA. There is no service worker, no offline shell, and no `manifest.json`-driven install prompt. This is a deliberate scope cut: SW invalidation interacts non-trivially with cache-control and atomic swaps, and at v1 traffic the offline story is not yet a felt need. We will revisit if user feedback demands it — at which point the cache headers above and the symlink-swap mechanism will need a re-read against the SW lifecycle.
+
 ## Operational notes
 
 - **Memory ceiling.** The systemd unit sets `MemoryMax=700M`. If the relay is OOM-killed, raise the limit and investigate connection counts via `journalctl -u hnch-relay`.
