@@ -1,3 +1,16 @@
+# [1.2.0](https://github.com/IIxauII/hnch/compare/client-v1.1.2...client-v1.2.0) (2026-04-28)
+
+
+### Bug Fixes
+
+* **infra:** chown /var/www to deploy in bootstrap ([#21](https://github.com/IIxauII/hnch/issues/21)) ([f448dbc](https://github.com/IIxauII/hnch/commit/f448dbced96d63b83fa934da6165d6b26b507655))
+* **infra:** chown /var/www to deploy in bootstrap ([#22](https://github.com/IIxauII/hnch/issues/22)) ([1aa73aa](https://github.com/IIxauII/hnch/commit/1aa73aa040ac88db076486d103f82adcd53b058c))
+
+
+### Features
+
+* **client:** URL-parameterized in-session routes + session resume ([#23](https://github.com/IIxauII/hnch/issues/23)) ([eec01a6](https://github.com/IIxauII/hnch/commit/eec01a691cf314b09dce34025691ce2c856c0631))
+
 ## [1.1.2](https://github.com/IIxauII/hnch/compare/client-v1.1.1...client-v1.1.2) (2026-04-28)
 
 
