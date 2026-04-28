@@ -51,6 +51,13 @@ jobs:
         env:
           # PAT (not GITHUB_TOKEN) so the tag push triggers deploy-relay.yml.
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          # npm granular automation token, used by @semantic-release/npm in
+          # cli's releaserc (npmPublish: true). Other packages stay private.
+          # Trusted Publishing (OIDC) was the preferred auth, but npm only
+          # exposes the publisher binding UI per-package after the first
+          # publish — so we bootstrap with a token, then migrate to OIDC
+          # once the `hnch` package exists on the registry.
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           # If one package's release fails, later packages are skipped. semantic-release is idempotent on tags, so re-running the workflow after fixing the failure resumes safely.
           set -euo pipefail
