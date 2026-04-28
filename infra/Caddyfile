@@ -32,6 +32,20 @@ hnch.dev {
 	handle {
 		root * /var/www/hnch-client
 		try_files {path} /index.html
+
+		# Cache-Control:
+		# - hashed JS/CSS/font/image assets (Angular outputHashing=all): immutable, 1 year
+		# - everything else (index.html, SPA deep-link routes that try_files rewrites
+		#   to /index.html, bare root): must-revalidate so SPA shell stays fresh.
+		# Inverted matcher guarantees every non-asset response gets no-cache regardless
+		# of try_files rewrite ordering relative to header directive evaluation.
+		# Hash charset is [A-Za-z0-9] for forward compat with esbuild base32 hashes
+		# (Angular webpack browser builder currently emits lowercase hex).
+		@hashed path_regexp \.[A-Za-z0-9]{8,}\.(js|css|woff2|woff|ttf|svg|png|jpg|webp|avif)$
+		@notHashed not path_regexp \.[A-Za-z0-9]{8,}\.(js|css|woff2|woff|ttf|svg|png|jpg|webp|avif)$
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		header @notHashed Cache-Control "no-cache, must-revalidate"
+
 		file_server
 	}
 
@@ -41,6 +55,3 @@ hnch.dev {
 		format json
 	}
 }
-
-# Redirect bare HTTP to HTTPS. Caddy does this automatically when a site block
-# uses an HTTPS-eligible hostname, but stating it explicitly here aids review.

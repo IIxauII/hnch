@@ -13,6 +13,17 @@
         "plugin:@angular-eslint/template/process-inline-templates"
       ],
       "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@ionic/angular",
+                "message": "Use '@ionic/angular/standalone' instead. Direct '@ionic/angular' imports include IonicModule and bypass tree-shaking."
+              }
+            ]
+          }
+        ],
         "@angular-eslint/prefer-standalone": "off",
         "@angular-eslint/component-class-suffix": [
           "error",

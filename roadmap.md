@@ -256,7 +256,7 @@ These apply across phases; flagging them once here saves repeating per phase.
 
 **Logging.** Client: `console.debug` gated behind a boot-time flag. Relay: plain `console.log` with a small structured prefix; no log framework in v1.
 
-**Deploy.** Not in scope for this roadmap — a separate doc will capture how the relay is hosted, how the client is distributed (TestFlight for iOS, static hosting for PWA), and the operational checklist. Write that when Phase 6 lands.
+**Deploy.** Relay and PWA both ship to a single IONOS VPS fronted by Caddy on `hnch.dev` (ADR-0029). Operational details — first-time bootstrap, deploy flow, cache rules, rollback — live in [`infra/README.md`](infra/README.md). TestFlight distribution for the native iOS build is the remaining open item; that lands with Phase 6b.
 
 **ADR hygiene.** Any phase that discovers the architecture is under-specified writes a new ADR *before* the code that depends on it. The current roadmap flags two likely candidates: the ADR-0009 connection handshake (Phase 3) and the access-control wire details (Phase 5).
 
