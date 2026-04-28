@@ -112,6 +112,13 @@ chmod 0600 "${AUTH_KEYS}"
 install -d -m 0755 -o "${DEPLOY_USER}" -g "${DEPLOY_USER}" "${RELAY_BASE}"
 install -d -m 0755 -o "${DEPLOY_USER}" -g "${DEPLOY_USER}" "${RELAY_RELEASES}"
 
+# /var/www itself must be deploy-writable: the PWA symlink at
+# /var/www/hnch-client lives directly under /var/www, and `ln -sfn` (which the
+# deploy workflow uses to swap releases) needs write permission on the parent
+# dir, not on the symlink itself. Without this, the deploy job fails with
+# "ln: failed to create symbolic link '/var/www/hnch-client': Permission denied".
+install -d -m 0755 -o "${DEPLOY_USER}" -g "${DEPLOY_USER}" /var/www
+
 # Client release tree (idempotent). The release-bootstrap dir and its placeholder
 # index.html are seeded *conditionally* below — depending on what's currently at
 # ${CLIENT_DIR} — so we never write a placeholder next to real migrated assets.
