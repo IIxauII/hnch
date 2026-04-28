@@ -1,3 +1,10 @@
+## [1.1.2](https://github.com/IIxauII/hnch/compare/client-v1.1.1...client-v1.1.2) (2026-04-28)
+
+
+### Bug Fixes
+
+* **client:** bump appVersion to current package version ([#20](https://github.com/IIxauII/hnch/issues/20)) ([d781b07](https://github.com/IIxauII/hnch/commit/d781b07913ec88a61f6bb8f863a7ffd7ba301cbc))
+
 ## [1.1.1](https://github.com/IIxauII/hnch/compare/client-v1.1.0...client-v1.1.1) (2026-04-28)
 
 
