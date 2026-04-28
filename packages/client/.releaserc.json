@@ -32,7 +32,7 @@
     [
       "@semantic-release/exec",
       {
-        "publishCmd": "echo 'client-v${nextRelease.version} tagged — deploy-client.yml will fire on tag push'"
+        "publishCmd": "gh workflow run 'Deploy client (PWA)' --ref ${nextRelease.gitTag}"
       }
     ],
     [

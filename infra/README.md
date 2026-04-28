@@ -62,7 +62,7 @@ The private key never leaves the keypair file → GH secret. Do not commit it. T
 
 1. Merge to `main` with a `feat(relay):` / `fix(relay):` commit.
 2. `release.yml` runs semantic-release per package; if relay scope changed, it cuts tag `relay-vX.Y.Z`.
-3. `deploy-relay.yml` triggers on `relay-v*` tag push.
+3. After pushing the tag, semantic-release's `publishCmd` (`packages/relay/.releaserc.json`) runs `gh workflow run "Deploy relay" --ref relay-vX.Y.Z` — explicitly dispatches the deploy workflow. Tag-push events from PATs are not reliably delivered to other workflows, so dispatch is explicit.
 4. Build job: `pnpm install --frozen-lockfile`, `pnpm --filter @hnch/relay build`, bundle `dist/` + `package.json` + production `node_modules` into a tarball.
 5. Deploy job: `scp` tarball to VPS, extract into a timestamped directory under `/opt/hnch-relay-releases/`, swap the `/opt/hnch-relay` symlink, `sudo systemctl restart hnch-relay`.
 6. Smoke: `curl -fsS https://hnch.dev/health` from CI; non-200 fails the job.
@@ -117,7 +117,7 @@ The bootstrap script provisions the layout idempotently and migrates an existing
 
 1. Merge to `main` with a `feat(client):` / `fix(client):` commit.
 2. `release.yml` runs semantic-release per package; if client scope changed, it cuts tag `client-vX.Y.Z`.
-3. `deploy-client.yml` triggers on `client-v*` tag push.
+3. After pushing the tag, semantic-release's `publishCmd` (`packages/client/.releaserc.json`) runs `gh workflow run "Deploy client (PWA)" --ref client-vX.Y.Z` — explicit dispatch (see relay flow note above).
 4. Build job: `pnpm install --frozen-lockfile`, build `@hnch/shared` then `@hnch/client` in production mode, post-build hygiene checks (no source maps, size sanity), tar `packages/client/www` into `hnch-client-<STAMP>.tar.gz`.
 5. Deploy job: `scp` tarball to VPS, extract into `/var/www/hnch-client-releases/release-<STAMP>/`, swap the `/var/www/hnch-client` symlink, prune to last 3 releases.
 6. Smoke: `curl -fsS https://hnch.dev/` from CI; the response must contain `<app-root` or the job fails.

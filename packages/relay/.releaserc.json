@@ -30,6 +30,12 @@
       }
     ],
     [
+      "@semantic-release/exec",
+      {
+        "publishCmd": "gh workflow run 'Deploy relay' --ref ${nextRelease.gitTag}"
+      }
+    ],
+    [
       "@semantic-release/git",
       {
         "assets": ["packages/relay/package.json", "packages/relay/CHANGELOG.md"],
