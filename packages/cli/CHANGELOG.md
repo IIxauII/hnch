@@ -1,3 +1,10 @@
+## [1.1.2](https://github.com/IIxauII/hnch/compare/cli-v1.1.1...cli-v1.1.2) (2026-04-28)
+
+
+### Bug Fixes
+
+* **cli:** default relay URL to https:// (fixes 'fetch failed' on hnch create) ([#15](https://github.com/IIxauII/hnch/issues/15)) ([f1d2be4](https://github.com/IIxauII/hnch/commit/f1d2be47b4b9166e2cec619b35ba01974f6f038b))
+
 ## [1.1.1](https://github.com/IIxauII/hnch/compare/cli-v1.1.0...cli-v1.1.1) (2026-04-28)
 
 
