@@ -24,6 +24,13 @@
             ]
           }
         ],
+        "no-restricted-syntax": [
+          "error",
+          {
+            "selector": "ImportExpression[source.value='@ionic/angular']",
+            "message": "Use '@ionic/angular/standalone' instead. Dynamic '@ionic/angular' imports also pull in IonicModule."
+          }
+        ],
         "@angular-eslint/prefer-standalone": "off",
         "@angular-eslint/component-class-suffix": [
           "error",
