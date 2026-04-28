@@ -48,3 +48,6 @@ Thumbs.db
 
 # Claude Code per-user settings (not committed)
 .claude/settings.local.json
+
+# Node.js compile cache
+node-compile-cache/
