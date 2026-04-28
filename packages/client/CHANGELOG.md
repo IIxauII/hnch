@@ -1,3 +1,20 @@
+# [1.1.0](https://github.com/IIxauII/hnch/compare/client-v1.0.0...client-v1.1.0) (2026-04-28)
+
+
+### Bug Fixes
+
+* **ci:** reorder semantic-release rules so scoped commits release ([#7](https://github.com/IIxauII/hnch/issues/7)) ([a5bdbf3](https://github.com/IIxauII/hnch/commit/a5bdbf38d4b14224a9207d2f9faf1467a2e790da))
+* **cli:** default relay URL to https:// (fixes 'fetch failed' on hnch create) ([#15](https://github.com/IIxauII/hnch/issues/15)) ([f1d2be4](https://github.com/IIxauII/hnch/commit/f1d2be47b4b9166e2cec619b35ba01974f6f038b))
+* **cli:** rename to @xauyxau/hnch (npm rejected unscoped name) ([#13](https://github.com/IIxauII/hnch/issues/13)) ([34555dd](https://github.com/IIxauII/hnch/commit/34555ddba3d068dc6640ed6e8752b10adfe06094))
+* **infra:** drop MemoryDenyWriteExecute from relay systemd unit (V8 incompatibility) ([#11](https://github.com/IIxauII/hnch/issues/11)) ([b1c34d4](https://github.com/IIxauII/hnch/commit/b1c34d4de5eabb8c4936892e53aa514fbe1e75ef))
+
+
+### Features
+
+* **client:** wire PWA prod deploy to hnch.dev VPS ([#17](https://github.com/IIxauII/hnch/issues/17)) ([0f3ef64](https://github.com/IIxauII/hnch/commit/0f3ef64bbf8dfd0083a3e8783bb718b0dafec02d))
+* **cli:** wire npm publish for @hnch/cli ([#12](https://github.com/IIxauII/hnch/issues/12)) ([6028946](https://github.com/IIxauII/hnch/commit/6028946a3f0a37da4dbf422b6f7837e8f3650cf5))
+* **relay:** wire production deployment (ADR-0029) ([#6](https://github.com/IIxauII/hnch/issues/6)) ([ed47efe](https://github.com/IIxauII/hnch/commit/ed47efe93d734471d8ca470d0f09c17da4b15ad0))
+
 # 1.0.0 (2026-04-27)
 
 
