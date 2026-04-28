@@ -28,7 +28,8 @@ export const displayNameGuard: CanMatchFn = async (_route, segments) => {
     return true
   }
 
-  if (segments[0]?.path === 'join') {
+  const firstSegment = segments[0]?.path
+  if (firstSegment === 'join') {
     // Capture the incoming URL with its query string so onboarding can
     // resume the deep-link. `router.getCurrentNavigation()` is populated
     // while a navigation is in flight and exposes the original URL tree
@@ -37,6 +38,14 @@ export const displayNameGuard: CanMatchFn = async (_route, segments) => {
     const incoming = nav?.extractedUrl ?? nav?.finalUrl
     const url = incoming ? incoming.toString() : '/join'
     await displayNameService.setPendingJoinUrl(url)
+  } else if (firstSegment === 'lobby' || firstSegment === 'estimating') {
+    // Cold-install opening /lobby/:code or /estimating/:code (e.g. shared
+    // link). Rewrite through /join?code=CODE so post-onboarding flow uses
+    // the existing JoinPage path rather than jumping directly into the
+    // session-resume guard which needs a display name to rejoin.
+    const code = segments[1]?.path
+    const redirectUrl = code ? `/join?code=${encodeURIComponent(code)}` : '/join'
+    await displayNameService.setPendingJoinUrl(redirectUrl)
   }
 
   return router.createUrlTree(['/onboarding'])

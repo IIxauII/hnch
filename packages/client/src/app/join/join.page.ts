@@ -337,7 +337,11 @@ export class JoinPage {
         { roomUuid: uuid },
       )
 
-      await this.router.navigate(['/lobby'])
+      const roomCode = this.docService.roomCode()
+      if (!roomCode) {
+        throw new Error('join.page submit: docService.roomCode() is null after joinSession — programming error')
+      }
+      await this.router.navigate(['/lobby', roomCode])
     } catch (err) {
       if (err instanceof RelayRejectionError) {
         await this.showRejectionToast(err.reason)
