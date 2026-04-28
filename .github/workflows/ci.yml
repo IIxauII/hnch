@@ -36,16 +36,16 @@ jobs:
         run: pnpm --filter @hnch/shared run build
 
       - name: Typecheck
-        run: pnpm --filter @hnch/${{ matrix.package }} run --if-present typecheck
+        run: pnpm --filter ./packages/${{ matrix.package }} run --if-present typecheck
 
       - name: Lint
-        run: pnpm --filter @hnch/${{ matrix.package }} run --if-present lint
+        run: pnpm --filter ./packages/${{ matrix.package }} run --if-present lint
 
       - name: Unit tests
-        run: pnpm --filter @hnch/${{ matrix.package }} run --if-present test
+        run: pnpm --filter ./packages/${{ matrix.package }} run --if-present test
 
       - name: Build
-        run: pnpm --filter @hnch/${{ matrix.package }} run --if-present build
+        run: pnpm --filter ./packages/${{ matrix.package }} run --if-present build
 
   version-audit:
     name: Version audit

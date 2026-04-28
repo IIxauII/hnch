@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 /**
  * hnch CLI — terminal client for pointing poker.
  *
