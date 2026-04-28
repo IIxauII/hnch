@@ -11,40 +11,135 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  detect-changes:
+    name: Detect changed packages
+    runs-on: ubuntu-latest
+    outputs:
+      shared: ${{ steps.filter.outputs.shared }}
+      relay: ${{ steps.filter.outputs.relay }}
+      client: ${{ steps.filter.outputs.client }}
+      cli: ${{ steps.filter.outputs.cli }}
+      e2e: ${{ steps.filter.outputs.e2e }}
+      root: ${{ steps.filter.outputs.root }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: filter
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          else
+            base="${{ github.event.before }}"
+          fi
+
+          # Defensive: if base is unset/zero (first push, force-push), assume everything changed.
+          if [[ -z "$base" || "$base" == "0000000000000000000000000000000000000000" ]]; then
+            echo "No usable base SHA; treating as full-pipeline run."
+            for v in shared relay client cli e2e root; do
+              echo "$v=true" >> "$GITHUB_OUTPUT"
+            done
+            exit 0
+          fi
+
+          changed=$(git diff --name-only "$base"...HEAD)
+          echo "Changed files since $base:"
+          echo "$changed"
+
+          match() { echo "$changed" | grep -qE "$1"; }
+
+          root=false
+          shared=false
+          relay=false
+          client=false
+          cli=false
+          e2e=false
+
+          if match '^(pnpm-lock\.yaml|package\.json|tsconfig.*\.json|\.github/workflows/)'; then
+            root=true
+          fi
+          match '^packages/shared/' && shared=true || true
+          match '^packages/relay/'  && relay=true  || true
+          match '^packages/client/' && client=true || true
+          match '^packages/cli/'    && cli=true    || true
+          match '^packages/e2e/'    && e2e=true    || true
+
+          # Reverse-deps: shared change fans into all consumers.
+          if [[ "$shared" == "true" ]]; then
+            relay=true; client=true; cli=true; e2e=true
+          fi
+          # client or relay change requires e2e.
+          if [[ "$client" == "true" || "$relay" == "true" ]]; then
+            e2e=true
+          fi
+          # Root files force the full pipeline.
+          if [[ "$root" == "true" ]]; then
+            shared=true; relay=true; client=true; cli=true; e2e=true
+          fi
+
+          for v in shared relay client cli e2e root; do
+            echo "$v=${!v}" >> "$GITHUB_OUTPUT"
+          done
+
   verify:
     name: Verify (${{ matrix.package }})
     runs-on: ubuntu-latest
+    needs: detect-changes
     strategy:
       fail-fast: true
       matrix:
         package: [shared, relay, client, cli]
     steps:
-      - uses: actions/checkout@v4
+      - id: gate
+        run: |
+          case "${{ matrix.package }}" in
+            shared) run="${{ needs.detect-changes.outputs.shared }}" ;;
+            relay)  run="${{ needs.detect-changes.outputs.relay }}"  ;;
+            client) run="${{ needs.detect-changes.outputs.client }}" ;;
+            cli)    run="${{ needs.detect-changes.outputs.cli }}"    ;;
+          esac
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          if [[ "$run" != "true" ]]; then
+            echo "::notice::Skipping verify for ${{ matrix.package }} — no relevant changes."
+          fi
+
+      - if: steps.gate.outputs.run == 'true'
+        uses: actions/checkout@v4
 
       - name: Enable Corepack
+        if: steps.gate.outputs.run == 'true'
         run: corepack enable
 
-      - uses: actions/setup-node@v4
+      - if: steps.gate.outputs.run == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
 
       - name: Install
+        if: steps.gate.outputs.run == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Build @hnch/shared (consumed by other packages)
+        if: steps.gate.outputs.run == 'true'
         run: pnpm --filter @hnch/shared run build
 
       - name: Typecheck
+        if: steps.gate.outputs.run == 'true'
         run: pnpm --filter ./packages/${{ matrix.package }} run --if-present typecheck
 
       - name: Lint
+        if: steps.gate.outputs.run == 'true'
         run: pnpm --filter ./packages/${{ matrix.package }} run --if-present lint
 
       - name: Unit tests
+        if: steps.gate.outputs.run == 'true'
         run: pnpm --filter ./packages/${{ matrix.package }} run --if-present test
 
       - name: Build
+        if: steps.gate.outputs.run == 'true'
         run: pnpm --filter ./packages/${{ matrix.package }} run --if-present build
 
   version-audit:
@@ -85,7 +180,8 @@ jobs:
   e2e:
     name: E2E (Playwright)
     runs-on: ubuntu-latest
-    needs: verify
+    needs: [detect-changes, verify]
+    if: needs.detect-changes.outputs.e2e == 'true'
     steps:
       - uses: actions/checkout@v4
 
