@@ -140,3 +140,7 @@ What we give up: a graceful-restart story, a horizontal-scale story, and any bui
 - [ ] Smoke test: `curl -fsS https://hnch.dev/health` returns 200 after the first deploy.
 - [ ] Update `CLAUDE.md` "Current decisions at a glance" with a one-line entry referencing this ADR (the ADR author cannot edit `CLAUDE.md` directly — flag for orchestrator).
 - [ ] After two weeks of production traffic, capture an RSS-over-time graph and re-evaluate whether the abuse-mitigation ADR needs to be brought forward.
+
+## Status notes
+
+**2026-04-28 — PWA static host realized.** The PWA layout described in §Consequences ("just another Caddyfile route block plus rsync target") is now wired: `/var/www/hnch-client` symlink → release dirs under `/var/www/hnch-client-releases/`, `deploy-client.yml` mirrors `deploy-relay.yml` on `client-v*` tags, atomic activation via symlink swap (no Caddy reload). Service worker / installable PWA deferred from v1 (plain SPA only). See `infra/README.md` and `plans/plan-pwa-deploy.md`.
