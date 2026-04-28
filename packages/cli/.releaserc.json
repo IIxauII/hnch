@@ -21,18 +21,12 @@
     "@semantic-release/release-notes-generator",
     [
       "@semantic-release/npm",
-      { "npmPublish": false, "pkgRoot": "packages/cli" }
+      { "npmPublish": true, "pkgRoot": "packages/cli" }
     ],
     [
       "@semantic-release/changelog",
       {
         "changelogFile": "packages/cli/CHANGELOG.md"
-      }
-    ],
-    [
-      "@semantic-release/exec",
-      {
-        "publishCmd": "echo 'TODO(deploy): publish cli ${nextRelease.version} - npm registry vs binary TBD'"
       }
     ],
     [

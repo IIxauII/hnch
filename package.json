@@ -15,7 +15,7 @@
     "build": "pnpm -r --if-present run build",
     "dev:client": "pnpm --filter @hnch/client dev",
     "dev:relay": "pnpm --filter @hnch/relay dev",
-    "dev:cli": "pnpm --filter @hnch/cli dev",
+    "dev:cli": "pnpm --filter hnch dev",
     "typecheck": "pnpm -r --if-present run typecheck",
     "test:e2e": "pnpm --filter @hnch/e2e test",
     "audit:versions": "node scripts/audit-versions.mjs",
