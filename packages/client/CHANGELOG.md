@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/IIxauII/hnch/compare/client-v1.1.0...client-v1.1.1) (2026-04-28)
+
+
+### Bug Fixes
+
+* **client:** close ionic dynamic-import lint bypass ([#18](https://github.com/IIxauII/hnch/issues/18)) ([aaffaa0](https://github.com/IIxauII/hnch/commit/aaffaa0b2fd2a2000b2e4812ab5d12ebf6025d56))
+
 # [1.1.0](https://github.com/IIxauII/hnch/compare/client-v1.0.0...client-v1.1.0) (2026-04-28)
 
 
