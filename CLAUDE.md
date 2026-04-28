@@ -57,7 +57,7 @@ For quick orientation without reading all 19 ADRs:
 - **Scales:** 5 builtin presets (`fibonacci`, `t-shirt`, `powers-of-2`, `linear`, `risk`); `?` and `☕` sentinel cards removed. Device-local customization via `PresetOverrides` (toggle cards per preset) and `CustomScale` (arbitrary card set, ID prefixed `custom-`). Resolved client-side before writing to the doc — wire format is always flat `{ id, cards }`. (ADR-0019)
 - **Participant roles:** every participant has a `role` field on their doc record — `voter` (default) or `viewer`. Viewers excluded from unanimous auto-reveal denominator so observers don't block reveals; toggleable in-session. (ADR-0020)
 - **Repo layout:** pnpm workspaces monorepo with `packages/client`, `packages/relay`, `packages/shared`, `packages/e2e` (Playwright). (ADR-0014)
-- **Deployment:** relay runs bare-metal on a single IONOS VPS, supervised by systemd, fronted by Caddy with auto-TLS via Let's Encrypt. PWA + relay served from a single origin (`hnch.dev`) with Caddy routing `/health`, `/rooms*`, `/ws*` to `127.0.0.1:1234`. Bootstrap script + Caddyfile + systemd unit live in `infra/`. Deploy via the `deploy-relay.yml` workflow on `relay-v*` tags. (ADR-0029)
+- **Deployment:** relay runs bare-metal on a single IONOS VPS, supervised by systemd, fronted by Caddy with auto-TLS via Let's Encrypt. PWA + relay served from a single origin (`hnch.dev`) with Caddy routing `/health`, `/rooms*`, `/ws*` to `127.0.0.1:1234`. Bootstrap script + Caddyfile + systemd unit live in `infra/`. Relay deploys via `deploy-relay.yml` on `relay-v*` tags; PWA deploys via `deploy-client.yml` on `client-v*` tags, shipping to `/var/www/hnch-client/` via atomic symlink swap (no reload). (ADR-0029)
 
 ## Commit conventions
 
