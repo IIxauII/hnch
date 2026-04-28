@@ -27,6 +27,11 @@ jobs:
           # next version per package.
           fetch-depth: 0
           persist-credentials: true
+          # Authenticate with RELEASE_TOKEN (fine-grained PAT) so commits + tags
+          # pushed by semantic-release trigger downstream workflows like
+          # deploy-relay.yml. Tags pushed under GITHUB_TOKEN are intentionally
+          # blocked by GitHub from firing other workflows (anti-loop guardrail).
+          token: ${{ secrets.RELEASE_TOKEN }}
 
       - name: Enable Corepack
         run: corepack enable
@@ -44,7 +49,8 @@ jobs:
 
       - name: Run semantic-release per package (sequential)
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # PAT (not GITHUB_TOKEN) so the tag push triggers deploy-relay.yml.
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
           # If one package's release fails, later packages are skipped. semantic-release is idempotent on tags, so re-running the workflow after fixing the failure resumes safely.
           set -euo pipefail
