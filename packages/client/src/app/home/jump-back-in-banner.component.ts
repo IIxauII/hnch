@@ -31,7 +31,7 @@ export interface JumpBackInSummary {
   template: `
     <ion-card
       button
-      [disabled]="resuming()"
+      [disabled]="resuming() && !stale()"
       [class.stale]="stale()"
       (click)="resumeRequested.emit()"
     >

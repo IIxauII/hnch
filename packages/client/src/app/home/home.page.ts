@@ -1,9 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  effect,
   inject,
-  Injector,
   signal,
   viewChild,
 } from '@angular/core'
@@ -42,7 +40,8 @@ import {
 } from '../core/last-session.service'
 import { ParticipantIdService } from '../core/participant-id.service'
 import { ScalePreferenceService } from '../core/scale-preference.service'
-import { mintRoom, patchRoomAccess, resolveRoom, RelayRejectionError } from '../core/relay/relay-api'
+import { mintRoom, patchRoomAccess } from '../core/relay/relay-api'
+import { assertRoomCode, RoomJoinService } from '../core/room-join.service'
 import {
   JumpBackInBannerComponent,
   type JumpBackInSummary,
@@ -184,7 +183,7 @@ export class HomePage {
   private readonly scalePrefs = inject(ScalePreferenceService)
   private readonly lastSessionService = inject(LastSessionService)
   private readonly docService = inject(DocService)
-  private readonly injector = inject(Injector)
+  private readonly roomJoinService = inject(RoomJoinService)
 
   /**
    * Summary passed into the banner. `null` means "no banner" — either
@@ -239,6 +238,10 @@ export class HomePage {
     void this.loadBannerFromCache()
   }
 
+  ionViewWillEnter(): void {
+    void this.loadBannerFromCache()
+  }
+
   protected async onCreateRoom(): Promise<void> {
     // Guard against double-tap; both Preferences reads are async.
     if (this.creating) return
@@ -289,7 +292,7 @@ export class HomePage {
         const modal = this.passwordModalRef()
         if (modal) void presentSheet({ modal })
       } else {
-        await this.router.navigate(['/lobby'])
+        await this.router.navigate(['/lobby', minted.code])
       }
     } finally {
       this.creating = false
@@ -309,17 +312,20 @@ export class HomePage {
    * `waitForJoinOutcome` race.
    */
   protected async onResumeJumpBack(): Promise<void> {
+    // Stale-clear is idempotent and doesn't need the resuming guard: the
+    // first tap may still be in-flight (awaiting toast.present) when the
+    // user taps again, so checking stale *before* the resuming guard lets
+    // the second tap reliably clear the banner even if resuming() is still
+    // true from the first tap's finally block not having run yet.
+    if (this.jumpBackInStale()) {
+      await this.lastSessionService.clear()
+      this.jumpBackInSummary.set(null)
+      this.jumpBackInStale.set(false)
+      return
+    }
     if (this.resuming()) return
     this.resuming.set(true)
     try {
-      // If banner is already marked stale, tapping it again clears the entry.
-      if (this.jumpBackInStale()) {
-        await this.lastSessionService.clear()
-        this.jumpBackInSummary.set(null)
-        this.jumpBackInStale.set(false)
-        return
-      }
-
       // Re-read the cache at tap time rather than trusting the signal:
       // the entry may have aged past TTL since the banner first
       // rendered (cold-start banners that idle for 24 h), and re-reading
@@ -331,45 +337,11 @@ export class HomePage {
         return
       }
 
-      try {
-        await resolveRoom(
-          this.appPrefs.relayHttpUrl() ?? environment.relayHttpUrl,
-          cache.roomCode,
-        )
-      } catch (err) {
-        if (err instanceof RelayRejectionError && err.reason === 'unknown-room') {
-          this.jumpBackInStale.set(true)
-          // Fire-and-forget: don't await so resuming resets before the
-          // animation finishes, allowing a second tap to clear the entry.
-          void this.toast(
-            "That session isn't active anymore. Start a new one or join a fresh code.",
-          )
-          return
-        }
-        // Any other error (network down, malformed response): fall through
-        // to the existing WS attempt, which will time out and the user can retry.
-      }
+      const outcome = await this.roomJoinService.rejoin(
+        cache.roomCode,
+      )
 
-      const [displayName, participantId] = await Promise.all([
-        this.displayNameService.getDisplayName(),
-        this.participantIdService.getOrCreateId(),
-      ])
-
-      this.docService.endSession()
-      this.docService.createSession({
-        participantId,
-        displayName: displayName ?? '',
-        defaultScale: this.scalePrefs.defaultScale(),
-        roomUuid: cache.roomUuid,
-        roomCode: cache.roomCode,
-      })
-      this.docService.connect({
-        roomCode: cache.roomCode,
-        deviceId: participantId,
-      })
-
-      const outcome = await this.waitForJoinOutcome()
-      if (outcome === 'unknown-room') {
+      if (outcome.type === 'unknown-room') {
         // Relay has forgotten this room (ADR-0012's TTL lapsed or the
         // server restarted). Mark banner as stale instead of immediately
         // clearing — it renders dimmed and a second tap clears it.
@@ -380,16 +352,35 @@ export class HomePage {
         )
         return
       }
-      if (typeof outcome === 'string' && outcome !== 'connected' && outcome !== 'timeout') {
-        // Phase-5 rejection reasons land here once enforcement is on.
-        // For now we log and stay — a useful fallback should `connect`
-        // ever surface an unexpected reason from the relay mid-Phase 3.
-        this.docService.endSession()
-        await this.toast(rejectionCopy(outcome))
+
+      if (outcome.type === 'password-required') {
+        // Cache entry exists but room was later password-protected; redirect
+        // to Join page which auto-fills the code and shows the password field.
+        await this.router.navigate(['/join'], {
+          queryParams: { code: cache.roomCode },
+        })
         return
       }
 
-      await this.router.navigate([routeForScreen(cache.lastScreen)], {
+      if (outcome.type === 'rejected') {
+        // Phase-5 rejection reasons land here once enforcement is on.
+        this.docService.endSession()
+        await this.toast(rejectionCopy(outcome.reason))
+        return
+      }
+
+      if (outcome.type === 'network-error') {
+        // Network down — let user retry; don't clear the banner.
+        await this.toast(
+          "Couldn't reach the relay. Check your connection and try again.",
+        )
+        return
+      }
+
+      // 'connected' or 'timeout' — navigate into the session
+      const code = this.docService.roomCode()
+      assertRoomCode(code, 'home.onResumeJumpBack')
+      await this.router.navigate([routeForScreen(cache.lastScreen, code)], {
         replaceUrl: true,
       })
     } finally {
@@ -416,57 +407,17 @@ export class HomePage {
     await sheet.present()
   }
 
-  /**
-   * Await the first decisive event off the doc-service signals after
-   * a `connect()` call: either `syncStatus === 'connected'`, a
-   * relay-issued rejection, or a timeout. Implemented with a one-shot
-   * `effect()` captured in `this.injector` so it tears itself down
-   * when any branch resolves.
-   *
-   * Timeout is a safety net — y-websocket will reconnect in the
-   * background if the first attempt times out, but the user has
-   * tapped a button and we owe them a visible outcome.
-   */
-  private waitForJoinOutcome(
-    opts: { timeoutMs?: number } = {},
-  ): Promise<'connected' | 'timeout' | JoinRejectionReason> {
-    const timeoutMs = opts.timeoutMs ?? 5_000
-    return new Promise((resolve) => {
-      let settled = false
-      let timeoutId: ReturnType<typeof setTimeout> | null = null
-      const settle = (
-        outcome: 'connected' | 'timeout' | JoinRejectionReason,
-      ): void => {
-        if (settled) return
-        settled = true
-        if (timeoutId !== null) clearTimeout(timeoutId)
-        // Defer destroy so the effect function returns before we
-        // tear its own handle down.
-        queueMicrotask(() => ref.destroy())
-        resolve(outcome)
-      }
-
-      const ref = effect(
-        () => {
-          if (settled) return
-          const rejection = this.docService.lastRejection()
-          if (rejection !== null) {
-            settle(rejection)
-            return
-          }
-          const status = this.docService.syncStatus()
-          if (status === 'connected') settle('connected')
-        },
-        { injector: this.injector },
-      )
-
-      timeoutId = setTimeout(() => settle('timeout'), timeoutMs)
-    })
-  }
-
   private async loadBannerFromCache(): Promise<void> {
     const cache = await this.lastSessionService.get()
-    if (!cache) return
+    if (!cache) {
+      this.jumpBackInSummary.set(null)
+      this.jumpBackInStale.set(false)
+      return
+    }
+    // Reset stale flag so returning from another screen doesn't keep a stale
+    // banner sticky — the next tap will re-test via resolveRoom and re-set
+    // stale if the room is still gone.
+    this.jumpBackInStale.set(false)
     this.jumpBackInSummary.set(summaryFromCache(cache))
   }
 
@@ -486,9 +437,10 @@ export class HomePage {
   protected async onPasswordSubmitted(password: string): Promise<void> {
     try {
       const uuid = this.pendingRoomUuid
-      if (!uuid) {
-        await this.router.navigate(['/lobby'])
-        return
+      const code = this.docService.roomCode()
+      if (!uuid || !code) {
+        // Defensive: should never happen — createSession ran before this sheet opened.
+        throw new Error('onPasswordSubmitted: no pending room uuid/code')
       }
 
       // Dismiss the modal and close the signal
@@ -506,10 +458,15 @@ export class HomePage {
       }
       // If empty password, room stays in open mode (created that way by default)
 
-      await this.router.navigate(['/lobby'])
+      await this.router.navigate(['/lobby', code])
     } catch (e) {
+      const code = this.docService.roomCode()
       await this.toast('Failed to set password. Room created without password.')
-      await this.router.navigate(['/lobby'])
+      if (code) {
+        await this.router.navigate(['/lobby', code])
+      } else {
+        await this.router.navigate(['/home'])
+      }
     }
   }
 
@@ -520,7 +477,11 @@ export class HomePage {
   protected async onPasswordPromptClosed(): Promise<void> {
     await this.passwordModalRef()?.dismiss()
     this.passwordPromptOpen.set(false)
-    await this.router.navigate(['/lobby'])
+    const code = this.docService.roomCode()
+    if (!code) {
+      throw new Error('onPasswordPromptClosed: docService.roomCode() is null — no active session')
+    }
+    await this.router.navigate(['/lobby', code])
   }
 }
 
@@ -535,12 +496,12 @@ function summaryFromCache(cache: LastSessionCache): JumpBackInSummary {
   }
 }
 
-function routeForScreen(screen: LastSessionScreen): string {
+function routeForScreen(screen: LastSessionScreen, code: string): string {
   switch (screen) {
     case 'lobby':
-      return '/lobby'
+      return `/lobby/${code}`
     case 'estimating':
-      return '/estimating'
+      return `/estimating/${code}`
   }
 }
 

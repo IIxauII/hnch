@@ -423,6 +423,13 @@ export class Participant {
   /** Assert participant count shown in lobby. */
   async expectParticipantCount(n: number): Promise<void> {
     const { expect } = await import('@playwright/test')
+    // Ionic's router outlet briefly keeps two app-lobby instances in DOM
+    // during forward/back navigation transitions (neither gets ion-page-hidden
+    // until the animation settles). Wait until only one non-hidden lobby
+    // remains before asserting, so strict-mode doesn't fire on the transient
+    // duplicate (reproduced in back-button-soft-exit after banner tap returns
+    // to the same lobby URL).
+    await expect(this.page.locator(LOBBY.participantCount)).toHaveCount(1, { timeout: 5_000 })
     await expect(this.page.locator(LOBBY.participantCount)).toContainText(`(${n})`)
   }
 }
