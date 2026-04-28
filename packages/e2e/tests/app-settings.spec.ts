@@ -109,7 +109,7 @@ test.describe('App Settings', () => {
   test('settings page shows version string', async ({ host }) => {
     await setupAndGoToSettings(host)
 
-    await expect(host.page.locator(APP_SETTINGS.versionValue)).toContainText('0.1.0')
+    await expect(host.page.locator(APP_SETTINGS.versionValue)).toHaveText(/^\d+\.\d+\.\d+$/)
   })
 
   // ---------------------------------------------------------------------------
