@@ -37,7 +37,7 @@ A macOS Tart runner for Phase 6b iOS is **explicitly deferred** to Phase 9 and g
 
 ### Option A: Ephemeral arm64 Podman pool on the M4, Tart deferred (CHOSEN)
 
-A `LaunchAgent` runs a small `supervisor.sh` as the user account. The supervisor maintains four ephemeral containers built from a pinned `myoung34/github-runner` base (Node 22 + pnpm + Playwright system libs baked in), each registered with `EPHEMERAL=true` so it deregisters and exits after one job. Registration tokens are minted on the host from a fine-grained PAT (`actions:write` only on `xau/hnch`) and passed to containers as short-lived (1-hour) `RUNNER_TOKEN`s — the PAT itself never enters a container. Per-runner pnpm stores and a shared Playwright cache live under `~/runner-cache/` and are bind-mounted into each container.
+A `LaunchAgent` runs a small `supervisor.sh` as the user account. The supervisor maintains four ephemeral containers built from a pinned `myoung34/github-runner` base (Node 22 + pnpm + Playwright system libs baked in), each registered with `EPHEMERAL=true` so it deregisters and exits after one job. Registration tokens are minted on the host from a fine-grained PAT (`actions:write` only on `IIxauII/hnch`) and passed to containers as short-lived (1-hour) `RUNNER_TOKEN`s — the PAT itself never enters a container. Per-runner pnpm stores and a shared Playwright cache live under `~/runner-cache/` and are bind-mounted into each container.
 
 | Dimension | Assessment |
 |-----------|------------|
@@ -200,7 +200,7 @@ What we explicitly do **not** give up:
 - [ ] Add `infra/runner/` (Dockerfile, supervisor.sh, LaunchAgent plists for supervisor and weekly prune) and the `infra/README.md` "Self-hosted runner pool" section, including the rollback runbook (`gh variable set LINUX_RUNNER --body '["ubuntu-latest"]'`).
 - [ ] Add `.github/workflows/runner-health.yml` (hourly `ubuntu-latest` cron checking that ≥1 `hnch-podman` runner is online).
 - [ ] Modify `.github/workflows/ci.yml` so `verify` and `e2e` consume `runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}` with a fork-PR `if:` guard and a `timeout-minutes`. Keep `deploy-relay.yml`, `deploy-client.yml`, `release.yml`, `detect-changes`, `version-audit`, and `pr-title-lint` on `ubuntu-latest`.
-- [ ] Issue a fine-grained PAT scoped to `xau/hnch` with `actions:write` only. Store in macOS Keychain (`security add-generic-password -s hnch-runner-pat -a xau`). Document rotation procedure in `infra/README.md`.
+- [ ] Issue a fine-grained PAT scoped to `IIxauII/hnch` with `actions:write` only. Store in macOS Keychain (`security add-generic-password -s hnch-runner-pat -a xau`). Document rotation procedure in `infra/README.md`.
 - [ ] Create the `LINUX_RUNNER` repo variable with default `'["ubuntu-latest"]'`. Flip to `'["self-hosted","linux","arm64","hnch-podman"]'` only after the runner pool reports healthy.
 - [ ] Capture the M4 baseline RAM measurement (4-day p95 via `vm_stat` cron, methodology in the plan) once the four-runner pool has been steady-state for a week. Record the result in `infra/README.md` so the Phase 9 gate has a documented number.
 - [ ] After 1 month of self-hosted operation, snapshot `gh api /user/settings/billing/actions` and confirm the projected ~100–200 min/mo is roughly accurate. If it's materially higher, investigate whether health-check cadence or fork-PR fallthrough is the cause before drawing conclusions about architecture.

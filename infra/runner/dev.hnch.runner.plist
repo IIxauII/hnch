@@ -9,7 +9,7 @@
   </array>
   <key>EnvironmentVariables</key>
   <dict>
-    <key>GH_REPO</key><string>xau/hnch</string>
+    <key>GH_REPO</key><string>IIxauII/hnch</string>
     <key>POOL_SIZE</key><string>4</string>
   </dict>
   <key>RunAtLoad</key><true/>

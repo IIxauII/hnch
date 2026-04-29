@@ -1,6 +1,6 @@
 [Unit]
 Description=hnch relay (y-websocket sync server)
-Documentation=https://github.com/xau/hnch
+Documentation=https://github.com/IIxauII/hnch
 After=network-online.target
 Wants=network-online.target
 
