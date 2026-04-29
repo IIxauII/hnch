@@ -14,22 +14,6 @@ Curated list of bugs, technical-debt items, features, and improvements. Updated 
 
 ---
 
-### 1.2 ADR citation typo — `auth.ts:57` cites ADR-0020 instead of ADR-0024
-
-`packages/shared/src/auth.ts:57` JSDoc on `JoinRejectionReason.roomFull` says "ADR-0020" when the participant-cap decision lives in ADR-0024. ADR-0020 is the viewer/voter role decision and is unrelated.
-
-**Fix:** change the one-line comment to `ADR-0024`.
-
----
-
-### 1.3 ADR-0016 close-code table missing close-code 4006
-
-ADR-0016 (`adr/0016-client-relay-connection-handshake.md`) defines the authoritative close-code table for codes 4001–4005 but does not mention 4006 (`room-full`), which was added later by ADR-0024.
-
-**Fix:** append a row for 4006 to ADR-0016's close-code table with a cross-reference to ADR-0024.
-
----
-
 ## 2. Technical debt & polish
 
 ### 2.1 Accept proposed ADRs that are already implemented
