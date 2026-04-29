@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures/app.fixture'
 import { BASE_URL, HOME, expectToast } from './fixtures/helpers'
 
-const RELAY_HTTP_URL = 'http://localhost:1234'
+const RELAY_HTTP_URL = `http://localhost:${process.env['RELAY_PORT'] ?? 1234}`
 
 /**
  * Resolve a room code to its relay UUID via GET /rooms/:code.

@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/app.fixture'
-import { JOIN } from './fixtures/helpers'
+import { BASE_URL, JOIN } from './fixtures/helpers'
 
 /**
  * Room full rejection test.
@@ -37,7 +37,7 @@ test.describe('Room full rejection', () => {
 
       // 4th participant (overflow) attempts to join — WS upgrade fails with code 4006
       const overflow = await createParticipant('Overflow')
-      await overflow.page.goto('http://localhost:4200/home')
+      await overflow.page.goto(`${BASE_URL}/home`)
       await overflow.page.waitForURL(/\/(home|onboarding)/)
       if (overflow.page.url().includes('/onboarding')) {
         await overflow.onboard()

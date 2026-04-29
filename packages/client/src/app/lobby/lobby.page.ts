@@ -40,7 +40,6 @@ import {
   starOutline,
 } from 'ionicons/icons'
 
-import { environment } from '../../environments/environment'
 import { ConnectionChipComponent } from '../core/connection-chip.component'
 import { ToastService } from '../services/toast.service'
 import { DocService } from '../core/doc/doc.service'
@@ -457,10 +456,10 @@ export class LobbyPage {
    */
   protected readonly roomCode = this.docService.roomCode
 
-  /** Invite URL derived from the room code + environment base. */
+  /** Invite URL derived from the room code + runtime origin (`window.location.origin`). */
   protected readonly inviteUrl = computed(() => {
     const code = this.roomCode()
-    return code ? `${environment.appBaseUrl}/join?code=${code}` : ''
+    return code ? `${window.location.origin}/join?code=${code}` : ''
   })
 
   /** Dash-formatted room code for human display. */

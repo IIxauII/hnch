@@ -7,7 +7,7 @@
  */
 
 import { test, expect } from './fixtures/app.fixture'
-import { JOIN } from './fixtures/helpers'
+import { BASE_URL, JOIN } from './fixtures/helpers'
 
 test.describe('Mid-session password change', () => {
   test('host adds password mid-session; new joiner must provide it', async ({
@@ -56,7 +56,7 @@ test.describe('Mid-session password change', () => {
     await host.closeSettings()
 
     // Player tries to join with wrong password
-    await player.page.goto('http://localhost:4200/home')
+    await player.page.goto(`${BASE_URL}/home`)
     await player.page.waitForURL(/\/(home|onboarding)/)
     if (player.page.url().includes('/onboarding')) {
       await player.onboard()
@@ -106,7 +106,7 @@ test.describe('Mid-session password change', () => {
     await host.closeSettings()
 
     // Joiner with old password is rejected — stays on join page
-    await joinerOldPw.page.goto('http://localhost:4200/home')
+    await joinerOldPw.page.goto(`${BASE_URL}/home`)
     await joinerOldPw.page.waitForURL(/\/(home|onboarding)/)
     if (joinerOldPw.page.url().includes('/onboarding')) {
       await joinerOldPw.onboard()
