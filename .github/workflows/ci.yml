@@ -24,6 +24,7 @@ jobs:
       cli: ${{ steps.filter.outputs.cli }}
       e2e: ${{ steps.filter.outputs.e2e }}
       root: ${{ steps.filter.outputs.root }}
+      verify-packages: ${{ steps.filter.outputs.verify-packages }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -86,23 +87,40 @@ jobs:
             echo "$v=${!v}" >> "$GITHUB_OUTPUT"
           done
 
+          # Build a JSON array of packages whose verify lane should run.
+          # The `verify` matrix consumes this directly so unrelated lanes
+          # don't appear in the run at all (no fake-pass, no wasted runner slot).
+          # Branch protection should target the `Verify` summary aggregator below,
+          # not individual `Verify (X)` checks (which legitimately disappear on
+          # unrelated PRs).
+          pkgs=()
+          [[ "$shared" == "true" ]] && pkgs+=('"shared"')
+          [[ "$relay"  == "true" ]] && pkgs+=('"relay"')
+          [[ "$client" == "true" ]] && pkgs+=('"client"')
+          [[ "$cli"    == "true" ]] && pkgs+=('"cli"')
+          ifs_old=$IFS; IFS=,; echo "verify-packages=[${pkgs[*]}]" >> "$GITHUB_OUTPUT"; IFS=$ifs_old
+
   verify:
     name: Verify (${{ matrix.package }})
     runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}
     needs: detect-changes
-    # Job-level gate: lane is skipped at matrix-expansion time when its
-    # package didn't change (no runner slot consumed, status reflects "skipped"
-    # honestly — branch protection should target the `Verify` summary job below,
-    # not individual lane checks).
-    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && ((matrix.package == 'shared' && needs.detect-changes.outputs.shared == 'true') || (matrix.package == 'relay' && needs.detect-changes.outputs.relay == 'true') || (matrix.package == 'client' && needs.detect-changes.outputs.client == 'true') || (matrix.package == 'cli' && needs.detect-changes.outputs.cli == 'true')) }}
+    # Skip entire job when no relevant packages changed, AND when this is a
+    # fork PR (defense in depth — keeps fork PRs off self-hosted runners).
+    if: |
+      needs.detect-changes.outputs.verify-packages != '[]' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     timeout-minutes: 20
     concurrency:
       group: verify-${{ github.ref }}-${{ matrix.package }}
       cancel-in-progress: true
     strategy:
       fail-fast: true
+      # Matrix is computed dynamically from detect-changes — only lanes for
+      # changed packages exist. Status checks for unrelated lanes don't appear
+      # in the PR (cleaner than fake-passed). The `verify-summary` aggregator
+      # below is the single check branch protection should target.
       matrix:
-        package: [shared, relay, client, cli]
+        package: ${{ fromJSON(needs.detect-changes.outputs.verify-packages) }}
     steps:
       - name: Runner identity
         run: |
