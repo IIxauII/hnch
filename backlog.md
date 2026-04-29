@@ -8,9 +8,9 @@ Curated list of bugs, technical-debt items, features, and improvements. Updated 
 
 ### 1.1 `appVersion` drift — settings screen shows stale version
 
-`environment.prod.ts` and `environment.ts` both hardcode `appVersion: '1.1.1'`, but `packages/client/package.json` is already at `1.2.0`. The Settings screen (`settings.page.ts:268`) surfaces this value directly to the user.
+~~`environment.prod.ts` and `environment.ts` both hardcode `appVersion: '1.1.1'`, but `packages/client/package.json` is already at `1.2.0`. The Settings screen (`settings.page.ts:268`) surfaces this value directly to the user.~~
 
-**Fix:** generate `src/environments/version.ts` from `package.json` at build time via an `angular.json` pre-build script or a tiny `scripts/generate-version.ts` generator, then import the generated constant into both environment files. Remove the hand-bumped literal so the version never drifts again.
+**SHIPPED** (appversion-sync PR) — Both environment files now import `APP_VERSION` from `src/environments/version.ts`, which is generated from `package.json` at install/build/start time. Version can no longer drift.
 
 ---
 
@@ -177,9 +177,9 @@ Once the Capacitor iOS project exists (3.1 above), set up TestFlight distributio
 
 ### 5.1 Auto-sync `appVersion` at build time
 
-See bug 1.1. The fix belongs here too: once a build-time generator exists, remove the hand-bumped literal from both environment files so version drift cannot recur.
+~~See bug 1.1. The fix belongs here too: once a build-time generator exists, remove the hand-bumped literal from both environment files so version drift cannot recur.~~
 
-**Suggested implementation:** `scripts/generate-version.ts` that reads `packages/client/package.json` and writes `src/environments/version.ts`; called from the `prebuild` npm script.
+**SHIPPED** (appversion-sync PR) — `scripts/generate-version.mjs` reads `package.json` and writes `src/environments/version.ts` at install/build/start time. Both environment files import `APP_VERSION` from the generated constant.
 
 ---
 
