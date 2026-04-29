@@ -22,21 +22,39 @@ fetch_registration_token() {
     | jq -er .token
 }
 
-# `flock` serializes spawn-log access against any future concurrent runs.
+# mkdir-based advisory lock — portable to macOS (no flock in base install)
+# and races safely if a second supervisor ever runs (mkdir is atomic).
+acquire_lock() {
+  local tries=0
+  while ! mkdir "${SPAWN_LOG}.lock" 2>/dev/null; do
+    sleep 0.1
+    tries=$((tries + 1))
+    if (( tries > 50 )); then
+      echo "[$(date)] WARN: stale lock at ${SPAWN_LOG}.lock — forcing release" >&2
+      # Force-release. Handle both regular file (legacy flock leftover) and dir.
+      rm -rf "${SPAWN_LOG}.lock"
+      tries=0
+    fi
+  done
+}
+release_lock() { rm -rf "${SPAWN_LOG}.lock"; }
+
 log_spawn_attempt() {
   local name=$1
-  ( flock 9; echo "$(date +%s) ${name}" >> "${SPAWN_LOG}" ) 9>"${SPAWN_LOG}.lock"
+  acquire_lock
+  echo "$(date +%s) ${name}" >> "${SPAWN_LOG}"
+  release_lock
 }
 
 # Returns 0 if pool is healthy enough to spawn; 1 if we are crashlooping.
 backoff_check() {
   local now recent
   now=$(date +%s)
-  ( flock 9
-    awk -v cutoff=$((now - 60)) '$1 >= cutoff' "${SPAWN_LOG}" 2>/dev/null \
-      > "${SPAWN_LOG}.tmp" || true
-    mv -f "${SPAWN_LOG}.tmp" "${SPAWN_LOG}" 2>/dev/null || touch "${SPAWN_LOG}"
-  ) 9>"${SPAWN_LOG}.lock"
+  acquire_lock
+  awk -v cutoff=$((now - 60)) '$1 >= cutoff' "${SPAWN_LOG}" 2>/dev/null \
+    > "${SPAWN_LOG}.tmp" || true
+  mv -f "${SPAWN_LOG}.tmp" "${SPAWN_LOG}" 2>/dev/null || touch "${SPAWN_LOG}"
+  release_lock
   recent=$(wc -l < "${SPAWN_LOG}" | tr -d ' ' 2>/dev/null || echo 0)
   if (( recent > 6 )); then
     if [[ ! -f "${HEALTH_FILE}" ]]; then

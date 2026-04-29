@@ -5,12 +5,14 @@
   <key>Label</key><string>dev.hnch.runner</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/xau/Documents/projects/hnch/infra/runner/supervisor.sh</string>
+    <string>/Users/xau/.local/bin/hnch-runner-supervisor.sh</string>
   </array>
   <key>EnvironmentVariables</key>
   <dict>
     <key>GH_REPO</key><string>IIxauII/hnch</string>
     <key>POOL_SIZE</key><string>4</string>
+    <!-- launchd's default PATH lacks Homebrew. podman lives at /opt/homebrew/bin. -->
+    <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
   </dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
