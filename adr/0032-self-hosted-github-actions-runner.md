@@ -190,6 +190,10 @@ What we explicitly do **not** give up:
 - **Phase 6b iOS billing pressure forces a paid-tier conversation regardless.** If macOS runners must run on GitHub-hosted at 10× rates for any reason (e.g., code-signing constraints that don't fit Tart), the math changes for the Linux jobs too — keeping them self-hosted may or may not still be worth the operational tax.
 - **A security incident involving the runner host or PAT.** Any compromise (or near-miss) of the daily-driver mini, the LaunchAgent supervisor, or the runner PAT should immediately revert to `ubuntu-latest` via the toggle and trigger a successor ADR before re-enabling.
 
+## Revisions
+
+- **2026-04-29** — Base-image choice refined by ADR-0033 (debian-slim + official actions/runner tarball, replacing the myoung34 image). The rest of this ADR (4 ephemeral arm64 Podman containers on M4, rootless top-to-bottom, supervisor on host, vars.LINUX_RUNNER toggle, Tart deferred to Phase 9) is unchanged.
+
 ## Action Items
 
 - [ ] Implement the architecture per `plans/plan-self-hosted-runner.md` (Phases 1–8). Phase 9 (Tart + Orchard for iOS) is deferred to Phase 6b.

@@ -231,22 +231,17 @@ If any step fails, drop `--userns=keep-id` from `supervisor.sh` and re-test with
 
 ### Build the runner image
 
-The `Dockerfile` ships with a placeholder digest (`@sha256:REPLACE_ME_WITH_DIGEST`). Resolve it before the first build:
+The Dockerfile builds from `debian:bookworm-slim` and downloads the official `actions/runner` tarball, sha256-verified at build time. Default version is pinned at the top of the Dockerfile (`RUNNER_VERSION` + `RUNNER_SHA256` ARGs). To build:
 
-```sh
-podman pull myoung34/github-runner:2.321.0
-podman inspect --format '{{index .RepoDigests 0}}' myoung34/github-runner:2.321.0
-# → myoung34/github-runner@sha256:abc123…
-# Replace the placeholder in infra/runner/Dockerfile, then:
-podman build --platform linux/arm64 -t hnch-runner:latest infra/runner/
-```
+    cd ~/Documents/projects/hnch
+    podman build --platform linux/arm64 -t hnch-runner:latest infra/runner/
 
-Smoke test the image (confirms toolchain on PATH):
+Smoke test the image:
 
-```sh
-podman run --rm --userns=keep-id hnch-runner:latest \
-  bash -c 'which git node pnpm jq && node --version && pnpm --version'
-```
+    podman run --rm --userns=keep-id hnch-runner:latest \
+      bash -c 'which git node pnpm jq && node --version && pnpm --version'
+
+Note: the entrypoint requires registration env vars (`RUNNER_NAME`, `REPO_URL`, `RUNNER_TOKEN`, `LABELS`) — `podman run` without them will exit immediately with a missing-var error. The supervisor supplies them when spawning a real runner. To smoke-test the entrypoint surface only, override it: append `--entrypoint /bin/bash` to the `podman run` above.
 
 ### Provision the PAT
 
@@ -285,17 +280,27 @@ This flips every `verify` and `e2e` job back to GitHub-hosted on the next workfl
 
 ### Bumping the runner base image
 
-The `Dockerfile`'s `FROM` line is pinned to a tag **and** a digest (`myoung34/github-runner:<version>@sha256:<digest>`). Refresh on a regular cadence (target: monthly, or sooner if upstream ships a security fix):
+The Dockerfile pins both the runner version and the tarball sha256. Bumping is two ARG edits:
 
-```sh
-podman pull myoung34/github-runner:<new-version>
-podman inspect --format '{{index .RepoDigests 0}}' myoung34/github-runner:<new-version>
-# Update both <new-version> and the digest in infra/runner/Dockerfile.
-podman build --platform linux/arm64 -t hnch-runner:latest infra/runner/
-launchctl kickstart -k gui/$(id -u)/dev.hnch.runner   # forces fresh containers on next spawn cycle
-```
+1. Look up the latest release:
 
-Verify after the bump that the env-var contract still matches (label name `LABELS` vs `RUNNER_LABELS`, `EPHEMERAL` value form, `DISABLE_AUTO_UPDATE` vs `DISABLE_AUTOUPDATE`) by checking the upstream README at the new tag.
+       gh release view --repo actions/runner --json tagName --jq .tagName
+
+2. Look up the arm64 sha256 from the release body:
+
+       gh release view --repo actions/runner v<VERSION> --json body \
+         --jq .body | grep -A1 "linux.*arm64"
+
+   The sha256 is wrapped in `<!-- BEGIN SHA linux-arm64 -->...<!-- END SHA linux-arm64 -->` markers.
+
+3. Update both ARGs in `infra/runner/Dockerfile`, rebuild, and force a fresh spawn:
+
+       podman build --platform linux/arm64 -t hnch-runner:latest infra/runner/
+       launchctl kickstart -k gui/$(id -u)/dev.hnch.runner
+
+Bump cadence: monthly, or sooner if a security advisory is published.
+
+There is no separate base-image bump — `debian:bookworm-slim` is intentionally pinned by tag (not digest) because it gets regular security patches and rebuilding picks them up. Inspect `podman image inspect debian:bookworm-slim` after a bump if you want to record the pulled digest for audit.
 
 ### Rotating the PAT
 
