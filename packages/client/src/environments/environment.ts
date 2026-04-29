@@ -2,6 +2,8 @@
 // `ng build` replaces `environment.ts` with `environment.prod.ts`.
 // The list of file replacements can be found in `angular.json`.
 
+import { APP_VERSION } from './version'
+
 /**
  * Development environment config.
  *
@@ -25,7 +27,7 @@ export const environment = {
   production: false,
   relayHttpUrl: `http://${host}:${relayPort}`,
   relayWsUrl: `ws://${host}:${relayPort}`,
-  appVersion: '1.1.1',
+  appVersion: APP_VERSION,
 }
 
 /*
