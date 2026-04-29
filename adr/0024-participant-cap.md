@@ -1,6 +1,6 @@
 # ADR-0024: Participant cap — 20-peer hard limit, relay-enforced
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-04-26
 **Deciders:** Xau
 
