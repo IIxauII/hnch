@@ -74,7 +74,7 @@ export function resolveScale(
  * builtin presets (with overrides applied) and custom scales.
  *
  * Builtin presets with all cards disabled are excluded. Builtins come first
- * (in declaration order), then custom scales.
+ * (in declaration order, deterministic across calls), then custom scales.
  */
 export function buildAvailableScales(
   overrides?: PresetOverrides,
