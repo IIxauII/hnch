@@ -34,13 +34,6 @@ The app supports multiple pointing poker styles out of the box and lets users de
 
 Reveal is fixed: the host can manually reveal at any time, and the round auto-reveals once every online voter has cast a vote (unanimous). There is no per-session reveal-mode setting (ADR-0018).
 
-### Export
-
-Round results can be exported via:
-
-- **Clipboard** — plain text copy
-- **Markdown** — formatted for pasting into tools like Jira, Linear, Notion, etc.
-
 ### Round Metadata
 
 Each round can have optional metadata — title, description, ticket ID, or any freeform context the host wants to attach.
@@ -51,8 +44,6 @@ After reveal, each round displays:
 
 - **Visual highlighting** of vote distribution (clustering vs. spread)
 - **Average & median** of numeric votes
-- **Outlier flagging** — highlight votes far from the group
-- **Time to vote** — how long the round took from start to last vote
 
 ### Re-voting
 

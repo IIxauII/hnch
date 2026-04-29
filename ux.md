@@ -105,9 +105,11 @@ Leave session, End session for everyone → ⋯ action sheet with `role: 'destru
 | Display name editor | `ion-modal` half-sheet | Settings → Display name row |
 | Theme picker | `ion-modal` half-sheet | Settings → Theme row |
 | Scale picker (settings) | `ion-modal` half-sheet | Settings → Default scale row |
+| Custom scale editor | `ion-modal` half-sheet | Scale picker → Create custom scale |
 | Session name editor | `ion-modal` half-sheet | Settings → Default session name row |
 | Relay URL editor | `ion-modal` half-sheet | Settings → Relay URL row |
 | Password prompt | `ion-modal` half-sheet | Home → Create Room (when password-by-default enabled) |
+| QR display | `ion-modal` full-screen, dark background | Lobby → Show QR code |
 | Voted-participants popover | `ion-popover` | Estimating → tap avatar row |
 | Leave-session confirm | `ion-alert` destructive | ⋯ → Leave session |
 | End-session-for-all confirm | `ion-alert` destructive | ⋯ → End session for everyone (host only) |
