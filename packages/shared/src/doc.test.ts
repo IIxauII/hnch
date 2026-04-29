@@ -101,6 +101,19 @@ describe('formatScaleId', () => {
   it('returns empty string for empty input', () => {
     expect(formatScaleId('')).toBe('')
   })
+
+  it('strips custom- prefix from a single-word custom ID', () => {
+    expect(formatScaleId('custom-alpha')).toBe('Alpha')
+  })
+
+  it('returns empty string for bare custom- prefix with no suffix', () => {
+    // 'custom-' → stripped = '' → split → [''] → map (length 0, passthrough) → ''
+    expect(formatScaleId('custom-')).toBe('')
+  })
+
+  it('title-cases a single-word unknown ID with no hyphens', () => {
+    expect(formatScaleId('velocity')).toBe('Velocity')
+  })
 })
 
 describe('shape types', () => {
