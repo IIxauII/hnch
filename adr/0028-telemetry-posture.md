@@ -1,6 +1,6 @@
 # ADR-0028: Telemetry / analytics posture — none in v1
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-04-26
 **Deciders:** Xau
 

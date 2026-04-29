@@ -40,15 +40,15 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0018](0018-remove-timer-add-unanimous-reveal.md) | Remove countdown timer; add unanimous auto-reveal | Accepted |
 | [0019](0019-scale-customization.md) | Scale customization — builtin presets, sentinel removal, device-local overrides | Accepted |
 | [0020](0020-participant-viewer-voter-role.md) | Participant Viewer/Voter Role | Accepted |
-| [0021](0021-cli-package.md) | CLI package — fourth deliverable with parity contract and platform-appropriate divergences | Proposed |
-| [0022](0022-last-session-cache.md) | Last-session cache — TTL aligned to relay snapshot | Proposed |
-| [0023](0023-session-end-broadcast.md) | Session-end-for-everyone — host-written doc broadcast | Proposed |
-| [0024](0024-participant-cap.md) | Participant cap — 20-peer hard limit, relay-enforced | Proposed |
-| [0025](0025-reconnect-backoff.md) | Reconnect / backoff posture — y-websocket defaults plus `online` reset | Proposed |
-| [0026](0026-deep-link-url-format.md) | Deep-link URL format — `${appBaseUrl}/join?code=XXXXXX` | Proposed (origin clause superseded by ADR-0031) |
-| [0027](0027-test-only-relay-surfaces.md) | Test-only relay surfaces — `HNCH_ENABLE_TEST_ROUTES` and `HNCH_ROOM_CAP` | Proposed |
-| [0028](0028-telemetry-posture.md) | Telemetry / analytics posture — none in v1 | Proposed |
-| [0029](0029-relay-deployment.md) | Relay deployment — bare-metal VPS with Caddy reverse proxy and single-origin layout | Proposed |
+| [0021](0021-cli-package.md) | CLI package — fourth deliverable with parity contract and platform-appropriate divergences | Accepted |
+| [0022](0022-last-session-cache.md) | Last-session cache — TTL aligned to relay snapshot | Accepted |
+| [0023](0023-session-end-broadcast.md) | Session-end-for-everyone — host-written doc broadcast | Accepted |
+| [0024](0024-participant-cap.md) | Participant cap — 20-peer hard limit, relay-enforced | Accepted |
+| [0025](0025-reconnect-backoff.md) | Reconnect / backoff posture — y-websocket defaults plus `online` reset | Accepted |
+| [0026](0026-deep-link-url-format.md) | Deep-link URL format — `${appBaseUrl}/join?code=XXXXXX` | Accepted (origin clause superseded by ADR-0031) |
+| [0027](0027-test-only-relay-surfaces.md) | Test-only relay surfaces — `HNCH_ENABLE_TEST_ROUTES` and `HNCH_ROOM_CAP` | Accepted |
+| [0028](0028-telemetry-posture.md) | Telemetry / analytics posture — none in v1 | Accepted |
+| [0029](0029-relay-deployment.md) | Relay deployment — bare-metal VPS with Caddy reverse proxy and single-origin layout | Accepted |
 | [0031](0031-runtime-origin-for-invite-urls.md) | Runtime `window.location.origin` for invite URLs (supersedes ADR-0026 §1) | Accepted |
 | [0032](0032-self-hosted-github-actions-runner.md) | Self-hosted GitHub Actions runner — ephemeral arm64 Podman pool on Mac mini M4 (Tart deferred) | Proposed |
 | [0033](0033-runner-image-from-debian-and-actions-runner-tarball.md) | Runner image from `debian:bookworm-slim` + official `actions/runner` tarball (refines ADR-0032 §base-image) | Proposed |

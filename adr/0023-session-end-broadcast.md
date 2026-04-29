@@ -1,6 +1,6 @@
 # ADR-0023: Session-end-for-everyone — host-written doc broadcast
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-04-26
 **Deciders:** Xau
 
