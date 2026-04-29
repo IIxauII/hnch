@@ -1,12 +1,12 @@
-# ADR-0031: Runtime `window.location.origin` for invite URLs (supersedes ADR-0026 §1 origin clause and ADR-0030)
+# ADR-0031: Runtime `window.location.origin` for invite URLs (supersedes ADR-0026 §1 origin clause)
 
-**Status:** Accepted — supersedes the origin clause of [ADR-0026](0026-deep-link-url-format.md) (Decision §1) and the entirety of [ADR-0030](0030-canonical-origin-hnch-dev.md). All other clauses of ADR-0026 remain in force.
+**Status:** Accepted — supersedes the origin clause of [ADR-0026](0026-deep-link-url-format.md) (Decision §1). All other clauses of ADR-0026 remain in force.
 **Date:** 2026-04-29
 **Deciders:** Xau
 
 ## Context
 
-[ADR-0026](0026-deep-link-url-format.md) ("Deep-link URL format") committed the deep-link / invite URL shape as `${appBaseUrl}/join?code=XXXXXX`, where `appBaseUrl` is a build-time constant sourced from `packages/client/src/environments/environment{.prod}.ts`. [ADR-0030](0030-canonical-origin-hnch-dev.md) corrected the production origin string from `hnch.app` to `hnch.dev` to match the actual deployment recorded in [ADR-0029](0029-relay-deployment.md). At the time of writing, the constants are:
+[ADR-0026](0026-deep-link-url-format.md) ("Deep-link URL format") committed the deep-link / invite URL shape as `${appBaseUrl}/join?code=XXXXXX`, where `appBaseUrl` is a build-time constant sourced from `packages/client/src/environments/environment{.prod}.ts`. The production origin recorded in `environment.prod.ts` is `https://hnch.dev`, matching the single-origin deployment recorded in [ADR-0029](0029-relay-deployment.md). At the time of writing, the constants are:
 
 - `packages/client/src/environments/environment.ts:17` — `appBaseUrl: 'http://localhost:4200'`
 - `packages/client/src/environments/environment.prod.ts:16` — `appBaseUrl: 'https://hnch.dev'`
@@ -36,7 +36,6 @@ Specifically:
 1. Remove the `appBaseUrl` field from both `packages/client/src/environments/environment.ts` and `packages/client/src/environments/environment.prod.ts`.
 2. Replace `${environment.appBaseUrl}/join?code=${code}` at `packages/client/src/app/lobby/lobby.page.ts:463` with `${window.location.origin}/join?code=${code}`.
 3. All other clauses of [ADR-0026](0026-deep-link-url-format.md) remain in force unchanged: URL path `/join`, query parameter `code`, normalization rules (liberal accept, exact mint per `normalizeRoomCode`), auto-fill / auto-submit on landing, no-password-in-URL, public-contract immutability of the *shape*, AASA path-prefix exclusivity, and the CLI normalization-parity contract. This ADR supersedes ADR-0026 **only** in its origin clause (Decision §1).
-4. [ADR-0030](0030-canonical-origin-hnch-dev.md) is fully superseded. The production origin remains `hnch.dev` as a deployment fact (per [ADR-0029](0029-relay-deployment.md)) and as the AASA-binding target (Phase 6b), but is no longer recorded as a build-time constant in client environment files. The pinning recorded in ADR-0030 was a build-time pinning; with the constant retired, there is nothing to pin.
 
 The CLI's `DEFAULT_RELAY_URL = 'https://hnch.dev'` and the `HNCH_RELAY_URL` env override (per [ADR-0021](0021-cli-package.md)) are unaffected. The CLI talks to the *relay*; this ADR is about the PWA's *app origin* used to mint invite links. They are separate concerns and stay separate.
 
@@ -105,8 +104,6 @@ Option A wins because the build-time constant was carrying no information the ru
 
 What we give up: the AASA binding is now the *only* place where the production origin string is pinned in code (technically, in the AASA manifest at `https://hnch.dev/.well-known/apple-app-site-association`, plus any `applinks:hnch.dev` reference in iOS build artifacts). That pinning is sufficient — the AASA payload is what tells iOS which origin's `/join` URLs to hand off to the app. ADR-0026 §6's path-prefix exclusivity rule still constrains the *path*; this ADR removes the build-time constant that named the *origin*, on the grounds that the origin is now told by the runtime in the PWA and by the AASA manifest in iOS. Both are runtime sources of truth, neither is a build-time constant.
 
-What ADR-0030 added: ADR-0030 corrected the origin string from `hnch.app` to `hnch.dev`, and recorded that correction as a build-time constant. With the constant retired, the correction is moot — there is no constant to be `hnch.app` or `hnch.dev`. Production is served from `hnch.dev` because that's where Caddy listens (per [ADR-0029](0029-relay-deployment.md)), and that fact does not change. ADR-0030 is therefore fully superseded: its effect is preserved by the deployment ADR and by the AASA manifest, neither of which this ADR touches.
-
 What we keep: every other clause of ADR-0026 — the URL shape, the normalization, the auto-submit, the no-password-in-URL rule, the path-prefix exclusivity, the CLI parity contract — is untouched. This is a narrow change to *how* the origin enters the URL string, not *what* the URL string looks like to a recipient. A user who has bookmarked or scanned an `hnch.dev/join?code=…` URL sees no change.
 
 ## Consequences
@@ -119,7 +116,7 @@ What we keep: every other clause of ADR-0026 — the URL shape, the normalizatio
 
 **Harder:**
 - A developer minting a link in dev who then pastes it into Slack pastes a `localhost:PORT` URL. This is not a regression — the previous behavior pasted a `localhost:4200` URL, which was *also* wrong in any sharing context. The runtime version at least matches the tab the developer was on, which makes the "this is a dev link, don't share it" cue self-evident.
-- The production origin is no longer named in the client repo's source files. A reader trying to answer "what origin does prod use?" must look at [ADR-0029](0029-relay-deployment.md) (Caddy + DNS) or the AASA manifest, not at `environment.prod.ts`. The supersession breadcrumb on ADR-0030 plus the deployment ADR's explicit `hnch.dev` mention is the mitigation.
+- The production origin is no longer named in the client repo's source files. A reader trying to answer "what origin does prod use?" must look at [ADR-0029](0029-relay-deployment.md) (Caddy + DNS) or the AASA manifest, not at `environment.prod.ts`. The deployment ADR's explicit `hnch.dev` mention is the mitigation.
 - If the PWA is ever loaded from an unexpected origin (e.g., a contributor proxies it through `ngrok` for a phone-test session), invite URLs will be minted for that origin. That is in fact the desired behavior — the QR code points at the URL the phone can actually reach — but it is a behavior shift for anyone who assumed the constant was a hard pin.
 
 **Revisit triggers:**
@@ -131,11 +128,10 @@ What we keep: every other clause of ADR-0026 — the URL shape, the normalizatio
 
 - [ ] Remove the `appBaseUrl` field from `packages/client/src/environments/environment.ts` and `packages/client/src/environments/environment.prod.ts`.
 - [ ] Replace `${environment.appBaseUrl}/join?code=${code}` at `packages/client/src/app/lobby/lobby.page.ts:463` with `${window.location.origin}/join?code=${code}`. Verify the line number against the source at change time.
-- [ ] Edit ADR-0026's status header to add `; Decision §1 (origin clause) further superseded by ADR-0031`. Update the `adr/README.md` index entry to mention the further supersession.
-- [ ] Edit ADR-0030's status header to `Superseded by ADR-0031` and update the `adr/README.md` index entry to match.
-- [ ] **Inherited from ADR-0030 — still owed, not moot.** `roadmap.md:172` and `roadmap.md:229` still contain literal `hnch.app` references (verified at the time of writing this ADR; both lines mention `hnch.app` — line 172 quotes the old invite URL example, line 229 names the AASA host). ADR-0030's intent — and now this ADR's inherited responsibility — is to flip `hnch.app → hnch.dev` in those lines so the documentation matches the deployment reality recorded in [ADR-0029](0029-relay-deployment.md). Production behavior is unchanged by this ADR, but the stale strings are still in the repo and the housekeeping is **not moot post-supersession**: it is carried forward here as the open obligation it was when ADR-0030 was written. (Source-file edits are out of scope for the ADR-author role; tracked here so a follow-up sweep does not lose them.)
-- [ ] **Inherited from ADR-0030 — still owed, not moot.** `packages/shared/src/room-code.ts:93` JSDoc still uses `https://hnch.app/join?code=K7P9MR` as the example URL (verified at the time of writing this ADR). Flip the example origin to `hnch.dev` so the JSDoc matches the deployment reality. The `parseInviteContent` parser is origin-blind by ADR-0026 design (it consumes only the `code` query parameter), so this is a docs-accuracy fix and not a parser-correctness fix — but it is **still owed**; the supersession does not retire it. (Source-file edits are out of scope for the ADR-author role; tracked here so a follow-up sweep does not lose them.)
-- [ ] **Inherited from ADR-0030.** When the iOS native build (Phase 6b) lands, write the AASA payload at `https://hnch.dev/.well-known/apple-app-site-association` registering `/join` per ADR-0026 §6. The applinks binding is the *only* remaining build-time pin of the production origin string, and it lives in the AASA manifest, not in client environment files.
+- [ ] Edit ADR-0026's status header to `Superseded by ADR-0031 (Decision §1, origin clause only)`. Update the `adr/README.md` index entry to match.
+- [ ] Flip stale `hnch.app` references in `roadmap.md:172` and `roadmap.md:229` to `hnch.dev` so the documentation matches the deployment reality recorded in [ADR-0029](0029-relay-deployment.md). Line 172 quotes the old invite URL example; line 229 names the AASA host. (Source-file edits are out of scope for the ADR-author role; tracked here so a follow-up sweep does not lose them.)
+- [ ] Flip the `https://hnch.app/join?code=K7P9MR` JSDoc example at `packages/shared/src/room-code.ts:93` to use `hnch.dev` so the JSDoc matches the deployment reality. The `parseInviteContent` parser is origin-blind by ADR-0026 design (it consumes only the `code` query parameter), so this is a docs-accuracy fix and not a parser-correctness fix. (Source-file edits are out of scope for the ADR-author role; tracked here so a follow-up sweep does not lose them.)
+- [ ] When the iOS native build (Phase 6b) lands, write the AASA payload at `https://hnch.dev/.well-known/apple-app-site-association` registering `/join` per ADR-0026 §6. The applinks binding is the *only* remaining build-time pin of the production origin string, and it lives in the AASA manifest, not in client environment files.
 - [ ] Update CLAUDE.md "Current decisions at a glance" — the deployment bullet already names `hnch.dev` correctly; if a deep-link bullet is later added per ADR-0026's open action items, it should describe the origin as "the origin the PWA is served from" rather than as a build-time constant. Flag for the orchestrator if not done with this ADR.
 - [ ] If a Playwright / e2e test ever asserts on the literal text of an invite URL, ensure it is asserting against `window.location.origin` rather than a hardcoded `localhost:4200`. Tracked as a verification step on the e2e suite.
 - [ ] **Revisit watch.** If a future contributor reintroduces an `appBaseUrl` constant (for any reason), this ADR is the canonical refutation; require a successor ADR before accepting the change.

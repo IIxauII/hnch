@@ -6,6 +6,10 @@
 //
 // Resolves dir = ../hnch-<name>, runs `git worktree remove`. Refuses if the
 // worktree has uncommitted changes (no --force by default).
+//
+// Note: this removes the worktree directory only. The branch ref is preserved
+// so you don't lose work — delete it separately with `git branch -D <name>` if
+// you no longer need it.
 
 import { spawnSync } from 'node:child_process'
 import { resolve, dirname, basename } from 'node:path'
@@ -39,3 +43,4 @@ if (result.status !== 0) {
 }
 
 console.log('✓ Worktree removed.')
+console.log(`  Branch ref "${name}" is preserved. Delete with: git branch -D ${name}`)

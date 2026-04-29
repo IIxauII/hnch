@@ -20,6 +20,12 @@ set -eo pipefail
 GIT_COMMON_DIR="$(git rev-parse --git-common-dir)"
 LOCK_DIR="${GIT_COMMON_DIR}/worktree-bootstrap.lock"
 LOCK_TIMEOUT=30  # seconds
+OWN_LOCK=0
+
+# Install trap before mkdir loop so a SIGINT during acquisition can't leave a
+# stale lock behind. Only remove the lock if WE successfully created it —
+# otherwise we'd clobber a sibling bootstrap mid-run.
+trap '[ "$OWN_LOCK" = "1" ] && rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
 acquire_lock() {
   local elapsed=0
@@ -32,8 +38,7 @@ acquire_lock() {
     sleep 1
     elapsed=$((elapsed + 1))
   done
-  # Release lock on any exit path.
-  trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+  OWN_LOCK=1
 }
 
 acquire_lock
@@ -81,6 +86,7 @@ is_used() {
   esac
 }
 
+BOUND_CHECK_WARNED=0
 is_bound() {
   local port="$1"
   if command -v nc >/dev/null 2>&1; then
@@ -88,6 +94,11 @@ is_bound() {
   elif command -v lsof >/dev/null 2>&1; then
     lsof -i ":$port" -sTCP:LISTEN >/dev/null 2>&1
   else
+    if [ "$BOUND_CHECK_WARNED" = "0" ]; then
+      echo "⚠ Neither 'nc' nor 'lsof' available — bound-port check disabled." >&2
+      echo "  Port collision detection limited to recorded .env.local entries." >&2
+      BOUND_CHECK_WARNED=1
+    fi
     return 1
   fi
 }
@@ -132,6 +143,8 @@ cat > .env.local <<EOF
 CLIENT_PORT=$CLIENT_PORT
 RELAY_PORT=$RELAY_PORT
 PORT=$RELAY_PORT
+# HNCH_RELAY_URL: consumed by the CLI and Playwright only. The browser client
+# derives its relay URL from window.location and ignores this var.
 HNCH_RELAY_URL=http://localhost:$RELAY_PORT
 PLAYWRIGHT_BASE_URL=http://localhost:$CLIENT_PORT
 EOF

@@ -29,6 +29,11 @@ if (!/^[a-zA-Z0-9._/-]+$/.test(name)) {
   process.exit(1)
 }
 
+if (name.includes('..') || name.startsWith('/') || name.startsWith('-')) {
+  console.error(`✗ Invalid worktree name: "${name}". Cannot contain '..' or start with '/' or '-'.`)
+  process.exit(1)
+}
+
 const repoName = basename(repoRoot)
 const worktreeDir = resolve(repoRoot, '..', `${repoName}-${name.replace(/\//g, '-')}`)
 

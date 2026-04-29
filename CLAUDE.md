@@ -59,6 +59,22 @@ For quick orientation without reading all 19 ADRs:
 - **Repo layout:** pnpm workspaces monorepo with `packages/client`, `packages/relay`, `packages/shared`, `packages/e2e` (Playwright). (ADR-0014)
 - **Deployment:** relay runs bare-metal on a single IONOS VPS, supervised by systemd, fronted by Caddy with auto-TLS via Let's Encrypt. PWA + relay served from a single origin (`hnch.dev`) with Caddy routing `/health`, `/rooms*`, `/ws*` to `127.0.0.1:1234`. Bootstrap script + Caddyfile + systemd unit live in `infra/`. Relay deploys via `deploy-relay.yml` on `relay-v*` tags; PWA deploys via `deploy-client.yml` on `client-v*` tags, shipping to `/var/www/hnch-client/` via atomic symlink swap (no reload). (ADR-0029)
 
+## Parallel worktrees
+
+This repo is set up for parallel git worktrees with per-worktree port isolation. Each worktree gets its own `CLIENT_PORT` / `RELAY_PORT` (offsets of 100 from `4200` / `1234`), written to `.env.local` by the bootstrap script. Two or more `pnpm dev:client` / `pnpm dev:relay` processes can run side-by-side without collision.
+
+Use it when:
+- Executing a multi-phase plan or any chunk of work that takes more than a few iterations — keep `main` clean, isolate the in-progress branch.
+- Running long-lived dev servers (relay + client) for one feature while reviewing or hot-fixing another.
+- The user explicitly asks for a worktree, or the task naturally branches into independent tracks.
+
+Commands (run from the repo root):
+- `pnpm worktree:add <name> [base-branch]` — creates `../hnch-<name>`, branches off `<base-branch>` (default `main`), assigns unique ports, runs `pnpm install`.
+- `pnpm worktree:remove <name>` — tears down the worktree dir. The branch ref is preserved; delete with `git branch -D <name>` if no longer needed.
+- `pnpm worktree:bootstrap` — re-run inside an existing worktree to regenerate `.env.local` (idempotent, safe).
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow and the worktree section in `scripts/`.
+
 ## Commit conventions
 
 - Do **not** add a `Co-Authored-By` trailer to commit messages.

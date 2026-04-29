@@ -20,6 +20,7 @@ let relayPort = 1234 + (clientPort - 4200)
 if (!Number.isFinite(relayPort) || relayPort < 1 || relayPort > 65535) relayPort = 1234
 const host = window.location.hostname || 'localhost'
 
+// Dev assumes HTTP/WS; HTTPS tunnels (ngrok, `ng serve --ssl`) will hit mixed-content errors.
 export const environment = {
   production: false,
   relayHttpUrl: `http://${host}:${relayPort}`,
