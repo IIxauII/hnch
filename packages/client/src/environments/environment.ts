@@ -5,16 +5,25 @@
 /**
  * Development environment config.
  *
- * The `relay*Url` constants point at the relay launched by the root
- * `pnpm dev` script (plan §2.6). Local dev expects the relay on
- * `localhost:1234`; production swaps in the deployed URLs via
- * `environment.prod.ts`.
+ * `relayHttpUrl`/`relayWsUrl` are derived at module load from
+ * `window.location.port` so that each worktree (running on a different
+ * client port) automatically targets its own relay instance.
+ *
+ * Convention: RELAY_PORT = 1234 + (CLIENT_PORT - 4200).
+ * Bootstrap enforces this offset. `environment.prod.ts` (production) keeps
+ * fully hardcoded `https://hnch.dev` URLs — this derive code never runs in
+ * prod because Angular's `fileReplacements` swaps the whole file at build
+ * time.
  */
+const clientPort = parseInt(window.location.port || '4200', 10)
+let relayPort = 1234 + (clientPort - 4200)
+if (!Number.isFinite(relayPort) || relayPort < 1 || relayPort > 65535) relayPort = 1234
+const host = window.location.hostname || 'localhost'
+
 export const environment = {
   production: false,
-  relayHttpUrl: 'http://localhost:1234',
-  relayWsUrl: 'ws://localhost:1234',
-  appBaseUrl: 'http://localhost:4200',
+  relayHttpUrl: `http://${host}:${relayPort}`,
+  relayWsUrl: `ws://${host}:${relayPort}`,
   appVersion: '1.1.1',
 }
 

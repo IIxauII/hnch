@@ -181,4 +181,5 @@ export const PRESET_CARD_EDITOR = {
 // ---------------------------------------------------------------------------
 // Shared constants
 // ---------------------------------------------------------------------------
-export const BASE_URL = 'http://localhost:4200'
+export const BASE_URL =
+  process.env['PLAYWRIGHT_BASE_URL'] ?? `http://localhost:${process.env['CLIENT_PORT'] ?? 4200}`

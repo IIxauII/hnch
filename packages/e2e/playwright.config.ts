@@ -1,6 +1,8 @@
 import { defineConfig, devices } from '@playwright/test'
 
 const isCI = !!process.env['CI']
+const CLIENT_PORT = process.env['CLIENT_PORT'] ?? '4200'
+const RELAY_PORT = process.env['RELAY_PORT'] ?? '1234'
 
 export default defineConfig({
   testDir: './tests',
@@ -11,7 +13,7 @@ export default defineConfig({
   reporter: isCI ? 'github' : 'html',
   timeout: 20_000,
   use: {
-    baseURL: 'http://localhost:4200',
+    baseURL: `http://localhost:${CLIENT_PORT}`,
     trace: isCI ? 'on-first-retry' : 'on',
     screenshot: isCI ? 'only-on-failure' : 'on',
     video: isCI ? 'off' : 'on',
@@ -24,14 +26,15 @@ export default defineConfig({
   webServer: [
     {
       command: 'pnpm --filter @hnch/relay dev',
-      port: 1234,
+      port: parseInt(RELAY_PORT, 10),
       reuseExistingServer: !isCI,
-      env: { HNCH_ROOM_CAP: '3', HNCH_ENABLE_TEST_ROUTES: '1' },
+      env: { HNCH_ROOM_CAP: '3', HNCH_ENABLE_TEST_ROUTES: '1', PORT: RELAY_PORT },
     },
     {
       command: 'pnpm --filter @hnch/client dev',
-      port: 4200,
+      port: parseInt(CLIENT_PORT, 10),
       reuseExistingServer: !isCI,
+      env: { CLIENT_PORT },
     },
   ],
 })
