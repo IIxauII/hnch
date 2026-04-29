@@ -1,6 +1,6 @@
 # ADR-0030: Canonical product origin is `hnch.dev` (supersedes ADR-0026 origin clause only)
 
-**Status:** Accepted — supersedes the origin clause of [ADR-0026](0026-deep-link-url-format.md) only
+**Status:** Proposed (superseded by [ADR-0031](0031-runtime-origin-for-invite-urls.md) before acceptance) — this ADR was never promoted to Accepted; the build-time `appBaseUrl` constant it pinned has been retired in favor of `window.location.origin` evaluated at link-mint time. Production deployment remains `hnch.dev` per [ADR-0029](0029-relay-deployment.md); the AASA binding remains pinned to `hnch.dev` at the manifest level. The repo's `adr/README.md` documents only `Proposed | Accepted | Deprecated | Superseded by ADR-XXXX` as canonical statuses — there is no prior precedent for a Proposed-then-superseded transition; this phrasing is introduced here.
 **Date:** 2026-04-28
 **Deciders:** Xau
 

@@ -45,11 +45,12 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0023](0023-session-end-broadcast.md) | Session-end-for-everyone — host-written doc broadcast | Proposed |
 | [0024](0024-participant-cap.md) | Participant cap — 20-peer hard limit, relay-enforced | Proposed |
 | [0025](0025-reconnect-backoff.md) | Reconnect / backoff posture — y-websocket defaults plus `online` reset | Proposed |
-| [0026](0026-deep-link-url-format.md) | Deep-link URL format — `${appBaseUrl}/join?code=XXXXXX` | Proposed (origin clause superseded by ADR-0030) |
+| [0026](0026-deep-link-url-format.md) | Deep-link URL format — `${appBaseUrl}/join?code=XXXXXX` | Proposed (origin clause superseded by ADR-0030, then ADR-0031) |
 | [0027](0027-test-only-relay-surfaces.md) | Test-only relay surfaces — `HNCH_ENABLE_TEST_ROUTES` and `HNCH_ROOM_CAP` | Proposed |
 | [0028](0028-telemetry-posture.md) | Telemetry / analytics posture — none in v1 | Proposed |
 | [0029](0029-relay-deployment.md) | Relay deployment — bare-metal VPS with Caddy reverse proxy and single-origin layout | Proposed |
-| [0030](0030-canonical-origin-hnch-dev.md) | Canonical product origin is `hnch.dev` (supersedes ADR-0026 origin clause only) | Accepted |
+| [0030](0030-canonical-origin-hnch-dev.md) | Canonical product origin is `hnch.dev` (supersedes ADR-0026 origin clause only) | Proposed (superseded by ADR-0031 before acceptance) |
+| [0031](0031-runtime-origin-for-invite-urls.md) | Runtime `window.location.origin` for invite URLs (supersedes ADR-0026 §1 and ADR-0030) | Accepted |
 
 ## When to write an ADR
 
