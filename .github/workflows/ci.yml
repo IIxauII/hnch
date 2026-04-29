@@ -24,6 +24,7 @@ jobs:
       cli: ${{ steps.filter.outputs.cli }}
       e2e: ${{ steps.filter.outputs.e2e }}
       root: ${{ steps.filter.outputs.root }}
+      verify-packages: ${{ steps.filter.outputs.verify-packages }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -86,77 +87,101 @@ jobs:
             echo "$v=${!v}" >> "$GITHUB_OUTPUT"
           done
 
+          # Build a JSON array of packages whose verify lane should run.
+          # The `verify` matrix consumes this directly so unrelated lanes
+          # don't appear in the run at all (no fake-pass, no wasted runner slot).
+          # Branch protection should target the `Verify` summary aggregator below,
+          # not individual `Verify (X)` checks (which legitimately disappear on
+          # unrelated PRs).
+          pkgs=()
+          [[ "$shared" == "true" ]] && pkgs+=('"shared"')
+          [[ "$relay"  == "true" ]] && pkgs+=('"relay"')
+          [[ "$client" == "true" ]] && pkgs+=('"client"')
+          [[ "$cli"    == "true" ]] && pkgs+=('"cli"')
+          ifs_old=$IFS; IFS=,; echo "verify-packages=[${pkgs[*]}]" >> "$GITHUB_OUTPUT"; IFS=$ifs_old
+
   verify:
     name: Verify (${{ matrix.package }})
     runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}
     needs: detect-changes
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # Skip entire job when no relevant packages changed, AND when this is a
+    # fork PR (defense in depth — keeps fork PRs off self-hosted runners).
+    if: |
+      needs.detect-changes.outputs.verify-packages != '[]' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     timeout-minutes: 20
     concurrency:
       group: verify-${{ github.ref }}-${{ matrix.package }}
       cancel-in-progress: true
     strategy:
       fail-fast: true
+      # Matrix is computed dynamically from detect-changes — only lanes for
+      # changed packages exist. Status checks for unrelated lanes don't appear
+      # in the PR (cleaner than fake-passed). The `verify-summary` aggregator
+      # below is the single check branch protection should target.
       matrix:
-        package: [shared, relay, client, cli]
+        package: ${{ fromJSON(needs.detect-changes.outputs.verify-packages) }}
     steps:
-      - id: gate
-        run: |
-          case "${{ matrix.package }}" in
-            shared) run="${{ needs.detect-changes.outputs.shared }}" ;;
-            relay)  run="${{ needs.detect-changes.outputs.relay }}"  ;;
-            client) run="${{ needs.detect-changes.outputs.client }}" ;;
-            cli)    run="${{ needs.detect-changes.outputs.cli }}"    ;;
-          esac
-          echo "run=$run" >> "$GITHUB_OUTPUT"
-          if [[ "$run" != "true" ]]; then
-            echo "::notice::Skipping verify for ${{ matrix.package }} — no relevant changes."
-          fi
-
       - name: Runner identity
-        if: steps.gate.outputs.run == 'true'
         run: |
           echo "Runner: $RUNNER_NAME on $(hostname) — arch $(uname -m)"
           df -h /cache || true
 
-      - if: steps.gate.outputs.run == 'true'
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       # setup-node + corepack run unconditionally so the ubuntu-latest fallback
       # (vars.LINUX_RUNNER unset or rolled back) keeps working. On the self-hosted
       # image Node 22 + pnpm are already baked in; these steps are idempotent.
       - name: Enable Corepack
-        if: steps.gate.outputs.run == 'true'
         run: corepack enable
 
-      - if: steps.gate.outputs.run == 'true'
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
 
       - name: Install
-        if: steps.gate.outputs.run == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Build @hnch/shared (consumed by other packages)
-        if: steps.gate.outputs.run == 'true'
         run: pnpm --filter @hnch/shared run build
 
       - name: Typecheck
-        if: steps.gate.outputs.run == 'true'
         run: pnpm --filter ./packages/${{ matrix.package }} run --if-present typecheck
 
       - name: Lint
-        if: steps.gate.outputs.run == 'true'
         run: pnpm --filter ./packages/${{ matrix.package }} run --if-present lint
 
       - name: Unit tests
-        if: steps.gate.outputs.run == 'true'
         run: pnpm --filter ./packages/${{ matrix.package }} run --if-present test
 
       - name: Build
-        if: steps.gate.outputs.run == 'true'
         run: pnpm --filter ./packages/${{ matrix.package }} run --if-present build
+
+  # Aggregator for the verify matrix. Branch-protection rules (when configured)
+  # should target this `Verify` check, not individual lanes. Passes when every
+  # matrix lane either succeeded or was skipped; fails when any lane actually
+  # failed/cancelled. This keeps the matrix gate honest (skipped is "skipped",
+  # not fake-passed) while still giving branch protection a single target.
+  verify-summary:
+    name: Verify
+    runs-on: ubuntu-latest
+    needs: verify
+    if: always()
+    steps:
+      - name: Aggregate matrix result
+        env:
+          MATRIX_RESULT: ${{ needs.verify.result }}
+        run: |
+          case "$MATRIX_RESULT" in
+            success|skipped)
+              echo "verify matrix: $MATRIX_RESULT — OK"
+              exit 0
+              ;;
+            *)
+              echo "::error::verify matrix: $MATRIX_RESULT"
+              exit 1
+              ;;
+          esac
 
   version-audit:
     name: Version audit
