@@ -245,7 +245,7 @@ Note: the entrypoint requires registration env vars (`RUNNER_NAME`, `REPO_URL`, 
 
 ### Provision the PAT
 
-Issue a **fine-grained PAT** scoped to `xau/hnch` only, permission `actions:write` (NOT classic `repo` scope). Store in macOS Keychain:
+Issue a **fine-grained PAT** scoped to `IIxauII/hnch` only, permission `actions:write` (NOT classic `repo` scope). Store in macOS Keychain:
 
 ```sh
 security add-generic-password -s hnch-runner-pat -a xau -w '<pat>'
@@ -262,7 +262,7 @@ launchctl load ~/Library/LaunchAgents/dev.hnch.runner.plist
 launchctl load ~/Library/LaunchAgents/dev.hnch.runner-prune.plist
 ```
 
-Within ~30 s, `gh api /repos/xau/hnch/actions/runners | jq '.runners[].labels'` should show 4 idle runners labelled `hnch-podman`.
+Within ~30 s, `gh api /repos/IIxauII/hnch/actions/runners | jq '.runners[].labels'` should show 4 idle runners labelled `hnch-podman`.
 
 ### Flip workflows over
 
