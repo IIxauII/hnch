@@ -1,3 +1,13 @@
+## [1.2.1](https://github.com/IIxauII/hnch/compare/client-v1.2.0...client-v1.2.1) (2026-04-29)
+
+
+### Bug Fixes
+
+* **ci:** runner health check uses dedicated read-only PAT ([#35](https://github.com/IIxauII/hnch/issues/35)) ([2693536](https://github.com/IIxauII/hnch/commit/2693536e215decaf1fee0dc92508291e42050910))
+* **client:** auto-sync appVersion from package.json ([#37](https://github.com/IIxauII/hnch/issues/37)) ([72ac623](https://github.com/IIxauII/hnch/commit/72ac6239b4bacb74675e5d2cda991048724644d8))
+* correct repo owner refs from xau/hnch to IIxauII/hnch ([#32](https://github.com/IIxauII/hnch/issues/32)) ([f70d417](https://github.com/IIxauII/hnch/commit/f70d417ae956807a95fd9819677483c7ecc8d49f))
+* **runner:** macOS-portable install + plist PATH + flock-free lock ([#33](https://github.com/IIxauII/hnch/issues/33)) ([025a259](https://github.com/IIxauII/hnch/commit/025a2591930129d38bddef4d30855c687971156b))
+
 # [1.2.0](https://github.com/IIxauII/hnch/compare/client-v1.1.2...client-v1.2.0) (2026-04-28)
 
 
