@@ -17,6 +17,9 @@ build/
 .ionic/
 www/
 
+# Generated
+packages/client/src/environments/version.ts
+
 # Capacitor native shells (generated; iOS/Android added later)
 # ios/App/build/
 # android/app/build/
