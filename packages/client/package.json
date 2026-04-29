@@ -4,10 +4,14 @@
   "author": "Ionic Framework",
   "homepage": "https://ionicframework.com/",
   "scripts": {
+    "generate-version": "node scripts/generate-version.mjs",
+    "postinstall": "node scripts/generate-version.mjs",
     "ng": "ng",
     "start": "ng serve",
+    "prestart": "node scripts/generate-version.mjs",
     "dev": "node scripts/run-ng-dev.mjs",
     "build": "ng build",
+    "prebuild": "node scripts/generate-version.mjs",
     "watch": "ng build --watch --configuration development",
     "test": "vitest run",
     "lint": "ng lint"
