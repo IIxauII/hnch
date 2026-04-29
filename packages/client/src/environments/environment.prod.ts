@@ -13,6 +13,5 @@ export const environment = {
   production: true,
   relayHttpUrl: 'https://hnch.dev',
   relayWsUrl: 'wss://hnch.dev',
-  appBaseUrl: 'https://hnch.dev',
   appVersion: '1.1.1',
 }
