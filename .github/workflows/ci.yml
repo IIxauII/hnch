@@ -10,6 +10,9 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   detect-changes:
     name: Detect changed packages
@@ -85,8 +88,13 @@ jobs:
 
   verify:
     name: Verify (${{ matrix.package }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}
     needs: detect-changes
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    timeout-minutes: 20
+    concurrency:
+      group: verify-${{ github.ref }}-${{ matrix.package }}
+      cancel-in-progress: true
     strategy:
       fail-fast: true
       matrix:
@@ -105,18 +113,14 @@ jobs:
             echo "::notice::Skipping verify for ${{ matrix.package }} — no relevant changes."
           fi
 
+      - name: Runner identity
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          echo "Runner: $RUNNER_NAME on $(hostname) — arch $(uname -m)"
+          df -h /cache || true
+
       - if: steps.gate.outputs.run == 'true'
         uses: actions/checkout@v4
-
-      - name: Enable Corepack
-        if: steps.gate.outputs.run == 'true'
-        run: corepack enable
-
-      - if: steps.gate.outputs.run == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
 
       - name: Install
         if: steps.gate.outputs.run == 'true'
@@ -179,41 +183,21 @@ jobs:
 
   e2e:
     name: E2E (Playwright)
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}
     needs: [detect-changes, verify]
-    if: needs.detect-changes.outputs.e2e == 'true'
+    if: needs.detect-changes.outputs.e2e == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    timeout-minutes: 30
+    concurrency:
+      group: e2e-${{ github.ref }}
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
-
-      - name: Enable Corepack
-        run: corepack enable
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
 
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Resolve Playwright version
-        id: pw
-        run: echo "version=$(pnpm --filter @hnch/e2e exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Playwright browsers
-        id: pw-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
-
       - name: Install Playwright browsers
-        if: steps.pw-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter @hnch/e2e exec playwright install --with-deps chromium
-
-      - name: Install Playwright system deps (cache hit path)
-        if: steps.pw-cache.outputs.cache-hit == 'true'
-        run: pnpm --filter @hnch/e2e exec playwright install-deps chromium
+        run: pnpm --filter @hnch/e2e exec playwright install chromium
 
       - name: Build @hnch/shared (consumed by relay + client webServers)
         run: pnpm --filter @hnch/shared run build

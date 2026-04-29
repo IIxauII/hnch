@@ -165,3 +165,185 @@ v1 ships as a plain SPA. There is no service worker, no offline shell, and no `m
 - **Relay logs.** `journalctl -u hnch-relay -f`.
 - **Cert renewal.** Caddy handles this automatically. Verify with `caddy environ` on the VPS or check `/var/lib/caddy/.local/share/caddy/certificates/`.
 - **No abuse mitigation.** Per ADR-0029, rate limiting / IP throttling is deferred. If traffic warrants, add a `rate_limit` directive in the Caddyfile and write a follow-up ADR.
+
+## Self-hosted runner pool
+
+GitHub Actions `verify` and `e2e` jobs run on a pool of 4 ephemeral arm64 Podman containers on a Mac mini M4. Deploy/release/health-check workflows stay on `ubuntu-latest`. See [ADR-0032](../adr/0032-self-hosted-github-actions-runner.md) for the architectural rationale; the source plan is in `plans/plan-self-hosted-runner.md`.
+
+### Architecture
+
+```
+GitHub Actions
+   │
+   ▼ register/run
+hnch-podman label → 4 ephemeral containers on M4
+   │
+   ├── built from infra/runner/Dockerfile (myoung34/github-runner:2.321.0 + Node 22 + pnpm + Playwright libs)
+   ├── one job per container, --rm, EPHEMERAL=true (deregisters and exits after the job)
+   ├── arm64 native, rootless top-to-bottom, --userns=keep-id
+   └── supervised by infra/runner/supervisor.sh under launchd (dev.hnch.runner.plist)
+```
+
+Runners are repo-scoped and labelled `self-hosted,linux,arm64,hnch-podman`. The pool size matches the verify matrix (4 lanes: `shared`, `relay`, `client`, `cli`).
+
+### Files
+
+| File | Purpose |
+|---|---|
+| `infra/runner/Dockerfile` | Runner container image (digest-pinned base + Node 22 + pnpm + Playwright deps) |
+| `infra/runner/supervisor.sh` | Pool maintainer: fetches 1-hour registration tokens on host, spawns containers, crashloop backoff |
+| `infra/runner/dev.hnch.runner.plist` | LaunchAgent for the supervisor (RunAtLoad, KeepAlive, ThrottleInterval=30) |
+| `infra/runner/prune.sh` | Weekly cache eviction script (per-runner pnpm stores, image prune, log truncation, disk-low alarm) |
+| `infra/runner/dev.hnch.runner-prune.plist` | LaunchAgent that fires `prune.sh` Sunday 04:00 |
+| `.github/workflows/runner-health.yml` | Hourly `ubuntu-latest` cron — fails if ≥1 `hnch-podman` runner is not online |
+
+### Primary-worktree anchoring
+
+Both LaunchAgent plists hardcode the supervisor / prune script paths under the **primary repo**: `/Users/xau/Documents/projects/hnch/infra/runner/...`. Linked worktrees (`../hnch-<name>`) are dev-only and irrelevant — branch checkouts there do not move the binary the LaunchAgent loads. If the primary repo path ever moves, re-render and reload both plists.
+
+### One-time host setup (run on the Mac mini)
+
+```sh
+brew install podman
+podman machine init --cpus 8 --memory 10240 --disk-size 80 hnch-runner
+podman machine start hnch-runner
+
+mkdir -p ~/runner-cache/{playwright,state}
+for i in 1 2 3 4; do
+  mkdir -p ~/runner-cache/pnpm-store-$i ~/runner-cache/work-$i
+done
+
+sudo pmset -a sleep 0 disksleep 0 displaysleep 15 womp 1 powernap 0
+```
+
+**UID-mapping smoke test** (must pass before continuing):
+
+```sh
+podman run --rm --userns=keep-id -v ~/runner-cache/pnpm-store-1:/cache \
+  alpine sh -c 'touch /cache/from-container && ls -ln /cache/'
+ls -ln ~/runner-cache/pnpm-store-1/from-container
+touch ~/runner-cache/pnpm-store-1/from-host
+podman run --rm --userns=keep-id -v ~/runner-cache/pnpm-store-1:/cache \
+  alpine sh -c 'cat /cache/from-host && rm /cache/from-*'
+```
+
+If any step fails, drop `--userns=keep-id` from `supervisor.sh` and re-test with default mapping.
+
+### Build the runner image
+
+The `Dockerfile` ships with a placeholder digest (`@sha256:REPLACE_ME_WITH_DIGEST`). Resolve it before the first build:
+
+```sh
+podman pull myoung34/github-runner:2.321.0
+podman inspect --format '{{index .RepoDigests 0}}' myoung34/github-runner:2.321.0
+# → myoung34/github-runner@sha256:abc123…
+# Replace the placeholder in infra/runner/Dockerfile, then:
+podman build --platform linux/arm64 -t hnch-runner:latest infra/runner/
+```
+
+Smoke test the image (confirms toolchain on PATH):
+
+```sh
+podman run --rm --userns=keep-id hnch-runner:latest \
+  bash -c 'which git node pnpm jq && node --version && pnpm --version'
+```
+
+### Provision the PAT
+
+Issue a **fine-grained PAT** scoped to `xau/hnch` only, permission `actions:write` (NOT classic `repo` scope). Store in macOS Keychain:
+
+```sh
+security add-generic-password -s hnch-runner-pat -a xau -w '<pat>'
+```
+
+### Load the LaunchAgents
+
+```sh
+cp infra/runner/dev.hnch.runner.plist ~/Library/LaunchAgents/
+cp infra/runner/dev.hnch.runner-prune.plist ~/Library/LaunchAgents/
+
+launchctl setenv GH_REGISTRATION_PAT "$(security find-generic-password -s hnch-runner-pat -w)"
+launchctl load ~/Library/LaunchAgents/dev.hnch.runner.plist
+launchctl load ~/Library/LaunchAgents/dev.hnch.runner-prune.plist
+```
+
+Within ~30 s, `gh api /repos/xau/hnch/actions/runners | jq '.runners[].labels'` should show 4 idle runners labelled `hnch-podman`.
+
+### Flip workflows over
+
+```sh
+gh variable set LINUX_RUNNER --body '["self-hosted","linux","arm64","hnch-podman"]'
+```
+
+### Rollback (instant, no PR)
+
+```sh
+gh variable set LINUX_RUNNER --body '["ubuntu-latest"]'
+```
+
+This flips every `verify` and `e2e` job back to GitHub-hosted on the next workflow run. Use for home-network outages, Mac-mini reboots, or any time the pool misbehaves.
+
+### Bumping the runner base image
+
+The `Dockerfile`'s `FROM` line is pinned to a tag **and** a digest (`myoung34/github-runner:<version>@sha256:<digest>`). Refresh on a regular cadence (target: monthly, or sooner if upstream ships a security fix):
+
+```sh
+podman pull myoung34/github-runner:<new-version>
+podman inspect --format '{{index .RepoDigests 0}}' myoung34/github-runner:<new-version>
+# Update both <new-version> and the digest in infra/runner/Dockerfile.
+podman build --platform linux/arm64 -t hnch-runner:latest infra/runner/
+launchctl kickstart -k gui/$(id -u)/dev.hnch.runner   # forces fresh containers on next spawn cycle
+```
+
+Verify after the bump that the env-var contract still matches (label name `LABELS` vs `RUNNER_LABELS`, `EPHEMERAL` value form, `DISABLE_AUTO_UPDATE` vs `DISABLE_AUTOUPDATE`) by checking the upstream README at the new tag.
+
+### Rotating the PAT
+
+```sh
+security add-generic-password -U -s hnch-runner-pat -a xau -w '<new-pat>'
+launchctl unload ~/Library/LaunchAgents/dev.hnch.runner.plist
+launchctl setenv GH_REGISTRATION_PAT "$(security find-generic-password -s hnch-runner-pat -w)"
+launchctl load ~/Library/LaunchAgents/dev.hnch.runner.plist
+```
+
+### Logs
+
+- Supervisor stdout/stderr: `~/Library/Logs/hnch-runner.{out,err}.log`.
+- Prune stdout/stderr: `~/Library/Logs/hnch-runner-prune.{out,err}.log`.
+- Per-container: `podman logs <container-name>` (containers are named `hnch-runner-<idx>-<epoch>`).
+
+### Cache poisoning runbook
+
+If a job leaves a corrupted pnpm store or Playwright browser cache:
+
+```sh
+launchctl unload ~/Library/LaunchAgents/dev.hnch.runner.plist
+podman ps -q --filter name=hnch-runner- | xargs -r podman rm -f
+rm -rf ~/runner-cache/pnpm-store-* ~/runner-cache/playwright
+mkdir -p ~/runner-cache/playwright
+for i in 1 2 3 4; do mkdir -p ~/runner-cache/pnpm-store-$i; done
+launchctl load ~/Library/LaunchAgents/dev.hnch.runner.plist
+```
+
+The supervisor reseeds caches lazily on the next job per runner.
+
+### Pre-Phase-9 RAM gate
+
+Before adding a Tart-based macOS runner (Phase 9, gated on Phase 6b iOS), measure 4-day p95 committed RAM with the four-runner pool steady-state. The M4's RAM is **soldered**; if p95 > 10 GB, order a higher-RAM mini *before* starting Tart work.
+
+```sh
+# crontab -e
+* * * * * vm_stat | awk '/Pages active/{a=$3+0}/Pages wired/{w=$4+0} END {printf "%d %d\n", systime(), (a+w)*4/1024}' >> ~/ram.log
+# After 4 days:
+awk '{p[NR]=$2} END {n=asort(p); print "p95 MB =", p[int(n*0.95)]}' ~/ram.log
+```
+
+Record the result here for posterity:
+
+| Date | p95 (MB) | Decision |
+|---|---|---|
+| (pending first measurement) | | |
+
+### Health check
+
+`.github/workflows/runner-health.yml` runs hourly on `ubuntu-latest` (~24 min/mo billable). Failure → GitHub email notification. Manual trigger: `gh workflow run runner-health.yml`.
