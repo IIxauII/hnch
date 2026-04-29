@@ -199,9 +199,9 @@ Commit `9747590` (docs: "CLI e2e harness via node-pty + vitest") documents the p
 
 ---
 
-### 5.4 Stale Proposed ADRs block discoverability
+### 5.4 ADR-status drift CI check
 
-Nine ADRs sitting at "Proposed" for shipped code makes the ADR index harder to read and makes it unclear which decisions are settled. In addition to accepting them (item 2.1), consider adding an `adr-status-check` CI script that warns if any non-template ADR has been in `Proposed` state for more than 30 days without a linked PR.
+Item 2.1 (accepting the nine then-stale ADRs 0021–0029) shipped in PR #38. The class of bug remains, though: future ADRs can drift the same way. Consider adding an `adr-status-check` CI script that warns if any non-template ADR has been in `Proposed` state for more than 30 days without a linked PR.
 
 ---
 
