@@ -197,9 +197,11 @@ Runners are repo-scoped and labelled `self-hosted,linux,arm64,hnch-podman`. The 
 | `infra/runner/dev.hnch.runner-prune.plist` | LaunchAgent that fires `prune.sh` Sunday 04:00 |
 | `.github/workflows/runner-health.yml` | Hourly `ubuntu-latest` cron — fails if ≥1 `hnch-podman` runner is not online |
 
-### Primary-worktree anchoring
+### Worktree-independent install location
 
-Both LaunchAgent plists hardcode the supervisor / prune script paths under the **primary repo**: `/Users/xau/Documents/projects/hnch/infra/runner/...`. Linked worktrees (`../hnch-<name>`) are dev-only and irrelevant — branch checkouts there do not move the binary the LaunchAgent loads. If the primary repo path ever moves, re-render and reload both plists.
+The plists reference `~/.local/bin/hnch-runner-{supervisor,prune}.sh`, not the in-repo path. This is forced by macOS TCC (launchd cannot execute scripts under `~/Documents`) and has the side effect of decoupling the LaunchAgent from any specific worktree — switching branches in the primary repo or in linked worktrees does not change which script the LaunchAgent runs.
+
+The trade-off: edits to `supervisor.sh` or `prune.sh` in the repo do not take effect until `bash infra/runner/install.sh` is re-run from the worktree containing the edits.
 
 ### One-time host setup (run on the Mac mini)
 
@@ -251,18 +253,25 @@ Issue a **fine-grained PAT** scoped to `IIxauII/hnch` only, permission `actions:
 security add-generic-password -s hnch-runner-pat -a xau -w '<pat>'
 ```
 
-### Load the LaunchAgents
+### Install scripts and LaunchAgents
+
+macOS TCC blocks launchd from executing scripts under `~/Documents` (and other protected locations). The plists therefore reference `~/.local/bin/`. The install script copies the supervisor and prune scripts there and drops the plists into `~/Library/LaunchAgents/`. Idempotent — re-run safe.
 
 ```sh
-cp infra/runner/dev.hnch.runner.plist ~/Library/LaunchAgents/
-cp infra/runner/dev.hnch.runner-prune.plist ~/Library/LaunchAgents/
+bash infra/runner/install.sh
+```
 
+Then load:
+
+```sh
 launchctl setenv GH_REGISTRATION_PAT "$(security find-generic-password -s hnch-runner-pat -w)"
 launchctl load ~/Library/LaunchAgents/dev.hnch.runner.plist
 launchctl load ~/Library/LaunchAgents/dev.hnch.runner-prune.plist
 ```
 
 Within ~30 s, `gh api /repos/IIxauII/hnch/actions/runners | jq '.runners[].labels'` should show 4 idle runners labelled `hnch-podman`.
+
+After editing `supervisor.sh` or `prune.sh` in the repo, re-run `bash infra/runner/install.sh` to copy the changes into `~/.local/bin/`, then `launchctl kickstart -k gui/$(id -u)/dev.hnch.runner` to force fresh containers on the next spawn cycle.
 
 ### Flip workflows over
 
