@@ -1,6 +1,6 @@
 # ADR-0026: Deep-link URL format — `${appBaseUrl}/join?code=XXXXXX`
 
-**Status:** Proposed — Decision §1 (origin clause) superseded by [ADR-0031](0031-runtime-origin-for-invite-urls.md) (origin is read from `window.location.origin` at link-mint time, no build-time constant); all other clauses remain in force
+**Status:** Accepted — Decision §1 (origin clause) superseded by [ADR-0031](0031-runtime-origin-for-invite-urls.md) (origin is read from `window.location.origin` at link-mint time, no build-time constant); all other clauses remain in force
 **Date:** 2026-04-26
 **Deciders:** Xau
 
