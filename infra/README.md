@@ -360,4 +360,27 @@ Record the result here for posterity:
 
 ### Health check
 
-`.github/workflows/runner-health.yml` runs hourly on `ubuntu-latest` (~24 min/mo billable). Failure → GitHub email notification. Manual trigger: `gh workflow run runner-health.yml`.
+`.github/workflows/runner-health.yml` runs hourly on `ubuntu-latest` (~24 min/mo billable). It calls `gh api /repos/.../actions/runners` and fails if zero runners with the `hnch-podman` label are online. Failure → GitHub email notification. Manual trigger: `gh workflow run runner-health.yml`.
+
+The workflow needs `Administration: read` to list runners. The default `GITHUB_TOKEN` cannot be granted that scope (GitHub caps `GITHUB_TOKEN` permissions and the `permissions:` block cannot escalate beyond the cap). Therefore the workflow uses a separate fine-grained PAT stored as the repo secret `RUNNER_HEALTH_PAT`. If the secret is missing, the workflow logs a warning and exits 0 — never fails the run, never spams email.
+
+**Setup:**
+
+1. Create a second fine-grained PAT (separate from the supervisor's runner-registration PAT, which has `Administration: read+write` — this one only needs read):
+   - Resource owner: your account
+   - Repository access: only `IIxauII/hnch`
+   - Permissions: **Administration: Read-only**
+   - Expiration: 90 days (calendar-reminder rotation)
+2. Store as repo secret:
+   ```sh
+   gh secret set RUNNER_HEALTH_PAT --body 'github_pat_...'
+   ```
+3. Trigger once to verify: `gh workflow run runner-health.yml`. Should pass within a minute.
+
+**Rotation:**
+
+```sh
+gh secret set RUNNER_HEALTH_PAT --body 'github_pat_<new-token>'
+```
+
+No workflow change required.
