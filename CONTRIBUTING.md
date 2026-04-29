@@ -126,3 +126,61 @@ BREAKING CHANGE: clients on <1.4.0 can no longer join.
 ### Per-package versioning
 
 Each package versions independently — `client`, `cli`, `relay`, and `shared` get their own tags (e.g. `relay-v0.4.1`). `e2e` is test-only and is not released. Scope your commit (`fix(relay): ...`) so the right package picks it up.
+
+## Parallel git worktrees
+
+For working on multiple branches in parallel (e.g. running multiple AI agents simultaneously), the repo ships a worktree workflow that gives each worktree its own isolated dev/relay/cli/e2e stack with non-colliding ports.
+
+### One-time setup
+
+If you have a per-machine `.claude/settings.local.json` from prior work, move it to the user-level location so all worktrees and projects share it:
+
+```sh
+mv .claude/settings.local.json ~/.claude/settings.local.json
+```
+
+If `~/.claude/settings.local.json` already exists from another project, merge the contents manually (different repos may have unrelated tool permissions).
+
+### Quickstart
+
+From the main repo dir:
+
+```sh
+pnpm worktree:add feat-x         # creates ../hnch-feat-x off main
+pnpm worktree:add feat-x dev     # off custom base branch
+```
+
+This:
+
+1. `git worktree add -b feat-x ../hnch-feat-x main`.
+2. Runs `scripts/worktree-bootstrap.sh` inside the new worktree, which:
+   - Picks the lowest unused port offset (multiple of 100, skipping 0).
+   - Writes `.env.local` with `CLIENT_PORT`, `RELAY_PORT`, `PORT`, `HNCH_RELAY_URL`, `PLAYWRIGHT_BASE_URL`.
+   - Runs `pnpm install`.
+
+`flock` serializes concurrent bootstraps so two parallel `pnpm worktree:add` calls won't collide.
+
+All `dev:*` and `test:e2e` scripts auto-source `.env.local` via `scripts/with-env.sh`, so once bootstrapped, `pnpm dev:client`, `pnpm dev:relay`, `pnpm dev:cli`, and `pnpm test:e2e` all use the worktree's offset ports.
+
+### How port isolation works
+
+Convention: `RELAY_PORT = 1234 + (CLIENT_PORT - 4200)`.
+
+The client (`packages/client/src/environments/environment.ts`) derives `relayHttpUrl` and `relayWsUrl` from `window.location.port` at module load — so the PWA at `localhost:4300` automatically connects to the relay at `localhost:1334` with no extra config. Bootstrap writes `.env.local` to keep `RELAY_PORT` in lockstep with this convention; `with-env.sh` warns if they ever drift.
+
+### Other commands
+
+```sh
+pnpm worktree:bootstrap          # (re-)provision the current worktree (regenerates .env.local)
+pnpm worktree:remove feat-x      # removes the worktree (refuses if dirty)
+```
+
+You can also use plain `git worktree add` if you don't want the wrapper — just remember to `cd` in and run `pnpm worktree:bootstrap` afterward.
+
+### Notes and limits
+
+- **Don't run `dev:relay` and `test:e2e` simultaneously in the same worktree.** Playwright's `reuseExistingServer` may pick up a relay started without the test env vars (`HNCH_ROOM_CAP`, `HNCH_ENABLE_TEST_ROUTES`), producing confusing failures.
+- **Capacitor `cap add ios`/`cap sync` are per-worktree.** Each worktree gets its own `ios/` dir and CocoaPods install (~500 MB). The CocoaPods cache (`~/Library/Caches/CocoaPods/`) is shared and safe.
+- **CLI config (`~/.config/hnch/config.json`) is user-level**, shared across worktrees. `HNCH_RELAY_URL` is set per worktree via `.env.local` so the CLI talks to the right relay; but `participantId`, `displayName`, etc. are shared. For per-worktree CLI identity, set `XDG_CONFIG_HOME=$(pwd)/.cli-config` before `pnpm dev:cli`.
+- **Playwright browser cache (`~/.cache/ms-playwright`) is shared.** First-run install across two fresh worktrees in parallel may race; subsequent runs are fine.
+- **Linux/macOS only.** `with-env.sh` and `worktree-bootstrap.sh` are bash. Windows contributors will need WSL or equivalent.
