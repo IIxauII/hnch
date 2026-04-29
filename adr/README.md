@@ -50,6 +50,7 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0028](0028-telemetry-posture.md) | Telemetry / analytics posture — none in v1 | Proposed |
 | [0029](0029-relay-deployment.md) | Relay deployment — bare-metal VPS with Caddy reverse proxy and single-origin layout | Proposed |
 | [0031](0031-runtime-origin-for-invite-urls.md) | Runtime `window.location.origin` for invite URLs (supersedes ADR-0026 §1) | Accepted |
+| [0032](0032-self-hosted-github-actions-runner.md) | Self-hosted GitHub Actions runner — ephemeral arm64 Podman pool on Mac mini M4 (Tart deferred) | Proposed |
 
 ## When to write an ADR
 

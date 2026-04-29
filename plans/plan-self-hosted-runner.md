@@ -278,6 +278,8 @@ done
 
 **Note on the `_work` bind mount:** the runner's checkout dir lives on the same filesystem as `/cache/pnpm-store` (both bind-mounted from `~/runner-cache/`). This lets pnpm hardlink from the store into `node_modules` instead of falling back to copy when the workdir is on overlayfs. Phase 1 step 2 must add `mkdir -p ~/runner-cache/work-{1..4}`.
 
+**Disambiguation (post-worktree-tooling):** `~/runner-cache/work-${idx}` is the **runner agent's** workdir, not a git worktree. It exists to keep the checkout on the same filesystem as `pnpm-store-${idx}` (hardlink optimization, not branch isolation). Each ephemeral container starts with this dir empty; `actions/checkout@v4` populates it fresh per job. Host-side parallel git worktrees (`scripts/worktree-*`) are dev-only and never enter the container — `.env.local` is gitignored, `with-env.sh` is not on the CI path, and `global-setup.ts` skips when `CI=true`.
+
 `infra/runner/dev.hnch.runner.plist` (LaunchAgent — runs as user `xau`, supervisor stays on host, runners live inside containers):
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -394,6 +396,7 @@ In `.github/workflows/ci.yml`, `e2e` job:
 
 `infra/README.md` — new section "Self-hosted runner pool":
 - Architecture: GH → 4 ephemeral arm64 Podman containers on M4 → fresh per job.
+- **Primary-worktree anchoring:** the LaunchAgent plist hardcodes the supervisor path under the primary repo (`/Users/xau/Documents/projects/hnch/`). Linked worktrees (`../hnch-<name>`) are dev-only and irrelevant to the runner — branch checkouts there do not move the binary the LaunchAgent loads. If the primary repo path ever moves, re-render and reload the plist.
 - Start/stop: `launchctl {load,unload} ~/Library/LaunchAgents/dev.hnch.runner.plist`.
 - **Disabling the pool (rollback):** `gh variable set LINUX_RUNNER --body '["ubuntu-latest"]'` — flips workflows to GH-hosted instantly, no PR required.
 - Re-enable: `gh variable set LINUX_RUNNER --body '["self-hosted","linux","arm64","hnch-podman"]'`.

@@ -1,0 +1,22 @@
+name: Runner health
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+
+jobs:
+  check:
+    name: Check hnch-podman runner pool
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check hnch-podman runner online
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          online=$(gh api /repos/${{ github.repository }}/actions/runners --jq '[.runners[] | select(.status=="online" and (.labels | map(.name) | contains(["hnch-podman"])))] | length')
+          [ "$online" -ge 1 ] || { echo "::error::No hnch-podman runners online"; exit 1; }
