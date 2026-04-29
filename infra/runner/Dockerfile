@@ -50,7 +50,11 @@ RUN set -eux; \
 # Pin pnpm via corepack (runs as the runner user so the cache lives under $HOME).
 RUN corepack prepare pnpm@9.15.0 --activate
 
-ENV PNPM_STORE_DIR=/cache/pnpm-store
+# pnpm reads npm_config_* env vars as if they were .npmrc settings.
+# PNPM_STORE_DIR (uppercase) is NOT honored by pnpm 9 — verified empirically:
+# `pnpm config get store-dir` returned `undefined` and the store landed at
+# /home/runner/.local/share/pnpm/store/v3, leaving the bind-mounted /cache/pnpm-store empty.
+ENV npm_config_store_dir=/cache/pnpm-store
 ENV PLAYWRIGHT_BROWSERS_PATH=/cache/playwright
 
 COPY --chown=runner:runner entrypoint.sh /home/runner/entrypoint.sh
