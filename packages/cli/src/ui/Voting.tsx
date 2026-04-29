@@ -2,6 +2,7 @@ import React from 'react'
 import { Box, Text, useInput } from 'ink'
 import { ParticipantList } from './components/ParticipantList.js'
 import { CardPicker } from './components/CardPicker.js'
+import { SharePicker } from './components/SharePicker.js'
 import type { DocProjection, Round } from '@hnch/shared'
 
 interface Props {
@@ -12,10 +13,16 @@ interface Props {
   myId: string
   myRole: 'voter' | 'viewer'
   elapsedMs?: number
+  roomCode: string
+  shareOpen: boolean
+  settingsOpen: boolean
   onVote: (card: string) => void
   onClearVote: () => void
   onReveal: () => void
   onToggleRole: () => void
+  onShare: (kind: 'code' | 'url' | 'npx') => void
+  onSetShareOpen: (open: boolean) => void
+  onOpenSettings: () => void
   confirmingQuit: boolean
 }
 
@@ -34,14 +41,28 @@ export function Voting({
   myId,
   myRole,
   elapsedMs,
+  roomCode,
+  shareOpen,
+  settingsOpen,
   onVote,
   onClearVote,
   onReveal,
   onToggleRole,
+  onShare,
+  onSetShareOpen,
+  onOpenSettings,
   confirmingQuit,
 }: Props): React.ReactElement {
   useInput(
     (input) => {
+      if (input === 'e' || input === 'E') {
+        onOpenSettings()
+        return
+      }
+      if (input === 'c' || input === 'C') {
+        onSetShareOpen(true)
+        return
+      }
       if (isHost && (input === 'r' || input === 'R')) {
         onReveal()
       }
@@ -49,8 +70,21 @@ export function Voting({
         onToggleRole()
       }
     },
-    { isActive: !confirmingQuit },
+    { isActive: !confirmingQuit && !settingsOpen && !shareOpen },
   )
+
+  if (shareOpen) {
+    return (
+      <SharePicker
+        roomCode={roomCode}
+        onPick={(kind) => {
+          onSetShareOpen(false)
+          onShare(kind)
+        }}
+        onClose={() => onSetShareOpen(false)}
+      />
+    )
+  }
 
   const myVote = round.votes[myId]
   const roundNum = projection.rounds.indexOf(round) + 1
@@ -92,6 +126,8 @@ export function Voting({
       <Box gap={2}>
         {isHost && <Text color="yellow">[r] Reveal</Text>}
         <Text color="yellow">[w] {myRole === 'viewer' ? 'Vote' : 'Observe'}</Text>
+        <Text>[e] Settings</Text>
+        <Text>[c] Share</Text>
         <Text>[q] Quit</Text>
       </Box>
     </Box>

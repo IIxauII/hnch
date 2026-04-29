@@ -20,11 +20,25 @@ export interface LobbySettingsProps {
   accessMode: 'open' | 'password' | 'invite'
   presetOverrides?: PresetOverrides
   customScales?: CustomScale[]
+  /** When false (joiner), only Display name row is shown. Defaults to true. */
+  isHost?: boolean
   onChangeName: (name: string | undefined) => void
   onChangeScale: (scale: Scale) => void
   onChangeDisplayName: (name: string) => void
   onChangeAccess: (mode: 'open' | 'password', password?: string) => Promise<void>
   onClose: () => void
+}
+
+/**
+ * Filters a settings menu item list for the current participant's role.
+ * Hosts see all items; joiners see only `display-name`.
+ * Exported for unit testing — mirrors the component's runtime filter exactly.
+ */
+export function filterSettingsItems<T extends { value: string }>(
+  items: readonly T[],
+  isHost: boolean,
+): T[] {
+  return isHost ? [...items] : items.filter((i) => i.value === 'display-name')
 }
 
 type SettingsState =
@@ -41,6 +55,7 @@ export function LobbySettings({
   accessMode,
   presetOverrides,
   customScales,
+  isHost = true,
   onChangeName,
   onChangeScale,
   onChangeDisplayName,
@@ -61,7 +76,7 @@ export function LobbySettings({
   const [passwordInput, setPasswordInput] = useState('')
   const [isUpdating, setIsUpdating] = useState(false)
 
-  const menuItems = [
+  const allMenuItems = [
     {
       label: 'Room name',
       value: 'room-name',
@@ -84,7 +99,11 @@ export function LobbySettings({
     },
   ]
 
+  // Joiners see only Display name; host items hidden to prevent mutation
+  const menuItems = filterSettingsItems(allMenuItems, isHost)
+
   function handleMenuSelect(value: string) {
+    if (!isHost && value !== 'display-name') return
     if (value === 'room-name') {
       setRoomNameInput(sessionName ?? '')
       setState('editing-room-name')
