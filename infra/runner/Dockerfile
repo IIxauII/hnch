@@ -1,33 +1,57 @@
-# IMPORTANT: the digest below is a placeholder. The image will not build until
-# REPLACE_ME_WITH_DIGEST is replaced with the real sha256 digest of
-# myoung34/github-runner:2.321.0 (resolved on the Mac mini at deploy time).
-# This is intentional: it forces an explicit digest pin before first build.
-# See infra/README.md "Bumping the runner base image" for the refresh cadence
-# and the exact lookup procedure.
+# hnch self-hosted GitHub Actions runner image.
+# See ADR-0032 (architecture) and ADR-0033 (image base). Runbook in infra/README.md.
 #
-# Pinned to an immutable tag + digest. Bump in tandem on a documented schedule.
-FROM myoung34/github-runner:2.321.0@sha256:REPLACE_ME_WITH_DIGEST
+# Bumping: edit RUNNER_VERSION + RUNNER_SHA256 below. Look up the sha256 with:
+#   gh release view --repo actions/runner v<VERSION> --json body \
+#     --jq .body | grep -A1 "linux.*arm64"
+# (the sha is in the release body between BEGIN/END SHA markers).
 
-# Build-time only — RUN steps need root to apt-install. Image returns to
-# the base's default user (uid 1000 `runner`) at the end so the runner
-# agent (and every job step) executes as non-root.
-USER root
+FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      curl ca-certificates gnupg git unzip jq \
-    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y --no-install-recommends \
-      nodejs xvfb \
+ARG RUNNER_VERSION=2.334.0
+ARG RUNNER_SHA256=f44255bd3e80160eb25f71bc83d06ea025f6908748807a584687b3184759f7e4
+
+# System deps: actions/runner needs libicu + bash + ca-certs + git.
+# Playwright Chromium needs the libnss/libatk/etc. set.
+# Node 22 from NodeSource APT (signed repo).
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+      ca-certificates curl gnupg git unzip jq sudo \
+      bash libicu72 \
+      xvfb \
       libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libxkbcommon0 \
       libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 \
-      libcairo2 libasound2 libwayland-client0 libdbus-1-3 libdrm2 \
-    && rm -rf /var/lib/apt/lists/*
+      libcairo2 libasound2 libwayland-client0 libdbus-1-3 libdrm2; \
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash -; \
+    apt-get install -y --no-install-recommends nodejs; \
+    rm -rf /var/lib/apt/lists/*
 
-# Pin pnpm at image build time. Run as runner so corepack writes shims
-# under that user's $HOME and the cache dirs we'll mount end up in the
-# right XDG locations.
+# Non-root runner user (uid 1000) so --userns=keep-id maps to host xau.
+RUN useradd -m -u 1000 -s /bin/bash runner
+
+# corepack enable writes pnpm/yarn shims into /usr/bin — needs root.
+# The activation step (which downloads + caches the pinned pnpm version)
+# runs as the runner user below so the cache lives under its $HOME.
+RUN corepack enable
+
 USER runner
-RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+WORKDIR /home/runner
+
+# Download + verify + extract actions/runner.
+RUN set -eux; \
+    cd /home/runner; \
+    curl -fsSL -o runner.tar.gz \
+      "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-arm64-${RUNNER_VERSION}.tar.gz"; \
+    echo "${RUNNER_SHA256}  runner.tar.gz" | sha256sum -c -; \
+    tar xzf runner.tar.gz; \
+    rm runner.tar.gz
+
+# Pin pnpm via corepack (runs as the runner user so the cache lives under $HOME).
+RUN corepack prepare pnpm@9.15.0 --activate
 
 ENV PNPM_STORE_DIR=/cache/pnpm-store
 ENV PLAYWRIGHT_BROWSERS_PATH=/cache/playwright
+
+COPY --chown=runner:runner entrypoint.sh /home/runner/entrypoint.sh
+ENTRYPOINT ["/home/runner/entrypoint.sh"]
