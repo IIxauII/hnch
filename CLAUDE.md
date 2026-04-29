@@ -58,6 +58,7 @@ For quick orientation without reading all 19 ADRs:
 - **Participant roles:** every participant has a `role` field on their doc record — `voter` (default) or `viewer`. Viewers excluded from unanimous auto-reveal denominator so observers don't block reveals; toggleable in-session. (ADR-0020)
 - **Repo layout:** pnpm workspaces monorepo with `packages/client`, `packages/relay`, `packages/shared`, `packages/e2e` (Playwright). (ADR-0014)
 - **Deployment:** relay runs bare-metal on a single IONOS VPS, supervised by systemd, fronted by Caddy with auto-TLS via Let's Encrypt. PWA + relay served from a single origin (`hnch.dev`) with Caddy routing `/health`, `/rooms*`, `/ws*` to `127.0.0.1:1234`. Bootstrap script + Caddyfile + systemd unit live in `infra/`. Relay deploys via `deploy-relay.yml` on `relay-v*` tags; PWA deploys via `deploy-client.yml` on `client-v*` tags, shipping to `/var/www/hnch-client/` via atomic symlink swap (no reload). (ADR-0029)
+- **CI runners:** `verify` matrix + `e2e` run on a pool of 4 ephemeral arm64 Podman containers on a Mac mini M4, supervised by a LaunchAgent. Deploy/release/health-check workflows stay on `ubuntu-latest`. `vars.LINUX_RUNNER` repo variable toggles between self-hosted and `ubuntu-latest` with no PR. Tart-based macOS runner deferred to Phase 9 (gated on Phase 6b iOS). Runner files in `infra/runner/`; runbook in `infra/README.md`. (ADR-0032)
 
 ## Parallel worktrees
 
