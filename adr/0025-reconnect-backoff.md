@@ -1,6 +1,6 @@
 # ADR-0025: Reconnect / backoff posture — y-websocket defaults plus `online` reset
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-04-26
 **Deciders:** Xau
 

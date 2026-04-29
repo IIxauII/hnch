@@ -1,6 +1,6 @@
 # ADR-0021: CLI package — fourth deliverable with parity contract and platform-appropriate divergences
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-04-26
 **Deciders:** Xau
 

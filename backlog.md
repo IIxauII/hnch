@@ -16,27 +16,21 @@ Curated list of bugs, technical-debt items, features, and improvements. Updated 
 
 ## 2. Technical debt & polish
 
-### 2.1 Accept proposed ADRs that are already implemented
+### 2.1 Accept proposed ADRs that are already implemented — **shipped**
 
-ADRs 0021–0030 have status `Proposed` even though their corresponding code shipped. Keeping them "Proposed" indefinitely makes the ADR index misleading. Each one should be reviewed and either:
+> **Shipped:** ADRs 0021–0029 flipped from `Proposed` to `Accepted`; bodies and dates unchanged per `adr/README.md` convention. ADR-0026 retains its `(origin clause superseded by ADR-0031)` caveat. ADR-0030 was listed in error — it does not exist; numbering jumps 0029 → 0031.
 
-- Flipped to `Accepted` (if the implementation matches the decision), or
-- Updated with implementation-time corrections and then accepted.
-
-Candidates in rough order of confidence:
-
-| ADR | Subject | Confidence code is shipped |
-|-----|---------|---------------------------|
-| 0021 | CLI package | High — `packages/cli` fully implemented |
-| 0022 | Last-session cache | High — `cli/src/last-session.ts` implements 0600 mode, 24h TTL |
-| 0023 | Session-end broadcast | High — `session-end.service.ts` + `session-end-observer.ts` both implemented |
-| 0024 | Participant cap | High — relay enforces cap at WS upgrade |
-| 0025 | Reconnect/backoff | High — sync-provider has reconnect logic |
-| 0026 | Deep-link URL format | High — `/join?code=` implemented |
-| 0027 | Test-only relay surfaces | High — `DELETE /test/rooms/:uuid` implemented |
-| 0028 | Telemetry posture | High — no telemetry, posture is "none" |
-| 0029 | Relay deployment | High — Caddy + systemd infra shipped |
-| 0030 | Canonical origin hnch.dev | High — single-origin confirmed in ADR-0029 |
+| ADR | Subject | Status |
+|-----|---------|--------|
+| 0021 | CLI package | Accepted |
+| 0022 | Last-session cache | Accepted |
+| 0023 | Session-end broadcast | Accepted |
+| 0024 | Participant cap | Accepted |
+| 0025 | Reconnect/backoff | Accepted |
+| 0026 | Deep-link URL format | Accepted (origin clause superseded by ADR-0031) |
+| 0027 | Test-only relay surfaces | Accepted |
+| 0028 | Telemetry posture | Accepted |
+| 0029 | Relay deployment | Accepted |
 
 ---
 
