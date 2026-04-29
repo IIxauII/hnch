@@ -5,8 +5,12 @@ on:
     - cron: '0 * * * *'
   workflow_dispatch:
 
-permissions:
-  actions: read
+# Note: this workflow uses RUNNER_HEALTH_PAT (a fine-grained PAT with
+# Administration: Read on this repo) instead of secrets.GITHUB_TOKEN.
+# Listing self-hosted runners requires Administration: read, which
+# GITHUB_TOKEN cannot be granted — its scope is capped by GitHub and
+# cannot be escalated via the workflow `permissions:` block.
+# See infra/README.md "Health check" for setup + rotation procedure.
 
 jobs:
   check:
@@ -16,7 +20,11 @@ jobs:
     steps:
       - name: Check hnch-podman runner online
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RUNNER_HEALTH_PAT }}
         run: |
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "::warning::RUNNER_HEALTH_PAT secret not set — skipping health check"
+            exit 0
+          fi
           online=$(gh api /repos/${{ github.repository }}/actions/runners --jq '[.runners[] | select(.status=="online" and (.labels | map(.name) | contains(["hnch-podman"])))] | length')
           [ "$online" -ge 1 ] || { echo "::error::No hnch-podman runners online"; exit 1; }
