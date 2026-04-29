@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/app.fixture'
-import { JOIN } from './fixtures/helpers'
+import { BASE_URL, JOIN } from './fixtures/helpers'
 
 test.describe('Password-protected rooms', () => {
   test('joiner must enter correct password to join', async ({ host, player }) => {
@@ -35,7 +35,7 @@ test.describe('Password-protected rooms', () => {
     await host.closeSettings()
 
     // Player tries to join with the wrong password
-    await player.page.goto('http://localhost:4200/home')
+    await player.page.goto(`${BASE_URL}/home`)
     await player.page.waitForURL(/\/(home|onboarding)/)
     if (player.page.url().includes('/onboarding')) {
       await player.onboard()

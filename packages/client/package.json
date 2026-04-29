@@ -6,7 +6,7 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "dev": "ng serve",
+    "dev": "node scripts/run-ng-dev.mjs",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "vitest run",
