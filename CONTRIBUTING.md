@@ -131,16 +131,6 @@ Each package versions independently — `client`, `cli`, `relay`, and `shared` g
 
 For working on multiple branches in parallel (e.g. running multiple AI agents simultaneously), the repo ships a worktree workflow that gives each worktree its own isolated dev/relay/cli/e2e stack with non-colliding ports.
 
-### One-time setup
-
-If you have a per-machine `.claude/settings.local.json` from prior work, move it to the user-level location so all worktrees and projects share it:
-
-```sh
-mv .claude/settings.local.json ~/.claude/settings.local.json
-```
-
-If `~/.claude/settings.local.json` already exists from another project, merge the contents manually (different repos may have unrelated tool permissions).
-
 ### Quickstart
 
 From the main repo dir:
@@ -184,3 +174,4 @@ You can also use plain `git worktree add` if you don't want the wrapper — just
 - **CLI config (`~/.config/hnch/config.json`) is user-level**, shared across worktrees. `HNCH_RELAY_URL` is set per worktree via `.env.local` so the CLI talks to the right relay; but `participantId`, `displayName`, etc. are shared. For per-worktree CLI identity, set `XDG_CONFIG_HOME=$(pwd)/.cli-config` before `pnpm dev:cli`.
 - **Playwright browser cache (`~/.cache/ms-playwright`) is shared.** First-run install across two fresh worktrees in parallel may race; subsequent runs are fine.
 - **Linux/macOS only.** `with-env.sh` and `worktree-bootstrap.sh` are bash. Windows contributors will need WSL or equivalent.
+- **`.claude/settings.local.json` is per-worktree.** Each new worktree starts with an empty Claude Code permissions allowlist; you'll re-grant common permissions on first use. Anthropic's [issue #40857](https://github.com/anthropics/claude-code/issues/40857) prevents symlink-based sharing today (Claude rewrites the file via atomic replace, which destroys the symlink). Revisit once that lands; until then, accept per-worktree drift.
