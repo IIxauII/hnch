@@ -60,7 +60,7 @@ Each phase assumes the previous one passes its exit bar. Within a phase, orderin
 
 **Work.**
 - Bootstrap: `provideIonicAngular()` in `main.ts` with Ionic's default mode (auto-detected per platform — iOS on iPhone, Material on Android/PWA). See [`ux.md` §2](ux.md#2-app-shell--navigation).
-- Angular routing: seven routes for the v1 screens — `onboarding`, `home`, `join`, `lobby`, `estimating`, `revealed`, `settings`. Placeholder components, nothing more. Route guard that redirects to `onboarding` on first launch (no stored display name).
+- Angular routing: six routes for the v1 screens — `onboarding`, `home`, `join`, `lobby`, `estimating`, `settings`. Placeholder components, nothing more. Route guard that redirects to `onboarding` on first launch (no stored display name).
 - `packages/shared`: add `doc.ts` — TypeScript interfaces that mirror [`schema.md`](schema.md) one-to-one: `Meta`, `Settings`, `Participant`, `Round`, `Scale`, `RevealMode`, awareness payload. These are the types client and relay will share going forward. No Yjs bindings yet (those live in the client — shared is platform-neutral).
 - Onboarding screen: name input + Continue button, writes to `@capacitor/preferences`. Handles the pending-join-URL case (if the app launched via deep link before onboarding, stash it and resume to Join after save).
 - Home screen: "Create Room" and "Join Room" buttons. Jump-back-in banner can be present as a shell (no wiring yet — that needs Phase 2+).
