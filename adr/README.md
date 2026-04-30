@@ -52,6 +52,7 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0031](0031-runtime-origin-for-invite-urls.md) | Runtime `window.location.origin` for invite URLs (supersedes ADR-0026 §1) | Accepted |
 | [0032](0032-self-hosted-github-actions-runner.md) | Self-hosted GitHub Actions runner — ephemeral arm64 Podman pool on Mac mini M4 (Tart deferred) | Proposed |
 | [0033](0033-runner-image-from-debian-and-actions-runner-tarball.md) | Runner image from `debian:bookworm-slim` + official `actions/runner` tarball (refines ADR-0032 §base-image) | Proposed |
+| [0034](0034-qr-scan-native-web-split.md) | QR scan native-vs-web split — single plugin, runtime platform branch, lazy ZXing-WASM polyfill on web | Proposed |
 
 ## When to write an ADR
 
