@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/IIxauII/hnch/compare/client-v1.4.0...client-v1.5.0) (2026-04-30)
+
+
+### Features
+
+* **client:** participant removal lifecycle (leave + host kick) ([#52](https://github.com/IIxauII/hnch/issues/52)) ([a15e3df](https://github.com/IIxauII/hnch/commit/a15e3df6c1c00bda3f1aac4ba32d24e2f49fc7fd))
+
 # [1.4.0](https://github.com/IIxauII/hnch/compare/client-v1.3.0...client-v1.4.0) (2026-04-30)
 
 
