@@ -77,6 +77,20 @@ export interface Participant {
    * from unanimous auto-reveal (ADR-0018).
    */
   role?: 'voter' | 'viewer'
+  /**
+   * Unix milliseconds when the participant left or was removed (ADR-0036).
+   * Absent means the participant is active. Set by `leaveSession` (voluntary
+   * leave) or `removeParticipant` (host kick). Tab-close / network drop do
+   * NOT set this — those are handled by Yjs awareness.
+   */
+  leftAt?: number
+  /**
+   * `participantId` of the actor who triggered the removal (ADR-0036).
+   * Equal to the participant's own id ⇒ voluntary leave.
+   * Different id ⇒ kicked by that host.
+   * Always set alongside `leftAt`; absent when `leftAt` is absent.
+   */
+  removedBy?: string
 }
 
 /**
@@ -85,6 +99,18 @@ export interface Participant {
  */
 export function participantRole(p: Pick<Participant, 'role'>): 'voter' | 'viewer' {
   return p.role ?? 'voter'
+}
+
+/**
+ * Returns true when the participant is active — i.e. has not voluntarily
+ * left or been removed by the host (ADR-0036). Absent `leftAt` ⇒ active.
+ *
+ * Use this as the single choke point for "who is in the session right now?"
+ * queries. Round history must read the raw `participants` map — never
+ * filtered — so departed names still resolve on past rounds.
+ */
+export function isActiveParticipant(p: Pick<Participant, 'leftAt'>): boolean {
+  return p.leftAt === undefined
 }
 
 // ---------------------------------------------------------------------------

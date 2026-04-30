@@ -54,10 +54,14 @@ export class HostElectionService {
     const hostId = settings.hostParticipantId
     if (!hostId) return
 
-    const onlineIds = this.docService.onlineParticipantIds()
+    // Intersect awareness set with active (non-kicked) participants — a
+    // kicked peer whose awareness lingers must not block or win an election.
+    const rawOnlineIds = this.docService.onlineParticipantIds()
+    const activeIds = new Set(this.docService.activeParticipants().map((p) => p.id))
+    const onlineIds = new Set([...rawOnlineIds].filter((id) => activeIds.has(id)))
     const myId = this.participantIdService.id()
 
-    // 1. Host is online → no action, cancel any pending debounce.
+    // 1. Host is online AND active → no action, cancel any pending debounce.
     if (onlineIds.has(hostId)) {
       this.cancelDebounce()
       return
@@ -90,10 +94,13 @@ export class HostElectionService {
     // current host and must still be offline.
     if (!cachedMissing || hostId !== cachedMissing) return
 
-    const onlineIds = this.docService.onlineParticipantIds()
+    // Re-intersect at promotion time (same logic as evaluate).
+    const rawOnlineIds = this.docService.onlineParticipantIds()
+    const activeIds = new Set(this.docService.activeParticipants().map((p) => p.id))
+    const onlineIds = new Set([...rawOnlineIds].filter((id) => activeIds.has(id)))
     if (onlineIds.has(hostId)) return
 
-    // Compute the winner: lexicographically lowest online participantId.
+    // Compute the winner: lexicographically lowest active-online participantId.
     const sorted = [...onlineIds].sort()
     if (sorted.length === 0) return
 

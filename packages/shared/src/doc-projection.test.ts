@@ -4,6 +4,7 @@ import * as Y from 'yjs'
 import {
   FIBONACCI_SCALE,
   TSHIRT_SCALE,
+  isActiveParticipant,
   participantRole,
   type Participant,
   type Scale,
@@ -20,8 +21,11 @@ import {
   endSessionForEveryone,
   initDoc,
   isConsensus,
+  joinDoc,
+  leaveSession,
   patchSettings,
   projectDoc,
+  removeParticipant,
   revealRound,
   upsertParticipant,
   type DocProjection,
@@ -658,5 +662,300 @@ describe('participantRole', () => {
 
   it('returns voter when role is undefined', () => {
     expect(participantRole({ role: undefined })).toBe('voter')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// isActiveParticipant (ADR-0036)
+// ---------------------------------------------------------------------------
+
+describe('isActiveParticipant', () => {
+  it('returns true when leftAt is absent', () => {
+    expect(isActiveParticipant({})).toBe(true)
+  })
+
+  it('returns true when leftAt is undefined', () => {
+    expect(isActiveParticipant({ leftAt: undefined })).toBe(true)
+  })
+
+  it('returns false when leftAt is set', () => {
+    expect(isActiveParticipant({ leftAt: 1_700_000_000_000 })).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// leaveSession (ADR-0036)
+// ---------------------------------------------------------------------------
+
+describe('leaveSession', () => {
+  it('sets leftAt and removedBy=selfId on the participant record', () => {
+    const { doc } = seedDoc()
+    const before = Date.now()
+    leaveSession(doc, 'p-host')
+    const after = Date.now()
+    const snap = projectDoc(doc)
+    const p = snap.participants[0]!
+    expect(p.leftAt).toBeGreaterThanOrEqual(before)
+    expect(p.leftAt).toBeLessThanOrEqual(after)
+    expect(p.removedBy).toBe('p-host')
+  })
+
+  it('marks the participant as inactive after leave', () => {
+    const { doc } = seedDoc()
+    leaveSession(doc, 'p-host')
+    const p = projectDoc(doc).participants[0]!
+    expect(isActiveParticipant(p)).toBe(false)
+  })
+
+  it('is a no-op when participant record is missing', () => {
+    const { doc } = seedDoc()
+    expect(() => leaveSession(doc, 'nonexistent-id')).not.toThrow()
+    const snap = projectDoc(doc)
+    expect(snap.participants).toHaveLength(1)
+    expect(snap.participants[0]!.leftAt).toBeUndefined()
+  })
+
+  it('fires exactly one transaction', () => {
+    const { doc } = seedDoc()
+    let txCount = 0
+    const handler = (): void => {
+      txCount += 1
+    }
+    doc.on('afterTransaction', handler)
+    leaveSession(doc, 'p-host')
+    doc.off('afterTransaction', handler)
+    expect(txCount).toBe(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// removeParticipant (ADR-0036)
+// ---------------------------------------------------------------------------
+
+describe('removeParticipant', () => {
+  it('sets leftAt and removedBy=hostId on the target record', () => {
+    const { doc } = seedDoc()
+    upsertParticipant(doc, 'p-bob', { displayName: 'Bob', joinedAt: 1_700_000_001_000 })
+    const before = Date.now()
+    removeParticipant(doc, 'p-host', 'p-bob')
+    const after = Date.now()
+    const snap = projectDoc(doc)
+    const bob = snap.participants.find((p) => p.id === 'p-bob')!
+    expect(bob.leftAt).toBeGreaterThanOrEqual(before)
+    expect(bob.leftAt).toBeLessThanOrEqual(after)
+    expect(bob.removedBy).toBe('p-host')
+  })
+
+  it('marks the target as inactive after kick', () => {
+    const { doc } = seedDoc()
+    upsertParticipant(doc, 'p-bob', { displayName: 'Bob', joinedAt: 1_700_000_001_000 })
+    removeParticipant(doc, 'p-host', 'p-bob')
+    const bob = projectDoc(doc).participants.find((p) => p.id === 'p-bob')!
+    expect(isActiveParticipant(bob)).toBe(false)
+  })
+
+  it('does not touch the host record', () => {
+    const { doc } = seedDoc()
+    upsertParticipant(doc, 'p-bob', { displayName: 'Bob', joinedAt: 1_700_000_001_000 })
+    removeParticipant(doc, 'p-host', 'p-bob')
+    const host = projectDoc(doc).participants.find((p) => p.id === 'p-host')!
+    expect(isActiveParticipant(host)).toBe(true)
+  })
+
+  it('is a no-op when targetId === hostId (self-kick must use leaveSession)', () => {
+    const { doc } = seedDoc()
+    removeParticipant(doc, 'p-host', 'p-host')
+    const host = projectDoc(doc).participants[0]!
+    expect(host.leftAt).toBeUndefined()
+    expect(host.removedBy).toBeUndefined()
+  })
+
+  it('is a no-op when target record is missing', () => {
+    const { doc } = seedDoc()
+    expect(() => removeParticipant(doc, 'p-host', 'nonexistent-id')).not.toThrow()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// joinDoc re-join clears removal state (ADR-0036)
+// ---------------------------------------------------------------------------
+
+describe('joinDoc re-join clears leftAt / removedBy', () => {
+  it('clears leftAt and removedBy when participant re-joins after leave', () => {
+    const { doc } = seedDoc()
+    leaveSession(doc, 'p-host')
+    expect(projectDoc(doc).participants[0]!.leftAt).toBeDefined()
+
+    joinDoc(doc, { participantId: 'p-host', displayName: 'Alice' })
+    const snap = projectDoc(doc)
+    const p = snap.participants[0]!
+    expect(p.leftAt).toBeUndefined()
+    expect(p.removedBy).toBeUndefined()
+    expect(isActiveParticipant(p)).toBe(true)
+  })
+
+  it('clears leftAt and removedBy when participant re-joins after kick', () => {
+    const { doc } = seedDoc()
+    upsertParticipant(doc, 'p-bob', { displayName: 'Bob', joinedAt: 1_700_000_001_000 })
+    removeParticipant(doc, 'p-host', 'p-bob')
+    expect(projectDoc(doc).participants.find((p) => p.id === 'p-bob')!.leftAt).toBeDefined()
+
+    joinDoc(doc, { participantId: 'p-bob', displayName: 'Bob' })
+    const bob = projectDoc(doc).participants.find((p) => p.id === 'p-bob')!
+    expect(bob.leftAt).toBeUndefined()
+    expect(bob.removedBy).toBeUndefined()
+  })
+
+  it('preserves joinedAt on re-join', () => {
+    const { doc, init } = seedDoc()
+    leaveSession(doc, 'p-host')
+    joinDoc(doc, { participantId: 'p-host', displayName: 'Alice' })
+    const p = projectDoc(doc).participants[0]!
+    expect(p.joinedAt).toBe(init.createdAt)
+  })
+
+  it('creates a new record with joinedAt when participant is new', () => {
+    const { doc } = seedDoc()
+    const before = Date.now()
+    joinDoc(doc, { participantId: 'p-new', displayName: 'New Person' })
+    const after = Date.now()
+    const snap = projectDoc(doc)
+    const p = snap.participants.find((pp) => pp.id === 'p-new')!
+    expect(p.joinedAt).toBeGreaterThanOrEqual(before)
+    expect(p.joinedAt).toBeLessThanOrEqual(after)
+    expect(p.leftAt).toBeUndefined()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Auto-reveal denominator excludes left voters (ADR-0036)
+// ---------------------------------------------------------------------------
+
+describe('auto-reveal denominator excludes left voters', () => {
+  it('2 of 3 voters voting triggers reveal when the 3rd has left without voting', () => {
+    // Setup: 3 voters in a doc.
+    const doc = new Y.Doc()
+    initDoc(doc, {
+      roomUuid: 'room-uuid-ar',
+      createdAt: 1,
+      participantId: 'p-a',
+      displayName: 'Alice',
+      defaultScale: FIBONACCI_SCALE,
+    })
+    upsertParticipant(doc, 'p-b', { displayName: 'Bob', joinedAt: 2 })
+    upsertParticipant(doc, 'p-c', { displayName: 'Carol', joinedAt: 3 })
+    appendRound(doc, { id: 'r1', createdAt: 10, createdBy: 'p-a' })
+
+    // p-c leaves without voting.
+    leaveSession(doc, 'p-c')
+
+    // p-a and p-b vote.
+    castVote(doc, 'r1', 'p-a', '5')
+    castVote(doc, 'r1', 'p-b', '8')
+
+    const snap = projectDoc(doc)
+    const round = snap.rounds[0]!
+
+    // Active online voters = those who are active AND online (aware).
+    // In this unit test we simulate "online" as all active participants,
+    // demonstrating the filter logic the callers must apply.
+    const activeVoterIds = snap.participants
+      .filter(isActiveParticipant)
+      .filter((p) => participantRole(p) === 'voter')
+      .map((p) => p.id)
+
+    // Should be p-a and p-b only — p-c is inactive.
+    expect(activeVoterIds).toEqual(['p-a', 'p-b'])
+
+    // All active voters have voted → auto-reveal should fire.
+    const allActiveVotersHaveVoted =
+      activeVoterIds.length > 0 &&
+      activeVoterIds.every((id) => id in round.votes)
+
+    expect(allActiveVotersHaveVoted).toBe(true)
+  })
+
+  it('reveal does not trigger prematurely when an active voter has not voted', () => {
+    const doc = new Y.Doc()
+    initDoc(doc, {
+      roomUuid: 'room-uuid-ar2',
+      createdAt: 1,
+      participantId: 'p-a',
+      displayName: 'Alice',
+      defaultScale: FIBONACCI_SCALE,
+    })
+    upsertParticipant(doc, 'p-b', { displayName: 'Bob', joinedAt: 2 })
+    appendRound(doc, { id: 'r1', createdAt: 10, createdBy: 'p-a' })
+
+    // Only p-a votes; p-b is still active and hasn't voted.
+    castVote(doc, 'r1', 'p-a', '5')
+
+    const snap = projectDoc(doc)
+    const round = snap.rounds[0]!
+    const activeVoterIds = snap.participants
+      .filter(isActiveParticipant)
+      .filter((p) => participantRole(p) === 'voter')
+      .map((p) => p.id)
+
+    const allActiveVotersHaveVoted =
+      activeVoterIds.length > 0 &&
+      activeVoterIds.every((id) => id in round.votes)
+
+    expect(allActiveVotersHaveVoted).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// CRDT concurrency: concurrent leaveSession + removeParticipant (ADR-0036 §7)
+// ---------------------------------------------------------------------------
+
+describe('concurrent leaveSession + removeParticipant converge (ADR-0036 §7)', () => {
+  it('both docs reach same leftAt and removedBy after exchanging updates', () => {
+    // Seed a single source-of-truth doc, then fork into docA and docB.
+    const docSrc = new Y.Doc()
+    initDoc(docSrc, {
+      roomUuid: 'room-concurrent',
+      createdAt: 1_700_000_000_000,
+      participantId: 'p-host',
+      displayName: 'Host',
+      defaultScale: FIBONACCI_SCALE,
+    })
+    upsertParticipant(docSrc, 'p-target', { displayName: 'Target', joinedAt: 1_700_000_001_000 })
+
+    const initialUpdate = Y.encodeStateAsUpdate(docSrc)
+
+    const docA = new Y.Doc()
+    Y.applyUpdate(docA, initialUpdate)
+
+    const docB = new Y.Doc()
+    Y.applyUpdate(docB, initialUpdate)
+
+    // Concurrent writes: target leaves on docA, host kicks target on docB.
+    leaveSession(docA, 'p-target')
+    removeParticipant(docB, 'p-host', 'p-target')
+
+    // Exchange updates — each doc sees the other's write.
+    Y.applyUpdate(docB, Y.encodeStateAsUpdate(docA))
+    Y.applyUpdate(docA, Y.encodeStateAsUpdate(docB))
+
+    // Both docs must converge to identical state.
+    const snapA = projectDoc(docA)
+    const snapB = projectDoc(docB)
+
+    const targetA = snapA.participants.find((p) => p.id === 'p-target')!
+    const targetB = snapB.participants.find((p) => p.id === 'p-target')!
+
+    // leftAt must be defined and identical on both sides.
+    expect(targetA.leftAt).toBeDefined()
+    expect(targetB.leftAt).toBeDefined()
+    expect(targetA.leftAt).toBe(targetB.leftAt)
+
+    // removedBy must be defined and identical on both sides.
+    expect(targetA.removedBy).toBeDefined()
+    expect(targetB.removedBy).toBeDefined()
+    expect(targetA.removedBy).toBe(targetB.removedBy)
+
+    // Yjs LWW picked one winner — must be one of the two actors.
+    expect(['p-target', 'p-host']).toContain(targetA.removedBy)
   })
 })

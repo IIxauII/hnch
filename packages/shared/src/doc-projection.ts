@@ -74,7 +74,7 @@ const SETTINGS_FIELDS = [
   'defaultScale',
   'hostParticipantId',
 ] as const
-const PARTICIPANT_FIELDS = ['displayName', 'joinedAt', 'role'] as const
+const PARTICIPANT_FIELDS = ['displayName', 'joinedAt', 'role', 'leftAt', 'removedBy'] as const
 const ROUND_FIELDS = [
   'id',
   'title',
@@ -258,13 +258,27 @@ export interface JoinDocInit {
  * Add this client's participant entry to the doc without touching
  * `meta` or `settings`. Used when joining an existing room — the
  * authoritative state arrives via the relay's Yjs snapshot.
+ *
+ * When the participant record already exists (re-join after leave or kick),
+ * the existing record is reused and `leftAt` / `removedBy` are cleared so
+ * the participant re-enters the active roster (ADR-0036). `joinedAt` is
+ * preserved on re-join.
  */
 export function joinDoc(doc: Y.Doc, init: JoinDocInit): void {
   doc.transact(() => {
-    const pMap = new Y.Map<unknown>()
-    pMap.set('displayName', init.displayName)
-    pMap.set('joinedAt', Date.now())
-    participantsMap(doc).set(init.participantId, pMap)
+    const pMap = participantsMap(doc)
+    const existing = pMap.get(init.participantId)
+    const target = existing ?? new Y.Map<unknown>()
+    target.set('displayName', init.displayName)
+    if (existing === undefined) {
+      target.set('joinedAt', Date.now())
+    }
+    // Clear removal state so a re-joining participant becomes active again.
+    target.delete('leftAt')
+    target.delete('removedBy')
+    if (existing === undefined) {
+      pMap.set(init.participantId, target)
+    }
   })
 }
 
@@ -429,6 +443,46 @@ export function revealRound(
 export function endSessionForEveryone(doc: Y.Doc): void {
   doc.transact(() => {
     metaMap(doc).set('sessionEndedAt', Date.now())
+  })
+}
+
+/**
+ * Mark the caller as having voluntarily left the session. Sets `leftAt` and
+ * `removedBy` (equal to `selfId`) on the participant's record (ADR-0036).
+ * No-op if the participant record is missing — defensive, but expected to
+ * always exist.
+ *
+ * Tab-close / network drop do NOT call this — they are handled by Yjs
+ * awareness. Only intentional "Leave Session" actions route here.
+ */
+export function leaveSession(doc: Y.Doc, selfId: string): void {
+  const pMap = participantsMap(doc)
+  const record = pMap.get(selfId)
+  if (!record) return
+  doc.transact(() => {
+    record.set('leftAt', Date.now())
+    record.set('removedBy', selfId)
+  })
+}
+
+/**
+ * Remove a participant by host action (kick). Sets `leftAt` and `removedBy`
+ * (equal to `hostId`) on the target's record (ADR-0036).
+ *
+ * No-op when `targetId === hostId` — the host kicking themselves must route
+ * through `leaveSession` instead. No-op if the target record is missing.
+ *
+ * No host-validity check is performed here; the UI gates on `isHost()`
+ * exactly as the End-Session control does per ADR-0023.
+ */
+export function removeParticipant(doc: Y.Doc, hostId: string, targetId: string): void {
+  if (targetId === hostId) return
+  const pMap = participantsMap(doc)
+  const record = pMap.get(targetId)
+  if (!record) return
+  doc.transact(() => {
+    record.set('leftAt', Date.now())
+    record.set('removedBy', hostId)
   })
 }
 
