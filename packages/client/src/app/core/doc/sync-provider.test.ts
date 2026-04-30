@@ -11,12 +11,14 @@
  *   - reconnect cleared on success (lastRejection reset to null)
  *   - manual disconnect() → reconnecting false, idempotent
  *   - onStatusChange / onRejectionChange callbacks fired
+ *   - onSynced: fires once on first synced=true, not on subsequent or false
  *
  * Uses a controllable fake WebSocket class. Angular signals work in Node
  * without TestBed — they are plain reactive primitives.
  */
 
 import * as Y from 'yjs'
+import { WebsocketProvider } from 'y-websocket'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -544,4 +546,67 @@ describe('createSyncProvider', () => {
       provider.disconnect()
     }).not.toThrow()
   })
+
+  // -------------------------------------------------------------------------
+  // onSynced callback (ADR-0036 §6 LWW fix)
+  // -------------------------------------------------------------------------
+
+  it('onSynced called when WebsocketProvider emits synced=true', () => {
+    const onSynced = vi.fn()
+    const syncProvider = makeProvider({ onSynced })
+
+    // Capture the underlying WebsocketProvider via vi.spyOn on its `on` method.
+    // The spy fires before createSyncProvider wires its own listeners, so the
+    // first call with event='synced' reveals the raw provider instance (`this`).
+    const rawProvider = captureRawProvider(syncProvider)
+    expect(rawProvider).not.toBeNull()
+
+    rawProvider!.emit('synced', [true])
+    expect(onSynced).toHaveBeenCalledOnce()
+
+    syncProvider.disconnect()
+  })
+
+  it('onSynced called only once even if synced emits multiple times', () => {
+    const onSynced = vi.fn()
+    const syncProvider = makeProvider({ onSynced })
+    const rawProvider = captureRawProvider(syncProvider)!
+
+    rawProvider.emit('synced', [true])
+    rawProvider.emit('synced', [true])
+
+    expect(onSynced).toHaveBeenCalledOnce()
+    syncProvider.disconnect()
+  })
+
+  it('onSynced not called when synced emits false', () => {
+    const onSynced = vi.fn()
+    const syncProvider = makeProvider({ onSynced })
+    const rawProvider = captureRawProvider(syncProvider)!
+
+    rawProvider.emit('synced', [false])
+    expect(onSynced).not.toHaveBeenCalled()
+
+    syncProvider.disconnect()
+  })
+
+  it('onSynced not fired when not provided', () => {
+    // No crash when onSynced is absent and synced fires.
+    const syncProvider = makeProvider()
+    const rawProvider = captureRawProvider(syncProvider)!
+
+    expect(() => rawProvider.emit('synced', [true])).not.toThrow()
+    syncProvider.disconnect()
+  })
 })
+
+// ---------------------------------------------------------------------------
+// Helper: resolve the underlying WebsocketProvider from a SyncProvider handle.
+//
+// createSyncProvider exposes `_rawProvider` as a non-public test escape hatch
+// (not part of the SyncProvider interface). We cast with `unknown` intermediary.
+// ---------------------------------------------------------------------------
+
+function captureRawProvider(syncProvider: SyncProvider): WebsocketProvider | null {
+  return (syncProvider as unknown as { _rawProvider: WebsocketProvider })._rawProvider ?? null
+}

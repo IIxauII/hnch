@@ -62,6 +62,14 @@ export interface SyncProviderOptions {
    */
   readonly onRejectionChange?: (reason: JoinRejectionReason | null) => void
   /**
+   * Fires exactly once on the first successful Yjs sync with the relay
+   * (the moment `provider.synced` transitions to `true`). Callers use
+   * this to perform post-sync mutations whose Lamport clock must be
+   * higher than any op in the relay snapshot — e.g. clearing a stale
+   * `leftAt` for a rejoining participant (ADR-0036).
+   */
+  readonly onSynced?: () => void
+  /**
    * Toast service for displaying user-facing errors. Optional — if omitted,
    * repeat-rejection warnings are silently suppressed (useful for tests).
    */
@@ -126,6 +134,8 @@ export function createSyncProvider(opts: SyncProviderOptions): SyncProvider {
   const manuallyDisconnected = signal(false)
   // Rolling buffer for unknown close-code timestamps — triggers toast on 3+ events in 60s.
   const unknownCloseCodeTimestamps: number[] = []
+  // Collectors of synced listeners so disconnect() can detach them.
+  const syncedListeners: Array<(isSynced: boolean) => void> = []
 
   // Reconnecting: WS is not connected, no permanent rejection has been issued,
   // and we have not intentionally torn down the session.
@@ -197,6 +207,26 @@ export function createSyncProvider(opts: SyncProviderOptions): SyncProvider {
   provider.on('status', onStatus)
   provider.on('connection-close', onConnectionClose)
 
+  // One-shot synced listener: fires when the relay's Yjs sync step 2 is
+  // received (provider.synced transitions to true). Used to run post-sync
+  // mutations with a Lamport clock higher than the relay snapshot, e.g.
+  // clearing a stale leftAt for a rejoining participant (ADR-0036).
+  if (opts.onSynced !== undefined) {
+    // `'synced'` is emitted by y-websocket but absent from the TypeScript
+    // overloads on `WebsocketProvider`. Cast through `unknown` to call it.
+    const providerAny = provider as unknown as {
+      on(event: string, fn: (isSynced: boolean) => void): void
+      off(event: string, fn: (isSynced: boolean) => void): void
+    }
+    const onSynced = (isSynced: boolean): void => {
+      if (!isSynced) return
+      providerAny.off('synced', onSynced)
+      opts.onSynced!()
+    }
+    syncedListeners.push(onSynced)
+    providerAny.on('synced', onSynced)
+  }
+
   // window online/offline listeners — handle network interface changes that
   // may not close the WebSocket immediately (e.g. Chromium offline mode,
   // flaky Wi-Fi transitions where the socket stays open until the next byte).
@@ -234,12 +264,28 @@ export function createSyncProvider(opts: SyncProviderOptions): SyncProvider {
     lastRejection,
     reconnecting,
     awareness: provider.awareness,
+    /**
+     * Escape hatch for unit tests — not part of the public `SyncProvider`
+     * interface. Lets tests emit events on the underlying `WebsocketProvider`
+     * (e.g. `'synced'`) without going through a full WS handshake.
+     *
+     * @internal
+     */
+    _rawProvider: provider,
     disconnect(): void {
       if (disposed) return
       disposed = true
       manuallyDisconnected.set(true)
       provider.off('status', onStatus)
       provider.off('connection-close', onConnectionClose)
+      if (syncedListeners.length > 0) {
+        const providerAny = provider as unknown as {
+          off(event: string, fn: (isSynced: boolean) => void): void
+        }
+        for (const listener of syncedListeners) {
+          providerAny.off('synced', listener)
+        }
+      }
       if (typeof window !== 'undefined') {
         window.removeEventListener('offline', onOffline)
         window.removeEventListener('online', onOnline)

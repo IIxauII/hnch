@@ -11,6 +11,7 @@ import { DocService } from './core/doc/doc.service'
 import { HapticService } from './core/haptic.service'
 import { HostElectionService } from './core/host-election.service'
 import { ParticipantIdService } from './core/participant-id.service'
+import { ParticipantRemovalService } from './core/participant-removal.service'
 import { SessionEndService } from './core/session-end.service'
 import { ThemeService } from './core/theme.service'
 import { ToastService } from './services/toast.service'
@@ -45,6 +46,7 @@ export class AppComponent {
   // self-gates on `docService.hasSession()`.
   private readonly _hostElection = inject(HostElectionService)
   private readonly _sessionEnd = inject(SessionEndService)
+  private readonly _participantRemoval = inject(ParticipantRemovalService)
   private readonly _theme = inject(ThemeService)
 
   /**

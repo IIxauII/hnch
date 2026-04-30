@@ -13,6 +13,7 @@ This document describes the shape of the Yjs doc that represents a single hnch s
 - [ADR-0013](adr/0013-round-model-flat-parentroundid.md) — flat rounds with `parentRoundId` lineage
 - [ADR-0018](adr/0018-remove-timer-add-unanimous-reveal.md) — removed countdown timer; added unanimous auto-reveal; `timerStartedAt` repurposed as stopwatch origin
 - [ADR-0019](adr/0019-scale-customization.md) — scale customization: 5 builtin presets, sentinel removal, device-local overrides and custom scales
+- [ADR-0036](adr/0036-participant-removal-lifecycle.md) — participant removal lifecycle (`leftAt` / `removedBy` soft-delete fields)
 
 **Not covered here.** Teams are local-only and never enter the Yjs doc (see [ADR-0007](adr/0007-teams-local-only.md)). Access control tokens (password hash, invite tokens) are managed by the relay and not stored in the doc ([ADR-0009](adr/0009-access-control-relay-tokens.md)). Room codes are a relay-side lookup to `roomUuid` and do not appear in the doc ([ADR-0008](adr/0008-room-code-format.md), [ADR-0012](adr/0012-snapshot-policy.md)).
 
@@ -67,8 +68,12 @@ Host-editable. Changes propagate to all clients via Yjs. The "host" at any momen
 | `displayName` | `string` | The name shown to other participants. User-editable. |
 | `joinedAt` | `number` | Unix milliseconds when this participant first joined the session. |
 | `role?` | `'voter' \| 'viewer'` | Optional participant role ([ADR-0020](adr/0020-participant-viewer-voter-role.md)). Defaults to `'voter'` if absent. Viewers cannot vote and are excluded from unanimous auto-reveal checks. |
+| `leftAt?` | `number` | Optional. Unix milliseconds when the participant was removed from the active roster ([ADR-0036](adr/0036-participant-removal-lifecycle.md)). Absent ⇒ active. Set on voluntary "Leave Session" or host kick. NOT set by transient disconnect — offline presence stays awareness-driven. Cleared on re-join (self upsert in `joinSession`). |
+| `removedBy?` | `string` | Optional. `participantId` of the actor that wrote `leftAt`. Equal to the target ⇒ voluntary leave; otherwise ⇒ kicked by host. Used by clients to render the right toast/system message ([ADR-0036](adr/0036-participant-removal-lifecycle.md)). |
 
 A participant stays in this map even if they disconnect — the map is cumulative for the session's lifetime. Online status is derived from **awareness**, not from this map.
+
+**Active vs. removed.** Active rosters (lobby, voter denominator, "didn't vote" set) filter on `!leftAt`. Round history (`round.votes` keyed by `participantId`) reads the raw `participants` map so removed names still resolve in past rounds ([ADR-0036](adr/0036-participant-removal-lifecycle.md)).
 
 ## `rounds` — the flat list of round records
 
@@ -128,7 +133,7 @@ These are computed on the client from the doc; they are not persisted:
 - **Round status:** `revealedAt ? 'revealed' : (timerStartedAt ? 'voting' : 'pending')`.
 - **Current round:** the last round in `rounds` whose `revealedAt` is unset; if all are revealed, the last round overall.
 - **Elapsed voting time:** `Date.now() - round.timerStartedAt` (counting up, displayed as a stopwatch).
-- **All voted:** every online participant (awareness set) has a key in `round.votes`. When true, any client writes `revealedAt` (unanimous auto-reveal, ADR-0018).
+- **All voted:** every online *active* voter (awareness set ∩ `!leftAt` ∩ `role !== 'viewer'`) has a key in `round.votes`. When true, any client writes `revealedAt` (unanimous auto-reveal, ADR-0018; left-participant exclusion per ADR-0036).
 - **Lineage chain:** walk `parentRoundId` backwards from a round to collect the full re-vote history for that item (useful for UI display and exports).
 - **Host liveness:** awareness has an entry for `settings.hostParticipantId`. Absence for longer than the 5-second debounce triggers election (ADR-0010).
 

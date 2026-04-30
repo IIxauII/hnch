@@ -23,6 +23,9 @@ import {
   IonHeader,
   IonIcon,
   IonItem,
+  IonItemOption,
+  IonItemOptions,
+  IonItemSliding,
   IonLabel,
   IonList,
   IonModal,
@@ -36,6 +39,7 @@ import {
   chevronBackOutline,
   ellipsisHorizontalCircle,
   personCircleOutline,
+  personRemoveOutline,
   qrCodeOutline,
   shareOutline,
   starOutline,
@@ -101,6 +105,9 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
     IonHeader,
     IonIcon,
     IonItem,
+    IonItemOption,
+    IonItemOptions,
+    IonItemSliding,
     IonLabel,
     IonList,
     IonModal,
@@ -179,46 +186,85 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
         <ion-accordion value="open">
           <ion-item slot="header" lines="inset">
             <ion-label>
-              Participants ({{ participants().length }})
+              Participants ({{ activeParticipants().length }})
               @if (participantsSummary()) {
                 <p class="participants-summary">{{ participantsSummary() }}</p>
               }
             </ion-label>
           </ion-item>
           <div slot="content">
+            @if (isHost()) {
+              <p class="swipe-hint">Swipe a row for host actions.</p>
+            }
             <ion-list lines="inset" class="participants">
-              @for (p of participants(); track p.id) {
-                <ion-item
-                  [class.offline]="!onlineIds().has(p.id)"
-                  [button]="isHost() && onlineIds().has(p.id) && p.id !== myId()"
-                  [attr.aria-label]="
-                    p.id === myId()
-                      ? 'You (' + p.displayName + ')'
-                      : isHost() && onlineIds().has(p.id) && p.id !== myId()
-                        ? 'Make ' + p.displayName + ' the host'
-                        : p.displayName
-                  "
-                  (click)="canHandoffTo(p.id) && onHandoffTap(p.id, p.displayName)"
-                >
-                  <ion-avatar slot="start" aria-hidden="true">
-                    <ion-icon name="person-circle-outline"></ion-icon>
-                  </ion-avatar>
-                  <ion-label>
-                    {{ p.id === myId() ? 'You (' + p.displayName + ')' : p.displayName }}
-                    @if (p.id === hostId()) {
-                      <ion-icon
-                        name="star-outline"
-                        class="host-icon"
-                        aria-label="Host"
-                      ></ion-icon>
+              @for (p of activeParticipants(); track p.id) {
+                @if (isHost() && p.id !== myId()) {
+                  <ion-item-sliding>
+                    <ion-item
+                      [class.offline]="!onlineIds().has(p.id)"
+                      [attr.aria-label]="p.displayName"
+                    >
+                      <ion-avatar slot="start" aria-hidden="true">
+                        <ion-icon name="person-circle-outline"></ion-icon>
+                      </ion-avatar>
+                      <ion-label>
+                        {{ p.displayName }}
+                        @if (p.id === hostId()) {
+                          <ion-icon
+                            name="star-outline"
+                            class="host-icon"
+                            aria-label="Host"
+                          ></ion-icon>
+                        }
+                      </ion-label>
+                      @if (isParticipantViewer(p)) {
+                        <ion-note slot="end" aria-label="Observer">observer</ion-note>
+                      } @else if (!onlineIds().has(p.id)) {
+                        <ion-note slot="end">Offline</ion-note>
+                      }
+                    </ion-item>
+                    <ion-item-options side="end">
+                      <ion-item-option
+                        color="primary"
+                        [attr.aria-label]="'Make ' + p.displayName + ' host'"
+                        (click)="onHandoffTap(p.id, p.displayName)"
+                      >
+                        <ion-icon slot="icon-only" name="star-outline"></ion-icon>
+                      </ion-item-option>
+                      <ion-item-option
+                        color="danger"
+                        [attr.aria-label]="'Remove ' + p.displayName + ' from session'"
+                        (click)="onRemoveTap(p.id, p.displayName)"
+                      >
+                        <ion-icon slot="icon-only" name="person-remove-outline"></ion-icon>
+                      </ion-item-option>
+                    </ion-item-options>
+                  </ion-item-sliding>
+                } @else {
+                  <ion-item
+                    [class.offline]="!onlineIds().has(p.id)"
+                    [attr.aria-label]="p.id === myId() ? 'You (' + p.displayName + ')' : p.displayName"
+                  >
+                    <ion-avatar slot="start" aria-hidden="true">
+                      <ion-icon name="person-circle-outline"></ion-icon>
+                    </ion-avatar>
+                    <ion-label>
+                      {{ p.id === myId() ? 'You (' + p.displayName + ')' : p.displayName }}
+                      @if (p.id === hostId()) {
+                        <ion-icon
+                          name="star-outline"
+                          class="host-icon"
+                          aria-label="Host"
+                        ></ion-icon>
+                      }
+                    </ion-label>
+                    @if (isParticipantViewer(p)) {
+                      <ion-note slot="end" aria-label="Observer">observer</ion-note>
+                    } @else if (!onlineIds().has(p.id)) {
+                      <ion-note slot="end">Offline</ion-note>
                     }
-                  </ion-label>
-                  @if (isParticipantViewer(p)) {
-                    <ion-note slot="end" aria-label="Observer">observer</ion-note>
-                  } @else if (!onlineIds().has(p.id)) {
-                    <ion-note slot="end">Offline</ion-note>
-                  }
-                </ion-item>
+                  </ion-item>
+                }
               }
             </ion-list>
           </div>
@@ -370,6 +416,11 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
         font-size: 0.85rem;
         color: var(--ion-color-medium);
       }
+      .swipe-hint {
+        margin: 0.25rem 1rem 0.25rem;
+        font-size: 0.8rem;
+        color: var(--ion-color-medium);
+      }
       ion-avatar ion-icon {
         font-size: 2rem;
         color: var(--ion-color-medium);
@@ -418,6 +469,7 @@ export class LobbyPage {
 
   protected readonly hasSession = this.docService.hasSession
   protected readonly participants = this.docService.participants
+  protected readonly activeParticipants = this.docService.activeParticipants
   protected readonly onlineIds = this.docService.onlineParticipantIds
   protected readonly rounds = this.docService.rounds
   protected readonly reconnecting = this.docService.reconnecting
@@ -450,16 +502,6 @@ export class LobbyPage {
   /** True when a participant's effective role is `'viewer'`. */
   protected isParticipantViewer(p: { role?: 'voter' | 'viewer' }): boolean {
     return participantRole(p) === 'viewer'
-  }
-
-  /**
-   * Determine if a participant can receive a handoff. True when current
-   * user is host, target is online, and target is not self.
-   */
-  protected canHandoffTo(participantId: string): boolean {
-    if (!this.isHost()) return false
-    if (participantId === this.myId()) return false
-    return this.onlineIds().has(participantId)
   }
 
   protected readonly isHost = computed(() => {
@@ -532,11 +574,11 @@ export class LobbyPage {
 
   /**
    * Short summary line shown in the accordion header when collapsed —
-   * e.g. "3 online · 1 offline · 1 viewer".
+   * e.g. "3 online · 1 offline · 1 viewer". Uses active participants only.
    */
   protected readonly participantsSummary = computed(() =>
     summarizeParticipants(
-      this.participants(),
+      this.activeParticipants(),
       this.onlineIds(),
       (p) => this.isParticipantViewer(p),
     ),
@@ -573,6 +615,7 @@ export class LobbyPage {
       'chevron-back-outline': chevronBackOutline,
       'ellipsis-horizontal-circle': ellipsisHorizontalCircle,
       'person-circle-outline': personCircleOutline,
+      'person-remove-outline': personRemoveOutline,
       'qr-code-outline': qrCodeOutline,
       'share-outline': shareOutline,
       'star-outline': starOutline,
@@ -811,7 +854,7 @@ export class LobbyPage {
   protected async confirmLeave(): Promise<void> {
     const alert = await this.alertCtrl.create({
       header: 'Leave session?',
-      message: 'Your session will be discarded.',
+      message: "You'll need the code to rejoin.",
       buttons: [
         { text: 'Cancel', role: 'cancel' },
         {
@@ -828,10 +871,15 @@ export class LobbyPage {
   }
 
   private async leaveSession(): Promise<void> {
+    const selfId = this.myId()
+    if (selfId) {
+      // Write the soft-delete before disconnecting so peers see the removal (ADR-0036).
+      this.docService.leaveSession(selfId)
+      // Flush the Yjs update through the WebSocket before closing (best-effort, 500 ms cap).
+      await this.docService.flushUpdates()
+    }
     this.docService.endSession()
-    // The destructive "Leave" action explicitly discards the resume
-    // affordance (plan §2.3). Any other exit — back-nav within the
-    // session, process kill — leaves the cache for Home to resurface.
+    // Destructive leave — clear cache so Jump-back-in banner does not reappear (ADR-0022).
     await this.lastSessionService.clear()
     await this.router.navigate(['/home'])
   }
@@ -851,6 +899,33 @@ export class LobbyPage {
           handler: () => {
             this.haptic.impactMedium()
             this.docService.updateSettings({ hostParticipantId: participantId })
+          },
+        },
+      ],
+    })
+    await alert.present()
+  }
+
+  /**
+   * Host kick — confirmation dialog per ux.md §4.5. On confirm writes
+   * `leftAt` + `removedBy` to the target's record (ADR-0036).
+   */
+  protected async onRemoveTap(participantId: string, displayName: string): Promise<void> {
+    const alert = await this.alertCtrl.create({
+      header: `Remove ${displayName} from session?`,
+      message:
+        "They'll be disconnected and won't appear in the active roster. Their votes in past rounds stay in the round history.",
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        {
+          text: 'Remove',
+          role: 'destructive',
+          handler: () => {
+            this.haptic.impactHeavy()
+            const hostId = this.myId()
+            if (hostId) {
+              this.docService.removeParticipant(hostId, participantId)
+            }
           },
         },
       ],
