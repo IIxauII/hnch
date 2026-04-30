@@ -39,7 +39,7 @@ When proposing a code change that conflicts with an existing ADR, either adjust 
 
 ## Current decisions at a glance
 
-For quick orientation without reading all 33 ADRs:
+For quick orientation without reading all 32 ADRs:
 
 - **Architecture:** Yjs CRDTs synchronized via a content-blind y-websocket relay. No direct WebRTC. No authoritative session server. (ADR-0001, ADR-0003)
 - **Stack:** Angular + Ionic + Capacitor for the client; Node.js y-websocket relay for the server. (ADR-0002)
@@ -50,13 +50,21 @@ For quick orientation without reading all 33 ADRs:
 - **Access control:** relay-enforced via opaque tokens (password hash, single-use invite tokens). (ADR-0009)
 - **Connection handshake:** HTTP `GET /rooms/:code` resolves code → UUID; WebSocket to `/ws/:uuid` carries `JoinCredentials` as query params; rejections use private-use WS close codes 4001–4099. (ADR-0016)
 - **Host authority:** creator is initial host; on drop, 5-second debounce then lowest-peer-ID election. (ADR-0010)
-- **Reveal:** manual (host taps Reveal) + unanimous auto-reveal (fires when all online participants have voted). No countdown timer. `timerStartedAt` written at round creation as stopwatch origin for elapsed time display. (ADR-0018, supersedes ADR-0011/ADR-0015)
+- **Reveal:** manual (host taps Reveal) + unanimous auto-reveal (fires when all online voters have voted). No countdown timer. `timerStartedAt` written at round creation as stopwatch origin for elapsed time display. (ADR-0018, supersedes ADR-0011/ADR-0015)
 - **Snapshots:** 24-hour in-memory TTL on the relay, keyed by room UUID; no disk persistence. (ADR-0012)
 - **Rounds:** flat list with optional `parentRoundId` for re-vote lineage; vote change allowed until reveal. (ADR-0013)
 - **Password protection:** PBKDF2-SHA-256 via Web Crypto (100k iterations, room UUID as salt). Invite-only mode dropped from v1 scope. (ADR-0017)
 - **Scales:** 5 builtin presets (`fibonacci`, `t-shirt`, `powers-of-2`, `linear`, `risk`); `?` and `☕` sentinel cards removed. Device-local customization via `PresetOverrides` (toggle cards per preset) and `CustomScale` (arbitrary card set, ID prefixed `custom-`). Resolved client-side before writing to the doc — wire format is always flat `{ id, cards }`. (ADR-0019)
 - **Participant roles:** every participant has a `role` field on their doc record — `voter` (default) or `viewer`. Viewers excluded from unanimous auto-reveal denominator so observers don't block reveals; toggleable in-session. (ADR-0020)
-- **Repo layout:** pnpm workspaces monorepo with `packages/client`, `packages/relay`, `packages/shared`, `packages/e2e` (Playwright). (ADR-0014)
+- **CLI:** fourth deliverable (`packages/cli`, `@hnch/cli`) — Node.js + Ink terminal client with full wire-protocol parity to the mobile client. Identity and persistence differ (no Capacitor plugins); protocol surface is identical. (ADR-0021)
+- **Last-session cache:** both clients store `{ roomCode, roomUuid, lastScreen, lastSeenAt }` with a TTL equal to the relay snapshot TTL (24 h) — aligned so the "Jump back in" / `hnch resume` offer is available exactly when the relay can serve the rejoin. (ADR-0022)
+- **Session-end broadcast:** host writes `meta.sessionEndedAt` to the Yjs doc; all clients observe the field, show a toast, and navigate Home. Absent = still active. (ADR-0023)
+- **Participant cap:** 20-peer hard limit enforced at the relay on WebSocket upgrade (close code 4006). (ADR-0024)
+- **Reconnect backoff:** y-websocket default exponential backoff + a `window online` event handler that force-resets backoff and closes stale sockets — works around a Chromium quirk where the network reports up before existing sockets tear down. (ADR-0025)
+- **Deep-link URL format:** `<origin>/join?code=XXXXXX`; no password in URL; case-insensitive; origin resolved at runtime from `window.location.origin` (not a build-time constant). (ADR-0026, ADR-0031)
+- **Test-only relay surfaces:** `HNCH_ENABLE_TEST_ROUTES` and `HNCH_ROOM_CAP` env vars gate test-only behavior in the production relay binary; both are off by default in production. (ADR-0027)
+- **Telemetry:** none in v1 — no analytics, no crash reporting, no outbound data channels beyond the relay's own sync traffic. (ADR-0028)
+- **Repo layout:** pnpm workspaces monorepo with `packages/client`, `packages/relay`, `packages/shared`, `packages/e2e` (Playwright), `packages/cli`. (ADR-0014, ADR-0021)
 - **Deployment:** relay runs bare-metal on a single IONOS VPS, supervised by systemd, fronted by Caddy with auto-TLS via Let's Encrypt. PWA + relay served from a single origin (`hnch.dev`) with Caddy routing `/health`, `/rooms*`, `/ws*` to `127.0.0.1:1234`. Bootstrap script + Caddyfile + systemd unit live in `infra/`. Relay deploys via `deploy-relay.yml` on `relay-v*` tags; PWA deploys via `deploy-client.yml` on `client-v*` tags, shipping to `/var/www/hnch-client/` via atomic symlink swap (no reload). (ADR-0029)
 - **CI runners:** `verify` matrix + `e2e` run on a pool of 4 ephemeral arm64 Podman containers on a Mac mini M4, supervised by a LaunchAgent. Image built from `debian:bookworm-slim` + sha256-verified official `actions/runner` tarball + ~30-line own entrypoint (no third-party Docker Hub image). Deploy/release/health-check workflows stay on `ubuntu-latest`. `vars.LINUX_RUNNER` repo variable toggles between self-hosted and `ubuntu-latest` with no PR. Tart-based macOS runner deferred to Phase 9 (gated on Phase 6b iOS). Runner files in `infra/runner/`; runbook in `infra/README.md`. (ADR-0032, ADR-0033)
 
