@@ -20,6 +20,7 @@ import {
   hashPassword,
   upsertParticipant,
   participantRole,
+  endSessionForEveryone as endSessionMutation,
   FIBONACCI_SCALE,
   type DocProjection,
   type Scale,
@@ -86,6 +87,8 @@ export interface SessionHandle {
   handoffHost(targetId: string): void
   /** Toggle this participant's role between voter and viewer. */
   toggleRole(): void
+  /** End the session for all participants (host only). */
+  endSessionForEveryone(): void
 
   /** Subscribe to doc changes. Returns unsubscribe fn. */
   onChange(cb: () => void): () => void
@@ -375,6 +378,13 @@ export function wireSession(opts: WireOptions): SessionHandle {
         joinedAt,
         role: newRole,
       })
+    },
+
+    endSessionForEveryone() {
+      if (!this.isHost()) {
+        throw new Error('Only the current host can end the session')
+      }
+      endSessionMutation(doc)
     },
 
     onChange(cb: () => void) {

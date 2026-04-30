@@ -45,6 +45,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "clipboardy": "^4.0.0",
     "ink": "^5.2.0",
     "react": "^18.3.1",
     "ws": "^8.20.0",

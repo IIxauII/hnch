@@ -4,9 +4,13 @@ import type { SessionHandle } from '../session.js'
 import type { SyncStatus } from '../sync.js'
 import type { DocProjection, Round, Scale, PresetOverrides, CustomScale } from '@hnch/shared'
 import { currentRound, participantRole } from '@hnch/shared'
+import clipboard from 'clipboardy'
+import { shareCode, shareUrl, shareNpxCommand } from '../share.js'
 import { StatusBar } from './components/StatusBar.js'
+import { LobbySettings } from './components/LobbySettings.js'
 import { Lobby } from './Lobby.js'
 import { Voting } from './Voting.js'
+import { useTransientNotice } from './hooks/useTransientNotice.js'
 
 interface Props {
   session: SessionHandle
@@ -40,8 +44,9 @@ export function App({ session, participantId, displayName, accessMode: initialAc
   const [confirmingQuit, setConfirmingQuit] = useState(false)
   const [roundTitlePromptActive, setRoundTitlePromptActive] = useState(false)
   const [roundTitleInput, setRoundTitleInput] = useState('')
-  const [hostNotification, setHostNotification] = useState<string | null>(null)
-  const hostNotificationTimeoutRef = React.useRef<NodeJS.Timeout | null>(null)
+  const hostNotice = useTransientNotice(3000)
+  const [shareOpen, setShareOpen] = useState(false)
+  const shareNotice = useTransientNotice(3000)
 
   useEffect(() => {
     const unsub1 = session.onChange(() => {
@@ -50,24 +55,12 @@ export function App({ session, participantId, displayName, accessMode: initialAc
     })
     const unsub2 = session.onStatusChange(setStatus)
     const unsub3 = session.onHostChange((newHostId) => {
-      // Clear previous timeout if any
-      if (hostNotificationTimeoutRef.current) {
-        clearTimeout(hostNotificationTimeoutRef.current)
-      }
-
       const proj = session.projection()
       const newHost = proj.participants.find((p) => p.id === newHostId)
       const message = newHostId === participantId
         ? 'You are now the host'
         : `${newHost?.displayName || 'Unknown'} is now the host`
-
-      setHostNotification(message)
-
-      // Auto-clear after 3s
-      hostNotificationTimeoutRef.current = setTimeout(() => {
-        setHostNotification(null)
-        hostNotificationTimeoutRef.current = null
-      }, 3000)
+      hostNotice.show(message)
     })
 
     // Poll awareness for online IDs and update elapsed time each second
@@ -87,11 +80,8 @@ export function App({ session, participantId, displayName, accessMode: initialAc
       unsub2()
       unsub3()
       clearInterval(awarenessInterval)
-      if (hostNotificationTimeoutRef.current) {
-        clearTimeout(hostNotificationTimeoutRef.current)
-      }
     }
-  }, [session, participantId])
+  }, [session, participantId, hostNotice.show])
 
   // Global quit handler — inactive when settings panel or title prompt is open
   useInput(
@@ -100,7 +90,7 @@ export function App({ session, participantId, displayName, accessMode: initialAc
         setConfirmingQuit(true)
       }
     },
-    { isActive: !settingsOpen && !confirmingQuit && !roundTitlePromptActive },
+    { isActive: !settingsOpen && !confirmingQuit && !roundTitlePromptActive && !shareOpen },
   )
 
   // Confirm quit handler — active only during confirmation
@@ -118,10 +108,6 @@ export function App({ session, participantId, displayName, accessMode: initialAc
 
   const screen = deriveScreen(projection)
 
-  // Reset settings panel if screen leaves lobby (e.g. another client starts a round)
-  useEffect(() => {
-    if (screen !== 'lobby') setSettingsOpen(false)
-  }, [screen])
   const round = currentRound(projection)
   const isHost = projection.settings.hostParticipantId === participantId
   const myParticipant = projection.participants.find((p) => p.id === participantId)
@@ -203,6 +189,23 @@ export function App({ session, participantId, displayName, accessMode: initialAc
     setSettingsOpen(false)
   }, [])
 
+  const handleEndSession = useCallback(() => {
+    session.endSessionForEveryone()
+  }, [session])
+
+  const handleShare = useCallback(async (kind: 'code' | 'url' | 'npx') => {
+    const text =
+      kind === 'code' ? shareCode(session.roomCode)
+      : kind === 'url' ? shareUrl(session.roomCode)
+      : shareNpxCommand(session.roomCode)
+    try {
+      await clipboard.write(text)
+      shareNotice.show('Copied!')
+    } catch {
+      shareNotice.show(`Copy failed — ${text}`)
+    }
+  }, [session.roomCode, shareNotice])
+
   // The latest revealed round for results display in Lobby
   const revealedRounds = projection.rounds.filter((r) => r.revealedAt !== undefined)
   const latestRevealedRound: Round | null =
@@ -217,13 +220,34 @@ export function App({ session, participantId, displayName, accessMode: initialAc
         isHost={isHost}
       />
 
-      {hostNotification && (
+      {hostNotice.notice && (
         <Box paddingX={1}>
-          <Text color="yellow">{hostNotification}</Text>
+          <Text color="yellow">{hostNotice.notice}</Text>
         </Box>
       )}
 
-      {screen === 'lobby' && (
+      {shareNotice.notice && (
+        <Box paddingX={1}>
+          <Text color={shareNotice.notice.startsWith('Copy failed') ? 'red' : 'green'}>{shareNotice.notice}</Text>
+        </Box>
+      )}
+
+      {settingsOpen ? (
+        <LobbySettings
+          sessionName={projection.settings.name}
+          displayName={displayNameLocal}
+          currentScale={projection.settings.defaultScale}
+          accessMode={accessMode}
+          presetOverrides={presetOverrides}
+          customScales={customScales}
+          isHost={isHost}
+          onChangeName={handleChangeName}
+          onChangeScale={handleChangeScale}
+          onChangeDisplayName={handleChangeDisplayName}
+          onChangeAccess={handleChangeAccess}
+          onClose={handleCloseSettings}
+        />
+      ) : screen === 'lobby' ? (
         <Lobby
           projection={projection}
           onlineIds={onlineIds}
@@ -232,10 +256,6 @@ export function App({ session, participantId, displayName, accessMode: initialAc
           rounds={projection.rounds}
           currentRound={latestRevealedRound}
           settingsOpen={settingsOpen}
-          presetOverrides={presetOverrides}
-          customScales={customScales}
-          displayName={displayNameLocal}
-          accessMode={accessMode}
           onStartRound={handleStartRoundPrompt}
           onNewRound={handleNewRound}
           roundTitlePromptActive={roundTitlePromptActive}
@@ -245,17 +265,15 @@ export function App({ session, participantId, displayName, accessMode: initialAc
           onRoundTitleCancel={handleRoundTitleCancel}
           onRevote={handleRevote}
           onOpenSettings={handleOpenSettings}
-          onCloseSettings={handleCloseSettings}
-          onChangeName={handleChangeName}
-          onChangeScale={handleChangeScale}
-          onChangeDisplayName={handleChangeDisplayName}
-          onChangeAccess={handleChangeAccess}
           onHandoffHost={handleHandoffHost}
+          onEndSession={handleEndSession}
+          onShare={handleShare}
+          shareOpen={shareOpen}
+          onSetShareOpen={setShareOpen}
+          roomCode={session.roomCode}
           confirmingQuit={confirmingQuit}
         />
-      )}
-
-      {screen === 'voting' && round && (
+      ) : screen === 'voting' && round ? (
         <Voting
           projection={projection}
           round={round}
@@ -268,9 +286,15 @@ export function App({ session, participantId, displayName, accessMode: initialAc
           onClearVote={handleClearVote}
           onReveal={handleReveal}
           onToggleRole={handleToggleRole}
+          onShare={handleShare}
+          onSetShareOpen={setShareOpen}
+          shareOpen={shareOpen}
+          settingsOpen={settingsOpen}
+          onOpenSettings={handleOpenSettings}
+          roomCode={session.roomCode}
           confirmingQuit={confirmingQuit}
         />
-      )}
+      ) : null}
 
       {confirmingQuit && (
         <Box>
