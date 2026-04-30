@@ -14,9 +14,11 @@
  *     live room (ADR-0017). Existing connections are not evicted.
  *   - `WS /ws/:uuid` — handed to the y-websocket-compatible handler
  *     (see `ws-connection.ts`) after the `upgrade` event. Carries
- *     `JoinCredentials` as URL query params per ADR-0016. Password-
- *     protected rooms require a matching `pw` query param; mismatches
- *     are rejected pre-upgrade (ADR-0017).
+ *     `JoinCredentials` as URL query params per ADR-0016. Missing `pw`
+ *     on a password-protected room is rejected pre-upgrade (HTTP 400);
+ *     unknown UUID is pre-upgrade HTTP 404. Wrong password is
+ *     post-upgrade WS close 4002 per the ADR-0016 close-code table
+ *     (see ADR-0035).
  *
  * Pre-upgrade rejections close the raw socket with a minimal HTTP
  * response so the client sees a clean `4xx` rather than a mysterious
@@ -308,20 +310,25 @@ function handleUpgrade(
     return
   }
 
-  // Password enforcement per ADR-0017.
-  if (record.passwordHash !== undefined) {
-    const pw = parsed.searchParams.get('pw')
-    if (!pw) {
-      denyUpgrade(socket, 400, 'Bad Request')
-      return
-    }
-    if (!passwordHashesMatch(pw, record.passwordHash)) {
-      denyUpgrade(socket, 403, 'Forbidden')
-      return
-    }
+  // Password enforcement per ADR-0017. Missing password is a malformed
+  // request (HTTP 400, pre-upgrade). Wrong password is a credential
+  // rejection — deferred to post-upgrade WS close 4002 per ADR-0016 so
+  // the browser surfaces the reason via lastRejection.
+  const pw = record.passwordHash !== undefined
+    ? parsed.searchParams.get('pw')
+    : null
+  if (record.passwordHash !== undefined && !pw) {
+    denyUpgrade(socket, 400, 'Bad Request')
+    return
   }
 
   wss.handleUpgrade(req, socket, head, (ws: WebSocket) => {
+    // Wrong-password: post-upgrade close (4002) per ADR-0016 close-code table.
+    if (record.passwordHash !== undefined && !passwordHashesMatch(pw!, record.passwordHash)) {
+      ws.close(JOIN_REJECTION_CLOSE_CODES['wrong-password'], 'wrong-password')
+      return
+    }
+
     // Participant cap enforcement (ADR-0024). Check post-upgrade so the
     // client receives a WS close code (4006) per the ADR-0016 close-code
     // table rather than a raw HTTP 403.

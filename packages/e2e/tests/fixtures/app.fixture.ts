@@ -243,11 +243,11 @@ export class Participant {
       const input = this.page.locator(ONBOARDING.nameInput).locator('input')
       await input.fill(this.displayName)
       await this.page.locator(ONBOARDING.continueBtn).click()
-      await this.page.waitForURL(/\/join/)
+      await this.page.waitForURL(/\/(join|lobby)/)
     }
-    await this.page.locator(JOIN.joinBtn).click()
-    // Wait for lobby content rather than URL — Ionic's SPA navigation
-    // can complete before waitForURL starts listening.
+    // Deep-link auto-submit fires on JoinPage activation (ADR-0026 §3).
+    // Wait for lobby content as success signal — works for both first-time
+    // (onboarding redirect → JoinPage auto-submit) and returning-user paths.
     await this.page.locator(LOBBY.roomCode).waitFor({ state: 'visible', timeout: 10_000 })
   }
 
