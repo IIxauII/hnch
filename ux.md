@@ -229,9 +229,39 @@ User taps back (or swipes back) from Lobby / Estimating
 ```
 Lobby / Estimating → ⋯ → Leave session
   → Confirmation alert: "Leave this session? You'll need the code to rejoin."
-    → Confirm: remove local participant entry, disconnect, navigate to Home (no banner)
+    → Confirm: write `leftAt` + `removedBy = self` to own participant record (ADR-0036),
+      disconnect, clear jump-back-in cache, navigate to Home (no banner)
     → Cancel: dismiss alert, stay on current screen
 ```
+
+Effect on peers: the leaver disappears from active rosters (lobby list, voter denominator, "didn't vote" set) immediately. Their votes in already-revealed rounds remain in round history because `round.votes` references `participantId`, and the raw `participants` map still resolves the displayName.
+
+If the leaver later re-enters via room code, `joinSession` clears `leftAt`/`removedBy` for self — they rejoin as an active participant with their existing record (preserves `joinedAt` and any historical vote attribution).
+
+**Host removes a participant (kick, host only, destructive):**
+
+```
+Lobby → swipe-left on a participant row (host only, target is not self)
+  → Drawer reveals: [Make host] [Remove]
+  → Tap "Remove"
+    → Confirmation alert:
+        "Remove {name} from session?"
+        Body: "They'll be disconnected and won't appear in the active roster.
+               Their votes in past rounds stay in the round history."
+        Buttons: [Cancel] [Remove (red)]
+    → Confirm: write `leftAt` + `removedBy = host` to target's record (ADR-0036),
+      close the sliding drawer
+      → Target client observes own `leftAt` set with `removedBy !== self`
+        → Toast: "Removed by host"
+        → Clear jump-back-in cache, navigate to Home
+    → Cancel: dismiss alert, drawer stays open until tapped away
+```
+
+Discoverability: a one-line muted hint under the participants accordion header for hosts only — "Swipe a row for host actions." Non-hosts see no swipe affordance; rendering the row as a plain `ion-item` (no `ion-item-sliding` wrapper) for non-hosts and self.
+
+Tap on a participant row is a no-op in v1 (handoff has moved to the swipe drawer; tap is reserved for a future "view participant" sheet).
+
+No relay-side ban: a kicked user can re-enter the room code (their `leftAt` is cleared on re-join). For persistent removal the host changes the room password (ADR-0036, ADR-0017).
 
 **End session for everyone (host only, destructive):**
 
@@ -498,7 +528,8 @@ After a round is revealed, all participants navigate from Estimating back to Lob
 - Large title = room code — most important info, read aloud in co-located meetings.
 - Subtitle summarizes settings (scale). Tapping subtitle opens Session settings sheet (also via ⋯ → **Session settings**). Discoverability affordance, not substitute for menu.
 - Show QR = secondary invite for co-located meetings. Opens `ion-modal` with full-screen QR encoding invite URL.
-- Participant list: viewers render with an `(observer)` suffix after their name. Voters have no suffix. Role is session-wide and visible in all three Lobby variants (ADR-0020).
+- Participant list: viewers render with an `(observer)` suffix after their name. Voters have no suffix. Role is session-wide and visible in all three Lobby variants (ADR-0020). Participants who have left or been removed (`leftAt` set, ADR-0036) are omitted from this list — their votes still appear in round history below.
+- Host-only swipe actions on participant rows: swipe-left reveals **Make host** + **Remove** (ADR-0036, §4.5). Hint copy "Swipe a row for host actions" appears under the participants header for the host. Non-host viewers see no swipe drawer; tap is a no-op.
 - Results section (`VoteResultsComponent`): each group = `ion-item-group` with vote value as large heading + `(N votes)` caption. Voters rendered as `ion-chip` row (avatar + name). Trailing muted "Didn't vote" group (all participants — voters and viewers — who have no entry in `round.votes`). Elapsed time shown below groups. If all votes match, a "Consensus!" overlay animates in with haptic feedback and auto-dismisses after 3 s.
 - History (`RoundHistoryComponent`): compact one-liner per past revealed round (all revealed rounds except the latest), reverse chronological. Skipped when only one round revealed.
 - Footer when results shown (host only): **Re-vote** (reuses descriptor, creates new Round with `parentRoundId` = current, per ADR-0013) and **Next Round N** (opens round-start modal). Joiners see no footer — wait for host.

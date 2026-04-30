@@ -17,10 +17,13 @@ import {
   DOC_SETTINGS_KEY,
   endSessionForEveryone as endSessionForEveryoneY,
   initDoc,
+  isActiveParticipant,
   joinDoc,
+  leaveSession as leaveSessionY,
   participantRole,
   patchSettings,
   projectDoc,
+  removeParticipant as removeParticipantY,
   revealRound as revealRoundY,
   upsertParticipant as upsertParticipantY,
   type DocProjection,
@@ -144,6 +147,12 @@ export class DocService {
     string | null
   >(null)
   private provider: SyncProvider | null = null
+  /**
+   * Set in joinSession, consumed by the next connectWithPersistence call,
+   * cleared immediately after. Used to gate the post-sync clearOwnLeftStatus
+   * callback (ADR-0036 §6 LWW fix).
+   */
+  private joinParticipantId: string | null = null
   private readonly syncStatusSignal: WritableSignal<SyncStatus | 'offline'> =
     signal<SyncStatus | 'offline'>('offline')
   private readonly lastRejectionSignal: WritableSignal<JoinRejectionReason | null> =
@@ -180,6 +189,21 @@ export class DocService {
 
   readonly participants: Signal<readonly ParticipantSnapshot[]> = computed(
     () => this.projection()?.participants ?? [],
+  )
+
+  /**
+   * Active participants — raw list filtered through `isActiveParticipant`
+   * (ADR-0036). Use this for any "who is in the session right now?" query:
+   * lobby roster, voter denominator, auto-reveal check, online intersection.
+   *
+   * Use raw `participants()` for `RoundHistoryComponent` and
+   * `VoteResultsComponent` chip name lookup, and for the "didn't vote"
+   * denominator filter inside `VoteResultsComponent` — departed names must
+   * still resolve and the `isActiveParticipant` filter is applied inside
+   * those components where semantics require it.
+   */
+  readonly activeParticipants: Signal<readonly ParticipantSnapshot[]> = computed(
+    () => this.participants().filter(isActiveParticipant),
   )
 
   readonly rounds: Signal<readonly Round[]> = computed(
@@ -247,23 +271,23 @@ export class DocService {
     this.onlineParticipantIdsSignal.asReadonly()
 
   /**
-   * Participants filtered to those whose `participantId` is currently
+   * Active participants filtered to those whose `participantId` is currently
    * in awareness. Used by Lobby's row styling and Estimating's avatar
    * row — a ghost from a silent disconnect drops off here, whereas
    * the Yjs participants list keeps them (ADR-0011's "the vote was
-   * cast" semantic).
+   * cast" semantic). Left/kicked participants are excluded (ADR-0036).
    */
   readonly onlineParticipants: Signal<readonly ParticipantSnapshot[]> =
     computed(() => {
       const online = this.onlineParticipantIdsSignal()
-      return this.participants().filter((p) => online.has(p.id))
+      return this.activeParticipants().filter((p) => online.has(p.id))
     })
 
-  /** Complement of {@link onlineParticipants}. Rendered dimmed. */
+  /** Complement of {@link onlineParticipants} within the active set. Rendered dimmed. */
   readonly offlineParticipants: Signal<readonly ParticipantSnapshot[]> =
     computed(() => {
       const online = this.onlineParticipantIdsSignal()
-      return this.participants().filter((p) => !online.has(p.id))
+      return this.activeParticipants().filter((p) => !online.has(p.id))
     })
 
   // ---------------------------------------------------------------------------
@@ -327,6 +351,9 @@ export class DocService {
     this.attach(doc)
     this.roomCodeSignal.set(init.roomCode ?? null)
     this.initAwareness(doc, init.participantId)
+    // Store so connectWithPersistence can schedule the post-sync leftAt clear
+    // (ADR-0036 §6 LWW fix — delete must run after relay snapshot merges).
+    this.joinParticipantId = init.participantId
   }
 
   /**
@@ -352,7 +379,8 @@ export class DocService {
     // Use AppPreferenceService relay URL override if set; fallback to environment default.
     const wsUrl = opts.wsBaseUrl ?? this.appPrefs.relayWsUrl() ?? environment.relayWsUrl
 
-    void this.connectWithPersistence(doc, roomUuid, wsUrl, credentials)
+    void this.connectWithPersistence(doc, roomUuid, wsUrl, credentials, this.joinParticipantId)
+    this.joinParticipantId = null
   }
 
   private async connectWithPersistence(
@@ -360,6 +388,7 @@ export class DocService {
     roomUuid: string,
     wsUrl: string,
     credentials: JoinCredentials,
+    joinParticipantId: string | null = null,
   ): Promise<void> {
     // PWA: load local IndexedDB snapshot before opening WebSocket so the
     // UI is immediately populated from cache (ADR-0004).
@@ -381,7 +410,37 @@ export class DocService {
         if (status === 'connected') this.hasEverConnectedSignal.set(true)
       },
       onRejectionChange: (reason) => this.lastRejectionSignal.set(reason),
+      // ADR-0036 §6 LWW fix: if this client joined (not created) the session,
+      // clear any stale `leftAt`/`removedBy` AFTER the relay snapshot has
+      // merged. By the time `synced` fires, the snapshot's ops are already
+      // in the doc; our delete therefore carries a higher Lamport clock and
+      // wins the LWW merge, making the participant active again.
+      ...(joinParticipantId !== null && {
+        onSynced: () => { this.clearOwnLeftStatus(joinParticipantId) },
+      }),
     })
+  }
+
+  /**
+   * Wait for the active WebSocket's `bufferedAmount` to drain before the
+   * caller tears down the session. Gives y-websocket a chance to flush
+   * any pending Yjs updates (e.g. `leaveSession` mutation) before the
+   * socket is closed.
+   *
+   * - Polls at 16 ms intervals (≈ one animation frame) for up to `cap` ms.
+   * - Resolves immediately when no provider is attached or the buffer is
+   *   already empty.
+   * - Always resolves (never rejects) — the leave mutation reaching peers
+   *   is best-effort; the local session teardown must not block on it.
+   */
+  async flushUpdates(cap = 500): Promise<void> {
+    if (this.provider === null) return
+    const ws = (this.provider as unknown as { ws?: WebSocket }).ws
+    if (!ws || ws.readyState !== WebSocket.OPEN) return
+    const deadline = Date.now() + cap
+    while (ws.bufferedAmount > 0 && Date.now() < deadline) {
+      await new Promise<void>((r) => setTimeout(r, 16))
+    }
   }
 
   /**
@@ -417,6 +476,7 @@ export class DocService {
     this.lastRejectionSignal.set(null)
     this.hasEverConnectedSignal.set(false)
     this.endingSessionLocally.set(false)
+    this.joinParticipantId = null
   }
 
   // ---------------------------------------------------------------------------
@@ -501,6 +561,46 @@ export class DocService {
   endSessionForEveryone(): void {
     this.endingSessionLocally.set(true)
     endSessionForEveryoneY(this.requireDoc('endSessionForEveryone'))
+  }
+
+  /**
+   * Voluntary leave — soft-deletes own participant record (ADR-0036).
+   * Call before tearing down the local session so the mutation reaches
+   * peers before the WS closes.
+   */
+  leaveSession(selfId: string): void {
+    leaveSessionY(this.requireDoc('leaveSession'), selfId)
+  }
+
+  /**
+   * Host kick — soft-deletes the target participant's record (ADR-0036).
+   * No-op when `targetId === hostId`. UI must gate on `isHost()`.
+   */
+  removeParticipant(hostId: string, targetId: string): void {
+    removeParticipantY(this.requireDoc('removeParticipant'), hostId, targetId)
+  }
+
+  /**
+   * Clear `leftAt` and `removedBy` on the local participant's record after
+   * the relay snapshot has synced (ADR-0036 §6 LWW fix).
+   *
+   * Called from the `onSynced` hook in `connectWithPersistence` — at that
+   * point the relay's ops are already applied to the doc, so this delete
+   * carries a higher Lamport clock than the snapshot's `set('leftAt', ...)`
+   * and wins the LWW merge. The participant transitions back to active.
+   *
+   * No-op when the doc is not active or the participant has no `leftAt`.
+   */
+  private clearOwnLeftStatus(selfId: string): void {
+    const doc = this.doc
+    if (!doc) return
+    const participantsMap = doc.getMap(DOC_PARTICIPANTS_KEY) as Y.Map<Y.Map<unknown>>
+    const me = participantsMap.get(selfId)
+    if (!me || !me.has('leftAt')) return
+    doc.transact(() => {
+      me.delete('leftAt')
+      me.delete('removedBy')
+    })
   }
 
   // ---------------------------------------------------------------------------

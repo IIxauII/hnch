@@ -9,7 +9,7 @@ import {
   input,
   signal,
 } from '@angular/core'
-import { isConsensus } from '@hnch/shared'
+import { isActiveParticipant, isConsensus } from '@hnch/shared'
 import type { ParticipantSnapshot, Round } from '@hnch/shared'
 import {
   IonChip,
@@ -429,7 +429,10 @@ export class VoteResultsComponent {
   })
 
   /**
-   * Names of participants who have no entry in `round.votes`.
+   * Names of active participants (not kicked/left) who have no entry in
+   * `round.votes`. Uses `isActiveParticipant` so departed participants don't
+   * inflate the "didn't vote" count — raw `participants()` is still used for
+   * chip name lookup (`nameById`) so kicked voters show their real names.
    */
   readonly didntVoteNames = computed<readonly string[]>(() => {
     const round = this.round()
@@ -437,7 +440,9 @@ export class VoteResultsComponent {
     const names = this.nameById()
     const out: string[] = []
     for (const p of this.participants()) {
-      if (!voted.has(p.id)) out.push(names.get(p.id) ?? p.id)
+      if (isActiveParticipant(p) && !voted.has(p.id)) {
+        out.push(names.get(p.id) ?? p.id)
+      }
     }
     out.sort()
     return out

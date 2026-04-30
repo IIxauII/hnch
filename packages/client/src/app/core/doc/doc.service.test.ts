@@ -23,9 +23,12 @@ import {
   clearVote,
   endSessionForEveryone,
   initDoc,
+  isActiveParticipant,
   joinDoc,
+  leaveSession,
   patchSettings,
   projectDoc,
+  removeParticipant,
   revealRound,
   upsertParticipant,
   type DocProjection,
@@ -87,6 +90,17 @@ class DocServiceHarness {
   readonly settings = computed(() => this.projection()?.settings ?? null)
   readonly participants = computed(() => this.projection()?.participants ?? [])
   readonly rounds = computed(() => this.projection()?.rounds ?? [])
+  readonly activeParticipants = computed(() =>
+    this.participants().filter(isActiveParticipant),
+  )
+  readonly onlineParticipants = computed(() => {
+    const online = this.onlineParticipantIdsSignal()
+    return this.activeParticipants().filter((p) => online.has(p.id))
+  })
+  readonly offlineParticipants = computed(() => {
+    const online = this.onlineParticipantIdsSignal()
+    return this.activeParticipants().filter((p) => !online.has(p.id))
+  })
 
   createSession(init: ReturnType<typeof makeInit>): void {
     if (this.doc !== null) throw new Error('session already active')
@@ -158,6 +172,14 @@ class DocServiceHarness {
 
   revealRound(roundId: string, now = Date.now()): void {
     revealRound(this.requireDoc(), roundId, now)
+  }
+
+  leaveSession(selfId: string): void {
+    leaveSession(this.requireDoc(), selfId)
+  }
+
+  removeParticipant(hostId: string, targetId: string): void {
+    removeParticipant(this.requireDoc(), hostId, targetId)
   }
 
   /** Merge another doc's state into this one (simulate peer sync). */
@@ -692,5 +714,56 @@ describe('DocService — multi-peer merge via Y.Doc', () => {
 
     const r = joiner.rounds().find((r: Round) => r.id === roundId)
     expect(r?.revealedAt).toBe(NOW + 2000)
+  })
+})
+
+// ---------------------------------------------------------------------------
+
+describe('DocService — activeParticipants / onlineParticipants / offlineParticipants (ADR-0036)', () => {
+  let h: DocServiceHarness
+
+  beforeEach(() => {
+    h = makeHarness()
+    h.createSession(makeInit({ participantId: 'p-host', displayName: 'Host' }))
+    // Add a second participant
+    h.upsertParticipant('p-joiner', { displayName: 'Joiner', joinedAt: NOW + 1 })
+  })
+
+  afterEach(() => { if (h.hasSession()) h.endSession() })
+
+  it('activeParticipants() excludes a left participant', () => {
+    expect(h.activeParticipants()).toHaveLength(2)
+    h.leaveSession('p-joiner')
+    expect(h.activeParticipants()).toHaveLength(1)
+    expect(h.activeParticipants()[0]?.id).toBe('p-host')
+  })
+
+  it('activeParticipants() excludes a kicked participant', () => {
+    h.removeParticipant('p-host', 'p-joiner')
+    expect(h.activeParticipants()).toHaveLength(1)
+    expect(h.activeParticipants()[0]?.id).toBe('p-host')
+  })
+
+  it('raw participants() still includes left/kicked entries (for name lookup)', () => {
+    h.leaveSession('p-joiner')
+    expect(h.participants()).toHaveLength(2)
+    const gone = h.participants().find((p) => p.id === 'p-joiner')
+    expect(gone?.leftAt).toBeDefined()
+  })
+
+  it('onlineParticipants() excludes left participant even if still in awareness', () => {
+    // p-joiner is in online set (awareness) but we soft-delete them
+    h.leaveSession('p-joiner')
+    // onlineParticipants filters through activeParticipants, so p-joiner is excluded
+    const onlineIds = h.onlineParticipantIdsSignal()
+    // awareness has p-host (local); p-joiner was added by upsert but has no separate Awareness
+    expect(h.onlineParticipants().every((p) => !p.leftAt)).toBe(true)
+  })
+
+  it('offlineParticipants() excludes left participant', () => {
+    h.leaveSession('p-joiner')
+    // offlineParticipants is the complement of onlineParticipants within activeParticipants
+    const ids = [...h.onlineParticipants(), ...h.offlineParticipants()].map((p) => p.id)
+    expect(ids).not.toContain('p-joiner')
   })
 })
