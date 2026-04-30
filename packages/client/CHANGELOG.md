@@ -1,3 +1,11 @@
+# [1.3.0](https://github.com/IIxauII/hnch/compare/client-v1.2.1...client-v1.3.0) (2026-04-30)
+
+
+### Features
+
+* **cli:** end-session menu, share clipboard, voting settings ([#41](https://github.com/IIxauII/hnch/issues/41)) ([f929c26](https://github.com/IIxauII/hnch/commit/f929c26393460b08af94b091eddfb509e938f31b))
+* **client:** web QR scanning via plugin startScan + lazy polyfill ([#48](https://github.com/IIxauII/hnch/issues/48)) ([53f7e23](https://github.com/IIxauII/hnch/commit/53f7e236482e54c90a0c7c3794b8b218f0426e2f))
+
 ## [1.2.1](https://github.com/IIxauII/hnch/compare/client-v1.2.0...client-v1.2.1) (2026-04-29)
 
 
