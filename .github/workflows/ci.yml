@@ -16,7 +16,7 @@ permissions:
 jobs:
   detect-changes:
     name: Detect changed packages
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}
     outputs:
       shared: ${{ steps.filter.outputs.shared }}
       relay: ${{ steps.filter.outputs.relay }}
@@ -164,7 +164,7 @@ jobs:
   # not fake-passed) while still giving branch protection a single target.
   verify-summary:
     name: Verify
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}
     needs: verify
     if: always()
     steps:
@@ -185,7 +185,7 @@ jobs:
 
   version-audit:
     name: Version audit
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -209,7 +209,7 @@ jobs:
 
   pr-title-lint:
     name: PR title (Conventional Commits)
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}
     if: github.event_name == 'pull_request'
     permissions:
       pull-requests: read
