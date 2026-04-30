@@ -1,5 +1,5 @@
 /**
- * Unit tests for TextInput and scale selection callback logic.
+ * Unit tests for TextInput, scale selection, and LobbySettings item-filter logic.
  *
  * Since Ink components require a TTY to render, these tests verify the
  * underlying logic by simulating the state transitions and callback
@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest'
+import { filterSettingsItems } from './LobbySettings.js'
 import {
   FIBONACCI_SCALE,
   TSHIRT_SCALE,
@@ -197,5 +198,46 @@ describe('Scale selection', () => {
     const fib = withOverride.find((s) => s.id === 'fibonacci')!
     expect(fib.cards).not.toContain('0')
     expect(fib.cards).toContain('1')
+  })
+})
+
+// ── LobbySettings item-filter logic (Phase 3: joiner read-only mode) ─────────
+
+// Real production item set — matches allMenuItems in LobbySettings.tsx.
+// Tests use the exported filterSettingsItems so production drift breaks tests.
+const ALL_SETTINGS_ITEMS = [
+  { label: 'Room name', value: 'room-name' },
+  { label: 'Scale', value: 'scale' },
+  { label: 'Access', value: 'access' },
+  { label: 'Display name', value: 'display-name' },
+] as const
+
+describe('filterSettingsItems (LobbySettings)', () => {
+  it('host mode: all 4 items returned', () => {
+    const items = filterSettingsItems(ALL_SETTINGS_ITEMS, true)
+    expect(items).toHaveLength(4)
+    expect(items.map((i) => i.value)).toEqual(['room-name', 'scale', 'access', 'display-name'])
+  })
+
+  it('joiner mode: only display-name item present', () => {
+    const items = filterSettingsItems(ALL_SETTINGS_ITEMS, false)
+    expect(items).toHaveLength(1)
+    expect(items[0]!.value).toBe('display-name')
+    expect(items[0]!.label).toBe('Display name')
+  })
+
+  it('joiner mode: room-name item absent', () => {
+    const items = filterSettingsItems(ALL_SETTINGS_ITEMS, false)
+    expect(items.find((i) => i.value === 'room-name')).toBeUndefined()
+  })
+
+  it('joiner mode: scale item absent', () => {
+    const items = filterSettingsItems(ALL_SETTINGS_ITEMS, false)
+    expect(items.find((i) => i.value === 'scale')).toBeUndefined()
+  })
+
+  it('joiner mode: access item absent', () => {
+    const items = filterSettingsItems(ALL_SETTINGS_ITEMS, false)
+    expect(items.find((i) => i.value === 'access')).toBeUndefined()
   })
 })

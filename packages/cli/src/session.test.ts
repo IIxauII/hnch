@@ -206,6 +206,64 @@ describe('session integration', () => {
 
     host.disconnect()
   })
+
+  it('endSessionForEveryone throws if caller is not host', async () => {
+    const host = await createSession({
+      participantId: 'host-es-guard',
+      displayName: 'Alice',
+      relayUrl,
+    })
+
+    await sleep(500)
+
+    const joiner = await joinSession({
+      participantId: 'joiner-es-guard',
+      displayName: 'Bob',
+      relayUrl,
+      roomCode: host.roomCode,
+    })
+
+    await sleep(500)
+
+    // Joiner is not host — must throw
+    expect(() => joiner.endSessionForEveryone()).toThrow('Only the current host can end the session')
+
+    host.disconnect()
+    joiner.disconnect()
+  })
+
+  it('endSessionForEveryone writes meta.sessionEndedAt and propagates to joiner', async () => {
+    const host = await createSession({
+      participantId: 'host-es',
+      displayName: 'Alice',
+      relayUrl,
+    })
+
+    await sleep(500)
+
+    const joiner = await joinSession({
+      participantId: 'joiner-es',
+      displayName: 'Bob',
+      relayUrl,
+      roomCode: host.roomCode,
+    })
+
+    await sleep(500)
+
+    // Sanity: sessionEndedAt not set initially
+    expect(host.projection().meta.sessionEndedAt).toBeUndefined()
+    expect(joiner.projection().meta.sessionEndedAt).toBeUndefined()
+
+    host.endSessionForEveryone()
+    await sleep(500)
+
+    // Both sides should see sessionEndedAt set
+    expect(host.projection().meta.sessionEndedAt).toBeTypeOf('number')
+    expect(joiner.projection().meta.sessionEndedAt).toBeTypeOf('number')
+
+    host.disconnect()
+    joiner.disconnect()
+  })
 })
 
 function sleep(ms: number): Promise<void> {

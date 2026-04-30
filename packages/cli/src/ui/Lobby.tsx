@@ -2,9 +2,10 @@ import React, { useEffect } from 'react'
 import { Box, Text, useInput } from 'ink'
 import { isConsensus } from '@hnch/shared'
 import { ParticipantList } from './components/ParticipantList.js'
-import { LobbySettings } from './components/LobbySettings.js'
+import { HostActionsMenu } from './components/HostActionsMenu.js'
+import { SharePicker } from './components/SharePicker.js'
 import { TextInput } from './components/TextInput.js'
-import type { DocProjection, Round, Scale, PresetOverrides, CustomScale } from '@hnch/shared'
+import type { DocProjection, Round } from '@hnch/shared'
 
 interface Props {
   projection: DocProjection
@@ -15,8 +16,6 @@ interface Props {
   /** The latest revealed round (null if no rounds revealed yet). */
   currentRound: Round | null
   settingsOpen: boolean
-  presetOverrides?: PresetOverrides
-  customScales?: CustomScale[]
   onStartRound: () => void
   onNewRound: () => void
   onRevote: () => void
@@ -26,14 +25,12 @@ interface Props {
   onRoundTitleSubmit: (value: string) => void
   onRoundTitleCancel: () => void
   onOpenSettings: () => void
-  onCloseSettings: () => void
-  onChangeName: (name: string | undefined) => void
-  onChangeScale: (scale: Scale) => void
-  onChangeDisplayName: (name: string) => void
-  onChangeAccess: (mode: 'open' | 'password', password?: string) => Promise<void>
   onHandoffHost: (targetId: string) => void
-  displayName: string
-  accessMode: 'open' | 'password'
+  onEndSession: () => void
+  onShare: (kind: 'code' | 'url' | 'npx') => void
+  shareOpen: boolean
+  onSetShareOpen: (open: boolean) => void
+  roomCode: string
   confirmingQuit: boolean
 }
 
@@ -110,20 +107,16 @@ export function Lobby({
   rounds,
   currentRound,
   settingsOpen,
-  presetOverrides,
-  customScales,
   onStartRound,
   onNewRound,
   onRevote,
   onOpenSettings,
-  onCloseSettings,
-  onChangeName,
-  onChangeScale,
-  onChangeDisplayName,
-  onChangeAccess,
   onHandoffHost,
-  displayName,
-  accessMode,
+  onEndSession,
+  onShare,
+  shareOpen,
+  onSetShareOpen,
+  roomCode,
   confirmingQuit,
   roundTitlePromptActive,
   roundTitleInput,
@@ -133,28 +126,50 @@ export function Lobby({
 }: Props): React.ReactElement {
   const [handoffMode, setHandoffMode] = React.useState<'idle' | 'picking' | 'confirming'>('idle')
   const [handoffTargetId, setHandoffTargetId] = React.useState<string | null>(null)
+  const [hostMenuOpen, setHostMenuOpen] = React.useState(false)
+  const [confirmingEndSession, setConfirmingEndSession] = React.useState(false)
 
-  // Reset handoff state when host role lost
+  // Reset handoff state and host-only overlays when host role lost
   useEffect(() => {
     if (!isHost) {
       setHandoffMode('idle')
       setHandoffTargetId(null)
+      setHostMenuOpen(false)
+      setConfirmingEndSession(false)
     }
   }, [isHost])
 
   useInput(
     (input) => {
+      if (input === 'c' || input === 'C') {
+        onSetShareOpen(true)
+        return
+      }
       if (isHost) {
         if (input === 'e' || input === 'E') onOpenSettings()
         if (input === 's' || input === 'S') onStartRound()
         if (input === 'h' || input === 'H') setHandoffMode('picking')
+        if (input === 'm' || input === 'M') setHostMenuOpen(true)
         if (currentRound?.revealedAt !== undefined) {
           if (input === 'n' || input === 'N') onNewRound()
           if (input === 'v' || input === 'V') onRevote()
         }
       }
     },
-    { isActive: !settingsOpen && !confirmingQuit && handoffMode === 'idle' && !roundTitlePromptActive },
+    { isActive: !settingsOpen && !confirmingQuit && handoffMode === 'idle' && !roundTitlePromptActive && !hostMenuOpen && !confirmingEndSession && !shareOpen },
+  )
+
+  // End session confirmation
+  useInput(
+    (input, key) => {
+      if (input === 'y' || input === 'Y') {
+        onEndSession()
+        setConfirmingEndSession(false)
+      } else if (input === 'n' || input === 'N' || key.escape) {
+        setConfirmingEndSession(false)
+      }
+    },
+    { isActive: confirmingEndSession },
   )
 
   // Handoff picking mode: number selection from online participants (excluding self)
@@ -200,20 +215,27 @@ export function Lobby({
   // Past rounds = all revealed rounds except the latest (shown in full)
   const pastRounds = currentRound !== null ? revealedRounds.slice(0, -1) : revealedRounds
 
-  if (settingsOpen) {
+  if (hostMenuOpen) {
     return (
-      <LobbySettings
-        sessionName={projection.settings.name}
-        displayName={displayName}
-        currentScale={projection.settings.defaultScale}
-        accessMode={accessMode}
-        presetOverrides={presetOverrides}
-        customScales={customScales}
-        onChangeName={onChangeName}
-        onChangeScale={onChangeScale}
-        onChangeDisplayName={onChangeDisplayName}
-        onChangeAccess={onChangeAccess}
-        onClose={onCloseSettings}
+      <HostActionsMenu
+        onPick={(value) => {
+          setHostMenuOpen(false)
+          if (value === 'end-session') setConfirmingEndSession(true)
+        }}
+        onClose={() => setHostMenuOpen(false)}
+      />
+    )
+  }
+
+  if (shareOpen) {
+    return (
+      <SharePicker
+        roomCode={roomCode}
+        onPick={(kind) => {
+          onSetShareOpen(false)
+          onShare(kind)
+        }}
+        onClose={() => onSetShareOpen(false)}
       />
     )
   }
@@ -297,27 +319,41 @@ export function Lobby({
         </Box>
       )}
 
-      {handoffMode === 'idle' && !roundTitlePromptActive && (
+      {confirmingEndSession && (
+        <Box>
+          <Text color="red">End session for everyone? This cannot be undone. </Text>
+          <Text dimColor>y/n  [Esc] Cancel</Text>
+        </Box>
+      )}
+
+      {handoffMode === 'idle' && !roundTitlePromptActive && !confirmingEndSession && (
         <Box gap={2}>
           {isHost ? (
             <>
               {currentRound?.revealedAt !== undefined ? (
                 <>
-                  <Text color="yellow">[v] Re-vote</Text>
-                  <Text color="yellow">[n] Next round</Text>
-                  <Text color="yellow">[h] Hand off</Text>
+                  <Text color="yellow">[v] Revote</Text>
+                  <Text color="yellow">[n] Next</Text>
+                  <Text color="yellow">[h] Handoff</Text>
                   <Text color="yellow">[e] Settings</Text>
+                  <Text color="yellow">[c] Share</Text>
+                  <Text color="yellow">[m] Menu</Text>
                 </>
               ) : (
                 <>
                   <Text color="yellow">[s] Start round</Text>
-                  <Text color="yellow">[h] Hand off</Text>
+                  <Text color="yellow">[h] Handoff</Text>
                   <Text color="yellow">[e] Settings</Text>
+                  <Text color="yellow">[c] Share</Text>
+                  <Text color="yellow">[m] Menu</Text>
                 </>
               )}
             </>
           ) : (
-            <Text dimColor>Waiting for host to start a round...</Text>
+            <>
+              <Text dimColor>Waiting for host to start a round...</Text>
+              <Text>[c] Share</Text>
+            </>
           )}
           <Text>[q] Quit</Text>
         </Box>
