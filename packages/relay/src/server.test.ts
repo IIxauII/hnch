@@ -208,12 +208,13 @@ describe('relay server', () => {
       const record = roomStore.createRoom({ passwordHash: correctPw })
       const wsUrl = baseUrl.replace('http', 'ws')
       const ws = new WebSocket(`${wsUrl}/ws/${record.uuid}?did=device-1&pw=${wrongPw}`)
+      // Wrong-password is a post-upgrade WS close (4002) per ADR-0016, not HTTP 403.
       await new Promise<void>((resolve) => {
-        ws.on('error', () => resolve())
-        ws.on('unexpected-response', (_req, res) => {
-          expect(res.statusCode).toBe(403)
+        ws.on('close', (code) => {
+          expect(code).toBe(4002)
           resolve()
         })
+        ws.on('error', () => resolve())
       })
     })
 

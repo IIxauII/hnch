@@ -57,6 +57,7 @@ import { assertRoomCode } from '../core/room-join.service'
 import { shouldRecordCache } from '../core/cache-record-guard'
 import { QrDisplaySheetComponent } from './qr-display.sheet'
 import { presentSheet } from '../utils/present-sheet'
+import { rejectionCopy } from '../join/join.page'
 
 /**
  * Lobby — ux.md §5.4 host variant.
@@ -473,7 +474,7 @@ export class LobbyPage {
 
   protected readonly subtitle = computed(() => {
     const settings = this.docService.settings()
-    if (!settings) return ''
+    if (!settings || !settings.defaultScale) return ''
     const round = this.nextRoundNumber()
     const scaleName = formatScaleId(settings.defaultScale.id)
     return `Round ${round} • ${scaleName}`
@@ -570,6 +571,25 @@ export class LobbyPage {
         assertRoomCode(code, 'lobby.autoNav')
         void this.router.navigate(['/estimating', code])
       }
+    })
+
+    // WS rejection handler — covers all reasons a joiner can be rejected
+    // while already on Lobby (e.g. host changes password mid-session,
+    // room-full race, etc.). Captures code synchronously at signal-flip
+    // time before endSession clears it.
+    effect(() => {
+      const reason = this.docService.lastRejection()
+      if (reason === null) return
+      const code = this.roomCode()
+      void (async () => {
+        this.docService.endSession()
+        await this.toastService.error(rejectionCopy(reason))
+        if (reason === 'wrong-password') {
+          await this.router.navigate(['/join'], { queryParams: { code } })
+        } else {
+          await this.router.navigate(['/home'])
+        }
+      })()
     })
   }
 
