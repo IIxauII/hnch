@@ -168,7 +168,9 @@ v1 ships as a plain SPA. There is no service worker, no offline shell, and no `m
 
 ## Self-hosted runner pool
 
-GitHub Actions `verify` and `e2e` jobs run on a pool of 4 ephemeral arm64 Podman containers on a Mac mini M4. Deploy/release/health-check workflows stay on `ubuntu-latest`. See [ADR-0032](../adr/0032-self-hosted-github-actions-runner.md) for the architectural rationale; the source plan is in `plans/plan-self-hosted-runner.md`.
+All `ci.yml` jobs run on a pool of 4 ephemeral arm64 Podman containers on a Mac mini M4: the `verify` matrix, `e2e`, and the small support jobs (`detect-changes`, `version-audit`, `pr-title-lint`, `verify-summary`). `release.yml` and `deploy-*.yml` are next to flip per [ADR-0037](../adr/0037-self-hosted-runner-pool-covers-all-non-health-jobs.md). `runner-health.yml` stays on `ubuntu-latest` permanently — it is the dead-man's-switch that fires when the pool is dead, so it cannot run on the pool. Dependabot stays on the GitHub-managed runner.
+
+See [ADR-0032](../adr/0032-self-hosted-github-actions-runner.md) for the original architectural rationale and [ADR-0037](../adr/0037-self-hosted-runner-pool-covers-all-non-health-jobs.md) for the scope expansion. Source plans: `plans/plan-self-hosted-runner.md` (original) and `plans/plan-runner-pool-expansion.md` (expansion — to be written when Phase 2 lands).
 
 ### Architecture
 
