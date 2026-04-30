@@ -1,6 +1,6 @@
 # ADR-0032: Self-hosted GitHub Actions runner — ephemeral arm64 Podman pool on Mac mini M4 (Tart deferred)
 
-**Status:** Proposed
+**Status:** Proposed (scope partially superseded by ADR-0037 — extends self-hosted to release.yml, deploy-*.yml, and the residual cheap ci.yml jobs; Tart deferral and runner-health-on-ubuntu pieces stand)
 **Date:** 2026-04-29
 **Deciders:** xau
 
