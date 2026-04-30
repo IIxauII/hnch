@@ -1,3 +1,15 @@
+# [1.4.0](https://github.com/IIxauII/hnch/compare/client-v1.3.0...client-v1.4.0) (2026-04-30)
+
+
+### Bug Fixes
+
+* surface relay rejections on deep-link join ([#49](https://github.com/IIxauII/hnch/issues/49)) ([0f825b7](https://github.com/IIxauII/hnch/commit/0f825b724c513c27e4a12f3a2636c9dd0519fa20))
+
+
+### Features
+
+* **client:** collapse lobby participants accordion post-reveal ([#50](https://github.com/IIxauII/hnch/issues/50)) ([0a468b0](https://github.com/IIxauII/hnch/commit/0a468b0da5de870f011c28fc67342a30cabc571f))
+
 # [1.3.0](https://github.com/IIxauII/hnch/compare/client-v1.2.1...client-v1.3.0) (2026-04-30)
 
 
