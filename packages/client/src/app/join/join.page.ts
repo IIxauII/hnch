@@ -39,7 +39,7 @@ import { AppPreferenceService } from '../core/app-preference.service'
 import { DisplayNameService } from '../core/display-name.service'
 import { DocService } from '../core/doc/doc.service'
 import { ParticipantIdService } from '../core/participant-id.service'
-import { QrScannerService } from '../core/qr-scanner.service'
+import { type QrScanErrorReason, QrScannerService } from '../core/qr-scanner.service'
 import { RelayRejectionError, resolveRoom } from '../core/relay/relay-api'
 import { ToastService } from '../services/toast.service'
 
@@ -109,7 +109,7 @@ import { ToastService } from '../services/toast.service'
           (keydown.enter)="submit()"
         ></ion-input>
       </ion-item>
-      <ion-item button class="scan-item" (click)="onScanQr()">
+      <ion-item button class="scan-item" [disabled]="isSubmitting()" (click)="onScanQr()">
         <ion-icon
           slot="start"
           name="qr-code-outline"
@@ -354,10 +354,18 @@ export class JoinPage {
   }
 
   protected async onScanQr(): Promise<void> {
-    const raw = await this.qrScanner.scanForCode()
-    if (raw === null) return // cancelled or permission denied
+    if (this.isSubmitting()) return
+    const result = await this.qrScanner.scanForCode()
 
-    const code = parseInviteContent(raw)
+    if (result.status === 'cancelled') return
+
+    if (result.status === 'error') {
+      await this.toast(qrScanErrorCopy(result.reason))
+      return
+    }
+
+    // result.status === 'ok'
+    const code = parseInviteContent(result.value)
     if (!code) {
       await this.toast("That doesn't look like an hnch invite")
       return
@@ -429,5 +437,24 @@ export function rejectionCopy(reason: JoinRejectionReason): string {
       return 'This room is full (max 20 participants). Navigate back and try another room.'
     case 'malformed-credentials':
       return "Couldn't join with the info provided."
+  }
+}
+
+/**
+ * Map a `QrScanErrorReason` to user-visible copy.
+ * Exported so tests can lock the reason → copy mapping.
+ */
+export function qrScanErrorCopy(reason: QrScanErrorReason): string {
+  switch (reason) {
+    case 'permission-denied':
+      return 'Camera access blocked. Allow camera in browser settings to scan.'
+    case 'no-camera':
+      return 'No camera available on this device.'
+    case 'camera-busy':
+      return 'Camera is in use by another app.'
+    case 'unavailable':
+      return "Scanning isn't supported on this browser."
+    case 'unknown':
+      return "Couldn't start the scanner."
   }
 }
