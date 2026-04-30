@@ -42,7 +42,22 @@ Types in use (match existing history — see `git log`):
 | `build` | Build system, packaging |
 | `ci` | CI config |
 
-Scope is optional but encouraged when the change is package-local (e.g. `fix(relay): ...`, `feat(client): ...`).
+**Scope is required.** PR-title lint enforces an allowlist (see below). Scopeless titles fail CI and merge is blocked.
+
+| Scope | Use for | Triggers release? |
+|-------|---------|-------------------|
+| `client` | `packages/client/**` (Angular app) | Yes — `client-v*` |
+| `relay` | `packages/relay/**` (Node.js server) | Yes — `relay-v*` |
+| `cli` | `packages/cli/**` | Yes — `cli-v*` (npm publish) |
+| `shared` | `packages/shared/**` | Yes — `shared-v*` |
+| `e2e` | `packages/e2e/**` | No |
+| `ci` | `.github/workflows/**`, `infra/runner/**` | No |
+| `docs` | Top-level `*.md`, `adr/**` | No |
+| `infra` | `infra/**` (Caddyfile, systemd, deploy scripts) | No |
+| `deps` | Dependency bumps (Dependabot et al.) | No |
+| `repo` | Root configs (`package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`, `.gitignore`, etc.) | No |
+
+For multi-package changes pick the primary user-impacted scope; if each side genuinely warrants its own release bump, split into separate PRs.
 
 The commit type drives the release bump — see [Releases](#releases).
 

@@ -88,4 +88,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow and the worktree se
 
 - Do **not** add a `Co-Authored-By` trailer to commit messages.
 - Follow [Conventional Commits](https://www.conventionalcommits.org/) — commit type drives the semantic-release version bump on merge to `main`.
+- **Scope is required** on every PR title — chosen from the allowlist enforced by the `PR title (Conventional Commits)` CI check. See [CONTRIBUTING.md](CONTRIBUTING.md#commit-style--conventional-commits) for the table. Scopeless titles fail CI and don't trigger any release. Multi-package fixes: pick the primary impacted scope, or split into per-scope PRs.
 - See [CONTRIBUTING.md](CONTRIBUTING.md) for full PR requirements, release flow, and pre-push checklist.
