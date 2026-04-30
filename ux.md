@@ -29,7 +29,7 @@ UX decisions touching architecture cross-linked to governing ADR in [`adr/`](adr
 
 **Accessibility, dark mode, safe areas = baseline, not polish.** VoiceOver labels on non-text content (QR codes, card grids). Dark mode follows system pref by default with explicit override. Safe areas via `ion-header` / `ion-footer` — content respects notches, dynamic islands, home indicators.
 
-**Non-goals for v1.** Deliberately out of scope: Team concept from [ADR-0007](adr/0007-team-local-only-concept.md) (architecture present, no UI), full session history (only single "Jump back in" banner for most recent backed-out session), iPad/landscape layouts (iPhone portrait = design target), offline session creation (relay assumed reachable at Create time).
+**Non-goals for v1.** Deliberately out of scope: Team concept from [ADR-0007](adr/0007-team-local-only-concept.md) — Teams are device-local saved attendee lists with optional session defaults (scale, name), stored in local preferences; they have no v1 UI and no Yjs presence. Full session history (only single "Jump back in" banner for most recent backed-out session). iPad/landscape layouts (iPhone portrait = design target). Offline session creation (relay assumed reachable at Create time).
 
 ---
 
@@ -450,8 +450,8 @@ After a round is revealed, all participants navigate from Estimating back to Lob
 │   │ 8    (2 votes)                │     │
 │   │   🟢 Carol  🟢 Dave           │     │
 │   ├───────────────────────────────┤     │
-│   │ Observers (1)                 │     │  muted trailing group
-│   │   🟢 Eve  (observer)          │     │
+│   │ Didn't vote (1)               │     │  muted trailing group (voters + viewers with no entry in round.votes)
+│   │   🟢 Eve  (observing)         │     │
 │   └───────────────────────────────┘     │
 │   ⏱ 0:42                               │  elapsed time
 │                                         │
@@ -499,7 +499,7 @@ After a round is revealed, all participants navigate from Estimating back to Lob
 - Subtitle summarizes settings (scale). Tapping subtitle opens Session settings sheet (also via ⋯ → **Session settings**). Discoverability affordance, not substitute for menu.
 - Show QR = secondary invite for co-located meetings. Opens `ion-modal` with full-screen QR encoding invite URL.
 - Participant list: viewers render with an `(observer)` suffix after their name. Voters have no suffix. Role is session-wide and visible in all three Lobby variants (ADR-0020).
-- Results section (`VoteResultsComponent`): each group = `ion-item-group` with vote value as large heading + `(N votes)` caption. Voters rendered as `ion-chip` row (avatar + name). Trailing muted groups: "Didn't vote" (voters who didn't cast a vote) and "Observers" (participants with `role = viewer`, per ADR-0020). Elapsed time shown below groups.
+- Results section (`VoteResultsComponent`): each group = `ion-item-group` with vote value as large heading + `(N votes)` caption. Voters rendered as `ion-chip` row (avatar + name). Trailing muted "Didn't vote" group (all participants — voters and viewers — who have no entry in `round.votes`). Elapsed time shown below groups. If all votes match, a "Consensus!" overlay animates in with haptic feedback and auto-dismisses after 3 s.
 - History (`RoundHistoryComponent`): compact one-liner per past revealed round (all revealed rounds except the latest), reverse chronological. Skipped when only one round revealed.
 - Footer when results shown (host only): **Re-vote** (reuses descriptor, creates new Round with `parentRoundId` = current, per ADR-0013) and **Next Round N** (opens round-start modal). Joiners see no footer — wait for host.
 - ⋯ menu: **Session settings**, **Leave session** (destructive), **End session for everyone** (destructive, host only).
@@ -550,7 +550,7 @@ Core interaction screen. Every participant sees card grid (voters) or an observe
 │   Round 1                               │
 │   API rate-limit middleware             │
 │                                         │
-│   [○ Observer]                          │  role chip — medium (gray) when viewer
+│   [○ Observing]                         │  role chip — medium (gray) when viewer
 │                                         │
 │   2:14                                  │
 │   ● ● ●       3 of 3 voted              │  denominator = voters only
@@ -565,7 +565,7 @@ Core interaction screen. Every participant sees card grid (voters) or an observe
 - Cards = `ion-card` tiles with large numerals. Selecting sets vote + fires `Haptics.impact({ style: 'Light' })`. Selected card gets primary-color border + filled background; others outlined. Re-tap deselects (ADR-0013: vote change allowed until reveal).
 - Avatar row = compact "who voted" indicator — grey circle = connected no vote; filled = voted. Tap row → `ion-popover` listing names grouped voted/not-voted.
 - Elapsed time counts up from round start. Format: `M:SS`. Uses `font-variant-numeric: tabular-nums` to prevent digit jitter. Auto-reveal fires when all online **voters** have voted (ADR-0018, ADR-0020).
-- Role chip (`[● Voter]` / `[○ Observer]`) appears below the round title. Tap toggles between voter and viewer mid-session. Chip color: primary (blue) when voter, medium (gray) when viewer. Distinct aria-labels for screen readers. Switching to viewer hides the card grid and shows the observer notice; switching back to voter restores it.
+- Role chip (`[● Voter]` / `[○ Observing]`) appears below the round title. Tap toggles between voter and viewer mid-session. Chip color: primary (blue) when voter, medium (gray) when viewer. Distinct aria-labels for screen readers. Switching to viewer hides the card grid and shows the observer notice; switching back to voter restores it.
 - Viewers are excluded from the "X of Y voted" denominator and from the unanimous auto-reveal check. If all online participants are viewers, auto-reveal does not fire.
 - Only host sees **Reveal Votes** footer. Joiners see empty/no footer.
 - ⋯ menu (host): **Session settings**, **Leave session**, **End session for everyone**.
@@ -899,20 +899,14 @@ All screens built with `ion-header` / `ion-footer` — Ionic handles safe-area i
 
 Acknowledged gaps and deferred decisions. Not blocking v1 but should be answered (or re-deferred) before corresponding feature built.
 
-**Consensus indicator in Lobby results.** All votes match → celebratory state (checkmark, "Consensus!" banner, distinct haptic)? Consensus indicator: when all votes match, a full-screen "Consensus!" banner animates in with haptic feedback, then auto-dismisses.
+**Re-vote breadcrumb.** On re-voted round, the Lobby results section doesn’t surface attempt count. `parentRoundId` in doc — could show “Round 2 • re-vote of Round 1.” Deferred; resolve when designing optional session-history view (post-v1).
 
-**Re-vote breadcrumb.** On re-voted round, the Lobby results section doesn't surface attempt count. `parentRoundId` in doc — could show "Round 2 • re-vote of Round 1." Deferred; resolve when designing optional session-history view (post-v1).
+**Reconnecting banner.** During momentary disconnect, show non-blocking “Reconnecting…” banner above content? Not yet designed — tracks with y-websocket reconnection events wiring.
 
-**Reconnecting banner.** During momentary disconnect, show non-blocking "Reconnecting…" banner above content? Not yet designed — tracks with y-websocket reconnection events wiring.
-
-**Host-election transition state.** During 5-second debounce ([ADR-0010](adr/0010-host-election.md)) after host drop, joiners have no host. Show status line ("Waiting for a new host…") or is 5s gap short enough to skip UI? Resolve during implementation.
+**Host-election transition state.** During 5-second debounce ([ADR-0010](adr/0010-host-election.md)) after host drop, joiners have no host. Show status line (“Waiting for a new host…”) or is 5s gap short enough to skip UI? Resolve during implementation.
 
 **Expired-room error screen.** Dedicated screen vs toast vs inline error on Join Room — currently picked toast + return to Home, but full screen may be warranted if URL deep-link path feels jarring. Revisit after real-device testing.
 
 **Invite URL shape with credentials.** For password-protected rooms, does invite URL embed hint that password required (skip round-trip, show field immediately)? TBD — interacts with [ADR-0009](adr/0009-access-control-relay-tokens.md) opaque-token model.
 
 **Liquid Glass adoption timeline.** When (if ever) adopt `@rdlabo/ionic-theme-ios26`. See [§7](#7-theming).
-
-**Schema implications of this document (resolved).**
-
-UX decisions narrowed v1 schema relative to earlier ADRs. Timer countdown and `revealMode` removed in [ADR-0018](adr/0018-remove-timer-add-unanimous-reveal.md); reveal is now always manual + unanimous auto-reveal. `timerStartedAt` retained as stopwatch origin.

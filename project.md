@@ -98,8 +98,6 @@ Sessions are open by default (anyone with the link/code can join). Host can opti
 
 Access control is *relay-enforced*, not client-side. The relay holds a small amount of per-active-room metadata (password hash) but remains **content-blind** — it never parses session data, votes, or user identity. The password hash is opaque to the relay's semantics.
 
-**Future consideration:** vote signing via device keys to prevent forgery. Not in scope initially.
-
 ## Participants
 
 Hard cap of 20 participants per session — more than enough for any real planning poker session and keeps relay bandwidth bounded. Participants can switch between **voter** and **viewer** roles at any time. Viewers observe but are not required to vote.
