@@ -64,7 +64,7 @@ export const LOBBY = {
   subtitle: 'button.subtitle',
   participantList: 'ion-list.participants',
   participantItems: 'ion-list.participants ion-item',
-  participantCount: 'ion-list.participants ion-list-header ion-label',
+  participantCount: 'ion-accordion ion-item[slot="header"] ion-label',
   hostIcon: '.host-icon',
   startRoundBtn: /Start Round \d+/,
   /** Results section shown after a round is revealed */
