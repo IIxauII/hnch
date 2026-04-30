@@ -2,7 +2,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  effect,
   inject,
   signal,
 } from '@angular/core'
@@ -231,19 +230,6 @@ export class JoinPage {
 
   constructor() {
     addIcons({ 'qr-code-outline': qrCodeOutline })
-
-    // Room-full arrives via WS close code 4006 → lastRejection signal,
-    // not from the HTTP resolve step. Watch here and handle it.
-    effect(() => {
-      const reason = this.docService.lastRejection()
-      if (reason === 'room-full') {
-        void (async () => {
-          this.docService.endSession()
-          await this.showRejectionToast('room-full')
-          await this.router.navigate(['/home'])
-        })()
-      }
-    })
 
     // Live-reformat the field as the user types: normalize to strip
     // dashes + uppercase, then re-insert the dash once we have six
