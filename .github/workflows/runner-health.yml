@@ -2,7 +2,7 @@ name: Runner health
 
 on:
   schedule:
-    - cron: '0 * * * *'
+    - cron: '0 */6 * * *'
   workflow_dispatch:
 
 # Note: this workflow uses RUNNER_HEALTH_PAT (a fine-grained PAT with
@@ -12,11 +12,15 @@ on:
 # cannot be escalated via the workflow `permissions:` block.
 # See infra/README.md "Health check" for setup + rotation procedure.
 
+concurrency:
+  group: runner-health
+  cancel-in-progress: true
+
 jobs:
   check:
     name: Check hnch-podman runner pool
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 2
     steps:
       - name: Check hnch-podman runner online
         env:
