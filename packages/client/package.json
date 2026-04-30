@@ -37,6 +37,7 @@
     "@capacitor/status-bar": "8.0.2",
     "@hnch/shared": "workspace:*",
     "@ionic/angular": "^8.0.0",
+    "barcode-detector": "^3.1.2",
     "ionicons": "^7.0.0",
     "qrcode": "^1.5.4",
     "rxjs": "~7.8.0",
@@ -48,6 +49,7 @@
     "zone.js": "~0.15.0"
   },
   "devDependencies": {
+    "@analogjs/vite-plugin-angular": "^2.4.10",
     "@angular-devkit/build-angular": "^20.0.0",
     "@angular-eslint/builder": "^20.0.0",
     "@angular-eslint/eslint-plugin": "^20.0.0",
@@ -66,7 +68,6 @@
     "eslint-plugin-import": "^2.29.1",
     "eslint-plugin-jsdoc": "^48.2.1",
     "eslint-plugin-prefer-arrow": "1.2.2",
-    "@analogjs/vite-plugin-angular": "^2.4.10",
     "jsdom": "^29.0.2",
     "typescript": "~5.9.0",
     "vitest": "^3.1.1"
