@@ -13,6 +13,8 @@ import { formatRoomCode, participantRole } from '@hnch/shared'
 import {
   ActionSheetController,
   AlertController,
+  IonAccordion,
+  IonAccordionGroup,
   IonAvatar,
   IonButton,
   IonButtons,
@@ -23,7 +25,6 @@ import {
   IonItem,
   IonLabel,
   IonList,
-  IonListHeader,
   IonModal,
   IonNote,
   IonTitle,
@@ -58,6 +59,7 @@ import { shouldRecordCache } from '../core/cache-record-guard'
 import { QrDisplaySheetComponent } from './qr-display.sheet'
 import { presentSheet } from '../utils/present-sheet'
 import { rejectionCopy } from '../join/join.page'
+import { participantsAccordionValueFor, summarizeParticipants } from './lobby-summary'
 
 /**
  * Lobby — ux.md §5.4 host variant.
@@ -89,6 +91,8 @@ import { rejectionCopy } from '../join/join.page'
   host: { class: 'ion-page' },
   imports: [
     ConnectionChipComponent,
+    IonAccordion,
+    IonAccordionGroup,
     IonAvatar,
     IonButton,
     IonButtons,
@@ -99,7 +103,6 @@ import { rejectionCopy } from '../join/join.page'
     IonItem,
     IonLabel,
     IonList,
-    IonListHeader,
     IonModal,
     IonNote,
     IonTitle,
@@ -172,44 +175,55 @@ import { rejectionCopy } from '../join/join.page'
         </ion-item>
       </ion-list>
 
-      <ion-list lines="inset" class="participants">
-        <ion-list-header>
-          <ion-label>Participants ({{ participants().length }})</ion-label>
-        </ion-list-header>
-        @for (p of participants(); track p.id) {
-          <ion-item
-            [class.offline]="!onlineIds().has(p.id)"
-            [button]="isHost() && onlineIds().has(p.id) && p.id !== myId()"
-            [attr.aria-label]="
-              p.id === myId()
-                ? 'You (' + p.displayName + ')'
-                : isHost() && onlineIds().has(p.id) && p.id !== myId()
-                  ? 'Make ' + p.displayName + ' the host'
-                  : p.displayName
-            "
-            (click)="canHandoffTo(p.id) && onHandoffTap(p.id, p.displayName)"
-          >
-            <ion-avatar slot="start" aria-hidden="true">
-              <ion-icon name="person-circle-outline"></ion-icon>
-            </ion-avatar>
+      <ion-accordion-group [value]="participantsAccordionValue()" expand="inset">
+        <ion-accordion value="open">
+          <ion-item slot="header" lines="inset">
             <ion-label>
-              {{ p.id === myId() ? 'You (' + p.displayName + ')' : p.displayName }}
-              @if (p.id === hostId()) {
-                <ion-icon
-                  name="star-outline"
-                  class="host-icon"
-                  aria-label="Host"
-                ></ion-icon>
+              Participants ({{ participants().length }})
+              @if (participantsSummary()) {
+                <p class="participants-summary">{{ participantsSummary() }}</p>
               }
             </ion-label>
-            @if (isParticipantViewer(p)) {
-              <ion-note slot="end" aria-label="Observer">observer</ion-note>
-            } @else if (!onlineIds().has(p.id)) {
-              <ion-note slot="end">Offline</ion-note>
-            }
           </ion-item>
-        }
-      </ion-list>
+          <div slot="content">
+            <ion-list lines="inset" class="participants">
+              @for (p of participants(); track p.id) {
+                <ion-item
+                  [class.offline]="!onlineIds().has(p.id)"
+                  [button]="isHost() && onlineIds().has(p.id) && p.id !== myId()"
+                  [attr.aria-label]="
+                    p.id === myId()
+                      ? 'You (' + p.displayName + ')'
+                      : isHost() && onlineIds().has(p.id) && p.id !== myId()
+                        ? 'Make ' + p.displayName + ' the host'
+                        : p.displayName
+                  "
+                  (click)="canHandoffTo(p.id) && onHandoffTap(p.id, p.displayName)"
+                >
+                  <ion-avatar slot="start" aria-hidden="true">
+                    <ion-icon name="person-circle-outline"></ion-icon>
+                  </ion-avatar>
+                  <ion-label>
+                    {{ p.id === myId() ? 'You (' + p.displayName + ')' : p.displayName }}
+                    @if (p.id === hostId()) {
+                      <ion-icon
+                        name="star-outline"
+                        class="host-icon"
+                        aria-label="Host"
+                      ></ion-icon>
+                    }
+                  </ion-label>
+                  @if (isParticipantViewer(p)) {
+                    <ion-note slot="end" aria-label="Observer">observer</ion-note>
+                  } @else if (!onlineIds().has(p.id)) {
+                    <ion-note slot="end">Offline</ion-note>
+                  }
+                </ion-item>
+              }
+            </ion-list>
+          </div>
+        </ion-accordion>
+      </ion-accordion-group>
 
       @if (lastRevealedRound(); as round) {
         <section class="results-section" aria-label="Round {{ lastRevealedRoundIndex() }} Results">
@@ -350,6 +364,11 @@ import { rejectionCopy } from '../join/join.page'
       .actions,
       .participants {
         margin-top: 1.25rem;
+      }
+      .participants-summary {
+        margin: 0.125rem 0 0;
+        font-size: 0.85rem;
+        color: var(--ion-color-medium);
       }
       ion-avatar ion-icon {
         font-size: 2rem;
@@ -502,6 +521,26 @@ export class LobbyPage {
     const idx = this.rounds().findIndex((r) => r.id === round.id)
     return idx >= 0 ? idx + 1 : null
   })
+
+  /**
+   * Controls accordion open/closed state. Null collapses when a round
+   * has been revealed so results stay above the fold.
+   */
+  protected readonly participantsAccordionValue = computed(() =>
+    participantsAccordionValueFor(this.lastRevealedRound() !== null),
+  )
+
+  /**
+   * Short summary line shown in the accordion header when collapsed —
+   * e.g. "3 online · 1 offline · 1 viewer".
+   */
+  protected readonly participantsSummary = computed(() =>
+    summarizeParticipants(
+      this.participants(),
+      this.onlineIds(),
+      (p) => this.isParticipantViewer(p),
+    ),
+  )
 
   /**
    * All revealed rounds except the most recent. Passed to
