@@ -59,9 +59,11 @@ describe('password-compare timing safety', () => {
 
     const wsUrl = baseUrl.replace('http', 'ws')
     const ws = new WebSocket(`${wsUrl}/ws/${record.uuid}?did=device-1&pw=${wrongPw}`)
+    // Wrong-password now closes post-upgrade (4002); listen for close too.
     await new Promise<void>((resolve) => {
       ws.on('error', () => resolve())
       ws.on('unexpected-response', () => resolve())
+      ws.on('close', () => resolve())
     })
 
     expect(timingSafeEqualSpy).toHaveBeenCalled()
@@ -74,9 +76,11 @@ describe('password-compare timing safety', () => {
 
     const wsUrl = baseUrl.replace('http', 'ws')
     const ws = new WebSocket(`${wsUrl}/ws/${record.uuid}?did=device-1&pw=${wrongPw}`)
+    // Wrong-password now closes post-upgrade (4002); listen for close too.
     await new Promise<void>((resolve) => {
       ws.on('error', () => resolve())
       ws.on('unexpected-response', () => resolve())
+      ws.on('close', () => resolve())
     })
 
     const [a, b] = timingSafeEqualSpy.mock.calls[0]!

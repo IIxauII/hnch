@@ -36,7 +36,7 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0014](0014-repo-layout-pnpm-workspaces.md) | Repo layout: pnpm workspaces monorepo | Accepted |
 | [0015](0015-v1-scope-session-level-reveal-and-timer.md) | v1 scope: session-level reveal mode and timer duration | Superseded by ADR-0018 |
 | [0016](0016-client-relay-connection-handshake.md) | Client ↔ relay connection handshake | Accepted |
-| [0017](0017-password-hashing-drop-invite-only.md) | Password hashing scheme and invite-only removal | Accepted |
+| [0017](0017-password-hashing-drop-invite-only.md) | Password hashing scheme and invite-only removal | Accepted (password-enforcement clause superseded by ADR-0035) |
 | [0018](0018-remove-timer-add-unanimous-reveal.md) | Remove countdown timer; add unanimous auto-reveal | Accepted |
 | [0019](0019-scale-customization.md) | Scale customization — builtin presets, sentinel removal, device-local overrides | Accepted |
 | [0020](0020-participant-viewer-voter-role.md) | Participant Viewer/Voter Role | Accepted |
@@ -53,6 +53,7 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0032](0032-self-hosted-github-actions-runner.md) | Self-hosted GitHub Actions runner — ephemeral arm64 Podman pool on Mac mini M4 (Tart deferred) | Proposed |
 | [0033](0033-runner-image-from-debian-and-actions-runner-tarball.md) | Runner image from `debian:bookworm-slim` + official `actions/runner` tarball (refines ADR-0032 §base-image) | Proposed |
 | [0034](0034-qr-scan-native-web-split.md) | QR scan native-vs-web split — single plugin, runtime platform branch, lazy ZXing-WASM polyfill on web | Proposed |
+| [0035](0035-wrong-password-post-upgrade-close.md) | Wrong-password rejection on WS close 4002 (supersedes ADR-0017 password-enforcement clause) | Accepted |
 
 ## When to write an ADR
 
