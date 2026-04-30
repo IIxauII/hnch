@@ -369,9 +369,9 @@ export class EstimatingPage {
 
   protected readonly onlineVoterIds = computed<ReadonlySet<string>>(() => {
     const online = this.docService.onlineParticipantIds()
-    const allParticipants = this.docService.participants()
+    const activeParticipants = this.docService.activeParticipants()
     return new Set(
-      allParticipants
+      activeParticipants
         .filter((p) => online.has(p.id) && participantRole(p) !== 'viewer')
         .map((p) => p.id),
     )
@@ -379,8 +379,8 @@ export class EstimatingPage {
 
   protected readonly onlineVoterParticipants = computed<readonly ParticipantSnapshot[]>(() => {
     const voterIds = this.onlineVoterIds()
-    const allParticipants = this.docService.participants()
-    return allParticipants.filter((p) => voterIds.has(p.id))
+    const activeParticipants = this.docService.activeParticipants()
+    return activeParticipants.filter((p) => voterIds.has(p.id))
   })
 
   protected readonly isHost = computed(() => {
@@ -393,7 +393,7 @@ export class EstimatingPage {
   protected readonly isViewer = computed(() => {
     const myId = this.myId()
     if (!myId) return false
-    const me = this.docService.participants().find((p) => p.id === myId)
+    const me = this.docService.activeParticipants().find((p) => p.id === myId)
     return me ? participantRole(me) === 'viewer' : false
   })
 
@@ -509,9 +509,15 @@ export class EstimatingPage {
   }
 
   private async leaveSession(): Promise<void> {
+    const selfId = this.myId()
+    if (selfId) {
+      // Write the soft-delete before disconnecting so peers see the removal (ADR-0036).
+      this.docService.leaveSession(selfId)
+      // Flush the Yjs update through the WebSocket before closing (best-effort, 500 ms cap).
+      await this.docService.flushUpdates()
+    }
     this.docService.endSession()
-    // Destructive leave — clear the cache so the Jump-back-in banner
-    // does not reappear.
+    // Destructive leave — clear cache so Jump-back-in banner does not reappear (ADR-0022).
     await this.lastSessionService.clear()
     await this.router.navigate(['/home'])
   }

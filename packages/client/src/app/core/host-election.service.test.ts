@@ -22,6 +22,7 @@ interface MockDocService {
   hasSession: () => boolean
   settings: () => { hostParticipantId: string } | null
   onlineParticipantIds: () => ReadonlySet<string>
+  activeParticipants: () => readonly { id: string }[]
   updateSettings: (patch: { hostParticipantId: string }) => void
 }
 
@@ -58,7 +59,10 @@ class HostElectionHarness {
     const hostId = settings.hostParticipantId
     if (!hostId) return
 
-    const onlineIds = this.docService.onlineParticipantIds()
+    // Mirror the real service: intersect awareness with active participants.
+    const rawOnlineIds = this.docService.onlineParticipantIds()
+    const activeIds = new Set(this.docService.activeParticipants().map((p) => p.id))
+    const onlineIds = new Set([...rawOnlineIds].filter((id) => activeIds.has(id)))
 
     if (onlineIds.has(hostId)) {
       this.cancelDebounce()
@@ -85,7 +89,9 @@ class HostElectionHarness {
 
     if (!cachedMissing || hostId !== cachedMissing) return
 
-    const onlineIds = this.docService.onlineParticipantIds()
+    const rawOnlineIds = this.docService.onlineParticipantIds()
+    const activeIds = new Set(this.docService.activeParticipants().map((p) => p.id))
+    const onlineIds = new Set([...rawOnlineIds].filter((id) => activeIds.has(id)))
     if (onlineIds.has(hostId)) return
 
     const sorted = [...onlineIds].sort()
@@ -128,6 +134,12 @@ describe('HostElectionService logic', () => {
       hasSession: vi.fn(() => true),
       settings: vi.fn(() => ({ hostParticipantId: 'host-1' })),
       onlineParticipantIds: vi.fn(() => new Set(['host-1', 'peer-a', 'peer-b'])),
+      // Default: all three peers are active (not kicked/left).
+      activeParticipants: vi.fn(() => [
+        { id: 'host-1' },
+        { id: 'peer-a' },
+        { id: 'peer-b' },
+      ]),
       updateSettings: vi.fn(),
     }
 
@@ -219,5 +231,26 @@ describe('HostElectionService logic', () => {
     vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS)
 
     expect(docService.updateSettings).not.toHaveBeenCalled()
+  })
+
+  it('kicked peer in awareness is NOT eligible to become host', () => {
+    // peer-b has been kicked (leftAt set) so activeParticipants excludes it.
+    // Awareness still reports peer-b online (stale).
+    vi.mocked(docService.onlineParticipantIds).mockReturnValue(
+      new Set(['peer-a', 'peer-b']),
+    )
+    vi.mocked(docService.activeParticipants).mockReturnValue([
+      // peer-b is absent — it was kicked
+      { id: 'peer-a' },
+    ])
+    // peer-a is the only active-online peer, so it should win.
+    vi.mocked(participantIdService.id).mockReturnValue('peer-a')
+
+    harness.evaluate()
+    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS)
+
+    expect(docService.updateSettings).toHaveBeenCalledWith({
+      hostParticipantId: 'peer-a',
+    })
   })
 })
