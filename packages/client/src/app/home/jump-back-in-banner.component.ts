@@ -4,18 +4,15 @@ import { IonCard, IonCardContent, IonIcon } from '@ionic/angular/standalone'
 import type { LastSessionScreen } from '../core/last-session.service'
 
 /**
- * Jump-back-in banner — ux.md §5.2, plan §3.8.
+ * Jump-back-in banner — ux.md §5.2.
  *
  * Renders when {@link LastSessionService} resolves a non-expired
  * cache entry on Home. The parent controls visibility through an
  * `@if` so this component never appears for cold-start users.
  *
- * Phase 3 wires the banner to the real `hnch.lastSession` cache; the
- * summary is a presentation-layer shape that mirrors the cache minus
- * the fields the banner doesn't render (`roomUuid`, `lastSeenAt`).
- * The Phase-1 scaffold for this component showed participant count
- * and an "expired" state — neither is in the plan's cache shape, so
- * both are dropped here.
+ * The summary is a presentation-layer shape that mirrors the cache
+ * minus the fields the banner doesn't render (`roomUuid`,
+ * `lastSeenAt`).
  */
 export interface JumpBackInSummary {
   /** Room code for the large body copy. */
