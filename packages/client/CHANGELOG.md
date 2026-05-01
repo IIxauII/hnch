@@ -1,3 +1,10 @@
+# [1.7.0](https://github.com/IIxauII/hnch/compare/client-v1.6.0...client-v1.7.0) (2026-05-01)
+
+
+### Features
+
+* **client:** add reconnecting banner + reconnected toast ([#73](https://github.com/IIxauII/hnch/issues/73)) ([2c6a3a2](https://github.com/IIxauII/hnch/commit/2c6a3a2da66b867f5058f3e7af826543f67f0d65))
+
 # [1.6.0](https://github.com/IIxauII/hnch/compare/client-v1.5.2...client-v1.6.0) (2026-05-01)
 
 
