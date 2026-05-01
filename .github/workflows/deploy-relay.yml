@@ -29,8 +29,13 @@ permissions:
 jobs:
   deploy:
     name: Build + ship relay
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}
     steps:
+      - name: Runner identity
+        run: |
+          echo "Runner: $RUNNER_NAME on $(hostname) — arch $(uname -m)"
+          df -h /cache || true
+
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
@@ -52,11 +57,22 @@ jobs:
       - name: Build @hnch/relay
         run: pnpm --filter @hnch/relay run build
 
-      - name: Stage production bundle
+      - name: Stage production bundle (cross-arch x86_64 target)
         # `pnpm deploy` inlines workspace deps and prunes devDeps into a flat
         # directory — the result is self-contained and runnable on the VPS
         # without re-installing. The relay's build step has already populated
         # packages/relay/dist; pnpm deploy preserves that under the target.
+        #
+        # Cross-arch pin: when this workflow runs on the arm64 self-hosted
+        # pool, optional native deps (e.g. ws's bufferutil/utf-8-validate)
+        # would otherwise be filtered for arm64 — wrong for the x86_64 VPS.
+        # `npm_config_target_*` flips pnpm's optional-dep arch filter to
+        # linux/x64, so the staged bundle matches the deploy target. On
+        # ubuntu-latest the env vars are still correct (also linux/x64) so
+        # this is a no-op in the rollback path.
+        env:
+          npm_config_target_platform: linux
+          npm_config_target_arch: x64
         run: |
           rm -rf .deploy/relay
           pnpm --filter @hnch/relay deploy --prod .deploy/relay
