@@ -511,7 +511,9 @@ export class LobbyPage {
   /** Invite URL derived from the room code + runtime origin (`window.location.origin`). */
   protected readonly inviteUrl = computed(() => {
     const code = this.roomCode()
-    return code ? `${window.location.origin}/join?code=${code}` : ''
+    if (!code) return ''
+    const base = `${window.location.origin}/join?code=${code}`
+    return this.lobbyAccessMode() === 'password' ? `${base}&pw=1` : base
   })
 
   /** Dash-formatted room code for human display. */
