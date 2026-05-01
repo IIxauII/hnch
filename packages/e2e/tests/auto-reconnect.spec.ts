@@ -15,16 +15,22 @@ test.describe('Auto-reconnect after transient disconnect', () => {
     // Go offline — simulate transient network drop
     await host.page.context().setOffline(true)
 
-    // Reconnecting toast should appear (docService.reconnecting() fires after
+    // Reconnecting banner should appear (docService.reconnecting() fires after
     // hasEverConnected + disconnect, with a 5 s debounce before the chip
-    // upgrades to warning. The ion-toast is wired directly to reconnecting().)
-    await expectToast(host.page, /reconnecting/i)
+    // upgrades to warning. The banner is wired directly to reconnecting().)
+    await expect(host.page.locator('app-lobby:not(.ion-page-hidden) [data-testid="connection-status-banner"]')).toBeVisible({ timeout: 5_000 })
 
     // Come back online
     await host.page.context().setOffline(false)
 
-    // Toast should disappear once reconnected
-    await host.page.locator('ion-toast[message="Reconnecting…"]').first().waitFor({ state: 'hidden', timeout: 15_000 })
+    // Banner should disappear once reconnected
+    await host.page.locator('app-lobby:not(.ion-page-hidden) [data-testid="connection-status-banner"]').waitFor({ state: 'hidden', timeout: 15_000 })
+
+    // Success toast should appear briefly
+    await expectToast(host.page, 'Reconnected', { timeout: 5_000 })
+
+    // Success toast should auto-dismiss within ~2s
+    await host.page.locator('ion-toast[message="Reconnected"]').first().waitFor({ state: 'hidden', timeout: 5_000 })
 
     // Still on lobby, room code still visible
     await host.page.waitForURL(/\/lobby/)
@@ -124,13 +130,16 @@ test.describe('Auto-reconnect after transient disconnect', () => {
     // Player goes offline while on estimating
     await player.page.context().setOffline(true)
 
-    await expectToast(player.page, /reconnecting/i)
+    await expect(player.page.locator('app-estimating:not(.ion-page-hidden) [data-testid="connection-status-banner"]')).toBeVisible({ timeout: 5_000 })
 
     // Player comes back online
     await player.page.context().setOffline(false)
 
-    // Toast dismisses
-    await player.page.locator('ion-toast[message="Reconnecting…"]').first().waitFor({ state: 'hidden', timeout: 15_000 })
+    // Banner dismisses
+    await player.page.locator('app-estimating:not(.ion-page-hidden) [data-testid="connection-status-banner"]').waitFor({ state: 'hidden', timeout: 15_000 })
+
+    // Success toast appears
+    await expectToast(player.page, 'Reconnected', { timeout: 5_000 })
 
     // Still on estimating, card grid intact
     await player.page.waitForURL(/\/estimating/)
