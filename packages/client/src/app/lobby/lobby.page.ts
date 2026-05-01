@@ -31,7 +31,6 @@ import {
   IonModal,
   IonNote,
   IonTitle,
-  IonToast,
   IonToolbar,
 } from '@ionic/angular/standalone'
 import { addIcons } from 'ionicons'
@@ -46,6 +45,7 @@ import {
 } from 'ionicons/icons'
 
 import { ConnectionChipComponent } from '../core/connection-chip.component'
+import { ConnectionStatusBannerComponent } from '../shared/connection-status-banner.component'
 import { ToastService } from '../services/toast.service'
 import { DocService } from '../core/doc/doc.service'
 import { HapticService } from '../core/haptic.service'
@@ -95,6 +95,7 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
   host: { class: 'ion-page' },
   imports: [
     ConnectionChipComponent,
+    ConnectionStatusBannerComponent,
     IonAccordion,
     IonAccordionGroup,
     IonAvatar,
@@ -113,7 +114,6 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
     IonModal,
     IonNote,
     IonTitle,
-    IonToast,
     IonToolbar,
     QrDisplaySheetComponent,
     RoundHistoryComponent,
@@ -152,6 +152,7 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding">
+      <app-connection-status-banner />
       @if (roomCode(); as code) {
         <h1 class="room-code">{{ code }}</h1>
         <button
@@ -374,15 +375,6 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       </ng-template>
     </ion-modal>
 
-    <ion-toast
-      [isOpen]="reconnecting() && onPage()"
-      message="Reconnecting…"
-      position="bottom"
-      color="warning"
-      [duration]="0"
-      aria-live="assertive"
-      aria-atomic="true"
-    ></ion-toast>
   `,
   styles: [
     `
@@ -472,7 +464,6 @@ export class LobbyPage {
   protected readonly activeParticipants = this.docService.activeParticipants
   protected readonly onlineIds = this.docService.onlineParticipantIds
   protected readonly rounds = this.docService.rounds
-  protected readonly reconnecting = this.docService.reconnecting
 
   /** Round-start modal visibility. Two-way bound to `ion-modal`. */
   protected readonly roundStartOpen = signal(false)
@@ -482,9 +473,6 @@ export class LobbyPage {
 
   /** QR display modal visibility. */
   protected readonly qrOpen = signal(false)
-
-  /** Suppresses toasts while navigating away; reset on re-entry. */
-  protected readonly onPage = signal(true)
 
   /**
    * Access state lives here (not in SessionSettingsSheetComponent) so
@@ -673,14 +661,6 @@ export class LobbyPage {
         }
       })()
     })
-  }
-
-  ionViewWillLeave(): void {
-    this.onPage.set(false)
-  }
-
-  ionViewDidEnter(): void {
-    this.onPage.set(true)
   }
 
   protected openRoundStart(): void {

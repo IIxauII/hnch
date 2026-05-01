@@ -932,7 +932,7 @@ Acknowledged gaps and deferred decisions. Not blocking v1 but should be answered
 
 **Re-vote breadcrumb.** On re-voted round, the Lobby results section doesn’t surface attempt count. `parentRoundId` in doc — could show “Round 2 • re-vote of Round 1.” Deferred; resolve when designing optional session-history view (post-v1).
 
-**Reconnecting banner.** During momentary disconnect, show non-blocking “Reconnecting…” banner above content? Not yet designed — tracks with y-websocket reconnection events wiring.
+**Reconnecting banner.** Implemented as `ConnectionStatusBannerComponent` (`packages/client/src/app/shared/connection-status-banner.component.ts`), mounted at the top of `<ion-content>` on Lobby and Estimating. Shown when `DocService.reconnecting()` is true (already debounced ~5 s and gated on first-connect — banner does not flash on initial join). Inline `<div role="status" aria-live="polite">` with a `sync-outline` glyph and copy "Reconnecting…", styled with `--ion-color-warning` tokens (light + dark via Ionic palette). Non-blocking — scrolls with content and never overlays the `ion-footer` primary-action area. On reconnect (falling edge of `reconnecting()`), a transient top `ion-toast` (`color="success"`, `duration="1500"`, message "Reconnected") confirms recovery and self-dismisses. Replaces the placeholder bottom toast that previously lived inline on each page. See [ADR-0025](adr/0025-reconnect-backoff.md) §8 for the underlying status-signal contract.
 
 **Host-election transition state.** During 5-second debounce ([ADR-0010](adr/0010-host-election.md)) after host drop, joiners have no host. Show status line (“Waiting for a new host…”) or is 5s gap short enough to skip UI? Resolve during implementation.
 
