@@ -6,7 +6,7 @@ import {
   inject,
 } from '@angular/core'
 import { Router } from '@angular/router'
-import { participantRole, type ParticipantSnapshot } from '@hnch/shared'
+import { formatElapsed, participantRole, type ParticipantSnapshot } from '@hnch/shared'
 import {
   ActionSheetController,
   AlertController,
@@ -522,17 +522,6 @@ export class EstimatingPage {
 }
 
 // ---------------------------------------------------------------------------
-// Module-private formatters
-// ---------------------------------------------------------------------------
-
-/** Format a millisecond duration as `M:SS`. */
-function formatElapsed(ms: number): string {
-  const totalSec = Math.max(0, Math.floor(ms / 1000))
-  const minutes = Math.floor(totalSec / 60)
-  const seconds = totalSec % 60
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`
-}
-
 /**
  * Pure predicate: should the current round auto-reveal?
  * Guards: round must exist + not already revealed, at least 1 online voter,
