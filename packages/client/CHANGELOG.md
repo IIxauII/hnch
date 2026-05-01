@@ -1,3 +1,11 @@
+## [1.5.2](https://github.com/IIxauII/hnch/compare/client-v1.5.1...client-v1.5.2) (2026-05-01)
+
+
+### Bug Fixes
+
+* **client:** gate kick observer on first-sync to fix rejoin race ([#70](https://github.com/IIxauII/hnch/issues/70)) ([721ba8d](https://github.com/IIxauII/hnch/commit/721ba8d79ae7f5a7688950dc682a59220ef3b825))
+* **infra:** bump runner container nofile ulimit to fix EMFILE ([#72](https://github.com/IIxauII/hnch/issues/72)) ([6882263](https://github.com/IIxauII/hnch/commit/68822631c907ff0785020f67cdc703b8767924c7))
+
 ## [1.5.1](https://github.com/IIxauII/hnch/compare/client-v1.5.0...client-v1.5.1) (2026-05-01)
 
 
