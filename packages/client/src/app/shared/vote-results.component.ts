@@ -9,8 +9,8 @@ import {
   input,
   signal,
 } from '@angular/core'
-import { isActiveParticipant, isConsensus } from '@hnch/shared'
-import type { ParticipantSnapshot, Round } from '@hnch/shared'
+import { computeRoundStats, isActiveParticipant, isConsensus } from '@hnch/shared'
+import type { ParticipantSnapshot, Round, RoundStats, SpreadLabel } from '@hnch/shared'
 import {
   IonChip,
   IonItemGroup,
@@ -29,60 +29,6 @@ interface VoteGroup {
   readonly card: string
   readonly scaleIndex: number
   readonly voterNames: readonly string[]
-}
-
-/** Numeric vote cards; sentinel strings like `?` and `☕` are excluded. */
-function numericValue(card: string): number | null {
-  const n = parseFloat(card)
-  return Number.isFinite(n) ? n : null
-}
-
-/**
- * Summary stats for a revealed round.
- */
-export interface RoundStats {
-  readonly average: number | null
-  readonly median: number | null
-  readonly agreementPct: number
-}
-
-/**
- * Compute average, median, and agreement percentage for a set of vote groups.
- * Non-numeric cards (?, ☕, etc.) are excluded from the numeric calculations
- * but count against agreement.
- */
-export function computeStats(groups: readonly VoteGroup[]): RoundStats {
-  const totalVoters = groups.reduce((n, g) => n + g.voterNames.length, 0)
-  if (totalVoters === 0) return { average: null, median: null, agreementPct: 0 }
-
-  // Numeric votes only
-  const numericVotes: number[] = []
-  for (const group of groups) {
-    const n = numericValue(group.card)
-    if (n !== null) {
-      for (let i = 0; i < group.voterNames.length; i++) {
-        numericVotes.push(n)
-      }
-    }
-  }
-
-  let average: number | null = null
-  let median: number | null = null
-  if (numericVotes.length > 0) {
-    average = numericVotes.reduce((a, b) => a + b, 0) / numericVotes.length
-    const sorted = [...numericVotes].sort((a, b) => a - b)
-    const mid = Math.floor(sorted.length / 2)
-    median =
-      sorted.length % 2 === 0
-        ? (sorted[mid - 1]! + sorted[mid]!) / 2
-        : sorted[mid]!
-  }
-
-  // Agreement: fraction who voted for the plurality card
-  const maxVoters = groups.reduce((max, g) => Math.max(max, g.voterNames.length), 0)
-  const agreementPct = Math.round((maxVoters / totalVoters) * 100)
-
-  return { average, median, agreementPct }
 }
 
 /** Format a millisecond duration as `M:SS`. */
@@ -150,22 +96,27 @@ function formatElapsed(ms: number): string {
       </ion-item-group>
     }
 
+    @if (stats(); as s) {
+      <div class="stats" role="region" aria-label="Round statistics">
+        @switch (s.kind) {
+          @case ('numeric') {
+            <span class="stat">Avg {{ s.mean | number:'1.1-1' }}</span>
+            <span class="stat">Med {{ s.median | number:'1.0-0' }}</span>
+            <ion-chip [color]="spreadColor(s.spread)" class="spread-chip">
+              <ion-label>{{ spreadDisplay(s.spread) }}</ion-label>
+            </ion-chip>
+          }
+          @case ('categorical') {
+            <span class="stat">Most common: <strong>{{ s.mode }}</strong></span>
+          }
+        }
+      </div>
+    }
+
     @if (elapsedLabel(); as label) {
       <p class="elapsed" aria-label="Time elapsed: {{ label }}">
         <span aria-hidden="true">&#x23F1;</span> {{ label }}
       </p>
-    }
-
-    @if (stats(); as s) {
-      <div class="stats" role="region" aria-label="Round statistics">
-        @if (s.average !== null) {
-          <span class="stat">Avg {{ s.average | number:'1.1-1' }}</span>
-        }
-        @if (s.median !== null) {
-          <span class="stat">Med {{ s.median | number:'1.1-1' }}</span>
-        }
-        <span class="stat">{{ s.agreementPct }}% agreement</span>
-      </div>
     }
 
     @if (consensus() && showOverlay()) {
@@ -229,10 +180,16 @@ function formatElapsed(ms: number): string {
         flex-wrap: wrap;
         gap: 0.75rem;
         margin-top: 0.5rem;
+        align-items: center;
       }
       .stat {
         color: var(--ion-color-medium);
         font-size: 0.875rem;
+      }
+      .stats .spread-chip {
+        margin: 0;
+        height: auto;
+        min-height: 1.5rem;
       }
 
       /* Reveal animation — ux.md §6: 80ms stagger, 200ms fade-in-up */
@@ -460,15 +417,21 @@ export class VoteResultsComponent {
     return formatElapsed(round.revealedAt - round.timerStartedAt)
   })
 
-  /** Average, median, agreement for the vote groups. */
-  readonly stats = computed<RoundStats | null>(() => {
-    const groups = this.voteGroups()
-    if (groups.length === 0) return null
-    return computeStats(groups)
-  })
+  /** Stats computed via shared util — uses votes + scale directly. */
+  readonly stats = computed<RoundStats>(() =>
+    computeRoundStats(this.round().votes, this.round().scale),
+  )
 
   /** "N votes" / "1 vote" — used inside group headers. */
   voteCountLabel(n: number): string {
     return n === 1 ? '1 vote' : `${n} votes`
+  }
+
+  protected spreadColor(s: SpreadLabel): 'success' | 'warning' | 'danger' {
+    return s === 'unanimous' ? 'success' : s === 'close' ? 'warning' : 'danger'
+  }
+
+  protected spreadDisplay(s: SpreadLabel): string {
+    return s === 'unanimous' ? 'Unanimous' : s === 'close' ? 'Close' : 'Spread'
   }
 }
