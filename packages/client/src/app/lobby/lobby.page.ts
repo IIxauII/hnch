@@ -46,6 +46,7 @@ import {
 
 import { ConnectionChipComponent } from '../core/connection-chip.component'
 import { ConnectionStatusBannerComponent } from '../shared/connection-status-banner.component'
+import { ExportService } from '../core/export.service'
 import { ToastService } from '../services/toast.service'
 import { DocService } from '../core/doc/doc.service'
 import { HapticService } from '../core/haptic.service'
@@ -458,6 +459,7 @@ export class LobbyPage {
   private readonly actionSheetCtrl = inject(ActionSheetController)
   private readonly alertCtrl = inject(AlertController)
   private readonly toastService = inject(ToastService)
+  private readonly exportService = inject(ExportService)
 
   protected readonly hasSession = this.docService.hasSession
   protected readonly participants = this.docService.participants
@@ -551,6 +553,11 @@ export class LobbyPage {
     const idx = this.rounds().findIndex((r) => r.id === round.id)
     return idx >= 0 ? idx + 1 : null
   })
+
+  /** True when at least one round has been revealed (gates "Copy results" button). */
+  protected readonly hasRevealedRounds = computed(
+    () => this.rounds().some((r) => r.revealedAt != null),
+  )
 
   /**
    * Controls accordion open/closed state. Null collapses when a round
@@ -727,6 +734,15 @@ export class LobbyPage {
       })
     }
 
+    if (this.hasRevealedRounds()) {
+      buttons.splice(1, 0, {
+        text: 'Copy results',
+        handler: () => {
+          void this.copyResults()
+        },
+      })
+    }
+
     buttons.push({ text: 'Cancel', role: 'cancel' })
 
     const sheet = await this.actionSheetCtrl.create({
@@ -787,6 +803,23 @@ export class LobbyPage {
       if (err instanceof Error && err.message?.includes('cancel')) return
       // navigator.share unavailable or other failure — clipboard fallback.
       await this.copyToClipboard(url, formatted)
+    }
+  }
+
+  private async copyResults(): Promise<void> {
+    try {
+      // Pass raw participants() — includes departed — so names still resolve per ADR-0036.
+      const participantsRecord = Object.fromEntries(
+        this.docService.participants().map((p) => [p.id, p]),
+      )
+      await this.exportService.copyRoundsAsMarkdown({
+        rounds: this.docService.rounds(),
+        participants: participantsRecord,
+      })
+      await this.toastService.info('Results copied')
+    } catch (err: unknown) {
+      console.warn('copyResults failed', err)
+      await this.toastService.error('Clipboard unavailable')
     }
   }
 
