@@ -1,8 +1,9 @@
 import { test, expect } from './fixtures/app.fixture'
-import { LOBBY } from './fixtures/helpers'
+import { expectToast, LOBBY } from './fixtures/helpers'
 
 test.describe('Host election', () => {
   test('player becomes host after original host disconnects', async ({ host, player }) => {
+    test.setTimeout(45_000)
     const code = await host.createSession()
     await player.joinSession(code)
 
@@ -23,6 +24,9 @@ test.describe('Host election', () => {
     await expect(
       player.page.locator('ion-button', { hasText: LOBBY.startRoundBtn }),
     ).toBeVisible({ timeout: 15_000 })
+
+    // Player should see enriched host-change toast
+    await expectToast(player.page, /disconnected\. .* now the host/i, { timeout: 15_000 })
 
     // Player should see host star icon next to their own name
     await expect(player.page.locator(LOBBY.hostIcon)).toBeVisible()

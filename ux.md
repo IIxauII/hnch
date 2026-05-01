@@ -934,7 +934,7 @@ Acknowledged gaps and deferred decisions. Not blocking v1 but should be answered
 
 **Reconnecting banner.** During momentary disconnect, show non-blocking “Reconnecting…” banner above content? Not yet designed — tracks with y-websocket reconnection events wiring.
 
-**Host-election transition state.** During 5-second debounce ([ADR-0010](adr/0010-host-election.md)) after host drop, joiners have no host. Show status line (“Waiting for a new host…”) or is 5s gap short enough to skip UI? Resolve during implementation.
+**Host-election transition state.** ~~During 5-second debounce ([ADR-0010](adr/0010-host-election.md)) after host drop, joiners have no host. Show status line (“Waiting for a new host…”) or is 5s gap short enough to skip UI?~~ Resolved (issue #43): no inline status during debounce; instead the post-election toast names the prior host (`"Alice disconnected. Bob is now the host."`), so participants understand what happened once the new host is selected. The 5-second silence is accepted as too short for a useful inline indicator.
 
 **Expired-room error screen.** Dedicated screen vs toast vs inline error on Join Room — currently picked toast + return to Home, but full screen may be warranted if URL deep-link path feels jarring. Revisit after real-device testing.
 
