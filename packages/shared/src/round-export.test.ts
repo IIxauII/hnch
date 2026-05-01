@@ -325,3 +325,124 @@ describe('roundsToMarkdown', () => {
     expect(result).not.toMatch(/\| Ali\|ce \|/)
   })
 })
+
+describe('roundsToMarkdown — ticketId formatting', () => {
+  it('URL ticketId on root round with title → heading contains angle-bracket autolink', () => {
+    const round = makeRound({
+      id: 'r1',
+      title: 'Auth migration',
+      ticketId: 'https://example.com/PROJ-1',
+      votes: { p1: '5' },
+      revealedAt: 10_000,
+    })
+    const result = roundsToMarkdown({
+      rounds: [round],
+      participants: new Map([['p1', makeParticipant('Alice')]]),
+    })
+    expect(result).toContain(
+      '## Round 1 — Auth migration ([https://example.com/PROJ-1](<https://example.com/PROJ-1>))',
+    )
+  })
+
+  it('URL ticketId on root round without title → heading still contains link', () => {
+    const round = makeRound({
+      id: 'r1',
+      ticketId: 'https://example.com/PROJ-1',
+      votes: { p1: '5' },
+      revealedAt: 10_000,
+    })
+    const result = roundsToMarkdown({
+      rounds: [round],
+      participants: new Map([['p1', makeParticipant('Alice')]]),
+    })
+    expect(result).toContain(
+      '## Round 1 ([https://example.com/PROJ-1](<https://example.com/PROJ-1>))',
+    )
+  })
+
+  it('plain ID ticketId → backtick-fenced in heading', () => {
+    const round = makeRound({
+      id: 'r1',
+      title: 'Auth migration',
+      ticketId: 'PROJ-123',
+      votes: { p1: '5' },
+      revealedAt: 10_000,
+    })
+    const result = roundsToMarkdown({
+      rounds: [round],
+      participants: new Map([['p1', makeParticipant('Alice')]]),
+    })
+    expect(result).toContain('## Round 1 — Auth migration (`PROJ-123`)')
+  })
+
+  it('URL with parens survives as angle-bracket autolink', () => {
+    const url = 'https://en.wikipedia.org/wiki/Foo_(bar)'
+    const round = makeRound({
+      id: 'r1',
+      title: 'Story',
+      ticketId: url,
+      votes: { p1: '3' },
+      revealedAt: 5_000,
+    })
+    const result = roundsToMarkdown({
+      rounds: [round],
+      participants: new Map([['p1', makeParticipant('Alice')]]),
+    })
+    expect(result).toContain(`<${url}>`)
+  })
+
+  it('plain ID containing a backtick uses double-backtick fence', () => {
+    const round = makeRound({
+      id: 'r1',
+      title: 'Story',
+      ticketId: 'PROJ-`123',
+      votes: { p1: '3' },
+      revealedAt: 5_000,
+    })
+    const result = roundsToMarkdown({
+      rounds: [round],
+      participants: new Map([['p1', makeParticipant('Alice')]]),
+    })
+    expect(result).toContain('## Round 1 — Story (``PROJ-`123``)')
+  })
+
+  it('revote with URL ticketId renders link in ### Re-vote heading', () => {
+    const root = makeRound({
+      id: 'r1',
+      title: 'Sprint planning',
+      votes: { p1: '3' },
+      timerStartedAt: 0,
+      revealedAt: 30_000,
+    })
+    const revote = makeRound({
+      id: 'r2',
+      parentRoundId: 'r1',
+      ticketId: 'https://example.com/PROJ-2',
+      votes: { p1: '5' },
+      timerStartedAt: 30_000,
+      revealedAt: 60_000,
+    })
+    const result = roundsToMarkdown({
+      rounds: [root, revote],
+      participants: new Map([['p1', makeParticipant('Alice')]]),
+    })
+    expect(result).toContain(
+      '### Re-vote 2 ([https://example.com/PROJ-2](<https://example.com/PROJ-2>))',
+    )
+  })
+
+  it('no ticketId → headings unchanged from prior behavior', () => {
+    const round = makeRound({
+      id: 'r1',
+      title: 'Story',
+      votes: { p1: '5' },
+      revealedAt: 10_000,
+    })
+    const result = roundsToMarkdown({
+      rounds: [round],
+      participants: new Map([['p1', makeParticipant('Alice')]]),
+    })
+    expect(result).toContain('## Round 1 — Story\n')
+    expect(result).not.toContain('(')
+  })
+})
