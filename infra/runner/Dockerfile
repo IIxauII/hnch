@@ -19,10 +19,14 @@ ARG RUNNER_SHA256=f44255bd3e80160eb25f71bc83d06ea025f6908748807a584687b3184759f7
 # it, release.yml exits 127 on the self-hosted pool. Hosted ubuntu-latest
 # bakes gh in by default; we replicate that here from cli.github.com's
 # signed apt repo.
+# `openssh-client` provides ssh, scp, and ssh-keyscan, used by both
+# deploy-*.yml workflows to ship tarballs and activate releases on the
+# IONOS VPS. Hosted ubuntu-latest includes openssh-client by default.
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
       ca-certificates curl gnupg git unzip jq sudo \
+      openssh-client \
       bash libicu72 \
       xvfb \
       libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libxkbcommon0 \
