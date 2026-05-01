@@ -5,7 +5,7 @@
  *   hnch create [--name "Sprint 42"] [--password] [--scale <id>]
  *   hnch join <code> [--password]
  *   hnch resume
- *   hnch config [--name "Alice"] [--relay-url ws://...]
+ *   hnch config [--name "Alice"] [--relay-url https://...]
  */
 
 import yargs from 'yargs'
