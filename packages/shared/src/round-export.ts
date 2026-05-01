@@ -1,10 +1,37 @@
 import type { Participant, Round } from './doc.js'
 import { computeRoundStats } from './round-stats.js'
 import { formatElapsed } from './format-time.js'
+import { isLikelyUrl } from './is-likely-url.js'
 
 /** Escape pipe characters in Markdown table cell content. */
 function escMd(s: string): string {
   return s.replace(/\|/g, '\\|')
+}
+
+/** Escape `]` (closes link text) and `\` (escape char) for use inside a Markdown link label. */
+function escMdLinkText(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/]/g, '\\]')
+}
+
+/** Pick a backtick fence longer than any backtick run in `s`. */
+function fenceFor(s: string): string {
+  const matches = s.match(/`+/g) ?? []
+  const maxRun = matches.reduce((m, r) => Math.max(m, r.length), 0)
+  return '`'.repeat(maxRun + 1)
+}
+
+/**
+ * Format ticketId for markdown output.
+ * URL → angle-bracket autolink `[label](<url>)` (permits parens in URL).
+ * Plain ID → backtick-fenced with dynamic fence length.
+ */
+function formatTicket(ticketId: string | undefined): string {
+  if (!ticketId) return ''
+  if (isLikelyUrl(ticketId)) {
+    return ` ([${escMdLinkText(ticketId)}](<${ticketId}>))`
+  }
+  const fence = fenceFor(ticketId)
+  return ` (${fence}${ticketId}${fence})`
 }
 
 export interface RoundExportInput {
@@ -152,8 +179,8 @@ export function roundsToMarkdown(input: RoundExportInput): string {
     const rootNum = roundIndex.get(root.id) ?? 0
 
     const rootHeading = root.title
-      ? `## Round ${rootNum} — ${root.title}`
-      : `## Round ${rootNum}`
+      ? `## Round ${rootNum} — ${root.title}${formatTicket(root.ticketId)}`
+      : `## Round ${rootNum}${formatTicket(root.ticketId)}`
 
     const rootTable = buildVoteTable(root, nameById)
     const rootStats = buildStatsLine(root)
@@ -167,7 +194,7 @@ export function roundsToMarkdown(input: RoundExportInput): string {
     // Subsequent re-votes in the chain — render as ### Re-vote (ADR-0013)
     for (const revote of revotes) {
       const revoteNum = roundIndex.get(revote.id) ?? 0
-      const revoteHeading = `### Re-vote ${revoteNum}`
+      const revoteHeading = `### Re-vote ${revoteNum}${formatTicket(revote.ticketId)}`
       const revoteTable = buildVoteTable(revote, nameById)
       const revoteStats = buildStatsLine(revote)
 
