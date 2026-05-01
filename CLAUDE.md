@@ -39,7 +39,7 @@ When proposing a code change that conflicts with an existing ADR, either adjust 
 
 ## Current decisions at a glance
 
-For quick orientation without reading all 32 ADRs:
+For quick orientation without reading all 36 ADRs:
 
 - **Architecture:** Yjs CRDTs synchronized via a content-blind y-websocket relay. No direct WebRTC. No authoritative session server. (ADR-0001, ADR-0003)
 - **Stack:** Angular + Ionic + Capacitor for the client; Node.js y-websocket relay for the server. (ADR-0002)
@@ -58,7 +58,7 @@ For quick orientation without reading all 32 ADRs:
 - **Participant roles:** every participant has a `role` field on their doc record — `voter` (default) or `viewer`. Viewers excluded from unanimous auto-reveal denominator so observers don't block reveals; toggleable in-session. (ADR-0020)
 - **Participant removal:** soft-delete via optional `leftAt` + `removedBy` fields on the participant record. "Leave Session" and host-kick (swipe-left → Remove) write the fields; transient disconnect does not. Active rosters filter on `!leftAt`; round history reads the raw map so departed names still resolve. No relay-side ban — kicked users can re-enter via room code (their `leftAt` is cleared on rejoin); password rotation is the persistent-removal lever. (ADR-0036)
 - **CLI:** fourth deliverable (`packages/cli`, `@hnch/cli`) — Node.js + Ink terminal client with full wire-protocol parity to the mobile client. Identity and persistence differ (no Capacitor plugins); protocol surface is identical. (ADR-0021)
-- **Last-session cache:** both clients store `{ roomCode, roomUuid, lastScreen, lastSeenAt }` with a TTL equal to the relay snapshot TTL (24 h) — aligned so the "Jump back in" / `hnch resume` offer is available exactly when the relay can serve the rejoin. (ADR-0022)
+- **Last-session cache:** shared base `{ roomCode, roomUuid, lastSeenAt }` with a 24 h TTL aligned to the relay snapshot TTL. Mobile client extends with `lastScreen: 'lobby' | 'estimating'` to restore the right route on rejoin; CLI extends with optional `passwordHash` for unattended `hnch resume` of password-protected rooms. (ADR-0022)
 - **Session-end broadcast:** host writes `meta.sessionEndedAt` to the Yjs doc; all clients observe the field, show a toast, and navigate Home. Absent = still active. (ADR-0023)
 - **Participant cap:** 20-peer hard limit enforced at the relay on WebSocket upgrade (close code 4006). (ADR-0024)
 - **Reconnect backoff:** y-websocket default exponential backoff + a `window online` event handler that force-resets backoff and closes stale sockets — works around a Chromium quirk where the network reports up before existing sockets tear down. (ADR-0025)

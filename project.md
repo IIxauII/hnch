@@ -149,7 +149,7 @@ Host responsibilities — manual-reveal trigger, access-mode and password manage
 
 ## UX
 
-Mobile-first design. Desktop adapts up. Target platforms: web browser, iOS, Android. WCAG AAA accessibility compliance — screen readers, keyboard navigation, sufficient contrast. Ease of use is a priority. Dark/light mode follows system preference.
+Mobile-first design. Desktop adapts up. Target platforms: web browser, iOS, Android. WCAG AA accessibility compliance — screen readers, keyboard navigation, sufficient contrast. Ease of use is a priority. Dark/light mode follows system preference.
 
 ## Tech Stack
 
@@ -166,6 +166,6 @@ Mobile-first design. Desktop adapts up. Target platforms: web browser, iOS, Andr
 
 ## Status
 
-Implementation through Phase 6a (PWA polish). Phases 1–4 shipped the scaffold, Yjs doc/CRDT layer, relay sync, multi-client sessions, timer-driven reveal, and host election. Phase 5 added password-protected rooms, share/QR/deep-link join paths, and a Playwright e2e suite. Phase 6a added settings screen, theme picker, reveal animation, haptic wiring, and an accessibility pass. Next: Phase 6b (native iOS build).
+Implementation through Phase 6a (PWA polish) plus mobile-parity gap closure. Phases 1–4 shipped the scaffold, Yjs doc/CRDT layer, relay sync, multi-client sessions, and host election (a countdown-timer reveal was implemented in Phase 4 and later replaced by unanimous auto-reveal per ADR-0018). Phase 5 added password-protected rooms, share/QR/deep-link join paths, and a Playwright e2e suite. Phase 6a added settings screen, theme picker, reveal animation, haptic wiring, and an accessibility pass. The separate Revealed page was removed — after a round is revealed, Estimating navigates back to Lobby, which shows results inline (VoteResultsComponent) and a compact round history list (RoundHistoryComponent). Mobile parity closed remaining CLI-mobile feature gaps: in-session room name editing, default session name/password preferences, and relay URL override via `AppPreferenceService`. Next: Phase 6b (native iOS build).
 
 A CLI client (`@hnch/cli`, `packages/cli`) ships alongside the mobile/PWA client as a terminal interface for developers and automation. It speaks the same relay protocol with no feature delta. See [`cli.md`](cli.md) for conventions and commands.
