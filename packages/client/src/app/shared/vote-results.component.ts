@@ -9,7 +9,7 @@ import {
   input,
   signal,
 } from '@angular/core'
-import { computeRoundStats, isActiveParticipant, isConsensus } from '@hnch/shared'
+import { computeRoundStats, formatElapsed, isActiveParticipant, isConsensus } from '@hnch/shared'
 import type { ParticipantSnapshot, Round, RoundStats, SpreadLabel } from '@hnch/shared'
 import {
   IonChip,
@@ -29,14 +29,6 @@ interface VoteGroup {
   readonly card: string
   readonly scaleIndex: number
   readonly voterNames: readonly string[]
-}
-
-/** Format a millisecond duration as `M:SS`. */
-function formatElapsed(ms: number): string {
-  const totalSec = Math.max(0, Math.floor(ms / 1000))
-  const minutes = Math.floor(totalSec / 60)
-  const seconds = totalSec % 60
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
 
 /**
