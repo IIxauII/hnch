@@ -1,3 +1,10 @@
+# [1.6.0](https://github.com/IIxauII/hnch/compare/client-v1.5.2...client-v1.6.0) (2026-05-01)
+
+
+### Features
+
+* **client:** scale-aware avg/median/spread label in post-reveal results ([#71](https://github.com/IIxauII/hnch/issues/71)) ([2ff82b6](https://github.com/IIxauII/hnch/commit/2ff82b6b1ea27f37f4ee7d87902078029b19f6e8))
+
 ## [1.5.2](https://github.com/IIxauII/hnch/compare/client-v1.5.1...client-v1.5.2) (2026-05-01)
 
 
