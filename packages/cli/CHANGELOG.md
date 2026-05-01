@@ -1,3 +1,22 @@
+# [1.3.0](https://github.com/IIxauII/hnch/compare/cli-v1.2.1...cli-v1.3.0) (2026-05-01)
+
+
+### Bug Fixes
+
+* **client:** gate kick observer on first-sync to fix rejoin race ([#70](https://github.com/IIxauII/hnch/issues/70)) ([721ba8d](https://github.com/IIxauII/hnch/commit/721ba8d79ae7f5a7688950dc682a59220ef3b825))
+* **infra:** bump runner container nofile ulimit to fix EMFILE ([#72](https://github.com/IIxauII/hnch/issues/72)) ([6882263](https://github.com/IIxauII/hnch/commit/68822631c907ff0785020f67cdc703b8767924c7))
+
+
+### Features
+
+* **client:** add reconnecting banner + reconnected toast ([#73](https://github.com/IIxauII/hnch/issues/73)) ([2c6a3a2](https://github.com/IIxauII/hnch/commit/2c6a3a2da66b867f5058f3e7af826543f67f0d65))
+* **client:** export session results to clipboard as markdown ([#74](https://github.com/IIxauII/hnch/issues/74)) ([69cf5e8](https://github.com/IIxauII/hnch/commit/69cf5e816cbeab76728a77a013e94ae826a4703e))
+* **client:** name prior host in host-change toast ([#76](https://github.com/IIxauII/hnch/issues/76)) ([490f83a](https://github.com/IIxauII/hnch/commit/490f83aa26b3647a31f11add3fb2f4395b248fb2))
+* **client:** pre-render password field on Join Room when invite URL has pw=1 ([#75](https://github.com/IIxauII/hnch/issues/75)) ([1e52ff3](https://github.com/IIxauII/hnch/commit/1e52ff3d82fc8b236861abd73a21968e30c538cd))
+* **client:** scale-aware avg/median/spread label in post-reveal results ([#71](https://github.com/IIxauII/hnch/issues/71)) ([2ff82b6](https://github.com/IIxauII/hnch/commit/2ff82b6b1ea27f37f4ee7d87902078029b19f6e8))
+* **cli:** inherit ticketId on revote, display in round line ([#78](https://github.com/IIxauII/hnch/issues/78)) ([21a60d3](https://github.com/IIxauII/hnch/commit/21a60d36c333119ef4d9744697aa19360476618b))
+* **shared:** add isLikelyUrl + ticketId in markdown export ([#77](https://github.com/IIxauII/hnch/issues/77)) ([1286ce5](https://github.com/IIxauII/hnch/commit/1286ce53f8a519337a27523aa3c6feac11586d74))
+
 ## [1.2.1](https://github.com/IIxauII/hnch/compare/cli-v1.2.0...cli-v1.2.1) (2026-05-01)
 
 
