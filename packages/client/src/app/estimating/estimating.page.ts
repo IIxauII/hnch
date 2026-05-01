@@ -4,9 +4,10 @@ import {
   computed,
   effect,
   inject,
+  signal,
 } from '@angular/core'
 import { Router } from '@angular/router'
-import { formatElapsed, participantRole, type ParticipantSnapshot } from '@hnch/shared'
+import { isLikelyUrl, participantRole, type ParticipantSnapshot } from '@hnch/shared'
 import {
   ActionSheetController,
   AlertController,
@@ -21,13 +22,13 @@ import {
   IonIcon,
   IonLabel,
   IonTitle,
+  IonToast,
   IonToolbar,
 } from '@ionic/angular/standalone'
 import { addIcons } from 'ionicons'
 import { chevronBackOutline, ellipsisHorizontalCircle } from 'ionicons/icons'
 
 import { ConnectionChipComponent } from '../core/connection-chip.component'
-import { ConnectionStatusBannerComponent } from '../shared/connection-status-banner.component'
 import { DocService } from '../core/doc/doc.service'
 import { HapticService } from '../core/haptic.service'
 import { LastSessionService } from '../core/last-session.service'
@@ -58,7 +59,6 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
   imports: [
     AvatarVoteRowComponent,
     ConnectionChipComponent,
-    ConnectionStatusBannerComponent,
     IonButton,
     IonButtons,
     IonCard,
@@ -70,6 +70,7 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
     IonIcon,
     IonLabel,
     IonTitle,
+    IonToast,
     IonToolbar,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -108,11 +109,21 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
       </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding">
-      <app-connection-status-banner />
       @if (currentRound(); as round) {
         <h1 class="title">Round {{ roundIndex() }}</h1>
         @if (round.title) {
           <p class="descriptor">{{ round.title }}</p>
+        }
+        @if (round.ticketId) {
+          <p class="ticket">
+            @if (isUrl(round.ticketId)) {
+              <a [href]="round.ticketId" target="_blank" rel="noopener noreferrer">
+                {{ round.ticketId }}
+              </a>
+            } @else {
+              <code>{{ round.ticketId }}</code>
+            }
+          </p>
         }
 
         @if (elapsedLabel(); as label) {
@@ -168,6 +179,15 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
       </ion-footer>
     }
 
+    <ion-toast
+      [isOpen]="reconnecting() && onPage()"
+      message="Reconnecting…"
+      position="bottom"
+      color="warning"
+      [duration]="0"
+      aria-live="assertive"
+      aria-atomic="true"
+    ></ion-toast>
   `,
   styles: [
     `
@@ -179,6 +199,15 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
       .descriptor {
         margin: 0 0 1rem;
         color: var(--ion-color-medium);
+      }
+      .ticket {
+        margin: 0 0 1rem;
+        font-size: 0.875rem;
+        color: var(--ion-color-medium);
+      }
+      .ticket a,
+      .ticket code {
+        color: inherit;
       }
       .elapsed {
         font-size: 2rem;
@@ -246,6 +275,13 @@ export class EstimatingPage {
 
   protected readonly currentRound = this.docService.currentRound
   protected readonly onlineParticipants = this.docService.onlineParticipants
+  protected readonly reconnecting = this.docService.reconnecting
+
+  /** Exposed for template — delegates to shared `isLikelyUrl`. */
+  protected readonly isUrl = isLikelyUrl
+
+  /** Suppresses toasts while navigating away; reset on re-entry. */
+  protected readonly onPage = signal(true)
 
   // Tracks the last uuid written to the cache so the effect does not
   // re-fire on every Yjs doc mutation while connected to the same room.
@@ -303,6 +339,14 @@ export class EstimatingPage {
         this.docService.revealRound(round!.id)
       }
     })
+  }
+
+  ionViewWillLeave(): void {
+    this.onPage.set(false)
+  }
+
+  ionViewDidEnter(): void {
+    this.onPage.set(true)
   }
 
   private readonly myId = this.participantIdService.id
@@ -522,6 +566,17 @@ export class EstimatingPage {
 }
 
 // ---------------------------------------------------------------------------
+// Module-private formatters
+// ---------------------------------------------------------------------------
+
+/** Format a millisecond duration as `M:SS`. */
+function formatElapsed(ms: number): string {
+  const totalSec = Math.max(0, Math.floor(ms / 1000))
+  const minutes = Math.floor(totalSec / 60)
+  const seconds = totalSec % 60
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
+}
+
 /**
  * Pure predicate: should the current round auto-reveal?
  * Guards: round must exist + not already revealed, at least 1 online voter,

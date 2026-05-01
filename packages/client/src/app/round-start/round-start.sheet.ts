@@ -28,6 +28,8 @@ import {
 export interface RoundStartSubmission {
   /** Optional descriptor; the user may submit with it blank. */
   readonly title: string | null
+  /** Optional ticket URL or ID (e.g. PROJ-123 or https://linear.app/…). */
+  readonly ticketId: string | null
 }
 
 /**
@@ -70,6 +72,17 @@ export interface RoundStartSubmission {
           [formControl]="titleControl"
           placeholder="e.g., Login redesign"
           autocapitalize="sentences"
+          enterkeyhint="next"
+          (keydown.enter)="ticketIdInput.setFocus()"
+        ></ion-input>
+      </ion-item>
+      <ion-item>
+        <ion-label position="stacked">Ticket URL or ID (optional)</ion-label>
+        <ion-input
+          #ticketIdInput
+          [formControl]="ticketIdControl"
+          placeholder="e.g. PROJ-123 or https://linear.app/…"
+          autocapitalize="off"
           enterkeyhint="done"
           (keydown.enter)="submit()"
         ></ion-input>
@@ -119,14 +132,23 @@ export class RoundStartSheetComponent {
     validators: [Validators.maxLength(120)],
   })
 
+  protected readonly ticketIdControl = new FormControl<string>('', {
+    nonNullable: true,
+    validators: [Validators.maxLength(200)],
+  })
+
   protected readonly isSubmitting = signal(false)
 
   protected submit(): void {
     if (this.isSubmitting()) return
     this.isSubmitting.set(true)
 
-    const raw = this.titleControl.value.trim()
-    this.submitted.emit({ title: raw === '' ? null : raw })
+    const titleRaw = this.titleControl.value.trim()
+    const ticketRaw = this.ticketIdControl.value.trim()
+    this.submitted.emit({
+      title: titleRaw === '' ? null : titleRaw,
+      ticketId: ticketRaw === '' ? null : ticketRaw,
+    })
     // Leave isSubmitting latched — the modal is about to close and
     // the component will be destroyed; unlatching could race a
     // double-tap that arrives after submit but before dismiss.

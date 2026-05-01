@@ -4,13 +4,22 @@ import {
   computed,
   input,
 } from '@angular/core'
-import { formatElapsed } from '@hnch/shared'
+import { isLikelyUrl } from '@hnch/shared'
 import type { ParticipantSnapshot, Round } from '@hnch/shared'
+
+/** Format a millisecond duration as `M:SS`. */
+function formatElapsed(ms: number): string {
+  const totalSec = Math.max(0, Math.floor(ms / 1000))
+  const minutes = Math.floor(totalSec / 60)
+  const seconds = totalSec % 60
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
+}
 
 /** One entry in the compact history list. */
 interface HistoryEntry {
   readonly roundNumber: number
   readonly title: string | undefined
+  readonly ticketId: string | undefined
   readonly summary: string
   readonly elapsed: string | null
 }
@@ -41,6 +50,13 @@ interface HistoryEntry {
               <span class="round-label">Round {{ entry.roundNumber }}</span>
               @if (entry.title) {
                 <span class="round-title">: {{ entry.title }}</span>
+              }
+              @if (entry.ticketId) {
+                @if (isUrl(entry.ticketId)) {
+                  <a class="round-ticket" [href]="entry.ticketId" target="_blank" rel="noopener noreferrer"> {{ entry.ticketId }}</a>
+                } @else {
+                  <code class="round-ticket"> {{ entry.ticketId }}</code>
+                }
               }
               <span class="round-summary"> — {{ entry.summary }}</span>
               @if (entry.elapsed) {
@@ -88,7 +104,8 @@ interface HistoryEntry {
       }
       .round-title,
       .round-summary,
-      .round-elapsed {
+      .round-elapsed,
+      .round-ticket {
         color: var(--ion-color-medium);
       }
     `,
@@ -98,6 +115,9 @@ export class RoundHistoryComponent {
   readonly rounds = input.required<readonly Round[]>()
   /** Reserved for future name-based display; unused in compact summary mode. */
   readonly participants = input<readonly ParticipantSnapshot[]>([])
+
+  /** Exposed for template — delegates to shared `isLikelyUrl`. */
+  protected readonly isUrl = isLikelyUrl
 
   readonly entries = computed<readonly HistoryEntry[]>(() => {
     // All rounds in the array already have revealedAt (caller's contract),
@@ -136,7 +156,7 @@ export class RoundHistoryComponent {
           ? formatElapsed(round.revealedAt - round.timerStartedAt)
           : null
 
-      return { roundNumber, title: round.title, summary, elapsed }
+      return { roundNumber, title: round.title, ticketId: round.ticketId, summary, elapsed }
     })
   })
 }

@@ -92,7 +92,8 @@ export const QR_MODAL = {
 // Round-start modal
 // ---------------------------------------------------------------------------
 export const ROUND_START = {
-  titleInput: 'app-round-start-sheet ion-input',
+  titleInput: 'ion-input',
+  ticketIdInput: 'ion-input',
   startBtn: 'app-round-start-sheet ion-button:has-text("Start")',
 } as const
 
@@ -101,6 +102,7 @@ export const ROUND_START = {
 // ---------------------------------------------------------------------------
 export const ESTIMATING = {
   roundTitle: 'h1.title',
+  ticketLink: 'p.ticket a',
   elapsed: 'p.elapsed',
   cardGrid: 'div.grid',
   card: (value: string) => `app-estimating ion-card.card:has(ion-card-content:text-is("${value}"))`,

@@ -9,7 +9,7 @@ import {
 } from '@angular/core'
 import { Router } from '@angular/router'
 import { Share } from '@capacitor/share'
-import { formatRoomCode, participantRole } from '@hnch/shared'
+import { formatRoomCode, isLikelyUrl, participantRole } from '@hnch/shared'
 import {
   ActionSheetController,
   AlertController,
@@ -31,6 +31,7 @@ import {
   IonModal,
   IonNote,
   IonTitle,
+  IonToast,
   IonToolbar,
 } from '@ionic/angular/standalone'
 import { addIcons } from 'ionicons'
@@ -45,8 +46,6 @@ import {
 } from 'ionicons/icons'
 
 import { ConnectionChipComponent } from '../core/connection-chip.component'
-import { ConnectionStatusBannerComponent } from '../shared/connection-status-banner.component'
-import { ExportService } from '../core/export.service'
 import { ToastService } from '../services/toast.service'
 import { DocService } from '../core/doc/doc.service'
 import { HapticService } from '../core/haptic.service'
@@ -96,7 +95,6 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
   host: { class: 'ion-page' },
   imports: [
     ConnectionChipComponent,
-    ConnectionStatusBannerComponent,
     IonAccordion,
     IonAccordionGroup,
     IonAvatar,
@@ -115,6 +113,7 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
     IonModal,
     IonNote,
     IonTitle,
+    IonToast,
     IonToolbar,
     QrDisplaySheetComponent,
     RoundHistoryComponent,
@@ -153,7 +152,6 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding">
-      <app-connection-status-banner />
       @if (roomCode(); as code) {
         <h1 class="room-code">{{ code }}</h1>
         <button
@@ -279,6 +277,17 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
           @if (round.title) {
             <p class="results-descriptor">{{ round.title }}</p>
           }
+          @if (round.ticketId) {
+            <p class="results-ticket">
+              @if (isUrl(round.ticketId)) {
+                <a [href]="round.ticketId" target="_blank" rel="noopener noreferrer">
+                  {{ round.ticketId }}
+                </a>
+              } @else {
+                <code>{{ round.ticketId }}</code>
+              }
+            </p>
+          }
           <app-vote-results
             [round]="round"
             [participants]="participants()"
@@ -376,6 +385,15 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       </ng-template>
     </ion-modal>
 
+    <ion-toast
+      [isOpen]="reconnecting() && onPage()"
+      message="Reconnecting…"
+      position="bottom"
+      color="warning"
+      [duration]="0"
+      aria-live="assertive"
+      aria-atomic="true"
+    ></ion-toast>
   `,
   styles: [
     `
@@ -441,6 +459,15 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
         margin: 0 0 0.75rem;
         color: var(--ion-color-medium);
       }
+      .results-ticket {
+        margin: 0 0 1rem;
+        font-size: 0.875rem;
+        color: var(--ion-color-medium);
+      }
+      .results-ticket a,
+      .results-ticket code {
+        color: inherit;
+      }
       .footer-row {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -459,13 +486,13 @@ export class LobbyPage {
   private readonly actionSheetCtrl = inject(ActionSheetController)
   private readonly alertCtrl = inject(AlertController)
   private readonly toastService = inject(ToastService)
-  private readonly exportService = inject(ExportService)
 
   protected readonly hasSession = this.docService.hasSession
   protected readonly participants = this.docService.participants
   protected readonly activeParticipants = this.docService.activeParticipants
   protected readonly onlineIds = this.docService.onlineParticipantIds
   protected readonly rounds = this.docService.rounds
+  protected readonly reconnecting = this.docService.reconnecting
 
   /** Round-start modal visibility. Two-way bound to `ion-modal`. */
   protected readonly roundStartOpen = signal(false)
@@ -475,6 +502,9 @@ export class LobbyPage {
 
   /** QR display modal visibility. */
   protected readonly qrOpen = signal(false)
+
+  /** Suppresses toasts while navigating away; reset on re-entry. */
+  protected readonly onPage = signal(true)
 
   /**
    * Access state lives here (not in SessionSettingsSheetComponent) so
@@ -494,6 +524,9 @@ export class LobbyPage {
     return participantRole(p) === 'viewer'
   }
 
+  /** Exposed for template — delegates to shared `isLikelyUrl`. */
+  protected readonly isUrl = isLikelyUrl
+
   protected readonly isHost = computed(() => {
     const hostId = this.hostId()
     const myId = this.myId()
@@ -511,9 +544,7 @@ export class LobbyPage {
   /** Invite URL derived from the room code + runtime origin (`window.location.origin`). */
   protected readonly inviteUrl = computed(() => {
     const code = this.roomCode()
-    if (!code) return ''
-    const base = `${window.location.origin}/join?code=${code}`
-    return this.lobbyAccessMode() === 'password' ? `${base}&pw=1` : base
+    return code ? `${window.location.origin}/join?code=${code}` : ''
   })
 
   /** Dash-formatted room code for human display. */
@@ -555,11 +586,6 @@ export class LobbyPage {
     const idx = this.rounds().findIndex((r) => r.id === round.id)
     return idx >= 0 ? idx + 1 : null
   })
-
-  /** True when at least one round has been revealed (gates "Copy results" button). */
-  protected readonly hasRevealedRounds = computed(
-    () => this.rounds().some((r) => r.revealedAt != null),
-  )
 
   /**
    * Controls accordion open/closed state. Null collapses when a round
@@ -672,6 +698,14 @@ export class LobbyPage {
     })
   }
 
+  ionViewWillLeave(): void {
+    this.onPage.set(false)
+  }
+
+  ionViewDidEnter(): void {
+    this.onPage.set(true)
+  }
+
   protected openRoundStart(): void {
     const modal = this.modalRef()
     if (modal) void presentSheet({ modal })
@@ -680,6 +714,7 @@ export class LobbyPage {
   protected async onRoundStart(submission: RoundStartSubmission): Promise<void> {
     this.docService.startRound({
       ...(submission.title !== null && { title: submission.title }),
+      ...(submission.ticketId !== null && { ticketId: submission.ticketId }),
     })
     await this.modalRef()?.dismiss()
     this.roundStartOpen.set(false)
@@ -732,15 +767,6 @@ export class LobbyPage {
         role: 'destructive',
         handler: () => {
           void this.confirmEndSession()
-        },
-      })
-    }
-
-    if (this.hasRevealedRounds()) {
-      buttons.splice(1, 0, {
-        text: 'Copy results',
-        handler: () => {
-          void this.copyResults()
         },
       })
     }
@@ -805,23 +831,6 @@ export class LobbyPage {
       if (err instanceof Error && err.message?.includes('cancel')) return
       // navigator.share unavailable or other failure — clipboard fallback.
       await this.copyToClipboard(url, formatted)
-    }
-  }
-
-  private async copyResults(): Promise<void> {
-    try {
-      // Pass raw participants() — includes departed — so names still resolve per ADR-0036.
-      const participantsRecord = Object.fromEntries(
-        this.docService.participants().map((p) => [p.id, p]),
-      )
-      await this.exportService.copyRoundsAsMarkdown({
-        rounds: this.docService.rounds(),
-        participants: participantsRecord,
-      })
-      await this.toastService.info('Results copied')
-    } catch (err: unknown) {
-      console.warn('copyResults failed', err)
-      await this.toastService.error('Clipboard unavailable')
     }
   }
 
