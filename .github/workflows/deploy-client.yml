@@ -32,8 +32,13 @@ permissions:
 jobs:
   deploy:
     name: Build + ship PWA
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}
     steps:
+      - name: Runner identity
+        run: |
+          echo "Runner: $RUNNER_NAME on $(hostname) — arch $(uname -m)"
+          df -h /cache || true
+
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
