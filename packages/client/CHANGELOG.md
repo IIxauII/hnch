@@ -1,3 +1,10 @@
+# [1.8.0](https://github.com/IIxauII/hnch/compare/client-v1.7.0...client-v1.8.0) (2026-05-01)
+
+
+### Features
+
+* **client:** export session results to clipboard as markdown ([#74](https://github.com/IIxauII/hnch/issues/74)) ([69cf5e8](https://github.com/IIxauII/hnch/commit/69cf5e816cbeab76728a77a013e94ae826a4703e))
+
 # [1.7.0](https://github.com/IIxauII/hnch/compare/client-v1.6.0...client-v1.7.0) (2026-05-01)
 
 
