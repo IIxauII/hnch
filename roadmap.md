@@ -45,7 +45,7 @@ Concrete implication: Phase 1 starts with real work on three fronts (client boot
 | 1 | Foundation | Launch app → onboard (first-run only) → land on Home. Routing scaffolded, dark mode respected, Ionic left at its default platform auto-detect. No sync, no real session state yet. |
 | 2 | Local session loop | One client plays through a full session locally: Home → Lobby → Estimating → (reveal in Lobby) → re-vote → next round. Manual reveal only, no relay, no timer. |
 | 3 | Relay + multi-client sync | Two or more clients create / join / play a session together in real time via a running relay. Manual code-entry join path only. |
-| 4 | Timer + host election | Timer-based rounds work reliably. Host drops are handled with a 5-second debounce + lowest-peer-ID election. |
+| 4 | Reveal + host election | Unanimous auto-reveal and elapsed stopwatch work reliably (ADR-0018). Host drops are handled with a 5-second debounce + lowest-peer-ID election. |
 | 5 | Access control + join paths | Password-protected rooms work. Share sheet, QR display, QR scan, and `/join?code=` deep links all resolve to Join. Universal links deferred to Phase 6. |
 | 6a | PWA polish | Theme picker, settings screen, reveal animation, haptic wiring, a11y pass. All testable in a browser. |
 | 6b | Native iOS build | Capacitor iOS project, universal links, SQLite persistence, on-device smoke test. v1 candidate. |
@@ -82,14 +82,14 @@ Each phase assumes the previous one passes its exit bar. Within a phase, orderin
 **Work.**
 - Doc service: a client-side service that owns a `Y.Doc`, exposes strongly-typed read/write helpers derived from the Phase-1 shared types, and emits observables for Settings / Participants / current Round. No persistence, no relay — the doc is in-memory.
 - Lobby screen: wired to the doc. Shows participants (just you), settings summary, Share / QR placeholders, and "Start Round 1" button.
-- Session Settings half-sheet ([`ux.md` §5.8](ux.md#58-overlays)): scale picker, timer picker, access picker. Timer and Access have no runtime effect yet — just write to `settings`.
+- Session Settings half-sheet ([`ux.md` §5.7](ux.md#57-overlays)): scale picker, access picker. Access has no runtime effect yet — just writes to `settings`.
 - Round-start modal: captures optional descriptor, writes a new Round.
 - Estimating screen: 3-column card grid, vote cast + change, avatar row (just you, trivially), host-only Reveal button.
 - Lobby post-reveal: results shown inline (grouped by vote value, voter chips, stats). Re-vote (creates Round with `parentRoundId`) and Next Round both work.
-- Reveal is **manual only** this phase. Timer UI may render but must not auto-reveal.
+- Reveal is **manual only** this phase.
 - Back-navigation leaves the Lobby, returns to Home. The Jump-back-in banner still isn't wired (it needs persistence / relay state that arrives in Phase 3).
 
-**ADRs touched.** None. Consumers of [0003](adr/0003-state-sync-yjs.md), [0013](adr/0013-round-model-flat-parentroundid.md), [0015](adr/0015-v1-scope-session-level-reveal-and-timer.md). Exercises `schema.md` end-to-end for the first time — flag any field-level ambiguity immediately and fix via schema.md edit + (if shape-level) new ADR.
+**ADRs touched.** None. Consumers of [0003](adr/0003-state-sync-yjs.md), [0013](adr/0013-round-model-flat-parentroundid.md). Exercises `schema.md` end-to-end for the first time — flag any field-level ambiguity immediately and fix via schema.md edit + (if shape-level) new ADR.
 
 **Risks.**
 - Yjs binding style for Angular. We haven't picked a pattern yet — plain `doc.observe` → `BehaviorSubject`, or a library like `y-angular`/`valtio`-style adapter. Decide in the phase; if the decision is architectural, it gets an ADR.
@@ -134,34 +134,34 @@ This design work is ~1 hour; resolve it before relay code lands.
 
 ---
 
-## 6. Phase 4 — Timer + host election
+## 6. Phase 4 — Reveal + host election
 
 **Scope.** Robustness — the two coordination-flavored features that make the product feel reliable.
 
+> **Note.** This phase was originally scoped around a countdown-timer reveal (ADR-0011 + ADR-0015). Those ADRs were superseded by [ADR-0018](adr/0018-remove-timer-add-unanimous-reveal.md) before Phase 4 shipped: the countdown timer, `settings.revealMode`, and `settings.timerDurationMs` were removed. What shipped in Phase 4 is:
+
 **Work.**
-- Timer ([ADR-0011](adr/0011-timer-authority.md) + [ADR-0015](adr/0015-v1-scope-session-level-reveal-and-timer.md)):
-  - Host writes `round.timerStartedAt` at round start (only when `settings.revealMode === 'timer'`).
-  - All clients compute local countdown from `settings.timerDurationMs` and `round.timerStartedAt`.
-  - Host client writes `round.revealedAt` at expiry.
-  - Idempotent-reveal fallback: any client may write `revealedAt` if expiry observed and field still empty (see ADR-0011 Consequences).
-  - Display uses `tabular-nums`; final 30 s uses the muted-red style from `ux.md` §5.5.
-  - Haptic at t-10 s and on expiry per `ux.md` §6 haptic map (partial — full haptic wiring is Phase 6).
+- Reveal semantics ([ADR-0018](adr/0018-remove-timer-add-unanimous-reveal.md)):
+  - `timerStartedAt` written at round creation (always equals `createdAt`) and used as a **stopwatch origin** — elapsed time counts up, no countdown.
+  - **Unanimous auto-reveal:** when every online voter has a vote entry, any client writes `revealedAt`. Yjs merges concurrent writes idempotently — no host-authority model needed.
+  - Host can still manually reveal at any time (e.g., for AFK participants).
+  - Display uses `tabular-nums`. No final-30s warning (no countdown).
 - Host election ([ADR-0010](adr/0010-host-election.md)):
   - `settings.hostParticipantId` read and observed.
-  - Client-side liveness check: awareness has an entry for the current host? If not, start the 5-second debounce timer; if absence persists, the client with lowest peer ID writes itself into `hostParticipantId`.
+  - Client-side liveness check: awareness has an entry for the current host? If not, start the 5-second debounce; if absence persists, the client with lowest peer ID writes itself into `hostParticipantId`.
   - "Alice is now hosting" toast on change.
   - "No reclaim": prior host reconnecting after the handoff does not reclaim automatically.
 - Tests (where feasible):
-  - Unit: timer-remaining calculation, election-lowest-peer-ID logic.
+  - Unit: election-lowest-peer-ID logic.
   - Integration: a "simulated disconnect" test that runs two Yjs peers and verifies host handoff.
 
-**ADRs touched.** None structurally; consumers of [0010](adr/0010-host-election.md) and [0011](adr/0011-timer-authority.md). Any surprise here triggers a superseding ADR before code lands.
+**ADRs touched.** [ADR-0018](adr/0018-remove-timer-add-unanimous-reveal.md) (supersedes ADR-0011 + ADR-0015), consumer of [ADR-0010](adr/0010-host-election.md).
 
 **Risks.**
-- The idempotent-reveal fallback is genuinely subtle. It's worth writing a small simulation test (two peers, timer expires, assert `revealedAt` ends up with exactly one committed value even under races).
-- Background-tab throttling: if the host tab is backgrounded, its timer may fire late. Verify the fallback path actually kicks in.
+- Unanimous-reveal idempotence is subtle. Worth a simulation test (two peers, last vote cast, assert `revealedAt` lands exactly once even under races).
+- Background-tab throttling: if the host tab is backgrounded, verify non-host clients can fire unanimous reveal correctly.
 
-**Exit bar.** Kill the host client mid-round; within ~5 seconds, one of the other clients becomes host and the round continues. Run a timer-based round end-to-end; reveal fires reliably even if the host has been backgrounded.
+**Exit bar.** Kill the host client mid-round; within ~5 seconds, one of the other clients becomes host and the round continues. Run a round end-to-end with all participants voting; unanimous auto-reveal fires without host action.
 
 ---
 
@@ -169,7 +169,7 @@ This design work is ~1 hour; resolve it before relay code lands.
 
 **Scope.** Private rooms, join paths (share, QR, deep link), and expired-room handling. Invite-only was dropped from v1 per [ADR-0017](adr/0017-password-hashing-drop-invite-only.md); universal links deferred to Phase 6 (requires native iOS build + deployed domain).
 
-**Pre-phase design.** [ADR-0017](adr/0017-password-hashing-drop-invite-only.md) resolved the outstanding ADR-0009 action items: PBKDF2-SHA-256 via Web Crypto for password hashing, invite-only dropped, `PATCH /rooms/:uuid/access` for mid-session access changes. Invite URL format decided as `https://hnch.app/join?code=XXXXXX` (query param, configurable via `environment.appBaseUrl`).
+**Pre-phase design.** [ADR-0017](adr/0017-password-hashing-drop-invite-only.md) resolved the outstanding ADR-0009 action items: PBKDF2-SHA-256 via Web Crypto for password hashing, invite-only dropped, `PATCH /rooms/:uuid/access` for mid-session access changes. Invite URL format decided as `<origin>/join?code=XXXXXX` (query param; origin resolved at runtime from `window.location.origin` per [ADR-0031](adr/0031-runtime-origin-for-invite-urls.md)).
 
 **Work.**
 - Relay:
@@ -226,7 +226,7 @@ This design work is ~1 hour; resolve it before relay code lands.
 **Work.**
 - Native iOS build via Capacitor: `npx cap add ios`, ensure all Capacitor plugins (Preferences, Haptics, Share, Device, MLKit BarcodeScanning) resolve correctly on native.
 - `NSCameraUsageDescription` in Info.plist for the QR scanner.
-- Universal links: Apple App Site Association (AASA) file on `hnch.app/.well-known/`, Associated Domains entitlement in Xcode, `App.addListener('appUrlOpen')` handler to parse incoming URLs and navigate to `/join?code=`. The client-side `/join?code=` handling already works from Phase 5; this step wires the native OS interception so tapped links open the app directly instead of Safari.
+- Universal links: Apple App Site Association (AASA) file on `hnch.dev/.well-known/`, Associated Domains entitlement in Xcode, `App.addListener('appUrlOpen')` handler to parse incoming URLs and navigate to `/join?code=`. The client-side `/join?code=` handling already works from Phase 5; this step wires the native OS interception so tapped links open the app directly instead of Safari.
 - Capawesome SQLite persistence ([ADR-0004](adr/0004-local-persistence-sqlite-indexeddb.md)) on native: Yjs provider's IndexedDB path swapped for SQLite on native. PWA keeps IndexedDB.
 - Verify haptics actually fire on device (wiring landed in Phase 6a).
 - Dev-device smoke test on a real iPhone: install, onboard, create a room, have a second device join, play a full round.

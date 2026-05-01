@@ -25,11 +25,11 @@ UX decisions touching architecture cross-linked to governing ADR in [`adr/`](adr
 
 **Defaults make common path one-tap.** Create room → straight to Lobby with Fibonacci scale, no access control. Every setting has sensible default; config available but never required.
 
-**"Leaving" is reversible.** Per [ADR-0012](adr/0012-relay-snapshots-24h-in-memory.md), relay snapshots live 24h. Back-out, app close, or connectivity loss → rejoin without losing seat — `participantId` (per [ADR-0005](adr/0005-identity-device-id.md)) and vote history persist in Yjs doc. Back button = *navigation*, not *destruction*. Explicit "leave session" / "end session for everyone" in ⋯ menu with destructive confirmation.
+**"Leaving" is reversible.** Per [ADR-0012](adr/0012-snapshot-policy.md), relay snapshots live 24h. Back-out, app close, or connectivity loss → rejoin without losing seat — `participantId` (per [ADR-0005](adr/0005-device-identity-capacitor-device-plugin.md)) and vote history persist in Yjs doc. Back button = *navigation*, not *destruction*. Explicit "leave session" / "end session for everyone" in ⋯ menu with destructive confirmation.
 
 **Accessibility, dark mode, safe areas = baseline, not polish.** VoiceOver labels on non-text content (QR codes, card grids). Dark mode follows system pref by default with explicit override. Safe areas via `ion-header` / `ion-footer` — content respects notches, dynamic islands, home indicators.
 
-**Non-goals for v1.** Deliberately out of scope: Team concept from [ADR-0007](adr/0007-team-local-only-concept.md) — Teams are device-local saved attendee lists with optional session defaults (scale, name), stored in local preferences; they have no v1 UI and no Yjs presence. Full session history (only single "Jump back in" banner for most recent backed-out session). iPad/landscape layouts (iPhone portrait = design target). Offline session creation (relay assumed reachable at Create time).
+**Non-goals for v1.** Deliberately out of scope: Team concept from [ADR-0007](adr/0007-teams-local-only.md) — Teams are device-local saved attendee lists with optional session defaults (scale, name), stored in local preferences; they have no v1 UI and no Yjs presence. Full session history (only single "Jump back in" banner for most recent backed-out session). iPad/landscape layouts (iPhone portrait = design target). Offline session creation (relay assumed reachable at Create time).
 
 ---
 
@@ -312,7 +312,7 @@ ASCII sketches — communicate structure/hierarchy/component choice, not pixel l
 
 ### 5.1 Onboarding
 
-Shown once, first launch (or after data clear). No back button; no ⋯ menu. Sole job: capture display name for `participantId` (per [ADR-0005](adr/0005-identity-device-id.md)).
+Shown once, first launch (or after data clear). No back button; no ⋯ menu. Sole job: capture display name for `participantId` (per [ADR-0005](adr/0005-device-identity-capacitor-device-plugin.md)).
 
 ```
 ┌─────────────────────────────────────────┐
@@ -372,7 +372,7 @@ Launchpad for every post-onboarding launch. Two primary entries (Create, Join), 
 └─────────────────────────────────────────┘
 ```
 
-- Jump-back-in banner rendered iff non-expired "last backed-out session" in local state (session id, room code, screen snapshot, last-seen timestamp within 24h per [ADR-0012](adr/0012-relay-snapshots-24h-in-memory.md)). If relay evicted room, banner shows muted appearance; on tap → toast ("This room has expired") + self-removes.
+- Jump-back-in banner rendered iff non-expired "last backed-out session" in local state (session id, room code, screen snapshot, last-seen timestamp within 24h per [ADR-0012](adr/0012-snapshot-policy.md)). If relay evicted room, banner shows muted appearance; on tap → toast ("This room has expired") + self-removes.
 - ⋯ menu: **Settings**, **About hnch**.
 
 ### 5.3 Join Room
@@ -408,7 +408,7 @@ From Home Join button, invite URL deep link, or QR scan. Same screen for all thr
 └─────────────────────────────────────────┘
 ```
 
-- Code input: monospace hint, formats `XXX-XXX` live; excludes look-alike chars per [ADR-0008](adr/0008-room-codes.md).
+- Code input: monospace hint, formats `XXX-XXX` live; excludes look-alike chars per [ADR-0008](adr/0008-room-code-format.md).
 - Scan QR opens `@capacitor-mlkit/barcode-scanning` modal camera; on success → code written to input, Join activates.
 - Password field materializes inline only after relay confirms code maps to password-protected room (per [ADR-0009](adr/0009-access-control-relay-tokens.md)).
 - Join disabled until code well-formed. On tap: connects to relay; success → Lobby; failure → inline error (invalid, expired, wrong password).
@@ -813,7 +813,7 @@ Tapping estimate card on Estimating:
 1. Immediate visual feedback: primary-color border, filled background, subtle scale-down-then-up press animation (`transform: scale(0.95)` → `scale(1.0)` over 120ms).
 2. `Haptics.impact({ style: 'Light' })` fires.
 3. Vote written to Yjs doc. Presence (avatar fills on everyone's screen) immediate; *value* hidden until reveal.
-4. Re-tap same card = deselect (vote cleared). Tap different card = replace vote. Both allowed before reveal — see [ADR-0013](adr/0013-rounds-lineage.md).
+4. Re-tap same card = deselect (vote cleared). Tap different card = replace vote. Both allowed before reveal — see [ADR-0013](adr/0013-round-model-flat-parentroundid.md).
 
 ### Reveal animation
 
