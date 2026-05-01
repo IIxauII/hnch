@@ -1,3 +1,14 @@
+## [1.5.1](https://github.com/IIxauII/hnch/compare/client-v1.5.0...client-v1.5.1) (2026-05-01)
+
+
+### Bug Fixes
+
+* **cli:** correct relay-url scheme in usage docblock ([#66](https://github.com/IIxauII/hnch/issues/66)) ([4835104](https://github.com/IIxauII/hnch/commit/4835104ea43c069072d3b1f41a92e8ae1b79871a))
+* **client:** drop stale phase-history docblock from jump-back-in-banner ([#67](https://github.com/IIxauII/hnch/issues/67)) ([1935baa](https://github.com/IIxauII/hnch/commit/1935baad1c0d10ad80aaecb14743c51216e97f37))
+* **infra:** add openssh-client to self-hosted runner image ([#64](https://github.com/IIxauII/hnch/issues/64)) ([192c4f1](https://github.com/IIxauII/hnch/commit/192c4f1d40cebebd5c5d14b974290436a7a1a23c))
+* **infra:** bake gh CLI into self-hosted runner image ([#63](https://github.com/IIxauII/hnch/issues/63)) ([0f59d1c](https://github.com/IIxauII/hnch/commit/0f59d1cb4135b4fcf5fa171b005c28e36a7f478b))
+* **relay:** correct stale entry-point docblock ([#62](https://github.com/IIxauII/hnch/issues/62)) ([df1e4ea](https://github.com/IIxauII/hnch/commit/df1e4ea63a8534daba86ef08fc7c4e57c6a00c97))
+
 # [1.5.0](https://github.com/IIxauII/hnch/compare/client-v1.4.0...client-v1.5.0) (2026-04-30)
 
 
