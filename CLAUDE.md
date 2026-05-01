@@ -79,7 +79,7 @@ Use it when:
 - The user explicitly asks for a worktree, or the task naturally branches into independent tracks.
 
 Commands (run from the repo root):
-- `pnpm worktree:add <name> [base-branch]` — creates `../hnch-<name>`, branches off `<base-branch>` (default `main`), assigns unique ports, runs `pnpm install`.
+- `pnpm worktree:add <name> [base-branch]` — creates `../hnch-<name>`, branches off `<base-branch>` (default `main`), assigns unique ports, runs `pnpm install`. **Run `git fetch origin` first** — the script branches off the local ref, so a stale local `main` produces a worktree missing recent commits. Symptom: agents in the worktree don't see files added by recently-merged PRs and may recreate them from scratch with diverging APIs.
 - `pnpm worktree:remove <name>` — tears down the worktree dir. The branch ref is preserved; delete with `git branch -D <name>` if no longer needed.
 - `pnpm worktree:bootstrap` — re-run inside an existing worktree to regenerate `.env.local` (idempotent, safe).
 
