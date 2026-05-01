@@ -160,6 +160,14 @@ export class DocService {
   /** Flips to true on the first `connected` event; resets on endSession. */
   private readonly hasEverConnectedSignal: WritableSignal<boolean> = signal(false)
   /**
+   * Flips to true after the relay sends its first sync_step_2 and y-websocket
+   * fires `onSynced`. Resets on `endSession`. Used by
+   * `ParticipantRemovalService` to gate kick handling: any `leftAt` observed
+   * before this flips came in via the snapshot apply (prior kick), not a live
+   * host action on this connection.
+   */
+  private readonly hasFirstSyncCompletedSignal: WritableSignal<boolean> = signal(false)
+  /**
    * True while `endSessionForEveryone()` is in flight locally — guards the
    * `SessionEndService` observer from treating a self-triggered end as a
    * remote one.
@@ -247,6 +255,15 @@ export class DocService {
    * `'connecting'` is included because y-websocket re-emits it on each
    * retry attempt; `'offline'` is excluded because that means no provider.
    */
+  /**
+   * True once the relay has completed its first sync (y-websocket `onSynced`).
+   * Resets to false on `endSession`. Consumers should not act on `leftAt`
+   * transitions observed before this is true — those came from the snapshot
+   * apply, not a live host action on this connection (ADR-0036 §6).
+   */
+  readonly hasFirstSyncCompleted: Signal<boolean> =
+    this.hasFirstSyncCompletedSignal.asReadonly()
+
   readonly reconnecting: Signal<boolean> = computed(() => {
     const s = this.syncStatusSignal()
     return (
@@ -410,14 +427,18 @@ export class DocService {
         if (status === 'connected') this.hasEverConnectedSignal.set(true)
       },
       onRejectionChange: (reason) => this.lastRejectionSignal.set(reason),
-      // ADR-0036 §6 LWW fix: if this client joined (not created) the session,
-      // clear any stale `leftAt`/`removedBy` AFTER the relay snapshot has
-      // merged. By the time `synced` fires, the snapshot's ops are already
-      // in the doc; our delete therefore carries a higher Lamport clock and
-      // wins the LWW merge, making the participant active again.
-      ...(joinParticipantId !== null && {
-        onSynced: () => { this.clearOwnLeftStatus(joinParticipantId) },
-      }),
+      // ADR-0036 §6 LWW fix: flip `hasFirstSyncCompleted` before clearing any
+      // stale `leftAt`/`removedBy` so that `ParticipantRemovalService` can
+      // distinguish snapshot-apply observations from live host kicks. When this
+      // client joined (not created) the session, the delete carries a higher
+      // Lamport clock than the snapshot's `set('leftAt', ...)` and wins the
+      // LWW merge, making the participant active again.
+      onSynced: () => {
+        this.hasFirstSyncCompletedSignal.set(true)
+        if (joinParticipantId !== null) {
+          this.clearOwnLeftStatus(joinParticipantId)
+        }
+      },
     })
   }
 
@@ -475,6 +496,7 @@ export class DocService {
     this.roomCodeSignal.set(null)
     this.lastRejectionSignal.set(null)
     this.hasEverConnectedSignal.set(false)
+    this.hasFirstSyncCompletedSignal.set(false)
     this.endingSessionLocally.set(false)
     this.joinParticipantId = null
   }
