@@ -199,7 +199,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
+          # No `cache: pnpm`: on the self-hosted pool the bind-mounted
+          # /cache/pnpm-store (per-runner shard) is the canonical store
+          # via npm_config_store_dir on the image. The verify matrix
+          # already runs without it; mirror that here. On the
+          # ubuntu-latest fallback this trades a cached restore for a
+          # cold install from the registry — acceptable since the
+          # fallback is an emergency path.
 
       - name: Install
         run: pnpm install --frozen-lockfile

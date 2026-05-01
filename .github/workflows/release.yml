@@ -45,7 +45,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
+          # No `cache: pnpm`: pnpm install reads the bind-mounted
+          # /cache/pnpm-store (npm_config_store_dir on the runner image),
+          # which is faster than the GitHub Actions cache round-trip and
+          # already persistent across ephemeral runner respawns. See
+          # ci.yml verify lanes for the same pattern.
 
       - name: Install
         run: pnpm install --frozen-lockfile
