@@ -1,21 +1,17 @@
 /**
  * hnch relay entry point.
  *
- * Phase 3 scaffolding. This process is the content-blind y-websocket
- * relay described in ADR-0001; in this commit it only binds the HTTP
- * server and exposes `GET /health`. Later commits in the phase grow:
+ * Content-blind y-websocket relay (ADR-0001). Owns:
  *
- *   - Room store and code/UUID minting (ADR-0008).
+ *   - Room store + code/UUID minting (ADR-0008).
  *   - Join handshake with `JoinCredentials` via URL query params
- *     (ADR-0009, ADR-0016).
- *   - y-websocket `setupWSConnection` handoff and the 24h in-memory
+ *     (ADR-0009, ADR-0016, ADR-0017).
+ *   - y-websocket `setupWSConnection` handoff and 24h in-memory
  *     snapshot TTL (ADR-0012).
- *   - Permissive access-control mode for Phase 3 (enforcement lands
- *     in Phase 5 without a wire-protocol revision).
+ *   - 20-peer hard cap on WebSocket upgrade (ADR-0024).
  *
- * Host-election observability hints (ADR-0010) remain a future
- * addition only if debugging calls for it; election itself is
- * client-driven and does not require relay cooperation.
+ * Host election (ADR-0010) is client-driven and requires no relay
+ * cooperation.
  */
 
 import { createCodePool } from './code-pool.js'
