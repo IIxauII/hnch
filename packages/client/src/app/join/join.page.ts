@@ -222,7 +222,11 @@ export class JoinPage {
 
   protected readonly canJoin = computed(() => {
     if (!isValidRoomCode(this.normalizedCode())) return false
-    if (this.needsPassword() && !this.rawPassword().trim()) return false
+    // Password gate applies only after the resolve step has identified
+    // the room as password-protected (`resolvedUuid !== null`). Before
+    // resolve, an unverified `pw=1` URL hint must not block submit()
+    // from running the resolve that would clear or confirm it.
+    if (this.resolvedUuid !== null && this.needsPassword() && !this.rawPassword().trim()) return false
     return true
   })
 
@@ -244,7 +248,7 @@ export class JoinPage {
       }
       // Reset password state when the code changes — a different code
       // may resolve to a different access mode.
-      if (this.resolvedUuid !== null) {
+      if (this.resolvedUuid !== null || this.needsPassword()) {
         this.resolvedUuid = null
         this.needsPassword.set(false)
         this.passwordControl.reset()
@@ -262,6 +266,14 @@ export class JoinPage {
     if (codeParam) {
       const formatted = formatRoomCode(normalizeRoomCode(codeParam))
       this.codeControl.setValue(formatted)
+
+      // Apply the URL `pw=1` hint AFTER setting the code, so the
+      // valueChanges reset (which fires on setValue) does not wipe it.
+      const pwParam = this.route.snapshot.queryParamMap.get('pw')
+      if (pwParam === '1') {
+        this.needsPassword.set(true)
+      }
+
       // Defer one microtask so valueChanges fires and normalizedCode() updates
       // before submit() reads canJoin(). Only auto-submit if the user already
       // has a display name — the guard handles the no-name case by stashing
@@ -299,6 +311,10 @@ export class JoinPage {
           this.isSubmitting.set(false)
           return
         }
+
+        // Room is open — clear any stale pw=1 hint set before resolve.
+        this.needsPassword.set(false)
+        this.passwordControl.reset()
       }
 
       // Phase 2: connect with credentials.
