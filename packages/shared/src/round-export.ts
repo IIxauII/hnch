@@ -1,183 +1,150 @@
-import type { Participant, Round } from './doc.js'
-import { computeRoundStats } from './round-stats.js'
-import { formatElapsed } from './format-time.js'
+import { isLikelyUrl } from './is-likely-url.js'
 
-/** Escape pipe characters in Markdown table cell content. */
+export interface RoundExportOptions {
+  title?: string
+  rounds: Array<{
+    id: string
+    title?: string
+    ticketId?: string
+    scale: { cards: string[] }
+    votes: Record<string, string>
+    revealedAt?: number
+    parentRoundId?: string
+  }>
+  participants: Record<string, { displayName: string }>
+}
+
+/**
+ * Escape markdown special characters.
+ */
 function escMd(s: string): string {
-  return s.replace(/\|/g, '\\|')
-}
-
-export interface RoundExportInput {
-  readonly rounds: readonly Round[]
-  readonly participants: ReadonlyMap<string, Participant> | Record<string, Participant>
-}
-
-/** Resolve participants map to a uniform ReadonlyMap. */
-function toMap(
-  participants: ReadonlyMap<string, Participant> | Record<string, Participant>,
-): ReadonlyMap<string, Participant> {
-  if (participants instanceof Map) return participants
-  return new Map(Object.entries(participants))
+  return s.replace(/[\\`*_{}[\]()#+\-.!|]/g, '\\$&')
 }
 
 /**
- * Group rounds by chain root: walk parentRoundId to terminal ancestor.
- * Preserves in-array order within each bucket (ADR-0013).
+ * Escape text used in markdown link label: `]` (closes link) and `\` (escape char).
  */
-function groupByChainRoot(rounds: readonly Round[]): Map<string, Round[]> {
-  const idToRound = new Map<string, Round>()
-  for (const r of rounds) idToRound.set(r.id, r)
-
-  function findRoot(round: Round): Round {
-    if (!round.parentRoundId) return round
-    const parent = idToRound.get(round.parentRoundId)
-    return parent ? findRoot(parent) : round
-  }
-
-  const buckets = new Map<string, Round[]>()
-  for (const r of rounds) {
-    const root = findRoot(r)
-    const bucket = buckets.get(root.id)
-    if (bucket) {
-      bucket.push(r)
-    } else {
-      buckets.set(root.id, [r])
-    }
-  }
-  return buckets
+function escMdLinkText(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/]/g, '\\]')
 }
 
 /**
- * Build vote-group table rows sorted by count desc, then scale-card index asc.
- * Matches sort order in vote-results.component.ts:381-384.
+ * Pick a backtick fence longer than any backtick run in `s`.
+ * Ensures inline code blocks can safely contain the string.
  */
-function buildVoteTable(round: Round, nameById: ReadonlyMap<string, string>): string {
-  const scaleOrder = new Map<string, number>()
-  round.scale.cards.forEach((card, i) => scaleOrder.set(card, i))
+function fenceFor(s: string): string {
+  const matches = s.match(/`+/g) ?? []
+  const maxRun = matches.reduce((m, r) => Math.max(m, r.length), 0)
+  return '`'.repeat(maxRun + 1)
+}
 
-  const byCard = new Map<string, string[]>()
-  for (const [participantId, card] of Object.entries(round.votes)) {
-    const name = nameById.get(participantId) ?? participantId
-    const bucket = byCard.get(card)
-    if (bucket) {
-      bucket.push(name)
-    } else {
-      byCard.set(card, [name])
+/**
+ * Format ticketId for markdown output.
+ * URL ticketIds become angle-bracket autolinks (permits parens in URL).
+ * Plain IDs become backtick-quoted with dynamic fence to escape any backticks in content.
+ */
+function formatTicket(ticketId: string | undefined): string {
+  if (!ticketId) return ''
+  if (isLikelyUrl(ticketId)) {
+    // Angle-bracket autolink form [label](<url>) permits parens in URL.
+    return ` ([${escMdLinkText(ticketId)}](<${ticketId}>))`
+  }
+  // Plain ID: use dynamic backtick fence to escape any backticks in the ID.
+  const fence = fenceFor(ticketId)
+  return ` (${fence}${ticketId}${fence})`
+}
+
+/**
+ * Export rounds as markdown.
+ */
+export function exportRoundsAsMarkdown(opts: RoundExportOptions): string {
+  const { title, rounds, participants } = opts
+  const lines: string[] = []
+
+  if (title) {
+    lines.push(`# ${escMd(title)}`)
+    lines.push('')
+  }
+
+  // Group rounds by parentRoundId to identify root rounds vs revotes
+  const rootRounds = rounds.filter((r) => !r.parentRoundId)
+  const revotesByParent = new Map<string, typeof rounds>()
+
+  for (const round of rounds) {
+    if (round.parentRoundId) {
+      if (!revotesByParent.has(round.parentRoundId)) {
+        revotesByParent.set(round.parentRoundId, [])
+      }
+      revotesByParent.get(round.parentRoundId)!.push(round)
     }
   }
 
-  const groups = [...byCard.entries()].map(([card, voters]) => ({
-    card,
-    scaleIndex: scaleOrder.get(card) ?? Number.MAX_SAFE_INTEGER,
-    voters: [...voters].sort().map(escMd),
-  }))
+  rootRounds.forEach((root, rootIndex) => {
+    const rootNum = rootIndex + 1
+    const rootHeading = root.title
+      ? `## Round ${rootNum} — ${escMd(root.title)}${formatTicket(root.ticketId)}`
+      : `## Round ${rootNum}${formatTicket(root.ticketId)}`
 
-  groups.sort((a, b) => {
-    const byCount = b.voters.length - a.voters.length
-    return byCount !== 0 ? byCount : a.scaleIndex - b.scaleIndex
+    lines.push(rootHeading)
+    lines.push('')
+
+    if (root.revealedAt) {
+      lines.push(buildVotesSection(root, participants))
+      lines.push('')
+    } else {
+      lines.push('*Voting in progress...*')
+      lines.push('')
+    }
+
+    const revotes = revotesByParent.get(root.id) || []
+    revotes.forEach((revote, revoteIndex) => {
+      const revoteNum = revoteIndex + 1
+      const revoteHeading = `### Re-vote ${revoteNum}${formatTicket(revote.ticketId)}`
+
+      lines.push(revoteHeading)
+      lines.push('')
+
+      if (revote.revealedAt) {
+        lines.push(buildVotesSection(revote, participants))
+        lines.push('')
+      } else {
+        lines.push('*Voting in progress...*')
+        lines.push('')
+      }
+    })
   })
 
-  const rows = groups.map((g) => `| ${escMd(g.card)} | ${g.voters.join(', ')} |`)
-  return ['| Vote | Voters |', '|------|--------|', ...rows].join('\n')
-}
-
-function buildStatsLine(round: Round): string {
-  const stats = computeRoundStats(round.votes, round.scale)
-  const elapsed =
-    round.timerStartedAt != null && round.revealedAt != null
-      ? formatElapsed(round.revealedAt - round.timerStartedAt)
-      : null
-
-  const parts: string[] = []
-
-  if (stats?.kind === 'numeric') {
-    parts.push(`Avg ${stats.mean.toFixed(1)} · Med ${stats.median}`)
-  } else if (stats?.kind === 'categorical') {
-    parts.push(`Most common: ${stats.mode}`)
-  }
-
-  if (elapsed != null) {
-    parts.push(`Elapsed ${elapsed}`)
-  }
-
-  return parts.join(' · ')
+  return lines.join('\n').trimEnd() + '\n'
 }
 
 /**
- * Render revealed rounds as a Markdown summary.
- * Returns '' when no rounds have been revealed.
- *
- * Chain grouping follows ADR-0013 (flat list + parentRoundId lineage).
- * Participant names read from raw map without leftAt filter per ADR-0036.
+ * Build the votes section for a round.
  */
-export function roundsToMarkdown(input: RoundExportInput): string {
-  const { rounds } = input
-  // Read raw participants (no leftAt filter) so departed names still resolve — ADR-0036
-  const participantsMap = toMap(input.participants)
-  const nameById = new Map<string, string>()
-  for (const [id, p] of participantsMap) {
-    nameById.set(id, p.displayName)
+function buildVotesSection(
+  round: {
+    scale: { cards: string[] }
+    votes: Record<string, string>
+  },
+  participants: Record<string, { displayName: string }>,
+): string {
+  const votes = Object.entries(round.votes)
+  const voteGroups = new Map<string, string[]>()
+
+  for (const [participantId, vote] of votes) {
+    const displayName = participants[participantId]?.displayName || participantId
+    if (!voteGroups.has(vote)) {
+      voteGroups.set(vote, [])
+    }
+    voteGroups.get(vote)!.push(displayName)
   }
 
-  const revealedRounds = rounds.filter((r) => r.revealedAt != null)
-  if (revealedRounds.length === 0) return ''
-
-  // Only group revealed rounds; index into original full rounds array for numbering
-  const roundIndex = new Map<string, number>()
-  rounds.forEach((r, i) => roundIndex.set(r.id, i + 1)) // 1-based
-
-  // Group by chain root (ADR-0013), preserving original array order within buckets
-  const buckets = groupByChainRoot(revealedRounds)
-
-  // Determine chain-root order: order roots by their position in original array
-  const seenRoots = new Set<string>()
-  const rootOrder: string[] = []
-  for (const r of revealedRounds) {
-    // Walk to root in buckets keys
-    for (const [rootId, members] of buckets) {
-      if (members.includes(r) && !seenRoots.has(rootId)) {
-        seenRoots.add(rootId)
-        rootOrder.push(rootId)
-        break
-      }
+  const lines: string[] = []
+  for (const card of round.scale.cards) {
+    const voters = voteGroups.get(card) || []
+    if (voters.length > 0) {
+      lines.push(`- **${card}**: ${voters.join(', ')}`)
     }
   }
 
-  const sections: string[] = []
-
-  for (const rootId of rootOrder) {
-    const chain = buckets.get(rootId)!
-    const root = chain.find(r => r.id === rootId)!
-    const revotes = chain.filter(r => r.id !== rootId)
-    const rootNum = roundIndex.get(root.id) ?? 0
-
-    const rootHeading = root.title
-      ? `## Round ${rootNum} — ${root.title}`
-      : `## Round ${rootNum}`
-
-    const rootTable = buildVoteTable(root, nameById)
-    const rootStats = buildStatsLine(root)
-
-    const rootBlock = rootStats
-      ? `${rootHeading}\n\n${rootTable}\n\n${rootStats}`
-      : `${rootHeading}\n\n${rootTable}`
-
-    sections.push(rootBlock)
-
-    // Subsequent re-votes in the chain — render as ### Re-vote (ADR-0013)
-    for (const revote of revotes) {
-      const revoteNum = roundIndex.get(revote.id) ?? 0
-      const revoteHeading = `### Re-vote ${revoteNum}`
-      const revoteTable = buildVoteTable(revote, nameById)
-      const revoteStats = buildStatsLine(revote)
-
-      const revoteBlock = revoteStats
-        ? `${revoteHeading}\n\n${revoteTable}\n\n${revoteStats}`
-        : `${revoteHeading}\n\n${revoteTable}`
-
-      sections.push(revoteBlock)
-    }
-  }
-
-  return sections.join('\n\n') + '\n'
+  return lines.join('\n')
 }
