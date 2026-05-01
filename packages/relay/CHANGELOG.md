@@ -1,3 +1,33 @@
+## [1.1.1](https://github.com/IIxauII/hnch/compare/relay-v1.1.0...relay-v1.1.1) (2026-05-01)
+
+
+### Bug Fixes
+
+* **ci:** runner health check uses dedicated read-only PAT ([#35](https://github.com/IIxauII/hnch/issues/35)) ([2693536](https://github.com/IIxauII/hnch/commit/2693536e215decaf1fee0dc92508291e42050910))
+* **cli:** default relay URL to https:// (fixes 'fetch failed' on hnch create) ([#15](https://github.com/IIxauII/hnch/issues/15)) ([f1d2be4](https://github.com/IIxauII/hnch/commit/f1d2be47b4b9166e2cec619b35ba01974f6f038b))
+* **client:** auto-sync appVersion from package.json ([#37](https://github.com/IIxauII/hnch/issues/37)) ([72ac623](https://github.com/IIxauII/hnch/commit/72ac6239b4bacb74675e5d2cda991048724644d8))
+* **client:** bump appVersion to current package version ([#20](https://github.com/IIxauII/hnch/issues/20)) ([d781b07](https://github.com/IIxauII/hnch/commit/d781b07913ec88a61f6bb8f863a7ffd7ba301cbc))
+* **client:** close ionic dynamic-import lint bypass ([#18](https://github.com/IIxauII/hnch/issues/18)) ([aaffaa0](https://github.com/IIxauII/hnch/commit/aaffaa0b2fd2a2000b2e4812ab5d12ebf6025d56))
+* **cli:** rename to @xauyxau/hnch (npm rejected unscoped name) ([#13](https://github.com/IIxauII/hnch/issues/13)) ([34555dd](https://github.com/IIxauII/hnch/commit/34555ddba3d068dc6640ed6e8752b10adfe06094))
+* correct repo owner refs from xau/hnch to IIxauII/hnch ([#32](https://github.com/IIxauII/hnch/issues/32)) ([f70d417](https://github.com/IIxauII/hnch/commit/f70d417ae956807a95fd9819677483c7ecc8d49f))
+* **infra:** chown /var/www to deploy in bootstrap ([#21](https://github.com/IIxauII/hnch/issues/21)) ([f448dbc](https://github.com/IIxauII/hnch/commit/f448dbced96d63b83fa934da6165d6b26b507655))
+* **infra:** chown /var/www to deploy in bootstrap ([#22](https://github.com/IIxauII/hnch/issues/22)) ([1aa73aa](https://github.com/IIxauII/hnch/commit/1aa73aa040ac88db076486d103f82adcd53b058c))
+* **infra:** drop MemoryDenyWriteExecute from relay systemd unit (V8 incompatibility) ([#11](https://github.com/IIxauII/hnch/issues/11)) ([b1c34d4](https://github.com/IIxauII/hnch/commit/b1c34d4de5eabb8c4936892e53aa514fbe1e75ef))
+* **relay:** correct stale entry-point docblock ([#62](https://github.com/IIxauII/hnch/issues/62)) ([df1e4ea](https://github.com/IIxauII/hnch/commit/df1e4ea63a8534daba86ef08fc7c4e57c6a00c97))
+* **runner:** macOS-portable install + plist PATH + flock-free lock ([#33](https://github.com/IIxauII/hnch/issues/33)) ([025a259](https://github.com/IIxauII/hnch/commit/025a2591930129d38bddef4d30855c687971156b))
+* surface relay rejections on deep-link join ([#49](https://github.com/IIxauII/hnch/issues/49)) ([0f825b7](https://github.com/IIxauII/hnch/commit/0f825b724c513c27e4a12f3a2636c9dd0519fa20))
+
+
+### Features
+
+* **cli:** end-session menu, share clipboard, voting settings ([#41](https://github.com/IIxauII/hnch/issues/41)) ([f929c26](https://github.com/IIxauII/hnch/commit/f929c26393460b08af94b091eddfb509e938f31b))
+* **client:** collapse lobby participants accordion post-reveal ([#50](https://github.com/IIxauII/hnch/issues/50)) ([0a468b0](https://github.com/IIxauII/hnch/commit/0a468b0da5de870f011c28fc67342a30cabc571f))
+* **client:** participant removal lifecycle (leave + host kick) ([#52](https://github.com/IIxauII/hnch/issues/52)) ([a15e3df](https://github.com/IIxauII/hnch/commit/a15e3df6c1c00bda3f1aac4ba32d24e2f49fc7fd))
+* **client:** URL-parameterized in-session routes + session resume ([#23](https://github.com/IIxauII/hnch/issues/23)) ([eec01a6](https://github.com/IIxauII/hnch/commit/eec01a691cf314b09dce34025691ce2c856c0631))
+* **client:** web QR scanning via plugin startScan + lazy polyfill ([#48](https://github.com/IIxauII/hnch/issues/48)) ([53f7e23](https://github.com/IIxauII/hnch/commit/53f7e236482e54c90a0c7c3794b8b218f0426e2f))
+* **client:** wire PWA prod deploy to hnch.dev VPS ([#17](https://github.com/IIxauII/hnch/issues/17)) ([0f3ef64](https://github.com/IIxauII/hnch/commit/0f3ef64bbf8dfd0083a3e8783bb718b0dafec02d))
+* **cli:** wire npm publish for @hnch/cli ([#12](https://github.com/IIxauII/hnch/issues/12)) ([6028946](https://github.com/IIxauII/hnch/commit/6028946a3f0a37da4dbf422b6f7837e8f3650cf5))
+
 # [1.1.0](https://github.com/IIxauII/hnch/compare/relay-v1.0.0...relay-v1.1.0) (2026-04-27)
 
 
