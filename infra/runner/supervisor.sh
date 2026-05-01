@@ -10,7 +10,14 @@ SPAWN_LOG="${STATE_DIR}/spawns.log"
 HEALTH_FILE="${HOME}/runner-cache/UNHEALTHY"
 
 cleanup() { podman ps -q --filter "name=hnch-runner-" | xargs -r podman rm -f; }
-trap cleanup EXIT
+trap cleanup TERM INT EXIT
+
+# Self-heal on startup: prior supervisor may have died via SIGKILL (launchctl
+# kickstart -k, OOM, panic) without running the EXIT trap, leaving orphaned
+# containers. The slot-occupancy check below would then skip respawning them.
+# Nuke any survivors before entering the main loop so every restart yields a
+# fully fresh pool.
+cleanup
 
 # Fetch a short-lived (1-hour) registration token via the PAT.
 # Stays on the host — never passed to a container as the PAT itself.
