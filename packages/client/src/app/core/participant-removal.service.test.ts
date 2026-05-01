@@ -35,12 +35,15 @@ interface ParticipantLike {
 function makeDocMock(selfId: string) {
   const participantsSignal = signal<ParticipantLike[]>([])
   const hasSessionSignal = signal(true)
+  const hasFirstSyncCompletedSignal = signal(true)
 
   return {
     participants: participantsSignal.asReadonly(),
     _participantsSignal: participantsSignal,
     hasSession: hasSessionSignal.asReadonly(),
     _hasSessionSignal: hasSessionSignal,
+    hasFirstSyncCompleted: hasFirstSyncCompletedSignal.asReadonly(),
+    _hasFirstSyncCompletedSignal: hasFirstSyncCompletedSignal,
     endSession: vi.fn(),
   }
 }
@@ -174,5 +177,54 @@ describe('ParticipantRemovalService', () => {
 
     expect(docMock.endSession).not.toHaveBeenCalled()
     expect(toastMock.info).not.toHaveBeenCalled()
+  })
+
+  it('first-sync gate: leftAt transition before sync completes does NOT fire kick handler', async () => {
+    // Simulate the rejoin race: hasFirstSyncCompleted is false (snapshot still applying)
+    docMock._hasFirstSyncCompletedSignal.set(false)
+    setup()
+
+    // Snapshot apply brings in a prior-kick leftAt
+    docMock._participantsSignal.set([
+      { id: SELF_ID, displayName: 'Me', joinedAt: NOW, leftAt: NOW + 1, removedBy: 'host-1' },
+    ])
+
+    await flushAll()
+
+    expect(docMock.endSession).not.toHaveBeenCalled()
+    expect(toastMock.info).not.toHaveBeenCalled()
+    expect(routerMock.navigate).not.toHaveBeenCalled()
+  })
+
+  it('first-sync gate: kick fires after sync completes and a fresh undefined→number transition', async () => {
+    // Start with sync not yet complete
+    docMock._hasFirstSyncCompletedSignal.set(false)
+    setup()
+
+    // Snapshot apply — stale leftAt arrives; gate suppresses it
+    docMock._participantsSignal.set([
+      { id: SELF_ID, displayName: 'Me', joinedAt: NOW, leftAt: NOW - 500, removedBy: 'host-1' },
+    ])
+    await flushAll()
+
+    // clearOwnLeftStatus fires — participant is now active again
+    docMock._participantsSignal.set([
+      { id: SELF_ID, displayName: 'Me', joinedAt: NOW },
+    ])
+    await flushAll()
+
+    // Sync complete — gate opens
+    docMock._hasFirstSyncCompletedSignal.set(true)
+    await flushAll()
+
+    // Live kick arrives now (undefined → defined after sync)
+    docMock._participantsSignal.set([
+      { id: SELF_ID, displayName: 'Me', joinedAt: NOW, leftAt: NOW + 1000, removedBy: 'host-1' },
+    ])
+    await flushAll()
+
+    expect(docMock.endSession).toHaveBeenCalledOnce()
+    expect(toastMock.info).toHaveBeenCalledWith('Removed by host')
+    expect(routerMock.navigate).toHaveBeenCalledWith(['/home'])
   })
 })
