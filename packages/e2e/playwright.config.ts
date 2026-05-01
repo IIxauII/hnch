@@ -11,7 +11,7 @@ export default defineConfig({
   forbidOnly: isCI,
   retries: isCI ? 1 : 0,
   workers: 1,
-  reporter: isCI ? 'github' : 'html',
+  reporter: isCI ? [['github'], ['html', { open: 'never' }]] : 'html',
   timeout: 20_000,
   use: {
     baseURL: `http://localhost:${CLIENT_PORT}`,
