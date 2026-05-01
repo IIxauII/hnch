@@ -89,10 +89,14 @@ spawn_runner() {
   local TOKEN
   TOKEN=$(fetch_registration_token) || { log_spawn_attempt "${NAME}-FAILED-TOKEN"; return 1; }
   log_spawn_attempt "${NAME}"
+  # Bump nofile from Podman's macOS default (~1024). Verify matrix + version-audit
+  # under PR concurrency hit EMFILE during `pnpm install` (copy mode across split
+  # bind mounts of /cache/pnpm-store and /actions-runner/_work).
   podman run --rm -d \
     --name "${NAME}" \
     --platform linux/arm64 \
     --userns=keep-id \
+    --ulimit nofile=65536:65536 \
     --env "RUNNER_NAME=${NAME}" \
     --env "REPO_URL=https://github.com/${GH_REPO}" \
     --env "LABELS=self-hosted,linux,arm64,hnch-podman" \
