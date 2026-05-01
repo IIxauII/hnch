@@ -46,7 +46,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
+          # No `cache: pnpm`: pnpm install reads the bind-mounted
+          # /cache/pnpm-store on the self-hosted pool, which is
+          # faster than the GitHub Actions cache round-trip. Same
+          # pattern as ci.yml verify lanes and release.yml.
 
       - name: Install workspace deps
         run: pnpm install --frozen-lockfile
