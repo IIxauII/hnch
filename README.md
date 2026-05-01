@@ -76,7 +76,7 @@ pnpm --filter @hnch/cli build
 
 **Relay** defaults to `PORT=1234` (override via env var).
 
-**Client relay URL** is hardcoded to `http://localhost:1234` / `ws://localhost:1234` in dev. At runtime, the client can override the relay URL via `AppPreferenceService` — set Capacitor Preferences key `hnch.relayUrl` to `https://your.relay.com` and the client will use that (ws auto-derived from https).
+**Client relay URL** in dev is derived at runtime from `window.location.port` (convention: `RELAY_PORT = 1234 + (CLIENT_PORT − 4200)`) — so `localhost:4200` connects to relay at `localhost:1234`, and each parallel worktree targets its own relay automatically. At runtime, users can override the relay URL via `AppPreferenceService` — set Capacitor Preferences key `hnch.relayUrl` to `https://your.relay.com` and the client will use that (ws auto-derived from https).
 
 **Test-only env vars:** `HNCH_ENABLE_TEST_ROUTES` and `HNCH_ROOM_CAP` exist for the e2e suite and must remain unset in production.
 
