@@ -1,0 +1,327 @@
+import { describe, expect, it } from 'vitest'
+import { FIBONACCI_SCALE, TSHIRT_SCALE } from './doc.js'
+import type { Participant, Round } from './doc.js'
+import { roundsToMarkdown } from './round-export.js'
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function makeRound(overrides: Partial<Round> & { id: string }): Round {
+  return {
+    scale: FIBONACCI_SCALE,
+    votes: {},
+    createdBy: 'p1',
+    createdAt: 1000,
+    ...overrides,
+  }
+}
+
+function makeParticipant(displayName: string, extra?: Partial<Participant>): Participant {
+  return { displayName, joinedAt: 0, ...extra }
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe('roundsToMarkdown', () => {
+  it('empty session → empty string', () => {
+    expect(roundsToMarkdown({ rounds: [], participants: new Map() })).toBe('')
+  })
+
+  it('all rounds unrevealed → empty string', () => {
+    const round = makeRound({ id: 'r1', votes: { p1: '5' } })
+    expect(
+      roundsToMarkdown({
+        rounds: [round],
+        participants: new Map([['p1', makeParticipant('Alice')]]),
+      }),
+    ).toBe('')
+  })
+
+  it('single revealed round, numeric scale → header + table + avg/med/elapsed', () => {
+    const round = makeRound({
+      id: 'r1',
+      title: 'Auth migration',
+      votes: { p1: '5', p2: '8' },
+      timerStartedAt: 0,
+      revealedAt: 90_000,
+    })
+    const result = roundsToMarkdown({
+      rounds: [round],
+      participants: new Map([
+        ['p1', makeParticipant('Alice')],
+        ['p2', makeParticipant('Bob')],
+      ]),
+    })
+
+    expect(result).toContain('## Round 1 — Auth migration')
+    expect(result).toContain('| Vote | Voters |')
+    // numeric stats line — 5 and 8 → mean 6.5 · med 6.5
+    expect(result).toContain('Avg 6.5')
+    expect(result).toContain('Med 6.5')
+    expect(result).toContain('Elapsed 1:30')
+  })
+
+  it('single revealed round, T-shirt scale → Most common line, no avg/med', () => {
+    const round = makeRound({
+      id: 'r1',
+      title: 'Refactor cache',
+      scale: TSHIRT_SCALE,
+      votes: { p1: 'M', p2: 'M', p3: 'L' },
+      timerStartedAt: 0,
+      revealedAt: 60_000,
+    })
+    const result = roundsToMarkdown({
+      rounds: [round],
+      participants: new Map([
+        ['p1', makeParticipant('Alice')],
+        ['p2', makeParticipant('Bob')],
+        ['p3', makeParticipant('Carol')],
+      ]),
+    })
+
+    expect(result).toContain('## Round 1 — Refactor cache')
+    expect(result).toContain('Most common: M')
+    expect(result).toContain('Elapsed 1:00')
+    expect(result).not.toContain('Avg')
+    expect(result).not.toContain('Med ')
+  })
+
+  it('two-round re-vote chain → ## heading with ### sub-heading', () => {
+    const root = makeRound({
+      id: 'r1',
+      title: 'Sprint planning',
+      votes: { p1: '3' },
+      timerStartedAt: 0,
+      revealedAt: 30_000,
+    })
+    const revote = makeRound({
+      id: 'r2',
+      parentRoundId: 'r1',
+      title: 'Sprint planning',
+      votes: { p1: '5' },
+      timerStartedAt: 30_000,
+      revealedAt: 60_000,
+    })
+    const result = roundsToMarkdown({
+      rounds: [root, revote],
+      participants: new Map([['p1', makeParticipant('Alice')]]),
+    })
+
+    expect(result).toContain('## Round 1 — Sprint planning')
+    expect(result).toContain('### Re-vote 2')
+    // ## must appear before ###
+    expect(result.indexOf('## Round 1')).toBeLessThan(result.indexOf('### Re-vote 2'))
+  })
+
+  it('re-vote written second in rounds array still rendered under its root', () => {
+    const root = makeRound({
+      id: 'r1',
+      title: 'Story A',
+      votes: { p1: '2' },
+      timerStartedAt: 0,
+      revealedAt: 10_000,
+    })
+    const revote = makeRound({
+      id: 'r2',
+      parentRoundId: 'r1',
+      votes: { p1: '3' },
+      timerStartedAt: 10_000,
+      revealedAt: 20_000,
+    })
+    // Both in order [root, revote] — revote second
+    const result = roundsToMarkdown({
+      rounds: [root, revote],
+      participants: new Map([['p1', makeParticipant('Alice')]]),
+    })
+
+    const h2pos = result.indexOf('## Round 1')
+    const h3pos = result.indexOf('### Re-vote 2')
+    expect(h2pos).toBeGreaterThanOrEqual(0)
+    expect(h3pos).toBeGreaterThanOrEqual(0)
+    expect(h2pos).toBeLessThan(h3pos)
+  })
+
+  it('departed participant (leftAt set) still resolves to displayName', () => {
+    const round = makeRound({
+      id: 'r1',
+      votes: { p1: '5', p2: '8' },
+      timerStartedAt: 0,
+      revealedAt: 10_000,
+    })
+    const departed: Participant = makeParticipant('Departed Dave', { leftAt: 5_000, removedBy: 'p1' })
+    const result = roundsToMarkdown({
+      rounds: [round],
+      participants: new Map([
+        ['p1', makeParticipant('Alice')],
+        ['p2', departed],
+      ]),
+    })
+
+    expect(result).toContain('Departed Dave')
+  })
+
+  it('untitled round → ## Round N with no em-dash', () => {
+    const round = makeRound({
+      id: 'r1',
+      votes: { p1: '5' },
+      revealedAt: 10_000,
+    })
+    const result = roundsToMarkdown({
+      rounds: [round],
+      participants: new Map([['p1', makeParticipant('Alice')]]),
+    })
+
+    expect(result).toContain('## Round 1\n')
+    expect(result).not.toContain('## Round 1 —')
+  })
+
+  it('round with revealedAt null/undefined → omitted', () => {
+    const revealed = makeRound({
+      id: 'r1',
+      title: 'Visible',
+      votes: { p1: '5' },
+      revealedAt: 10_000,
+    })
+    const unrevealed = makeRound({
+      id: 'r2',
+      title: 'Hidden',
+      votes: { p1: '8' },
+      // no revealedAt
+    })
+    const result = roundsToMarkdown({
+      rounds: [revealed, unrevealed],
+      participants: new Map([['p1', makeParticipant('Alice')]]),
+    })
+
+    expect(result).toContain('Visible')
+    expect(result).not.toContain('Hidden')
+  })
+
+  it('accepts Record<string, Participant> as well as Map', () => {
+    const round = makeRound({
+      id: 'r1',
+      votes: { p1: '3' },
+      revealedAt: 5_000,
+    })
+    const result = roundsToMarkdown({
+      rounds: [round],
+      participants: { p1: makeParticipant('Alice') },
+    })
+
+    expect(result).toContain('Alice')
+  })
+
+  it('multi-level chain (re-vote of re-vote): A→B→C all under ## Round 1', () => {
+    const a = makeRound({
+      id: 'r1',
+      title: 'Story A',
+      votes: { p1: '1' },
+      timerStartedAt: 0,
+      revealedAt: 10_000,
+    })
+    const b = makeRound({
+      id: 'r2',
+      parentRoundId: 'r1',
+      votes: { p1: '2' },
+      timerStartedAt: 10_000,
+      revealedAt: 20_000,
+    })
+    const c = makeRound({
+      id: 'r3',
+      parentRoundId: 'r2',
+      votes: { p1: '3' },
+      timerStartedAt: 20_000,
+      revealedAt: 30_000,
+    })
+    const result = roundsToMarkdown({
+      rounds: [a, b, c],
+      participants: new Map([['p1', makeParticipant('Alice')]]),
+    })
+
+    // Single ## heading for the root
+    expect(result).toContain('## Round 1 — Story A')
+    expect((result.match(/^## /gm) ?? []).length).toBe(1)
+    // B and C rendered as ### Re-vote
+    expect(result).toContain('### Re-vote 2')
+    expect(result).toContain('### Re-vote 3')
+    // Order: ## before first ###, first ### before second ###
+    expect(result.indexOf('## Round 1')).toBeLessThan(result.indexOf('### Re-vote 2'))
+    expect(result.indexOf('### Re-vote 2')).toBeLessThan(result.indexOf('### Re-vote 3'))
+  })
+
+  it('sort tiebreaker on equal vote counts: scale order wins (5 before 8)', () => {
+    const round = makeRound({
+      id: 'r1',
+      votes: { p1: '5', p2: '5', p3: '8', p4: '8' },
+      revealedAt: 10_000,
+    })
+    const result = roundsToMarkdown({
+      rounds: [round],
+      participants: new Map([
+        ['p1', makeParticipant('Alice')],
+        ['p2', makeParticipant('Bob')],
+        ['p3', makeParticipant('Carol')],
+        ['p4', makeParticipant('Dave')],
+      ]),
+    })
+
+    const pos5 = result.indexOf('| 5 |')
+    const pos8 = result.indexOf('| 8 |')
+    expect(pos5).toBeGreaterThanOrEqual(0)
+    expect(pos8).toBeGreaterThanOrEqual(0)
+    expect(pos5).toBeLessThan(pos8)
+  })
+
+  it('revealed round with zero votes and timerStartedAt → table header + Elapsed, no crash', () => {
+    const round = makeRound({
+      id: 'r1',
+      votes: {},
+      timerStartedAt: 0,
+      revealedAt: 45_000,
+    })
+    const result = roundsToMarkdown({
+      rounds: [round],
+      participants: new Map(),
+    })
+
+    expect(result).toContain('## Round 1')
+    expect(result).toContain('| Vote | Voters |')
+    expect(result).toContain('Elapsed 0:45')
+  })
+
+  it('revealed round with zero votes and no timerStartedAt → table header only, no stats line, no crash', () => {
+    const round = makeRound({
+      id: 'r1',
+      votes: {},
+      revealedAt: 10_000,
+    })
+    const result = roundsToMarkdown({
+      rounds: [round],
+      participants: new Map(),
+    })
+
+    expect(result).toContain('## Round 1')
+    expect(result).toContain('| Vote | Voters |')
+    expect(result).not.toContain('Elapsed')
+    expect(result).not.toContain('Avg')
+    expect(result).not.toContain('Most common')
+  })
+
+  it('pipe in displayName is escaped in Markdown table output', () => {
+    const round = makeRound({
+      id: 'r1',
+      votes: { p1: '5' },
+      revealedAt: 10_000,
+    })
+    const result = roundsToMarkdown({
+      rounds: [round],
+      participants: new Map([['p1', makeParticipant('Ali|ce')]]),
+    })
+
+    expect(result).toContain('Ali\\|ce')
+    expect(result).not.toMatch(/\| Ali\|ce \|/)
+  })
+})
