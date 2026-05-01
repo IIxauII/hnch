@@ -1,3 +1,11 @@
+# [1.9.0](https://github.com/IIxauII/hnch/compare/client-v1.8.0...client-v1.9.0) (2026-05-01)
+
+
+### Features
+
+* **client:** name prior host in host-change toast ([#76](https://github.com/IIxauII/hnch/issues/76)) ([490f83a](https://github.com/IIxauII/hnch/commit/490f83aa26b3647a31f11add3fb2f4395b248fb2))
+* **client:** pre-render password field on Join Room when invite URL has pw=1 ([#75](https://github.com/IIxauII/hnch/issues/75)) ([1e52ff3](https://github.com/IIxauII/hnch/commit/1e52ff3d82fc8b236861abd73a21968e30c538cd))
+
 # [1.8.0](https://github.com/IIxauII/hnch/compare/client-v1.7.0...client-v1.8.0) (2026-05-01)
 
 
