@@ -30,6 +30,7 @@ jobs:
   deploy:
     name: Build + ship relay
     runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}
+    timeout-minutes: 5
     steps:
       - name: Runner identity
         run: |

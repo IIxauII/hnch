@@ -17,6 +17,7 @@ jobs:
   detect-changes:
     name: Detect changed packages
     runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}
+    timeout-minutes: 1
     outputs:
       shared: ${{ steps.filter.outputs.shared }}
       relay: ${{ steps.filter.outputs.relay }}
@@ -109,7 +110,7 @@ jobs:
     if: |
       needs.detect-changes.outputs.verify-packages != '[]' &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-    timeout-minutes: 20
+    timeout-minutes: 3
     concurrency:
       group: verify-${{ github.ref }}-${{ matrix.package }}
       cancel-in-progress: true
@@ -167,6 +168,7 @@ jobs:
     runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}
     needs: verify
     if: always()
+    timeout-minutes: 1
     steps:
       - name: Aggregate matrix result
         env:
@@ -186,6 +188,7 @@ jobs:
   version-audit:
     name: Version audit
     runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@v4
         with:
@@ -217,6 +220,7 @@ jobs:
     name: PR title (Conventional Commits)
     runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}
     if: github.event_name == 'pull_request'
+    timeout-minutes: 1
     permissions:
       pull-requests: read
     steps:
@@ -242,7 +246,7 @@ jobs:
     runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}
     needs: [detect-changes, verify]
     if: needs.detect-changes.outputs.e2e == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-    timeout-minutes: 30
+    timeout-minutes: 10
     concurrency:
       group: e2e-${{ github.ref }}
       cancel-in-progress: true
