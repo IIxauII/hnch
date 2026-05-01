@@ -20,6 +20,7 @@ jobs:
   release:
     name: Release (per-package)
     runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}
+    timeout-minutes: 10
     steps:
       - name: Runner identity
         run: |
