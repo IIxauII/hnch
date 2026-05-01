@@ -14,6 +14,11 @@ ARG RUNNER_SHA256=f44255bd3e80160eb25f71bc83d06ea025f6908748807a584687b3184759f7
 # System deps: actions/runner needs libicu + bash + ca-certs + git.
 # Playwright Chromium needs the libnss/libatk/etc. set.
 # Node 22 from NodeSource APT (signed repo).
+# `gh` CLI is consumed by per-package semantic-release publishCmd
+# (`gh workflow run deploy-*.yml --ref <tag>`) — see release.yml. Without
+# it, release.yml exits 127 on the self-hosted pool. Hosted ubuntu-latest
+# bakes gh in by default; we replicate that here from cli.github.com's
+# signed apt repo.
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
@@ -25,6 +30,14 @@ RUN set -eux; \
       libcairo2 libasound2 libwayland-client0 libdbus-1-3 libdrm2; \
     curl -fsSL https://deb.nodesource.com/setup_22.x | bash -; \
     apt-get install -y --no-install-recommends nodejs; \
+    install -d -m 0755 /etc/apt/keyrings; \
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+      -o /etc/apt/keyrings/githubcli-archive-keyring.gpg; \
+    chmod 0644 /etc/apt/keyrings/githubcli-archive-keyring.gpg; \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+      > /etc/apt/sources.list.d/github-cli.list; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends gh; \
     rm -rf /var/lib/apt/lists/*
 
 # Non-root runner user (uid 1000) so --userns=keep-id maps to host xau.
