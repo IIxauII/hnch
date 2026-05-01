@@ -243,7 +243,7 @@ The Dockerfile builds from `debian:bookworm-slim` and downloads the official `ac
 Smoke test the image:
 
     podman run --rm --userns=keep-id hnch-runner:latest \
-      bash -c 'which git node pnpm jq gh && node --version && pnpm --version && gh --version'
+      bash -c 'which git node pnpm jq gh ssh ssh-keyscan && node --version && pnpm --version && gh --version'
 
 Note: the entrypoint requires registration env vars (`RUNNER_NAME`, `REPO_URL`, `RUNNER_TOKEN`, `LABELS`) — `podman run` without them will exit immediately with a missing-var error. The supervisor supplies them when spawning a real runner. To smoke-test the entrypoint surface only, override it: append `--entrypoint /bin/bash` to the `podman run` above.
 
