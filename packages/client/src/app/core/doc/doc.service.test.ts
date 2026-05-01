@@ -84,8 +84,11 @@ class DocServiceHarness {
   readonly endingSessionLocally: WritableSignal<boolean> = signal(false)
   readonly onlineParticipantIdsSignal: WritableSignal<ReadonlySet<string>> =
     signal(new Set())
+  readonly hasFirstSyncCompletedSignal: WritableSignal<boolean> = signal(false)
 
   readonly hasSession: Signal<boolean> = computed(() => this.projection() !== null)
+  readonly hasFirstSyncCompleted: Signal<boolean> =
+    this.hasFirstSyncCompletedSignal.asReadonly()
   readonly meta = computed(() => this.projection()?.meta ?? null)
   readonly settings = computed(() => this.projection()?.settings ?? null)
   readonly participants = computed(() => this.projection()?.participants ?? [])
@@ -134,6 +137,7 @@ class DocServiceHarness {
     this.projection.set(null)
     this.roomCodeSignal.set(null)
     this.endingSessionLocally.set(false)
+    this.hasFirstSyncCompletedSignal.set(false)
     this.onlineParticipantIdsSignal.set(new Set())
   }
 
@@ -765,5 +769,54 @@ describe('DocService — activeParticipants / onlineParticipants / offlinePartic
     // offlineParticipants is the complement of onlineParticipants within activeParticipants
     const ids = [...h.onlineParticipants(), ...h.offlineParticipants()].map((p) => p.id)
     expect(ids).not.toContain('p-joiner')
+  })
+})
+
+// ---------------------------------------------------------------------------
+
+describe('DocService — hasFirstSyncCompleted signal (ADR-0036 §6 rejoin race fix)', () => {
+  it('starts false before any session', () => {
+    const h = makeHarness()
+    expect(h.hasFirstSyncCompleted()).toBe(false)
+  })
+
+  it('starts false after createSession (no sync provider)', () => {
+    const h = makeHarness()
+    h.createSession(makeInit())
+    expect(h.hasFirstSyncCompleted()).toBe(false)
+    h.endSession()
+  })
+
+  it('starts false after joinSession (no sync provider)', () => {
+    const h = makeHarness()
+    h.joinSession({ participantId: 'p-joiner', displayName: 'Joiner' })
+    expect(h.hasFirstSyncCompleted()).toBe(false)
+    h.endSession()
+  })
+
+  it('resets to false on endSession', () => {
+    const h = makeHarness()
+    h.createSession(makeInit())
+    // Simulate the signal being flipped (as the real service does in onSynced)
+    h.hasFirstSyncCompletedSignal.set(true)
+    expect(h.hasFirstSyncCompleted()).toBe(true)
+    h.endSession()
+    expect(h.hasFirstSyncCompleted()).toBe(false)
+  })
+
+  it('resets to false on endSession even after multiple sessions', () => {
+    const h = makeHarness()
+
+    h.createSession(makeInit())
+    h.hasFirstSyncCompletedSignal.set(true)
+    h.endSession()
+    expect(h.hasFirstSyncCompleted()).toBe(false)
+
+    h.joinSession({ participantId: 'p-joiner', displayName: 'Joiner' })
+    expect(h.hasFirstSyncCompleted()).toBe(false)
+    h.hasFirstSyncCompletedSignal.set(true)
+    expect(h.hasFirstSyncCompleted()).toBe(true)
+    h.endSession()
+    expect(h.hasFirstSyncCompleted()).toBe(false)
   })
 })

@@ -71,6 +71,15 @@ export class ParticipantRemovalService {
         return
       }
 
+      // First-sync gate (ADR-0036 §6 rejoin race fix): any `leftAt` observed
+      // before the relay's first sync completes arrived via the snapshot apply,
+      // not via a live host kick on this connection. Record the value so the
+      // transition tracker stays current, but do NOT fire handleKick.
+      if (!this.docService.hasFirstSyncCompleted()) {
+        this.prevLeftAt = leftAt
+        return
+      }
+
       // Stale-rejoin guard: if this is the first observation (prevLeftAt === 'unset')
       // and leftAt is already set, treat it as a pre-existing stale value — record
       // and skip. Only a real undefined → defined transition should fire.
