@@ -89,11 +89,12 @@ export function Voting({
   const myVote = round.votes[myId]
   const roundNum = projection.rounds.indexOf(round) + 1
   const title = round.title ? ` — ${round.title}` : ''
+  const ticket = round.ticketId ? ` [${round.ticketId}]` : ''
 
   return (
     <Box flexDirection="column" gap={1}>
       <Box gap={2}>
-        <Text bold>Round {roundNum}{title}</Text>
+        <Text bold>Round {roundNum}{title}{ticket}</Text>
         {elapsedMs !== undefined && (
           <Text dimColor>⏱ {formatElapsed(elapsedMs)}</Text>
         )}

@@ -321,6 +321,8 @@ export function wireSession(opts: WireOptions): SessionHandle {
         createdBy: participantId,
         parentRoundId: round?.id,
         title: round?.title,
+        description: round?.description,
+        ticketId: round?.ticketId,
       })
       return id
     },

@@ -160,6 +160,54 @@ describe('session integration', () => {
     host.disconnect()
   })
 
+  it('revote inherits title, description, and ticketId from parent round', async () => {
+    const host = await createSession({
+      participantId: 'host-revote-inherit',
+      displayName: 'Alice',
+      relayUrl,
+    })
+
+    await sleep(500)
+
+    // Start round with title, description, and ticketId
+    const round1Id = host.newRound('Story 2')
+    await sleep(300)
+
+    // Manually set description and ticketId on the parent round
+    const roundsArray = host.doc.getArray('rounds')
+    const roundsList = roundsArray.toArray() as any[]
+    const parentRound = roundsList.find((r: any) => r.get('id') === round1Id)
+    if (parentRound) {
+      parentRound.set('description', 'Some context about the story')
+      parentRound.set('ticketId', 'https://github.com/foo/bar/issues/1')
+    }
+    await sleep(300)
+
+    host.vote('5')
+    await sleep(300)
+    host.reveal()
+    await sleep(300)
+
+    // Re-vote should inherit title, description, and ticketId
+    const round2Id = host.revote()
+    await sleep(300)
+
+    const p = host.projection()
+    const round1 = p.rounds.find((r) => r.id === round1Id)
+    const round2 = p.rounds.find((r) => r.id === round2Id)
+
+    expect(round2).toBeDefined()
+    expect(round2!.title).toBe('Story 2')
+    expect(round2!.description).toBe('Some context about the story')
+    expect(round2!.ticketId).toBe('https://github.com/foo/bar/issues/1')
+    expect(round2!.title).toBe(round1!.title)
+    expect(round2!.description).toBe(round1!.description)
+    expect(round2!.ticketId).toBe(round1!.ticketId)
+    expect(round2!.parentRoundId).toBe(round1Id)
+
+    host.disconnect()
+  })
+
   it('updateName sets and removes room name', async () => {
     const host = await createSession({
       participantId: 'host-name',
