@@ -1,3 +1,22 @@
+## [1.2.1](https://github.com/IIxauII/hnch/compare/cli-v1.2.0...cli-v1.2.1) (2026-05-01)
+
+
+### Bug Fixes
+
+* **cli:** correct relay-url scheme in usage docblock ([#66](https://github.com/IIxauII/hnch/issues/66)) ([4835104](https://github.com/IIxauII/hnch/commit/4835104ea43c069072d3b1f41a92e8ae1b79871a))
+* **client:** drop stale phase-history docblock from jump-back-in-banner ([#67](https://github.com/IIxauII/hnch/issues/67)) ([1935baa](https://github.com/IIxauII/hnch/commit/1935baad1c0d10ad80aaecb14743c51216e97f37))
+* **infra:** add openssh-client to self-hosted runner image ([#64](https://github.com/IIxauII/hnch/issues/64)) ([192c4f1](https://github.com/IIxauII/hnch/commit/192c4f1d40cebebd5c5d14b974290436a7a1a23c))
+* **infra:** bake gh CLI into self-hosted runner image ([#63](https://github.com/IIxauII/hnch/issues/63)) ([0f59d1c](https://github.com/IIxauII/hnch/commit/0f59d1cb4135b4fcf5fa171b005c28e36a7f478b))
+* **relay:** correct stale entry-point docblock ([#62](https://github.com/IIxauII/hnch/issues/62)) ([df1e4ea](https://github.com/IIxauII/hnch/commit/df1e4ea63a8534daba86ef08fc7c4e57c6a00c97))
+* surface relay rejections on deep-link join ([#49](https://github.com/IIxauII/hnch/issues/49)) ([0f825b7](https://github.com/IIxauII/hnch/commit/0f825b724c513c27e4a12f3a2636c9dd0519fa20))
+
+
+### Features
+
+* **client:** collapse lobby participants accordion post-reveal ([#50](https://github.com/IIxauII/hnch/issues/50)) ([0a468b0](https://github.com/IIxauII/hnch/commit/0a468b0da5de870f011c28fc67342a30cabc571f))
+* **client:** participant removal lifecycle (leave + host kick) ([#52](https://github.com/IIxauII/hnch/issues/52)) ([a15e3df](https://github.com/IIxauII/hnch/commit/a15e3df6c1c00bda3f1aac4ba32d24e2f49fc7fd))
+* **client:** web QR scanning via plugin startScan + lazy polyfill ([#48](https://github.com/IIxauII/hnch/issues/48)) ([53f7e23](https://github.com/IIxauII/hnch/commit/53f7e236482e54c90a0c7c3794b8b218f0426e2f))
+
 # [1.2.0](https://github.com/IIxauII/hnch/compare/cli-v1.1.2...cli-v1.2.0) (2026-04-30)
 
 
