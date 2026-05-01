@@ -8,6 +8,7 @@ import {
 import { IonApp, IonRouterOutlet } from '@ionic/angular/standalone'
 
 import { DocService } from './core/doc/doc.service'
+import { formatHostChangeMessage } from './core/host-change-message'
 import { HapticService } from './core/haptic.service'
 import { HostElectionService } from './core/host-election.service'
 import { ParticipantIdService } from './core/participant-id.service'
@@ -76,23 +77,38 @@ export class AppComponent {
 
       if (hostId !== prev) {
         this.previousHostId.set(hostId)
-        void this.showHostChangeToast(hostId)
+        void this.showHostChangeToast(prev, hostId)
       }
     })
   }
 
-  private async showHostChangeToast(newHostId: string): Promise<void> {
+  private async showHostChangeToast(
+    prevHostId: string | null,
+    newHostId: string
+  ): Promise<void> {
     const myId = this.participantIdService.id()
-    let message: string
-    if (newHostId === myId) {
-      message = 'You are now the host'
-    } else {
-      const participant = this.docService
-        .participants()
-        .find((p) => p.id === newHostId)
-      const name = participant?.displayName ?? newHostId
-      message = `${name} is now the host`
+    const participants = this.docService.participants()
+
+    // Resolve previous host name if available
+    let prevName: string | null = null
+    if (prevHostId !== null) {
+      const prevParticipant = participants.find((p) => p.id === prevHostId)
+      if (prevParticipant !== undefined) {
+        prevName = prevParticipant.displayName || prevHostId
+      }
+      // If record missing, leave prevName = null → drop disconnect prefix.
     }
+
+    // Resolve new host name
+    const newParticipant = participants.find((p) => p.id === newHostId)
+    const newName = newParticipant?.displayName || newHostId
+
+    const message = formatHostChangeMessage({
+      prevName,
+      newName,
+      isSelf: newHostId === myId,
+    })
+
     this.haptic.notificationWarning()
     await this.toastService.info(message)
   }
