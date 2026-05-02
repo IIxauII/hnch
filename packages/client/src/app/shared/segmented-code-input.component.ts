@@ -193,7 +193,7 @@ export class SegmentedCodeInputComponent implements ControlValueAccessor {
       // Multi-char (iOS SMS autofill / IME) — distribute like paste
       let charIdx = 0
       for (let i = index; i < TILE_COUNT && charIdx < clean.length; i++, charIdx++) {
-        this.setTile(i, clean[charIdx])
+        this.setTile(i, clean[charIdx] ?? '')
       }
       this.emitChange()
       const lastFilled = Math.min(index + clean.length - 1, TILE_COUNT - 1)
@@ -209,7 +209,7 @@ export class SegmentedCodeInputComponent implements ControlValueAccessor {
 
     let charIdx = 0
     for (let i = startIndex; i < TILE_COUNT && charIdx < clean.length; i++, charIdx++) {
-      this.setTile(i, clean[charIdx])
+      this.setTile(i, clean[charIdx] ?? '')
     }
     this.emitChange()
     this.onTouched()

@@ -45,7 +45,7 @@ test.describe('Back-chevron soft exit', () => {
     await banner.waitFor({ state: 'visible', timeout: 5_000 })
 
     // Banner card shows the room code
-    const card = banner.locator('ion-card')
+    const card = banner.locator('.card')
     await expect(card).toContainText(code)
 
     // Tap banner → navigate back to /lobby/:code

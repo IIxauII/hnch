@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/app.fixture'
-import { BASE_URL, HOME, JOIN, ONBOARDING } from './fixtures/helpers'
+import { BASE_URL, HOME, JOIN, fillRoomCode } from './fixtures/helpers'
 
 test.describe('Unknown room handling', () => {
   test('joining a nonexistent code shows error toast and stays on join page', async ({ player }) => {
@@ -13,8 +13,7 @@ test.describe('Unknown room handling', () => {
     await player.page.waitForURL(/\/join/)
 
     // Enter a valid-format but nonexistent room code
-    const input = player.page.locator(JOIN.codeInput).locator('input')
-    await input.fill('A2B3C4')
+    await fillRoomCode(player.page, 'A2B3C4')
     await player.page.locator(JOIN.joinBtn).click()
 
     // Expect the "isn't active" toast to appear

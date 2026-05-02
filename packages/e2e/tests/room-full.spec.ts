@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/app.fixture'
-import { BASE_URL, JOIN } from './fixtures/helpers'
+import { BASE_URL, HOME, JOIN, fillRoomCode } from './fixtures/helpers'
 
 /**
  * Room full rejection test.
@@ -44,10 +44,9 @@ test.describe('Room full rejection', () => {
       }
 
       // Navigate to join page
-      await overflow.page.locator('ion-card:has(strong:text-is("Join Room"))').click()
+      await overflow.page.locator(HOME.joinCard).click()
       await overflow.page.waitForURL(/\/join/)
-      const codeInput = overflow.page.locator(JOIN.codeInput).locator('input')
-      await codeInput.fill(code)
+      await fillRoomCode(overflow.page, code)
       await overflow.page.locator(JOIN.joinBtn).click()
 
       // Room is full → WS close code 4006 arrives → join page should show

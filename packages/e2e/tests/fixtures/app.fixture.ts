@@ -13,6 +13,7 @@ import {
   APP_SETTINGS,
   APP_SETTINGS_SCALE_PICKER,
   PRESET_CARD_EDITOR,
+  fillRoomCode,
 } from './helpers'
 
 // ---------------------------------------------------------------------------
@@ -91,8 +92,7 @@ export class Participant {
     }
     await this.page.locator(HOME.joinCard).click()
     await this.page.waitForURL(/\/join/)
-    const input = this.page.locator(JOIN.codeInput).locator('input')
-    await input.fill(code)
+    await fillRoomCode(this.page, code)
     await this.page.locator(JOIN.joinBtn).click()
     await this.page.waitForURL(/\/lobby/)
   }
@@ -220,8 +220,7 @@ export class Participant {
     }
     await this.page.locator(HOME.joinCard).click()
     await this.page.waitForURL(/\/join/)
-    const codeInput = this.page.locator(JOIN.codeInput).locator('input')
-    await codeInput.fill(code)
+    await fillRoomCode(this.page, code)
     // First submit resolves the room and reveals the password field
     await this.page.locator(JOIN.joinBtn).click()
     // Wait for the password input to appear
@@ -352,8 +351,7 @@ export class Participant {
     }
     await this.page.locator(HOME.joinCard).click()
     await this.page.waitForURL(/\/join/)
-    const input = this.page.locator(JOIN.codeInput).locator('input')
-    await input.fill(code)
+    await fillRoomCode(this.page, code)
     await this.page.locator(JOIN.joinBtn).click()
     // After joining, the player lands on /lobby. If there's an active
     // round the lobby's auto-navigate effect may redirect to /estimating.

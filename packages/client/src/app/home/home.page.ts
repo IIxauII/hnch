@@ -11,11 +11,12 @@ import {
   ActionSheetController,
   IonButton,
   IonButtons,
-  IonCard,
-  IonCardContent,
   IonContent,
   IonHeader,
   IonIcon,
+  IonItem,
+  IonLabel,
+  IonList,
   IonModal,
   IonTitle,
   IonToolbar,
@@ -24,7 +25,7 @@ import { addIcons } from 'ionicons'
 import {
   addOutline,
   arrowForwardOutline,
-  ellipsisHorizontalCircle,
+  ellipsisHorizontalOutline,
   returnUpBackOutline,
 } from 'ionicons/icons'
 
@@ -74,11 +75,12 @@ import { presentSheet } from '../utils/present-sheet'
   imports: [
     IonButton,
     IonButtons,
-    IonCard,
-    IonCardContent,
     IonContent,
     IonHeader,
     IonIcon,
+    IonItem,
+    IonLabel,
+    IonList,
     IonModal,
     IonTitle,
     IonToolbar,
@@ -87,9 +89,9 @@ import { presentSheet } from '../utils/present-sheet'
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <ion-header>
+    <ion-header [translucent]="true">
       <ion-toolbar>
-        <ion-title>hnch</ion-title>
+        <ion-title size="large">hnch</ion-title>
         <ion-buttons slot="end">
           <ion-button
             aria-label="More options"
@@ -97,45 +99,48 @@ import { presentSheet } from '../utils/present-sheet'
           >
             <ion-icon
               slot="icon-only"
-              name="ellipsis-horizontal-circle"
+              name="ellipsis-horizontal-outline"
             ></ion-icon>
           </ion-button>
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
-    <ion-content class="ion-padding">
+    <ion-content [fullscreen]="true">
+      <p class="page-subtitle">Pointing poker · just hunches</p>
+
       @if (jumpBackInSummary(); as summary) {
-        <app-jump-back-in-banner
-          [summary]="summary"
-          [stale]="jumpBackInStale()"
-          [resuming]="resuming()"
-          (resumeRequested)="onResumeJumpBack()"
-        />
+        <div class="banner-wrap">
+          <app-jump-back-in-banner
+            [summary]="summary"
+            [stale]="jumpBackInStale()"
+            [resuming]="resuming()"
+            (resumeRequested)="onResumeJumpBack()"
+          />
+        </div>
       }
 
-      <ion-card button (click)="onCreateRoom()">
-        <ion-card-content>
-          <div class="row">
-            <ion-icon name="add-outline" aria-hidden="true"></ion-icon>
-            <div class="text">
-              <strong>Create Room</strong>
-              <span>Start a new session</span>
-            </div>
+      <ion-list inset="true" class="actions">
+        <ion-item button="true" detail="true" (click)="onCreateRoom()">
+          <div class="icon-tile icon-tile--accent" slot="start" aria-hidden="true">
+            <ion-icon name="add-outline"></ion-icon>
           </div>
-        </ion-card-content>
-      </ion-card>
+          <ion-label>
+            <h2>Create Room</h2>
+            <p>Start a new session</p>
+          </ion-label>
+        </ion-item>
+        <ion-item button="true" detail="true" (click)="onJoinRoom()">
+          <div class="icon-tile icon-tile--neutral" slot="start" aria-hidden="true">
+            <ion-icon name="arrow-forward-outline"></ion-icon>
+          </div>
+          <ion-label>
+            <h2>Join Room</h2>
+            <p>Enter a code or scan QR</p>
+          </ion-label>
+        </ion-item>
+      </ion-list>
 
-      <ion-card button (click)="onJoinRoom()">
-        <ion-card-content>
-          <div class="row">
-            <ion-icon name="arrow-forward-outline" aria-hidden="true"></ion-icon>
-            <div class="text">
-              <strong>Join Room</strong>
-              <span>Enter a code or scan QR</span>
-            </div>
-          </div>
-        </ion-card-content>
-      </ion-card>
+      <p class="footer-caption">no account · no tracking · just hunches</p>
 
       <!-- Password prompt half-sheet -->
       <ion-modal
@@ -156,19 +161,66 @@ import { presentSheet } from '../utils/present-sheet'
   `,
   styles: [
     `
-      .row {
+      ion-content {
+        --background: var(--hnch-bg);
+      }
+      .page-subtitle {
+        margin: -4px 20px 16px;
+        font-size: 15px;
+        color: var(--hnch-muted);
+        letter-spacing: -0.2px;
+      }
+      .banner-wrap {
+        padding: 0 16px;
+      }
+      ion-list.actions {
+        background: transparent;
+        margin-block-start: 8px;
+      }
+      ion-item {
+        --background: var(--hnch-surface);
+        --inner-padding-top: 12px;
+        --inner-padding-bottom: 12px;
+        --padding-start: 16px;
+      }
+      ion-item h2 {
+        font-size: 17px;
+        font-weight: 600;
+        color: var(--hnch-text);
+        margin: 0 0 2px;
+      }
+      ion-item p {
+        font-size: 14px;
+        color: var(--hnch-muted);
+        margin: 0;
+      }
+      .icon-tile {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
         display: flex;
         align-items: center;
-        gap: 0.75rem;
+        justify-content: center;
+        margin-inline-end: 12px;
       }
-      ion-icon {
-        font-size: 1.5rem;
-        color: var(--ion-color-primary);
+      .icon-tile--accent {
+        background: var(--hnch-accent);
+        color: var(--hnch-accent-ink);
       }
-      .text {
-        display: flex;
-        flex-direction: column;
-        gap: 0.15rem;
+      .icon-tile--neutral {
+        background: var(--hnch-fill);
+        color: var(--hnch-text);
+      }
+      .icon-tile ion-icon {
+        font-size: 20px;
+      }
+      .footer-caption {
+        font-family: 'SF Mono', 'Fira Mono', 'Roboto Mono', monospace;
+        font-size: 12px;
+        color: var(--hnch-muted-2);
+        text-align: center;
+        padding: 32px 16px 24px;
+        margin: 0;
       }
     `,
   ],
@@ -232,7 +284,7 @@ export class HomePage {
     addIcons({
       'add-outline': addOutline,
       'arrow-forward-outline': arrowForwardOutline,
-      'ellipsis-horizontal-circle': ellipsisHorizontalCircle,
+      'ellipsis-horizontal-outline': ellipsisHorizontalOutline,
       'return-up-back-outline': returnUpBackOutline,
     })
     void this.loadBannerFromCache()

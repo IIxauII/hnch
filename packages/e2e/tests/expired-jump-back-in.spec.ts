@@ -50,7 +50,7 @@ test.describe('Expired Jump-back-in banner', () => {
       // Banner should be visible; card not yet stale.
       const banner = host.page.locator('app-jump-back-in-banner')
       await banner.waitFor({ state: 'visible', timeout: 5_000 })
-      const card = banner.locator('ion-card')
+      const card = banner.locator('.card')
       await expect(card).not.toHaveClass(/stale/)
 
       // Step 6: tap banner → relay returns unknown-room → jumpBackInStale flips true.
