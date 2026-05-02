@@ -1,8 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 : "${GH_REPO:?}"
-: "${GH_REGISTRATION_PAT:?}"
 : "${POOL_SIZE:=4}"
+
+# PAT lives in macOS Keychain (service: hnch-runner-pat, account: $USER).
+# Avoids storing the secret in the plist (world-readable in user dir) or
+# requiring `launchctl setenv` after every reboot.
+GH_REGISTRATION_PAT="$(security find-generic-password -a "${USER}" -s hnch-runner-pat -w 2>/dev/null)" || {
+  echo "[$(date)] FATAL: PAT not found in Keychain (service=hnch-runner-pat account=${USER})" >&2
+  echo "  Add with: security add-generic-password -a \"\${USER}\" -s hnch-runner-pat -w" >&2
+  sleep 60
+  exit 1
+}
+export GH_REGISTRATION_PAT
 
 STATE_DIR="${HOME}/runner-cache/state"
 mkdir -p "${STATE_DIR}"

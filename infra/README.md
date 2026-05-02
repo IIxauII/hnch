@@ -249,11 +249,12 @@ Note: the entrypoint requires registration env vars (`RUNNER_NAME`, `REPO_URL`, 
 
 ### Provision the PAT
 
-Issue a **fine-grained PAT** scoped to `IIxauII/hnch` only, permission `actions:write` (NOT classic `repo` scope). Store in macOS Keychain:
+Issue a **fine-grained PAT** scoped to `IIxauII/hnch` only, permission `Administration: Read and write` (required by `POST /repos/.../actions/runners/registration-token` — NOT classic `repo` scope). Store in macOS Keychain — supervisor and prune scripts both read it from there at runtime, so reboot survival is automatic.
 
 ```sh
-security add-generic-password -s hnch-runner-pat -a xau -w '<pat>'
+security add-generic-password -a "$USER" -s hnch-runner-pat -w
 ```
+(prompts twice; paste the PAT — never appears in shell history)
 
 ### Install scripts and LaunchAgents
 
@@ -266,7 +267,6 @@ bash infra/runner/install.sh
 Then load:
 
 ```sh
-launchctl setenv GH_REGISTRATION_PAT "$(security find-generic-password -s hnch-runner-pat -w)"
 launchctl load ~/Library/LaunchAgents/dev.hnch.runner.plist
 launchctl load ~/Library/LaunchAgents/dev.hnch.runner-prune.plist
 ```
@@ -316,11 +316,10 @@ There is no separate base-image bump — `debian:bookworm-slim` is intentionally
 ### Rotating the PAT
 
 ```sh
-security add-generic-password -U -s hnch-runner-pat -a xau -w '<new-pat>'
-launchctl unload ~/Library/LaunchAgents/dev.hnch.runner.plist
-launchctl setenv GH_REGISTRATION_PAT "$(security find-generic-password -s hnch-runner-pat -w)"
-launchctl load ~/Library/LaunchAgents/dev.hnch.runner.plist
+security add-generic-password -U -a "$USER" -s hnch-runner-pat -w
+launchctl kickstart -k gui/$(id -u)/dev.hnch.runner
 ```
+The `-U` flag updates the existing Keychain entry in place. Supervisor re-reads the PAT on next supervisor startup, so `kickstart -k` is enough — no unload/load cycle needed.
 
 ### Logs
 
