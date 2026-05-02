@@ -11,11 +11,11 @@ export default defineConfig({
   forbidOnly: isCI,
   retries: 0,
   workers: 1,
-  // Run every test even when failures pile up — full picture beats early
-  // bail. Bootstrap regressions are caught fast by 0-bootstrap-smoke.spec.ts
-  // (sorts first) and the fixture's bootstrap-error guard, so a systemic
-  // break still surfaces with a clear message.
-  maxFailures: 0,
+  // Fail-fast in CI: any single failure aborts the run so a bootstrap
+  // crash doesn't burn the 10-min CI cap on 73 trailing tests against a
+  // blank page. Local: 0 (Playwright treats 0 as disabled = run
+  // everything) so devs see the full failure picture.
+  maxFailures: isCI ? 1 : 0,
   reporter: isCI ? [['list'], ['github'], ['html', { open: 'never' }]] : 'html',
   timeout: 20_000,
   use: {
