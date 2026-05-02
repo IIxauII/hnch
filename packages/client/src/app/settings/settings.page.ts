@@ -122,6 +122,7 @@ import { presentSheet } from '../utils/present-sheet'
           <ion-select
             label="Accent"
             interface="popover"
+            [interfaceOptions]="accentPopoverOptions"
             [value]="accentService.accent()"
             (ionChange)="onAccentSelected($event.detail.value)"
           >
@@ -246,6 +247,8 @@ export class SettingsPage {
   protected readonly accentEntries = (
     Object.entries(ACCENTS) as [AccentKey, (typeof ACCENTS)[AccentKey]][]
   ).map(([key, def]) => ({ key, label: def.label }))
+
+  protected readonly accentPopoverOptions = { cssClass: 'accent-select-popover' }
 
   protected readonly scaleLabel = computed(() => {
     const scale = this.scalePrefs.defaultScale()
