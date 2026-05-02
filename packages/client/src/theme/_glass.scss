@@ -1,0 +1,11 @@
+// Usage: @use '../theme/glass' as glass; @include glass.hnch-glass();
+// Light/dark values are driven by --hnch-glass token defined in variables.scss.
+@mixin hnch-glass($strong: false) {
+  background: var(--hnch-glass);
+  @if $strong { background: var(--hnch-glass-strong); }
+
+  :host-context(.platform-ios) & {
+    backdrop-filter: saturate(180%) blur(28px);
+    -webkit-backdrop-filter: saturate(180%) blur(28px);
+  }
+}

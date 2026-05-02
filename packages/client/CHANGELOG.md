@@ -1,3 +1,18 @@
+# [1.10.0](https://github.com/IIxauII/hnch/compare/client-v1.9.0...client-v1.10.0) (2026-05-02)
+
+
+### Bug Fixes
+
+* **ci:** keychain-backed runner PAT + stale-runner deregistration ([#89](https://github.com/IIxauII/hnch/issues/89)) ([0a27a19](https://github.com/IIxauII/hnch/commit/0a27a19d048a386c5c24fa2349e4c21b3fb9a362))
+* **ci:** self-heal runner pool on startup ([#85](https://github.com/IIxauII/hnch/issues/85)) ([3c7a7c7](https://github.com/IIxauII/hnch/commit/3c7a7c7ddc4c95506393911b740a8dd6f0695ba1))
+
+
+### Features
+
+* **client:** mono+accent design system foundations ([#84](https://github.com/IIxauII/hnch/issues/84)) ([d1bed52](https://github.com/IIxauII/hnch/commit/d1bed52779bd3f5aa5fc0a8e92239b0503faa4ab))
+* **cli:** inherit ticketId on revote, display in round line ([#78](https://github.com/IIxauII/hnch/issues/78)) ([21a60d3](https://github.com/IIxauII/hnch/commit/21a60d36c333119ef4d9744697aa19360476618b))
+* **shared:** add isLikelyUrl + ticketId in markdown export ([#77](https://github.com/IIxauII/hnch/issues/77)) ([1286ce5](https://github.com/IIxauII/hnch/commit/1286ce53f8a519337a27523aa3c6feac11586d74))
+
 # [1.9.0](https://github.com/IIxauII/hnch/compare/client-v1.8.0...client-v1.9.0) (2026-05-01)
 
 
