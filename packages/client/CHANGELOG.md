@@ -1,3 +1,15 @@
+# [1.12.0](https://github.com/IIxauII/hnch/compare/client-v1.11.0...client-v1.12.0) (2026-05-02)
+
+
+### Bug Fixes
+
+* **ci:** diff PR head SHA in detect-changes, not merge-ref HEAD ([#102](https://github.com/IIxauII/hnch/issues/102)) ([fe5625c](https://github.com/IIxauII/hnch/commit/fe5625c59e63a8a88a64771a4139cf3868f77ffd))
+
+
+### Features
+
+* **client,cli:** lobby role toggle ([#95](https://github.com/IIxauII/hnch/issues/95)) ([#103](https://github.com/IIxauII/hnch/issues/103)) ([921c241](https://github.com/IIxauII/hnch/commit/921c241f3be1422bceab8d82f0643334c54d3e05))
+
 # [1.11.0](https://github.com/IIxauII/hnch/compare/client-v1.10.0...client-v1.11.0) (2026-05-02)
 
 
