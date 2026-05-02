@@ -1,2 +1,81 @@
 // For information on how to create your own theme, please refer to:
 // https://ionicframework.com/docs/theming/
+
+// ---------------------------------------------------------------------------
+// Mono surface tokens — light mode (default)
+// Values from ionic-screens.jsx:31–48
+// ---------------------------------------------------------------------------
+
+:root {
+  // Background & surfaces
+  --hnch-bg:           #F2F2F7;
+  --hnch-surface:      #FFFFFF;
+  --hnch-surface-2:    #FAFAFB;
+
+  // Glass — plan §variables.scss values
+  --hnch-glass:        rgba(255, 255, 255, 0.72);
+  // --hnch-glass-strong: not in plan spec; used by _glass.scss mixin $strong:true branch (toolbars)
+  --hnch-glass-strong: rgba(255, 255, 255, 0.82);
+  --hnch-glass-edge:   rgba(0, 0, 0, 0.06);
+
+  // Text
+  --hnch-text:         #000000;
+  --hnch-text-2:       #1C1C1E;
+
+  // Muted text (tertiary / quaternary)
+  --hnch-muted:        rgba(60, 60, 67, 0.60);
+  --hnch-muted-2:      rgba(60, 60, 67, 0.30);
+
+  // Separators
+  --hnch-sep:          rgba(60, 60, 67, 0.18);
+  --hnch-sep-strong:   rgba(60, 60, 67, 0.29);
+
+  // Fill (input backgrounds, tinted hits)
+  --hnch-fill:         rgba(120, 120, 128, 0.16);
+  --hnch-fill-strong:  rgba(120, 120, 128, 0.24);
+
+  // Semantic — light
+  // Values from ionic-screens.jsx:24–28
+  --hnch-success:      #30D158;
+  --hnch-warning:      #FF9F0A;
+  --hnch-danger:       #FF453A;
+}
+
+// ---------------------------------------------------------------------------
+// Dark mode overrides
+// Activated when ThemeService adds .ion-palette-dark to <html>
+// ---------------------------------------------------------------------------
+
+:root.ion-palette-dark {
+  // Background & surfaces
+  --hnch-bg:           #000000;
+  --hnch-surface:      #1C1C1E;
+  --hnch-surface-2:    #2C2C2E;
+
+  // Glass — plan §variables.scss values
+  --hnch-glass:        rgba(28, 28, 30, 0.66);
+  // --hnch-glass-strong: not in plan spec; used by _glass.scss mixin $strong:true branch (toolbars)
+  --hnch-glass-strong: rgba(28, 28, 30, 0.78);
+  --hnch-glass-edge:   rgba(255, 255, 255, 0.08);
+
+  // Text
+  --hnch-text:         #FFFFFF;
+  --hnch-text-2:       #F2F2F7;
+
+  // Muted text
+  --hnch-muted:        rgba(235, 235, 245, 0.60);
+  --hnch-muted-2:      rgba(235, 235, 245, 0.30);
+
+  // Separators
+  --hnch-sep:          rgba(84, 84, 88, 0.45);
+  --hnch-sep-strong:   rgba(84, 84, 88, 0.65);
+
+  // Fill
+  --hnch-fill:         rgba(120, 120, 128, 0.32);
+  --hnch-fill-strong:  rgba(118, 118, 128, 0.40);
+
+  // Semantic — dark
+  --hnch-success:      #30D158;
+  --hnch-warning:      #FF9F0A;
+  --hnch-danger:       #FF453A;
+}
