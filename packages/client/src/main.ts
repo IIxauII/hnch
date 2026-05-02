@@ -11,6 +11,7 @@ import { IonicRouteStrategy, provideIonicAngular } from '@ionic/angular/standalo
 
 import { AppComponent } from './app/app.component'
 import { routes } from './app/app.routes'
+import { AccentService } from './app/core/accent.service'
 import { AppPreferenceService } from './app/core/app-preference.service'
 import { ParticipantIdService } from './app/core/participant-id.service'
 import { ScalePreferenceService } from './app/core/scale-preference.service'
@@ -33,7 +34,16 @@ bootstrapApplication(AppComponent, {
     // once here keeps Home / Lobby / Estimating from ever observing a
     // transient `null`.
     provideAppInitializer(() => inject(ParticipantIdService).ensureLoaded()),
-    provideAppInitializer(() => inject(ThemeService).ensureLoaded()),
+    // ThemeService must complete before AccentService so that .ion-palette-dark
+    // is present on <html> when AccentService reads it for dark-mode overrides.
+    // Resolve both injections synchronously before the first await — the
+    // injection context is gone after any await boundary (NG0203 otherwise).
+    provideAppInitializer(async () => {
+      const theme = inject(ThemeService)
+      const accent = inject(AccentService)
+      await theme.ensureLoaded()
+      await accent.loadFromStorage()
+    }),
     provideAppInitializer(() => inject(ScalePreferenceService).ensureLoaded()),
     provideAppInitializer(() => inject(AppPreferenceService).ensureLoaded()),
   ],
