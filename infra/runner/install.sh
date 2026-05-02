@@ -28,6 +28,7 @@ echo "  ${LA_DIR}/dev.hnch.runner.plist"
 echo "  ${LA_DIR}/dev.hnch.runner-prune.plist"
 echo
 echo "Next:"
-echo "  launchctl setenv GH_REGISTRATION_PAT \"\$(security find-generic-password -s hnch-runner-pat -w)\""
+echo "  # one-time: store PAT in Keychain (supervisor reads it from there)"
+echo "  security add-generic-password -a \"\$USER\" -s hnch-runner-pat -w"
 echo "  launchctl load ${LA_DIR}/dev.hnch.runner.plist"
 echo "  launchctl load ${LA_DIR}/dev.hnch.runner-prune.plist"
