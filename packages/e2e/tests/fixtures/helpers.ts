@@ -153,24 +153,22 @@ export const ACCESS_PICKER = {
 // ---------------------------------------------------------------------------
 // App settings (settings page, not session settings)
 // ---------------------------------------------------------------------------
+// Display name + default session name use inline ion-input (blur-save).
+// Theme + accent use ion-select interface="popover" — Ionic auto-creates
+// an ion-select-popover with ion-radio rows when the trigger is clicked.
 export const APP_SETTINGS = {
-  nameRow: 'app-settings ion-item:has(ion-label:text-is("Display name"))',
-  nameValue: 'app-settings ion-item:has(ion-label:text-is("Display name")) ion-note',
-  themeRow: 'app-settings ion-item:has(ion-label:text-is("Theme"))',
-  themeValue: 'app-settings ion-item:has(ion-label:text-is("Theme")) ion-note',
+  nameInput: 'app-settings ion-input[label="Display name"]',
+  themeSelect: 'app-settings ion-select[label="Theme"]',
+  accentSelect: 'app-settings ion-select[label="Accent"]',
   defaultScaleRow: 'app-settings ion-item:has(ion-label:text-is("Default scale"))',
   defaultScaleValue: 'app-settings ion-item:has(ion-label:text-is("Default scale")) ion-note',
   versionValue: 'app-settings ion-item:has(ion-label:text-is("Version")) ion-note',
 } as const
 
-export const THEME_PICKER = {
-  option: (label: string) => `app-theme-picker-sheet ion-item:has(ion-label:text-is("${label}"))`,
-  doneBtn: 'app-theme-picker-sheet ion-button:has-text("Done")',
-} as const
-
-export const NAME_EDITOR = {
-  input: 'app-display-name-editor-sheet ion-input',
-  doneBtn: 'app-display-name-editor-sheet ion-button:has-text("Done")',
+/** ion-select-popover option row, addressed by the visible label text. */
+export const SELECT_POPOVER = {
+  option: (label: string) =>
+    `ion-select-popover ion-radio:has-text("${label}")`,
 } as const
 
 // ---------------------------------------------------------------------------

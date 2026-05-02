@@ -1,23 +1,21 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core'
-import { IonButton, IonIcon } from '@ionic/angular/standalone'
+import { IonIcon, IonItem, IonLabel } from '@ionic/angular/standalone'
 import { addIcons } from 'ionicons'
-import { returnUpBackOutline, arrowForwardOutline } from 'ionicons/icons'
+import { returnUpBackOutline } from 'ionicons/icons'
 
 import type { LastSessionScreen } from '../core/last-session.service'
 
 /**
  * Jump-back-in banner — ux.md §5.2.
  *
- * Renders when {@link LastSessionService} resolves a non-expired
- * cache entry on Home. The parent controls visibility through an
- * `@if` so this component never appears for cold-start users.
- *
- * The summary is a presentation-layer shape that mirrors the cache
- * minus the fields the banner doesn't render (`roomUuid`,
- * `lastSeenAt`).
+ * Renders as a third row inside the parent's `ion-list.actions`,
+ * matching the Create Room / Join Room rows. The host element uses
+ * `display: contents` so the inner `ion-item` flows directly into the
+ * grouped inset list. The `app-jump-back-in-banner` selector is
+ * preserved as an e2e locator.
  */
 export interface JumpBackInSummary {
-  /** Room code for the large body copy. */
+  /** Room code rendered as part of the row subtitle. */
   readonly roomCode: string
   /** Which in-session screen the rejoin will land on. */
   readonly lastScreen: LastSessionScreen
@@ -25,111 +23,70 @@ export interface JumpBackInSummary {
 
 @Component({
   selector: 'app-jump-back-in-banner',
-  imports: [IonButton, IonIcon],
+  imports: [IonIcon, IonItem, IonLabel],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div
-      class="card"
+    <ion-item
+      button="true"
+      detail="true"
       [class.stale]="stale()"
-      role="button"
-      tabindex="0"
+      [disabled]="resuming() && !stale()"
       (click)="onTap()"
-      (keydown.enter)="onTap()"
-      (keydown.space)="onTap()"
     >
-      <div class="top">
-        <ion-icon
-          class="badge"
-          name="return-up-back-outline"
-          aria-hidden="true"
-        ></ion-icon>
-        <span class="label">Jump back in</span>
-        <span class="spacer"></span>
-        <span class="code">{{ summary().roomCode }}</span>
+      <div class="icon-tile icon-tile--accent" slot="start" aria-hidden="true">
+        <ion-icon name="return-up-back-outline"></ion-icon>
       </div>
-      <div class="body">
-        <strong>{{ screenLabel() }}</strong>
-        <span class="meta">Room {{ summary().roomCode }}</span>
-      </div>
-      <div class="bottom">
-        <span class="spacer"></span>
-        <ion-button
-          size="default"
-          [disabled]="resuming() && !stale()"
-          (click)="onResume($event)"
-        >
-          Resume
-          <ion-icon slot="end" name="arrow-forward-outline" aria-hidden="true"></ion-icon>
-        </ion-button>
-      </div>
-    </div>
+      <ion-label>
+        <h2>Jump back in</h2>
+        <p>{{ screenLabel() }} · {{ summary().roomCode }}</p>
+      </ion-label>
+    </ion-item>
   `,
   styles: [
     `
       :host {
-        display: block;
-        margin-block-end: 20px;
+        display: contents;
       }
-      .card {
-        background: var(--hnch-surface);
-        border-radius: 16px;
-        padding: 16px;
-        border: 0.5px solid var(--hnch-sep);
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        cursor: pointer;
-        transition: opacity 0.15s ease;
+      ion-item {
+        --background: var(--hnch-surface);
+        --inner-padding-top: 12px;
+        --inner-padding-bottom: 12px;
+        --padding-start: 16px;
+        /* Wrapped ion-item is :last-child of its host element, so
+           Ionic's shadow ':host(:not(:last-child))' rule misses and
+           the row's bottom separator is suppressed. Force it on with
+           !important to beat the shadow ':host' specificity. */
+        --inner-border-width: 0 0 1px 0 !important;
       }
-      .card.stale {
-        opacity: 0.6;
-      }
-      .top {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-      .badge {
-        font-size: 14px;
-        color: var(--hnch-accent);
-      }
-      .label {
-        font-size: 13px;
-        font-weight: 600;
-        color: var(--hnch-accent);
-        letter-spacing: 0.2px;
-      }
-      .spacer {
-        flex: 1;
-      }
-      .code {
-        font-family: 'SF Mono', 'Fira Mono', 'Roboto Mono', monospace;
-        font-size: 12px;
-        color: var(--hnch-muted);
-        letter-spacing: 1px;
-      }
-      .body {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-      }
-      .body strong {
-        font-size: 18px;
+      ion-item h2 {
+        font-size: 17px;
         font-weight: 600;
         color: var(--hnch-text);
-        line-height: 1.2;
+        margin: 0 0 2px;
       }
-      .meta {
+      ion-item p {
         font-size: 14px;
         color: var(--hnch-muted);
+        margin: 0;
       }
-      .bottom {
+      .icon-tile {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
         display: flex;
         align-items: center;
-        margin-block-start: 4px;
+        justify-content: center;
+        margin-inline-end: 12px;
       }
-      ion-button {
-        --border-radius: 999px;
+      .icon-tile--accent {
+        background: var(--hnch-accent);
+        color: var(--hnch-accent-ink);
+      }
+      .icon-tile ion-icon {
+        font-size: 20px;
+      }
+      ion-item.stale {
+        opacity: 0.6;
       }
     `,
   ],
@@ -139,12 +96,12 @@ export class JumpBackInBannerComponent {
 
   /**
    * True when the session is stale (relay reported unknown-room).
-   * Banner renders dimmed; tapping it clears the entry.
+   * Row renders dimmed; tapping it clears the entry.
    */
   readonly stale = input<boolean>(false)
 
   /**
-   * While `true` the card is `disabled` so repeated taps can't stack
+   * While `true` the row is `disabled` so repeated taps can't stack
    * up a queue of `resumeRequested` events. The parent (`HomePage`)
    * toggles this for the duration of its `onResumeJumpBack` handler.
    */
@@ -158,17 +115,10 @@ export class JumpBackInBannerComponent {
   constructor() {
     addIcons({
       'return-up-back-outline': returnUpBackOutline,
-      'arrow-forward-outline': arrowForwardOutline,
     })
   }
 
   protected onTap(): void {
-    if (this.resuming() && !this.stale()) return
-    this.resumeRequested.emit()
-  }
-
-  protected onResume(event: Event): void {
-    event.stopPropagation()
     if (this.resuming() && !this.stale()) return
     this.resumeRequested.emit()
   }
