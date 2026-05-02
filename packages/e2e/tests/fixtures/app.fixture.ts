@@ -445,6 +445,43 @@ interface AppFixtures {
   createParticipant: (name: string) => Promise<Participant>
 }
 
+/**
+ * Wire a fail-fast guard onto a page that records any uncaught script error
+ * or `console.error('hnch bootstrap failed', ...)`. The fixture's `use()`
+ * wrapper later asserts the array is empty so a bootstrap regression aborts
+ * the test instead of letting every locator burn the 20s test timeout
+ * against a blank app-root.
+ *
+ * Throwing inside `page.on()` listeners doesn't reliably surface as a test
+ * failure across Playwright versions — collecting and asserting at teardown
+ * is the canonical pattern.
+ *
+ * History: PR #84 shipped an `inject()`-after-await in the AccentService
+ * APP_INITIALIZER. Bootstrap rejected → blank page → 73 tests × 20s ≈ full
+ * 10-min CI cap. This guard plus 0-bootstrap-smoke.spec.ts turns that class
+ * of regression into a fast, readable failure.
+ */
+function attachBootstrapGuard(page: Page): string[] {
+  const errors: string[] = []
+  page.on('pageerror', err => {
+    errors.push(`Uncaught page error: ${err.message}`)
+  })
+  page.on('console', msg => {
+    if (msg.type() !== 'error') return
+    const text = msg.text()
+    if (text.includes('hnch bootstrap failed') || text.includes('NG0203')) {
+      errors.push(`App bootstrap error: ${text}`)
+    }
+  })
+  return errors
+}
+
+function assertNoBootstrapErrors(errors: string[]): void {
+  if (errors.length > 0) {
+    throw new Error(`Bootstrap guard tripped:\n  - ${errors.join('\n  - ')}`)
+  }
+}
+
 async function clearStorage(context: BrowserContext): Promise<void> {
   await context.addInitScript(() => {
     // addInitScript fires on every frame navigation including sandboxed iframes
@@ -481,32 +518,41 @@ export const test = base.extend<AppFixtures>({
     const context = await browser.newContext()
     await clearStorage(context)
     const page = await context.newPage()
+    const errors = attachBootstrapGuard(page)
     const host = new Participant(context, page, 'Host')
     await use(host)
     await context.close()
+    assertNoBootstrapErrors(errors)
   },
 
   player: async ({ browser }, use) => {
     const context = await browser.newContext()
     await clearStorage(context)
     const page = await context.newPage()
+    const errors = attachBootstrapGuard(page)
     const player = new Participant(context, page, 'Player')
     await use(player)
     await context.close()
+    assertNoBootstrapErrors(errors)
   },
 
   createParticipant: async ({ browser }, use) => {
     const contexts: BrowserContext[] = []
+    const errorBuckets: string[][] = []
     const factory = async (name: string): Promise<Participant> => {
       const context = await browser.newContext()
       await clearStorage(context)
       contexts.push(context)
       const page = await context.newPage()
+      errorBuckets.push(attachBootstrapGuard(page))
       return new Participant(context, page, name)
     }
     await use(factory)
     for (const ctx of contexts) {
       await ctx.close()
+    }
+    for (const errors of errorBuckets) {
+      assertNoBootstrapErrors(errors)
     }
   },
 })
