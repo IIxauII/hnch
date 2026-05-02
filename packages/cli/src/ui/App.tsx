@@ -272,6 +272,8 @@ export function App({ session, participantId, displayName, accessMode: initialAc
           onSetShareOpen={setShareOpen}
           roomCode={session.roomCode}
           confirmingQuit={confirmingQuit}
+          myRole={myRole}
+          onToggleRole={handleToggleRole}
         />
       ) : screen === 'voting' && round ? (
         <Voting

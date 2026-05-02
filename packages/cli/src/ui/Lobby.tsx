@@ -32,6 +32,8 @@ interface Props {
   onSetShareOpen: (open: boolean) => void
   roomCode: string
   confirmingQuit: boolean
+  myRole: 'voter' | 'viewer'
+  onToggleRole: () => void
 }
 
 function computeStats(votes: Record<string, string>): {
@@ -119,6 +121,8 @@ export function Lobby({
   onSetShareOpen,
   roomCode,
   confirmingQuit,
+  myRole,
+  onToggleRole,
   roundTitlePromptActive,
   roundTitleInput,
   onRoundTitleChange,
@@ -144,6 +148,10 @@ export function Lobby({
     (input) => {
       if (input === 'c' || input === 'C') {
         onSetShareOpen(true)
+        return
+      }
+      if (input === 'w' || input === 'W') {
+        onToggleRole()
         return
       }
       if (isHost) {
@@ -252,6 +260,7 @@ export function Lobby({
         hostId={projection.settings.hostParticipantId}
         votes={{}}
         revealed={false}
+        participantId={participantId}
       />
 
       {currentRound?.revealedAt !== undefined && (
@@ -338,6 +347,7 @@ export function Lobby({
                   <Text color="yellow">[h] Handoff</Text>
                   <Text color="yellow">[e] Settings</Text>
                   <Text color="yellow">[c] Share</Text>
+                  <Text color="yellow">[w] {myRole === 'viewer' ? 'Vote' : 'Observe'}</Text>
                   <Text color="yellow">[m] Menu</Text>
                 </>
               ) : (
@@ -346,6 +356,7 @@ export function Lobby({
                   <Text color="yellow">[h] Handoff</Text>
                   <Text color="yellow">[e] Settings</Text>
                   <Text color="yellow">[c] Share</Text>
+                  <Text color="yellow">[w] {myRole === 'viewer' ? 'Vote' : 'Observe'}</Text>
                   <Text color="yellow">[m] Menu</Text>
                 </>
               )}
@@ -354,6 +365,7 @@ export function Lobby({
             <>
               <Text dimColor>Waiting for host to start a round...</Text>
               <Text>[c] Share</Text>
+              <Text color="yellow">[w] {myRole === 'viewer' ? 'Vote' : 'Observe'}</Text>
             </>
           )}
           <Text>[q] Quit</Text>
