@@ -20,6 +20,7 @@ vi.mock('@ionic/angular/standalone', () => ({
   IonInput: {},
   IonItem: {},
   IonLabel: {},
+  IonList: {},
   IonTitle: {},
   IonToolbar: {},
 }))

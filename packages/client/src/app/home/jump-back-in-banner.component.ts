@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core'
-import { IonCard, IonCardContent, IonIcon } from '@ionic/angular/standalone'
+import { IonButton, IonIcon } from '@ionic/angular/standalone'
+import { addIcons } from 'ionicons'
+import { returnUpBackOutline, arrowForwardOutline } from 'ionicons/icons'
 
 import type { LastSessionScreen } from '../core/last-session.service'
 
@@ -23,59 +25,111 @@ export interface JumpBackInSummary {
 
 @Component({
   selector: 'app-jump-back-in-banner',
-  imports: [IonCard, IonCardContent, IonIcon],
+  imports: [IonButton, IonIcon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <ion-card
-      button
-      [disabled]="resuming() && !stale()"
+    <div
+      class="card"
       [class.stale]="stale()"
-      (click)="resumeRequested.emit()"
+      role="button"
+      tabindex="0"
+      (click)="onTap()"
+      (keydown.enter)="onTap()"
+      (keydown.space)="onTap()"
     >
-      <ion-card-content>
-        <div class="row">
-          <ion-icon
-            name="return-up-back-outline"
-            [class.hidden]="stale()"
-            aria-hidden="true"
-          ></ion-icon>
-          <div class="text">
-            <strong>Jump back in</strong>
-            <span>Room {{ summary().roomCode }}</span>
-            <span class="screen">{{ screenLabel() }}</span>
-          </div>
-        </div>
-      </ion-card-content>
-    </ion-card>
+      <div class="top">
+        <ion-icon
+          class="badge"
+          name="return-up-back-outline"
+          aria-hidden="true"
+        ></ion-icon>
+        <span class="label">Jump back in</span>
+        <span class="spacer"></span>
+        <span class="code">{{ summary().roomCode }}</span>
+      </div>
+      <div class="body">
+        <strong>{{ screenLabel() }}</strong>
+        <span class="meta">Room {{ summary().roomCode }}</span>
+      </div>
+      <div class="bottom">
+        <span class="spacer"></span>
+        <ion-button
+          size="default"
+          [disabled]="resuming() && !stale()"
+          (click)="onResume($event)"
+        >
+          Resume
+          <ion-icon slot="end" name="arrow-forward-outline" aria-hidden="true"></ion-icon>
+        </ion-button>
+      </div>
+    </div>
   `,
   styles: [
     `
       :host {
         display: block;
+        margin-block-end: 20px;
       }
-      .row {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-      }
-      ion-icon {
-        font-size: 1.5rem;
-        color: var(--ion-color-primary);
-      }
-      ion-icon.hidden {
-        display: none;
-      }
-      .text {
+      .card {
+        background: var(--hnch-surface);
+        border-radius: 16px;
+        padding: 16px;
+        border: 0.5px solid var(--hnch-sep);
         display: flex;
         flex-direction: column;
-        gap: 0.15rem;
+        gap: 12px;
+        cursor: pointer;
+        transition: opacity 0.15s ease;
       }
-      .screen {
-        color: var(--ion-color-medium);
-        font-size: 0.85rem;
-      }
-      ion-card.stale {
+      .card.stale {
         opacity: 0.6;
+      }
+      .top {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .badge {
+        font-size: 14px;
+        color: var(--hnch-accent);
+      }
+      .label {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--hnch-accent);
+        letter-spacing: 0.2px;
+      }
+      .spacer {
+        flex: 1;
+      }
+      .code {
+        font-family: 'SF Mono', 'Fira Mono', 'Roboto Mono', monospace;
+        font-size: 12px;
+        color: var(--hnch-muted);
+        letter-spacing: 1px;
+      }
+      .body {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .body strong {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--hnch-text);
+        line-height: 1.2;
+      }
+      .meta {
+        font-size: 14px;
+        color: var(--hnch-muted);
+      }
+      .bottom {
+        display: flex;
+        align-items: center;
+        margin-block-start: 4px;
+      }
+      ion-button {
+        --border-radius: 999px;
       }
     `,
   ],
@@ -100,6 +154,24 @@ export class JumpBackInBannerComponent {
 
   /** Human-readable copy for the screen the rejoin will land on. */
   protected readonly screenLabel = computed(() => screenCopy(this.summary().lastScreen))
+
+  constructor() {
+    addIcons({
+      'return-up-back-outline': returnUpBackOutline,
+      'arrow-forward-outline': arrowForwardOutline,
+    })
+  }
+
+  protected onTap(): void {
+    if (this.resuming() && !this.stale()) return
+    this.resumeRequested.emit()
+  }
+
+  protected onResume(event: Event): void {
+    event.stopPropagation()
+    if (this.resuming() && !this.stale()) return
+    this.resumeRequested.emit()
+  }
 }
 
 function screenCopy(screen: LastSessionScreen): string {

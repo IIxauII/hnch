@@ -42,19 +42,35 @@ export const ONBOARDING = {
 // Home
 // ---------------------------------------------------------------------------
 export const HOME = {
-  createCard: 'ion-card:has(strong:text-is("Create Room"))',
-  joinCard: 'ion-card:has(strong:text-is("Join Room"))',
+  createCard: 'ion-item:has(h2:text-is("Create Room"))',
+  joinCard: 'ion-item:has(h2:text-is("Join Room"))',
 } as const
 
 // ---------------------------------------------------------------------------
 // Join
 // ---------------------------------------------------------------------------
 export const JOIN = {
-  codeInput: 'ion-input.code-input',
+  /**
+   * Segmented 6-tile code input. Each tile is `<input maxlength="1">`,
+   * so use {@link fillRoomCode} to type characters one at a time —
+   * native `.fill()` is clamped to one tile by the maxlength attribute.
+   */
+  codeInput: 'app-segmented-code-input',
   passwordInput: 'ion-input[type="password"]',
   scanQrBtn: 'ion-item:has-text("Scan QR code")',
   joinBtn: 'ion-button:has-text("Join")',
 } as const
+
+/**
+ * Type a room code into the segmented join-code input. Focuses the
+ * first tile and types characters one at a time so the component's
+ * onInput handler advances focus to the next tile after each character.
+ */
+export async function fillRoomCode(page: Page, code: string): Promise<void> {
+  const firstTile = page.locator(JOIN.codeInput).locator('input').first()
+  await firstTile.focus()
+  await page.keyboard.type(code)
+}
 
 // ---------------------------------------------------------------------------
 // Lobby
