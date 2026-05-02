@@ -23,6 +23,7 @@ import {
   participantRole,
   patchSettings,
   projectDoc,
+  patchRoundDescriptor as patchRoundDescriptorY,
   removeParticipant as removeParticipantY,
   revealRound as revealRoundY,
   upsertParticipant as upsertParticipantY,
@@ -560,6 +561,13 @@ export class DocService {
       }),
     })
     return id
+  }
+
+  updateRoundDescriptor(
+    roundId: string,
+    fields: { title?: string; description?: string },
+  ): void {
+    patchRoundDescriptorY(this.requireDoc('updateRoundDescriptor'), roundId, fields)
   }
 
   castVote(roundId: string, participantId: string, card: string): void {

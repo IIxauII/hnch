@@ -16,6 +16,7 @@ import {
   clearVote,
   revealRound as revealRoundMutation,
   appendRound,
+  patchRoundDescriptor,
   patchSettings,
   hashPassword,
   upsertParticipant,
@@ -75,6 +76,8 @@ export interface SessionHandle {
   newRound(title?: string): string
   /** Re-vote: start new round linked to current. */
   revote(): string
+  /** Update a round's title and/or description. */
+  updateRoundDescriptor(roundId: string, fields: { title?: string; description?: string }): void
   /** Update the room name. Pass undefined to remove. */
   updateName(name: string | undefined): void
   /** Update the default estimation scale. */
@@ -325,6 +328,10 @@ export function wireSession(opts: WireOptions): SessionHandle {
         ticketId: round?.ticketId,
       })
       return id
+    },
+
+    updateRoundDescriptor(roundId: string, fields: { title?: string; description?: string }) {
+      patchRoundDescriptor(doc, roundId, fields)
     },
 
     updateName(name: string | undefined) {

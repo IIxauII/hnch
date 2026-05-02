@@ -26,6 +26,7 @@ import {
   isActiveParticipant,
   joinDoc,
   leaveSession,
+  patchRoundDescriptor,
   patchSettings,
   projectDoc,
   removeParticipant,
@@ -184,6 +185,10 @@ class DocServiceHarness {
 
   removeParticipant(hostId: string, targetId: string): void {
     removeParticipant(this.requireDoc(), hostId, targetId)
+  }
+
+  updateRoundDescriptor(roundId: string, fields: { title?: string; description?: string }): void {
+    patchRoundDescriptor(this.requireDoc(), roundId, fields)
   }
 
   /** Merge another doc's state into this one (simulate peer sync). */
@@ -550,6 +555,13 @@ describe('DocService — startRound / castVote / clearVote / revealRound', () =>
     const r2 = h.startRound({ title: 'Auth epic', now: () => NOW + 1000 })
     const found = h.rounds().find((r) => r.id === r2)
     expect(found?.title).toBe('Auth epic')
+  })
+
+  it('updateRoundDescriptor patches title and description', () => {
+    h.updateRoundDescriptor(roundId, { title: 'New title', description: 'Some desc' })
+    const r = h.rounds().find((round) => round.id === roundId)
+    expect(r?.title).toBe('New title')
+    expect(r?.description).toBe('Some desc')
   })
 })
 
