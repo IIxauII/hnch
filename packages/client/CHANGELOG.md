@@ -1,3 +1,10 @@
+# [1.14.0](https://github.com/IIxauII/hnch/compare/client-v1.13.0...client-v1.14.0) (2026-05-02)
+
+
+### Features
+
+* **client:** inline edits and popover pickers for settings ([#105](https://github.com/IIxauII/hnch/issues/105)) ([db5fc47](https://github.com/IIxauII/hnch/commit/db5fc47d2d2448426e5c1b57470eaf55fac0ff02))
+
 # [1.13.0](https://github.com/IIxauII/hnch/compare/client-v1.12.0...client-v1.13.0) (2026-05-02)
 
 
