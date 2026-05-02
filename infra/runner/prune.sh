@@ -2,7 +2,10 @@
 # Weekly cache eviction for the hnch self-hosted runner pool.
 # Invoked by ~/Library/LaunchAgents/dev.hnch.runner-prune.plist on Sunday 04:00.
 #
-# Responsibilities (per plan-self-hosted-runner.md, Phase 7):
+# Responsibilities:
+#   0. Deregister stale offline runner records on GitHub. Safe alongside
+#      running containers — only touches GH API. Runs before the active-job
+#      guard so it executes every week regardless of pool state.
 #   1. Active-job guard — abort if any hnch-runner-* container is running so we
 #      don't race `pnpm store prune` against an in-progress `pnpm install`.
 #   2. `pnpm store prune` against each per-runner store under ~/runner-cache.
@@ -16,10 +19,46 @@ LOG_DIR="${HOME}/Library/Logs"
 CACHE_ROOT="${HOME}/runner-cache"
 LOG_TRUNCATE_MB=100
 DISK_LOW_THRESHOLD_GB=30
+GH_REPO="${GH_REPO:-IIxauII/hnch}"
+
+# 0. Deregister stale offline runner records on GitHub.
+# Ghost records accumulate from supervisor restarts where the prior container
+# died without `config.sh remove` — GH keeps the registration but no agent
+# polls. They're cosmetic but clutter the runners list.
+#
+# Safety: filter on status=="offline" only. Active runners (and runners that
+# are merely transient between jobs) are status=="online", so we never
+# deregister something that is about to pick up work.
+deregister_stale_runners() {
+  local pat
+  pat=$(security find-generic-password -a "${USER}" -s hnch-runner-pat -w 2>/dev/null) || {
+    echo "[$(date)] PAT not in Keychain — skipping stale-runner cleanup" >&2
+    return 0
+  }
+  local listing
+  listing=$(curl -fsS -H "Authorization: token ${pat}" -H "Accept: application/vnd.github+json" \
+    "https://api.github.com/repos/${GH_REPO}/actions/runners" 2>/dev/null) || {
+    echo "[$(date)] failed listing runners — skipping stale-runner cleanup" >&2
+    return 0
+  }
+  local ids
+  ids=$(jq -r '.runners[] | select(.status=="offline") | .id' <<<"${listing}")
+  local count=0 failed=0
+  for id in ${ids}; do
+    if curl -fsS -X DELETE -H "Authorization: token ${pat}" -H "Accept: application/vnd.github+json" \
+        "https://api.github.com/repos/${GH_REPO}/actions/runners/${id}" >/dev/null 2>&1; then
+      count=$((count + 1))
+    else
+      failed=$((failed + 1))
+    fi
+  done
+  echo "[$(date)] deregistered ${count} stale offline runner(s)$([ ${failed} -gt 0 ] && echo " (${failed} failed)")"
+}
+deregister_stale_runners
 
 # 1. Active-job guard.
 if podman ps -q --filter "name=hnch-runner-" | grep -q .; then
-  echo "[$(date)] active hnch-runner-* container detected — skipping prune" >&2
+  echo "[$(date)] active hnch-runner-* container detected — skipping cache prune" >&2
   exit 0
 fi
 
