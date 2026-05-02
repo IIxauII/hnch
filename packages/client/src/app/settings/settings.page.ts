@@ -18,19 +18,18 @@ import {
   IonListHeader,
   IonModal,
   IonNote,
-  IonPopover,
+  IonSelect,
+  IonSelectOption,
   IonTitle,
   IonToggle,
   IonToolbar,
 } from '@ionic/angular/standalone'
-import { addIcons } from 'ionicons'
-import { chevronForwardOutline } from 'ionicons/icons'
 
 import { formatScaleId, type Scale } from '@hnch/shared'
 
 import { environment } from '../../environments/environment'
 import { AccentService } from '../core/accent.service'
-import { ACCENTS } from '../core/accent.tokens'
+import { type AccentKey, ACCENTS } from '../core/accent.tokens'
 import { AppPreferenceService } from '../core/app-preference.service'
 import { DocService } from '../core/doc/doc.service'
 import { DisplayNameService } from '../core/display-name.service'
@@ -40,31 +39,21 @@ import { ThemeService, type Theme } from '../core/theme.service'
 import { ScalePickerSheetComponent } from '../session-settings/scale-picker.sheet'
 import { RelayUrlEditorSheetComponent } from './relay-url-editor.sheet'
 import { presentSheet } from '../utils/present-sheet'
-import { AccentPickerPopoverComponent } from './accent-picker.popover'
-import { ThemePickerPopoverComponent } from './theme-picker.popover'
-
-const THEME_LABELS: Record<Theme, string> = {
-  system: 'System',
-  light: 'Light',
-  dark: 'Dark',
-}
 
 /**
  * App Settings screen — ux.md §5.7.
  *
- * Four sections: Profile (display name), Appearance (theme picker),
+ * Four sections: Profile (display name), Appearance (theme + accent),
  * Scales (default scale picker), and About (version).
  * Display name + default session name use inline blur-save.
- * Theme + accent use IonPopover pickers.
+ * Theme + accent use ion-select with `interface="popover"`.
  */
 @Component({
   selector: 'app-settings',
   host: { class: 'ion-page' },
   imports: [
-    AccentPickerPopoverComponent,
     RelayUrlEditorSheetComponent,
     ScalePickerSheetComponent,
-    ThemePickerPopoverComponent,
     IonBackButton,
     IonButtons,
     IonContent,
@@ -76,32 +65,13 @@ const THEME_LABELS: Record<Theme, string> = {
     IonListHeader,
     IonModal,
     IonNote,
-    IonPopover,
+    IonSelect,
+    IonSelectOption,
     IonTitle,
     IonToggle,
     IonToolbar,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  styles: [`
-    .accent-preview {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .accent-preview-dot {
-      display: inline-block;
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-
-    .accent-preview-name {
-      font-size: 14px;
-      color: var(--hnch-muted);
-    }
-  `],
   template: `
     <ion-header>
       <ion-toolbar>
@@ -135,42 +105,31 @@ const THEME_LABELS: Record<Theme, string> = {
         <ion-label>Appearance</ion-label>
       </ion-list-header>
       <ion-list lines="inset">
-        <ion-item button id="theme-trigger" aria-haspopup="listbox">
-          <ion-label>Theme</ion-label>
-          <ion-note slot="end">{{ themeLabel() }}</ion-note>
+        <ion-item>
+          <ion-select
+            label="Theme"
+            interface="popover"
+            [value]="themeService.theme()"
+            (ionChange)="onThemeSelected($event.detail.value)"
+          >
+            <ion-select-option value="system">System</ion-select-option>
+            <ion-select-option value="light">Light</ion-select-option>
+            <ion-select-option value="dark">Dark</ion-select-option>
+          </ion-select>
         </ion-item>
-        <ion-popover
-          trigger="theme-trigger"
-          triggerAction="click"
-          [dismissOnSelect]="true"
-        >
-          <ng-template>
-            <app-theme-picker-popover
-              [currentTheme]="themeService.theme()"
-              (selected)="onThemeSelected($event)"
-            />
-          </ng-template>
-        </ion-popover>
 
-        <ion-item button id="accent-trigger" aria-haspopup="listbox">
-          <ion-label>Accent</ion-label>
-          <div class="accent-preview" slot="end" aria-hidden="true">
-            <span class="accent-preview-dot" [style.background]="accentBase()"></span>
-            <span class="accent-preview-name">{{ accentLabel() }}</span>
-          </div>
+        <ion-item>
+          <ion-select
+            label="Accent"
+            interface="popover"
+            [value]="accentService.accent()"
+            (ionChange)="onAccentSelected($event.detail.value)"
+          >
+            @for (entry of accentEntries; track entry.key) {
+              <ion-select-option [value]="entry.key">{{ entry.label }}</ion-select-option>
+            }
+          </ion-select>
         </ion-item>
-        <ion-popover
-          trigger="accent-trigger"
-          triggerAction="click"
-          [dismissOnSelect]="true"
-        >
-          <ng-template>
-            <app-accent-picker-popover
-              [currentAccent]="accentService.accent()"
-              (selected)="accentService.setAccent($event)"
-            />
-          </ng-template>
-        </ion-popover>
       </ion-list>
 
       <!-- Scales -->
@@ -284,17 +243,9 @@ export class SettingsPage {
   /** Local cache of display name, loaded on init. */
   protected readonly displayName = signal('—')
 
-  protected readonly themeLabel = computed(
-    () => THEME_LABELS[this.themeService.theme()],
-  )
-
-  protected accentBase(): string {
-    return ACCENTS[this.accentService.accent()].base
-  }
-
-  protected accentLabel(): string {
-    return ACCENTS[this.accentService.accent()].label
-  }
+  protected readonly accentEntries = (
+    Object.entries(ACCENTS) as [AccentKey, (typeof ACCENTS)[AccentKey]][]
+  ).map(([key, def]) => ({ key, label: def.label }))
 
   protected readonly scaleLabel = computed(() => {
     const scale = this.scalePrefs.defaultScale()
@@ -315,7 +266,6 @@ export class SettingsPage {
   private readonly relayUrlModalRef = viewChild<IonModal>('relayUrlModal')
 
   constructor() {
-    addIcons({ 'chevron-forward-outline': chevronForwardOutline })
     void this.loadDisplayName()
   }
 
@@ -361,11 +311,19 @@ export class SettingsPage {
   }
 
   // ---------------------------------------------------------------------------
-  // Theme picker
+  // Theme + accent pickers (ion-select interface="popover")
   // ---------------------------------------------------------------------------
 
-  protected onThemeSelected(value: Theme): void {
+  protected onThemeSelected(value: Theme | null | undefined): void {
+    if (value !== 'system' && value !== 'light' && value !== 'dark') return
+    if (value === this.themeService.theme()) return
     void this.themeService.setTheme(value)
+  }
+
+  protected onAccentSelected(value: string | null | undefined): void {
+    if (!value || !(value in ACCENTS)) return
+    if (value === this.accentService.accent()) return
+    this.accentService.setAccent(value as AccentKey)
   }
 
   // ---------------------------------------------------------------------------
