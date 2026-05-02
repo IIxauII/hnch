@@ -27,12 +27,15 @@ import { chevronForwardOutline } from 'ionicons/icons'
 import { formatScaleId, type Scale } from '@hnch/shared'
 
 import { environment } from '../../environments/environment'
+import { AccentService } from '../core/accent.service'
+import { ACCENTS } from '../core/accent.tokens'
 import { AppPreferenceService } from '../core/app-preference.service'
 import { DocService } from '../core/doc/doc.service'
 import { DisplayNameService } from '../core/display-name.service'
 import { ParticipantIdService } from '../core/participant-id.service'
 import { ScalePreferenceService } from '../core/scale-preference.service'
 import { ThemeService, type Theme } from '../core/theme.service'
+import { AccentSwatchGridComponent } from '../shared/accent-swatch-grid.component'
 import { ScalePickerSheetComponent } from '../session-settings/scale-picker.sheet'
 import { DisplayNameEditorSheetComponent } from './display-name-editor.sheet'
 import { RelayUrlEditorSheetComponent } from './relay-url-editor.sheet'
@@ -57,6 +60,7 @@ const THEME_LABELS: Record<Theme, string> = {
   selector: 'app-settings',
   host: { class: 'ion-page' },
   imports: [
+    AccentSwatchGridComponent,
     DisplayNameEditorSheetComponent,
     RelayUrlEditorSheetComponent,
     ScalePickerSheetComponent,
@@ -77,6 +81,31 @@ const THEME_LABELS: Record<Theme, string> = {
     ThemePickerSheetComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  styles: [`
+    .accent-preview {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .accent-preview-dot {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .accent-preview-name {
+      font-size: 14px;
+      color: var(--hnch-muted);
+    }
+
+    .accent-grid-wrap {
+      width: 100%;
+      padding: 8px 0 12px;
+    }
+  `],
   template: `
     <ion-header>
       <ion-toolbar>
@@ -106,6 +135,24 @@ const THEME_LABELS: Record<Theme, string> = {
         <ion-item button (click)="openThemePicker()">
           <ion-label>Theme</ion-label>
           <ion-note slot="end">{{ themeLabel() }}</ion-note>
+        </ion-item>
+        <ion-item>
+          <ion-label>
+            <h2>Accent</h2>
+            <p>Highlight color used across the app</p>
+          </ion-label>
+          <div class="accent-preview" slot="end" aria-hidden="true">
+            <span
+              class="accent-preview-dot"
+              [style.background]="accentBase()"
+            ></span>
+            <span class="accent-preview-name">{{ accentLabel() }}</span>
+          </div>
+        </ion-item>
+        <ion-item lines="none">
+          <div class="accent-grid-wrap">
+            <app-accent-swatch-grid />
+          </div>
         </ion-item>
       </ion-list>
 
@@ -264,6 +311,7 @@ export class SettingsPage {
   protected readonly scalePrefs = inject(ScalePreferenceService)
   protected readonly themeService = inject(ThemeService)
   protected readonly appPrefs = inject(AppPreferenceService)
+  protected readonly accentService = inject(AccentService)
 
   protected readonly version = environment.appVersion
 
@@ -273,6 +321,14 @@ export class SettingsPage {
   protected readonly themeLabel = computed(
     () => THEME_LABELS[this.themeService.theme()],
   )
+
+  protected accentBase(): string {
+    return ACCENTS[this.accentService.accent()].base
+  }
+
+  protected accentLabel(): string {
+    return ACCENTS[this.accentService.accent()].label
+  }
 
   protected readonly scaleLabel = computed(() => {
     const scale = this.scalePrefs.defaultScale()
