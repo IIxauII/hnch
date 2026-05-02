@@ -7,10 +7,10 @@ const RELAY_PORT = process.env['RELAY_PORT'] ?? '1234'
 export default defineConfig({
   globalSetup: './global-setup.ts',
   testDir: './tests',
-  fullyParallel: false,
+  fullyParallel: true,
   forbidOnly: isCI,
   retries: 0,
-  workers: 1,
+  workers: isCI ? 4 : undefined,
   // Fail-fast in CI: any single failure aborts the run so a bootstrap
   // crash doesn't burn the 10-min CI cap on 73 trailing tests against a
   // blank page. Local: 0 (Playwright treats 0 as disabled = run
