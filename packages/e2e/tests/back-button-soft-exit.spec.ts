@@ -44,12 +44,12 @@ test.describe('Back-chevron soft exit', () => {
     const banner = host.page.locator('app-jump-back-in-banner')
     await banner.waitFor({ state: 'visible', timeout: 5_000 })
 
-    // Banner card shows the room code
-    const card = banner.locator('.card')
-    await expect(card).toContainText(code)
+    // Banner row shows the room code
+    const row = banner.locator('ion-item')
+    await expect(row).toContainText(code)
 
     // Tap banner → navigate back to /lobby/:code
-    await card.evaluate((el: HTMLElement) => el.click())
+    await row.evaluate((el: HTMLElement) => el.click())
     await host.page.waitForURL(/\/lobby\//, { timeout: 15_000 })
 
     // Lands on same URL

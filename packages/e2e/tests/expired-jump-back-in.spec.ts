@@ -47,23 +47,23 @@ test.describe('Expired Jump-back-in banner', () => {
       await host.page.goto(`${BASE_URL}/home`)
       await host.page.waitForURL(/\/home/)
 
-      // Banner should be visible; card not yet stale.
+      // Banner should be visible; row not yet stale.
       const banner = host.page.locator('app-jump-back-in-banner')
       await banner.waitFor({ state: 'visible', timeout: 5_000 })
-      const card = banner.locator('.card')
-      await expect(card).not.toHaveClass(/stale/)
+      const row = banner.locator('ion-item')
+      await expect(row).not.toHaveClass(/stale/)
 
       // Step 6: tap banner → relay returns unknown-room → jumpBackInStale flips true.
-      await card.evaluate((el: HTMLElement) => el.click())
+      await row.evaluate((el: HTMLElement) => el.click())
 
       // Toast "That session isn't active anymore." fires.
       await expectToast(host.page, "That session isn't active anymore", { timeout: 8_000 })
 
-      // Banner acquires .stale class (dim, no chevron).
-      await expect(card).toHaveClass(/stale/, { timeout: 5_000 })
+      // Banner row acquires .stale class (dim).
+      await expect(row).toHaveClass(/stale/, { timeout: 5_000 })
 
       // Step 7: second tap → cache cleared → banner removed from DOM.
-      await card.evaluate((el: HTMLElement) => el.click())
+      await row.evaluate((el: HTMLElement) => el.click())
       await banner.waitFor({ state: 'hidden', timeout: 5_000 })
 
       // Create Room and Join Room cards remain.
