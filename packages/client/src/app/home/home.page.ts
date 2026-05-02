@@ -106,20 +106,15 @@ import { presentSheet } from '../utils/present-sheet'
       </ion-toolbar>
     </ion-header>
     <ion-content [fullscreen]="true">
-      <p class="page-subtitle">Pointing poker · just hunches</p>
-
-      @if (jumpBackInSummary(); as summary) {
-        <div class="banner-wrap">
+      <ion-list inset="true" class="actions">
+        @if (jumpBackInSummary(); as summary) {
           <app-jump-back-in-banner
             [summary]="summary"
             [stale]="jumpBackInStale()"
             [resuming]="resuming()"
             (resumeRequested)="onResumeJumpBack()"
           />
-        </div>
-      }
-
-      <ion-list inset="true" class="actions">
+        }
         <ion-item button="true" detail="true" (click)="onCreateRoom()">
           <div class="icon-tile icon-tile--accent" slot="start" aria-hidden="true">
             <ion-icon name="add-outline"></ion-icon>
@@ -139,8 +134,6 @@ import { presentSheet } from '../utils/present-sheet'
           </ion-label>
         </ion-item>
       </ion-list>
-
-      <p class="footer-caption">no account · no tracking · just hunches</p>
 
       <!-- Password prompt half-sheet -->
       <ion-modal
@@ -163,15 +156,6 @@ import { presentSheet } from '../utils/present-sheet'
     `
       ion-content {
         --background: var(--hnch-bg);
-      }
-      .page-subtitle {
-        margin: -4px 20px 16px;
-        font-size: 15px;
-        color: var(--hnch-muted);
-        letter-spacing: -0.2px;
-      }
-      .banner-wrap {
-        padding: 0 16px;
       }
       ion-list.actions {
         background: transparent;
@@ -213,14 +197,6 @@ import { presentSheet } from '../utils/present-sheet'
       }
       .icon-tile ion-icon {
         font-size: 20px;
-      }
-      .footer-caption {
-        font-family: 'SF Mono', 'Fira Mono', 'Roboto Mono', monospace;
-        font-size: 12px;
-        color: var(--hnch-muted-2);
-        text-align: center;
-        padding: 32px 16px 24px;
-        margin: 0;
       }
     `,
   ],
