@@ -11,12 +11,14 @@ import {
   IonButtons,
   IonContent,
   IonHeader,
+  IonInput,
   IonItem,
   IonLabel,
   IonList,
   IonListHeader,
   IonModal,
   IonNote,
+  IonPopover,
   IonTitle,
   IonToggle,
   IonToolbar,
@@ -35,13 +37,11 @@ import { DisplayNameService } from '../core/display-name.service'
 import { ParticipantIdService } from '../core/participant-id.service'
 import { ScalePreferenceService } from '../core/scale-preference.service'
 import { ThemeService, type Theme } from '../core/theme.service'
-import { AccentSwatchGridComponent } from '../shared/accent-swatch-grid.component'
 import { ScalePickerSheetComponent } from '../session-settings/scale-picker.sheet'
-import { DisplayNameEditorSheetComponent } from './display-name-editor.sheet'
 import { RelayUrlEditorSheetComponent } from './relay-url-editor.sheet'
-import { SessionNameEditorSheetComponent } from './session-name-editor.sheet'
-import { ThemePickerSheetComponent } from './theme-picker.sheet'
 import { presentSheet } from '../utils/present-sheet'
+import { AccentPickerPopoverComponent } from './accent-picker.popover'
+import { ThemePickerPopoverComponent } from './theme-picker.popover'
 
 const THEME_LABELS: Record<Theme, string> = {
   system: 'System',
@@ -53,32 +53,33 @@ const THEME_LABELS: Record<Theme, string> = {
  * App Settings screen — ux.md §5.7.
  *
  * Four sections: Profile (display name), Appearance (theme picker),
- * Scales (default scale picker), and About (version, licenses, privacy).
- * Each editable row opens a half-sheet picker/editor.
+ * Scales (default scale picker), and About (version).
+ * Display name + default session name use inline blur-save.
+ * Theme + accent use IonPopover pickers.
  */
 @Component({
   selector: 'app-settings',
   host: { class: 'ion-page' },
   imports: [
-    AccentSwatchGridComponent,
-    DisplayNameEditorSheetComponent,
+    AccentPickerPopoverComponent,
     RelayUrlEditorSheetComponent,
     ScalePickerSheetComponent,
-    SessionNameEditorSheetComponent,
+    ThemePickerPopoverComponent,
     IonBackButton,
     IonButtons,
     IonContent,
     IonHeader,
+    IonInput,
     IonItem,
     IonLabel,
     IonList,
     IonListHeader,
     IonModal,
     IonNote,
+    IonPopover,
     IonTitle,
     IonToggle,
     IonToolbar,
-    ThemePickerSheetComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [`
@@ -100,11 +101,6 @@ const THEME_LABELS: Record<Theme, string> = {
       font-size: 14px;
       color: var(--hnch-muted);
     }
-
-    .accent-grid-wrap {
-      width: 100%;
-      padding: 8px 0 12px;
-    }
   `],
   template: `
     <ion-header>
@@ -121,9 +117,16 @@ const THEME_LABELS: Record<Theme, string> = {
         <ion-label>Profile</ion-label>
       </ion-list-header>
       <ion-list lines="inset">
-        <ion-item button (click)="openNameEditor()">
-          <ion-label>Display name</ion-label>
-          <ion-note slot="end">{{ displayName() }}</ion-note>
+        <ion-item>
+          <ion-input
+            #displayNameInput
+            label="Display name"
+            labelPlacement="floating"
+            [value]="displayName()"
+            maxlength="40"
+            aria-label="Display name"
+            (ionBlur)="onDisplayNameBlur()"
+          ></ion-input>
         </ion-item>
       </ion-list>
 
@@ -132,28 +135,42 @@ const THEME_LABELS: Record<Theme, string> = {
         <ion-label>Appearance</ion-label>
       </ion-list-header>
       <ion-list lines="inset">
-        <ion-item button (click)="openThemePicker()">
+        <ion-item button id="theme-trigger" aria-haspopup="listbox">
           <ion-label>Theme</ion-label>
           <ion-note slot="end">{{ themeLabel() }}</ion-note>
         </ion-item>
-        <ion-item>
-          <ion-label>
-            <h2>Accent</h2>
-            <p>Highlight color used across the app</p>
-          </ion-label>
+        <ion-popover
+          trigger="theme-trigger"
+          triggerAction="click"
+          [dismissOnSelect]="true"
+        >
+          <ng-template>
+            <app-theme-picker-popover
+              [currentTheme]="themeService.theme()"
+              (selected)="onThemeSelected($event)"
+            />
+          </ng-template>
+        </ion-popover>
+
+        <ion-item button id="accent-trigger" aria-haspopup="listbox">
+          <ion-label>Accent</ion-label>
           <div class="accent-preview" slot="end" aria-hidden="true">
-            <span
-              class="accent-preview-dot"
-              [style.background]="accentBase()"
-            ></span>
+            <span class="accent-preview-dot" [style.background]="accentBase()"></span>
             <span class="accent-preview-name">{{ accentLabel() }}</span>
           </div>
         </ion-item>
-        <ion-item lines="none">
-          <div class="accent-grid-wrap">
-            <app-accent-swatch-grid />
-          </div>
-        </ion-item>
+        <ion-popover
+          trigger="accent-trigger"
+          triggerAction="click"
+          [dismissOnSelect]="true"
+        >
+          <ng-template>
+            <app-accent-picker-popover
+              [currentAccent]="accentService.accent()"
+              (selected)="accentService.setAccent($event)"
+            />
+          </ng-template>
+        </ion-popover>
       </ion-list>
 
       <!-- Scales -->
@@ -172,9 +189,17 @@ const THEME_LABELS: Record<Theme, string> = {
         <ion-label>Session Defaults</ion-label>
       </ion-list-header>
       <ion-list lines="inset">
-        <ion-item button (click)="openSessionNameEditor()">
-          <ion-label>Default session name</ion-label>
-          <ion-note slot="end">{{ sessionNameLabel() }}</ion-note>
+        <ion-item>
+          <ion-input
+            #defaultSessionNameInput
+            label="Default session name"
+            labelPlacement="floating"
+            placeholder="None"
+            [value]="appPrefs.defaultSessionName() ?? ''"
+            maxlength="60"
+            aria-label="Default session name"
+            (ionBlur)="onDefaultSessionNameBlur()"
+          ></ion-input>
         </ion-item>
         <ion-item>
           <ion-label>Password by default</ion-label>
@@ -207,49 +232,7 @@ const THEME_LABELS: Record<Theme, string> = {
           <ion-label>Version</ion-label>
           <ion-note slot="end">{{ version }}</ion-note>
         </ion-item>
-        <ion-item disabled>
-          <ion-label>Open source licenses</ion-label>
-          <ion-note slot="end">Coming soon</ion-note>
-        </ion-item>
-        <ion-item disabled>
-          <ion-label>Privacy</ion-label>
-          <ion-note slot="end">Coming soon</ion-note>
-        </ion-item>
       </ion-list>
-
-      <!-- Name editor half-sheet -->
-      <ion-modal
-        #nameModal
-        [isOpen]="nameEditorOpen()"
-        [breakpoints]="[0, 0.6, 0.95]"
-        [initialBreakpoint]="0.6"
-        (didDismiss)="nameEditorOpen.set(false)"
-      >
-        <ng-template>
-          <app-display-name-editor-sheet
-            [currentName]="displayName()"
-            (saved)="onNameSaved($event)"
-            (closeRequested)="closeNameEditor()"
-          />
-        </ng-template>
-      </ion-modal>
-
-      <!-- Theme picker half-sheet -->
-      <ion-modal
-        #themeModal
-        [isOpen]="themePickerOpen()"
-        [breakpoints]="[0, 0.6, 0.95]"
-        [initialBreakpoint]="0.6"
-        (didDismiss)="themePickerOpen.set(false)"
-      >
-        <ng-template>
-          <app-theme-picker-sheet
-            [currentTheme]="themeService.theme()"
-            (selected)="onThemeSelected($event)"
-            (closeRequested)="closeThemePicker()"
-          />
-        </ng-template>
-      </ion-modal>
 
       <!-- Scale picker half-sheet -->
       <ion-modal
@@ -264,23 +247,6 @@ const THEME_LABELS: Record<Theme, string> = {
             [selectedScaleId]="scalePrefs.defaultScaleId()"
             (scaleSelected)="onScaleSelected($event)"
             (closeRequested)="closeScalePicker()"
-          />
-        </ng-template>
-      </ion-modal>
-
-      <!-- Session name editor half-sheet -->
-      <ion-modal
-        #sessionNameModal
-        [isOpen]="sessionNameEditorOpen()"
-        [breakpoints]="[0, 0.6, 0.95]"
-        [initialBreakpoint]="0.6"
-        (didDismiss)="sessionNameEditorOpen.set(false)"
-      >
-        <ng-template>
-          <app-session-name-editor-sheet
-            [currentName]="appPrefs.defaultSessionName()"
-            (saved)="onSessionNameSaved($event)"
-            (closeRequested)="closeSessionNameEditor()"
           />
         </ng-template>
       </ion-modal>
@@ -335,26 +301,17 @@ export class SettingsPage {
     return formatScaleId(scale.id)
   })
 
-  protected readonly sessionNameLabel = computed(() => {
-    const name = this.appPrefs.defaultSessionName()
-    return name || 'None'
-  })
-
   protected readonly relayUrlLabel = computed(() => {
     const url = this.appPrefs.relayHttpUrl()
     return url || 'Default'
   })
 
-  protected readonly nameEditorOpen = signal(false)
-  protected readonly themePickerOpen = signal(false)
   protected readonly scalePickerOpen = signal(false)
-  protected readonly sessionNameEditorOpen = signal(false)
   protected readonly relayUrlEditorOpen = signal(false)
 
-  private readonly nameModalRef = viewChild<IonModal>('nameModal')
-  private readonly themeModalRef = viewChild<IonModal>('themeModal')
+  private readonly displayNameInput = viewChild<IonInput>('displayNameInput')
+  private readonly defaultSessionNameInput = viewChild<IonInput>('defaultSessionNameInput')
   private readonly scalePickerModalRef = viewChild<IonModal>('scalePickerModal')
-  private readonly sessionNameModalRef = viewChild<IonModal>('sessionNameModal')
   private readonly relayUrlModalRef = viewChild<IonModal>('relayUrlModal')
 
   constructor() {
@@ -368,20 +325,23 @@ export class SettingsPage {
   }
 
   // ---------------------------------------------------------------------------
-  // Name editor
+  // Display name — inline blur-save
   // ---------------------------------------------------------------------------
 
-  protected openNameEditor(): void {
-    const modal = this.nameModalRef()
-    if (modal) void presentSheet({ modal })
+  protected onDisplayNameBlur(): void {
+    const input = this.displayNameInput()
+    if (!input) return
+    const trimmed = (input.value as string | null | undefined ?? '').trim()
+    if (!trimmed) {
+      // Revert to current value — display name is required.
+      input.value = this.displayName()
+      return
+    }
+    if (trimmed === this.displayName()) return
+    this.onNameSaved(trimmed)
   }
 
-  protected async closeNameEditor(): Promise<void> {
-    await this.nameModalRef()?.dismiss()
-    this.nameEditorOpen.set(false)
-  }
-
-  protected onNameSaved(newName: string): void {
+  private onNameSaved(newName: string): void {
     this.displayName.set(newName)
     void this.displayNameService.setDisplayName(newName)
 
@@ -403,16 +363,6 @@ export class SettingsPage {
   // ---------------------------------------------------------------------------
   // Theme picker
   // ---------------------------------------------------------------------------
-
-  protected openThemePicker(): void {
-    const modal = this.themeModalRef()
-    if (modal) void presentSheet({ modal })
-  }
-
-  protected async closeThemePicker(): Promise<void> {
-    await this.themeModalRef()?.dismiss()
-    this.themePickerOpen.set(false)
-  }
 
   protected onThemeSelected(value: Theme): void {
     void this.themeService.setTheme(value)
@@ -437,21 +387,14 @@ export class SettingsPage {
   }
 
   // ---------------------------------------------------------------------------
-  // Session name editor
+  // Default session name — inline blur-save
   // ---------------------------------------------------------------------------
 
-  protected openSessionNameEditor(): void {
-    const modal = this.sessionNameModalRef()
-    if (modal) void presentSheet({ modal })
-  }
-
-  protected async closeSessionNameEditor(): Promise<void> {
-    await this.sessionNameModalRef()?.dismiss()
-    this.sessionNameEditorOpen.set(false)
-  }
-
-  protected onSessionNameSaved(name: string | undefined): void {
-    void this.appPrefs.setDefaultSessionName(name)
+  protected onDefaultSessionNameBlur(): void {
+    const input = this.defaultSessionNameInput()
+    if (!input) return
+    const trimmed = (input.value as string | null | undefined ?? '').trim()
+    void this.appPrefs.setDefaultSessionName(trimmed || undefined)
   }
 
   // ---------------------------------------------------------------------------
