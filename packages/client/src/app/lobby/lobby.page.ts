@@ -18,6 +18,7 @@ import {
   IonAvatar,
   IonButton,
   IonButtons,
+  IonChip,
   IonContent,
   IonFooter,
   IonHeader,
@@ -102,6 +103,7 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
     IonAvatar,
     IonButton,
     IonButtons,
+    IonChip,
     IonContent,
     IonFooter,
     IonHeader,
@@ -260,7 +262,17 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
                         ></ion-icon>
                       }
                     </ion-label>
-                    @if (isParticipantViewer(p)) {
+                    @if (p.id === myId()) {
+                      <ion-chip
+                        slot="end"
+                        [color]="isParticipantViewer(p) ? 'medium' : 'primary'"
+                        [attr.aria-label]="isParticipantViewer(p) ? 'You are observing. Tap to switch to voter.' : 'You are a voter. Tap to switch to observer.'"
+                        [attr.aria-pressed]="isParticipantViewer(p)"
+                        (click)="onToggleRole()"
+                      >
+                        <ion-label>{{ isParticipantViewer(p) ? 'Observing' : 'Voter' }}</ion-label>
+                      </ion-chip>
+                    } @else if (isParticipantViewer(p)) {
                       <ion-note slot="end" aria-label="Observer">observer</ion-note>
                     } @else if (!onlineIds().has(p.id)) {
                       <ion-note slot="end">Offline</ion-note>
@@ -492,6 +504,14 @@ export class LobbyPage {
   /** True when a participant's effective role is `'viewer'`. */
   protected isParticipantViewer(p: { role?: 'voter' | 'viewer' }): boolean {
     return participantRole(p) === 'viewer'
+  }
+
+  /** Toggle own voter↔viewer role. Wired to the self-row chip. */
+  protected onToggleRole(): void {
+    const id = this.myId()
+    if (!id) return
+    this.haptic.impactLight()
+    this.docService.toggleRole(id)
   }
 
   protected readonly isHost = computed(() => {
