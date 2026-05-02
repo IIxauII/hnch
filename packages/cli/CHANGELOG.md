@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/IIxauII/hnch/compare/cli-v1.4.0...cli-v1.5.0) (2026-05-02)
+
+
+### Features
+
+* **client,cli,shared,e2e:** edit round descriptor post-reveal ([#104](https://github.com/IIxauII/hnch/issues/104)) ([684e0a6](https://github.com/IIxauII/hnch/commit/684e0a6fce12f7ec4e5a569858dc79905b978cf7))
+
 # [1.4.0](https://github.com/IIxauII/hnch/compare/cli-v1.3.0...cli-v1.4.0) (2026-05-02)
 
 
