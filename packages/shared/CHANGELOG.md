@@ -1,3 +1,21 @@
+# [1.2.0](https://github.com/IIxauII/hnch/compare/shared-v1.1.0...shared-v1.2.0) (2026-05-02)
+
+
+### Bug Fixes
+
+* **ci:** diff PR head SHA in detect-changes, not merge-ref HEAD ([#102](https://github.com/IIxauII/hnch/issues/102)) ([fe5625c](https://github.com/IIxauII/hnch/commit/fe5625c59e63a8a88a64771a4139cf3868f77ffd))
+* **ci:** keychain-backed runner PAT + stale-runner deregistration ([#89](https://github.com/IIxauII/hnch/issues/89)) ([0a27a19](https://github.com/IIxauII/hnch/commit/0a27a19d048a386c5c24fa2349e4c21b3fb9a362))
+* **ci:** self-heal runner pool on startup ([#85](https://github.com/IIxauII/hnch/issues/85)) ([3c7a7c7](https://github.com/IIxauII/hnch/commit/3c7a7c7ddc4c95506393911b740a8dd6f0695ba1))
+
+
+### Features
+
+* **client,cli,shared,e2e:** edit round descriptor post-reveal ([#104](https://github.com/IIxauII/hnch/issues/104)) ([684e0a6](https://github.com/IIxauII/hnch/commit/684e0a6fce12f7ec4e5a569858dc79905b978cf7))
+* **client,cli:** lobby role toggle ([#95](https://github.com/IIxauII/hnch/issues/95)) ([#103](https://github.com/IIxauII/hnch/issues/103)) ([921c241](https://github.com/IIxauII/hnch/commit/921c241f3be1422bceab8d82f0643334c54d3e05))
+* **client,e2e:** restyle Estimating/Lobby + polish design overhaul ([#101](https://github.com/IIxauII/hnch/issues/101)) ([07f1c4a](https://github.com/IIxauII/hnch/commit/07f1c4a78080fac87d237fc97e7032c4210af529))
+* **client,e2e:** restyle Onboarding/Home/Join to mono+accent design ([#100](https://github.com/IIxauII/hnch/issues/100)) ([5c8eb1c](https://github.com/IIxauII/hnch/commit/5c8eb1c742647f65c88a40f780a7b90eca06b144))
+* **client:** mono+accent design system foundations ([#84](https://github.com/IIxauII/hnch/issues/84)) ([d1bed52](https://github.com/IIxauII/hnch/commit/d1bed52779bd3f5aa5fc0a8e92239b0503faa4ab))
+
 # [1.1.0](https://github.com/IIxauII/hnch/compare/shared-v1.0.0...shared-v1.1.0) (2026-05-01)
 
 
