@@ -7,10 +7,10 @@ const RELAY_PORT = process.env['RELAY_PORT'] ?? '1234'
 export default defineConfig({
   globalSetup: './global-setup.ts',
   testDir: './tests',
-  fullyParallel: false,
+  fullyParallel: true,
   forbidOnly: isCI,
   retries: 0,
-  workers: 1,
+  workers: isCI ? 4 : undefined,
   reporter: isCI ? [['list'], ['github'], ['html', { open: 'never' }]] : 'html',
   timeout: 20_000,
   use: {
