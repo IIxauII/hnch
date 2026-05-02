@@ -372,6 +372,29 @@ export function appendRound(doc: Y.Doc, init: AppendRoundInit): string {
   return init.id
 }
 
+/**
+ * Partially update `title` and/or `description` on an existing round.
+ * Allowed pre- and post-reveal — editorial corrections are not phase-gated
+ * (the UI separately decides when to expose the affordance).
+ */
+export interface PatchRoundDescriptorInit {
+  readonly title?: string
+  readonly description?: string
+}
+
+export function patchRoundDescriptor(
+  doc: Y.Doc,
+  roundId: string,
+  init: PatchRoundDescriptorInit,
+): void {
+  const round = findRoundMap(doc, roundId)
+  if (!round) throw new Error(`patchRoundDescriptor: round ${roundId} not found`)
+  doc.transact(() => {
+    if (init.title !== undefined) round.set('title', init.title)
+    if (init.description !== undefined) round.set('description', init.description)
+  })
+}
+
 function findRoundMap(doc: Y.Doc, roundId: string): UnknownMap | undefined {
   const arr = roundsArray(doc)
   for (let i = 0; i < arr.length; i += 1) {
