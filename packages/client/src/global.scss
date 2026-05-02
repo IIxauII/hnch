@@ -29,3 +29,28 @@
  * user preference (system / light / dark) persisted in Preferences.
  */
 @import "@ionic/angular/css/palettes/dark.class.css";
+
+/*
+ * Accent select popover — colors each option's label with its accent hex
+ * so the dropdown reads as a swatch list. Hex values mirror
+ * src/app/core/accent.tokens.ts (ACCENTS + ACCENTS_DARK_OVERRIDE).
+ */
+.accent-select-popover {
+  ion-radio[value="racing-green"]::part(label) { color: #0B3D2E; }
+  ion-radio[value="dijon"]::part(label)        { color: #C9A227; }
+  ion-radio[value="blue"]::part(label)         { color: #0A84FF; }
+  ion-radio[value="indigo"]::part(label)       { color: #5E5CE6; }
+  ion-radio[value="violet"]::part(label)       { color: #BF5AF2; }
+  ion-radio[value="pink"]::part(label)         { color: #FF375F; }
+  ion-radio[value="red"]::part(label)          { color: #FF453A; }
+  ion-radio[value="orange"]::part(label)       { color: #FF9F0A; }
+  ion-radio[value="amber"]::part(label)        { color: #FFD60A; }
+  ion-radio[value="green"]::part(label)        { color: #30D158; }
+  ion-radio[value="teal"]::part(label)         { color: #40C8E0; }
+  ion-radio[value="graphite"]::part(label)     { color: #1C1C1E; }
+}
+
+.ion-palette-dark .accent-select-popover {
+  ion-radio[value="racing-green"]::part(label) { color: #1F6B4F; }
+  ion-radio[value="graphite"]::part(label)     { color: #F2F2F7; }
+}
