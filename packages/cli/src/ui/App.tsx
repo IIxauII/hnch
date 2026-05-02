@@ -44,6 +44,9 @@ export function App({ session, participantId, displayName, accessMode: initialAc
   const [confirmingQuit, setConfirmingQuit] = useState(false)
   const [roundTitlePromptActive, setRoundTitlePromptActive] = useState(false)
   const [roundTitleInput, setRoundTitleInput] = useState('')
+  const [descriptorPromptActive, setDescriptorPromptActive] = useState(false)
+  const [descriptorInput, setDescriptorInput] = useState('')
+  const [editingRoundId, setEditingRoundId] = useState<string | null>(null)
   const hostNotice = useTransientNotice(3000)
   const [shareOpen, setShareOpen] = useState(false)
   const shareNotice = useTransientNotice(3000)
@@ -90,7 +93,7 @@ export function App({ session, participantId, displayName, accessMode: initialAc
         setConfirmingQuit(true)
       }
     },
-    { isActive: !settingsOpen && !confirmingQuit && !roundTitlePromptActive && !shareOpen },
+    { isActive: !settingsOpen && !confirmingQuit && !roundTitlePromptActive && !descriptorPromptActive && !shareOpen },
   )
 
   // Confirm quit handler — active only during confirmation
@@ -129,6 +132,28 @@ export function App({ session, participantId, displayName, accessMode: initialAc
     setRoundTitleInput('')
   }, [])
 
+  const handleEditDescriptor = useCallback(() => {
+    const current = session.current()
+    if (!current || current.revealedAt === undefined) return
+    setEditingRoundId(current.id)
+    setDescriptorInput(current.title ?? '')
+    setDescriptorPromptActive(true)
+  }, [session])
+
+  const handleDescriptorSubmit = useCallback((value: string) => {
+    const id = editingRoundId
+    setDescriptorPromptActive(false)
+    setEditingRoundId(null)
+    if (!id) return
+    const trimmed = value.trim()
+    if (trimmed === '') return
+    session.updateRoundDescriptor(id, { title: trimmed })
+  }, [session, editingRoundId])
+
+  const handleDescriptorCancel = useCallback(() => {
+    setDescriptorPromptActive(false)
+    setEditingRoundId(null)
+  }, [])
 
   const handleVote = useCallback((card: string) => {
     session.vote(card)
@@ -274,6 +299,12 @@ export function App({ session, participantId, displayName, accessMode: initialAc
           confirmingQuit={confirmingQuit}
           myRole={myRole}
           onToggleRole={handleToggleRole}
+          descriptorPromptActive={descriptorPromptActive}
+          descriptorInput={descriptorInput}
+          onDescriptorChange={setDescriptorInput}
+          onDescriptorSubmit={handleDescriptorSubmit}
+          onDescriptorCancel={handleDescriptorCancel}
+          onEditDescriptor={handleEditDescriptor}
         />
       ) : screen === 'voting' && round ? (
         <Voting

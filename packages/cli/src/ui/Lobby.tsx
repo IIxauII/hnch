@@ -34,6 +34,12 @@ interface Props {
   confirmingQuit: boolean
   myRole: 'voter' | 'viewer'
   onToggleRole: () => void
+  descriptorPromptActive: boolean
+  descriptorInput: string
+  onDescriptorChange: (value: string) => void
+  onDescriptorSubmit: (value: string) => void
+  onDescriptorCancel: () => void
+  onEditDescriptor: () => void
 }
 
 function computeStats(votes: Record<string, string>): {
@@ -128,6 +134,12 @@ export function Lobby({
   onRoundTitleChange,
   onRoundTitleSubmit,
   onRoundTitleCancel,
+  descriptorPromptActive,
+  descriptorInput,
+  onDescriptorChange,
+  onDescriptorSubmit,
+  onDescriptorCancel,
+  onEditDescriptor,
 }: Props): React.ReactElement {
   const [handoffMode, setHandoffMode] = React.useState<'idle' | 'picking' | 'confirming'>('idle')
   const [handoffTargetId, setHandoffTargetId] = React.useState<string | null>(null)
@@ -162,10 +174,11 @@ export function Lobby({
         if (currentRound?.revealedAt !== undefined) {
           if (input === 'n' || input === 'N') onNewRound()
           if (input === 'v' || input === 'V') onRevote()
+          if (input === 't' || input === 'T') onEditDescriptor()
         }
       }
     },
-    { isActive: !settingsOpen && !confirmingQuit && handoffMode === 'idle' && !roundTitlePromptActive && !hostMenuOpen && !confirmingEndSession && !shareOpen },
+    { isActive: !settingsOpen && !confirmingQuit && handoffMode === 'idle' && !roundTitlePromptActive && !hostMenuOpen && !confirmingEndSession && !shareOpen && !descriptorPromptActive },
   )
 
   // End session confirmation
@@ -329,6 +342,23 @@ export function Lobby({
         </Box>
       )}
 
+      {descriptorPromptActive && (
+        <Box flexDirection="column">
+          <Box gap={1}>
+            <Text>Edit round title:</Text>
+            <TextInput
+              value={descriptorInput}
+              onChange={onDescriptorChange}
+              onSubmit={onDescriptorSubmit}
+              onCancel={onDescriptorCancel}
+              placeholder="Enter to save"
+              isActive={descriptorPromptActive}
+            />
+          </Box>
+          <Text dimColor>[Esc] Cancel · empty submit cancels</Text>
+        </Box>
+      )}
+
       {confirmingEndSession && (
         <Box>
           <Text color="red">End session for everyone? This cannot be undone. </Text>
@@ -336,7 +366,7 @@ export function Lobby({
         </Box>
       )}
 
-      {handoffMode === 'idle' && !roundTitlePromptActive && !confirmingEndSession && (
+      {handoffMode === 'idle' && !roundTitlePromptActive && !descriptorPromptActive && !confirmingEndSession && (
         <Box gap={2}>
           {isHost ? (
             <>
@@ -344,6 +374,7 @@ export function Lobby({
                 <>
                   <Text color="yellow">[v] Revote</Text>
                   <Text color="yellow">[n] Next</Text>
+                  <Text color="yellow">[t] Edit title</Text>
                   <Text color="yellow">[h] Handoff</Text>
                   <Text color="yellow">[e] Settings</Text>
                   <Text color="yellow">[c] Share</Text>
