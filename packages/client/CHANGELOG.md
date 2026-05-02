@@ -1,3 +1,11 @@
+# [1.11.0](https://github.com/IIxauII/hnch/compare/client-v1.10.0...client-v1.11.0) (2026-05-02)
+
+
+### Features
+
+* **client,e2e:** restyle Estimating/Lobby + polish design overhaul ([#101](https://github.com/IIxauII/hnch/issues/101)) ([07f1c4a](https://github.com/IIxauII/hnch/commit/07f1c4a78080fac87d237fc97e7032c4210af529))
+* **client,e2e:** restyle Onboarding/Home/Join to mono+accent design ([#100](https://github.com/IIxauII/hnch/issues/100)) ([5c8eb1c](https://github.com/IIxauII/hnch/commit/5c8eb1c742647f65c88a40f780a7b90eca06b144))
+
 # [1.10.0](https://github.com/IIxauII/hnch/compare/client-v1.9.0...client-v1.10.0) (2026-05-02)
 
 
