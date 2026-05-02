@@ -11,10 +11,10 @@
           { "type": "fix", "release": false },
           { "type": "perf", "release": false },
           { "breaking": true, "release": false },
-          { "scope": "client", "type": "feat", "release": "minor" },
-          { "scope": "client", "type": "fix", "release": "patch" },
-          { "scope": "client", "type": "perf", "release": "patch" },
-          { "scope": "client", "breaking": true, "release": "major" }
+          { "scope": "@(client|*,client|client,*|*,client,*)", "type": "feat", "release": "minor" },
+          { "scope": "@(client|*,client|client,*|*,client,*)", "type": "fix", "release": "patch" },
+          { "scope": "@(client|*,client|client,*|*,client,*)", "type": "perf", "release": "patch" },
+          { "scope": "@(client|*,client|client,*|*,client,*)", "breaking": true, "release": "major" }
         ]
       }
     ],

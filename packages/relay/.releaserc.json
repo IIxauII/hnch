@@ -11,10 +11,10 @@
           { "type": "fix", "release": false },
           { "type": "perf", "release": false },
           { "breaking": true, "release": false },
-          { "scope": "relay", "type": "feat", "release": "minor" },
-          { "scope": "relay", "type": "fix", "release": "patch" },
-          { "scope": "relay", "type": "perf", "release": "patch" },
-          { "scope": "relay", "breaking": true, "release": "major" }
+          { "scope": "@(relay|*,relay|relay,*|*,relay,*)", "type": "feat", "release": "minor" },
+          { "scope": "@(relay|*,relay|relay,*|*,relay,*)", "type": "fix", "release": "patch" },
+          { "scope": "@(relay|*,relay|relay,*|*,relay,*)", "type": "perf", "release": "patch" },
+          { "scope": "@(relay|*,relay|relay,*|*,relay,*)", "breaking": true, "release": "major" }
         ]
       }
     ],
