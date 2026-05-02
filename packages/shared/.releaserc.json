@@ -11,10 +11,10 @@
           { "type": "fix", "release": false },
           { "type": "perf", "release": false },
           { "breaking": true, "release": false },
-          { "scope": "shared", "type": "feat", "release": "minor" },
-          { "scope": "shared", "type": "fix", "release": "patch" },
-          { "scope": "shared", "type": "perf", "release": "patch" },
-          { "scope": "shared", "breaking": true, "release": "major" }
+          { "scope": "@(shared|*,shared|shared,*|*,shared,*)", "type": "feat", "release": "minor" },
+          { "scope": "@(shared|*,shared|shared,*|*,shared,*)", "type": "fix", "release": "patch" },
+          { "scope": "@(shared|*,shared|shared,*|*,shared,*)", "type": "perf", "release": "patch" },
+          { "scope": "@(shared|*,shared|shared,*|*,shared,*)", "breaking": true, "release": "major" }
         ]
       }
     ],

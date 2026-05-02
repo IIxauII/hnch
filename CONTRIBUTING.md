@@ -57,7 +57,32 @@ Types in use (match existing history — see `git log`):
 | `deps` | Dependency bumps (Dependabot et al.) | No |
 | `repo` | Root configs (`package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`, `.gitignore`, etc.) | No |
 
-For multi-package changes pick the primary user-impacted scope; if each side genuinely warrants its own release bump, split into separate PRs.
+### Multi-scope titles
+
+A PR that touches multiple packages MUST list every scope it touches, comma-separated, no spaces. Single-scope titles where the PR also modifies another package's files (silent ride-along) are not allowed — the omitted package gets no version bump and falls out of sync.
+
+```
+feat(client,shared): add new vote payload field
+fix(relay,shared): correct snapshot TTL calculation
+feat(client,cli,shared)!: drop legacy join URL
+chore(ci,infra): bump runner image base
+```
+
+Rules:
+
+- **Comma delimiter, no spaces.** `feat(client, shared): ...` fails PR-title lint.
+- **Every changed package's scope must appear in the title.** Run `git diff --name-only main...HEAD | cut -d/ -f1-2 | sort -u` to confirm coverage before pushing.
+- **One commit type for all listed scopes.** `feat(client,shared)` cuts a `feat`-level release for both `client` and `shared`. If client is a `feat` and shared is a `fix`, use the higher type (`feat`); semantic-release will publish each per-package release at the level the type implies for that scope.
+- **Non-releasing scopes are allowed alongside releasing ones.** `feat(client,docs): ...` triggers a client minor; `docs` adds nothing. Useful when a feature ships with doc updates in the same PR.
+- **Order doesn't matter.** `feat(shared,client): ...` and `feat(client,shared): ...` produce the same set of releases.
+- **Breaking changes apply to every listed releasing scope.** `feat(client,shared)!: ...` cuts a major for both. To break only one package, split the PR.
+
+When to split into separate PRs instead of multi-scoping:
+
+- The changes are logically independent and review benefits from being scoped.
+- One side is a `feat` and the other is genuinely only a `fix` (multi-scope flattens to the higher type).
+- One side is a breaking change and the other is not.
+- The PR is large enough that multi-scoping makes the diff hard to review.
 
 The commit type drives the release bump — see [Releases](#releases).
 
@@ -140,7 +165,9 @@ BREAKING CHANGE: clients on <1.4.0 can no longer join.
 
 ### Per-package versioning
 
-Each package versions independently — `client`, `cli`, `relay`, and `shared` get their own tags (e.g. `relay-v0.4.1`). `e2e` is test-only and is not released. Scope your commit (`fix(relay): ...`) so the right package picks it up.
+Each package versions independently — `client`, `cli`, `relay`, and `shared` get their own tags (e.g. `relay-v0.4.1`). `e2e` is test-only and is not released. Scope your PR title (`fix(relay): ...`) so the right package picks it up; multi-package PRs use comma-separated scopes (`fix(relay,shared): ...`) and cut one release per listed releasing scope. See [Multi-scope titles](#multi-scope-titles).
+
+Under the hood, each package's `.releaserc.json` matches its scope via a micromatch extglob — `@(relay|*,relay|relay,*|*,relay,*)` — so the rule fires whether the scope appears alone or anywhere in a comma-separated list. Adding a new releasing scope means adding a new `.releaserc.json` with the same pattern.
 
 ## Parallel git worktrees
 
