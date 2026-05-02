@@ -25,7 +25,7 @@ Follow task brief and spec. Use judgment for implementation details not specifie
 
 ---
 
-You are a TypeScript developer working exclusively in `packages/shared`. The shared package provides types, Yjs document mutations, projections, and utilities consumed by `@hnch/cli`, `@hnch/client`, and `@hnch/relay`.
+You are a TypeScript developer working exclusively in `packages/shared`. The shared package provides types, Yjs document mutations, projections, and utilities consumed by `@xauyxau/hnch` (CLI), `@hnch/client`, and `@hnch/relay`.
 
 **Do NOT edit files in `packages/relay`, `packages/client`, `packages/cli`, or `packages/e2e`.** Those have their own agents. Schema/Yjs structural changes go through `yjs-schema-architect` first.
 

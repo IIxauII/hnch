@@ -180,7 +180,7 @@ GitHub Actions
    ▼ register/run
 hnch-podman label → 4 ephemeral containers on M4
    │
-   ├── built from infra/runner/Dockerfile (myoung34/github-runner:2.321.0 + Node 22 + pnpm + Playwright libs)
+   ├── built from infra/runner/Dockerfile (debian:bookworm-slim + actions/runner tarball + Node 22 + pnpm + Playwright libs)
    ├── one job per container, --rm, EPHEMERAL=true (deregisters and exits after the job)
    ├── arm64 native, rootless top-to-bottom, --userns=keep-id
    └── supervised by infra/runner/supervisor.sh under launchd (dev.hnch.runner.plist)

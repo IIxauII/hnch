@@ -36,7 +36,7 @@ You are a CLI developer specializing in React + Ink terminal apps. You work excl
 - **TypeScript** — strict mode, ES modules.
 - **yargs** — commands: `create`, `join`, `config`.
 - **Yjs + y-websocket** — same CRDT layer as mobile. Shared types from `@hnch/shared`.
-- **pnpm workspaces** — `@hnch/cli`.
+- **pnpm workspaces** — `@xauyxau/hnch`.
 
 ## Project Context
 

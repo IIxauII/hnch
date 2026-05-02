@@ -8,7 +8,7 @@ Production deployment for hnch. See [ADR-0029](../adr/0029-relay-deployment.md) 
 |---|---|---|
 | Relay (`@hnch/relay`) | `hnch-vps` (IONOS, Debian) | `deploy-relay.yml` workflow on `relay-v*` tags → tarball over SSH → systemd unit |
 | PWA static (`@hnch/client`) | same VPS, `/var/www/hnch-client` | TBD: `deploy-client.yml` (follow-up to ADR-0029, after relay is live) |
-| CLI (`@hnch/cli`) | npm registry + Homebrew tap | TBD: deferred until relay default URL is `wss://hnch.dev` |
+| CLI (`@xauyxau/hnch`) | npm registry | `release.yml` → semantic-release → `npm publish` on `cli-v*` tags |
 
 All three surfaces speak to the same relay at `wss://hnch.dev/ws/:uuid` and `https://hnch.dev/rooms/:code`. Single origin, single Let's Encrypt cert, no CORS.
 
@@ -85,6 +85,6 @@ Per ADR-0029:
 ## Out of scope (future work)
 
 - Static PWA deploy job (`deploy-client.yml`) — straightforward extension once the relay path is proven.
-- CLI deployment (`@hnch/cli` to npm + Homebrew tap) — resumes once a default `wss://hnch.dev` is live so the CLI can ship with a sane fallback.
+- Homebrew tap for `@xauyxau/hnch` — deferred; npm publish is live.
 - Observability: structured metrics, log shipping, alerting.
 - HA / multi-region.

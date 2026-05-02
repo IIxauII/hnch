@@ -60,7 +60,7 @@ Each phase assumes the previous one passes its exit bar. Within a phase, orderin
 
 **Work.**
 - Bootstrap: `provideIonicAngular()` in `main.ts` with Ionic's default mode (auto-detected per platform — iOS on iPhone, Material on Android/PWA). See [`ux.md` §2](ux.md#2-app-shell--navigation).
-- Angular routing: six routes for the v1 screens — `onboarding`, `home`, `join`, `lobby`, `estimating`, `settings`. Placeholder components, nothing more. Route guard that redirects to `onboarding` on first launch (no stored display name).
+- Angular routing: six routes for the v1 screens — `onboarding`, `home`, `join`, `lobby/:code`, `estimating/:code`, `settings`. Placeholder components, nothing more. Route guard that redirects to `onboarding` on first launch (no stored display name).
 - `packages/shared`: add `doc.ts` — TypeScript interfaces that mirror [`schema.md`](schema.md) one-to-one: `Meta`, `Settings`, `Participant`, `Round`, `Scale`, `RevealMode`, awareness payload. These are the types client and relay will share going forward. No Yjs bindings yet (those live in the client — shared is platform-neutral).
 - Onboarding screen: name input + Continue button, writes to `@capacitor/preferences`. Handles the pending-join-URL case (if the app launched via deep link before onboarding, stash it and resume to Join after save).
 - Home screen: "Create Room" and "Join Room" buttons. Jump-back-in banner can be present as a shell (no wiring yet — that needs Phase 2+).
@@ -245,12 +245,12 @@ This design work is ~1 hour; resolve it before relay code lands.
 
 These apply across phases; flagging them once here saves repeating per phase.
 
-**CLI parity.** The `@hnch/cli` package (`packages/cli`) is a terminal client that ships alongside the mobile/PWA client. It uses the same relay protocol and `@hnch/shared` doc schema. Any session-behavior change (rounds, reveal, host election, access control, scales) must be reflected in both clients. See [`cli.md`](cli.md) for commands and conventions.
+**CLI parity.** The `@xauyxau/hnch` package (`packages/cli`) is a terminal client that ships alongside the mobile/PWA client. It uses the same relay protocol and `@hnch/shared` doc schema. Any session-behavior change (rounds, reveal, host election, access control, scales) must be reflected in both clients. See [`cli.md`](cli.md) for commands and conventions.
 
 **Tests.** We are not writing a separate test-strategy document for v1. Rule of thumb:
 - Pure shared utilities get unit tests (as `room-code.ts` already does).
 - Yjs-coordination edge cases (timer fallback, host election) get simulation tests where feasible — two or more in-process peers against a mock transport.
-- UI screens are exercised by manual smoke tests; no Karma/Cypress investment in v1.
+- End-to-end flows are covered by the Playwright suite in `packages/e2e` (added in Phase 5). No Karma/Cypress investment.
 
 **Error handling.** Network errors bubble to toasts, not console. Relay rejections map to the `JoinRejectionReason` enum and produce user-facing copy from one source.
 
