@@ -2,7 +2,6 @@ import { test, expect } from './fixtures/app.fixture'
 import {
   APP_SETTINGS,
   THEME_PICKER,
-  NAME_EDITOR,
   APP_SETTINGS_SCALE_PICKER,
   HOME,
   LOBBY,
@@ -37,45 +36,40 @@ test.describe('App Settings', () => {
     // Default theme should be "System"
     await expect(host.page.locator(APP_SETTINGS.themeValue)).toContainText('System')
 
-    // Switch to Dark
+    // Switch to Dark — theme-trigger opens an ion-popover with [dismissOnSelect]="true";
+    // clicking an option emits the selection and auto-dismisses (no Done button).
     await host.page.locator(APP_SETTINGS.themeRow).click()
-    await host.page.locator(THEME_PICKER.option('Dark')).click()
+    const darkOption = host.page.locator(THEME_PICKER.option('Dark'))
+    await darkOption.waitFor({ state: 'visible' })
+    await darkOption.click()
+
     // Verify class added
     const hasDarkClass = await host.page.evaluate(() =>
       document.documentElement.classList.contains('ion-palette-dark'),
     )
     expect(hasDarkClass).toBe(true)
 
-    // Close picker
-    const doneBtnDark = host.page.locator(THEME_PICKER.doneBtn)
-    await doneBtnDark.waitFor({ state: 'visible' })
-    await doneBtnDark.evaluate((el: HTMLElement) => el.click())
-
     // Theme label updated
     await expect(host.page.locator(APP_SETTINGS.themeValue)).toContainText('Dark')
 
     // Switch to Light
     await host.page.locator(APP_SETTINGS.themeRow).click()
-    await host.page.locator(THEME_PICKER.option('Light')).click()
+    const lightOption = host.page.locator(THEME_PICKER.option('Light'))
+    await lightOption.waitFor({ state: 'visible' })
+    await lightOption.click()
 
     const hasDarkClassAfterLight = await host.page.evaluate(() =>
       document.documentElement.classList.contains('ion-palette-dark'),
     )
     expect(hasDarkClassAfterLight).toBe(false)
 
-    const doneBtnLight = host.page.locator(THEME_PICKER.doneBtn)
-    await doneBtnLight.waitFor({ state: 'visible' })
-    await doneBtnLight.evaluate((el: HTMLElement) => el.click())
-
     await expect(host.page.locator(APP_SETTINGS.themeValue)).toContainText('Light')
 
     // Switch to System
     await host.page.locator(APP_SETTINGS.themeRow).click()
-    await host.page.locator(THEME_PICKER.option('System')).click()
-
-    const doneBtnSystem = host.page.locator(THEME_PICKER.doneBtn)
-    await doneBtnSystem.waitFor({ state: 'visible' })
-    await doneBtnSystem.evaluate((el: HTMLElement) => el.click())
+    const systemOption = host.page.locator(THEME_PICKER.option('System'))
+    await systemOption.waitFor({ state: 'visible' })
+    await systemOption.click()
 
     await expect(host.page.locator(APP_SETTINGS.themeValue)).toContainText('System')
   })
@@ -83,27 +77,29 @@ test.describe('App Settings', () => {
   test('display name change persists across settings re-entry', async ({ host }) => {
     await setupAndGoToSettings(host)
 
-    // Current name should be "Host" (from fixture)
-    await expect(host.page.locator(APP_SETTINGS.nameValue)).toContainText('Host')
-
-    // Open name editor and change
-    await host.page.locator(APP_SETTINGS.nameRow).click()
-    const nameInput = host.page.locator(NAME_EDITOR.input).locator('input')
+    // Display name is now an inline ion-input (label="Display name" attribute, blur-save).
+    // Ionic reflects label= as an HTML attribute on the ion-input host element.
+    // The native <input> lives in the shadow DOM; .locator('input') pierces it.
+    const nameInput = host.page.locator(APP_SETTINGS.nameInput).locator('input')
     await nameInput.waitFor({ state: 'visible' })
-    await nameInput.fill('NewHost')
-    const doneBtn = host.page.locator(NAME_EDITOR.doneBtn)
-    await doneBtn.waitFor({ state: 'visible' })
-    await doneBtn.evaluate((el: HTMLElement) => el.click())
+    const currentValue = await nameInput.inputValue()
+    expect(currentValue).toBe('Host')
 
-    // Verify label updated
-    await expect(host.page.locator(APP_SETTINGS.nameValue)).toContainText('NewHost')
+    // Edit inline: clear and type new name, then blur to trigger save.
+    await nameInput.fill('NewHost')
+    await nameInput.blur()
+
+    // After blur-save the signal updates; re-read the input value.
+    await expect(nameInput).toHaveValue('NewHost')
 
     // Navigate back and re-enter settings
     await host.page.goto(`${BASE_URL}/settings`)
     await host.page.waitForURL(/\/settings/)
 
-    // Name should persist
-    await expect(host.page.locator(APP_SETTINGS.nameValue)).toContainText('NewHost')
+    // Name should persist across navigation
+    const nameInputAfterReload = host.page.locator(APP_SETTINGS.nameInput).locator('input')
+    await nameInputAfterReload.waitFor({ state: 'visible' })
+    await expect(nameInputAfterReload).toHaveValue('NewHost')
   })
 
   test('settings page shows version string', async ({ host }) => {

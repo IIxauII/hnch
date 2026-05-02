@@ -153,9 +153,18 @@ export const ACCESS_PICKER = {
 // ---------------------------------------------------------------------------
 // App settings (settings page, not session settings)
 // ---------------------------------------------------------------------------
+//
+// After the inline-edit + popover rework (65c5a55):
+//   - Display name: now an inline ion-input with label="Display name".
+//     No ion-label child, no ion-note. Selector targets the ion-input element;
+//     value is read via inputValue(), not text content.
+//   - Theme: ion-item still has ion-label + ion-note — selectors unchanged.
+//   - Default scale / Version: unchanged.
 export const APP_SETTINGS = {
-  nameRow: 'app-settings ion-item:has(ion-label:text-is("Display name"))',
-  nameValue: 'app-settings ion-item:has(ion-label:text-is("Display name")) ion-note',
+  /** The ion-item containing the inline display-name ion-input. */
+  nameRow: 'app-settings ion-item:has(ion-input[label="Display name"])',
+  /** The inline ion-input for display name — use .inputValue() to read current value. */
+  nameInput: 'app-settings ion-input[label="Display name"]',
   themeRow: 'app-settings ion-item:has(ion-label:text-is("Theme"))',
   themeValue: 'app-settings ion-item:has(ion-label:text-is("Theme")) ion-note',
   defaultScaleRow: 'app-settings ion-item:has(ion-label:text-is("Default scale"))',
@@ -163,15 +172,17 @@ export const APP_SETTINGS = {
   versionValue: 'app-settings ion-item:has(ion-label:text-is("Version")) ion-note',
 } as const
 
+// Theme picker is now an ion-popover (app-theme-picker-popover) with
+// [dismissOnSelect]="true" — no Done button; selecting an option closes it.
 export const THEME_PICKER = {
-  option: (label: string) => `app-theme-picker-sheet ion-item:has(ion-label:text-is("${label}"))`,
-  doneBtn: 'app-theme-picker-sheet ion-button:has-text("Done")',
+  option: (label: string) => `app-theme-picker-popover ion-item:has(ion-label:text-is("${label}"))`,
 } as const
 
-export const NAME_EDITOR = {
-  input: 'app-display-name-editor-sheet ion-input',
-  doneBtn: 'app-display-name-editor-sheet ion-button:has-text("Done")',
-} as const
+// NAME_EDITOR (app-display-name-editor-sheet) was removed in the settings UX
+// rework — display name is now edited inline in the settings page ion-input.
+// The export is kept as an empty object so old imports don't break at compile
+// time; callers must be updated to use APP_SETTINGS.nameInput directly.
+export const NAME_EDITOR = {} as const
 
 // ---------------------------------------------------------------------------
 // App settings scale picker (picker mode - builtin scales only)
