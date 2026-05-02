@@ -23,6 +23,7 @@ import {
   isConsensus,
   joinDoc,
   leaveSession,
+  patchRoundDescriptor,
   patchSettings,
   projectDoc,
   removeParticipant,
@@ -957,5 +958,83 @@ describe('concurrent leaveSession + removeParticipant converge (ADR-0036 §7)', 
 
     // Yjs LWW picked one winner — must be one of the two actors.
     expect(['p-target', 'p-host']).toContain(targetA.removedBy)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// patchRoundDescriptor
+// ---------------------------------------------------------------------------
+
+describe('patchRoundDescriptor', () => {
+  function makeDocWithRound(overrides: { title?: string; description?: string } = {}) {
+    const { doc } = seedDoc()
+    const id = appendRound(doc, {
+      id: 'r-1',
+      createdAt: 1_700_000_001_000,
+      createdBy: 'p-host',
+      ...overrides,
+    })
+    return { doc, id }
+  }
+
+  it('updates title only — description untouched', () => {
+    const { doc, id } = makeDocWithRound({ title: 'original', description: 'keep me' })
+    patchRoundDescriptor(doc, id, { title: 'updated' })
+    const snap = projectDoc(doc)
+    const round = snap.rounds.find((r) => r.id === id)!
+    expect(round.title).toBe('updated')
+    expect(round.description).toBe('keep me')
+  })
+
+  it('updates description only — title untouched', () => {
+    const { doc, id } = makeDocWithRound({ title: 'keep me', description: 'original' })
+    patchRoundDescriptor(doc, id, { description: 'updated' })
+    const snap = projectDoc(doc)
+    const round = snap.rounds.find((r) => r.id === id)!
+    expect(round.title).toBe('keep me')
+    expect(round.description).toBe('updated')
+  })
+
+  it('updates both title and description', () => {
+    const { doc, id } = makeDocWithRound({ title: 'old title', description: 'old desc' })
+    patchRoundDescriptor(doc, id, { title: 'new title', description: 'new desc' })
+    const snap = projectDoc(doc)
+    const round = snap.rounds.find((r) => r.id === id)!
+    expect(round.title).toBe('new title')
+    expect(round.description).toBe('new desc')
+  })
+
+  it('no fields passed → no-op, title and description unchanged', () => {
+    const { doc, id } = makeDocWithRound({ title: 'stable', description: 'stable desc' })
+    patchRoundDescriptor(doc, id, {})
+    const snap = projectDoc(doc)
+    const round = snap.rounds.find((r) => r.id === id)!
+    expect(round.title).toBe('stable')
+    expect(round.description).toBe('stable desc')
+  })
+
+  it('round not found → throws with expected message', () => {
+    const { doc } = makeDocWithRound()
+    expect(() => patchRoundDescriptor(doc, 'no-such-round', { title: 'x' })).toThrow(
+      'patchRoundDescriptor: round no-such-round not found',
+    )
+  })
+
+  it('empty string overwrites title to empty string', () => {
+    const { doc, id } = makeDocWithRound({ title: 'non-empty' })
+    patchRoundDescriptor(doc, id, { title: '' })
+    const snap = projectDoc(doc)
+    const round = snap.rounds.find((r) => r.id === id)!
+    expect(round.title).toBe('')
+  })
+
+  it('patches a revealed round — succeeds without error', () => {
+    const { doc, id } = makeDocWithRound({ title: 'before reveal' })
+    revealRound(doc, id, 1_700_000_002_000)
+    patchRoundDescriptor(doc, id, { title: 'after reveal' })
+    const snap = projectDoc(doc)
+    const round = snap.rounds.find((r) => r.id === id)!
+    expect(round.title).toBe('after reveal')
+    expect(round.revealedAt).toBe(1_700_000_002_000)
   })
 })

@@ -10,6 +10,7 @@ import {
 import { Router } from '@angular/router'
 import { Share } from '@capacitor/share'
 import { formatRoomCode, participantRole } from '@hnch/shared'
+import type { Round } from '@hnch/shared'
 import {
   ActionSheetController,
   AlertController,
@@ -38,6 +39,7 @@ import { addIcons } from 'ionicons'
 import {
   chevronBackOutline,
   ellipsisHorizontalCircle,
+  pencilOutline,
   personCircleOutline,
   personRemoveOutline,
   qrCodeOutline,
@@ -57,6 +59,7 @@ import {
   RoundStartSheetComponent,
   type RoundStartSubmission,
 } from '../round-start/round-start.sheet'
+import { RoundEditSheetComponent } from './round-edit.sheet'
 import { SessionSettingsSheetComponent } from '../session-settings/session-settings.sheet'
 import { RoundHistoryComponent } from '../shared/round-history.component'
 import { VoteResultsComponent } from '../shared/vote-results.component'
@@ -119,6 +122,7 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
     IonTitle,
     IonToolbar,
     QrDisplaySheetComponent,
+    RoundEditSheetComponent,
     RoundHistoryComponent,
     RoundStartSheetComponent,
     SessionSettingsSheetComponent,
@@ -288,9 +292,24 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       @if (lastRevealedRound(); as round) {
         <section class="results-section" aria-label="Round {{ lastRevealedRoundIndex() }} Results">
           <h2 class="results-heading">Round {{ lastRevealedRoundIndex() }} Results</h2>
-          @if (round.title) {
-            <p class="results-descriptor">{{ round.title }}</p>
-          }
+          <div class="results-descriptor-row">
+            @if (round.title) {
+              <p class="results-descriptor">{{ round.title }}</p>
+            } @else if (isHost()) {
+              <p class="results-descriptor placeholder">Add a descriptor</p>
+            }
+            @if (isHost()) {
+              <ion-button
+                fill="clear"
+                size="small"
+                class="edit-btn"
+                aria-label="Edit round descriptor"
+                (click)="openRoundEdit(round)"
+              >
+                <ion-icon name="pencil-outline" slot="icon-only" />
+              </ion-button>
+            }
+          </div>
           <app-vote-results
             [round]="round"
             [participants]="participants()"
@@ -303,6 +322,8 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
         <app-round-history
           [rounds]="pastRevealedRounds()"
           [participants]="participants()"
+          [isHost]="isHost()"
+          (editTriggered)="openRoundEditById($event)"
         />
       }
     </ion-content>
@@ -388,6 +409,24 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       </ng-template>
     </ion-modal>
 
+    <ion-modal
+      [isOpen]="roundEditOpen()"
+      [breakpoints]="[0, 0.6, 0.95]"
+      [initialBreakpoint]="0.6"
+      (didDismiss)="onRoundEditDismiss()"
+    >
+      <ng-template>
+        @if (editingRound(); as round) {
+          <app-round-edit-sheet
+            [roundNumber]="editingRoundNumber()"
+            [initialTitle]="round.title ?? null"
+            [initialDescription]="round.description ?? null"
+            (submitted)="onRoundEditSave($event)"
+          />
+        }
+      </ng-template>
+    </ion-modal>
+
   `,
   styles: [
     `
@@ -449,9 +488,23 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
         font-weight: 700;
         margin: 0 0 0.25rem;
       }
+      .results-descriptor-row {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        margin-bottom: 0.75rem;
+      }
       .results-descriptor {
-        margin: 0 0 0.75rem;
+        margin: 0;
         color: var(--ion-color-medium);
+      }
+      .results-descriptor.placeholder {
+        color: var(--ion-color-medium);
+        font-style: italic;
+      }
+      .edit-btn {
+        --padding-start: 0.25rem;
+        --padding-end: 0.25rem;
       }
       .footer-row {
         display: grid;
@@ -487,6 +540,12 @@ export class LobbyPage {
 
   /** QR display modal visibility. */
   protected readonly qrOpen = signal(false)
+
+  /** Round-edit modal visibility. */
+  protected readonly roundEditOpen = signal(false)
+
+  /** Round currently being edited, or null when no edit is open. */
+  protected readonly editingRound = signal<Round | null>(null)
 
   /**
    * Access state lives here (not in SessionSettingsSheetComponent) so
@@ -615,6 +674,14 @@ export class LobbyPage {
     )
   })
 
+  /** 1-based round number for the edit modal header. */
+  protected readonly editingRoundNumber = computed<number>(() => {
+    const round = this.editingRound()
+    if (!round) return 1
+    const idx = this.rounds().findIndex((r) => r.id === round.id)
+    return idx >= 0 ? idx + 1 : 1
+  })
+
   private readonly modalRef = viewChild<IonModal>('roundStartModal')
   private readonly sessionSettingsModalRef = viewChild<IonModal>(
     'sessionSettingsModal',
@@ -631,6 +698,7 @@ export class LobbyPage {
     addIcons({
       'chevron-back-outline': chevronBackOutline,
       'ellipsis-horizontal-circle': ellipsisHorizontalCircle,
+      'pencil-outline': pencilOutline,
       'person-circle-outline': personCircleOutline,
       'person-remove-outline': personRemoveOutline,
       'qr-code-outline': qrCodeOutline,
@@ -865,6 +933,32 @@ export class LobbyPage {
   protected async closeQr(): Promise<void> {
     await this.qrModalRef()?.dismiss()
     this.qrOpen.set(false)
+  }
+
+  protected openRoundEdit(round: Round): void {
+    this.editingRound.set(round)
+    this.roundEditOpen.set(true)
+  }
+
+  protected openRoundEditById(roundId: string): void {
+    const round = this.rounds().find((r) => r.id === roundId)
+    if (round) this.openRoundEdit(round)
+  }
+
+  protected onRoundEditDismiss(): void {
+    this.roundEditOpen.set(false)
+    this.editingRound.set(null)
+  }
+
+  protected onRoundEditSave(payload: { title: string; description: string | null }): void {
+    const round = this.editingRound()
+    if (!round) return
+    this.docService.updateRoundDescriptor(round.id, {
+      title: payload.title,
+      ...(payload.description !== null && { description: payload.description }),
+    })
+    this.roundEditOpen.set(false)
+    this.editingRound.set(null)
   }
 
   /**
