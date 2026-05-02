@@ -36,9 +36,13 @@ bootstrapApplication(AppComponent, {
     provideAppInitializer(() => inject(ParticipantIdService).ensureLoaded()),
     // ThemeService must complete before AccentService so that .ion-palette-dark
     // is present on <html> when AccentService reads it for dark-mode overrides.
+    // Resolve both injections synchronously before the first await — the
+    // injection context is gone after any await boundary (NG0203 otherwise).
     provideAppInitializer(async () => {
-      await inject(ThemeService).ensureLoaded()
-      await inject(AccentService).loadFromStorage()
+      const theme = inject(ThemeService)
+      const accent = inject(AccentService)
+      await theme.ensureLoaded()
+      await accent.loadFromStorage()
     }),
     provideAppInitializer(() => inject(ScalePreferenceService).ensureLoaded()),
     provideAppInitializer(() => inject(AppPreferenceService).ensureLoaded()),
