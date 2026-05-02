@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/app.fixture'
-import { BASE_URL, JOIN } from './fixtures/helpers'
+import { BASE_URL, HOME, JOIN, fillRoomCode } from './fixtures/helpers'
 
 test.describe('Password-protected rooms', () => {
   test('joiner must enter correct password to join', async ({ host, player }) => {
@@ -40,10 +40,9 @@ test.describe('Password-protected rooms', () => {
     if (player.page.url().includes('/onboarding')) {
       await player.onboard()
     }
-    await player.page.locator('ion-card:has(strong:text-is("Join Room"))').click()
+    await player.page.locator(HOME.joinCard).click()
     await player.page.waitForURL(/\/join/)
-    const codeInput = player.page.locator(JOIN.codeInput).locator('input')
-    await codeInput.fill(code)
+    await fillRoomCode(player.page, code)
     await player.page.locator(JOIN.joinBtn).click()
 
     // Wait for password field

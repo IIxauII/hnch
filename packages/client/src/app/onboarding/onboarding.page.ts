@@ -14,11 +14,14 @@ import {
   IonFooter,
   IonHeader,
   IonInput,
-  IonTitle,
+  IonItem,
+  IonList,
+  IonNote,
   IonToolbar,
 } from '@ionic/angular/standalone'
 
 import { DisplayNameService } from '../core/display-name.service'
+import { BrandMarkComponent } from '../shared/brand-mark.component'
 
 /**
  * First-run Onboarding: capture a display name and persist it before
@@ -35,43 +38,52 @@ import { DisplayNameService } from '../core/display-name.service'
   selector: 'app-onboarding',
   host: { class: 'ion-page' },
   imports: [
+    BrandMarkComponent,
     IonButton,
     IonContent,
     IonFooter,
     IonHeader,
     IonInput,
-    IonTitle,
+    IonItem,
+    IonList,
+    IonNote,
     IonToolbar,
     ReactiveFormsModule,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <ion-header>
-      <ion-toolbar>
-        <ion-title>Welcome</ion-title>
-      </ion-toolbar>
+    <ion-header [translucent]="true">
+      <ion-toolbar></ion-toolbar>
     </ion-header>
-    <ion-content class="ion-padding">
-      <h1 class="ion-no-margin">Welcome to hnch</h1>
-      <p>Pick a name your team will see next to your votes.</p>
-      <ion-input
-        [formControl]="displayName"
-        label="Display name"
-        labelPlacement="floating"
-        fill="solid"
-        autocapitalize="words"
-        autocomplete="name"
-        enterkeyhint="done"
-        maxlength="40"
-        (keydown.enter)="submit()"
-      ></ion-input>
-      <p class="helper">You can change this later in Settings.</p>
+    <ion-content>
+      <div class="hero">
+        <app-brand-mark [size]="64" />
+        <h1>Welcome to hnch</h1>
+        <p class="subtitle">Pick a name your team will see next to your votes.</p>
+      </div>
+
+      <ion-list inset="true">
+        <ion-item lines="none">
+          <ion-input
+            [formControl]="displayName"
+            label="Display name"
+            labelPlacement="stacked"
+            autocapitalize="words"
+            autocomplete="name"
+            enterkeyhint="done"
+            maxlength="40"
+            placeholder="Your name"
+            (keydown.enter)="submit()"
+          ></ion-input>
+        </ion-item>
+        <ion-note class="footer-note">You can change this later in Settings.</ion-note>
+      </ion-list>
     </ion-content>
     <ion-footer>
       <ion-toolbar>
         <ion-button
           expand="block"
-          color="primary"
+          size="large"
           [disabled]="!canContinue() || isSubmitting()"
           (click)="submit()"
         >
@@ -82,22 +94,54 @@ import { DisplayNameService } from '../core/display-name.service'
   `,
   styles: [
     `
+      ion-header ion-toolbar {
+        --background: transparent;
+        --border-width: 0;
+      }
+      ion-content {
+        --background: var(--hnch-bg);
+        --padding-start: 24px;
+        --padding-end: 24px;
+        --padding-top: 64px;
+        --padding-bottom: 24px;
+      }
+      .hero {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        padding-block-end: 32px;
+      }
       h1 {
-        font-size: 2rem;
+        margin: 0;
+        font-size: 34px;
         font-weight: 700;
-        margin-block-end: 0.75rem;
+        letter-spacing: 0.36px;
+        line-height: 1.05;
+        color: var(--hnch-text);
       }
-      p {
-        color: var(--ion-color-medium);
-        margin-block-end: 1.25rem;
+      .subtitle {
+        margin: 0;
+        font-size: 17px;
+        letter-spacing: -0.4px;
+        color: var(--hnch-muted);
       }
-      p.helper {
-        font-size: 0.875rem;
-        margin-block-start: 1rem;
+      ion-list {
+        background: transparent;
+      }
+      ion-item {
+        --background: var(--hnch-surface);
+        --border-color: var(--hnch-sep);
+      }
+      .footer-note {
+        display: block;
+        padding: 8px 16px 0;
+        font-size: 13px;
+        color: var(--hnch-muted);
       }
       ion-footer ion-toolbar {
         --background: transparent;
         --border-width: 0;
+        padding: 12px 16px 16px;
       }
     `,
   ],

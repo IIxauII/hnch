@@ -27,6 +27,7 @@ import {
   IonInput,
   IonItem,
   IonLabel,
+  IonList,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone'
@@ -41,6 +42,7 @@ import { ParticipantIdService } from '../core/participant-id.service'
 import { type QrScanErrorReason, QrScannerService } from '../core/qr-scanner.service'
 import { RelayRejectionError, resolveRoom } from '../core/relay/relay-api'
 import { ToastService } from '../services/toast.service'
+import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.component'
 
 /**
  * Join Room — ux.md §5.3 manual-entry path.
@@ -72,109 +74,144 @@ import { ToastService } from '../services/toast.service'
     IonInput,
     IonItem,
     IonLabel,
+    IonList,
     IonTitle,
     IonToolbar,
     ReactiveFormsModule,
+    SegmentedCodeInputComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <ion-header>
+    <ion-header [translucent]="true">
       <ion-toolbar>
         <ion-buttons slot="start">
           <ion-back-button defaultHref="/home"></ion-back-button>
         </ion-buttons>
-        <ion-title>Join Room</ion-title>
+        <ion-title size="large">Join a Room</ion-title>
       </ion-toolbar>
     </ion-header>
-    <ion-content class="ion-padding">
-      <h1 class="ion-no-margin">Join a Room</h1>
-      <p>Enter the 6-character code your host shared.</p>
-      <ion-item
-        fill="solid"
-        lines="none"
-        class="code-item"
-      >
-        <ion-label position="floating">Room code</ion-label>
-        <ion-input
-          [formControl]="codeControl"
-          class="code-input"
-          inputmode="text"
-          autocapitalize="characters"
-          autocomplete="one-time-code"
-          enterkeyhint="go"
-          spellcheck="false"
-          maxlength="7"
-          placeholder="XXX-XXX"
-          (keydown.enter)="submit()"
-        ></ion-input>
-      </ion-item>
-      <ion-item button class="scan-item" [disabled]="isSubmitting()" (click)="onScanQr()">
-        <ion-icon
-          slot="start"
-          name="qr-code-outline"
-          aria-hidden="true"
-        ></ion-icon>
-        <ion-label>Scan QR code</ion-label>
-      </ion-item>
-      @if (needsPassword()) {
-        <ion-item
-          fill="solid"
-          lines="none"
-          class="password-item"
-        >
-          <ion-label position="floating">Password</ion-label>
-          <ion-input
-            [formControl]="passwordControl"
-            type="password"
-            enterkeyhint="go"
-            (keydown.enter)="submit()"
-          ></ion-input>
+    <ion-content [fullscreen]="true">
+      <p class="page-subtitle">Enter the 6-character code your host shared.</p>
+
+      <div class="code-card">
+        <div class="card-label">Room code</div>
+        <app-segmented-code-input [formControl]="codeControl" />
+      </div>
+
+      <ion-list inset="true" class="qr-list">
+        <ion-item button="true" detail="true" [disabled]="isSubmitting()" (click)="onScanQr()">
+          <div class="icon-tile" slot="start" aria-hidden="true">
+            <ion-icon name="qr-code-outline"></ion-icon>
+          </div>
+          <ion-label>
+            <h2>Scan QR code</h2>
+            <p>Point your camera at the host's screen</p>
+          </ion-label>
         </ion-item>
+      </ion-list>
+
+      @if (needsPassword()) {
+        <ion-list inset="true" class="password-list">
+          <ion-item lines="none">
+            <ion-input
+              [formControl]="passwordControl"
+              label="Password"
+              labelPlacement="stacked"
+              type="password"
+              enterkeyhint="go"
+              placeholder="Enter the room password"
+              (keydown.enter)="submit()"
+            ></ion-input>
+          </ion-item>
+          <p class="list-footer">This room is password-protected.</p>
+        </ion-list>
       }
-    </ion-content>
-    <ion-footer>
-      <ion-toolbar>
+
+      <div class="submit-wrap">
         <ion-button
           expand="block"
-          color="primary"
+          size="large"
           [disabled]="!canJoin() || isSubmitting()"
           (click)="submit()"
         >
           Join
         </ion-button>
-      </ion-toolbar>
-    </ion-footer>
+      </div>
+    </ion-content>
+    <ion-footer></ion-footer>
   `,
   styles: [
     `
-      h1 {
-        font-size: 2rem;
-        font-weight: 700;
-        margin-block-end: 0.75rem;
+      ion-content {
+        --background: var(--hnch-bg);
+        --padding-start: 16px;
+        --padding-end: 16px;
       }
-      p {
-        color: var(--ion-color-medium);
-        margin-block-end: 1.25rem;
+      .page-subtitle {
+        margin: 0 4px 16px;
+        font-size: 15px;
+        color: var(--hnch-muted);
+        letter-spacing: -0.2px;
       }
-      .code-item,
-      .password-item {
-        --border-radius: 8px;
+      .code-card {
+        background: var(--hnch-surface);
+        border-radius: 16px;
+        padding: 20px 18px;
+        border: 0.5px solid var(--hnch-sep);
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
       }
-      .scan-item {
-        margin-block-start: 0.75rem;
-        --border-radius: 8px;
+      .card-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--hnch-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
       }
-      .password-item {
-        margin-block-start: 0.75rem;
+      ion-list.qr-list,
+      ion-list.password-list {
+        background: transparent;
+        margin-block-start: 16px;
       }
-      .code-input {
-        font-family: var(--ion-font-family-monospace, ui-monospace, monospace);
-        font-size: 1.25rem;
-        letter-spacing: 0.15em;
+      ion-item {
+        --background: var(--hnch-surface);
       }
-      ion-footer ion-toolbar {
+      ion-item h2 {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--hnch-text);
+        margin: 0 0 2px;
+      }
+      ion-item p {
+        font-size: 13px;
+        color: var(--hnch-muted);
+        margin: 0;
+      }
+      .icon-tile {
+        width: 32px;
+        height: 32px;
+        border-radius: 9px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--hnch-accent-soft);
+        color: var(--hnch-accent);
+        margin-inline-end: 12px;
+      }
+      .icon-tile ion-icon {
+        font-size: 18px;
+      }
+      .list-footer {
+        margin: 4px 16px 0;
+        font-size: 13px;
+        color: var(--hnch-muted);
+      }
+      .submit-wrap {
+        padding: 28px 0 24px;
+      }
+      ion-footer {
         --background: transparent;
-        --border-width: 0;
       }
     `,
   ],

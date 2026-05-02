@@ -7,7 +7,7 @@
  */
 
 import { test, expect } from './fixtures/app.fixture'
-import { BASE_URL, JOIN } from './fixtures/helpers'
+import { BASE_URL, HOME, JOIN, fillRoomCode } from './fixtures/helpers'
 
 test.describe('Mid-session password change', () => {
   test('host adds password mid-session; new joiner must provide it', async ({
@@ -61,10 +61,9 @@ test.describe('Mid-session password change', () => {
     if (player.page.url().includes('/onboarding')) {
       await player.onboard()
     }
-    await player.page.locator('ion-card:has(strong:text-is("Join Room"))').click()
+    await player.page.locator(HOME.joinCard).click()
     await player.page.waitForURL(/\/join/)
-    const codeInput = player.page.locator(JOIN.codeInput).locator('input')
-    await codeInput.fill(code)
+    await fillRoomCode(player.page, code)
     await player.page.locator(JOIN.joinBtn).click()
 
     const pwInput = player.page.locator(JOIN.passwordInput).locator('input')
@@ -111,9 +110,9 @@ test.describe('Mid-session password change', () => {
     if (joinerOldPw.page.url().includes('/onboarding')) {
       await joinerOldPw.onboard()
     }
-    await joinerOldPw.page.locator('ion-card:has(strong:text-is("Join Room"))').click()
+    await joinerOldPw.page.locator(HOME.joinCard).click()
     await joinerOldPw.page.waitForURL(/\/join/)
-    await joinerOldPw.page.locator(JOIN.codeInput).locator('input').fill(code)
+    await fillRoomCode(joinerOldPw.page, code)
     await joinerOldPw.page.locator(JOIN.joinBtn).click()
     const pwInputOld = joinerOldPw.page.locator(JOIN.passwordInput).locator('input')
     await pwInputOld.waitFor({ state: 'visible', timeout: 5_000 })
