@@ -1,0 +1,37 @@
+name: Cancel merged PR CI
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cancel:
+    name: Cancel in-flight CI for closed PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Cancel runs for PR head SHA
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          ids=$(gh run list \
+            --repo "$REPO" \
+            --workflow ci.yml \
+            --commit "$HEAD_SHA" \
+            --json databaseId,status \
+            --jq '.[] | select(.status != "completed") | .databaseId')
+          if [ -z "$ids" ]; then
+            echo "No in-flight CI runs for $HEAD_SHA"
+            exit 0
+          fi
+          for id in $ids; do
+            echo "Cancelling run $id"
+            gh run cancel "$id" --repo "$REPO" || true
+          done
