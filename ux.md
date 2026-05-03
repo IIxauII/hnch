@@ -13,13 +13,14 @@ UX decisions touching architecture cross-linked to governing ADR in [`adr/`](adr
 5. [Per-screen wireframes](#5-per-screen-wireframes)
 6. [Interaction patterns](#6-interaction-patterns)
 7. [Theming](#7-theming)
-8. [Open UX questions](#8-open-ux-questions)
+8. [Layout & responsive](#8-layout--responsive)
+9. [Open UX questions](#9-open-ux-questions)
 
 ---
 
 ## 1. Goals & principles
 
-**iPhone is primary design target.** Mobile-first via Capacitor. Ionic `mode` left at default — auto-detected per platform — iPhone gets iOS rendering, Android/web get Material. Each platform feels native. Wireframes describe iPhone experience; iOS/Material divergences flagged, not overridden.
+**iPhone is the primary design target, with first-class support for tablet and desktop.** Mobile-first via Capacitor. Ionic `mode` left at default — auto-detected per platform — iPhone gets iOS rendering, Android/web get Material. Each platform feels native. Wireframes describe iPhone experience; iOS/Material divergences flagged, not overridden. On viewports ≥768px the layout adapts per [§8](#8-layout--responsive); below that breakpoint the iPhone wireframes are authoritative.
 
 **Session-first, not navigation-first.** Users open hnch to be in pointing-poker session; rest is infrastructure. Single nav stack (no tabs, no side menu) — no meaningful second destination mid-session. Home = launchpad, not parallel destination.
 
@@ -29,7 +30,7 @@ UX decisions touching architecture cross-linked to governing ADR in [`adr/`](adr
 
 **Accessibility, dark mode, safe areas = baseline, not polish.** VoiceOver labels on non-text content (QR codes, card grids). Dark mode follows system pref by default with explicit override. Safe areas via `ion-header` / `ion-footer` — content respects notches, dynamic islands, home indicators.
 
-**Non-goals for v1.** Deliberately out of scope: Team concept from [ADR-0007](adr/0007-teams-local-only.md) — Teams are device-local saved attendee lists with optional session defaults (scale, name), stored in local preferences; they have no v1 UI and no Yjs presence. Full session history (only single "Jump back in" banner for most recent backed-out session). iPad/landscape layouts (iPhone portrait = design target). Offline session creation (relay assumed reachable at Create time).
+**Non-goals for v1.** Deliberately out of scope: Team concept from [ADR-0007](adr/0007-teams-local-only.md) — Teams are device-local saved attendee lists with optional session defaults (scale, name), stored in local preferences; they have no v1 UI and no Yjs presence. Full session history (only single "Jump back in" banner for most recent backed-out session). Offline session creation (relay assumed reachable at Create time).
 
 ---
 
@@ -886,6 +887,31 @@ Common toasts: host handoff ("Alice is now hosting"), link copied ("Invite link 
 
 Haptics fire via `@capacitor/haptics` on native; web = no-ops (safe stub).
 
+### Hover (≥hover-supported devices)
+
+Gated on `@media (hover: hover)`. `ion-card.card` lifts (`translateY(-2px)`) with a primary-tint border on hover. `ion-item` rows show a subtle background tint. Buttons rely on Ionic defaults. See [ADR-0038](adr/0038-responsive-layout-and-keyboard.md).
+
+### Focus rings
+
+A global `:focus-visible` rule applies `outline: 2px solid var(--ion-color-primary); outline-offset: 2px;`. Tab order follows visual order on every screen. See [ADR-0038](adr/0038-responsive-layout-and-keyboard.md).
+
+### Keyboard shortcuts
+
+Active only on devices matching `(hover: hover) and (pointer: fine)`. The `KeyboardShortcutService` ignores events whose target is an `<input>`, `<textarea>`, or `[contenteditable]` element. Bindings:
+
+| Screen | Key | Action |
+|---|---|---|
+| Estimating | `1`–`9` | Vote the card at that position (1-indexed in the visible scale) |
+| Estimating | `R` | Reveal Votes (host only) |
+| Estimating | `Esc` | Clear current selection |
+| Lobby | `N` | Open Round-start modal (host; alias `S` pre-round) |
+| Lobby | `R` | Re-vote (host, post-reveal) |
+| Join | `/` | Focus code input |
+| Modals | `Esc` | Dismiss (Ionic default) |
+| Modals | `Enter` | Primary action where unambiguous |
+
+A `<kbd>` chip next to each primary button label shows the bound key on hover-capable devices. See [ADR-0038](adr/0038-responsive-layout-and-keyboard.md).
+
 ---
 
 ## 7. Theming
@@ -926,7 +952,58 @@ All screens built with `ion-header` / `ion-footer` — Ionic handles safe-area i
 
 ---
 
-## 8. Open UX questions
+## 8. Layout & responsive
+
+Responsive layout rules for tablet and desktop viewports. The structural decisions in this section are governed by [ADR-0038](adr/0038-responsive-layout-and-keyboard.md).
+
+### Mobile-first contract
+
+Below 768px the layout is single-column phone-style as documented in [§5](#5-per-screen-wireframes). Every responsive rule documented in this section is **additive**, gated by `@media (min-width: …)`. The iPhone wireframes remain authoritative for the sub-768 experience; nothing here overrides them.
+
+### Breakpoints
+
+Three tokens consumed from `packages/client/src/theme/variables.scss`:
+
+| Token | Value | Purpose |
+|---|---|---|
+| `--hnch-bp-tablet` | `768px` | Tablet portrait and up — first responsive step |
+| `--hnch-bp-desktop` | `1024px` | Tablet landscape / small desktop — two-pane Lobby, centered modals |
+| `--hnch-bp-wide` | `1440px` | Wide desktop — generous gutters, no further structural change |
+
+See [ADR-0038](adr/0038-responsive-layout-and-keyboard.md).
+
+### Container widths
+
+| Token | Value | Purpose |
+|---|---|---|
+| `--hnch-content-max` | `960px` | Single-column screens cap and center their content |
+| `--hnch-rail-width` | `320px` | Lobby's left rail width at the desktop breakpoint |
+| `--hnch-modal-max` | `480px` | Centered-dialog max-width at the desktop breakpoint |
+
+### Page shell
+
+Every screen's `<ion-content>` body wraps its content in a `.page-shell` element that applies `max-width: var(--hnch-content-max); margin-inline: auto;`. This keeps content readable on wide viewports without bespoke per-screen CSS. See [ADR-0038](adr/0038-responsive-layout-and-keyboard.md).
+
+### Per-screen layout summary
+
+| Screen | Responsive behavior |
+|---|---|
+| Home | Two-column action grid at `≥768px` (Create / Join side-by-side; Jump-back-in banner spans both columns) |
+| Join | Code-card + Scan QR side-by-side at `≥768px` |
+| Onboarding | Input centered, narrower at `≥768px` |
+| Settings | Capped at 720px; section headers larger at `≥1024px` |
+| Estimating | Card grid grows: 3 → 4 → 5 columns at the 768/1024 breakpoints |
+| Lobby | Two-pane shell at `≥1024px` — left rail (`--hnch-rail-width`) carries share/QR/participants; right pane carries round/results/history; the footer-row (Re-vote / Next Round) lives in the right pane |
+
+See [ADR-0038](adr/0038-responsive-layout-and-keyboard.md).
+
+### Modals on desktop
+
+At `≥1024px` modals render as **centered dialogs** rather than half-sheets: `max-width: var(--hnch-modal-max); --height: auto;` with no grabber, applied via an `ion-modal::part(content)` rule scoped under `@media (min-width: 1024px)`. The half-sheet idiom (grabber + breakpoints `[0, 0.6, 0.95]`) is preserved below 1024px. See [ADR-0038](adr/0038-responsive-layout-and-keyboard.md).
+
+---
+
+## 9. Open UX questions
 
 Acknowledged gaps and deferred decisions. Not blocking v1 but should be answered (or re-deferred) before corresponding feature built.
 

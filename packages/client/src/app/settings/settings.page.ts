@@ -38,7 +38,7 @@ import { ScalePreferenceService } from '../core/scale-preference.service'
 import { ThemeService, type Theme } from '../core/theme.service'
 import { ScalePickerSheetComponent } from '../session-settings/scale-picker.sheet'
 import { RelayUrlEditorSheetComponent } from './relay-url-editor.sheet'
-import { presentSheet } from '../utils/present-sheet'
+import { getSheetBreakpoints, getSheetInitialBreakpoint, presentSheet } from '../utils/present-sheet'
 
 /**
  * App Settings screen — ux.md §5.7.
@@ -82,6 +82,7 @@ import { presentSheet } from '../utils/present-sheet'
       </ion-toolbar>
     </ion-header>
     <ion-content>
+      <div class="settings-shell">
       <!-- Profile -->
       <ion-list-header>
         <ion-label>Profile</ion-label>
@@ -197,9 +198,10 @@ import { presentSheet } from '../utils/present-sheet'
       <!-- Scale picker half-sheet -->
       <ion-modal
         #scalePickerModal
+        cssClass="hnch-sheet"
         [isOpen]="scalePickerOpen()"
-        [breakpoints]="[0, 0.6, 0.95]"
-        [initialBreakpoint]="0.6"
+        [breakpoints]="sheetBreakpoints"
+        [initialBreakpoint]="sheetInitialBreakpoint"
         (didDismiss)="scalePickerOpen.set(false)"
       >
         <ng-template>
@@ -214,9 +216,10 @@ import { presentSheet } from '../utils/present-sheet'
       <!-- Relay URL editor half-sheet -->
       <ion-modal
         #relayUrlModal
+        cssClass="hnch-sheet"
         [isOpen]="relayUrlEditorOpen()"
-        [breakpoints]="[0, 0.6, 0.95]"
-        [initialBreakpoint]="0.6"
+        [breakpoints]="sheetBreakpoints"
+        [initialBreakpoint]="sheetInitialBreakpoint"
         (didDismiss)="relayUrlEditorOpen.set(false)"
       >
         <ng-template>
@@ -227,10 +230,29 @@ import { presentSheet } from '../utils/present-sheet'
           />
         </ng-template>
       </ion-modal>
+      </div>
     </ion-content>
   `,
+  styles: [
+    `
+      .settings-shell {
+        --settings-content-max: 720px;
+        max-width: var(--settings-content-max);
+        margin-inline: auto;
+        width: 100%;
+      }
+      @media (min-width: 1024px) {
+        .settings-shell ion-list-header ion-label {
+          font-size: 1.125rem;
+        }
+      }
+    `,
+  ],
 })
 export class SettingsPage {
+  protected readonly sheetBreakpoints = getSheetBreakpoints()
+  protected readonly sheetInitialBreakpoint = getSheetInitialBreakpoint()
+
   private readonly displayNameService = inject(DisplayNameService)
   private readonly docService = inject(DocService)
   private readonly participantIdService = inject(ParticipantIdService)

@@ -56,28 +56,32 @@ import { BrandMarkComponent } from '../shared/brand-mark.component'
       <ion-toolbar></ion-toolbar>
     </ion-header>
     <ion-content>
-      <div class="hero">
-        <app-brand-mark [size]="64" />
-        <h1>Welcome to hnch</h1>
-        <p class="subtitle">Pick a name your team will see next to your votes.</p>
-      </div>
+      <div class="page-shell">
+        <div class="intro-stack">
+          <div class="hero">
+            <app-brand-mark [size]="64" />
+            <h1>Welcome to hnch</h1>
+            <p class="subtitle">Pick a name your team will see next to your votes.</p>
+          </div>
 
-      <ion-list inset="true">
-        <ion-item lines="none">
-          <ion-input
-            [formControl]="displayName"
-            label="Display name"
-            labelPlacement="stacked"
-            autocapitalize="words"
-            autocomplete="name"
-            enterkeyhint="done"
-            maxlength="40"
-            placeholder="Your name"
-            (keydown.enter)="submit()"
-          ></ion-input>
-        </ion-item>
-        <ion-note class="footer-note">You can change this later in Settings.</ion-note>
-      </ion-list>
+          <ion-list inset="true">
+            <ion-item lines="none">
+              <ion-input
+                [formControl]="displayName"
+                label="Display name"
+                labelPlacement="stacked"
+                autocapitalize="words"
+                autocomplete="name"
+                enterkeyhint="done"
+                maxlength="40"
+                placeholder="Your name"
+                (keydown.enter)="submit()"
+              ></ion-input>
+            </ion-item>
+            <ion-note class="footer-note">You can change this later in Settings.</ion-note>
+          </ion-list>
+        </div>
+      </div>
     </ion-content>
     <ion-footer>
       <ion-toolbar>
@@ -137,6 +141,15 @@ import { BrandMarkComponent } from '../shared/brand-mark.component'
         padding: 8px 16px 0;
         font-size: 13px;
         color: var(--hnch-muted);
+      }
+      .intro-stack {
+        width: 100%;
+      }
+      @media (min-width: 768px) {
+        .intro-stack {
+          max-width: 480px;
+          margin-inline: auto;
+        }
       }
       ion-footer ion-toolbar {
         --background: transparent;

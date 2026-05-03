@@ -54,3 +54,35 @@
   ion-radio[value="racing-green"]::part(label) { color: #1F6B4F; }
   ion-radio[value="graphite"]::part(label)     { color: #F2F2F7; }
 }
+
+/* Page shell — every <ion-content> body wraps content in this so
+   single-column screens cap and center on tablet+/desktop. ADR-0038. */
+.page-shell {
+  max-width: var(--hnch-content-max);
+  margin-inline: auto;
+  width: 100%;
+}
+
+/* Visible focus ring for keyboard nav. ADR-0038. */
+:focus-visible {
+  outline: 2px solid var(--ion-color-primary);
+  outline-offset: 2px;
+}
+
+/*
+ * Desktop modal sizing — ADR-0038.
+ *
+ * At ≥1024px, `breakpoints` is `undefined` (via getSheetBreakpoints()),
+ * so Ionic renders the default centered card dialog — no positioning
+ * workaround needed. The `.hnch-sheet` cssClass is the desktop-size hook.
+ * Mobile (<1024px) cascade is untouched.
+ */
+@media (min-width: 1024px) {
+  ion-modal.hnch-sheet {
+    --width: var(--hnch-modal-max);
+    --max-width: var(--hnch-modal-max);
+    --height: auto;
+    --max-height: 90vh;
+    --border-radius: 16px;
+  }
+}

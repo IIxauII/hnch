@@ -1,9 +1,12 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  OnDestroy,
+  OnInit,
   computed,
   inject,
   signal,
+  viewChild,
 } from '@angular/core'
 import { toSignal } from '@angular/core/rxjs-interop'
 import { FormControl, ReactiveFormsModule } from '@angular/forms'
@@ -41,6 +44,7 @@ import { DocService } from '../core/doc/doc.service'
 import { ParticipantIdService } from '../core/participant-id.service'
 import { type QrScanErrorReason, QrScannerService } from '../core/qr-scanner.service'
 import { RelayRejectionError, resolveRoom } from '../core/relay/relay-api'
+import { KeyboardShortcutService } from '../services/keyboard-shortcut.service'
 import { ToastService } from '../services/toast.service'
 import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.component'
 
@@ -91,51 +95,55 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
       </ion-toolbar>
     </ion-header>
     <ion-content [fullscreen]="true">
-      <p class="page-subtitle">Enter the 6-character code your host shared.</p>
+      <div class="page-shell">
+        <p class="page-subtitle">Enter the 6-character code your host shared.</p>
 
-      <div class="code-card">
-        <div class="card-label">Room code</div>
-        <app-segmented-code-input [formControl]="codeControl" />
-      </div>
-
-      <ion-list inset="true" class="qr-list">
-        <ion-item button="true" detail="true" [disabled]="isSubmitting()" (click)="onScanQr()">
-          <div class="icon-tile" slot="start" aria-hidden="true">
-            <ion-icon name="qr-code-outline"></ion-icon>
+        <div class="join-grid">
+          <div class="code-card">
+            <div class="card-label">Room code</div>
+            <app-segmented-code-input #codeInput [formControl]="codeControl" />
           </div>
-          <ion-label>
-            <h2>Scan QR code</h2>
-            <p>Point your camera at the host's screen</p>
-          </ion-label>
-        </ion-item>
-      </ion-list>
 
-      @if (needsPassword()) {
-        <ion-list inset="true" class="password-list">
-          <ion-item lines="none">
-            <ion-input
-              [formControl]="passwordControl"
-              label="Password"
-              labelPlacement="stacked"
-              type="password"
-              enterkeyhint="go"
-              placeholder="Enter the room password"
-              (keydown.enter)="submit()"
-            ></ion-input>
-          </ion-item>
-          <p class="list-footer">This room is password-protected.</p>
-        </ion-list>
-      }
+          <ion-list inset="true" class="qr-list">
+            <ion-item button="true" detail="true" [disabled]="isSubmitting()" (click)="onScanQr()">
+              <div class="icon-tile" slot="start" aria-hidden="true">
+                <ion-icon name="qr-code-outline"></ion-icon>
+              </div>
+              <ion-label>
+                <h2>Scan QR code</h2>
+                <p>Point your camera at the host's screen</p>
+              </ion-label>
+            </ion-item>
+          </ion-list>
 
-      <div class="submit-wrap">
-        <ion-button
-          expand="block"
-          size="large"
-          [disabled]="!canJoin() || isSubmitting()"
-          (click)="submit()"
-        >
-          Join
-        </ion-button>
+          @if (needsPassword()) {
+            <ion-list inset="true" class="password-list">
+              <ion-item lines="none">
+                <ion-input
+                  [formControl]="passwordControl"
+                  label="Password"
+                  labelPlacement="stacked"
+                  type="password"
+                  enterkeyhint="go"
+                  placeholder="Enter the room password"
+                  (keydown.enter)="submit()"
+                ></ion-input>
+              </ion-item>
+              <p class="list-footer">This room is password-protected.</p>
+            </ion-list>
+          }
+        </div>
+
+        <div class="submit-wrap">
+          <ion-button
+            expand="block"
+            size="large"
+            [disabled]="!canJoin() || isSubmitting()"
+            (click)="submit()"
+          >
+            Join
+          </ion-button>
+        </div>
       </div>
     </ion-content>
     <ion-footer></ion-footer>
@@ -213,10 +221,27 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
       ion-footer {
         --background: transparent;
       }
+      .join-grid {
+        display: contents;
+      }
+      @media (min-width: 768px) {
+        .join-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          gap: 1rem;
+          align-items: start;
+        }
+        .join-grid .password-list {
+          grid-column: 1 / -1;
+        }
+        .join-grid ion-list.qr-list {
+          margin-block-start: 0;
+        }
+      }
     `,
   ],
 })
-export class JoinPage {
+export class JoinPage implements OnInit, OnDestroy {
   private readonly appPrefs = inject(AppPreferenceService)
   private readonly route = inject(ActivatedRoute)
   private readonly router = inject(Router)
@@ -225,6 +250,10 @@ export class JoinPage {
   private readonly participantIdService = inject(ParticipantIdService)
   private readonly qrScanner = inject(QrScannerService)
   private readonly toastService = inject(ToastService)
+  private readonly shortcuts = inject(KeyboardShortcutService)
+
+  private readonly codeInputRef = viewChild<SegmentedCodeInputComponent>('codeInput')
+  private unregisterShortcuts: (() => void) | null = null
 
   /**
    * Raw form control bound to the `ion-input`. We reformat the value on
@@ -322,6 +351,18 @@ export class JoinPage {
         }
       })
     }
+  }
+
+  ngOnInit(): void {
+    this.unregisterShortcuts = this.shortcuts.register({
+      '/': () => {
+        this.codeInputRef()?.focus()
+      },
+    })
+  }
+
+  ngOnDestroy(): void {
+    this.unregisterShortcuts?.()
   }
 
   protected async submit(): Promise<void> {

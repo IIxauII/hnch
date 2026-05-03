@@ -1,6 +1,8 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  OnDestroy,
+  OnInit,
   computed,
   effect,
   inject,
@@ -26,6 +28,7 @@ import {
 import { addIcons } from 'ionicons'
 import { chevronBackOutline, ellipsisHorizontalCircle } from 'ionicons/icons'
 
+import { KeyboardShortcutService } from '../services/keyboard-shortcut.service'
 import { ConnectionChipComponent } from '../core/connection-chip.component'
 import { ConnectionStatusBannerComponent } from '../shared/connection-status-banner.component'
 import { DocService } from '../core/doc/doc.service'
@@ -108,6 +111,7 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
       </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding">
+      <div class="page-shell">
       <app-connection-status-banner />
       @if (currentRound(); as round) {
         <h1 class="title">Round {{ roundIndex() }}</h1>
@@ -151,6 +155,7 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
       } @else {
         <p class="empty">No active round.</p>
       }
+      </div>
     </ion-content>
 
     @if (isHost()) {
@@ -201,7 +206,7 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
       .card {
         margin: 0;
         border: 2px solid transparent;
-        transition: border-color 0.15s ease, background 0.15s ease;
+        transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
       }
       .card.selected {
         border-color: var(--ion-color-primary);
@@ -220,6 +225,17 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
           transition: none;
         }
       }
+      @media (hover: hover) and (pointer: fine) {
+        .card:not(.selected):hover {
+          transform: translateY(-2px);
+          border-color: var(--ion-color-primary-tint);
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .card:not(.selected):hover {
+            transform: none;
+          }
+        }
+      }
       .empty {
         color: var(--ion-color-medium);
         margin: 2rem 0;
@@ -231,10 +247,25 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
         color: var(--ion-color-medium);
         font-size: 1.1rem;
       }
+      @media (min-width: 768px) {
+        .grid {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 1rem;
+        }
+        .card-face {
+          min-height: 5.5rem;
+          font-size: 2rem;
+        }
+      }
+      @media (min-width: 1024px) {
+        .grid {
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+        }
+      }
     `,
   ],
 })
-export class EstimatingPage {
+export class EstimatingPage implements OnInit, OnDestroy {
   private readonly router = inject(Router)
   private readonly docService = inject(DocService)
   private readonly participantIdService = inject(ParticipantIdService)
@@ -243,6 +274,9 @@ export class EstimatingPage {
   private readonly timerTick = inject(TimerTickService)
   private readonly actionSheetCtrl = inject(ActionSheetController)
   private readonly alertCtrl = inject(AlertController)
+  private readonly shortcuts = inject(KeyboardShortcutService)
+
+  private unregisterShortcuts: (() => void) | null = null
 
   protected readonly currentRound = this.docService.currentRound
   protected readonly onlineParticipants = this.docService.onlineParticipants
@@ -386,6 +420,36 @@ export class EstimatingPage {
     const elapsed = this.timerTick.now() - round.timerStartedAt
     return formatElapsed(Math.max(0, elapsed))
   })
+
+  ngOnInit(): void {
+    const handlers: Partial<Record<string, () => void>> = {
+      r: () => {
+        const r = this.currentRound()
+        if (this.isHost() && r && !r.revealedAt) void this.onReveal()
+      },
+      escape: () => {
+        const vote = this.myVote()
+        if (vote !== null) this.onCardTap(vote)
+      },
+    }
+
+    // Wire 1–9 to cards by 1-based position.
+    for (let i = 1; i <= 9; i++) {
+      const pos = i
+      handlers[String(pos)] = () => {
+        const cards = this.currentRound()?.scale.cards
+        if (!cards) return
+        const card = cards[pos - 1]
+        if (card !== undefined) this.onCardTap(card)
+      }
+    }
+
+    this.unregisterShortcuts = this.shortcuts.register(handlers)
+  }
+
+  ngOnDestroy(): void {
+    this.unregisterShortcuts?.()
+  }
 
   protected onToggleRole(): void {
     const id = this.myId()

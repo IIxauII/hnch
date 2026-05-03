@@ -48,45 +48,47 @@ interface VoteGroup {
   imports: [DecimalPipe, IonChip, IonItemGroup, IonLabel],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @for (group of voteGroups(); track group.card; let i = $index) {
-      <ion-item-group
-        class="group"
-        [style.--i]="i"
-        [attr.aria-label]="voteCountLabel(group.voterNames.length) + ' for ' + group.card"
-      >
-        <div class="group-header">
-          <span class="card">{{ group.card }}</span>
-          <span class="count">({{ voteCountLabel(group.voterNames.length) }})</span>
-        </div>
-        <div class="chips">
-          @for (name of group.voterNames; track name) {
-            <ion-chip color="primary">
-              <ion-label>{{ name }}</ion-label>
-            </ion-chip>
-          }
-        </div>
-      </ion-item-group>
-    }
+    <div class="vote-groups">
+      @for (group of voteGroups(); track group.card; let i = $index) {
+        <ion-item-group
+          class="group"
+          [style.--i]="i"
+          [attr.aria-label]="voteCountLabel(group.voterNames.length) + ' for ' + group.card"
+        >
+          <div class="group-header">
+            <span class="card">{{ group.card }}</span>
+            <span class="count">({{ voteCountLabel(group.voterNames.length) }})</span>
+          </div>
+          <div class="chips">
+            @for (name of group.voterNames; track name) {
+              <ion-chip color="primary">
+                <ion-label>{{ name }}</ion-label>
+              </ion-chip>
+            }
+          </div>
+        </ion-item-group>
+      }
 
-    @if (didntVoteNames().length > 0) {
-      <ion-item-group
-        class="group didnt-vote"
-        [style.--i]="voteGroups().length"
-        aria-label="Participants who did not vote"
-      >
-        <div class="group-header">
-          <span class="card">Didn't vote</span>
-          <span class="count">({{ didntVoteNames().length }})</span>
-        </div>
-        <div class="chips">
-          @for (name of didntVoteNames(); track name) {
-            <ion-chip>
-              <ion-label>{{ name }}</ion-label>
-            </ion-chip>
-          }
-        </div>
-      </ion-item-group>
-    }
+      @if (didntVoteNames().length > 0) {
+        <ion-item-group
+          class="group didnt-vote"
+          [style.--i]="voteGroups().length"
+          aria-label="Participants who did not vote"
+        >
+          <div class="group-header">
+            <span class="card">Didn't vote</span>
+            <span class="count">({{ didntVoteNames().length }})</span>
+          </div>
+          <div class="chips">
+            @for (name of didntVoteNames(); track name) {
+              <ion-chip>
+                <ion-label>{{ name }}</ion-label>
+              </ion-chip>
+            }
+          </div>
+        </ion-item-group>
+      }
+    </div>
 
     @if (stats(); as s) {
       <div class="stats" role="region" aria-label="Round statistics">
@@ -182,6 +184,20 @@ interface VoteGroup {
         margin: 0;
         height: auto;
         min-height: 1.5rem;
+      }
+
+      @media (min-width: 1024px) {
+        .vote-groups {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 1rem;
+        }
+        .vote-groups .didnt-vote {
+          grid-column: 1 / -1;
+        }
+        .vote-groups .group:nth-child(2):not(.didnt-vote) {
+          border-top: none;
+        }
       }
 
       /* Reveal animation — ux.md §6: 80ms stagger, 200ms fade-in-up */

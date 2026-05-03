@@ -75,10 +75,13 @@ const TILE_COUNT = 6
       display: flex;
       align-items: center;
       gap: 6px;
+      max-width: 360px;
+      min-width: 0;
     }
 
     .tile {
       flex: 1;
+      min-width: 0;
       height: 48px;
       border-radius: 10px;
       background: var(--hnch-fill);
@@ -229,6 +232,11 @@ export class SegmentedCodeInputComponent implements ControlValueAccessor {
   private emitChange(): void {
     const value = this.tiles().join('')
     this.onChange(value)
+  }
+
+  /** Focus the first tile — used by keyboard-shortcut wiring in JoinPage. */
+  focus(): void {
+    this.focusTile(0)
   }
 
   private focusTile(index: number): void {

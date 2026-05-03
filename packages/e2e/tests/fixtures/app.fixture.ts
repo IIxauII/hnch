@@ -108,14 +108,18 @@ export class Participant {
       .filter({ hasText: LOBBY.startRoundBtn })
     await startRoundBtn.waitFor({ state: 'visible' })
     await startRoundBtn.evaluate((el: HTMLElement) => el.click())
-    // Wait for the round-start modal to appear
+    // At ≥1024px Ionic renders modals as centered dialogs (no sheet breakpoints,
+    // ADR-0038). The inner app-round-start-sheet.ion-page is attached to the DOM
+    // but Ionic keeps it at opacity:0 / visibility:hidden during the modal
+    // lifecycle — `state:'visible'` is never satisfied at desktop. Use
+    // `state:'attached'` so the wait passes on both mobile and desktop.
     const modal = this.page.locator('app-round-start-sheet')
-    await modal.waitFor({ state: 'visible' })
+    await modal.waitFor({ state: 'attached' })
     if (title) {
       await modal.locator('ion-input').locator('input').fill(title)
     }
     const startBtn = this.page.locator(ROUND_START.startBtn)
-    await startBtn.waitFor({ state: 'visible' })
+    await startBtn.waitFor({ state: 'attached' })
     await startBtn.evaluate((el: HTMLElement) => el.click())
     await this.page.waitForURL(/\/estimating/)
   }
@@ -161,12 +165,13 @@ export class Participant {
   async nextRound(title?: string): Promise<void> {
     await this.page.locator('ion-button', { hasText: LOBBY.nextRoundBtn }).click()
     const modal = this.page.locator('app-round-start-sheet')
-    await modal.waitFor({ state: 'visible' })
+    // Same desktop-dialog caveat as startRound() — use 'attached' not 'visible'.
+    await modal.waitFor({ state: 'attached' })
     if (title) {
       await modal.locator('ion-input').locator('input').fill(title)
     }
     const startBtn = this.page.locator(ROUND_START.startBtn)
-    await startBtn.waitFor({ state: 'visible' })
+    await startBtn.waitFor({ state: 'attached' })
     await startBtn.evaluate((el: HTMLElement) => el.click())
     await this.page.waitForURL(/\/estimating/)
   }

@@ -38,7 +38,7 @@ import {
   type AccessSelection,
 } from './access-picker.sheet'
 import { ScalePickerSheetComponent } from './scale-picker.sheet'
-import { presentSheet } from '../utils/present-sheet'
+import { getSheetBreakpoints, getSheetInitialBreakpoint, presentSheet } from '../utils/present-sheet'
 import { formatScaleId } from '@hnch/shared'
 
 /**
@@ -121,9 +121,10 @@ import { formatScaleId } from '@hnch/shared'
 
     <ion-modal
       #scaleModal
+      cssClass="hnch-sheet"
       [isOpen]="scaleOpen()"
-      [breakpoints]="[0, 0.6, 0.95]"
-      [initialBreakpoint]="0.6"
+      [breakpoints]="sheetBreakpoints"
+      [initialBreakpoint]="sheetInitialBreakpoint"
       (didDismiss)="scaleOpen.set(false)"
     >
       <ng-template>
@@ -137,9 +138,10 @@ import { formatScaleId } from '@hnch/shared'
 
     <ion-modal
       #accessModal
+      cssClass="hnch-sheet"
       [isOpen]="accessOpen()"
-      [breakpoints]="[0, 0.6, 0.95]"
-      [initialBreakpoint]="0.6"
+      [breakpoints]="sheetBreakpoints"
+      [initialBreakpoint]="sheetInitialBreakpoint"
       (didDismiss)="accessOpen.set(false)"
     >
       <ng-template>
@@ -163,6 +165,9 @@ import { formatScaleId } from '@hnch/shared'
   ],
 })
 export class SessionSettingsSheetComponent {
+  protected readonly sheetBreakpoints = getSheetBreakpoints()
+  protected readonly sheetInitialBreakpoint = getSheetInitialBreakpoint()
+
   private readonly appPrefs = inject(AppPreferenceService)
   private readonly docService = inject(DocService)
   private readonly toastService = inject(ToastService)

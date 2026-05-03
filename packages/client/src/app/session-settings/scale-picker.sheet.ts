@@ -37,6 +37,7 @@ import { HapticService } from '../core/haptic.service'
 import { ScalePreferenceService } from '../core/scale-preference.service'
 import { CustomScaleEditorSheetComponent } from './custom-scale-editor.sheet'
 import { ScaleEditorSheetComponent } from './scale-editor.sheet'
+import { getSheetBreakpoints, getSheetInitialBreakpoint, getTallSheetBreakpoints, getTallSheetInitialBreakpoint } from '../utils/present-sheet'
 
 /**
  * Unified scale picker and management component — ux.md §5.8 & §5.7.
@@ -208,9 +209,10 @@ import { ScaleEditorSheetComponent } from './scale-editor.sheet'
     <!-- Builtin preset card-toggle editor -->
     <ion-modal
       #editorModal
+      cssClass="hnch-sheet"
       [isOpen]="editorOpen()"
-      [breakpoints]="[0, 0.6, 0.95]"
-      [initialBreakpoint]="0.6"
+      [breakpoints]="sheetBreakpoints"
+      [initialBreakpoint]="sheetInitialBreakpoint"
       (didDismiss)="editorOpen.set(false)"
     >
       <ng-template>
@@ -226,9 +228,10 @@ import { ScaleEditorSheetComponent } from './scale-editor.sheet'
     <!-- Custom scale creator / editor -->
     <ion-modal
       #customEditorModal
+      cssClass="hnch-sheet"
       [isOpen]="customEditorOpen()"
-      [breakpoints]="[0, 0.6, 1]"
-      [initialBreakpoint]="1"
+      [breakpoints]="tallSheetBreakpoints"
+      [initialBreakpoint]="tallSheetInitialBreakpoint"
       (didDismiss)="customEditorOpen.set(false)"
     >
       <ng-template>
@@ -253,6 +256,11 @@ import { ScaleEditorSheetComponent } from './scale-editor.sheet'
   ],
 })
 export class ScalePickerSheetComponent {
+  protected readonly sheetBreakpoints = getSheetBreakpoints()
+  protected readonly sheetInitialBreakpoint = getSheetInitialBreakpoint()
+  protected readonly tallSheetBreakpoints = getTallSheetBreakpoints()
+  protected readonly tallSheetInitialBreakpoint = getTallSheetInitialBreakpoint()
+
   protected readonly scalePrefs = inject(ScalePreferenceService)
   private readonly haptics = inject(HapticService)
   private readonly editorModalRef = viewChild<IonModal>('editorModal')

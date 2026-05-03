@@ -39,6 +39,20 @@
   --hnch-success:      #30D158;
   --hnch-warning:      #FF9F0A;
   --hnch-danger:       #FF453A;
+
+  /* hnch responsive layout — see ADR-0038. */
+  /* Breakpoints. Mobile-first: rules live behind @media (min-width: …). */
+  --hnch-bp-tablet: 768px;
+  --hnch-bp-desktop: 1024px;
+  --hnch-bp-wide: 1440px;
+
+  /* Container widths. Single-column screens cap at --hnch-content-max
+     and center via the .page-shell class in global.scss. */
+  --hnch-content-max: 960px;
+  /* Lobby left rail at desktop (CSS Grid two-pane shell). */
+  --hnch-rail-width: 320px;
+  /* Centered-dialog max-width at >=1024 (replaces half-sheet). */
+  --hnch-modal-max: 480px;
 }
 
 // ---------------------------------------------------------------------------

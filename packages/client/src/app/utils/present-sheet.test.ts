@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, afterEach } from 'vitest'
 
-import { presentSheet } from './present-sheet'
+import { getSheetBreakpoints, getSheetInitialBreakpoint, getTallSheetBreakpoints, getTallSheetInitialBreakpoint, presentSheet } from './present-sheet'
 
 function makeModal(dismissData: { data?: unknown; role?: string } = {}): {
   present: ReturnType<typeof vi.fn>
@@ -62,5 +62,86 @@ describe('presentSheet', () => {
 
     const modal = makeModal()
     await expect(presentSheet({ modal: modal as any })).resolves.not.toThrow()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// getSheetBreakpoints / getSheetInitialBreakpoint
+// ---------------------------------------------------------------------------
+
+function mockMatchMedia(matches: boolean): void {
+  vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
+    matches: query === '(min-width: 1024px)' ? matches : false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }))
+}
+
+describe('getSheetBreakpoints', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('returns [0, 0.6, 0.95] on mobile (matches = false)', () => {
+    mockMatchMedia(false)
+    expect(getSheetBreakpoints()).toEqual([0, 0.6, 0.95])
+  })
+
+  it('returns undefined on desktop (matches = true)', () => {
+    mockMatchMedia(true)
+    expect(getSheetBreakpoints()).toBeUndefined()
+  })
+})
+
+describe('getSheetInitialBreakpoint', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('returns 0.6 on mobile (matches = false)', () => {
+    mockMatchMedia(false)
+    expect(getSheetInitialBreakpoint()).toBe(0.6)
+  })
+
+  it('returns undefined on desktop (matches = true)', () => {
+    mockMatchMedia(true)
+    expect(getSheetInitialBreakpoint()).toBeUndefined()
+  })
+})
+
+describe('getTallSheetBreakpoints', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('returns [0, 0.6, 1] on mobile (matches = false)', () => {
+    mockMatchMedia(false)
+    expect(getTallSheetBreakpoints()).toEqual([0, 0.6, 1])
+  })
+
+  it('returns undefined on desktop (matches = true)', () => {
+    mockMatchMedia(true)
+    expect(getTallSheetBreakpoints()).toBeUndefined()
+  })
+})
+
+describe('getTallSheetInitialBreakpoint', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('returns 1 on mobile (matches = false)', () => {
+    mockMatchMedia(false)
+    expect(getTallSheetInitialBreakpoint()).toBe(1)
+  })
+
+  it('returns undefined on desktop (matches = true)', () => {
+    mockMatchMedia(true)
+    expect(getTallSheetInitialBreakpoint()).toBeUndefined()
   })
 })

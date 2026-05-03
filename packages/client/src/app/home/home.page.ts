@@ -48,7 +48,7 @@ import {
   type JumpBackInSummary,
 } from './jump-back-in-banner.component'
 import { PasswordPromptSheetComponent } from './password-prompt.sheet'
-import { presentSheet } from '../utils/present-sheet'
+import { getSheetBreakpoints, getSheetInitialBreakpoint, presentSheet } from '../utils/present-sheet'
 
 /**
  * Home launchpad — ux.md §5.2.
@@ -106,41 +106,44 @@ import { presentSheet } from '../utils/present-sheet'
       </ion-toolbar>
     </ion-header>
     <ion-content [fullscreen]="true">
-      <ion-list inset="true" class="actions">
-        @if (jumpBackInSummary(); as summary) {
-          <app-jump-back-in-banner
-            [summary]="summary"
-            [stale]="jumpBackInStale()"
-            [resuming]="resuming()"
-            (resumeRequested)="onResumeJumpBack()"
-          />
-        }
-        <ion-item button="true" detail="true" (click)="onCreateRoom()">
-          <div class="icon-tile icon-tile--accent" slot="start" aria-hidden="true">
-            <ion-icon name="add-outline"></ion-icon>
-          </div>
-          <ion-label>
-            <h2>Create Room</h2>
-            <p>Start a new session</p>
-          </ion-label>
-        </ion-item>
-        <ion-item button="true" detail="true" (click)="onJoinRoom()">
-          <div class="icon-tile icon-tile--neutral" slot="start" aria-hidden="true">
-            <ion-icon name="arrow-forward-outline"></ion-icon>
-          </div>
-          <ion-label>
-            <h2>Join Room</h2>
-            <p>Enter a code or scan QR</p>
-          </ion-label>
-        </ion-item>
-      </ion-list>
+      <div class="page-shell">
+        <ion-list inset="true" class="actions">
+          @if (jumpBackInSummary(); as summary) {
+            <app-jump-back-in-banner
+              [summary]="summary"
+              [stale]="jumpBackInStale()"
+              [resuming]="resuming()"
+              (resumeRequested)="onResumeJumpBack()"
+            />
+          }
+          <ion-item button="true" detail="true" (click)="onCreateRoom()">
+            <div class="icon-tile icon-tile--accent" slot="start" aria-hidden="true">
+              <ion-icon name="add-outline"></ion-icon>
+            </div>
+            <ion-label>
+              <h2>Create Room</h2>
+              <p>Start a new session</p>
+            </ion-label>
+          </ion-item>
+          <ion-item button="true" detail="true" (click)="onJoinRoom()">
+            <div class="icon-tile icon-tile--neutral" slot="start" aria-hidden="true">
+              <ion-icon name="arrow-forward-outline"></ion-icon>
+            </div>
+            <ion-label>
+              <h2>Join Room</h2>
+              <p>Enter a code or scan QR</p>
+            </ion-label>
+          </ion-item>
+        </ion-list>
+      </div>
 
       <!-- Password prompt half-sheet -->
       <ion-modal
         #passwordModal
+        cssClass="hnch-sheet"
         [isOpen]="passwordPromptOpen()"
-        [breakpoints]="[0, 0.6, 0.95]"
-        [initialBreakpoint]="0.6"
+        [breakpoints]="sheetBreakpoints"
+        [initialBreakpoint]="sheetInitialBreakpoint"
         (didDismiss)="passwordPromptOpen.set(false)"
       >
         <ng-template>
@@ -198,10 +201,23 @@ import { presentSheet } from '../utils/present-sheet'
       .icon-tile ion-icon {
         font-size: 20px;
       }
+      @media (min-width: 768px) {
+        ion-list.actions {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 1rem;
+        }
+        ion-list.actions app-jump-back-in-banner {
+          grid-column: 1 / -1;
+        }
+      }
     `,
   ],
 })
 export class HomePage {
+  protected readonly sheetBreakpoints = getSheetBreakpoints()
+  protected readonly sheetInitialBreakpoint = getSheetInitialBreakpoint()
+
   private readonly router = inject(Router)
   private readonly actionSheetCtrl = inject(ActionSheetController)
   private readonly toastService = inject(ToastService)
