@@ -63,7 +63,7 @@ Users can define their own scales with arbitrary labels — numeric, text, or mi
 - `S, M, L, XXXXL`
 - `Easy, Medium, Hard, Impossible`
 
-Custom scales can be created per-session and shared with all participants automatically.
+Custom scale definitions are device-local (stored in Capacitor Preferences on mobile, `~/.config/hnch/config.json` on CLI). When a host starts a round with a custom scale, the resolved card set is written into the Yjs doc as a flat `{ id, cards }` — so all participants see the same cards, but the custom scale label and configuration remain on the host's device only (ADR-0019).
 
 ## Joining a Session
 
@@ -80,7 +80,7 @@ Internally, each room has a stable UUID; the 6-char code is a lookup pointing at
 
 User picks a nickname on first app launch. The nickname is persisted locally and tied to a **device identifier** obtained via the Capacitor Device plugin (`Device.getId()`), cached in Capacitor Preferences (or SQLite) to avoid re-hitting the native bridge on every launch. Durability varies by platform: Android's `ANDROID_ID` is stable across reinstalls under the same signing key; iOS's `identifierForVendor` resets on reinstall for a single-app vendor; web generates and stores a UUID. These limitations are accepted for v1 — if durable cross-device identity becomes a real need, it will be solved at a higher layer (e.g. opt-in passkey), not by fingerprinting.
 
-Users can optionally change their nickname before joining any session. Each user gets an auto-assigned color and avatar for visual differentiation. Nickname changes within an active session are not allowed.
+Users can optionally change their display name at any time — including mid-session — via the Settings screen. Changes propagate to other participants immediately via Yjs awareness. Each user gets an auto-assigned color and avatar for visual differentiation.
 
 ## Teams (local concept)
 
@@ -168,4 +168,4 @@ Mobile-first design. Desktop adapts up. Target platforms: web browser, iOS, Andr
 
 Implementation through Phase 6a (PWA polish) plus mobile-parity gap closure. Phases 1–4 shipped the scaffold, Yjs doc/CRDT layer, relay sync, multi-client sessions, and host election (a countdown-timer reveal was implemented in Phase 4 and later replaced by unanimous auto-reveal per ADR-0018). Phase 5 added password-protected rooms, share/QR/deep-link join paths, and a Playwright e2e suite. Phase 6a added settings screen, theme picker, reveal animation, haptic wiring, and an accessibility pass. The separate Revealed page was removed — after a round is revealed, Estimating navigates back to Lobby, which shows results inline (VoteResultsComponent) and a compact round history list (RoundHistoryComponent). Mobile parity closed remaining CLI-mobile feature gaps: in-session room name editing, default session name/password preferences, and relay URL override via `AppPreferenceService`. Next: Phase 6b (native iOS build).
 
-A CLI client (`@hnch/cli`, `packages/cli`) ships alongside the mobile/PWA client as a terminal interface for developers and automation. It speaks the same relay protocol with no feature delta. See [`cli.md`](cli.md) for conventions and commands.
+A CLI client (`@xauyxau/hnch`, `packages/cli`) ships alongside the mobile/PWA client as a terminal interface for developers and automation. It speaks the same relay protocol with no feature delta. See [`cli.md`](cli.md) for conventions and commands.

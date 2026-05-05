@@ -113,6 +113,7 @@ If the change shifts user-visible behavior or product scope, update the relevant
 - `ux.md` — screens, flows, wireframes.
 - `roadmap.md` — phased plan and exit bars.
 - `angular.md` / `ionic.md` — client coding conventions.
+- `cli.md` — CLI commands and conventions (for changes affecting `packages/cli`).
 
 ## Pre-push checklist
 
