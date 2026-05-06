@@ -299,6 +299,33 @@ describe('relay server', () => {
     })
   })
 
+  describe('CORS preflight', () => {
+    it('OPTIONS /rooms returns 204 with CORS headers', async () => {
+      const res = await fetch(`${baseUrl}/rooms`, { method: 'OPTIONS' })
+      expect(res.status).toBe(204)
+      expect(res.headers.get('access-control-allow-origin')).toBe('*')
+      expect(res.headers.get('access-control-allow-methods')).toMatch(/POST/)
+    })
+
+    it('OPTIONS /health returns 204', async () => {
+      const res = await fetch(`${baseUrl}/health`, { method: 'OPTIONS' })
+      expect(res.status).toBe(204)
+    })
+  })
+
+  describe('oversized request body', () => {
+    it('POST /rooms with body > 4 KiB returns 400', async () => {
+      const oversized = JSON.stringify({ passwordHash: 'a'.repeat(5000) })
+      const res = await fetch(`${baseUrl}/rooms`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: oversized,
+      })
+      expect(res.status).toBe(400)
+      expect(roomStore.roomCount).toBe(0)
+    })
+  })
+
   describe('WS participant cap', () => {
     it('rejects the connection that would exceed MAX_ROOM_PARTICIPANTS', async () => {
       const record = roomStore.createRoom()
