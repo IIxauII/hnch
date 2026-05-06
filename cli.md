@@ -85,18 +85,37 @@ Scale customization (preset overrides, custom scales) is persisted in `config.js
 ```
 packages/cli/
   src/
-    index.ts          — entry point, yargs command wiring
-    session.ts        — createSession / joinSession / wireSession / reconnect
-    sync.ts           — y-websocket provider setup
-    relay-api.ts      — HTTP client for GET /rooms/:code and POST /rooms
-    config.ts         — config read/write helpers
-    last-session.ts   — last-session cache read/write
-    host-election.ts  — host-election observer (shared logic with mobile)
+    index.ts                  — entry point, yargs command wiring
+    session.ts                — createSession / joinSession / wireSession / reconnect
+    sync.ts                   — y-websocket provider setup
+    relay-api.ts              — HTTP client for GET /rooms/:code and POST /rooms
+    config.ts                 — config read/write helpers
+    last-session.ts           — last-session cache read/write
+    host-election.ts          — host-election observer (shared logic with mobile)
+    room-code-input.ts        — room-code input normalization / validation
+    session-end-observer.ts   — observes meta.sessionEndedAt and navigates home
+    session-expired.ts        — handles relay-reported unknown-room on resume
+    share.ts                  — invite URL / room code sharing helpers
     ui/
-      App.tsx         — root Ink component (Lobby / Voting screens)
+      App.tsx                 — root Ink component (Lobby / Voting screens)
       Lobby.tsx
       Voting.tsx
-      components/     — CardPicker, ParticipantList, ScalePicker, etc.
+      hooks/
+        useTransientNotice.ts — ephemeral notice state hook
+      components/
+        AccessPicker.tsx
+        CardPicker.tsx
+        ConfigSettings.tsx
+        CustomScaleEditor.tsx
+        HostActionsMenu.tsx
+        LobbySettings.tsx
+        MenuList.tsx
+        ParticipantList.tsx
+        PresetEditor.tsx
+        ScalePicker.tsx
+        SharePicker.tsx
+        StatusBar.tsx
+        TextInput.tsx
 ```
 
 ## Testing
@@ -105,4 +124,4 @@ packages/cli/
 pnpm --filter @hnch/cli test
 ```
 
-Unit tests live in `src/session.test.ts` and `src/ui/components/settings.test.ts`. The CLI is also exercised by the Playwright e2e suite in `packages/e2e` as a parity smoke client.
+Unit tests are spread across `src/` (e.g. `session.test.ts`, `config.test.ts`, `host-election.test.ts`, `relay-api.test.ts`, `share.test.ts`, and others) and `src/ui/components/settings.test.ts`. The CLI is also exercised by the Playwright e2e suite in `packages/e2e` as a parity smoke client.

@@ -15,7 +15,7 @@ Every PR must satisfy all four:
 
 - **PR opened against `main`** — no direct pushes to `main`.
 - **Description present** — explain *what* changed and *why*. Link the related ADR (`adr/NNNN-*.md`) or plan (`plans/*.md`) when applicable.
-- **All checks pass locally** — `pnpm lint && pnpm typecheck && pnpm test` must be green before pushing. Run `pnpm test:e2e` if the change touches `packages/client`, `packages/relay`, or `packages/shared`.
+- **All checks pass locally** — `pnpm lint && pnpm typecheck && pnpm test` must be green before pushing. Run `pnpm test:e2e` if the change touches `packages/client`, `packages/relay`, `packages/shared`, or `packages/cli`.
 - **No `Co-Authored-By` trailer** — commit messages must not include a `Co-Authored-By:` line.
 
 ## Commit style — Conventional Commits
@@ -120,7 +120,7 @@ If the change shifts user-visible behavior or product scope, update the relevant
 - [ ] `pnpm lint` passes.
 - [ ] `pnpm typecheck` passes.
 - [ ] `pnpm test` passes.
-- [ ] `pnpm test:e2e` passes (if touching client/relay/shared).
+- [ ] `pnpm test:e2e` passes (if touching client/relay/shared/cli).
 - [ ] PR title follows Conventional Commits (drives the release).
 - [ ] No `Co-Authored-By` trailers.
 - [ ] ADR added/updated if structural.
