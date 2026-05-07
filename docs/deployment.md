@@ -7,8 +7,8 @@ Production deployment for hnch. See [ADR-0029](../adr/0029-relay-deployment.md) 
 | Surface | Where it lives | How it gets there |
 |---|---|---|
 | Relay (`@hnch/relay`) | `hnch-vps` (IONOS, Debian) | `deploy-relay.yml` workflow on `relay-v*` tags → tarball over SSH → systemd unit |
-| PWA static (`@hnch/client`) | same VPS, `/var/www/hnch-client` | TBD: `deploy-client.yml` (follow-up to ADR-0029, after relay is live) |
-| CLI (`@hnch/cli`) | npm registry + Homebrew tap | TBD: deferred until relay default URL is `wss://hnch.dev` |
+| PWA static (`@hnch/client`) | same VPS, `/var/www/hnch-client` | `deploy-client.yml` workflow on `client-v*` tags → rsync → atomic symlink swap |
+| CLI (`@xauyxau/hnch`) | npm registry | TBD: automated publish not yet wired; manual `npm publish` from `packages/cli` |
 
 All three surfaces speak to the same relay at `wss://hnch.dev/ws/:uuid` and `https://hnch.dev/rooms/:code`. Single origin, single Let's Encrypt cert, no CORS.
 
