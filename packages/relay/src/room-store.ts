@@ -18,10 +18,10 @@
  * returning peer every update accumulated so far.
  */
 
-import * as Y from 'yjs'
-import { Awareness } from 'y-protocols/awareness'
-import type { PasswordHash } from '@hnch/shared'
-import type { CodePool } from './code-pool.js'
+import * as Y from 'yjs';
+import { Awareness } from 'y-protocols/awareness';
+import type { PasswordHash } from '@hnch/shared';
+import type { CodePool } from './code-pool.js';
 
 /**
  * A single room's metadata plus the live CRDT state.
@@ -35,21 +35,21 @@ import type { CodePool } from './code-pool.js'
  * `connections === 0` and `lastEmptyAt` is older than the TTL.
  */
 export interface RoomRecord {
-  readonly uuid: string
-  readonly code: string
-  passwordHash?: PasswordHash
-  readonly invitesOutstanding: Set<string>
-  readonly doc: Y.Doc
-  readonly awareness: Awareness
+  readonly uuid: string;
+  readonly code: string;
+  passwordHash?: PasswordHash;
+  readonly invitesOutstanding: Set<string>;
+  readonly doc: Y.Doc;
+  readonly awareness: Awareness;
   /** Number of currently-live WS connections. */
-  connections: number
+  connections: number;
   /**
    * Wall-clock timestamp (ms) the room most recently dropped to zero
    * live connections. `undefined` while at least one peer is connected.
    * The snapshot sweeper reads this to decide when a room has been
    * idle long enough to evict.
    */
-  lastEmptyAt: number | undefined
+  lastEmptyAt: number | undefined;
 }
 
 /**
@@ -60,7 +60,7 @@ export interface RoomRecord {
  * with outstanding invites is `'invite'`, otherwise `'open'`. Phase 3
  * always produces `'open'` because neither gate is set.
  */
-export type AccessMode = 'open' | 'password' | 'invite'
+export type AccessMode = 'open' | 'password' | 'invite';
 
 /**
  * `accessModeOf` only inspects the access-control fields, so we take a
@@ -71,9 +71,9 @@ export type AccessMode = 'open' | 'password' | 'invite'
 export function accessModeOf(
   record: Pick<RoomRecord, 'passwordHash' | 'invitesOutstanding'>,
 ): AccessMode {
-  if (record.passwordHash !== undefined) return 'password'
-  if (record.invitesOutstanding.size > 0) return 'invite'
-  return 'open'
+  if (record.passwordHash !== undefined) return 'password';
+  if (record.invitesOutstanding.size > 0) return 'invite';
+  return 'open';
 }
 
 export interface RoomStoreOptions {
@@ -81,51 +81,48 @@ export interface RoomStoreOptions {
    * UUID generator, injectable for deterministic tests. Defaults to
    * `crypto.randomUUID`, which is available in Node 20+.
    */
-  readonly uuidGenerator?: () => string
+  readonly uuidGenerator?: () => string;
 }
 
 export interface CreateRoomOptions {
-  readonly passwordHash?: PasswordHash
+  readonly passwordHash?: PasswordHash;
 }
 
 export interface RoomStore {
   /** Mints a new room with a fresh UUID, a unique code, and an empty Y.Doc. */
-  createRoom(options?: CreateRoomOptions): RoomRecord
+  createRoom(options?: CreateRoomOptions): RoomRecord;
   /** Returns the record for a given code, or `undefined` if not live. */
-  getByCode(code: string): RoomRecord | undefined
+  getByCode(code: string): RoomRecord | undefined;
   /** Returns the record for a given UUID, or `undefined` if not live. */
-  getByUuid(uuid: string): RoomRecord | undefined
+  getByUuid(uuid: string): RoomRecord | undefined;
   /**
    * Set or remove the password hash on a live room. Returns `true` if
    * the room was found and updated, `false` if the UUID is unknown.
    */
-  setPasswordHash(uuid: string, hash: PasswordHash | null): boolean
+  setPasswordHash(uuid: string, hash: PasswordHash | null): boolean;
   /**
    * Removes the room from both indexes, releases its code back to
    * the pool, and tears down its `Y.Doc` / `Awareness`. No-op if the
    * UUID is unknown.
    */
-  deleteRoom(uuid: string): void
+  deleteRoom(uuid: string): void;
   /** Snapshot of all live records, for the TTL sweeper. */
-  listRooms(): readonly RoomRecord[]
-  readonly roomCount: number
+  listRooms(): readonly RoomRecord[];
+  readonly roomCount: number;
 }
 
-export function createRoomStore(
-  codePool: CodePool,
-  options: RoomStoreOptions = {},
-): RoomStore {
-  const uuidGenerator = options.uuidGenerator ?? (() => crypto.randomUUID())
+export function createRoomStore(codePool: CodePool, options: RoomStoreOptions = {}): RoomStore {
+  const uuidGenerator = options.uuidGenerator ?? (() => crypto.randomUUID());
 
-  const byUuid = new Map<string, RoomRecord>()
-  const byCode = new Map<string, string>()
+  const byUuid = new Map<string, RoomRecord>();
+  const byCode = new Map<string, string>();
 
   return {
     createRoom(options?: CreateRoomOptions): RoomRecord {
-      const uuid = uuidGenerator()
-      const code = codePool.mint()
-      const doc = new Y.Doc()
-      const awareness = new Awareness(doc)
+      const uuid = uuidGenerator();
+      const code = codePool.mint();
+      const doc = new Y.Doc();
+      const awareness = new Awareness(doc);
       const record: RoomRecord = {
         uuid,
         code,
@@ -135,41 +132,41 @@ export function createRoomStore(
         awareness,
         connections: 0,
         lastEmptyAt: Date.now(),
-      }
-      byUuid.set(uuid, record)
-      byCode.set(code, uuid)
-      return record
+      };
+      byUuid.set(uuid, record);
+      byCode.set(code, uuid);
+      return record;
     },
     getByCode(code: string): RoomRecord | undefined {
-      const uuid = byCode.get(code)
-      if (uuid === undefined) return undefined
-      return byUuid.get(uuid)
+      const uuid = byCode.get(code);
+      if (uuid === undefined) return undefined;
+      return byUuid.get(uuid);
     },
     getByUuid(uuid: string): RoomRecord | undefined {
-      return byUuid.get(uuid)
+      return byUuid.get(uuid);
     },
     setPasswordHash(uuid: string, hash: PasswordHash | null): boolean {
-      const record = byUuid.get(uuid)
-      if (record === undefined) return false
-      record.passwordHash = hash === null ? undefined : hash
-      return true
+      const record = byUuid.get(uuid);
+      if (record === undefined) return false;
+      record.passwordHash = hash === null ? undefined : hash;
+      return true;
     },
     deleteRoom(uuid: string): void {
-      const record = byUuid.get(uuid)
-      if (record === undefined) return
-      byUuid.delete(uuid)
-      byCode.delete(record.code)
-      codePool.release(record.code)
+      const record = byUuid.get(uuid);
+      if (record === undefined) return;
+      byUuid.delete(uuid);
+      byCode.delete(record.code);
+      codePool.release(record.code);
       // Tear down CRDT state so the 30s awareness interval + any
       // pending observers don't leak after eviction.
-      record.awareness.destroy()
-      record.doc.destroy()
+      record.awareness.destroy();
+      record.doc.destroy();
     },
     listRooms(): readonly RoomRecord[] {
-      return [...byUuid.values()]
+      return [...byUuid.values()];
     },
     get roomCount(): number {
-      return byUuid.size
+      return byUuid.size;
     },
-  }
+  };
 }

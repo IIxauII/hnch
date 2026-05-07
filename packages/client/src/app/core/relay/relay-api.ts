@@ -16,21 +16,21 @@
  * shapes rather than touching every call site.
  */
 
-import type { JoinRejectionReason } from '@hnch/shared'
+import type { JoinRejectionReason } from '@hnch/shared';
 
 /** Successful response to `POST /rooms`. Mirrors the relay's type. */
 export interface MintedRoom {
-  readonly uuid: string
-  readonly code: string
+  readonly uuid: string;
+  readonly code: string;
 }
 
 /** Access mode reported by `GET /rooms/:code`. Mirrors `AccessMode`. */
-export type ResolvedAccessMode = 'open' | 'password' | 'invite'
+export type ResolvedAccessMode = 'open' | 'password' | 'invite';
 
 /** Successful response to `GET /rooms/:code`. */
 export interface ResolvedRoom {
-  readonly uuid: string
-  readonly accessMode: ResolvedAccessMode
+  readonly uuid: string;
+  readonly accessMode: ResolvedAccessMode;
 }
 
 /**
@@ -40,13 +40,13 @@ export interface ResolvedRoom {
  */
 export class RelayRejectionError extends Error {
   constructor(readonly reason: JoinRejectionReason) {
-    super(`relay rejected resolve: ${reason}`)
-    this.name = 'RelayRejectionError'
+    super(`relay rejected resolve: ${reason}`);
+    this.name = 'RelayRejectionError';
   }
 }
 
 export interface MintRoomOptions {
-  readonly passwordHash?: string
+  readonly passwordHash?: string;
 }
 
 /**
@@ -58,23 +58,23 @@ export async function mintRoom(
   options?: MintRoomOptions,
 ): Promise<MintedRoom> {
   if (!httpBaseUrl) {
-    throw new Error('mintRoom: httpBaseUrl is required')
+    throw new Error('mintRoom: httpBaseUrl is required');
   }
   const res = await fetch(`${httpBaseUrl}/rooms`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(options?.passwordHash ? { passwordHash: options.passwordHash } : {}),
-  })
+  });
   if (!res.ok) {
-    throw new Error(`POST /rooms failed: ${res.status}`)
+    throw new Error(`POST /rooms failed: ${res.status}`);
   }
-  const body = (await res.json()) as MintedRoom
-  return body
+  const body = (await res.json()) as MintedRoom;
+  return body;
 }
 
 /** Response from `PATCH /rooms/:uuid/access` (ADR-0017). */
 export interface PatchAccessResponse {
-  readonly accessMode: ResolvedAccessMode
+  readonly accessMode: ResolvedAccessMode;
 }
 
 /**
@@ -88,17 +88,17 @@ export async function patchRoomAccess(
   passwordHash: string | null,
 ): Promise<PatchAccessResponse> {
   if (!httpBaseUrl) {
-    throw new Error('patchRoomAccess: httpBaseUrl is required')
+    throw new Error('patchRoomAccess: httpBaseUrl is required');
   }
   const res = await fetch(`${httpBaseUrl}/rooms/${uuid}/access`, {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ passwordHash }),
-  })
+  });
   if (!res.ok) {
-    throw new Error(`PATCH /rooms/:uuid/access failed: ${res.status}`)
+    throw new Error(`PATCH /rooms/:uuid/access failed: ${res.status}`);
   }
-  return (await res.json()) as PatchAccessResponse
+  return (await res.json()) as PatchAccessResponse;
 }
 
 /**
@@ -111,17 +111,17 @@ export async function resolveRoom(
   code: string,
 ): Promise<ResolvedRoom> {
   if (!httpBaseUrl) {
-    throw new Error('resolveRoom: httpBaseUrl is required')
+    throw new Error('resolveRoom: httpBaseUrl is required');
   }
-  const res = await fetch(`${httpBaseUrl}/rooms/${encodeURIComponent(code)}`)
+  const res = await fetch(`${httpBaseUrl}/rooms/${encodeURIComponent(code)}`);
   if (res.status === 404) {
     const body = (await res.json().catch(() => null)) as {
-      reason?: JoinRejectionReason
-    } | null
-    throw new RelayRejectionError(body?.reason ?? 'unknown-room')
+      reason?: JoinRejectionReason;
+    } | null;
+    throw new RelayRejectionError(body?.reason ?? 'unknown-room');
   }
   if (!res.ok) {
-    throw new Error(`GET /rooms/:code failed: ${res.status}`)
+    throw new Error(`GET /rooms/:code failed: ${res.status}`);
   }
-  return (await res.json()) as ResolvedRoom
+  return (await res.json()) as ResolvedRoom;
 }

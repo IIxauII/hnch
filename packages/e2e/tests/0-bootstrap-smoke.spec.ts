@@ -1,5 +1,5 @@
-import { test, expect } from './fixtures/app.fixture'
-import { BASE_URL } from './fixtures/helpers'
+import { test, expect } from './fixtures/app.fixture';
+import { BASE_URL } from './fixtures/helpers';
 
 /**
  * Bootstrap smoke test — first spec alphabetically so it runs first under
@@ -16,10 +16,10 @@ import { BASE_URL } from './fixtures/helpers'
  */
 test.describe('Bootstrap smoke', () => {
   test('app boots and renders without errors', async ({ host }) => {
-    await host.page.goto(`${BASE_URL}/home`)
+    await host.page.goto(`${BASE_URL}/home`);
     // Either /home or /onboarding is fine — both prove bootstrap completed.
-    await host.page.waitForURL(/\/(home|onboarding)/, { timeout: 5_000 })
+    await host.page.waitForURL(/\/(home|onboarding)/, { timeout: 5_000 });
     // ion-app is rendered by AppComponent only after bootstrap resolves.
-    await expect(host.page.locator('app-root ion-app')).toBeVisible({ timeout: 5_000 })
-  })
-})
+    await expect(host.page.locator('app-root ion-app')).toBeVisible({ timeout: 5_000 });
+  });
+});

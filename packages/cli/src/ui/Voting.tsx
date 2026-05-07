@@ -1,36 +1,36 @@
-import React from 'react'
-import { Box, Text, useInput } from 'ink'
-import { ParticipantList } from './components/ParticipantList.js'
-import { CardPicker } from './components/CardPicker.js'
-import { SharePicker } from './components/SharePicker.js'
-import type { DocProjection, Round } from '@hnch/shared'
+import React from 'react';
+import { Box, Text, useInput } from 'ink';
+import { ParticipantList } from './components/ParticipantList.js';
+import { CardPicker } from './components/CardPicker.js';
+import { SharePicker } from './components/SharePicker.js';
+import type { DocProjection, Round } from '@hnch/shared';
 
 interface Props {
-  projection: DocProjection
-  round: Round
-  onlineIds: Set<string>
-  isHost: boolean
-  myId: string
-  myRole: 'voter' | 'viewer'
-  elapsedMs?: number
-  roomCode: string
-  shareOpen: boolean
-  settingsOpen: boolean
-  onVote: (card: string) => void
-  onClearVote: () => void
-  onReveal: () => void
-  onToggleRole: () => void
-  onShare: (kind: 'code' | 'url' | 'npx') => void
-  onSetShareOpen: (open: boolean) => void
-  onOpenSettings: () => void
-  confirmingQuit: boolean
+  projection: DocProjection;
+  round: Round;
+  onlineIds: Set<string>;
+  isHost: boolean;
+  myId: string;
+  myRole: 'voter' | 'viewer';
+  elapsedMs?: number;
+  roomCode: string;
+  shareOpen: boolean;
+  settingsOpen: boolean;
+  onVote: (card: string) => void;
+  onClearVote: () => void;
+  onReveal: () => void;
+  onToggleRole: () => void;
+  onShare: (kind: 'code' | 'url' | 'npx') => void;
+  onSetShareOpen: (open: boolean) => void;
+  onOpenSettings: () => void;
+  confirmingQuit: boolean;
 }
 
 function formatElapsed(ms: number): string {
-  const secs = Math.floor(ms / 1000)
-  const min = Math.floor(secs / 60)
-  const sec = secs % 60
-  return `${min}:${sec.toString().padStart(2, '0')}`
+  const secs = Math.floor(ms / 1000);
+  const min = Math.floor(secs / 60);
+  const sec = secs % 60;
+  return `${min}:${sec.toString().padStart(2, '0')}`;
 }
 
 export function Voting({
@@ -56,48 +56,50 @@ export function Voting({
   useInput(
     (input) => {
       if (input === 'e' || input === 'E') {
-        onOpenSettings()
-        return
+        onOpenSettings();
+        return;
       }
       if (input === 'c' || input === 'C') {
-        onSetShareOpen(true)
-        return
+        onSetShareOpen(true);
+        return;
       }
       if (isHost && (input === 'r' || input === 'R')) {
-        onReveal()
+        onReveal();
       }
       if (input === 'w' || input === 'W') {
-        onToggleRole()
+        onToggleRole();
       }
     },
     { isActive: !confirmingQuit && !settingsOpen && !shareOpen },
-  )
+  );
 
   if (shareOpen) {
     return (
       <SharePicker
         roomCode={roomCode}
         onPick={(kind) => {
-          onSetShareOpen(false)
-          onShare(kind)
+          onSetShareOpen(false);
+          onShare(kind);
         }}
         onClose={() => onSetShareOpen(false)}
       />
-    )
+    );
   }
 
-  const myVote = round.votes[myId]
-  const roundNum = projection.rounds.indexOf(round) + 1
-  const title = round.title ? ` — ${round.title}` : ''
-  const ticket = round.ticketId ? ` [${round.ticketId}]` : ''
+  const myVote = round.votes[myId];
+  const roundNum = projection.rounds.indexOf(round) + 1;
+  const title = round.title ? ` — ${round.title}` : '';
+  const ticket = round.ticketId ? ` [${round.ticketId}]` : '';
 
   return (
     <Box flexDirection="column" gap={1}>
       <Box gap={2}>
-        <Text bold>Round {roundNum}{title}{ticket}</Text>
-        {elapsedMs !== undefined && (
-          <Text dimColor>⏱ {formatElapsed(elapsedMs)}</Text>
-        )}
+        <Text bold>
+          Round {roundNum}
+          {title}
+          {ticket}
+        </Text>
+        {elapsedMs !== undefined && <Text dimColor>⏱ {formatElapsed(elapsedMs)}</Text>}
       </Box>
 
       <Box gap={4}>
@@ -132,5 +134,5 @@ export function Voting({
         <Text>[q] Quit</Text>
       </Box>
     </Box>
-  )
+  );
 }

@@ -10,87 +10,81 @@
  * - B lands on /home with no Jump-back-in banner for the room they just left.
  */
 
-import { test, expect } from './fixtures/app.fixture'
-import { LOBBY } from './fixtures/helpers'
+import { test, expect } from './fixtures/app.fixture';
+import { LOBBY } from './fixtures/helpers';
 
 test.describe('Participant voluntary leave (ADR-0036)', () => {
-  test('leaver removed from active roster; host sees count decrement', async ({
-    host,
-    player,
-  }) => {
-    const code = await host.createSession()
-    await player.joinSession(code)
+  test('leaver removed from active roster; host sees count decrement', async ({ host, player }) => {
+    const code = await host.createSession();
+    await player.joinSession(code);
 
     // Both in lobby — count is 2
-    await host.expectParticipantCount(2)
+    await host.expectParticipantCount(2);
 
     // Player leaves
-    await player.leaveSession()
+    await player.leaveSession();
 
     // Host sees count drop to 1
-    await host.expectParticipantCount(1)
+    await host.expectParticipantCount(1);
 
     // Player's name no longer in active participant list
-    const participantList = host.page.locator(LOBBY.participantList)
-    await expect(participantList).not.toContainText('Player')
-  })
+    const participantList = host.page.locator(LOBBY.participantList);
+    await expect(participantList).not.toContainText('Player');
+  });
 
   test("leaver's vote still shows by name in revealed round results on host screen", async ({
     host,
     player,
   }) => {
-    const code = await host.createSession()
-    await player.joinSession(code)
+    const code = await host.createSession();
+    await player.joinSession(code);
 
     // Run a round — player votes 8, host votes 5
-    await host.startRound()
-    await player.waitForEstimating()
+    await host.startRound();
+    await player.waitForEstimating();
 
-    await host.castVote('5')
-    await player.castVote('8')
+    await host.castVote('5');
+    await player.castVote('8');
 
     // Host manually reveals (prevents auto-reveal race while we're still voting)
-    await host.reveal()
+    await host.reveal();
     // Wait for player to land on lobby too (ensures Yjs sync settled)
-    await player.page.waitForURL(/\/lobby/, { timeout: 10_000 })
+    await player.page.waitForURL(/\/lobby/, { timeout: 10_000 });
 
     // Player leaves session after reveal
-    await player.leaveSession()
+    await player.leaveSession();
 
     // Host is back on /lobby with results visible
-    await host.page.waitForURL(/\/lobby/)
-    const resultsSection = host.page.locator(LOBBY.resultsSection)
-    await resultsSection.waitFor({ state: 'visible', timeout: 5_000 })
+    await host.page.waitForURL(/\/lobby/);
+    const resultsSection = host.page.locator(LOBBY.resultsSection);
+    await resultsSection.waitFor({ state: 'visible', timeout: 5_000 });
 
     // Player's vote chip shows the name "Player", not a raw ID
-    const chips = host.page.locator(LOBBY.voterChips)
-    const chipTexts = await chips.allTextContents()
-    const hasPlayerName = chipTexts.some((t) => t.trim() === 'Player')
-    expect(hasPlayerName).toBe(true)
-  })
+    const chips = host.page.locator(LOBBY.voterChips);
+    const chipTexts = await chips.allTextContents();
+    const hasPlayerName = chipTexts.some((t) => t.trim() === 'Player');
+    expect(hasPlayerName).toBe(true);
+  });
 
-  test('after leave, no Jump-back-in banner for that room', async ({
-    host,
-    player,
-  }) => {
-    const code = await host.createSession()
-    await player.joinSession(code)
-    await player.page.waitForURL(/\/lobby/)
+  test('after leave, no Jump-back-in banner for that room', async ({ host, player }) => {
+    const code = await host.createSession();
+    await player.joinSession(code);
+    await player.page.waitForURL(/\/lobby/);
 
     // Leave explicitly (writes leftAt, clears cache per ADR-0036 §5)
-    await player.leaveSession()
-    await player.page.waitForURL(/\/home/)
+    await player.leaveSession();
+    await player.page.waitForURL(/\/home/);
 
     // Give Angular a tick to render
-    await player.page.waitForTimeout(500)
+    await player.page.waitForTimeout(500);
 
     // No Jump-back-in banner
-    const banner = player.page.locator('app-jump-back-in-banner')
-    const visible = await banner.isVisible().catch(() => false)
-    expect(visible).toBe(false)
+    const banner = player.page.locator('app-jump-back-in-banner');
+    const visible = await banner.isVisible().catch(() => false);
+    expect(visible).toBe(false);
 
     // Verify the code we left doesn't appear anywhere on Home
-    const homeContent = await player.page.textContent('body')
-    expect(homeContent).not.toContain(code)
-  })
-})
+    const homeContent = await player.page.textContent('body');
+    expect(homeContent).not.toContain(code);
+  });
+});

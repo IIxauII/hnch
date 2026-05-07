@@ -6,15 +6,15 @@ import {
   OnDestroy,
   inject,
   viewChild,
-} from '@angular/core'
+} from '@angular/core';
 import {
   BarcodeFormat,
   BarcodeScanner,
   type BarcodesScannedEvent,
-} from '@capacitor-mlkit/barcode-scanning'
-import type { PluginListenerHandle } from '@capacitor/core'
-import { ModalController } from '@ionic/angular/standalone'
-import type { QrScanErrorReason } from './qr-scanner.service'
+} from '@capacitor-mlkit/barcode-scanning';
+import type { PluginListenerHandle } from '@capacitor/core';
+import { ModalController } from '@ionic/angular/standalone';
+import type { QrScanErrorReason } from './qr-scanner.service';
 
 /**
  * Full-viewport camera overlay for web-platform QR scanning.
@@ -99,80 +99,80 @@ import type { QrScanErrorReason } from './qr-scanner.service'
   ],
 })
 export class WebQrScannerOverlayComponent implements AfterViewInit, OnDestroy {
-  private readonly videoEl = viewChild.required<ElementRef<HTMLVideoElement>>('videoEl')
+  private readonly videoEl = viewChild.required<ElementRef<HTMLVideoElement>>('videoEl');
 
-  private readonly modalCtrl = inject(ModalController)
+  private readonly modalCtrl = inject(ModalController);
 
-  private listenerHandle: PluginListenerHandle | null = null
-  private tornDown = false
+  private listenerHandle: PluginListenerHandle | null = null;
+  private tornDown = false;
 
   async ngAfterViewInit(): Promise<void> {
-    const videoElement = this.videoEl().nativeElement
+    const videoElement = this.videoEl().nativeElement;
 
     try {
       this.listenerHandle = await BarcodeScanner.addListener(
         'barcodesScanned',
         (event: BarcodesScannedEvent) => {
-          const rawValue = event.barcodes[0]?.rawValue ?? null
-          void this.resolveWith(rawValue)
+          const rawValue = event.barcodes[0]?.rawValue ?? null;
+          void this.resolveWith(rawValue);
         },
-      )
+      );
 
       // Guard: component may have been destroyed while addListener was in flight.
       if (this.tornDown) {
-        await this.listenerHandle.remove()
-        this.listenerHandle = null
-        await this.teardown()
-        return
+        await this.listenerHandle.remove();
+        this.listenerHandle = null;
+        await this.teardown();
+        return;
       }
 
       await BarcodeScanner.startScan({
         formats: [BarcodeFormat.QrCode],
         videoElement,
-      })
+      });
 
       // Guard: component may have been destroyed while startScan was in flight.
       if (this.tornDown) {
-        await this.teardown()
-        return
+        await this.teardown();
+        return;
       }
     } catch (err) {
       // Plugin threw (e.g. camera denied, no camera, BarcodeDetector unsupported).
       // Map to a specific reason so caller can show appropriate copy.
       if (!this.tornDown) {
-        const reason = mapDomErrorToReason(err)
-        await this.teardown()
-        await this.modalCtrl.dismiss({ reason })
+        const reason = mapDomErrorToReason(err);
+        await this.teardown();
+        await this.modalCtrl.dismiss({ reason });
       }
     }
   }
 
   ngOnDestroy(): void {
-    void this.teardown()
+    void this.teardown();
   }
 
   protected async onCancel(): Promise<void> {
-    await this.teardown()
-    await this.modalCtrl.dismiss(null)
+    await this.teardown();
+    await this.modalCtrl.dismiss(null);
   }
 
   private async resolveWith(value: string | null): Promise<void> {
-    if (this.tornDown) return
-    await this.teardown()
-    await this.modalCtrl.dismiss(value)
+    if (this.tornDown) return;
+    await this.teardown();
+    await this.modalCtrl.dismiss(value);
   }
 
   private async teardown(): Promise<void> {
-    if (this.tornDown) return
-    this.tornDown = true
+    if (this.tornDown) return;
+    this.tornDown = true;
 
     if (this.listenerHandle) {
-      await this.listenerHandle.remove()
-      this.listenerHandle = null
+      await this.listenerHandle.remove();
+      this.listenerHandle = null;
     }
 
     try {
-      await BarcodeScanner.stopScan()
+      await BarcodeScanner.stopScan();
     } catch {
       // stopScan may throw if scan was never started — ignore.
     }
@@ -183,7 +183,7 @@ export class WebQrScannerOverlayComponent implements AfterViewInit, OnDestroy {
 // Error-reason mapper (exported for unit tests)
 // ---------------------------------------------------------------------------
 
-const UNSUPPORTED_PHRASES = ['unsupported', 'not implemented', 'Barcode Detection API']
+const UNSUPPORTED_PHRASES = ['unsupported', 'not implemented', 'Barcode Detection API'];
 
 /**
  * Map a thrown camera / plugin error to a `QrScanErrorReason`.
@@ -194,23 +194,23 @@ const UNSUPPORTED_PHRASES = ['unsupported', 'not implemented', 'Barcode Detectio
  * 3. Fallback: `'unknown'`.
  */
 export function mapDomErrorToReason(err: unknown): QrScanErrorReason {
-  const name = (err as { name?: unknown })?.name
+  const name = (err as { name?: unknown })?.name;
   if (typeof name === 'string') {
     if (['NotAllowedError', 'PermissionDeniedError', 'SecurityError'].includes(name)) {
-      return 'permission-denied'
+      return 'permission-denied';
     }
     if (['NotFoundError', 'OverconstrainedError', 'ConstraintNotSatisfiedError'].includes(name)) {
-      return 'no-camera'
+      return 'no-camera';
     }
     if (['NotReadableError', 'TrackStartError', 'AbortError'].includes(name)) {
-      return 'camera-busy'
+      return 'camera-busy';
     }
   }
 
-  const message = (err as { message?: unknown })?.message
-  if (typeof message === 'string' && UNSUPPORTED_PHRASES.some(p => message.includes(p))) {
-    return 'unavailable'
+  const message = (err as { message?: unknown })?.message;
+  if (typeof message === 'string' && UNSUPPORTED_PHRASES.some((p) => message.includes(p))) {
+    return 'unavailable';
   }
 
-  return 'unknown'
+  return 'unknown';
 }

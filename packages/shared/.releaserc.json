@@ -14,15 +14,16 @@
           { "scope": "@(shared|*,shared|shared,*|*,shared,*)", "type": "feat", "release": "minor" },
           { "scope": "@(shared|*,shared|shared,*|*,shared,*)", "type": "fix", "release": "patch" },
           { "scope": "@(shared|*,shared|shared,*|*,shared,*)", "type": "perf", "release": "patch" },
-          { "scope": "@(shared|*,shared|shared,*|*,shared,*)", "breaking": true, "release": "major" }
+          {
+            "scope": "@(shared|*,shared|shared,*|*,shared,*)",
+            "breaking": true,
+            "release": "major"
+          }
         ]
       }
     ],
     "@semantic-release/release-notes-generator",
-    [
-      "@semantic-release/npm",
-      { "npmPublish": false, "pkgRoot": "packages/shared" }
-    ],
+    ["@semantic-release/npm", { "npmPublish": false, "pkgRoot": "packages/shared" }],
     [
       "@semantic-release/changelog",
       {

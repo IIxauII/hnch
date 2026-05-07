@@ -1,5 +1,5 @@
-import React from 'react'
-import { MenuList, type MenuItem } from './MenuList.js'
+import React from 'react';
+import { MenuList, type MenuItem } from './MenuList.js';
 
 const HOST_ACTIONS: MenuItem[] = [
   {
@@ -7,20 +7,13 @@ const HOST_ACTIONS: MenuItem[] = [
     value: 'end-session',
     detail: 'Disconnects all participants. Cannot be undone.',
   },
-]
+];
 
 interface HostActionsMenuProps {
-  onPick: (value: string) => void
-  onClose: () => void
+  onPick: (value: string) => void;
+  onClose: () => void;
 }
 
 export function HostActionsMenu({ onPick, onClose }: HostActionsMenuProps): React.ReactElement {
-  return (
-    <MenuList
-      title="Host Actions"
-      items={HOST_ACTIONS}
-      onSelect={onPick}
-      onClose={onClose}
-    />
-  )
+  return <MenuList title="Host Actions" items={HOST_ACTIONS} onSelect={onPick} onClose={onClose} />;
 }

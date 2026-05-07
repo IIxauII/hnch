@@ -1,240 +1,284 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { Box, Text, useApp, useInput } from 'ink'
-import type { SessionHandle } from '../session.js'
-import type { SyncStatus } from '../sync.js'
-import type { DocProjection, Round, Scale, PresetOverrides, CustomScale } from '@hnch/shared'
-import { currentRound, participantRole } from '@hnch/shared'
-import clipboard from 'clipboardy'
-import { shareCode, shareUrl, shareNpxCommand } from '../share.js'
-import { StatusBar } from './components/StatusBar.js'
-import { LobbySettings } from './components/LobbySettings.js'
-import { Lobby } from './Lobby.js'
-import { Voting } from './Voting.js'
-import { useTransientNotice } from './hooks/useTransientNotice.js'
+import React, { useState, useEffect, useCallback } from 'react';
+import { Box, Text, useApp, useInput } from 'ink';
+import type { SessionHandle } from '../session.js';
+import type { SyncStatus } from '../sync.js';
+import type { DocProjection, Round, Scale, PresetOverrides, CustomScale } from '@hnch/shared';
+import { currentRound, participantRole } from '@hnch/shared';
+import clipboard from 'clipboardy';
+import { shareCode, shareUrl, shareNpxCommand } from '../share.js';
+import { StatusBar } from './components/StatusBar.js';
+import { LobbySettings } from './components/LobbySettings.js';
+import { Lobby } from './Lobby.js';
+import { Voting } from './Voting.js';
+import { useTransientNotice } from './hooks/useTransientNotice.js';
 
 interface Props {
-  session: SessionHandle
-  participantId: string
-  displayName: string
-  accessMode: 'open' | 'password' | 'invite'
-  presetOverrides?: PresetOverrides
-  customScales?: CustomScale[]
+  session: SessionHandle;
+  participantId: string;
+  displayName: string;
+  accessMode: 'open' | 'password' | 'invite';
+  presetOverrides?: PresetOverrides;
+  customScales?: CustomScale[];
 }
 
-type Screen = 'lobby' | 'voting'
+type Screen = 'lobby' | 'voting';
 
 function deriveScreen(projection: DocProjection): Screen {
-  const round = currentRound(projection)
-  if (!round) return 'lobby'
-  if (round.revealedAt !== undefined) return 'lobby'
-  return 'voting'
+  const round = currentRound(projection);
+  if (!round) return 'lobby';
+  if (round.revealedAt !== undefined) return 'lobby';
+  return 'voting';
 }
 
-export function App({ session, participantId, displayName, accessMode: initialAccessMode, presetOverrides, customScales }: Props): React.ReactElement {
-  const { exit } = useApp()
-  const [projection, setProjection] = useState<DocProjection>(session.projection())
-  const [status, setStatus] = useState<SyncStatus>('connecting')
-  const [onlineIds, setOnlineIds] = useState<Set<string>>(session.onlineIds())
-  const [elapsedMs, setElapsedMs] = useState<number | undefined>(undefined)
-  const [settingsOpen, setSettingsOpen] = useState(false)
+export function App({
+  session,
+  participantId,
+  displayName,
+  accessMode: initialAccessMode,
+  presetOverrides,
+  customScales,
+}: Props): React.ReactElement {
+  const { exit } = useApp();
+  const [projection, setProjection] = useState<DocProjection>(session.projection());
+  const [status, setStatus] = useState<SyncStatus>('connecting');
+  const [onlineIds, setOnlineIds] = useState<Set<string>>(session.onlineIds());
+  const [elapsedMs, setElapsedMs] = useState<number | undefined>(undefined);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [accessMode, setAccessMode] = useState<'open' | 'password'>(
     initialAccessMode === 'password' ? 'password' : 'open',
-  )
-  const [displayNameLocal, setDisplayNameLocal] = useState(displayName)
-  const [confirmingQuit, setConfirmingQuit] = useState(false)
-  const [roundTitlePromptActive, setRoundTitlePromptActive] = useState(false)
-  const [roundTitleInput, setRoundTitleInput] = useState('')
-  const [descriptorPromptActive, setDescriptorPromptActive] = useState(false)
-  const [descriptorInput, setDescriptorInput] = useState('')
-  const [editingRoundId, setEditingRoundId] = useState<string | null>(null)
-  const hostNotice = useTransientNotice(3000)
-  const [shareOpen, setShareOpen] = useState(false)
-  const shareNotice = useTransientNotice(3000)
+  );
+  const [displayNameLocal, setDisplayNameLocal] = useState(displayName);
+  const [confirmingQuit, setConfirmingQuit] = useState(false);
+  const [roundTitlePromptActive, setRoundTitlePromptActive] = useState(false);
+  const [roundTitleInput, setRoundTitleInput] = useState('');
+  const [descriptorPromptActive, setDescriptorPromptActive] = useState(false);
+  const [descriptorInput, setDescriptorInput] = useState('');
+  const [editingRoundId, setEditingRoundId] = useState<string | null>(null);
+  const hostNotice = useTransientNotice(3000);
+  const [shareOpen, setShareOpen] = useState(false);
+  const shareNotice = useTransientNotice(3000);
 
   useEffect(() => {
     const unsub1 = session.onChange(() => {
-      setProjection(session.projection())
-      setOnlineIds(session.onlineIds())
-    })
-    const unsub2 = session.onStatusChange(setStatus)
+      setProjection(session.projection());
+      setOnlineIds(session.onlineIds());
+    });
+    const unsub2 = session.onStatusChange(setStatus);
     const unsub3 = session.onHostChange((newHostId) => {
-      const proj = session.projection()
-      const newHost = proj.participants.find((p) => p.id === newHostId)
-      const message = newHostId === participantId
-        ? 'You are now the host'
-        : `${newHost?.displayName || 'Unknown'} is now the host`
-      hostNotice.show(message)
-    })
+      const proj = session.projection();
+      const newHost = proj.participants.find((p) => p.id === newHostId);
+      const message =
+        newHostId === participantId
+          ? 'You are now the host'
+          : `${newHost?.displayName || 'Unknown'} is now the host`;
+      hostNotice.show(message);
+    });
 
     // Poll awareness for online IDs and update elapsed time each second
     const awarenessInterval = setInterval(() => {
-      setOnlineIds(session.onlineIds())
-      const proj = session.projection()
-      const round = currentRound(proj)
+      setOnlineIds(session.onlineIds());
+      const proj = session.projection();
+      const round = currentRound(proj);
       if (round?.timerStartedAt !== undefined && round.revealedAt === undefined) {
-        setElapsedMs(Date.now() - round.timerStartedAt)
+        setElapsedMs(Date.now() - round.timerStartedAt);
       } else {
-        setElapsedMs(undefined)
+        setElapsedMs(undefined);
       }
-    }, 1000)
+    }, 1000);
 
     return () => {
-      unsub1()
-      unsub2()
-      unsub3()
-      clearInterval(awarenessInterval)
-    }
-  }, [session, participantId, hostNotice.show])
+      unsub1();
+      unsub2();
+      unsub3();
+      clearInterval(awarenessInterval);
+    };
+  }, [session, participantId, hostNotice.show]);
 
   // Global quit handler — inactive when settings panel or title prompt is open
   useInput(
     (input) => {
       if (input === 'q' || input === 'Q') {
-        setConfirmingQuit(true)
+        setConfirmingQuit(true);
       }
     },
-    { isActive: !settingsOpen && !confirmingQuit && !roundTitlePromptActive && !descriptorPromptActive && !shareOpen },
-  )
+    {
+      isActive:
+        !settingsOpen &&
+        !confirmingQuit &&
+        !roundTitlePromptActive &&
+        !descriptorPromptActive &&
+        !shareOpen,
+    },
+  );
 
   // Confirm quit handler — active only during confirmation
   useInput(
     (input, key) => {
       if (input === 'y' || input === 'Y') {
-        session.disconnect()
-        exit()
+        session.disconnect();
+        exit();
       } else if (input === 'n' || input === 'N' || key.escape) {
-        setConfirmingQuit(false)
+        setConfirmingQuit(false);
       }
     },
     { isActive: confirmingQuit },
-  )
+  );
 
-  const screen = deriveScreen(projection)
+  const screen = deriveScreen(projection);
 
-  const round = currentRound(projection)
-  const isHost = projection.settings.hostParticipantId === participantId
-  const myParticipant = projection.participants.find((p) => p.id === participantId)
-  const myRole = participantRole(myParticipant ?? {})
+  const round = currentRound(projection);
+  const isHost = projection.settings.hostParticipantId === participantId;
+  const myParticipant = projection.participants.find((p) => p.id === participantId);
+  const myRole = participantRole(myParticipant ?? {});
 
   const handleStartRoundPrompt = useCallback(() => {
-    setRoundTitleInput('')
-    setRoundTitlePromptActive(true)
-  }, [])
+    setRoundTitleInput('');
+    setRoundTitlePromptActive(true);
+  }, []);
 
-  const handleRoundTitleSubmit = useCallback((title: string) => {
-    setRoundTitlePromptActive(false)
-    setRoundTitleInput('')
-    session.newRound(title.trim() || undefined)
-  }, [session])
+  const handleRoundTitleSubmit = useCallback(
+    (title: string) => {
+      setRoundTitlePromptActive(false);
+      setRoundTitleInput('');
+      session.newRound(title.trim() || undefined);
+    },
+    [session],
+  );
 
   const handleRoundTitleCancel = useCallback(() => {
-    setRoundTitlePromptActive(false)
-    setRoundTitleInput('')
-  }, [])
+    setRoundTitlePromptActive(false);
+    setRoundTitleInput('');
+  }, []);
 
   const handleEditDescriptor = useCallback(() => {
-    const current = session.current()
-    if (!current || current.revealedAt === undefined) return
-    setEditingRoundId(current.id)
-    setDescriptorInput(current.title ?? '')
-    setDescriptorPromptActive(true)
-  }, [session])
+    const current = session.current();
+    if (!current || current.revealedAt === undefined) return;
+    setEditingRoundId(current.id);
+    setDescriptorInput(current.title ?? '');
+    setDescriptorPromptActive(true);
+  }, [session]);
 
-  const handleDescriptorSubmit = useCallback((value: string) => {
-    const id = editingRoundId
-    setDescriptorPromptActive(false)
-    setEditingRoundId(null)
-    if (!id) return
-    const trimmed = value.trim()
-    if (trimmed === '') return
-    session.updateRoundDescriptor(id, { title: trimmed })
-  }, [session, editingRoundId])
+  const handleDescriptorSubmit = useCallback(
+    (value: string) => {
+      const id = editingRoundId;
+      setDescriptorPromptActive(false);
+      setEditingRoundId(null);
+      if (!id) return;
+      const trimmed = value.trim();
+      if (trimmed === '') return;
+      session.updateRoundDescriptor(id, { title: trimmed });
+    },
+    [session, editingRoundId],
+  );
 
   const handleDescriptorCancel = useCallback(() => {
-    setDescriptorPromptActive(false)
-    setEditingRoundId(null)
-  }, [])
+    setDescriptorPromptActive(false);
+    setEditingRoundId(null);
+  }, []);
 
-  const handleVote = useCallback((card: string) => {
-    session.vote(card)
-  }, [session])
+  const handleVote = useCallback(
+    (card: string) => {
+      session.vote(card);
+    },
+    [session],
+  );
 
   const handleClearVote = useCallback(() => {
-    session.unvote()
-  }, [session])
+    session.unvote();
+  }, [session]);
 
   const handleReveal = useCallback(() => {
-    session.reveal()
-  }, [session])
+    session.reveal();
+  }, [session]);
 
   const handleNewRound = useCallback(() => {
-    setRoundTitleInput('')
-    setRoundTitlePromptActive(true)
-  }, [])
+    setRoundTitleInput('');
+    setRoundTitlePromptActive(true);
+  }, []);
 
   const handleRevote = useCallback(() => {
-    session.revote()
-  }, [session])
+    session.revote();
+  }, [session]);
 
   const handleToggleRole = useCallback(() => {
-    session.toggleRole()
-  }, [session])
+    session.toggleRole();
+  }, [session]);
 
-  const handleChangeName = useCallback((name: string | undefined) => {
-    session.updateName(name)
-  }, [session])
+  const handleChangeName = useCallback(
+    (name: string | undefined) => {
+      session.updateName(name);
+    },
+    [session],
+  );
 
-  const handleChangeScale = useCallback((scale: Scale) => {
-    session.updateScale(scale)
-  }, [session])
+  const handleChangeScale = useCallback(
+    (scale: Scale) => {
+      session.updateScale(scale);
+    },
+    [session],
+  );
 
-  const handleChangeDisplayName = useCallback((name: string) => {
-    session.updateDisplayName(name)
-    setDisplayNameLocal(name)
-  }, [session])
+  const handleChangeDisplayName = useCallback(
+    (name: string) => {
+      session.updateDisplayName(name);
+      setDisplayNameLocal(name);
+    },
+    [session],
+  );
 
-  const handleChangeAccess = useCallback(async (mode: 'open' | 'password', password?: string) => {
-    await session.updateAccess(mode, password)
-    setAccessMode(mode)
-  }, [session])
+  const handleChangeAccess = useCallback(
+    async (mode: 'open' | 'password', password?: string) => {
+      await session.updateAccess(mode, password);
+      setAccessMode(mode);
+    },
+    [session],
+  );
 
-  const handleHandoffHost = useCallback((targetId: string) => {
-    try {
-      session.handoffHost(targetId)
-    } catch (err) {
-      console.error(`Handoff failed: ${err instanceof Error ? err.message : String(err)}`)
-    }
-  }, [session])
+  const handleHandoffHost = useCallback(
+    (targetId: string) => {
+      try {
+        session.handoffHost(targetId);
+      } catch (err) {
+        console.error(`Handoff failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    },
+    [session],
+  );
 
   const handleOpenSettings = useCallback(() => {
-    setSettingsOpen(true)
-  }, [])
+    setSettingsOpen(true);
+  }, []);
 
   const handleCloseSettings = useCallback(() => {
-    setSettingsOpen(false)
-  }, [])
+    setSettingsOpen(false);
+  }, []);
 
   const handleEndSession = useCallback(() => {
-    session.endSessionForEveryone()
-  }, [session])
+    session.endSessionForEveryone();
+  }, [session]);
 
-  const handleShare = useCallback(async (kind: 'code' | 'url' | 'npx') => {
-    const text =
-      kind === 'code' ? shareCode(session.roomCode)
-      : kind === 'url' ? shareUrl(session.roomCode)
-      : shareNpxCommand(session.roomCode)
-    try {
-      await clipboard.write(text)
-      shareNotice.show('Copied!')
-    } catch {
-      shareNotice.show(`Copy failed — ${text}`)
-    }
-  }, [session.roomCode, shareNotice])
+  const handleShare = useCallback(
+    async (kind: 'code' | 'url' | 'npx') => {
+      const text =
+        kind === 'code'
+          ? shareCode(session.roomCode)
+          : kind === 'url'
+            ? shareUrl(session.roomCode)
+            : shareNpxCommand(session.roomCode);
+      try {
+        await clipboard.write(text);
+        shareNotice.show('Copied!');
+      } catch {
+        shareNotice.show(`Copy failed — ${text}`);
+      }
+    },
+    [session.roomCode, shareNotice],
+  );
 
   // The latest revealed round for results display in Lobby
-  const revealedRounds = projection.rounds.filter((r) => r.revealedAt !== undefined)
+  const revealedRounds = projection.rounds.filter((r) => r.revealedAt !== undefined);
   const latestRevealedRound: Round | null =
-    revealedRounds.length > 0 ? revealedRounds[revealedRounds.length - 1]! : null
+    revealedRounds.length > 0 ? revealedRounds[revealedRounds.length - 1]! : null;
 
   return (
     <Box flexDirection="column">
@@ -253,7 +297,9 @@ export function App({ session, participantId, displayName, accessMode: initialAc
 
       {shareNotice.notice && (
         <Box paddingX={1}>
-          <Text color={shareNotice.notice.startsWith('Copy failed') ? 'red' : 'green'}>{shareNotice.notice}</Text>
+          <Text color={shareNotice.notice.startsWith('Copy failed') ? 'red' : 'green'}>
+            {shareNotice.notice}
+          </Text>
         </Box>
       )}
 
@@ -335,5 +381,5 @@ export function App({ session, participantId, displayName, accessMode: initialAc
         </Box>
       )}
     </Box>
-  )
+  );
 }

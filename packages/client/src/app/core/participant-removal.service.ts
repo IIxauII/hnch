@@ -1,10 +1,10 @@
-import { effect, inject, Injectable } from '@angular/core'
-import { Router } from '@angular/router'
+import { effect, inject, Injectable } from '@angular/core';
+import { Router } from '@angular/router';
 
-import { DocService } from './doc/doc.service'
-import { LastSessionService } from './last-session.service'
-import { ParticipantIdService } from './participant-id.service'
-import { ToastService } from '../services/toast.service'
+import { DocService } from './doc/doc.service';
+import { LastSessionService } from './last-session.service';
+import { ParticipantIdService } from './participant-id.service';
+import { ToastService } from '../services/toast.service';
 
 /**
  * Observes the local participant's own record for a kick written by the
@@ -19,14 +19,14 @@ import { ToastService } from '../services/toast.service'
  */
 @Injectable({ providedIn: 'root' })
 export class ParticipantRemovalService {
-  private readonly docService = inject(DocService)
-  private readonly participantIdService = inject(ParticipantIdService)
-  private readonly lastSession = inject(LastSessionService)
-  private readonly router = inject(Router)
-  private readonly toastService = inject(ToastService)
+  private readonly docService = inject(DocService);
+  private readonly participantIdService = inject(ParticipantIdService);
+  private readonly lastSession = inject(LastSessionService);
+  private readonly router = inject(Router);
+  private readonly toastService = inject(ToastService);
 
   /** The last `leftAt` value we acted on — prevents double-fire. */
-  private handledAt: number | null = null
+  private handledAt: number | null = null;
 
   /**
    * Previous `leftAt` value from the last effect run, using a sentinel
@@ -41,34 +41,34 @@ export class ParticipantRemovalService {
    * `'unset'`) is silently recorded and skipped so IDB-loaded prior-session
    * records don't fire the kick handler.
    */
-  private prevLeftAt: number | undefined | 'unset' = 'unset'
+  private prevLeftAt: number | undefined | 'unset' = 'unset';
 
   constructor() {
     effect(() => {
       if (!this.docService.hasSession()) {
-        this.handledAt = null
-        this.prevLeftAt = 'unset'
-        return
+        this.handledAt = null;
+        this.prevLeftAt = 'unset';
+        return;
       }
 
-      const selfId = this.participantIdService.id()
-      if (!selfId) return
+      const selfId = this.participantIdService.id();
+      if (!selfId) return;
 
-      const me = this.docService.participants().find((p) => p.id === selfId)
-      if (!me) return
+      const me = this.docService.participants().find((p) => p.id === selfId);
+      if (!me) return;
 
-      const { leftAt, removedBy } = me
+      const { leftAt, removedBy } = me;
 
       if (leftAt === undefined) {
-        this.prevLeftAt = undefined
-        this.handledAt = null
-        return
+        this.prevLeftAt = undefined;
+        this.handledAt = null;
+        return;
       }
 
       // Voluntary leave — lobby handles its own teardown.
       if (removedBy === selfId) {
-        this.prevLeftAt = leftAt
-        return
+        this.prevLeftAt = leftAt;
+        return;
       }
 
       // First-sync gate (ADR-0036 §6 rejoin race fix): any `leftAt` observed
@@ -76,48 +76,48 @@ export class ParticipantRemovalService {
       // not via a live host kick on this connection. Record the value so the
       // transition tracker stays current, but do NOT fire handleKick.
       if (!this.docService.hasFirstSyncCompleted()) {
-        this.prevLeftAt = leftAt
-        return
+        this.prevLeftAt = leftAt;
+        return;
       }
 
       // Stale-rejoin guard: if this is the first observation (prevLeftAt === 'unset')
       // and leftAt is already set, treat it as a pre-existing stale value — record
       // and skip. Only a real undefined → defined transition should fire.
       if (this.prevLeftAt === 'unset') {
-        this.prevLeftAt = leftAt
-        return
+        this.prevLeftAt = leftAt;
+        return;
       }
 
       // If leftAt was already set in the prior emission, don't re-fire.
       if (this.prevLeftAt !== undefined) {
-        this.prevLeftAt = leftAt
-        return
+        this.prevLeftAt = leftAt;
+        return;
       }
 
       // Transition: undefined → defined. This is a genuine kick.
-      this.prevLeftAt = leftAt
+      this.prevLeftAt = leftAt;
 
       // Already handled this kick (double-fire guard).
-      if (leftAt === this.handledAt) return
+      if (leftAt === this.handledAt) return;
 
-      this.handledAt = leftAt
-      void this.handleKick()
-    })
+      this.handledAt = leftAt;
+      void this.handleKick();
+    });
   }
 
   private async handleKick(): Promise<void> {
-    if (!this.docService.hasSession()) return
+    if (!this.docService.hasSession()) return;
 
-    this.docService.endSession()
+    this.docService.endSession();
 
     try {
-      await this.lastSession.clear()
+      await this.lastSession.clear();
     } catch (err) {
-      console.warn('Failed to clear lastSession cache:', err)
+      console.warn('Failed to clear lastSession cache:', err);
     }
 
-    await this.toastService.info('Removed by host')
+    await this.toastService.info('Removed by host');
 
-    await this.router.navigate(['/home'])
+    await this.router.navigate(['/home']);
   }
 }

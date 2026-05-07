@@ -1,8 +1,8 @@
-import { defineConfig, devices } from '@playwright/test'
+import { defineConfig, devices } from '@playwright/test';
 
-const isCI = !!process.env['CI']
-const CLIENT_PORT = process.env['CLIENT_PORT'] ?? '4200'
-const RELAY_PORT = process.env['RELAY_PORT'] ?? '1234'
+const isCI = !!process.env['CI'];
+const CLIENT_PORT = process.env['CLIENT_PORT'] ?? '4200';
+const RELAY_PORT = process.env['RELAY_PORT'] ?? '1234';
 
 export default defineConfig({
   globalSetup: './global-setup.ts',
@@ -43,4 +43,4 @@ export default defineConfig({
       env: { CLIENT_PORT },
     },
   ],
-})
+});

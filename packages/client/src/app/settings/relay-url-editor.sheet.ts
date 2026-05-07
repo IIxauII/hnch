@@ -1,11 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  input,
-  OnInit,
-  output,
-} from '@angular/core'
-import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms'
+import { ChangeDetectionStrategy, Component, input, OnInit, output } from '@angular/core';
+import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import {
   IonButton,
   IonButtons,
@@ -18,7 +12,7 @@ import {
   IonNote,
   IonTitle,
   IonToolbar,
-} from '@ionic/angular/standalone'
+} from '@ionic/angular/standalone';
 
 /**
  * Relay URL editor half-sheet.
@@ -100,41 +94,41 @@ import {
 })
 export class RelayUrlEditorSheetComponent implements OnInit {
   /** Current relay URL override — pre-fills the input. */
-  readonly currentUrl = input<string | undefined>(undefined)
+  readonly currentUrl = input<string | undefined>(undefined);
 
   /** Emits the trimmed new URL on Done, or undefined on Clear. */
-  readonly saved = output<string | undefined>()
+  readonly saved = output<string | undefined>();
 
   /** Emits when the sheet should close. */
-  readonly closeRequested = output<void>()
+  readonly closeRequested = output<void>();
 
   readonly urlCtrl = new FormControl('', {
     nonNullable: true,
     validators: [
       (ctrl) => {
-        const val = ctrl.value.trim()
-        if (!val) return null // empty allowed (means clear)
+        const val = ctrl.value.trim();
+        if (!val) return null; // empty allowed (means clear)
         // basic URL validation: must start with http:// or https://
         if (!/^https?:\/\//.test(val)) {
-          return { invalidUrl: true }
+          return { invalidUrl: true };
         }
-        return null
+        return null;
       },
     ],
-  })
+  });
 
   ngOnInit(): void {
-    this.urlCtrl.setValue(this.currentUrl() ?? '')
+    this.urlCtrl.setValue(this.currentUrl() ?? '');
   }
 
   protected onDone(): void {
-    const trimmed = this.urlCtrl.value.trim()
-    this.saved.emit(trimmed || undefined)
-    this.closeRequested.emit()
+    const trimmed = this.urlCtrl.value.trim();
+    this.saved.emit(trimmed || undefined);
+    this.closeRequested.emit();
   }
 
   protected onClear(): void {
-    this.saved.emit(undefined)
-    this.closeRequested.emit()
+    this.saved.emit(undefined);
+    this.closeRequested.emit();
   }
 }

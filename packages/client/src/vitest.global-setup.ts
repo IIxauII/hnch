@@ -11,18 +11,18 @@
  * start, so the dist is available to all parallel workers without each
  * worker rebuilding it.
  */
-import { execSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
-import { resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { execSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const sharedDir = resolve(fileURLToPath(import.meta.url), '../../../shared')
-const distIndex = resolve(sharedDir, 'dist/index.js')
+const sharedDir = resolve(fileURLToPath(import.meta.url), '../../../shared');
+const distIndex = resolve(sharedDir, 'dist/index.js');
 
 export function setup(): void {
   if (!existsSync(distIndex)) {
-    console.log('[vitest] @hnch/shared dist not found — building...')
-    execSync('pnpm build', { cwd: sharedDir, stdio: 'inherit' })
-    console.log('[vitest] @hnch/shared build complete.')
+    console.log('[vitest] @hnch/shared dist not found — building...');
+    execSync('pnpm build', { cwd: sharedDir, stdio: 'inherit' });
+    console.log('[vitest] @hnch/shared build complete.');
   }
 }

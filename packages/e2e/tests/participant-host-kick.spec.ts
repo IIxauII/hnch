@@ -17,8 +17,8 @@
  * `aria-label="Remove {name} from session"` (lobby.page.ts line ~237).
  */
 
-import { test, expect } from './fixtures/app.fixture'
-import { LOBBY, expectToast } from './fixtures/helpers'
+import { test, expect } from './fixtures/app.fixture';
+import { LOBBY, expectToast } from './fixtures/helpers';
 
 /** Open the swipe drawer for a participant row (end side) by participant name. */
 async function openSwipeDrawer(
@@ -31,19 +31,21 @@ async function openSwipeDrawer(
   // when queried from page.evaluate before hydration settles.
   const rowLocator = page.locator(
     `ion-list.participants ion-item-sliding:has(ion-label:text-is("${participantName}"))`,
-  )
-  await rowLocator.waitFor({ state: 'visible', timeout: 5_000 })
+  );
+  await rowLocator.waitFor({ state: 'visible', timeout: 5_000 });
 
   // Programmatically open the sliding drawer.
   // Note: using evaluate() because Playwright has no first-class swipe gesture API.
   // open('end') is the stable web-component API on IonItemSliding.
   await rowLocator.evaluate((el: Element) => {
-    ;(el as unknown as { open(side: string): void }).open('end')
-  })
+    (el as unknown as { open(side: string): void }).open('end');
+  });
 
   // Wait for the option button to become visible
-  const removeOption = page.locator(`ion-item-option[aria-label="Remove ${participantName} from session"]`)
-  await removeOption.waitFor({ state: 'visible', timeout: 5_000 })
+  const removeOption = page.locator(
+    `ion-item-option[aria-label="Remove ${participantName} from session"]`,
+  );
+  await removeOption.waitFor({ state: 'visible', timeout: 5_000 });
 }
 
 test.describe('Host kick participant (ADR-0036)', () => {
@@ -51,99 +53,99 @@ test.describe('Host kick participant (ADR-0036)', () => {
     host,
     player,
   }) => {
-    const code = await host.createSession()
-    await player.joinSession(code)
-    await host.expectParticipantCount(2)
+    const code = await host.createSession();
+    await player.joinSession(code);
+    await host.expectParticipantCount(2);
 
     // Open swipe drawer for Player row
-    await openSwipeDrawer(host.page, 'Player')
+    await openSwipeDrawer(host.page, 'Player');
 
     // Tap "Remove Player from session" option
-    const removeBtn = host.page.locator('ion-item-option[aria-label="Remove Player from session"]')
-    await removeBtn.evaluate((el: HTMLElement) => el.click())
+    const removeBtn = host.page.locator('ion-item-option[aria-label="Remove Player from session"]');
+    await removeBtn.evaluate((el: HTMLElement) => el.click());
 
     // Confirm in alert
-    const alert = host.page.locator('ion-alert')
-    await alert.waitFor({ state: 'visible', timeout: 5_000 })
-    const confirmBtn = host.page.locator('ion-alert button:has-text("Remove")')
-    await confirmBtn.evaluate((el: HTMLElement) => el.click())
+    const alert = host.page.locator('ion-alert');
+    await alert.waitFor({ state: 'visible', timeout: 5_000 });
+    const confirmBtn = host.page.locator('ion-alert button:has-text("Remove")');
+    await confirmBtn.evaluate((el: HTMLElement) => el.click());
 
     // Host sees count decrement and Player gone from list
-    await host.expectParticipantCount(1)
-    await expect(host.page.locator(LOBBY.participantList)).not.toContainText('Player')
+    await host.expectParticipantCount(1);
+    await expect(host.page.locator(LOBBY.participantList)).not.toContainText('Player');
 
     // Kicked player sees "Removed by host" toast and navigates Home
     // Ordering invariant: toast must appear after host confirm (causally after leftAt write)
-    await expectToast(player.page, /removed by host/i, { timeout: 8_000 })
-    await player.page.waitForURL(/\/home/, { timeout: 8_000 })
-  })
+    await expectToast(player.page, /removed by host/i, { timeout: 8_000 });
+    await player.page.waitForURL(/\/home/, { timeout: 8_000 });
+  });
 
   test("kicked player's vote still shows by name in revealed round results on host screen", async ({
     host,
     player,
   }) => {
-    const code = await host.createSession()
-    await player.joinSession(code)
+    const code = await host.createSession();
+    await player.joinSession(code);
 
     // Run a round: player votes 8, host votes 5
-    await host.startRound()
-    await player.waitForEstimating()
-    await host.castVote('5')
-    await player.castVote('8')
+    await host.startRound();
+    await player.waitForEstimating();
+    await host.castVote('5');
+    await player.castVote('8');
 
     // Host reveals
-    await host.reveal()
-    await player.page.waitForURL(/\/lobby/, { timeout: 10_000 })
+    await host.reveal();
+    await player.page.waitForURL(/\/lobby/, { timeout: 10_000 });
 
     // Now kick player
-    await openSwipeDrawer(host.page, 'Player')
-    const removeBtn = host.page.locator('ion-item-option[aria-label="Remove Player from session"]')
-    await removeBtn.evaluate((el: HTMLElement) => el.click())
-    const alert = host.page.locator('ion-alert')
-    await alert.waitFor({ state: 'visible', timeout: 5_000 })
-    const confirmBtn = host.page.locator('ion-alert button:has-text("Remove")')
-    await confirmBtn.evaluate((el: HTMLElement) => el.click())
+    await openSwipeDrawer(host.page, 'Player');
+    const removeBtn = host.page.locator('ion-item-option[aria-label="Remove Player from session"]');
+    await removeBtn.evaluate((el: HTMLElement) => el.click());
+    const alert = host.page.locator('ion-alert');
+    await alert.waitFor({ state: 'visible', timeout: 5_000 });
+    const confirmBtn = host.page.locator('ion-alert button:has-text("Remove")');
+    await confirmBtn.evaluate((el: HTMLElement) => el.click());
 
     // Wait for host to see the active list update
-    await host.expectParticipantCount(1)
+    await host.expectParticipantCount(1);
 
     // Results section still shows Player's vote chip by name
-    const resultsSection = host.page.locator(LOBBY.resultsSection)
-    await resultsSection.waitFor({ state: 'visible', timeout: 5_000 })
-    const chips = host.page.locator(LOBBY.voterChips)
-    const chipTexts = await chips.allTextContents()
-    const hasPlayerName = chipTexts.some((t) => t.trim() === 'Player')
-    expect(hasPlayerName).toBe(true)
-  })
+    const resultsSection = host.page.locator(LOBBY.resultsSection);
+    await resultsSection.waitFor({ state: 'visible', timeout: 5_000 });
+    const chips = host.page.locator(LOBBY.voterChips);
+    const chipTexts = await chips.allTextContents();
+    const hasPlayerName = chipTexts.some((t) => t.trim() === 'Player');
+    expect(hasPlayerName).toBe(true);
+  });
 
   test('after kick, no Jump-back-in banner for that room on kicked player Home', async ({
     host,
     player,
   }) => {
-    const code = await host.createSession()
-    await player.joinSession(code)
+    const code = await host.createSession();
+    await player.joinSession(code);
 
     // Kick player
-    await openSwipeDrawer(host.page, 'Player')
-    const removeBtn = host.page.locator('ion-item-option[aria-label="Remove Player from session"]')
-    await removeBtn.evaluate((el: HTMLElement) => el.click())
-    const alert = host.page.locator('ion-alert')
-    await alert.waitFor({ state: 'visible', timeout: 5_000 })
-    const confirmBtn = host.page.locator('ion-alert button:has-text("Remove")')
-    await confirmBtn.evaluate((el: HTMLElement) => el.click())
+    await openSwipeDrawer(host.page, 'Player');
+    const removeBtn = host.page.locator('ion-item-option[aria-label="Remove Player from session"]');
+    await removeBtn.evaluate((el: HTMLElement) => el.click());
+    const alert = host.page.locator('ion-alert');
+    await alert.waitFor({ state: 'visible', timeout: 5_000 });
+    const confirmBtn = host.page.locator('ion-alert button:has-text("Remove")');
+    await confirmBtn.evaluate((el: HTMLElement) => el.click());
 
-    await player.page.waitForURL(/\/home/, { timeout: 8_000 })
+    await player.page.waitForURL(/\/home/, { timeout: 8_000 });
     // Give Angular time to render
-    await player.page.waitForTimeout(500)
+    await player.page.waitForTimeout(500);
 
     // No banner (cache cleared per ADR-0036 §5)
-    const banner = player.page.locator('app-jump-back-in-banner')
-    const visible = await banner.isVisible().catch(() => false)
-    expect(visible).toBe(false)
+    const banner = player.page.locator('app-jump-back-in-banner');
+    const visible = await banner.isVisible().catch(() => false);
+    expect(visible).toBe(false);
 
-    const homeContent = await player.page.textContent('body')
-    expect(homeContent).not.toContain(code)
-  })
+    const homeContent = await player.page.textContent('body');
+    expect(homeContent).not.toContain(code);
+  });
 
   test('kicked player can rejoin: host sees participant reappear in active roster (ADR-0036 §6)', async ({
     host,
@@ -154,31 +156,31 @@ test.describe('Host kick participant (ADR-0036)', () => {
     // runs AFTER the relay snapshot merges so the delete op carries a higher
     // Lamport clock than the snapshot's set('leftAt', ...) and wins the LWW merge.
     // The host's active roster increments back to 2 and shows Player's name.
-    const code = await host.createSession()
-    await player.joinSession(code)
-    await host.expectParticipantCount(2)
+    const code = await host.createSession();
+    await player.joinSession(code);
+    await host.expectParticipantCount(2);
 
     // Kick player
-    await openSwipeDrawer(host.page, 'Player')
-    const removeBtn = host.page.locator('ion-item-option[aria-label="Remove Player from session"]')
-    await removeBtn.evaluate((el: HTMLElement) => el.click())
-    const alert = host.page.locator('ion-alert')
-    await alert.waitFor({ state: 'visible', timeout: 5_000 })
-    const confirmBtn = host.page.locator('ion-alert button:has-text("Remove")')
-    await confirmBtn.evaluate((el: HTMLElement) => el.click())
+    await openSwipeDrawer(host.page, 'Player');
+    const removeBtn = host.page.locator('ion-item-option[aria-label="Remove Player from session"]');
+    await removeBtn.evaluate((el: HTMLElement) => el.click());
+    const alert = host.page.locator('ion-alert');
+    await alert.waitFor({ state: 'visible', timeout: 5_000 });
+    const confirmBtn = host.page.locator('ion-alert button:has-text("Remove")');
+    await confirmBtn.evaluate((el: HTMLElement) => el.click());
 
-    await player.page.waitForURL(/\/home/, { timeout: 8_000 })
+    await player.page.waitForURL(/\/home/, { timeout: 8_000 });
 
     // Player re-enters the room code (no relay-side ban per ADR-0036 §6).
-    await player.joinSession(code)
+    await player.joinSession(code);
 
     // Assert: player reaches lobby — relay accepted the connection.
-    await expect(player.page.locator(LOBBY.roomCode)).toBeVisible({ timeout: 10_000 })
-    expect(player.page.url()).toMatch(/\/lobby/)
+    await expect(player.page.locator(LOBBY.roomCode)).toBeVisible({ timeout: 10_000 });
+    expect(player.page.url()).toMatch(/\/lobby/);
 
     // Assert: host sees count back at 2 and Player's name in the active roster.
     // This confirms the post-sync leftAt clear resolved the LWW race.
-    await host.expectParticipantCount(2)
-    await expect(host.page.locator(LOBBY.participantList)).toContainText('Player')
-  })
-})
+    await host.expectParticipantCount(2);
+    await expect(host.page.locator(LOBBY.participantList)).toContainText('Player');
+  });
+});

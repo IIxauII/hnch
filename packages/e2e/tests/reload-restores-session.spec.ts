@@ -1,5 +1,5 @@
-import { test, expect } from './fixtures/app.fixture'
-import { LOBBY } from './fixtures/helpers'
+import { test, expect } from './fixtures/app.fixture';
+import { LOBBY } from './fixtures/helpers';
 
 /**
  * Reload restores session
@@ -19,36 +19,36 @@ test.describe('Reload restores session', () => {
     player,
   }) => {
     // Host creates a session; URL becomes /lobby/:code
-    const code = await host.createSession()
-    expect(code).toMatch(/^[A-Z0-9]{6}$/i)
+    const code = await host.createSession();
+    expect(code).toMatch(/^[A-Z0-9]{6}$/i);
 
     // Capture the canonical URL before reload
-    await host.page.waitForURL(/\/lobby\//)
-    const urlBefore = host.page.url()
-    expect(urlBefore).toMatch(/\/lobby\/[A-Z0-9]+/i)
+    await host.page.waitForURL(/\/lobby\//);
+    const urlBefore = host.page.url();
+    expect(urlBefore).toMatch(/\/lobby\/[A-Z0-9]+/i);
 
     // Change scale to Fibonacci so we have a non-default state to assert
-    await host.openSettings()
-    await host.changeScale('Fibonacci')
-    await host.closeSettings()
+    await host.openSettings();
+    await host.changeScale('Fibonacci');
+    await host.closeSettings();
 
     // Joiner joins — establishes participant count of 2
-    await player.joinSession(code)
-    await host.expectParticipantCount(2)
-    await player.expectParticipantCount(2)
+    await player.joinSession(code);
+    await host.expectParticipantCount(2);
+    await player.expectParticipantCount(2);
 
     // Reload host's page — guard must reconnect via the code in the URL
-    await host.page.reload()
+    await host.page.reload();
 
     // Guard runs: open room → rejoin → allow. Must land on SAME /lobby/:code URL.
-    await host.page.waitForURL(/\/lobby\//, { timeout: 15_000 })
-    const urlAfter = host.page.url()
-    expect(urlAfter).toBe(urlBefore)
+    await host.page.waitForURL(/\/lobby\//, { timeout: 15_000 });
+    const urlAfter = host.page.url();
+    expect(urlAfter).toBe(urlBefore);
 
     // Participant count restored (relay snapshot rehydrated)
-    await host.expectParticipantCount(2)
+    await host.expectParticipantCount(2);
 
     // Scale setting preserved (Fibonacci subtitle)
-    await expect(host.page.locator(LOBBY.subtitle)).toContainText('Fibonacci')
-  })
-})
+    await expect(host.page.locator(LOBBY.subtitle)).toContainText('Fibonacci');
+  });
+});

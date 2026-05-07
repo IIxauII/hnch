@@ -5,17 +5,17 @@
  * dependencies, available in both browser and Node 20+.
  */
 
-const ITERATIONS = 100_000
-const HASH_BYTES = 32
-const ALGORITHM = 'PBKDF2'
-const HASH_ALGORITHM = 'SHA-256'
+const ITERATIONS = 100_000;
+const HASH_BYTES = 32;
+const ALGORITHM = 'PBKDF2';
+const HASH_ALGORITHM = 'SHA-256';
 
-const encoder = new TextEncoder()
+const encoder = new TextEncoder();
 
 function toHex(buf: ArrayBuffer): string {
   return Array.from(new Uint8Array(buf))
     .map((b) => b.toString(16).padStart(2, '0'))
-    .join('')
+    .join('');
 }
 
 /**
@@ -25,17 +25,14 @@ function toHex(buf: ArrayBuffer): string {
  * The salt should be the room UUID so the same password on different
  * rooms produces different hashes.
  */
-export async function hashPassword(
-  password: string,
-  salt: string,
-): Promise<string> {
+export async function hashPassword(password: string, salt: string): Promise<string> {
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
     encoder.encode(password),
     ALGORITHM,
     false,
     ['deriveBits'],
-  )
+  );
 
   const bits = await crypto.subtle.deriveBits(
     {
@@ -46,7 +43,7 @@ export async function hashPassword(
     },
     keyMaterial,
     HASH_BYTES * 8,
-  )
+  );
 
-  return toHex(bits)
+  return toHex(bits);
 }

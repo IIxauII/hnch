@@ -1,12 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  effect,
-  input,
-  output,
-  signal,
-} from '@angular/core'
-import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms'
+import { ChangeDetectionStrategy, Component, effect, input, output, signal } from '@angular/core';
+import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import {
   IonButton,
   IonContent,
@@ -18,11 +11,11 @@ import {
   IonNote,
   IonTitle,
   IonToolbar,
-} from '@ionic/angular/standalone'
+} from '@ionic/angular/standalone';
 
 export interface RoundEditSubmission {
-  readonly title: string
-  readonly description: string | null
+  readonly title: string;
+  readonly description: string | null;
 }
 
 @Component({
@@ -103,45 +96,45 @@ export interface RoundEditSubmission {
   ],
 })
 export class RoundEditSheetComponent {
-  readonly roundNumber = input.required<number>()
-  readonly initialTitle = input<string | null>(null)
-  readonly initialDescription = input<string | null>(null)
-  readonly submitted = output<RoundEditSubmission>()
+  readonly roundNumber = input.required<number>();
+  readonly initialTitle = input<string | null>(null);
+  readonly initialDescription = input<string | null>(null);
+  readonly submitted = output<RoundEditSubmission>();
 
   protected readonly titleControl = new FormControl<string>('', {
     nonNullable: true,
     validators: [Validators.maxLength(120)],
-  })
+  });
 
   protected readonly descriptionControl = new FormControl<string>('', {
     nonNullable: true,
     validators: [Validators.maxLength(500)],
-  })
+  });
 
-  protected readonly isSubmitting = signal(false)
+  protected readonly isSubmitting = signal(false);
 
   constructor() {
     effect(
       () => {
-        const t = this.initialTitle()
-        const d = this.initialDescription()
-        this.titleControl.setValue(t ?? '', { emitEvent: false })
-        this.descriptionControl.setValue(d ?? '', { emitEvent: false })
+        const t = this.initialTitle();
+        const d = this.initialDescription();
+        this.titleControl.setValue(t ?? '', { emitEvent: false });
+        this.descriptionControl.setValue(d ?? '', { emitEvent: false });
       },
       { allowSignalWrites: true },
-    )
+    );
   }
 
   protected submit(): void {
-    if (this.isSubmitting()) return
-    if (this.titleControl.value.trim() === '') return
-    this.isSubmitting.set(true)
+    if (this.isSubmitting()) return;
+    if (this.titleControl.value.trim() === '') return;
+    this.isSubmitting.set(true);
 
-    const title = this.titleControl.value.trim()
-    const rawDesc = this.descriptionControl.value.trim()
+    const title = this.titleControl.value.trim();
+    const rawDesc = this.descriptionControl.value.trim();
     this.submitted.emit({
       title,
       description: rawDesc === '' ? null : rawDesc,
-    })
+    });
   }
 }

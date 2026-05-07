@@ -9,52 +9,52 @@
  * `~/.config`. `HNCH_RELAY_URL` env var overrides the stored relay URL.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
-import { randomUUID } from 'node:crypto'
-import { createInterface } from 'node:readline'
-import type { PresetOverrides, CustomScale } from '@hnch/shared'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { createInterface } from 'node:readline';
+import type { PresetOverrides, CustomScale } from '@hnch/shared';
 
 export interface CliConfig {
-  participantId: string
-  displayName: string
-  relayUrl: string
-  defaultScale?: string
-  defaultSessionName?: string
-  defaultPassword?: boolean
-  presetOverrides?: PresetOverrides
-  customScales?: CustomScale[]
+  participantId: string;
+  displayName: string;
+  relayUrl: string;
+  defaultScale?: string;
+  defaultSessionName?: string;
+  defaultPassword?: boolean;
+  presetOverrides?: PresetOverrides;
+  customScales?: CustomScale[];
 }
 
 // Production relay (http scheme for Node.js fetch; ws scheme derived in sync.ts).
 // Override with HNCH_RELAY_URL env var or `hnch config --relay-url`.
-const DEFAULT_RELAY_URL = 'https://hnch.dev'
+const DEFAULT_RELAY_URL = 'https://hnch.dev';
 
 export function configDir(): string {
-  const xdg = process.env['XDG_CONFIG_HOME']
-  const base = xdg || join(homedir(), '.config')
-  return join(base, 'hnch')
+  const xdg = process.env['XDG_CONFIG_HOME'];
+  const base = xdg || join(homedir(), '.config');
+  return join(base, 'hnch');
 }
 
 function configPath(): string {
-  return join(configDir(), 'config.json')
+  return join(configDir(), 'config.json');
 }
 
 function ensureDir(): void {
-  const dir = configDir()
+  const dir = configDir();
   if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true })
+    mkdirSync(dir, { recursive: true });
   }
 }
 
 export function readConfig(): Partial<CliConfig> {
-  const path = configPath()
-  if (!existsSync(path)) return {}
+  const path = configPath();
+  if (!existsSync(path)) return {};
   try {
-    return JSON.parse(readFileSync(path, 'utf-8')) as Partial<CliConfig>
+    return JSON.parse(readFileSync(path, 'utf-8')) as Partial<CliConfig>;
   } catch {
-    return {}
+    return {};
   }
 }
 
@@ -64,20 +64,20 @@ export function readConfig(): Partial<CliConfig> {
  * wholesale — pass the full updated value, not a partial nested patch.
  */
 export function writeConfig(config: Partial<CliConfig>): void {
-  ensureDir()
-  const existing = readConfig()
-  const merged = { ...existing, ...config }
-  writeFileSync(configPath(), JSON.stringify(merged, null, 2) + '\n', 'utf-8')
+  ensureDir();
+  const existing = readConfig();
+  const merged = { ...existing, ...config };
+  writeFileSync(configPath(), JSON.stringify(merged, null, 2) + '\n', 'utf-8');
 }
 
 export async function promptLine(question: string): Promise<string> {
-  const rl = createInterface({ input: process.stdin, output: process.stderr })
+  const rl = createInterface({ input: process.stdin, output: process.stderr });
   return new Promise((resolve) => {
     rl.question(question, (answer) => {
-      rl.close()
-      resolve(answer.trim())
-    })
-  })
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
 }
 
 /**
@@ -85,38 +85,38 @@ export async function promptLine(question: string): Promise<string> {
  * first run. Returns a fully-resolved config.
  */
 function coerceRelayUrlToHttp(url: string): string {
-  if (url.startsWith('wss://')) return 'https://' + url.slice(6)
-  if (url.startsWith('ws://')) return 'http://' + url.slice(5)
-  return url
+  if (url.startsWith('wss://')) return 'https://' + url.slice(6);
+  if (url.startsWith('ws://')) return 'http://' + url.slice(5);
+  return url;
 }
 
 export async function loadConfig(): Promise<CliConfig> {
-  const stored = readConfig()
-  let changed = false
+  const stored = readConfig();
+  let changed = false;
 
   if (!stored.participantId) {
-    stored.participantId = randomUUID()
-    changed = true
+    stored.participantId = randomUUID();
+    changed = true;
   }
 
   if (!stored.displayName) {
-    const name = await promptLine('Enter your display name: ')
-    stored.displayName = name || `user-${stored.participantId.slice(0, 6)}`
-    changed = true
+    const name = await promptLine('Enter your display name: ');
+    stored.displayName = name || `user-${stored.participantId.slice(0, 6)}`;
+    changed = true;
   }
 
   if (!stored.relayUrl) {
-    stored.relayUrl = DEFAULT_RELAY_URL
-    changed = true
+    stored.relayUrl = DEFAULT_RELAY_URL;
+    changed = true;
   }
 
   if (changed) {
-    writeConfig(stored)
+    writeConfig(stored);
   }
 
   // Env override for relay URL; coerce stale ws:// / wss:// schemes to http(s)
-  let relayUrl = process.env['HNCH_RELAY_URL'] || stored.relayUrl!
-  relayUrl = coerceRelayUrlToHttp(relayUrl)
+  let relayUrl = process.env['HNCH_RELAY_URL'] || stored.relayUrl!;
+  relayUrl = coerceRelayUrlToHttp(relayUrl);
 
   return {
     participantId: stored.participantId!,
@@ -127,7 +127,7 @@ export async function loadConfig(): Promise<CliConfig> {
     defaultPassword: stored.defaultPassword,
     presetOverrides: stored.presetOverrides,
     customScales: stored.customScales,
-  }
+  };
 }
 
 /**
@@ -135,15 +135,15 @@ export async function loadConfig(): Promise<CliConfig> {
  * String fields set to empty string are deleted from config.
  */
 export function updateConfig(patch: Partial<CliConfig>): void {
-  ensureDir()
-  const existing = readConfig()
-  const merged: Record<string, unknown> = { ...existing }
+  ensureDir();
+  const existing = readConfig();
+  const merged: Record<string, unknown> = { ...existing };
   for (const [key, value] of Object.entries(patch)) {
     if (value === '') {
-      delete merged[key]
+      delete merged[key];
     } else if (value !== undefined) {
-      merged[key] = value
+      merged[key] = value;
     }
   }
-  writeFileSync(configPath(), JSON.stringify(merged, null, 2) + '\n', 'utf-8')
+  writeFileSync(configPath(), JSON.stringify(merged, null, 2) + '\n', 'utf-8');
 }

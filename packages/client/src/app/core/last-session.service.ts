@@ -1,6 +1,6 @@
-import { Injectable } from '@angular/core'
-import { Preferences } from '@capacitor/preferences'
-import { LastSessionCache as SharedLastSessionCache } from '@hnch/shared'
+import { Injectable } from '@angular/core';
+import { Preferences } from '@capacitor/preferences';
+import { LastSessionCache as SharedLastSessionCache } from '@hnch/shared';
 
 /**
  * The screens that count as "inside a session" for the purposes
@@ -8,7 +8,7 @@ import { LastSessionCache as SharedLastSessionCache } from '@hnch/shared'
  * set; if we add another in-session screen later, extend this union
  * and the `isLastSessionScreen` guard.
  */
-export type LastSessionScreen = 'lobby' | 'estimating'
+export type LastSessionScreen = 'lobby' | 'estimating';
 
 /**
  * Aspirational "resume this session" cache, persisted via Capacitor
@@ -24,7 +24,7 @@ export type LastSessionScreen = 'lobby' | 'estimating'
  */
 export interface LastSessionCache extends SharedLastSessionCache {
   /** Last rendered in-session screen; drives where rejoin lands. */
-  readonly lastScreen: LastSessionScreen
+  readonly lastScreen: LastSessionScreen;
 }
 
 /**
@@ -41,8 +41,8 @@ export interface LastSessionCache extends SharedLastSessionCache {
  */
 @Injectable({ providedIn: 'root' })
 export class LastSessionService {
-  static readonly LAST_SESSION_KEY = 'hnch.lastSession'
-  static readonly TTL_MS = 24 * 60 * 60 * 1000
+  static readonly LAST_SESSION_KEY = 'hnch.lastSession';
+  static readonly TTL_MS = 24 * 60 * 60 * 1000;
 
   /**
    * Fetch the cached entry, transparently clearing and returning
@@ -52,29 +52,29 @@ export class LastSessionService {
   async get(opts: { now?: () => number } = {}): Promise<LastSessionCache | null> {
     const { value } = await Preferences.get({
       key: LastSessionService.LAST_SESSION_KEY,
-    })
-    if (!value) return null
+    });
+    if (!value) return null;
 
-    let parsed: unknown
+    let parsed: unknown;
     try {
-      parsed = JSON.parse(value)
+      parsed = JSON.parse(value);
     } catch {
       // Preferences can hold arbitrary strings from past schemas;
       // treat a bad parse as "no cache".
-      await this.clear()
-      return null
+      await this.clear();
+      return null;
     }
     if (!isLastSessionCache(parsed)) {
-      await this.clear()
-      return null
+      await this.clear();
+      return null;
     }
 
-    const now = opts.now?.() ?? Date.now()
+    const now = opts.now?.() ?? Date.now();
     if (now - parsed.lastSeenAt > LastSessionService.TTL_MS) {
-      await this.clear()
-      return null
+      await this.clear();
+      return null;
     }
-    return parsed
+    return parsed;
   }
 
   /**
@@ -84,9 +84,9 @@ export class LastSessionService {
    */
   async record(
     payload: {
-      roomCode: string
-      roomUuid: string
-      lastScreen: LastSessionScreen
+      roomCode: string;
+      roomUuid: string;
+      lastScreen: LastSessionScreen;
     },
     opts: { now?: () => number } = {},
   ): Promise<void> {
@@ -95,28 +95,28 @@ export class LastSessionService {
       roomUuid: payload.roomUuid,
       lastScreen: payload.lastScreen,
       lastSeenAt: opts.now?.() ?? Date.now(),
-    }
+    };
     await Preferences.set({
       key: LastSessionService.LAST_SESSION_KEY,
       value: JSON.stringify(entry),
-    })
+    });
   }
 
   /** Drop the cache entry — called on "Leave session" and `unknown-room`. */
   async clear(): Promise<void> {
     await Preferences.remove({
       key: LastSessionService.LAST_SESSION_KEY,
-    })
+    });
   }
 }
 
 function isLastSessionScreen(v: unknown): v is LastSessionScreen {
-  return v === 'lobby' || v === 'estimating'
+  return v === 'lobby' || v === 'estimating';
 }
 
 function isLastSessionCache(v: unknown): v is LastSessionCache {
-  if (!v || typeof v !== 'object') return false
-  const o = v as Record<string, unknown>
+  if (!v || typeof v !== 'object') return false;
+  const o = v as Record<string, unknown>;
   return (
     // Base fields from SharedLastSessionCache
     typeof o['roomCode'] === 'string' &&
@@ -124,5 +124,5 @@ function isLastSessionCache(v: unknown): v is LastSessionCache {
     typeof o['lastSeenAt'] === 'number' &&
     // Client-specific field
     isLastSessionScreen(o['lastScreen'])
-  )
+  );
 }

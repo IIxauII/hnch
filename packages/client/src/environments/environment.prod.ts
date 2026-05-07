@@ -1,4 +1,4 @@
-import { APP_VERSION } from './version'
+import { APP_VERSION } from './version';
 
 /**
  * Production environment config.
@@ -12,4 +12,4 @@ export const environment = {
   relayHttpUrl: 'https://hnch.dev',
   relayWsUrl: 'wss://hnch.dev',
   appVersion: APP_VERSION,
-}
+};

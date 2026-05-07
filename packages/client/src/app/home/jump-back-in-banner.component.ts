@@ -1,9 +1,9 @@
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core'
-import { IonIcon, IonItem, IonLabel } from '@ionic/angular/standalone'
-import { addIcons } from 'ionicons'
-import { returnUpBackOutline } from 'ionicons/icons'
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { IonIcon, IonItem, IonLabel } from '@ionic/angular/standalone';
+import { addIcons } from 'ionicons';
+import { returnUpBackOutline } from 'ionicons/icons';
 
-import type { LastSessionScreen } from '../core/last-session.service'
+import type { LastSessionScreen } from '../core/last-session.service';
 
 /**
  * Jump-back-in banner — ux.md §5.2.
@@ -16,9 +16,9 @@ import type { LastSessionScreen } from '../core/last-session.service'
  */
 export interface JumpBackInSummary {
   /** Room code rendered as part of the row subtitle. */
-  readonly roomCode: string
+  readonly roomCode: string;
   /** Which in-session screen the rejoin will land on. */
-  readonly lastScreen: LastSessionScreen
+  readonly lastScreen: LastSessionScreen;
 }
 
 @Component({
@@ -92,43 +92,43 @@ export interface JumpBackInSummary {
   ],
 })
 export class JumpBackInBannerComponent {
-  readonly summary = input.required<JumpBackInSummary>()
+  readonly summary = input.required<JumpBackInSummary>();
 
   /**
    * True when the session is stale (relay reported unknown-room).
    * Row renders dimmed; tapping it clears the entry.
    */
-  readonly stale = input<boolean>(false)
+  readonly stale = input<boolean>(false);
 
   /**
    * While `true` the row is `disabled` so repeated taps can't stack
    * up a queue of `resumeRequested` events. The parent (`HomePage`)
    * toggles this for the duration of its `onResumeJumpBack` handler.
    */
-  readonly resuming = input<boolean>(false)
+  readonly resuming = input<boolean>(false);
 
-  readonly resumeRequested = output<void>()
+  readonly resumeRequested = output<void>();
 
   /** Human-readable copy for the screen the rejoin will land on. */
-  protected readonly screenLabel = computed(() => screenCopy(this.summary().lastScreen))
+  protected readonly screenLabel = computed(() => screenCopy(this.summary().lastScreen));
 
   constructor() {
     addIcons({
       'return-up-back-outline': returnUpBackOutline,
-    })
+    });
   }
 
   protected onTap(): void {
-    if (this.resuming() && !this.stale()) return
-    this.resumeRequested.emit()
+    if (this.resuming() && !this.stale()) return;
+    this.resumeRequested.emit();
   }
 }
 
 function screenCopy(screen: LastSessionScreen): string {
   switch (screen) {
     case 'lobby':
-      return 'In the lobby'
+      return 'In the lobby';
     case 'estimating':
-      return 'Estimating now'
+      return 'Estimating now';
   }
 }

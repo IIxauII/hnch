@@ -23,7 +23,7 @@ export function shouldRecordCache(
   status: string,
   lastRecordedUuid: string | null,
 ): boolean {
-  if (status !== 'connected') return false
-  if (!code || !uuid) return false
-  return uuid !== lastRecordedUuid
+  if (status !== 'connected') return false;
+  if (!code || !uuid) return false;
+  return uuid !== lastRecordedUuid;
 }

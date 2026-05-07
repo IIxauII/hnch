@@ -1,23 +1,17 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  input,
-  output,
-} from '@angular/core'
-import { formatElapsed } from '@hnch/shared'
-import type { ParticipantSnapshot, Round } from '@hnch/shared'
-import { IonButton, IonIcon } from '@ionic/angular/standalone'
-import { addIcons } from 'ionicons'
-import { pencilOutline } from 'ionicons/icons'
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { formatElapsed } from '@hnch/shared';
+import type { ParticipantSnapshot, Round } from '@hnch/shared';
+import { IonButton, IonIcon } from '@ionic/angular/standalone';
+import { addIcons } from 'ionicons';
+import { pencilOutline } from 'ionicons/icons';
 
 /** One entry in the compact history list. */
 interface HistoryEntry {
-  readonly roundId: string
-  readonly roundNumber: number
-  readonly title: string | undefined
-  readonly summary: string
-  readonly elapsed: string | null
+  readonly roundId: string;
+  readonly roundNumber: number;
+  readonly title: string | undefined;
+  readonly summary: string;
+  readonly elapsed: string | null;
 }
 
 /**
@@ -117,54 +111,54 @@ interface HistoryEntry {
   ],
 })
 export class RoundHistoryComponent {
-  readonly rounds = input.required<readonly Round[]>()
+  readonly rounds = input.required<readonly Round[]>();
   /** Reserved for future name-based display; unused in compact summary mode. */
-  readonly participants = input<readonly ParticipantSnapshot[]>([])
-  readonly isHost = input<boolean>(false)
-  readonly editTriggered = output<string>()
+  readonly participants = input<readonly ParticipantSnapshot[]>([]);
+  readonly isHost = input<boolean>(false);
+  readonly editTriggered = output<string>();
 
   constructor() {
-    addIcons({ 'pencil-outline': pencilOutline })
+    addIcons({ 'pencil-outline': pencilOutline });
   }
 
   readonly entries = computed<readonly HistoryEntry[]>(() => {
     // All rounds in the array already have revealedAt (caller's contract),
     // but we guard defensively.
-    const revealed = this.rounds().filter((r) => r.revealedAt !== undefined)
+    const revealed = this.rounds().filter((r) => r.revealedAt !== undefined);
     // Reverse chronological — newest rounds first in the history list.
-    const reversed = [...revealed].reverse()
+    const reversed = [...revealed].reverse();
 
     return reversed.map((round, revIdx) => {
       // Round number = position among ALL rounds passed in (before reversing).
       // We use the original array position for stable numbering.
-      const originalIndex = revealed.length - 1 - revIdx
-      const roundNumber = originalIndex + 1
+      const originalIndex = revealed.length - 1 - revIdx;
+      const roundNumber = originalIndex + 1;
 
       // Compact vote summary: "card×count, card×count" sorted by count desc
-      const countByCard = new Map<string, number>()
+      const countByCard = new Map<string, number>();
       for (const card of Object.values(round.votes)) {
-        countByCard.set(card, (countByCard.get(card) ?? 0) + 1)
+        countByCard.set(card, (countByCard.get(card) ?? 0) + 1);
       }
-      const scaleOrder = new Map<string, number>()
-      round.scale.cards.forEach((card, i) => scaleOrder.set(card, i))
+      const scaleOrder = new Map<string, number>();
+      round.scale.cards.forEach((card, i) => scaleOrder.set(card, i));
 
       const groups = [...countByCard.entries()].sort((a, b) => {
-        const byCount = b[1] - a[1]
-        if (byCount !== 0) return byCount
-        return (scaleOrder.get(a[0]) ?? 9999) - (scaleOrder.get(b[0]) ?? 9999)
-      })
+        const byCount = b[1] - a[1];
+        if (byCount !== 0) return byCount;
+        return (scaleOrder.get(a[0]) ?? 9999) - (scaleOrder.get(b[0]) ?? 9999);
+      });
 
       const summary =
         groups.length > 0
           ? groups.map(([card, count]) => `${card}×${count}`).join(', ')
-          : 'No votes'
+          : 'No votes';
 
       const elapsed =
         round.revealedAt !== undefined && round.timerStartedAt !== undefined
           ? formatElapsed(round.revealedAt - round.timerStartedAt)
-          : null
+          : null;
 
-      return { roundId: round.id, roundNumber, title: round.title, summary, elapsed }
-    })
-  })
+      return { roundId: round.id, roundNumber, title: round.title, summary, elapsed };
+    });
+  });
 }

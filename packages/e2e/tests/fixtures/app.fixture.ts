@@ -1,4 +1,4 @@
-import { test as base, type BrowserContext, type Page } from '@playwright/test'
+import { test as base, type BrowserContext, type Page } from '@playwright/test';
 import {
   BASE_URL,
   ONBOARDING,
@@ -14,7 +14,7 @@ import {
   APP_SETTINGS_SCALE_PICKER,
   PRESET_CARD_EDITOR,
   fillRoomCode,
-} from './helpers'
+} from './helpers';
 
 // ---------------------------------------------------------------------------
 // Scale label normalization
@@ -24,21 +24,21 @@ import {
 // in the scale-picker template. Angular [value] bindings set DOM properties,
 // not HTML attributes, so selectors must match by visible text instead.
 const SCALE_DISPLAY_LABELS: Record<string, string> = {
-  'fibonacci': 'Fibonacci',
-  'Fibonacci': 'Fibonacci',
+  fibonacci: 'Fibonacci',
+  Fibonacci: 'Fibonacci',
   't-shirt': 'T-shirt',
   'T-Shirt': 'T-shirt',
   'T-shirt': 'T-shirt',
   'powers-of-2': 'Powers of 2',
   'Powers of 2': 'Powers of 2',
-  'linear': 'Linear (1\u201310)',
-  'Linear': 'Linear (1\u201310)',
-  'risk': 'Risk',
-  'Risk': 'Risk',
-}
+  linear: 'Linear (1\u201310)',
+  Linear: 'Linear (1\u201310)',
+  risk: 'Risk',
+  Risk: 'Risk',
+};
 
 function resolveScaleDisplayLabel(label: string): string {
-  return SCALE_DISPLAY_LABELS[label] ?? label
+  return SCALE_DISPLAY_LABELS[label] ?? label;
 }
 
 // ---------------------------------------------------------------------------
@@ -56,45 +56,45 @@ export class Participant {
 
   /** Complete the onboarding flow by entering a display name. */
   async onboard(): Promise<void> {
-    await this.page.waitForURL(/\/onboarding/)
-    const input = this.page.locator(ONBOARDING.nameInput)
+    await this.page.waitForURL(/\/onboarding/);
+    const input = this.page.locator(ONBOARDING.nameInput);
     // Ionic wraps <input> inside shadow DOM of ion-input.
     // Use .fill() which works through shadow DOM in Playwright.
-    await input.locator('input').fill(this.displayName)
-    await this.page.locator(ONBOARDING.continueBtn).click()
-    await this.page.waitForURL(/\/home/)
+    await input.locator('input').fill(this.displayName);
+    await this.page.locator(ONBOARDING.continueBtn).click();
+    await this.page.waitForURL(/\/home/);
   }
 
   // -- Session lifecycle ----------------------------------------------------
 
   /** Create a new session from /home. Returns the room code. */
   async createSession(): Promise<string> {
-    await this.page.goto(`${BASE_URL}/home`)
-    await this.page.waitForURL(/\/(home|onboarding)/)
+    await this.page.goto(`${BASE_URL}/home`);
+    await this.page.waitForURL(/\/(home|onboarding)/);
     if (this.page.url().includes('/onboarding')) {
-      await this.onboard()
+      await this.onboard();
     }
-    await this.page.locator(HOME.createCard).click()
-    await this.page.waitForURL(/\/lobby/)
-    const codeEl = this.page.locator(LOBBY.roomCode)
-    await codeEl.waitFor({ state: 'visible' })
-    const code = await codeEl.textContent()
-    if (!code) throw new Error('Room code not found on lobby page')
-    return code.replace(/[^A-Z0-9]/gi, '') // strip dash formatting
+    await this.page.locator(HOME.createCard).click();
+    await this.page.waitForURL(/\/lobby/);
+    const codeEl = this.page.locator(LOBBY.roomCode);
+    await codeEl.waitFor({ state: 'visible' });
+    const code = await codeEl.textContent();
+    if (!code) throw new Error('Room code not found on lobby page');
+    return code.replace(/[^A-Z0-9]/gi, ''); // strip dash formatting
   }
 
   /** Join an existing session from /home using a room code. */
   async joinSession(code: string): Promise<void> {
-    await this.page.goto(`${BASE_URL}/home`)
-    await this.page.waitForURL(/\/(home|onboarding)/)
+    await this.page.goto(`${BASE_URL}/home`);
+    await this.page.waitForURL(/\/(home|onboarding)/);
     if (this.page.url().includes('/onboarding')) {
-      await this.onboard()
+      await this.onboard();
     }
-    await this.page.locator(HOME.joinCard).click()
-    await this.page.waitForURL(/\/join/)
-    await fillRoomCode(this.page, code)
-    await this.page.locator(JOIN.joinBtn).click()
-    await this.page.waitForURL(/\/lobby/)
+    await this.page.locator(HOME.joinCard).click();
+    await this.page.waitForURL(/\/join/);
+    await fillRoomCode(this.page, code);
+    await this.page.locator(JOIN.joinBtn).click();
+    await this.page.waitForURL(/\/lobby/);
   }
 
   // -- Lobby actions --------------------------------------------------------
@@ -105,31 +105,31 @@ export class Participant {
     // stack can't intercept the click via pointer-event bubbling.
     const startRoundBtn = this.page
       .locator('app-lobby:not(.ion-page-hidden) ion-button')
-      .filter({ hasText: LOBBY.startRoundBtn })
-    await startRoundBtn.waitFor({ state: 'visible' })
-    await startRoundBtn.evaluate((el: HTMLElement) => el.click())
+      .filter({ hasText: LOBBY.startRoundBtn });
+    await startRoundBtn.waitFor({ state: 'visible' });
+    await startRoundBtn.evaluate((el: HTMLElement) => el.click());
     // Wait for the round-start modal to appear
-    const modal = this.page.locator('app-round-start-sheet')
-    await modal.waitFor({ state: 'visible' })
+    const modal = this.page.locator('app-round-start-sheet');
+    await modal.waitFor({ state: 'visible' });
     if (title) {
-      await modal.locator('ion-input').locator('input').fill(title)
+      await modal.locator('ion-input').locator('input').fill(title);
     }
-    const startBtn = this.page.locator(ROUND_START.startBtn)
-    await startBtn.waitFor({ state: 'visible' })
-    await startBtn.evaluate((el: HTMLElement) => el.click())
-    await this.page.waitForURL(/\/estimating/)
+    const startBtn = this.page.locator(ROUND_START.startBtn);
+    await startBtn.waitFor({ state: 'visible' });
+    await startBtn.evaluate((el: HTMLElement) => el.click());
+    await this.page.waitForURL(/\/estimating/);
   }
 
   /** Wait for auto-navigation to /estimating (non-host clients). */
   async waitForEstimating(): Promise<void> {
-    await this.page.waitForURL(/\/estimating/, { timeout: 10_000 })
+    await this.page.waitForURL(/\/estimating/, { timeout: 10_000 });
   }
 
   // -- Voting ---------------------------------------------------------------
 
   /** Tap a card to cast (or change) a vote. */
   async castVote(value: string): Promise<void> {
-    await this.page.locator(ESTIMATING.card(value)).first().click()
+    await this.page.locator(ESTIMATING.card(value)).first().click();
   }
 
   /** Toggle role between voter and viewer on the estimating page. */
@@ -139,223 +139,217 @@ export class Participant {
     const chip = this.page
       .locator(ESTIMATING.roleChip)
       .filter({ hasText: /Voter|Observing/ })
-      .first()
-    await chip.waitFor({ state: 'visible' })
-    await chip.evaluate((el: HTMLElement) => el.click())
+      .first();
+    await chip.waitFor({ state: 'visible' });
+    await chip.evaluate((el: HTMLElement) => el.click());
   }
 
   /** Tap the Reveal Votes button (host only). Navigates to /lobby with results. */
   async reveal(): Promise<void> {
-    await this.page
-      .locator(ESTIMATING.revealBtn)
-      .evaluate((el: HTMLElement) => el.click())
-    await this.page.waitForURL(/\/lobby/)
+    await this.page.locator(ESTIMATING.revealBtn).evaluate((el: HTMLElement) => el.click());
+    await this.page.waitForURL(/\/lobby/);
     // Wait for results section to render (ensures lastRevealedRound() signal is computed)
     // so Re-vote button is present before reveal() returns
-    await this.page.locator(LOBBY.resultsSection).waitFor({ state: 'visible', timeout: 5_000 })
+    await this.page.locator(LOBBY.resultsSection).waitFor({ state: 'visible', timeout: 5_000 });
   }
 
   // -- Lobby results actions -------------------------------------------------
 
   /** Tap "Next Round N" from the lobby results section and confirm the modal. */
   async nextRound(title?: string): Promise<void> {
-    await this.page.locator('ion-button', { hasText: LOBBY.nextRoundBtn }).click()
-    const modal = this.page.locator('app-round-start-sheet')
-    await modal.waitFor({ state: 'visible' })
+    await this.page.locator('ion-button', { hasText: LOBBY.nextRoundBtn }).click();
+    const modal = this.page.locator('app-round-start-sheet');
+    await modal.waitFor({ state: 'visible' });
     if (title) {
-      await modal.locator('ion-input').locator('input').fill(title)
+      await modal.locator('ion-input').locator('input').fill(title);
     }
-    const startBtn = this.page.locator(ROUND_START.startBtn)
-    await startBtn.waitFor({ state: 'visible' })
-    await startBtn.evaluate((el: HTMLElement) => el.click())
-    await this.page.waitForURL(/\/estimating/)
+    const startBtn = this.page.locator(ROUND_START.startBtn);
+    await startBtn.waitFor({ state: 'visible' });
+    await startBtn.evaluate((el: HTMLElement) => el.click());
+    await this.page.waitForURL(/\/estimating/);
   }
 
   /** Tap "Re-vote" from the lobby results section — navigates to /estimating. */
   async revote(): Promise<void> {
-    await this.page
-      .locator(LOBBY.revoteBtn)
-      .evaluate((el: HTMLElement) => el.click())
-    await this.page.waitForURL(/\/estimating/, { timeout: 10_000 })
+    await this.page.locator(LOBBY.revoteBtn).evaluate((el: HTMLElement) => el.click());
+    await this.page.waitForURL(/\/estimating/, { timeout: 10_000 });
   }
 
   // -- Settings (from lobby) ------------------------------------------------
 
   /** Open session settings sheet from the lobby subtitle button. */
   async openSettings(): Promise<void> {
-    await this.page.locator(LOBBY.subtitle).click()
-    await this.page.locator('app-session-settings-sheet').waitFor({ state: 'visible' })
+    await this.page.locator(LOBBY.subtitle).click();
+    await this.page.locator('app-session-settings-sheet').waitFor({ state: 'visible' });
   }
 
   /** Change the estimation scale. Assumes settings sheet is open. */
   async changeScale(scaleLabel: string): Promise<void> {
-    await this.page.locator(SETTINGS_SHEET.scaleRow).click()
-    await this.page.locator(SCALE_PICKER.option(scaleLabel)).click()
-    const doneBtn = this.page.locator(SCALE_PICKER.doneBtn)
-    await doneBtn.waitFor({ state: 'visible' })
-    await doneBtn.evaluate((el: HTMLElement) => el.click())
+    await this.page.locator(SETTINGS_SHEET.scaleRow).click();
+    await this.page.locator(SCALE_PICKER.option(scaleLabel)).click();
+    const doneBtn = this.page.locator(SCALE_PICKER.doneBtn);
+    await doneBtn.waitFor({ state: 'visible' });
+    await doneBtn.evaluate((el: HTMLElement) => el.click());
   }
 
   /** Change the access mode. Assumes settings sheet is open. */
   async changeAccess(modeLabel: string, password?: string): Promise<void> {
-    await this.page.locator(SETTINGS_SHEET.accessRow).click()
-    await this.page.locator(ACCESS_PICKER.option(modeLabel)).click()
+    await this.page.locator(SETTINGS_SHEET.accessRow).click();
+    await this.page.locator(ACCESS_PICKER.option(modeLabel)).click();
     if (password) {
-      const input = this.page.locator(ACCESS_PICKER.passwordInput).locator('input')
-      await input.fill(password)
+      const input = this.page.locator(ACCESS_PICKER.passwordInput).locator('input');
+      await input.fill(password);
       // Trigger commit (blur)
-      await input.press('Enter')
+      await input.press('Enter');
     }
-    const doneBtn = this.page.locator(ACCESS_PICKER.doneBtn)
-    await doneBtn.waitFor({ state: 'visible' })
-    await doneBtn.evaluate((el: HTMLElement) => el.click())
+    const doneBtn = this.page.locator(ACCESS_PICKER.doneBtn);
+    await doneBtn.waitFor({ state: 'visible' });
+    await doneBtn.evaluate((el: HTMLElement) => el.click());
   }
 
   /** Join with a password — enters code, waits for password field, fills it. */
   async joinSessionWithPassword(code: string, password: string): Promise<void> {
-    await this.page.goto(`${BASE_URL}/home`)
-    await this.page.waitForURL(/\/(home|onboarding)/)
+    await this.page.goto(`${BASE_URL}/home`);
+    await this.page.waitForURL(/\/(home|onboarding)/);
     if (this.page.url().includes('/onboarding')) {
-      await this.onboard()
+      await this.onboard();
     }
-    await this.page.locator(HOME.joinCard).click()
-    await this.page.waitForURL(/\/join/)
-    await fillRoomCode(this.page, code)
+    await this.page.locator(HOME.joinCard).click();
+    await this.page.waitForURL(/\/join/);
+    await fillRoomCode(this.page, code);
     // First submit resolves the room and reveals the password field
-    await this.page.locator(JOIN.joinBtn).click()
+    await this.page.locator(JOIN.joinBtn).click();
     // Wait for the password input to appear
-    const pwInput = this.page.locator(JOIN.passwordInput).locator('input')
-    await pwInput.waitFor({ state: 'visible', timeout: 5_000 })
-    await pwInput.fill(password)
+    const pwInput = this.page.locator(JOIN.passwordInput).locator('input');
+    await pwInput.waitFor({ state: 'visible', timeout: 5_000 });
+    await pwInput.fill(password);
     // Second submit connects with the password
-    await this.page.locator(JOIN.joinBtn).click()
-    await this.page.waitForURL(/\/lobby/, { timeout: 10_000 })
+    await this.page.locator(JOIN.joinBtn).click();
+    await this.page.waitForURL(/\/lobby/, { timeout: 10_000 });
   }
 
   /** Join via deep-link URL (/join?code=...). */
   async joinViaDeepLink(code: string): Promise<void> {
-    await this.page.goto(`${BASE_URL}/join?code=${code}`)
-    await this.page.waitForURL(/\/(join|onboarding)/)
+    await this.page.goto(`${BASE_URL}/join?code=${code}`);
+    await this.page.waitForURL(/\/(join|onboarding)/);
     if (this.page.url().includes('/onboarding')) {
       // Can't use onboard() here — it waits for /home, but the
       // pending-join-URL flow resumes to /join?code=... instead.
-      const input = this.page.locator(ONBOARDING.nameInput).locator('input')
-      await input.fill(this.displayName)
-      await this.page.locator(ONBOARDING.continueBtn).click()
-      await this.page.waitForURL(/\/(join|lobby)/)
+      const input = this.page.locator(ONBOARDING.nameInput).locator('input');
+      await input.fill(this.displayName);
+      await this.page.locator(ONBOARDING.continueBtn).click();
+      await this.page.waitForURL(/\/(join|lobby)/);
     }
     // Deep-link auto-submit fires on JoinPage activation (ADR-0026 §3).
     // Wait for lobby content as success signal — works for both first-time
     // (onboarding redirect → JoinPage auto-submit) and returning-user paths.
-    await this.page.locator(LOBBY.roomCode).waitFor({ state: 'visible', timeout: 10_000 })
+    await this.page.locator(LOBBY.roomCode).waitFor({ state: 'visible', timeout: 10_000 });
   }
 
   /** Close the session settings sheet. */
   async closeSettings(): Promise<void> {
-    const doneBtn = this.page.locator(SETTINGS_SHEET.doneBtn)
-    await doneBtn.waitFor({ state: 'visible' })
-    await doneBtn.evaluate((el: HTMLElement) => el.click())
+    const doneBtn = this.page.locator(SETTINGS_SHEET.doneBtn);
+    await doneBtn.waitFor({ state: 'visible' });
+    await doneBtn.evaluate((el: HTMLElement) => el.click());
     // Wait for modal dismiss animation
-    await this.page.locator('app-session-settings-sheet').waitFor({ state: 'hidden' })
+    await this.page.locator('app-session-settings-sheet').waitFor({ state: 'hidden' });
   }
 
   /** Leave the current session via action sheet → confirm. Navigates to /home. */
   async leaveSession(): Promise<void> {
     // Open action sheet by clicking the last button in the header (menu/more button)
-    const actionBtn = this.page.locator('ion-header').locator('ion-button').last()
-    await actionBtn.click()
+    const actionBtn = this.page.locator('ion-header').locator('ion-button').last();
+    await actionBtn.click();
 
     // Wait for action sheet and tap "Leave session"
-    const actionSheet = this.page.locator('ion-action-sheet')
-    await actionSheet.waitFor({ state: 'visible', timeout: 5_000 })
-    const leaveOption = this.page.locator(
-      'ion-action-sheet button:has-text("Leave session")',
-    )
-    await leaveOption.click()
+    const actionSheet = this.page.locator('ion-action-sheet');
+    await actionSheet.waitFor({ state: 'visible', timeout: 5_000 });
+    const leaveOption = this.page.locator('ion-action-sheet button:has-text("Leave session")');
+    await leaveOption.click();
 
     // Confirm in alert
-    const alert = this.page.locator('ion-alert')
-    await alert.waitFor({ state: 'visible', timeout: 5_000 })
-    const confirmBtn = this.page.locator('ion-alert button:has-text("Leave")')
-    await confirmBtn.click()
+    const alert = this.page.locator('ion-alert');
+    await alert.waitFor({ state: 'visible', timeout: 5_000 });
+    const confirmBtn = this.page.locator('ion-alert button:has-text("Leave")');
+    await confirmBtn.click();
 
     // Navigate to /home
-    await this.page.waitForURL(/\/home/, { timeout: 5_000 })
+    await this.page.waitForURL(/\/home/, { timeout: 5_000 });
   }
 
   // -- App settings (device-level preferences) -----
 
   /** Navigate to the app settings page (/settings). */
   async navigateToAppSettings(): Promise<void> {
-    await this.page.goto(`${BASE_URL}/settings`)
-    await this.page.waitForURL(/\/settings/)
+    await this.page.goto(`${BASE_URL}/settings`);
+    await this.page.waitForURL(/\/settings/);
   }
 
   /** Open the default scale picker and select a builtin scale by its label. */
   async setDefaultScale(scaleLabel: string): Promise<void> {
-    await this.page.locator(APP_SETTINGS.defaultScaleRow).click()
-    const displayLabel = resolveScaleDisplayLabel(scaleLabel)
-    await this.page.locator(APP_SETTINGS_SCALE_PICKER.scaleRadio(displayLabel)).click()
-    const doneBtn = this.page.locator(APP_SETTINGS_SCALE_PICKER.doneBtn)
-    await doneBtn.waitFor({ state: 'visible' })
-    await doneBtn.evaluate((el: HTMLElement) => el.click())
+    await this.page.locator(APP_SETTINGS.defaultScaleRow).click();
+    const displayLabel = resolveScaleDisplayLabel(scaleLabel);
+    await this.page.locator(APP_SETTINGS_SCALE_PICKER.scaleRadio(displayLabel)).click();
+    const doneBtn = this.page.locator(APP_SETTINGS_SCALE_PICKER.doneBtn);
+    await doneBtn.waitFor({ state: 'visible' });
+    await doneBtn.evaluate((el: HTMLElement) => el.click());
     // Wait for modal dismiss animation
-    await this.page.locator('app-scale-picker-sheet').waitFor({ state: 'hidden' })
+    await this.page.locator('app-scale-picker-sheet').waitFor({ state: 'hidden' });
   }
   /** Toggle a preset scale card on or off. */
   async togglePresetCard(presetLabel: string, cardValue: string): Promise<void> {
-    await this.page.locator(APP_SETTINGS.defaultScaleRow).click()
+    await this.page.locator(APP_SETTINGS.defaultScaleRow).click();
 
-    const displayLabel = resolveScaleDisplayLabel(presetLabel)
-    const editBtn = this.page.locator(APP_SETTINGS_SCALE_PICKER.editBtn(displayLabel))
-    await editBtn.waitFor({ state: 'visible' })
-    await editBtn.click()
+    const displayLabel = resolveScaleDisplayLabel(presetLabel);
+    const editBtn = this.page.locator(APP_SETTINGS_SCALE_PICKER.editBtn(displayLabel));
+    await editBtn.waitFor({ state: 'visible' });
+    await editBtn.click();
 
     // Wait for the scale editor to appear
-    await this.page.locator('app-scale-editor-sheet').waitFor({ state: 'visible' })
+    await this.page.locator('app-scale-editor-sheet').waitFor({ state: 'visible' });
 
     // Click the toggle for the target card
-    const cardToggle = this.page.locator(PRESET_CARD_EDITOR.cardToggle(cardValue))
-    await cardToggle.waitFor({ state: 'visible' })
-    await cardToggle.click()
+    const cardToggle = this.page.locator(PRESET_CARD_EDITOR.cardToggle(cardValue));
+    await cardToggle.waitFor({ state: 'visible' });
+    await cardToggle.click();
 
     // Close the editor
-    const doneBtn = this.page.locator(PRESET_CARD_EDITOR.doneBtn)
-    await doneBtn.waitFor({ state: 'visible' })
-    await doneBtn.evaluate((el: HTMLElement) => el.click())
-    await this.page.locator('app-scale-editor-sheet').waitFor({ state: 'hidden' })
+    const doneBtn = this.page.locator(PRESET_CARD_EDITOR.doneBtn);
+    await doneBtn.waitFor({ state: 'visible' });
+    await doneBtn.evaluate((el: HTMLElement) => el.click());
+    await this.page.locator('app-scale-editor-sheet').waitFor({ state: 'hidden' });
 
     // Close the scale picker
-    const pickerDoneBtn = this.page.locator(APP_SETTINGS_SCALE_PICKER.doneBtn)
-    await pickerDoneBtn.waitFor({ state: 'visible' })
-    await pickerDoneBtn.evaluate((el: HTMLElement) => el.click())
-    await this.page.locator('app-scale-picker-sheet').waitFor({ state: 'hidden' })
+    const pickerDoneBtn = this.page.locator(APP_SETTINGS_SCALE_PICKER.doneBtn);
+    await pickerDoneBtn.waitFor({ state: 'visible' });
+    await pickerDoneBtn.evaluate((el: HTMLElement) => el.click());
+    await this.page.locator('app-scale-picker-sheet').waitFor({ state: 'hidden' });
   }
 
   // -- Disconnect / reconnect -----------------------------------------------
 
   /** Simulate disconnect by closing the page (abrupt; awareness clears via WS close). */
   async disconnect(): Promise<void> {
-    await this.page.close()
+    await this.page.close();
   }
 
   /** Reconnect: open a new page in the same context and join via code. */
   async reconnect(code: string): Promise<void> {
-    this.page = await this.context.newPage()
-    await this.page.goto(`${BASE_URL}/home`)
-    await this.page.waitForURL(/\/(home|onboarding)/)
+    this.page = await this.context.newPage();
+    await this.page.goto(`${BASE_URL}/home`);
+    await this.page.waitForURL(/\/(home|onboarding)/);
     if (this.page.url().includes('/onboarding')) {
       // Same context, so onboarding should be skipped (localStorage persists)
       // But if somehow needed:
-      await this.onboard()
+      await this.onboard();
     }
-    await this.page.locator(HOME.joinCard).click()
-    await this.page.waitForURL(/\/join/)
-    await fillRoomCode(this.page, code)
-    await this.page.locator(JOIN.joinBtn).click()
+    await this.page.locator(HOME.joinCard).click();
+    await this.page.waitForURL(/\/join/);
+    await fillRoomCode(this.page, code);
+    await this.page.locator(JOIN.joinBtn).click();
     // After joining, the player lands on /lobby. If there's an active
     // round the lobby's auto-navigate effect may redirect to /estimating.
-    await this.page.waitForURL(/\/(lobby|estimating)/, { timeout: 10_000 })
+    await this.page.waitForURL(/\/(lobby|estimating)/, { timeout: 10_000 });
   }
 
   // -- Assertions -----------------------------------------------------------
@@ -365,26 +359,26 @@ export class Participant {
    * Waits for /lobby and for the results section to appear.
    */
   async expectRevealedVotes(expected: string[]): Promise<void> {
-    await this.page.waitForURL(/\/lobby/)
-    const resultsSection = this.page.locator(LOBBY.resultsSection)
-    await resultsSection.waitFor({ state: 'visible', timeout: 10_000 })
-    const cards = this.page.locator(LOBBY.groupCard)
-    await cards.first().waitFor({ state: 'visible' })
+    await this.page.waitForURL(/\/lobby/);
+    const resultsSection = this.page.locator(LOBBY.resultsSection);
+    await resultsSection.waitFor({ state: 'visible', timeout: 10_000 });
+    const cards = this.page.locator(LOBBY.groupCard);
+    await cards.first().waitFor({ state: 'visible' });
     // Collect all card values from vote groups (scoped to results section)
-    const allChips: string[] = []
-    const groupCount = await this.page.locator(LOBBY.voteGroups).count()
+    const allChips: string[] = [];
+    const groupCount = await this.page.locator(LOBBY.voteGroups).count();
     for (let i = 0; i < groupCount; i++) {
-      const group = this.page.locator(LOBBY.voteGroups).nth(i)
-      const cardValue = await group.locator('.card').textContent()
-      const chipLabels = await group.locator('ion-chip ion-label').allTextContents()
+      const group = this.page.locator(LOBBY.voteGroups).nth(i);
+      const cardValue = await group.locator('.card').textContent();
+      const chipLabels = await group.locator('ion-chip ion-label').allTextContents();
       for (const _ of chipLabels) {
-        allChips.push(cardValue?.trim() ?? '')
+        allChips.push(cardValue?.trim() ?? '');
       }
     }
-    const sorted = [...allChips].sort()
-    const expectedSorted = [...expected].sort()
+    const sorted = [...allChips].sort();
+    const expectedSorted = [...expected].sort();
     if (sorted.join(',') !== expectedSorted.join(',')) {
-      throw new Error(`Expected votes [${expectedSorted}] but got [${sorted}]`)
+      throw new Error(`Expected votes [${expectedSorted}] but got [${sorted}]`);
     }
   }
 
@@ -392,43 +386,43 @@ export class Participant {
   async expectVotesHidden(): Promise<void> {
     // On the estimating page, there is no revealed data — just dot indicators
     // Verify we are on estimating (not revealed, no results section visible)
-    const url = this.page.url()
+    const url = this.page.url();
     if (!url.includes('/estimating')) {
-      throw new Error(`Expected to be on /estimating but URL is ${url}`)
+      throw new Error(`Expected to be on /estimating but URL is ${url}`);
     }
     // Ensure results section (shown after reveal) is not visible
-    await this.page.locator('section.results-section').waitFor({ state: 'hidden' })
+    await this.page.locator('section.results-section').waitFor({ state: 'hidden' });
   }
 
   /** Assert this participant sees host controls. */
   async expectIsHost(): Promise<void> {
     // Host sees "Reveal Votes" on estimating or "Start Round" / "Next Round" on lobby
-    const url = this.page.url()
+    const url = this.page.url();
     if (url.includes('/estimating')) {
-      await this.page.locator(ESTIMATING.revealBtn).waitFor({ state: 'visible' })
+      await this.page.locator(ESTIMATING.revealBtn).waitFor({ state: 'visible' });
     } else if (url.includes('/lobby')) {
       // Either Start Round or Next Round button is visible for host
-      const startBtn = this.page.locator('ion-button', { hasText: LOBBY.startRoundBtn })
-      const nextBtn = this.page.locator('ion-button', { hasText: LOBBY.nextRoundBtn })
-      const startVisible = await startBtn.isVisible().catch(() => false)
-      const nextVisible = await nextBtn.isVisible().catch(() => false)
+      const startBtn = this.page.locator('ion-button', { hasText: LOBBY.startRoundBtn });
+      const nextBtn = this.page.locator('ion-button', { hasText: LOBBY.nextRoundBtn });
+      const startVisible = await startBtn.isVisible().catch(() => false);
+      const nextVisible = await nextBtn.isVisible().catch(() => false);
       if (!startVisible && !nextVisible) {
-        throw new Error('Expected host controls to be visible on lobby')
+        throw new Error('Expected host controls to be visible on lobby');
       }
     }
   }
 
   /** Assert participant count shown in lobby. */
   async expectParticipantCount(n: number): Promise<void> {
-    const { expect } = await import('@playwright/test')
+    const { expect } = await import('@playwright/test');
     // Ionic's router outlet briefly keeps two app-lobby instances in DOM
     // during forward/back navigation transitions (neither gets ion-page-hidden
     // until the animation settles). Wait until only one non-hidden lobby
     // remains before asserting, so strict-mode doesn't fire on the transient
     // duplicate (reproduced in back-button-soft-exit after banner tap returns
     // to the same lobby URL).
-    await expect(this.page.locator(LOBBY.participantCount)).toHaveCount(1, { timeout: 5_000 })
-    await expect(this.page.locator(LOBBY.participantCount)).toContainText(`(${n})`)
+    await expect(this.page.locator(LOBBY.participantCount)).toHaveCount(1, { timeout: 5_000 });
+    await expect(this.page.locator(LOBBY.participantCount)).toContainText(`(${n})`);
   }
 }
 
@@ -437,10 +431,10 @@ export class Participant {
 // ---------------------------------------------------------------------------
 
 interface AppFixtures {
-  host: Participant
-  player: Participant
+  host: Participant;
+  player: Participant;
   /** Factory for tests that need more than 2 participants. */
-  createParticipant: (name: string) => Promise<Participant>
+  createParticipant: (name: string) => Promise<Participant>;
 }
 
 /**
@@ -460,23 +454,23 @@ interface AppFixtures {
  * of regression into a fast, readable failure.
  */
 function attachBootstrapGuard(page: Page): string[] {
-  const errors: string[] = []
-  page.on('pageerror', err => {
-    errors.push(`Uncaught page error: ${err.message}`)
-  })
-  page.on('console', msg => {
-    if (msg.type() !== 'error') return
-    const text = msg.text()
+  const errors: string[] = [];
+  page.on('pageerror', (err) => {
+    errors.push(`Uncaught page error: ${err.message}`);
+  });
+  page.on('console', (msg) => {
+    if (msg.type() !== 'error') return;
+    const text = msg.text();
     if (text.includes('hnch bootstrap failed') || text.includes('NG0203')) {
-      errors.push(`App bootstrap error: ${text}`)
+      errors.push(`App bootstrap error: ${text}`);
     }
-  })
-  return errors
+  });
+  return errors;
 }
 
 function assertNoBootstrapErrors(errors: string[]): void {
   if (errors.length > 0) {
-    throw new Error(`Bootstrap guard tripped:\n  - ${errors.join('\n  - ')}`)
+    throw new Error(`Bootstrap guard tripped:\n  - ${errors.join('\n  - ')}`);
   }
 }
 
@@ -485,7 +479,11 @@ async function clearStorage(context: BrowserContext): Promise<void> {
     // addInitScript fires on every frame navigation including sandboxed iframes
     // (e.g. Ionic modal frames) where localStorage access throws SecurityError.
     // Guard: bail out if localStorage is not accessible.
-    try { localStorage.length } catch { return }
+    try {
+      localStorage.length;
+    } catch {
+      return;
+    }
 
     // Preserve all user-identity and device-preference keys written by the
     // app under the CapacitorStorage prefix. Only session-bleed keys (last
@@ -494,7 +492,7 @@ async function clearStorage(context: BrowserContext): Promise<void> {
     const KEEP = new Set([
       'CapacitorStorage.hnch.displayName',
       'CapacitorStorage.hnch.pendingJoinUrl',
-      'CapacitorStorage.hnch.participantId',    // ParticipantIdService stable device ID
+      'CapacitorStorage.hnch.participantId', // ParticipantIdService stable device ID
       'CapacitorStorage.hnch.presetOverrides',
       'CapacitorStorage.hnch.customScales',
       'CapacitorStorage.hnch.defaultScaleId',
@@ -502,57 +500,57 @@ async function clearStorage(context: BrowserContext): Promise<void> {
       'CapacitorStorage.hnch.defaultPassword',
       'CapacitorStorage.hnch.relayHttpUrl',
       'CapacitorStorage.hnch.lastSession',
-      '_capuid',                                // Capacitor Device plugin web fallback UUID
-    ])
+      '_capuid', // Capacitor Device plugin web fallback UUID
+    ]);
     for (let i = localStorage.length - 1; i >= 0; i--) {
-      const key = localStorage.key(i)
-      if (key && !KEEP.has(key)) localStorage.removeItem(key)
+      const key = localStorage.key(i);
+      if (key && !KEEP.has(key)) localStorage.removeItem(key);
     }
-  })
+  });
 }
 
 export const test = base.extend<AppFixtures>({
   host: async ({ browser }, use) => {
-    const context = await browser.newContext()
-    await clearStorage(context)
-    const page = await context.newPage()
-    const errors = attachBootstrapGuard(page)
-    const host = new Participant(context, page, 'Host')
-    await use(host)
-    await context.close()
-    assertNoBootstrapErrors(errors)
+    const context = await browser.newContext();
+    await clearStorage(context);
+    const page = await context.newPage();
+    const errors = attachBootstrapGuard(page);
+    const host = new Participant(context, page, 'Host');
+    await use(host);
+    await context.close();
+    assertNoBootstrapErrors(errors);
   },
 
   player: async ({ browser }, use) => {
-    const context = await browser.newContext()
-    await clearStorage(context)
-    const page = await context.newPage()
-    const errors = attachBootstrapGuard(page)
-    const player = new Participant(context, page, 'Player')
-    await use(player)
-    await context.close()
-    assertNoBootstrapErrors(errors)
+    const context = await browser.newContext();
+    await clearStorage(context);
+    const page = await context.newPage();
+    const errors = attachBootstrapGuard(page);
+    const player = new Participant(context, page, 'Player');
+    await use(player);
+    await context.close();
+    assertNoBootstrapErrors(errors);
   },
 
   createParticipant: async ({ browser }, use) => {
-    const contexts: BrowserContext[] = []
-    const errorBuckets: string[][] = []
+    const contexts: BrowserContext[] = [];
+    const errorBuckets: string[][] = [];
     const factory = async (name: string): Promise<Participant> => {
-      const context = await browser.newContext()
-      await clearStorage(context)
-      contexts.push(context)
-      const page = await context.newPage()
-      errorBuckets.push(attachBootstrapGuard(page))
-      return new Participant(context, page, name)
-    }
-    await use(factory)
+      const context = await browser.newContext();
+      await clearStorage(context);
+      contexts.push(context);
+      const page = await context.newPage();
+      errorBuckets.push(attachBootstrapGuard(page));
+      return new Participant(context, page, name);
+    };
+    await use(factory);
     for (const ctx of contexts) {
-      await ctx.close()
+      await ctx.close();
     }
     for (const errors of errorBuckets) {
-      assertNoBootstrapErrors(errors)
+      assertNoBootstrapErrors(errors);
     }
   },
-})
+});
 
-export { expect } from '@playwright/test'
+export { expect } from '@playwright/test';
