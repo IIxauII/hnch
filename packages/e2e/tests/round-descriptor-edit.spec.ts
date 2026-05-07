@@ -18,11 +18,11 @@ const ROUND_EDIT = {
   titleInputNative: 'app-round-edit-sheet input[aria-label="Round title"]',
   saveBtn: 'app-round-edit-sheet ion-button:has-text("Save")',
   /**
-   * Pencil scoped to the latest results card header.
-   * Phase 4 (ADR-0039): pencil moved from .results-descriptor-row to
-   * ion-card-header inside the Results ion-card.
+   * Pencil scoped to the latest results section header.
+   * Phase 5 (ADR-0040): pencil moved from ion-card-header to
+   * .page-section-header inside the Results section.
    */
-  currentRoundPencil: 'ion-card.section-card:has(app-vote-results) ion-card-header ion-button.edit-btn',
+  currentRoundPencil: 'section.page-section:has(app-vote-results) .page-section-header ion-button.edit-btn',
   /** Pencil in history for round N — `n` is 1-based round number. */
   historyPencil: (n: number) =>
     `app-round-history li:has(.round-label:text-is("Round ${n}")) ion-button.edit-btn`,
@@ -95,8 +95,10 @@ test.describe('Round descriptor edit (post-reveal)', () => {
     // Edit and save
     await saveTitleInModal(host.page, 'Foo (backend)')
 
-    // Both clients see updated descriptor within 3 s
-    const descriptor = LOBBY.resultsSection + ' p.results-descriptor'
+    // Both clients see updated descriptor within 3 s.
+    // Phase 5 (ADR-0040): title renders as span.page-section-meta inside
+    // .results-header-end, not as p.results-descriptor (old ion-card layout).
+    const descriptor = LOBBY.resultsSection + ' .results-header-end .page-section-meta'
     await expect(host.page.locator(descriptor)).toHaveText('Foo (backend)', { timeout: 3_000 })
     await expect(player.page.locator(descriptor)).toHaveText('Foo (backend)', { timeout: 3_000 })
   })
@@ -174,8 +176,9 @@ test.describe('Round descriptor edit (post-reveal)', () => {
     await host.page.keyboard.press('Escape')
     await host.page.locator(ROUND_EDIT.modal).waitFor({ state: 'hidden', timeout: 5_000 })
 
-    // Descriptor still shows original value
-    const descriptor = LOBBY.resultsSection + ' p.results-descriptor'
+    // Descriptor still shows original value.
+    // Phase 5 (ADR-0040): descriptor is span.page-section-meta inside .results-header-end.
+    const descriptor = LOBBY.resultsSection + ' .results-header-end .page-section-meta'
     await expect(host.page.locator(descriptor)).toHaveText('Original')
   })
 })

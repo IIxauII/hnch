@@ -25,9 +25,10 @@ test.describe('Round management', () => {
     await player.waitForEstimating()
 
     // Verify we're in Round 2 — scope to app-estimating to avoid strict-mode
-    // violation (lobby stays in Ionic's DOM stack alongside estimating)
-    await expect(host.page.locator('app-estimating h1.title')).toContainText('Round 2')
-    await expect(player.page.locator('app-estimating h1.title')).toContainText('Round 2')
+    // violation (lobby stays in Ionic's DOM stack alongside estimating).
+    // Phase 5 (ADR-0040): title class is now `round-title`, not `title`.
+    await expect(host.page.locator('app-estimating h1.round-title')).toContainText('Round 2')
+    await expect(player.page.locator('app-estimating h1.round-title')).toContainText('Round 2')
 
     // No votes cast yet — card grid should have no selected cards
     await expect(host.page.locator(ESTIMATING.selectedCard)).not.toBeVisible()

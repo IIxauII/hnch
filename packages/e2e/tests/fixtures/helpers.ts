@@ -80,16 +80,21 @@ export const LOBBY = {
   subtitle: 'button.subtitle',
   participantList: 'ion-list.participants',
   participantItems: 'ion-list.participants ion-item',
-  participantCount: 'ion-accordion ion-item[slot="header"] ion-label',
+  /**
+   * Phase 5 (ADR-0040): accordion removed from the participants section.
+   * The count summary is now a plain `span.page-section-meta` inside the
+   * section header, e.g. "2 online" or "1 online · 1 offline".
+   */
+  participantCount: 'section.page-section[aria-label="Participants"] .page-section-meta',
   hostIcon: '.host-icon',
   startRoundBtn: /Start Round \d+/,
   /**
    * Results section shown after a round is revealed.
-   * Phase 4 (ADR-0039): replaced `section.results-section` with
-   * `ion-card.section-card` wrapping `app-vote-results`.
+   * Phase 5 (ADR-0040): replaced `ion-card.section-card` with flat
+   * `section.page-section` wrapping `app-vote-results`.
    */
-  resultsSection: 'ion-card.section-card:has(app-vote-results)',
-  resultsHeading: 'ion-card.section-card:has(app-vote-results) ion-card-title',
+  resultsSection: 'section.page-section:has(app-vote-results)',
+  resultsHeading: 'section.page-section:has(app-vote-results) h2.page-section-title',
   voteGroups: 'app-vote-results ion-item-group.group:not(.didnt-vote)',
   groupCard: 'app-vote-results ion-item-group .card',
   voterChips: 'app-vote-results ion-chip ion-label',
@@ -120,7 +125,11 @@ export const ROUND_START = {
 // Estimating
 // ---------------------------------------------------------------------------
 export const ESTIMATING = {
-  roundTitle: 'h1.title',
+  /**
+   * Phase 5 (ADR-0040): estimating page title class changed from `title`
+   * to `round-title` to align with the new section-based layout.
+   */
+  roundTitle: 'h1.round-title',
   elapsed: 'p.elapsed',
   /**
    * Phase 3 (ADR-0039): migrated from CSS `div.grid` to `ion-grid.grid`.

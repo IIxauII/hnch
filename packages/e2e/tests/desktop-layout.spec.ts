@@ -334,22 +334,21 @@ test.describe('Desktop layout', () => {
   })
 
   // ---------------------------------------------------------------------------
-  // Scenario 6 — Lobby section cards present at desktop (ADR-0039 §D3)
+  // Scenario 6 — Lobby page-section blocks present at desktop (ADR-0040 §D2)
   //
-  // At 1440×900 the rail col always contains the Room card and the Participants
-  // card. Results and History cards are gated on revealed rounds — covering them
+  // At 1440×900 the rail col always contains the Room section and the Participants
+  // section. Results and History sections are gated on revealed rounds — covering them
   // would require a full vote+reveal cycle; skipped here with documentation.
   // ---------------------------------------------------------------------------
-  test('Lobby rail cards (Room, Participants) render at desktop width', async ({ host }) => {
+  test('Lobby rail sections (Room, Participants) render at desktop width', async ({ host }) => {
     await host.page.setViewportSize({ width: 1440, height: 900 })
     await host.createSession()
 
     const page = host.page
 
-    // Two section-cards always render in the rail: Room (first) and Participants (second).
-    // Select by class — Stencil web component host visibility is correctly detected by
-    // Playwright on the class selector path.
-    const sectionCards = page.locator('app-lobby:not(.ion-page-hidden) ion-card.section-card')
+    // Two page-sections always render in the rail: Room (first) and Participants (second).
+    // Select by class — native HTML section elements with page-section class.
+    const sectionCards = page.locator('section.page-section')
     await expect(sectionCards).toHaveCount(2, { timeout: 10_000 })
 
     // Room card (first): contains the room-code heading.

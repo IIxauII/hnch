@@ -415,7 +415,7 @@ export class Participant {
       throw new Error(`Expected to be on /estimating but URL is ${url}`)
     }
     // Ensure results section (shown after reveal) is not visible.
-    // Phase 4: results are in ion-card.section-card:has(app-vote-results).
+    // Phase 5: results are in section.page-section:has(app-vote-results).
     await this.page.locator(LOBBY.resultsSection).waitFor({ state: 'hidden' })
   }
 
@@ -440,14 +440,13 @@ export class Participant {
   /** Assert participant count shown in lobby. */
   async expectParticipantCount(n: number): Promise<void> {
     const { expect } = await import('@playwright/test')
-    // Ionic's router outlet briefly keeps two app-lobby instances in DOM
-    // during forward/back navigation transitions (neither gets ion-page-hidden
-    // until the animation settles). Wait until only one non-hidden lobby
-    // remains before asserting, so strict-mode doesn't fire on the transient
-    // duplicate (reproduced in back-button-soft-exit after banner tap returns
-    // to the same lobby URL).
-    await expect(this.page.locator(LOBBY.participantCount)).toHaveCount(1, { timeout: 5_000 })
-    await expect(this.page.locator(LOBBY.participantCount)).toContainText(`(${n})`)
+    // Phase 5 (ADR-0040): accordion removed. Participants are always visible
+    // as ion-item rows in ion-list.participants. Count rows instead of reading
+    // the accordion-header label that no longer exists.
+    //
+    // Wait for the participant list to stabilise before asserting — the list
+    // renders reactively so it may momentarily show fewer items on first paint.
+    await expect(this.page.locator(LOBBY.participantItems)).toHaveCount(n, { timeout: 10_000 })
   }
 }
 

@@ -1,21 +1,32 @@
 import { test, expect } from './fixtures/app.fixture'
 import { LOBBY } from './fixtures/helpers'
 
-test.describe('Lobby participants accordion', () => {
-  test('pre-reveal: participants visible by default', async ({ host, player }) => {
+/**
+ * Lobby participants section — Phase 5 (ADR-0040) layout.
+ *
+ * The accordion was removed in Phase 2 of ADR-0040. Participants are now
+ * always visible as flat rows inside a `section.page-section`. These tests
+ * cover:
+ *   1. Participants visible before any round is started.
+ *   2. Participants remain visible after reveal (alongside results pane).
+ *   3. The section meta summarises online count correctly.
+ */
+test.describe('Lobby participants section', () => {
+  test('pre-reveal: participants always visible', async ({ host, player }) => {
     const code = await host.createSession()
     await player.joinSession(code)
     await host.expectParticipantCount(2)
 
-    // Header always visible
-    await expect(host.page.locator(LOBBY.participantCount)).toBeVisible()
-
-    // First participant row visible (host themselves)
-    const firstRow = host.page.locator(LOBBY.participantItems).first()
-    await expect(firstRow).toBeVisible()
+    // All participant rows visible — no accordion to expand.
+    const rows = host.page.locator(LOBBY.participantItems)
+    await expect(rows).toHaveCount(2, { timeout: 5_000 })
+    await expect(rows.first()).toBeVisible()
   })
 
-  test('post-reveal: participants collapsed, results visible', async ({ host, player }) => {
+  test('post-reveal: participants remain visible alongside results', async ({
+    host,
+    player,
+  }) => {
     const code = await host.createSession()
     await player.joinSession(code)
     await host.expectParticipantCount(2)
@@ -25,41 +36,27 @@ test.describe('Lobby participants accordion', () => {
     await host.castVote('5')
     await player.castVote('5')
 
-    // Auto-reveal on unanimous (ADR-0018) navigates everyone back to /lobby
+    // Unanimous auto-reveal (ADR-0018) navigates everyone back to /lobby.
     await host.page.waitForURL(/\/lobby/, { timeout: 10_000 })
     await host.page.locator(LOBBY.resultsSection).waitFor({ state: 'visible' })
 
-    // Header still visible
-    await expect(host.page.locator(LOBBY.participantCount)).toBeVisible()
+    // Participant rows still visible — no collapse on reveal.
+    const rows = host.page.locator(LOBBY.participantItems)
+    await expect(rows).toHaveCount(2, { timeout: 5_000 })
+    await expect(rows.first()).toBeVisible()
 
-    // Participant rows hidden (accordion collapsed)
-    const firstRow = host.page.locator(LOBBY.participantItems).first()
-    await expect(firstRow).toBeHidden()
-
-    // Results section visible
+    // Results section also visible simultaneously.
     await expect(host.page.locator(LOBBY.resultsSection)).toBeVisible()
   })
 
-  test('post-reveal: tapping header expands the list', async ({ host, player }) => {
+  test('participants meta shows online count', async ({ host, player }) => {
     const code = await host.createSession()
     await player.joinSession(code)
-    await host.startRound()
-    await player.waitForEstimating()
-    await host.castVote('5')
-    await player.castVote('5')
 
-    // Wait for auto-reveal navigation
-    await host.page.waitForURL(/\/lobby/, { timeout: 10_000 })
-    await host.page.locator(LOBBY.resultsSection).waitFor({ state: 'visible' })
-
-    // Verify accordion is collapsed (rows hidden)
-    const firstRow = host.page.locator(LOBBY.participantItems).first()
-    await expect(firstRow).toBeHidden()
-
-    // Tap accordion header
-    await host.page.locator(LOBBY.participantCount).click()
-
-    // Now first row visible
-    await expect(firstRow).toBeVisible({ timeout: 2_000 })
+    // Wait for both peers to appear in the summary.
+    // Phase 5: summary is "N online [· M offline [· K viewers]]".
+    await expect(host.page.locator(LOBBY.participantCount)).toContainText('2 online', {
+      timeout: 10_000,
+    })
   })
 })
