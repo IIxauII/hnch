@@ -85,7 +85,7 @@ const TILE_COUNT = 6
       border: 1.5px solid transparent;
       outline: none;
       text-align: center;
-      font-family: 'SF Mono', 'Fira Mono', 'Roboto Mono', monospace;
+      font-family: var(--ion-font-family-monospace, ui-monospace, 'SF Mono', monospace);
       font-size: 26px;
       font-weight: 600;
       color: var(--ion-text-color);

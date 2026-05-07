@@ -47,7 +47,7 @@ import {
       justify-content: center;
       background: var(--ion-text-color);
       color: var(--ion-background-color);
-      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+      font-family: var(--ion-font-family);
       font-weight: 700;
       letter-spacing: -0.02em;
       overflow: visible;
