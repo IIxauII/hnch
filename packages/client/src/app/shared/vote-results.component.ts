@@ -153,7 +153,9 @@ interface VoteGroup {
         color: var(--ion-color-medium);
       }
       .group.didnt-vote .card {
-        font-weight: 600;
+        font-size: var(--hnch-text-body);
+        font-weight: var(--hnch-font-weight-semibold);
+        letter-spacing: normal;
       }
       .group-header {
         display: flex;
@@ -162,10 +164,12 @@ interface VoteGroup {
         margin-bottom: 0.25rem;
       }
       .card {
-        font-size: 1.5rem;
-        font-weight: 700;
+        font-size: var(--hnch-text-display);
+        font-weight: var(--hnch-font-weight-bold);
+        letter-spacing: var(--hnch-letter-spacing-display);
       }
       .count {
+        font-size: var(--hnch-text-caption);
         color: var(--ion-color-medium);
       }
       .chips {
@@ -176,7 +180,7 @@ interface VoteGroup {
       .elapsed {
         margin: 0.75rem 0 0;
         color: var(--ion-color-medium);
-        font-size: 0.95rem;
+        font-size: var(--hnch-text-caption);
       }
       .stats {
         display: flex;
@@ -187,7 +191,7 @@ interface VoteGroup {
       }
       .stat {
         color: var(--ion-color-medium);
-        font-size: 0.875rem;
+        font-size: var(--hnch-text-body);
       }
       .stats .spread-chip {
         margin: 0;
@@ -230,6 +234,25 @@ interface VoteGroup {
         }
       }
 
+      /* Reveal-animation overlay — intentionally outside the type ramp for visual impact (ADR-0040 D1 hero exception). */
+      .consensus-text {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 3rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: var(--ion-color-success-contrast, #fff);
+        background: var(--ion-color-success, #2dd36f);
+        border-radius: 1.25rem;
+        padding: 1rem 2rem;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+        white-space: nowrap;
+        animation: consensusScaleIn 380ms cubic-bezier(0.34, 1.56, 0.64, 1) both,
+                   consensusPulse 900ms ease-in-out 380ms 3;
+      }
+
       /* Consensus overlay */
       @keyframes consensusScaleIn {
         from {
@@ -262,23 +285,6 @@ interface VoteGroup {
         background: rgba(0, 0, 0, 0.45);
         cursor: pointer;
         animation: none;
-      }
-      .consensus-text {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        font-size: 3rem;
-        font-weight: 800;
-        letter-spacing: -0.02em;
-        color: var(--ion-color-success-contrast, #fff);
-        background: var(--ion-color-success, #2dd36f);
-        border-radius: 1.25rem;
-        padding: 1rem 2rem;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
-        white-space: nowrap;
-        animation: consensusScaleIn 380ms cubic-bezier(0.34, 1.56, 0.64, 1) both,
-                   consensusPulse 900ms ease-in-out 380ms 3;
       }
       @media (prefers-reduced-motion: reduce) {
         .consensus-text {

@@ -39,7 +39,6 @@ interface HistoryEntry {
   template: `
     @if (entries().length > 0) {
       <section class="history" aria-label="Round history">
-        <h3 class="history-heading">History</h3>
         <ul class="history-list" role="list">
           @for (entry of entries(); track entry.roundNumber) {
             <li class="history-item">
@@ -74,15 +73,7 @@ interface HistoryEntry {
         display: block;
       }
       .history {
-        margin-top: 1.5rem;
-      }
-      .history-heading {
-        font-size: 0.875rem;
-        font-weight: 600;
-        color: var(--ion-color-medium);
-        margin: 0 0 0.5rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
+        margin-top: 0;
       }
       .history-list {
         list-style: none;
@@ -90,7 +81,7 @@ interface HistoryEntry {
         padding: 0;
       }
       .history-item {
-        font-size: 0.875rem;
+        font-size: var(--hnch-text-caption);
         color: var(--ion-color-medium);
         padding: 0.25rem 0;
         border-top: 1px solid var(--ion-color-step-100, rgba(0, 0, 0, 0.06));
@@ -99,12 +90,14 @@ interface HistoryEntry {
         border-top: none;
       }
       .round-label {
-        font-weight: 600;
+        font-size: var(--hnch-text-body);
+        font-weight: var(--hnch-font-weight-semibold);
         color: var(--ion-color-medium);
       }
       .round-title,
       .round-summary,
       .round-elapsed {
+        font-size: var(--hnch-text-caption);
         color: var(--ion-color-medium);
       }
       .edit-btn {
