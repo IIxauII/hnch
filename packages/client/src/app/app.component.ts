@@ -5,7 +5,9 @@ import {
   inject,
   signal,
 } from '@angular/core'
-import { IonApp, IonRouterOutlet } from '@ionic/angular/standalone'
+import { IonApp, IonMenu, IonRouterOutlet, IonSplitPane } from '@ionic/angular/standalone'
+
+import { SideNavComponent } from './shared/side-nav.component'
 
 import { DocService } from './core/doc/doc.service'
 import { formatHostChangeMessage } from './core/host-change-message'
@@ -28,11 +30,16 @@ import { ToastService } from './services/toast.service'
  */
 @Component({
   selector: 'app-root',
-  imports: [IonApp, IonRouterOutlet],
+  imports: [IonApp, IonMenu, IonRouterOutlet, IonSplitPane, SideNavComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ion-app>
-      <ion-router-outlet></ion-router-outlet>
+      <ion-split-pane contentId="main" when="lg">
+        <ion-menu contentId="main" type="overlay">
+          <app-side-nav />
+        </ion-menu>
+        <ion-router-outlet id="main"></ion-router-outlet>
+      </ion-split-pane>
     </ion-app>
   `,
 })
