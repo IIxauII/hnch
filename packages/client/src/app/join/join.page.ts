@@ -25,7 +25,6 @@ import {
   IonFooter,
   IonGrid,
   IonHeader,
-  IonIcon,
   IonInput,
   IonItem,
   IonLabel,
@@ -46,6 +45,7 @@ import { type QrScanErrorReason, QrScannerService } from '../core/qr-scanner.ser
 import { RelayRejectionError, resolveRoom } from '../core/relay/relay-api'
 import { ToastService } from '../services/toast.service'
 import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.component'
+import { IconTileComponent } from '../shared/icon-tile.component'
 
 /**
  * Join Room — ux.md §5.3 manual-entry path.
@@ -75,7 +75,6 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
     IonFooter,
     IonGrid,
     IonHeader,
-    IonIcon,
     IonInput,
     IonItem,
     IonLabel,
@@ -85,6 +84,7 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
     IonToolbar,
     ReactiveFormsModule,
     SegmentedCodeInputComponent,
+    IconTileComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -109,9 +109,7 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
 
             <ion-list inset="true" class="qr-list">
               <ion-item button="true" detail="true" [disabled]="isSubmitting()" (click)="onScanQr()">
-                <div class="icon-tile" slot="start" aria-hidden="true">
-                  <ion-icon name="qr-code-outline"></ion-icon>
-                </div>
+                <app-icon-tile slot="start" icon="qr-code-outline" variant="soft" />
                 <ion-label>
                   <h2>Scan QR code</h2>
                   <p>Point your camera at the host's screen</p>
@@ -196,20 +194,6 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
         font-size: 13px;
         color: var(--ion-color-step-600);
         margin: 0;
-      }
-      .icon-tile {
-        width: 32px;
-        height: 32px;
-        border-radius: 9px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: rgba(var(--ion-color-primary-rgb), 0.14);
-        color: var(--ion-color-primary);
-        margin-inline-end: 12px;
-      }
-      .icon-tile ion-icon {
-        font-size: 18px;
       }
       .list-footer {
         margin: 4px 16px 0;

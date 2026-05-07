@@ -1,9 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core'
-import { IonIcon, IonItem, IonLabel } from '@ionic/angular/standalone'
+import { IonItem, IonLabel } from '@ionic/angular/standalone'
 import { addIcons } from 'ionicons'
 import { returnUpBackOutline } from 'ionicons/icons'
 
 import type { LastSessionScreen } from '../core/last-session.service'
+import { IconTileComponent } from '../shared/icon-tile.component'
 
 /**
  * Jump-back-in banner — ux.md §5.2.
@@ -23,7 +24,7 @@ export interface JumpBackInSummary {
 
 @Component({
   selector: 'app-jump-back-in-banner',
-  imports: [IonIcon, IonItem, IonLabel],
+  imports: [IonItem, IonLabel, IconTileComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ion-item
@@ -33,9 +34,7 @@ export interface JumpBackInSummary {
       [disabled]="resuming() && !stale()"
       (click)="onTap()"
     >
-      <div class="icon-tile icon-tile--accent" slot="start" aria-hidden="true">
-        <ion-icon name="return-up-back-outline"></ion-icon>
-      </div>
+      <app-icon-tile slot="start" icon="return-up-back-outline" variant="accent" />
       <ion-label>
         <h2>Jump back in</h2>
         <p>{{ screenLabel() }} · {{ summary().roomCode }}</p>
@@ -67,22 +66,6 @@ export interface JumpBackInSummary {
         font-size: 14px;
         color: var(--ion-color-step-600);
         margin: 0;
-      }
-      .icon-tile {
-        width: 36px;
-        height: 36px;
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-inline-end: 12px;
-      }
-      .icon-tile--accent {
-        background: var(--ion-color-primary);
-        color: var(--ion-color-primary-contrast);
-      }
-      .icon-tile ion-icon {
-        font-size: 20px;
       }
       ion-item.stale {
         opacity: 0.6;

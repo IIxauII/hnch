@@ -52,6 +52,7 @@ import {
 } from './jump-back-in-banner.component'
 import { PasswordPromptSheetComponent } from './password-prompt.sheet'
 import { presentSheet } from '../utils/present-sheet'
+import { IconTileComponent } from '../shared/icon-tile.component'
 
 /**
  * Home launchpad — ux.md §5.2.
@@ -91,6 +92,7 @@ import { presentSheet } from '../utils/present-sheet'
     IonTitle,
     IonToolbar,
     JumpBackInBannerComponent,
+    IconTileComponent,
     PasswordPromptSheetComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -125,18 +127,14 @@ import { presentSheet } from '../utils/present-sheet'
                 />
               }
               <ion-item button="true" detail="true" (click)="onCreateRoom()">
-                <div class="icon-tile icon-tile--accent" slot="start" aria-hidden="true">
-                  <ion-icon name="add-outline"></ion-icon>
-                </div>
+                <app-icon-tile slot="start" icon="add-outline" variant="accent" />
                 <ion-label>
                   <h2>Create Room</h2>
                   <p>Start a new session</p>
                 </ion-label>
               </ion-item>
               <ion-item button="true" detail="true" (click)="onJoinRoom()">
-                <div class="icon-tile icon-tile--neutral" slot="start" aria-hidden="true">
-                  <ion-icon name="arrow-forward-outline"></ion-icon>
-                </div>
+                <app-icon-tile slot="start" icon="arrow-forward-outline" variant="neutral" />
                 <ion-label>
                   <h2>Join Room</h2>
                   <p>Enter a code or scan QR</p>
@@ -187,26 +185,6 @@ import { presentSheet } from '../utils/present-sheet'
         font-size: 14px;
         color: var(--ion-color-step-600);
         margin: 0;
-      }
-      .icon-tile {
-        width: 36px;
-        height: 36px;
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-inline-end: 12px;
-      }
-      .icon-tile--accent {
-        background: var(--ion-color-primary);
-        color: var(--ion-color-primary-contrast);
-      }
-      .icon-tile--neutral {
-        background: var(--ion-background-color-step-100);
-        color: var(--ion-text-color);
-      }
-      .icon-tile ion-icon {
-        font-size: 20px;
       }
     `,
   ],
