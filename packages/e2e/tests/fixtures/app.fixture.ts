@@ -264,19 +264,32 @@ export class Participant {
     await this.page.locator('app-session-settings-sheet').waitFor({ state: 'hidden' })
   }
 
-  /** Leave the current session via action sheet → confirm. Navigates to /home. */
+  /**
+   * Leave the current session via the ⋯ overflow popover → confirm.
+   * Navigates to /home.
+   *
+   * Phase 2 (ADR-0039): ActionSheet replaced by ion-popover anchored to the
+   * ⋯ button. Items are ion-item elements inside app-overflow-menu.
+   */
   async leaveSession(): Promise<void> {
-    // Open action sheet by clicking the last button in the header (menu/more button)
-    const actionBtn = this.page.locator('ion-header').locator('ion-button').last()
-    await actionBtn.click()
+    // Open the ⋯ overflow popover. Scope to the active lobby page's header
+    // because Ionic keeps the previous page (app-home) in the DOM during
+    // navigation transitions, causing a strict-mode violation if unscoped.
+    const url = this.page.url()
+    const pageScope = url.includes('/estimating')
+      ? 'app-estimating:not(.ion-page-hidden)'
+      : 'app-lobby:not(.ion-page-hidden)'
+    const overflowBtn = this.page
+      .locator(`${pageScope} ion-header`)
+      .getByRole('button', { name: 'More options' })
+    await overflowBtn.click()
 
-    // Wait for action sheet and tap "Leave session"
-    const actionSheet = this.page.locator('ion-action-sheet')
-    await actionSheet.waitFor({ state: 'visible', timeout: 5_000 })
-    const leaveOption = this.page.locator(
-      'ion-action-sheet button:has-text("Leave session")',
-    )
-    await leaveOption.click()
+    // Wait for the popover and tap "Leave session".
+    const popover = this.page.locator('ion-popover')
+    await popover.waitFor({ state: 'visible', timeout: 5_000 })
+    // Use text-based filter to pierce Ionic's web component attribute reflection.
+    const leaveOption = popover.getByRole('listitem').filter({ hasText: 'Leave session' })
+    await leaveOption.evaluate((el: HTMLElement) => el.click())
 
     // Confirm in alert
     const alert = this.page.locator('ion-alert')
@@ -401,8 +414,9 @@ export class Participant {
     if (!url.includes('/estimating')) {
       throw new Error(`Expected to be on /estimating but URL is ${url}`)
     }
-    // Ensure results section (shown after reveal) is not visible
-    await this.page.locator('section.results-section').waitFor({ state: 'hidden' })
+    // Ensure results section (shown after reveal) is not visible.
+    // Phase 4: results are in ion-card.section-card:has(app-vote-results).
+    await this.page.locator(LOBBY.resultsSection).waitFor({ state: 'hidden' })
   }
 
   /** Assert this participant sees host controls. */

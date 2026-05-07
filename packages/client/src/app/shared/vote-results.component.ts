@@ -54,7 +54,7 @@ interface VoteGroup {
     <ion-grid class="vote-groups">
       <ion-row>
         @for (group of voteGroups(); track group.card; let i = $index) {
-          <ion-col size="12">
+          <ion-col class="vote-col">
             <ion-item-group
               class="group"
               [style.--i]="i"
@@ -76,7 +76,7 @@ interface VoteGroup {
         }
 
         @if (didntVoteNames().length > 0) {
-          <ion-col size="12" class="didnt-vote">
+          <ion-col class="didnt-vote">
             <ion-item-group
               class="group didnt-vote"
               [style.--i]="voteGroups().length"
@@ -198,8 +198,15 @@ interface VoteGroup {
       .vote-groups {
         --ion-grid-padding: 0;
       }
+      /* Without size= attr, ion-col sets no inline flex — our class rules win. */
+      .vote-col,
+      .didnt-vote {
+        flex: 0 0 100%;
+        max-width: 100%;
+        width: 100%;
+      }
       @media (min-width: 1024px) {
-        .vote-groups ion-col:not(.didnt-vote) { flex: 0 0 50%; max-width: 50%; }
+        .vote-col { flex: 0 0 50%; max-width: 50%; width: 50%; }
       }
 
       /* Reveal animation — ux.md §6: 80ms stagger, 200ms fade-in-up */

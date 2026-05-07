@@ -161,7 +161,7 @@ import { OverflowMenuComponent, type OverflowMenuItem } from '../shared/overflow
               <ion-grid class="grid" role="group" aria-label="Choose your estimate">
                 <ion-row>
                   @for (card of round.scale.cards; track card) {
-                    <ion-col size="4" size-md="3">
+                    <ion-col class="card-col">
                       <ion-card
                         button
                         class="card"
@@ -240,8 +240,18 @@ import { OverflowMenuComponent, type OverflowMenuItem } from '../shared/overflow
         --ion-grid-padding: 0;
         --ion-grid-column-padding: 0.5rem;
       }
+      /* Without size= attr, ion-col sets no inline flex — our class rules win.
+         Replicate the size="4" size-md="3" breakpoints in CSS, then add 5-col at ≥1024px. */
+      .card-col {
+        flex: 0 0 33.333%;
+        max-width: 33.333%;
+        width: 33.333%;
+      }
+      @media (min-width: 768px) {
+        .card-col { flex: 0 0 25%; max-width: 25%; width: 25%; }
+      }
       @media (min-width: 1024px) {
-        .grid ion-col { flex: 0 0 20%; max-width: 20%; }
+        .card-col { flex: 0 0 20%; max-width: 20%; width: 20%; }
       }
       .card {
         margin: 0;

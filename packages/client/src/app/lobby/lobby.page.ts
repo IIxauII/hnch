@@ -181,7 +181,7 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       <div class="lobby-shell">
         <ion-grid class="lobby-grid">
           <ion-row class="lobby-row">
-          <ion-col size="12" class="lobby-rail-col">
+          <ion-col class="lobby-rail-col">
           <div class="lobby-rail">
 
             <!-- Room card -->
@@ -329,7 +329,7 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
           </div>
           </ion-col>
 
-          <ion-col size="12" class="lobby-pane-col">
+          <ion-col class="lobby-pane-col">
           <div class="lobby-pane">
             @if (lastRevealedRound(); as round) {
               <!-- Results card -->
@@ -613,6 +613,13 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       }
       .lobby-row {
         align-items: start;
+      }
+      /* Without size= attr, ion-col sets no inline flex — our class rules win. */
+      .lobby-rail-col,
+      .lobby-pane-col {
+        flex: 0 0 100%;
+        max-width: 100%;
+        width: 100%;
       }
       @media (min-width: 1024px) {
         .lobby-rail-col {

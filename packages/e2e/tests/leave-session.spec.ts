@@ -2,7 +2,7 @@ import { test, expect } from './fixtures/app.fixture'
 import { LOBBY } from './fixtures/helpers'
 
 test.describe('Leave session flow', () => {
-  test('host leaves session via action sheet → confirm → navigates to Home', async ({
+  test('host leaves session via overflow popover → confirm → navigates to Home', async ({
     host,
   }) => {
     // Create a session
@@ -51,16 +51,18 @@ test.describe('Leave session flow', () => {
     const code = await host.createSession()
     await host.page.waitForURL(/\/lobby/)
 
-    // Open action sheet
-    const actionBtn = host.page.locator('ion-header').locator('ion-button').last()
-    await actionBtn.evaluate((el: HTMLElement) => el.click())
-    const actionSheet = host.page.locator('ion-action-sheet')
-    await actionSheet.waitFor({ state: 'visible', timeout: 5_000 })
+    // Open overflow popover (Phase 2: popover replaces action sheet).
+    // Scope to active lobby to avoid strict-mode violations on Ionic nav stack.
+    const overflowBtn = host.page
+      .locator('app-lobby:not(.ion-page-hidden) ion-header')
+      .getByRole('button', { name: 'More options' })
+    await overflowBtn.evaluate((el: HTMLElement) => el.click())
 
-    // Tap "Leave session" with evaluate for stability
-    const leaveOption = host.page.locator(
-      'ion-action-sheet button:has-text("Leave session")',
-    )
+    const popover = host.page.locator('ion-popover')
+    await popover.waitFor({ state: 'visible', timeout: 5_000 })
+
+    // Tap "Leave session" via text filter (more reliable than aria-label CSS).
+    const leaveOption = popover.getByRole('listitem').filter({ hasText: 'Leave session' })
     await leaveOption.evaluate((el: HTMLElement) => el.click())
 
     // Alert appears

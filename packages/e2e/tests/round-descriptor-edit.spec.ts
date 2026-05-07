@@ -17,8 +17,12 @@ const ROUND_EDIT = {
   // the modal, or page.getByRole('textbox', { name: 'Round title' }).
   titleInputNative: 'app-round-edit-sheet input[aria-label="Round title"]',
   saveBtn: 'app-round-edit-sheet ion-button:has-text("Save")',
-  /** Pencil scoped to the inline results section (latest revealed round). */
-  currentRoundPencil: '.results-descriptor-row ion-button.edit-btn',
+  /**
+   * Pencil scoped to the latest results card header.
+   * Phase 4 (ADR-0039): pencil moved from .results-descriptor-row to
+   * ion-card-header inside the Results ion-card.
+   */
+  currentRoundPencil: 'ion-card.section-card:has(app-vote-results) ion-card-header ion-button.edit-btn',
   /** Pencil in history for round N — `n` is 1-based round number. */
   historyPencil: (n: number) =>
     `app-round-history li:has(.round-label:text-is("Round ${n}")) ion-button.edit-btn`,

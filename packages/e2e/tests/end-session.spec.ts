@@ -2,22 +2,30 @@ import { test, expect } from './fixtures/app.fixture'
 import { LOBBY, expectToast } from './fixtures/helpers'
 
 /**
- * Helper: open action sheet and trigger "End session for everyone" flow.
- * Opens the ⋯ menu, taps End session for everyone, then taps End session
- * in the confirmation alert.
+ * Helper: open ⋯ overflow popover and trigger "End session for everyone" flow.
+ *
+ * Phase 2 (ADR-0039): ActionSheet replaced by ion-popover anchored to the ⋯
+ * button. Items are ion-item elements inside app-overflow-menu.
  */
 async function endSessionForEveryone(
   page: import('@playwright/test').Page,
 ): Promise<void> {
-  const actionBtn = page.locator('ion-header').locator('ion-button').last()
-  await actionBtn.evaluate((el: HTMLElement) => el.click())
+  // Scope to the active session page to avoid strict-mode violations when
+  // Ionic keeps the previous page (app-home) in the DOM during transitions.
+  const url = page.url()
+  const pageScope = url.includes('/estimating')
+    ? 'app-estimating:not(.ion-page-hidden)'
+    : 'app-lobby:not(.ion-page-hidden)'
+  const overflowBtn = page
+    .locator(`${pageScope} ion-header`)
+    .getByRole('button', { name: 'More options' })
+  await overflowBtn.evaluate((el: HTMLElement) => el.click())
 
-  const actionSheet = page.locator('ion-action-sheet')
-  await actionSheet.waitFor({ state: 'visible', timeout: 5_000 })
+  const popover = page.locator('ion-popover')
+  await popover.waitFor({ state: 'visible', timeout: 5_000 })
 
-  const endOption = page.locator(
-    'ion-action-sheet button:has-text("End session for everyone")',
-  )
+  // Use text-based selector to pierce Ionic's web component attribute reflection.
+  const endOption = popover.getByRole('listitem').filter({ hasText: 'End session for everyone' })
   await endOption.evaluate((el: HTMLElement) => el.click())
 
   const alert = page.locator('ion-alert')
@@ -107,37 +115,40 @@ test.describe('End session for everyone', () => {
     await host.page.waitForURL(/\/lobby/)
     await player.page.waitForURL(/\/lobby/)
 
-    // Open action sheet on joiner
-    const actionBtn = player.page.locator('ion-header').locator('ion-button').last()
-    await actionBtn.evaluate((el: HTMLElement) => el.click())
+    // Open overflow popover on joiner (Phase 2: popover replaces action sheet).
+    // Scope to active lobby page — Ionic keeps app-home in DOM during transitions.
+    const overflowBtn = player.page
+      .locator('app-lobby:not(.ion-page-hidden) ion-header')
+      .getByRole('button', { name: 'More options' })
+    await overflowBtn.evaluate((el: HTMLElement) => el.click())
 
-    const actionSheet = player.page.locator('ion-action-sheet')
-    await actionSheet.waitFor({ state: 'visible', timeout: 5_000 })
+    const popover = player.page.locator('ion-popover')
+    await popover.waitFor({ state: 'visible', timeout: 5_000 })
 
-    const endOption = player.page.locator(
-      'ion-action-sheet button:has-text("End session for everyone")',
-    )
+    // "End session for everyone" must not be present for non-host.
+    const endOption = popover.getByRole('listitem').filter({ hasText: 'End session for everyone' })
     await expect(endOption).not.toBeVisible()
 
-    // Dismiss
-    const cancelBtn = player.page.locator('ion-action-sheet button:has-text("Cancel")')
-    await cancelBtn.evaluate((el: HTMLElement) => el.click())
-    await actionSheet.waitFor({ state: 'hidden', timeout: 5_000 })
+    // Dismiss via Escape.
+    await player.page.keyboard.press('Escape')
+    await popover.waitFor({ state: 'hidden', timeout: 5_000 })
   })
 
   test('cancel on confirmation alert keeps session alive', async ({ host }) => {
     await host.createSession()
     await host.page.waitForURL(/\/lobby/)
 
-    const actionBtn = host.page.locator('ion-header').locator('ion-button').last()
-    await actionBtn.evaluate((el: HTMLElement) => el.click())
+    // Open overflow popover (Phase 2: popover replaces action sheet).
+    // Scope to active lobby page — Ionic keeps app-home in DOM during transitions.
+    const overflowBtn = host.page
+      .locator('app-lobby:not(.ion-page-hidden) ion-header')
+      .getByRole('button', { name: 'More options' })
+    await overflowBtn.evaluate((el: HTMLElement) => el.click())
 
-    const actionSheet = host.page.locator('ion-action-sheet')
-    await actionSheet.waitFor({ state: 'visible', timeout: 5_000 })
+    const popover = host.page.locator('ion-popover')
+    await popover.waitFor({ state: 'visible', timeout: 5_000 })
 
-    const endOption = host.page.locator(
-      'ion-action-sheet button:has-text("End session for everyone")',
-    )
+    const endOption = popover.getByRole('listitem').filter({ hasText: 'End session for everyone' })
     await endOption.evaluate((el: HTMLElement) => el.click())
 
     const alert = host.page.locator('ion-alert')

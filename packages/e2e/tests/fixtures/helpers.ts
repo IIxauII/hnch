@@ -83,13 +83,17 @@ export const LOBBY = {
   participantCount: 'ion-accordion ion-item[slot="header"] ion-label',
   hostIcon: '.host-icon',
   startRoundBtn: /Start Round \d+/,
-  /** Results section shown after a round is revealed */
-  resultsSection: 'section.results-section',
-  resultsHeading: 'section.results-section h2',
-  voteGroups: 'section.results-section ion-item-group.group:not(.didnt-vote)',
-  groupCard: 'section.results-section ion-item-group .card',
-  voterChips: 'section.results-section ion-chip ion-label',
-  didntVoteGroup: 'section.results-section ion-item-group.didnt-vote',
+  /**
+   * Results section shown after a round is revealed.
+   * Phase 4 (ADR-0039): replaced `section.results-section` with
+   * `ion-card.section-card` wrapping `app-vote-results`.
+   */
+  resultsSection: 'ion-card.section-card:has(app-vote-results)',
+  resultsHeading: 'ion-card.section-card:has(app-vote-results) ion-card-title',
+  voteGroups: 'app-vote-results ion-item-group.group:not(.didnt-vote)',
+  groupCard: 'app-vote-results ion-item-group .card',
+  voterChips: 'app-vote-results ion-chip ion-label',
+  didntVoteGroup: 'app-vote-results ion-item-group.didnt-vote',
   revoteBtn: 'ion-button:has-text("Re-vote")',
   nextRoundBtn: /Next Round \d+/,
 } as const
@@ -118,7 +122,12 @@ export const ROUND_START = {
 export const ESTIMATING = {
   roundTitle: 'h1.title',
   elapsed: 'p.elapsed',
-  cardGrid: 'div.grid',
+  /**
+   * Phase 3 (ADR-0039): migrated from CSS `div.grid` to `ion-grid.grid`.
+   * Ion-grid renders as flexbox; column count is enforced by flex-basis
+   * CSS at each breakpoint, not CSS grid-template-columns.
+   */
+  cardGrid: 'ion-grid.grid',
   card: (value: string) => `app-estimating ion-card.card:has(ion-card-content:text-is("${value}"))`,
   selectedCard: 'ion-card.card.selected',
   voteDots: 'app-avatar-vote-row .dot',

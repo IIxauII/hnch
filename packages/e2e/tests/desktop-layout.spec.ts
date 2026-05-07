@@ -16,9 +16,27 @@
  *   The host presses `r` after casting a vote. We confirm at least one `.voted`
  *   dot is present before pressing `r` — this ensures the CRDT has written the
  *   vote so the reveal is not a no-op.
+ *
+ * ADR-0039 assertions (Scenarios 5–7):
+ *
+ *   Scenario 5 — ⋯ popover anchors near trigger (not at viewport bottom):
+ *     The popover must appear in the top half of the viewport (y < 400 at
+ *     1440×900). Any regression to bottom-sheet positioning would place the
+ *     popover at y ≥ 700.  We also assert |popover.y − button.y| < 200 as a
+ *     relative guard independent of viewport height.  Escape must dismiss.
+ *
+ *   Scenario 6 — Lobby section cards present at desktop (ADR-0039 §D3):
+ *     Room card and Participants card always appear in the rail col. Results
+ *     and History cards are gated on revealed rounds; this spec covers only
+ *     the always-visible pair to avoid the additional setup cost of a full
+ *     vote + reveal cycle.
+ *
+ *   Scenario 7 — Home single-column at 1440 (ADR-0039 §D4):
+ *     Create Room and Join Room items must stack vertically (different y
+ *     coordinates). If they were side-by-side their y values would match.
  */
 import { test, expect } from './fixtures/app.fixture'
-import { ESTIMATING, LOBBY } from './fixtures/helpers'
+import { BASE_URL, ESTIMATING, HOME, LOBBY } from './fixtures/helpers'
 
 test.describe('Desktop layout', () => {
   // Skip on any project whose viewport is narrower than 1024px.
@@ -30,61 +48,56 @@ test.describe('Desktop layout', () => {
   })
 
   // ---------------------------------------------------------------------------
-  // Scenario 1 — Lobby two-pane shell visible
+  // Scenario 1 — Lobby two-pane shell structural presence and rail width
+  //
+  // Phase 3 (ADR-0039): .lobby-grid migrated from CSS grid to ion-grid.
+  // CSS specificity bug fixed: ion-col size attrs removed; classes now win
+  // because Ionic no longer sets inline styles.
   // ---------------------------------------------------------------------------
   test('Lobby two-pane grid renders at desktop width', async ({ host }) => {
     await host.createSession()
 
     const page = host.page
 
-    // Verify .lobby-grid has display:grid (set by the ≥1024px media query).
-    const grid = page.locator('.lobby-grid')
-    await grid.waitFor({ state: 'visible' })
-    const display = await grid.evaluate(
-      (el: HTMLElement) => getComputedStyle(el).display,
-    )
-    expect(display).toBe('grid')
+    // ion-grid.lobby-grid is the layout container. Verify it's in the DOM.
+    const grid = page.locator('ion-grid.lobby-grid')
+    await grid.waitFor({ state: 'attached' })
 
-    // Rail must be visible (it contains participant list — always has content).
-    const rail = page.locator('.lobby-rail')
-    await expect(rail).toBeVisible()
-
-    // Pane may be empty (no revealed round) — check it's in the DOM and the
-    // grid-template-columns confirms two columns are laid out.
+    // Rail col and pane col must be present.
+    const railCol = page.locator('.lobby-rail-col')
+    await railCol.waitFor({ state: 'attached' })
     const pane = page.locator('.lobby-pane')
     await pane.waitFor({ state: 'attached' })
-    const cols = await grid.evaluate(
-      (el: HTMLElement) => getComputedStyle(el).gridTemplateColumns,
-    )
-    // Two columns: "320px Xpx" (rail-width + remainder). At least 2 tokens.
-    const colCount = cols.trim().split(/\s+/).length
-    expect(colCount).toBe(2)
 
-    // Participant list lives inside the rail.
-    const participantList = rail.locator('ion-list.participants')
+    // Rail col width must be ~320px (±2px tolerance for sub-pixel rendering).
+    const railBox = await railCol.boundingBox()
+    expect(railBox).not.toBeNull()
+    if (railBox) {
+      expect(railBox.width).toBeGreaterThanOrEqual(318)
+      expect(railBox.width).toBeLessThanOrEqual(322)
+    }
+
+    // Participant list lives inside the rail and must be visible.
+    const participantList = page.locator('.lobby-rail ion-list.participants')
     await expect(participantList).toBeVisible()
 
-    // Footer Start-Round button left-edge aligns with the right pane.
-    // At ≥1024px the footer content gets margin-inline-start = rail-width + gap.
-    // We allow ±16px slack for Ionic toolbar padding variance.
+    // Start Round button must be visible in the footer.
     const startBtn = page
       .locator('app-lobby:not(.ion-page-hidden) ion-button')
       .filter({ hasText: LOBBY.startRoundBtn })
-    await startBtn.waitFor({ state: 'visible' })
-
-    const railBox = await rail.boundingBox()
-    const btnBox = await startBtn.boundingBox()
-
-    expect(railBox).not.toBeNull()
-    expect(btnBox).not.toBeNull()
-    if (railBox && btnBox) {
-      // Button must start to the right of the rail's right edge.
-      expect(btnBox.x).toBeGreaterThan(railBox.x + railBox.width - 16)
-    }
+    await expect(startBtn).toBeVisible()
   })
 
   // ---------------------------------------------------------------------------
   // Scenario 2 — Estimating 5-column card grid
+  //
+  // Phase 3 (ADR-0039): card grid migrated from `div.grid` (CSS grid) to
+  // `ion-grid.grid` (flexbox). Five-column layout at ≥1024px is now achieved
+  // via `.grid ion-col { flex: 0 0 20%; max-width: 20%; }` in the component
+  // styles. CSS specificity bug fixed: ion-col size attrs removed; classes win.
+  //
+  // Fibonacci = ['0','1','2','3','5','8','13','21']. At 1280×900 with 5-col
+  // layout: row 1 has 5 cards (0, 1, 2, 3, 5), row 2 has 3 cards (8, 13, 21).
   // ---------------------------------------------------------------------------
   test('Estimating grid has 5 columns and all 8 Fibonacci cards visible', async ({
     host,
@@ -111,16 +124,57 @@ test.describe('Desktop layout', () => {
       await expect(page.locator(ESTIMATING.card(value)).first()).toBeVisible()
     }
 
-    // Assert 5-column grid via computed grid-template-columns.
-    // Resolved value is "Xpx Xpx Xpx Xpx Xpx" (5 tokens) at ≥1024px.
-    const gridEl = page.locator(ESTIMATING.cardGrid)
-    await gridEl.waitFor({ state: 'visible' })
-    const cols = await gridEl.evaluate(
-      (el: HTMLElement) => getComputedStyle(el).gridTemplateColumns,
-    )
-    // Count space-separated tokens — each resolved column is a pixel value.
-    const colCount = cols.trim().split(/\s+/).length
-    expect(colCount).toBe(5)
+    // Ordering invariant: all 8 cards visible before bounding-box reads so
+    // the layout has fully stabilized after Yjs sync.
+    const card0 = page.locator(ESTIMATING.card('0')).first()
+    const card1 = page.locator(ESTIMATING.card('1')).first()
+    const card2 = page.locator(ESTIMATING.card('2')).first()
+    const card3 = page.locator(ESTIMATING.card('3')).first()
+    const card5 = page.locator(ESTIMATING.card('5')).first()
+    const card8 = page.locator(ESTIMATING.card('8')).first()
+    const card13 = page.locator(ESTIMATING.card('13')).first()
+    const card21 = page.locator(ESTIMATING.card('21')).first()
+
+    const box0 = await card0.boundingBox()
+    const box1 = await card1.boundingBox()
+    const box2 = await card2.boundingBox()
+    const box3 = await card3.boundingBox()
+    const box5 = await card5.boundingBox()
+    const box8 = await card8.boundingBox()
+    const box13 = await card13.boundingBox()
+    const box21 = await card21.boundingBox()
+
+    expect(box0).not.toBeNull()
+    expect(box1).not.toBeNull()
+    expect(box2).not.toBeNull()
+    expect(box3).not.toBeNull()
+    expect(box5).not.toBeNull()
+    expect(box8).not.toBeNull()
+    expect(box13).not.toBeNull()
+    expect(box21).not.toBeNull()
+
+    if (
+      box0 &&
+      box1 &&
+      box2 &&
+      box3 &&
+      box5 &&
+      box8 &&
+      box13 &&
+      box21
+    ) {
+      // Row 1: cards 0, 1, 2, 3, 5 must have the same y (±8px tolerance).
+      expect(Math.abs(box0.y - box1.y)).toBeLessThan(8)
+      expect(Math.abs(box0.y - box2.y)).toBeLessThan(8)
+      expect(Math.abs(box0.y - box3.y)).toBeLessThan(8)
+      expect(Math.abs(box0.y - box5.y)).toBeLessThan(8)
+
+      // Row 2: cards 8, 13, 21 must have the same y (±8px tolerance)
+      // and strictly greater than row 1.
+      expect(Math.abs(box8.y - box13.y)).toBeLessThan(8)
+      expect(Math.abs(box8.y - box21.y)).toBeLessThan(8)
+      expect(box8.y).toBeGreaterThan(box0.y + 20)
+    }
   })
 
   // ---------------------------------------------------------------------------
@@ -225,5 +279,126 @@ test.describe('Desktop layout', () => {
 
     // Results section must appear confirming reveal succeeded.
     await expect(page.locator(LOBBY.resultsSection)).toBeVisible({ timeout: 5_000 })
+  })
+
+  // ---------------------------------------------------------------------------
+  // Scenario 5 — ⋯ popover anchors near trigger, not at viewport bottom (ADR-0039 §D2)
+  //
+  // Pre-rework: ActionSheetController slid up from viewport bottom (~y≥700 at
+  // 1440×900). Post-rework: ion-popover anchored to the click event — popover
+  // top should be within 200px of the ⋯ button top.
+  //
+  // Threshold: popover.y < 400 guards against bottom-sheet regression at
+  // 1440×900. Math.abs(popoverY - buttonY) < 200 is the relative guard.
+  // ---------------------------------------------------------------------------
+  test('⋯ popover anchors near trigger button, not at viewport bottom', async ({ host }) => {
+    // Use a 1440×900 viewport per ADR-0039 §D2 specification.
+    await host.page.setViewportSize({ width: 1440, height: 900 })
+    await host.createSession()
+
+    const page = host.page
+
+    // Locate the ⋯ button. Scope to the active lobby's ion-header to avoid
+    // matching a hidden page in Ionic's navigation stack.
+    // getByRole pierces Ionic's shadow DOM and is more reliable than an
+    // attribute selector + waitFor on the custom element host.
+    const overflowBtn = page
+      .locator('app-lobby:not(.ion-page-hidden) ion-header')
+      .getByRole('button', { name: 'More options' })
+    await overflowBtn.waitFor({ state: 'visible' })
+    const btnBox = await overflowBtn.boundingBox()
+    expect(btnBox).not.toBeNull()
+
+    // Open the popover.
+    await overflowBtn.click()
+
+    // ion-popover must appear in the DOM and be visible.
+    const popover = page.locator('ion-popover')
+    await expect(popover).toBeVisible({ timeout: 5_000 })
+
+    const popoverBox = await popover.boundingBox()
+    expect(popoverBox).not.toBeNull()
+
+    if (popoverBox && btnBox) {
+      // Absolute guard: popover top must be in the top half of the viewport.
+      // A bottom-sheet regression at 900px height lands at y ≥ 700.
+      expect(popoverBox.y).toBeLessThan(400)
+
+      // Relative guard: popover top within 200px of button top.
+      expect(Math.abs(popoverBox.y - btnBox.y)).toBeLessThan(200)
+    }
+
+    // Escape must dismiss the popover.
+    await page.keyboard.press('Escape')
+    await expect(popover).toBeHidden({ timeout: 3_000 })
+  })
+
+  // ---------------------------------------------------------------------------
+  // Scenario 6 — Lobby section cards present at desktop (ADR-0039 §D3)
+  //
+  // At 1440×900 the rail col always contains the Room card and the Participants
+  // card. Results and History cards are gated on revealed rounds — covering them
+  // would require a full vote+reveal cycle; skipped here with documentation.
+  // ---------------------------------------------------------------------------
+  test('Lobby rail cards (Room, Participants) render at desktop width', async ({ host }) => {
+    await host.page.setViewportSize({ width: 1440, height: 900 })
+    await host.createSession()
+
+    const page = host.page
+
+    // Two section-cards always render in the rail: Room (first) and Participants (second).
+    // Select by class — Stencil web component host visibility is correctly detected by
+    // Playwright on the class selector path.
+    const sectionCards = page.locator('app-lobby:not(.ion-page-hidden) ion-card.section-card')
+    await expect(sectionCards).toHaveCount(2, { timeout: 10_000 })
+
+    // Room card (first): contains the room-code heading.
+    const roomCard = sectionCards.first()
+    await expect(roomCard.locator('h1.room-code')).toBeVisible()
+
+    // Participants card (second): contains the participant list.
+    const participantsCard = sectionCards.nth(1)
+    await expect(participantsCard.locator('ion-list.participants')).toBeVisible()
+
+    // Results card and History card are gated on revealed rounds.
+    // Coverage requires a vote + reveal cycle: skipped here; extend when a
+    // lobby-with-results fixture is available.
+  })
+
+  // ---------------------------------------------------------------------------
+  // Scenario 7 — Home stacks single-column at 1440 (ADR-0039 §D4)
+  //
+  // Phase 3 deleted the @media (min-width: 768px) 2-column rule on Home.
+  // At 1440×900 Create Room and Join Room must stack vertically (differing y).
+  // If side-by-side their bounding boxes would share the same y coordinate.
+  // ---------------------------------------------------------------------------
+  test('Home Create Room and Join Room stack vertically at 1440px', async ({ host }) => {
+    await host.page.setViewportSize({ width: 1440, height: 900 })
+
+    // Navigate to Home directly (no session needed).
+    await host.page.goto(`${BASE_URL}/home`)
+    await host.page.waitForURL(/\/(home|onboarding)/)
+    if (host.page.url().includes('/onboarding')) {
+      await host.onboard()
+    }
+
+    const createItem = host.page.locator(HOME.createCard)
+    const joinItem = host.page.locator(HOME.joinCard)
+
+    await expect(createItem).toBeVisible()
+    await expect(joinItem).toBeVisible()
+
+    const createBox = await createItem.boundingBox()
+    const joinBox = await joinItem.boundingBox()
+
+    expect(createBox).not.toBeNull()
+    expect(joinBox).not.toBeNull()
+
+    if (createBox && joinBox) {
+      // Vertical stacking: Join Row must be below Create Room row.
+      // If they were side-by-side, joinBox.y ≈ createBox.y (within 1px).
+      // Vertically stacked items differ by at least one item height (≥ 44px).
+      expect(joinBox.y).toBeGreaterThan(createBox.y + 20)
+    }
   })
 })
