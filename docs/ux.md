@@ -2,7 +2,7 @@
 
 Authoritative ref for hnch UX: screen inventory, user flows, per-screen wireframes, interaction patterns, theming. Sibling of [`project.md`](project.md) (what product does) and [`schema.md`](schema.md) (session state shape); `project.md` = *what*, `schema.md` = *state*, this doc = *what user sees and does*.
 
-UX decisions touching architecture cross-linked to governing ADR in [`adr/`](adr/README.md). Conflicts need UX adjustment or superseding ADR — see [`CLAUDE.md`](CLAUDE.md) for convention.
+UX decisions touching architecture cross-linked to governing ADR in [`adr/`](../adr/README.md). Conflicts need UX adjustment or superseding ADR — see [`CLAUDE.md`](../CLAUDE.md) for convention.
 
 ## Table of contents
 
@@ -25,11 +25,11 @@ UX decisions touching architecture cross-linked to governing ADR in [`adr/`](adr
 
 **Defaults make common path one-tap.** Create room → straight to Lobby with Fibonacci scale, no access control. Every setting has sensible default; config available but never required.
 
-**"Leaving" is reversible.** Per [ADR-0012](adr/0012-snapshot-policy.md), relay snapshots live 24h. Back-out, app close, or connectivity loss → rejoin without losing seat — `participantId` (per [ADR-0005](adr/0005-device-identity-capacitor-device-plugin.md)) and vote history persist in Yjs doc. Back button = *navigation*, not *destruction*. Explicit "leave session" / "end session for everyone" in ⋯ menu with destructive confirmation.
+**"Leaving" is reversible.** Per [ADR-0012](../adr/0012-snapshot-policy.md), relay snapshots live 24h. Back-out, app close, or connectivity loss → rejoin without losing seat — `participantId` (per [ADR-0005](../adr/0005-device-identity-capacitor-device-plugin.md)) and vote history persist in Yjs doc. Back button = *navigation*, not *destruction*. Explicit "leave session" / "end session for everyone" in ⋯ menu with destructive confirmation.
 
 **Accessibility, dark mode, safe areas = baseline, not polish.** VoiceOver labels on non-text content (QR codes, card grids). Dark mode follows system pref by default with explicit override. Safe areas via `ion-header` / `ion-footer` — content respects notches, dynamic islands, home indicators.
 
-**Non-goals for v1.** Deliberately out of scope: Team concept from [ADR-0007](adr/0007-teams-local-only.md) — Teams are device-local saved attendee lists with optional session defaults (scale, name), stored in local preferences; they have no v1 UI and no Yjs presence. Full session history (only single "Jump back in" banner for most recent backed-out session). iPad/landscape layouts (iPhone portrait = design target). Offline session creation (relay assumed reachable at Create time).
+**Non-goals for v1.** Deliberately out of scope: Team concept from [ADR-0007](../adr/0007-teams-local-only.md) — Teams are device-local saved attendee lists with optional session defaults (scale, name), stored in local preferences; they have no v1 UI and no Yjs presence. Full session history (only single "Jump back in" banner for most recent backed-out session). iPad/landscape layouts (iPhone portrait = design target). Offline session creation (relay assumed reachable at Create time).
 
 ---
 
@@ -312,7 +312,7 @@ ASCII sketches — communicate structure/hierarchy/component choice, not pixel l
 
 ### 5.1 Onboarding
 
-Shown once, first launch (or after data clear). No back button; no ⋯ menu. Sole job: capture display name for `participantId` (per [ADR-0005](adr/0005-device-identity-capacitor-device-plugin.md)).
+Shown once, first launch (or after data clear). No back button; no ⋯ menu. Sole job: capture display name for `participantId` (per [ADR-0005](../adr/0005-device-identity-capacitor-device-plugin.md)).
 
 ```
 ┌─────────────────────────────────────────┐
@@ -372,7 +372,7 @@ Launchpad for every post-onboarding launch. Two primary entries (Create, Join), 
 └─────────────────────────────────────────┘
 ```
 
-- Jump-back-in banner rendered iff non-expired "last backed-out session" in local state (session id, room code, screen snapshot, last-seen timestamp within 24h per [ADR-0012](adr/0012-snapshot-policy.md)). If relay evicted room, banner shows muted appearance; on tap → toast ("This room has expired") + self-removes.
+- Jump-back-in banner rendered iff non-expired "last backed-out session" in local state (session id, room code, screen snapshot, last-seen timestamp within 24h per [ADR-0012](../adr/0012-snapshot-policy.md)). If relay evicted room, banner shows muted appearance; on tap → toast ("This room has expired") + self-removes.
 - ⋯ menu: **Settings**, **About hnch**.
 
 ### 5.3 Join Room
@@ -408,9 +408,9 @@ From Home Join button, invite URL deep link, or QR scan. Same screen for all thr
 └─────────────────────────────────────────┘
 ```
 
-- Code input: monospace hint, formats `XXX-XXX` live; excludes look-alike chars per [ADR-0008](adr/0008-room-code-format.md).
+- Code input: monospace hint, formats `XXX-XXX` live; excludes look-alike chars per [ADR-0008](../adr/0008-room-code-format.md).
 - Scan QR opens `@capacitor-mlkit/barcode-scanning` modal camera; on success → code written to input, Join activates.
-- Password field materializes inline only after relay confirms code maps to password-protected room (per [ADR-0009](adr/0009-access-control-relay-tokens.md)).
+- Password field materializes inline only after relay confirms code maps to password-protected room (per [ADR-0009](../adr/0009-access-control-relay-tokens.md)).
 - Join disabled until code well-formed. On tap: connects to relay; success → Lobby; failure → inline error (invalid, expired, wrong password).
 
 ### 5.4 Lobby
@@ -677,7 +677,7 @@ From ⋯ → **Session settings** on Lobby / Estimating, or tapping settings-sum
 
 Breakpoints `[0, 0.6, 0.95]` — dismiss by drag down, comfortable view at 60%, near full-screen for pickers.
 
-**Participant roles** — each participant defaults to `voter`. Any participant can toggle their own role to `viewer` (observer) via the role chip on the Estimating screen (see §5.5). Role persists in the Yjs doc for the session duration and survives reconnects. Viewers are excluded from the unanimous auto-reveal denominator; if all online participants are viewers, auto-reveal does not fire. See [ADR-0020](adr/0020-participant-viewer-voter-role.md).
+**Participant roles** — each participant defaults to `voter`. Any participant can toggle their own role to `viewer` (observer) via the role chip on the Estimating screen (see §5.5). Role persists in the Yjs doc for the session duration and survives reconnects. Viewers are excluded from the unanimous auto-reveal denominator; if all online participants are viewers, auto-reveal does not fire. See [ADR-0020](../adr/0020-participant-viewer-voter-role.md).
 
 #### Scale picker (half-sheet)
 
@@ -715,7 +715,7 @@ Radio selection commits immediately (no Save button) — iOS picker idiom. Value
 └─────────────────────────────────────────┘
 ```
 
-Per [ADR-0009](adr/0009-access-control-relay-tokens.md), relay enforces access via opaque tokens. Mid-session change does not evict existing participants — only affects future joins.
+Per [ADR-0009](../adr/0009-access-control-relay-tokens.md), relay enforces access via opaque tokens. Mid-session change does not evict existing participants — only affects future joins.
 
 #### Round-start modal (half-sheet)
 
@@ -813,7 +813,7 @@ Tapping estimate card on Estimating:
 1. Immediate visual feedback: primary-color border, filled background, subtle scale-down-then-up press animation (`transform: scale(0.95)` → `scale(1.0)` over 120ms).
 2. `Haptics.impact({ style: 'Light' })` fires.
 3. Vote written to Yjs doc. Presence (avatar fills on everyone's screen) immediate; *value* hidden until reveal.
-4. Re-tap same card = deselect (vote cleared). Tap different card = replace vote. Both allowed before reveal — see [ADR-0013](adr/0013-round-model-flat-parentroundid.md).
+4. Re-tap same card = deselect (vote cleared). Tap different card = replace vote. Both allowed before reveal — see [ADR-0013](../adr/0013-round-model-flat-parentroundid.md).
 
 ### Reveal animation
 
@@ -932,12 +932,12 @@ Acknowledged gaps and deferred decisions. Not blocking v1 but should be answered
 
 **Re-vote breadcrumb.** On re-voted round, the Lobby results section doesn’t surface attempt count. `parentRoundId` in doc — could show “Round 2 • re-vote of Round 1.” Deferred; resolve when designing optional session-history view (post-v1).
 
-**Reconnecting banner.** Implemented as `ConnectionStatusBannerComponent` (`packages/client/src/app/shared/connection-status-banner.component.ts`), mounted at the top of `<ion-content>` on Lobby and Estimating. Shown when `DocService.reconnecting()` is true (already debounced ~5 s and gated on first-connect — banner does not flash on initial join). Inline `<div role="status" aria-live="polite">` with a `sync-outline` glyph and copy "Reconnecting…", styled with `--ion-color-warning` tokens (light + dark via Ionic palette). Non-blocking — scrolls with content and never overlays the `ion-footer` primary-action area. On reconnect (falling edge of `reconnecting()`), a transient top `ion-toast` (`color="success"`, `duration="1500"`, message "Reconnected") confirms recovery and self-dismisses. Replaces the placeholder bottom toast that previously lived inline on each page. See [ADR-0025](adr/0025-reconnect-backoff.md) §8 for the underlying status-signal contract.
+**Reconnecting banner.** Implemented as `ConnectionStatusBannerComponent` (`packages/client/src/app/shared/connection-status-banner.component.ts`), mounted at the top of `<ion-content>` on Lobby and Estimating. Shown when `DocService.reconnecting()` is true (already debounced ~5 s and gated on first-connect — banner does not flash on initial join). Inline `<div role="status" aria-live="polite">` with a `sync-outline` glyph and copy "Reconnecting…", styled with `--ion-color-warning` tokens (light + dark via Ionic palette). Non-blocking — scrolls with content and never overlays the `ion-footer` primary-action area. On reconnect (falling edge of `reconnecting()`), a transient top `ion-toast` (`color="success"`, `duration="1500"`, message "Reconnected") confirms recovery and self-dismisses. Replaces the placeholder bottom toast that previously lived inline on each page. See [ADR-0025](../adr/0025-reconnect-backoff.md) §8 for the underlying status-signal contract.
 
-**Host-election transition state.** ~~During 5-second debounce ([ADR-0010](adr/0010-host-election.md)) after host drop, joiners have no host. Show status line (“Waiting for a new host…”) or is 5s gap short enough to skip UI?~~ Resolved (issue #43): no inline status during debounce; instead the post-election toast names the prior host (`"Alice disconnected. Bob is now the host."`), so participants understand what happened once the new host is selected. The 5-second silence is accepted as too short for a useful inline indicator.
+**Host-election transition state.** ~~During 5-second debounce ([ADR-0010](../adr/0010-host-election.md)) after host drop, joiners have no host. Show status line (“Waiting for a new host…”) or is 5s gap short enough to skip UI?~~ Resolved (issue #43): no inline status during debounce; instead the post-election toast names the prior host (`"Alice disconnected. Bob is now the host."`), so participants understand what happened once the new host is selected. The 5-second silence is accepted as too short for a useful inline indicator.
 
 **Expired-room error screen.** Dedicated screen vs toast vs inline error on Join Room — currently picked toast + return to Home, but full screen may be warranted if URL deep-link path feels jarring. Revisit after real-device testing.
 
-**Invite URL shape with credentials.** For password-protected rooms, does invite URL embed hint that password required (skip round-trip, show field immediately)? TBD — interacts with [ADR-0009](adr/0009-access-control-relay-tokens.md) opaque-token model.
+**Invite URL shape with credentials.** For password-protected rooms, does invite URL embed hint that password required (skip round-trip, show field immediately)? TBD — interacts with [ADR-0009](../adr/0009-access-control-relay-tokens.md) opaque-token model.
 
 **Liquid Glass adoption timeline.** When (if ever) adopt `@rdlabo/ionic-theme-ios26`. See [§7](#7-theming).

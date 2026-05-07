@@ -4,7 +4,7 @@ A pointing poker app for agile teams. The name is a vowel-dropped spelling of "h
 
 ## Status
 
-Phase 6a shipped (PWA polish, settings, theming, animations, haptics, a11y). Mobile parity closed the remaining CLI-mobile feature gaps. Next up: Phase 6b (native iOS build). See [roadmap.md](roadmap.md) for the phased plan.
+Phase 6a shipped (PWA polish, settings, theming, animations, haptics, a11y). Mobile parity closed the remaining CLI-mobile feature gaps. Next up: Phase 6b (native iOS build). See [roadmap.md](docs/roadmap.md) for the phased plan.
 
 ## Stack
 
@@ -90,13 +90,13 @@ pnpm --filter @xauyxau/hnch build
 
 ## Documentation
 
-- [project.md](project.md) — what the product is, core mechanics, principles.
-- [roadmap.md](roadmap.md) — phased implementation plan and exit bars.
-- [schema.md](schema.md) — Yjs document structure (authoritative).
-- [ux.md](ux.md) — screens, flows, wireframes, interaction patterns.
-- [cli.md](cli.md) — CLI package design and behavior.
-- [angular.md](angular.md) — Angular coding conventions for the client.
-- [ionic.md](ionic.md) — Ionic theming, platform modes, safe areas.
+- [project.md](docs/project.md) — what the product is, core mechanics, principles.
+- [roadmap.md](docs/roadmap.md) — phased implementation plan and exit bars.
+- [schema.md](docs/schema.md) — Yjs document structure (authoritative).
+- [ux.md](docs/ux.md) — screens, flows, wireframes, interaction patterns.
+- [cli.md](docs/cli.md) — CLI package design and behavior.
+- [angular.md](docs/angular.md) — Angular coding conventions for the client.
+- [ionic.md](docs/ionic.md) — Ionic theming, platform modes, safe areas.
 - [adr/README.md](adr/README.md) — ADR index and conventions.
 - [CLAUDE.md](CLAUDE.md) — agent guidance, stack summary, current decisions.
 
