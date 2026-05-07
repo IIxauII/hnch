@@ -15,11 +15,14 @@ import {
   IonCard,
   IonCardContent,
   IonChip,
+  IonCol,
   IonContent,
   IonFooter,
+  IonGrid,
   IonHeader,
   IonIcon,
   IonLabel,
+  IonRow,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone'
@@ -64,11 +67,14 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
     IonCard,
     IonCardContent,
     IonChip,
+    IonCol,
     IonContent,
     IonFooter,
+    IonGrid,
     IonHeader,
     IonIcon,
     IonLabel,
+    IonRow,
     IonTitle,
     IonToolbar,
   ],
@@ -108,49 +114,55 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
       </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding">
-      <app-connection-status-banner />
-      @if (currentRound(); as round) {
-        <h1 class="title">Round {{ roundIndex() }}</h1>
-        @if (round.title) {
-          <p class="descriptor">{{ round.title }}</p>
-        }
+      <ion-grid fixed class="page-grid">
+        <ion-row>
+          <ion-col size="12" sizeMd="10" offsetMd="1" sizeLg="8" offsetLg="2">
+            <app-connection-status-banner />
+            @if (currentRound(); as round) {
+              <h1 class="title">Round {{ roundIndex() }}</h1>
+              @if (round.title) {
+                <p class="descriptor">{{ round.title }}</p>
+              }
 
-        @if (elapsedLabel(); as label) {
-          <p class="elapsed" role="status" aria-live="off">{{ label }}</p>
-        }
+              @if (elapsedLabel(); as label) {
+                <p class="elapsed" role="status" aria-live="off">{{ label }}</p>
+              }
 
-        <app-avatar-vote-row
-          [participants]="onlineVoterParticipants()"
-          [votedIds]="votedIds()"
-        />
+              <app-avatar-vote-row
+                [participants]="onlineVoterParticipants()"
+                [votedIds]="votedIds()"
+              />
 
-        @if (isViewer()) {
-          <p class="observer-notice" role="status" aria-live="polite">
-            You're observing this round
-          </p>
-        } @else {
-          <h2 class="section">Pick your estimate</h2>
+              @if (isViewer()) {
+                <p class="observer-notice" role="status" aria-live="polite">
+                  You're observing this round
+                </p>
+              } @else {
+                <h2 class="section">Pick your estimate</h2>
 
-          <div class="grid" role="group" aria-label="Choose your estimate">
-            @for (card of round.scale.cards; track card) {
-              <ion-card
-                button
-                class="card"
-                [class.selected]="card === myVote()"
-                [attr.aria-pressed]="card === myVote()"
-                [attr.aria-label]="'Card ' + card"
-                (click)="onCardTap(card)"
-              >
-                <ion-card-content class="card-face">
-                  {{ card }}
-                </ion-card-content>
-              </ion-card>
+                <div class="grid" role="group" aria-label="Choose your estimate">
+                  @for (card of round.scale.cards; track card) {
+                    <ion-card
+                      button
+                      class="card"
+                      [class.selected]="card === myVote()"
+                      [attr.aria-pressed]="card === myVote()"
+                      [attr.aria-label]="'Card ' + card"
+                      (click)="onCardTap(card)"
+                    >
+                      <ion-card-content class="card-face">
+                        {{ card }}
+                      </ion-card-content>
+                    </ion-card>
+                  }
+                </div>
+              }
+            } @else {
+              <p class="empty">No active round.</p>
             }
-          </div>
-        }
-      } @else {
-        <p class="empty">No active round.</p>
-      }
+          </ion-col>
+        </ion-row>
+      </ion-grid>
     </ion-content>
 
     @if (isHost()) {

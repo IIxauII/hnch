@@ -11,13 +11,16 @@ import {
   ActionSheetController,
   IonButton,
   IonButtons,
+  IonCol,
   IonContent,
+  IonGrid,
   IonHeader,
   IonIcon,
   IonItem,
   IonLabel,
   IonList,
   IonModal,
+  IonRow,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone'
@@ -75,13 +78,16 @@ import { presentSheet } from '../utils/present-sheet'
   imports: [
     IonButton,
     IonButtons,
+    IonCol,
     IonContent,
+    IonGrid,
     IonHeader,
     IonIcon,
     IonItem,
     IonLabel,
     IonList,
     IonModal,
+    IonRow,
     IonTitle,
     IonToolbar,
     JumpBackInBannerComponent,
@@ -106,51 +112,57 @@ import { presentSheet } from '../utils/present-sheet'
       </ion-toolbar>
     </ion-header>
     <ion-content [fullscreen]="true">
-      <ion-list inset="true" class="actions">
-        @if (jumpBackInSummary(); as summary) {
-          <app-jump-back-in-banner
-            [summary]="summary"
-            [stale]="jumpBackInStale()"
-            [resuming]="resuming()"
-            (resumeRequested)="onResumeJumpBack()"
-          />
-        }
-        <ion-item button="true" detail="true" (click)="onCreateRoom()">
-          <div class="icon-tile icon-tile--accent" slot="start" aria-hidden="true">
-            <ion-icon name="add-outline"></ion-icon>
-          </div>
-          <ion-label>
-            <h2>Create Room</h2>
-            <p>Start a new session</p>
-          </ion-label>
-        </ion-item>
-        <ion-item button="true" detail="true" (click)="onJoinRoom()">
-          <div class="icon-tile icon-tile--neutral" slot="start" aria-hidden="true">
-            <ion-icon name="arrow-forward-outline"></ion-icon>
-          </div>
-          <ion-label>
-            <h2>Join Room</h2>
-            <p>Enter a code or scan QR</p>
-          </ion-label>
-        </ion-item>
-      </ion-list>
-
-      <!-- Password prompt half-sheet -->
-      <ion-modal
-        #passwordModal
-        [isOpen]="passwordPromptOpen()"
-        [breakpoints]="[0, 0.6, 0.95]"
-        [initialBreakpoint]="0.6"
-        (didDismiss)="passwordPromptOpen.set(false)"
-      >
-        <ng-template>
-          <app-password-prompt-sheet
-            (passwordSubmitted)="onPasswordSubmitted($event)"
-            (closeRequested)="onPasswordPromptClosed()"
-          />
-        </ng-template>
-      </ion-modal>
+      <ion-grid fixed class="page-grid">
+        <ion-row>
+          <ion-col size="12" sizeMd="10" offsetMd="1" sizeLg="8" offsetLg="2">
+            <ion-list inset="true" class="actions">
+              @if (jumpBackInSummary(); as summary) {
+                <app-jump-back-in-banner
+                  [summary]="summary"
+                  [stale]="jumpBackInStale()"
+                  [resuming]="resuming()"
+                  (resumeRequested)="onResumeJumpBack()"
+                />
+              }
+              <ion-item button="true" detail="true" (click)="onCreateRoom()">
+                <div class="icon-tile icon-tile--accent" slot="start" aria-hidden="true">
+                  <ion-icon name="add-outline"></ion-icon>
+                </div>
+                <ion-label>
+                  <h2>Create Room</h2>
+                  <p>Start a new session</p>
+                </ion-label>
+              </ion-item>
+              <ion-item button="true" detail="true" (click)="onJoinRoom()">
+                <div class="icon-tile icon-tile--neutral" slot="start" aria-hidden="true">
+                  <ion-icon name="arrow-forward-outline"></ion-icon>
+                </div>
+                <ion-label>
+                  <h2>Join Room</h2>
+                  <p>Enter a code or scan QR</p>
+                </ion-label>
+              </ion-item>
+            </ion-list>
+          </ion-col>
+        </ion-row>
+      </ion-grid>
     </ion-content>
+
+    <!-- Password prompt half-sheet — outside grid so overlay portal is unaffected -->
+    <ion-modal
+      #passwordModal
+      [isOpen]="passwordPromptOpen()"
+      [breakpoints]="[0, 0.6, 0.95]"
+      [initialBreakpoint]="0.6"
+      (didDismiss)="passwordPromptOpen.set(false)"
+    >
+      <ng-template>
+        <app-password-prompt-sheet
+          (passwordSubmitted)="onPasswordSubmitted($event)"
+          (closeRequested)="onPasswordPromptClosed()"
+        />
+      </ng-template>
+    </ion-modal>
   `,
   styles: [
     `

@@ -9,7 +9,9 @@ import {
 import {
   IonBackButton,
   IonButtons,
+  IonCol,
   IonContent,
+  IonGrid,
   IonHeader,
   IonInput,
   IonItem,
@@ -18,6 +20,7 @@ import {
   IonListHeader,
   IonModal,
   IonNote,
+  IonRow,
   IonSelect,
   IonSelectOption,
   IonTitle,
@@ -56,7 +59,9 @@ import { presentSheet } from '../utils/present-sheet'
     ScalePickerSheetComponent,
     IonBackButton,
     IonButtons,
+    IonCol,
     IonContent,
+    IonGrid,
     IonHeader,
     IonInput,
     IonItem,
@@ -65,6 +70,7 @@ import { presentSheet } from '../utils/present-sheet'
     IonListHeader,
     IonModal,
     IonNote,
+    IonRow,
     IonSelect,
     IonSelectOption,
     IonTitle,
@@ -82,152 +88,158 @@ import { presentSheet } from '../utils/present-sheet'
       </ion-toolbar>
     </ion-header>
     <ion-content>
-      <!-- Profile -->
-      <ion-list-header>
-        <ion-label>Profile</ion-label>
-      </ion-list-header>
-      <ion-list lines="inset">
-        <ion-item>
-          <ion-input
-            #displayNameInput
-            label="Display name"
-            labelPlacement="floating"
-            [value]="displayName()"
-            maxlength="40"
-            aria-label="Display name"
-            (ionBlur)="onDisplayNameBlur()"
-          ></ion-input>
-        </ion-item>
-      </ion-list>
+      <ion-grid fixed class="page-grid">
+        <ion-row>
+          <ion-col size="12" sizeMd="10" offsetMd="1" sizeLg="8" offsetLg="2">
+            <!-- Profile -->
+            <ion-list-header>
+              <ion-label>Profile</ion-label>
+            </ion-list-header>
+            <ion-list lines="inset">
+              <ion-item>
+                <ion-input
+                  #displayNameInput
+                  label="Display name"
+                  labelPlacement="floating"
+                  [value]="displayName()"
+                  maxlength="40"
+                  aria-label="Display name"
+                  (ionBlur)="onDisplayNameBlur()"
+                ></ion-input>
+              </ion-item>
+            </ion-list>
 
-      <!-- Appearance -->
-      <ion-list-header>
-        <ion-label>Appearance</ion-label>
-      </ion-list-header>
-      <ion-list lines="inset">
-        <ion-item>
-          <ion-select
-            label="Theme"
-            interface="popover"
-            [value]="themeService.theme()"
-            (ionChange)="onThemeSelected($event.detail.value)"
-          >
-            <ion-select-option value="system">System</ion-select-option>
-            <ion-select-option value="light">Light</ion-select-option>
-            <ion-select-option value="dark">Dark</ion-select-option>
-          </ion-select>
-        </ion-item>
+            <!-- Appearance -->
+            <ion-list-header>
+              <ion-label>Appearance</ion-label>
+            </ion-list-header>
+            <ion-list lines="inset">
+              <ion-item>
+                <ion-select
+                  label="Theme"
+                  interface="popover"
+                  [value]="themeService.theme()"
+                  (ionChange)="onThemeSelected($event.detail.value)"
+                >
+                  <ion-select-option value="system">System</ion-select-option>
+                  <ion-select-option value="light">Light</ion-select-option>
+                  <ion-select-option value="dark">Dark</ion-select-option>
+                </ion-select>
+              </ion-item>
 
-        <ion-item>
-          <ion-select
-            label="Accent"
-            interface="popover"
-            [interfaceOptions]="accentPopoverOptions"
-            [value]="accentService.accent()"
-            (ionChange)="onAccentSelected($event.detail.value)"
-          >
-            @for (entry of accentEntries; track entry.key) {
-              <ion-select-option [value]="entry.key">{{ entry.label }}</ion-select-option>
-            }
-          </ion-select>
-        </ion-item>
-      </ion-list>
+              <ion-item>
+                <ion-select
+                  label="Accent"
+                  interface="popover"
+                  [interfaceOptions]="accentPopoverOptions"
+                  [value]="accentService.accent()"
+                  (ionChange)="onAccentSelected($event.detail.value)"
+                >
+                  @for (entry of accentEntries; track entry.key) {
+                    <ion-select-option [value]="entry.key">{{ entry.label }}</ion-select-option>
+                  }
+                </ion-select>
+              </ion-item>
+            </ion-list>
 
-      <!-- Scales -->
-      <ion-list-header>
-        <ion-label>Scales</ion-label>
-      </ion-list-header>
-      <ion-list lines="inset">
-        <ion-item button (click)="openScalePicker()">
-          <ion-label>Default scale</ion-label>
-          <ion-note slot="end">{{ scaleLabel() }}</ion-note>
-        </ion-item>
-      </ion-list>
+            <!-- Scales -->
+            <ion-list-header>
+              <ion-label>Scales</ion-label>
+            </ion-list-header>
+            <ion-list lines="inset">
+              <ion-item button (click)="openScalePicker()">
+                <ion-label>Default scale</ion-label>
+                <ion-note slot="end">{{ scaleLabel() }}</ion-note>
+              </ion-item>
+            </ion-list>
 
-      <!-- Session Defaults -->
-      <ion-list-header>
-        <ion-label>Session Defaults</ion-label>
-      </ion-list-header>
-      <ion-list lines="inset">
-        <ion-item>
-          <ion-input
-            #defaultSessionNameInput
-            label="Default session name"
-            labelPlacement="floating"
-            placeholder="None"
-            [value]="appPrefs.defaultSessionName() ?? ''"
-            maxlength="60"
-            aria-label="Default session name"
-            (ionBlur)="onDefaultSessionNameBlur()"
-          ></ion-input>
-        </ion-item>
-        <ion-item>
-          <ion-label>Password by default</ion-label>
-          <ion-toggle
-            slot="end"
-            [checked]="appPrefs.defaultPassword()"
-            (ionChange)="onDefaultPasswordToggle($event.detail.checked)"
-            aria-label="Enable password by default"
-          ></ion-toggle>
-        </ion-item>
-      </ion-list>
+            <!-- Session Defaults -->
+            <ion-list-header>
+              <ion-label>Session Defaults</ion-label>
+            </ion-list-header>
+            <ion-list lines="inset">
+              <ion-item>
+                <ion-input
+                  #defaultSessionNameInput
+                  label="Default session name"
+                  labelPlacement="floating"
+                  placeholder="None"
+                  [value]="appPrefs.defaultSessionName() ?? ''"
+                  maxlength="60"
+                  aria-label="Default session name"
+                  (ionBlur)="onDefaultSessionNameBlur()"
+                ></ion-input>
+              </ion-item>
+              <ion-item>
+                <ion-label>Password by default</ion-label>
+                <ion-toggle
+                  slot="end"
+                  [checked]="appPrefs.defaultPassword()"
+                  (ionChange)="onDefaultPasswordToggle($event.detail.checked)"
+                  aria-label="Enable password by default"
+                ></ion-toggle>
+              </ion-item>
+            </ion-list>
 
-      <!-- Advanced -->
-      <ion-list-header>
-        <ion-label>Advanced</ion-label>
-      </ion-list-header>
-      <ion-list lines="inset">
-        <ion-item button (click)="openRelayUrlEditor()">
-          <ion-label>Relay URL</ion-label>
-          <ion-note slot="end">{{ relayUrlLabel() }}</ion-note>
-        </ion-item>
-      </ion-list>
+            <!-- Advanced -->
+            <ion-list-header>
+              <ion-label>Advanced</ion-label>
+            </ion-list-header>
+            <ion-list lines="inset">
+              <ion-item button (click)="openRelayUrlEditor()">
+                <ion-label>Relay URL</ion-label>
+                <ion-note slot="end">{{ relayUrlLabel() }}</ion-note>
+              </ion-item>
+            </ion-list>
 
-      <!-- About -->
-      <ion-list-header>
-        <ion-label>About</ion-label>
-      </ion-list-header>
-      <ion-list lines="inset">
-        <ion-item>
-          <ion-label>Version</ion-label>
-          <ion-note slot="end">{{ version }}</ion-note>
-        </ion-item>
-      </ion-list>
-
-      <!-- Scale picker half-sheet -->
-      <ion-modal
-        #scalePickerModal
-        [isOpen]="scalePickerOpen()"
-        [breakpoints]="[0, 0.6, 0.95]"
-        [initialBreakpoint]="0.6"
-        (didDismiss)="scalePickerOpen.set(false)"
-      >
-        <ng-template>
-          <app-scale-picker-sheet
-            [selectedScaleId]="scalePrefs.defaultScaleId()"
-            (scaleSelected)="onScaleSelected($event)"
-            (closeRequested)="closeScalePicker()"
-          />
-        </ng-template>
-      </ion-modal>
-
-      <!-- Relay URL editor half-sheet -->
-      <ion-modal
-        #relayUrlModal
-        [isOpen]="relayUrlEditorOpen()"
-        [breakpoints]="[0, 0.6, 0.95]"
-        [initialBreakpoint]="0.6"
-        (didDismiss)="relayUrlEditorOpen.set(false)"
-      >
-        <ng-template>
-          <app-relay-url-editor-sheet
-            [currentUrl]="appPrefs.relayHttpUrl()"
-            (saved)="onRelayUrlSaved($event)"
-            (closeRequested)="closeRelayUrlEditor()"
-          />
-        </ng-template>
-      </ion-modal>
+            <!-- About -->
+            <ion-list-header>
+              <ion-label>About</ion-label>
+            </ion-list-header>
+            <ion-list lines="inset">
+              <ion-item>
+                <ion-label>Version</ion-label>
+                <ion-note slot="end">{{ version }}</ion-note>
+              </ion-item>
+            </ion-list>
+          </ion-col>
+        </ion-row>
+      </ion-grid>
     </ion-content>
+
+    <!-- Scale picker half-sheet — outside grid so overlay portal is unaffected -->
+    <ion-modal
+      #scalePickerModal
+      [isOpen]="scalePickerOpen()"
+      [breakpoints]="[0, 0.6, 0.95]"
+      [initialBreakpoint]="0.6"
+      (didDismiss)="scalePickerOpen.set(false)"
+    >
+      <ng-template>
+        <app-scale-picker-sheet
+          [selectedScaleId]="scalePrefs.defaultScaleId()"
+          (scaleSelected)="onScaleSelected($event)"
+          (closeRequested)="closeScalePicker()"
+        />
+      </ng-template>
+    </ion-modal>
+
+    <!-- Relay URL editor half-sheet — outside grid so overlay portal is unaffected -->
+    <ion-modal
+      #relayUrlModal
+      [isOpen]="relayUrlEditorOpen()"
+      [breakpoints]="[0, 0.6, 0.95]"
+      [initialBreakpoint]="0.6"
+      (didDismiss)="relayUrlEditorOpen.set(false)"
+    >
+      <ng-template>
+        <app-relay-url-editor-sheet
+          [currentUrl]="appPrefs.relayHttpUrl()"
+          (saved)="onRelayUrlSaved($event)"
+          (closeRequested)="closeRelayUrlEditor()"
+        />
+      </ng-template>
+    </ion-modal>
   `,
 })
 export class SettingsPage {

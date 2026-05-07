@@ -10,13 +10,16 @@ import { FormControl, ReactiveFormsModule } from '@angular/forms'
 import { Router } from '@angular/router'
 import {
   IonButton,
+  IonCol,
   IonContent,
   IonFooter,
+  IonGrid,
   IonHeader,
   IonInput,
   IonItem,
   IonList,
   IonNote,
+  IonRow,
   IonToolbar,
 } from '@ionic/angular/standalone'
 
@@ -40,13 +43,16 @@ import { BrandMarkComponent } from '../shared/brand-mark.component'
   imports: [
     BrandMarkComponent,
     IonButton,
+    IonCol,
     IonContent,
     IonFooter,
+    IonGrid,
     IonHeader,
     IonInput,
     IonItem,
     IonList,
     IonNote,
+    IonRow,
     IonToolbar,
     ReactiveFormsModule,
   ],
@@ -56,28 +62,34 @@ import { BrandMarkComponent } from '../shared/brand-mark.component'
       <ion-toolbar></ion-toolbar>
     </ion-header>
     <ion-content>
-      <div class="hero">
-        <app-brand-mark [size]="64" />
-        <h1>Welcome to hnch</h1>
-        <p class="subtitle">Pick a name your team will see next to your votes.</p>
-      </div>
+      <ion-grid fixed class="page-grid">
+        <ion-row>
+          <ion-col size="12" sizeMd="10" offsetMd="1" sizeLg="8" offsetLg="2">
+            <div class="hero">
+              <app-brand-mark [size]="64" />
+              <h1>Welcome to hnch</h1>
+              <p class="subtitle">Pick a name your team will see next to your votes.</p>
+            </div>
 
-      <ion-list inset="true">
-        <ion-item lines="none">
-          <ion-input
-            [formControl]="displayName"
-            label="Display name"
-            labelPlacement="stacked"
-            autocapitalize="words"
-            autocomplete="name"
-            enterkeyhint="done"
-            maxlength="40"
-            placeholder="Your name"
-            (keydown.enter)="submit()"
-          ></ion-input>
-        </ion-item>
-        <ion-note class="footer-note">You can change this later in Settings.</ion-note>
-      </ion-list>
+            <ion-list inset="true">
+              <ion-item lines="none">
+                <ion-input
+                  [formControl]="displayName"
+                  label="Display name"
+                  labelPlacement="stacked"
+                  autocapitalize="words"
+                  autocomplete="name"
+                  enterkeyhint="done"
+                  maxlength="40"
+                  placeholder="Your name"
+                  (keydown.enter)="submit()"
+                ></ion-input>
+              </ion-item>
+              <ion-note class="footer-note">You can change this later in Settings.</ion-note>
+            </ion-list>
+          </ion-col>
+        </ion-row>
+      </ion-grid>
     </ion-content>
     <ion-footer>
       <ion-toolbar>
