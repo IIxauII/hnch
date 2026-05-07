@@ -4,7 +4,7 @@
   background: var(--hnch-glass);
   @if $strong { background: var(--hnch-glass-strong); }
 
-  :host-context(.platform-ios) & {
+  @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
     backdrop-filter: saturate(180%) blur(28px);
     -webkit-backdrop-filter: saturate(180%) blur(28px);
   }
