@@ -82,7 +82,7 @@ import { getSheetBreakpoints, getSheetInitialBreakpoint, presentSheet } from '..
       </ion-toolbar>
     </ion-header>
     <ion-content>
-      <div class="settings-shell">
+      <div class="page-shell">
       <!-- Profile -->
       <ion-list-header>
         <ion-label>Profile</ion-label>
@@ -233,21 +233,6 @@ import { getSheetBreakpoints, getSheetInitialBreakpoint, presentSheet } from '..
       </div>
     </ion-content>
   `,
-  styles: [
-    `
-      .settings-shell {
-        --settings-content-max: 720px;
-        max-width: var(--settings-content-max);
-        margin-inline: auto;
-        width: 100%;
-      }
-      @media (min-width: 1024px) {
-        .settings-shell ion-list-header ion-label {
-          font-size: 1.125rem;
-        }
-      }
-    `,
-  ],
 })
 export class SettingsPage {
   protected readonly sheetBreakpoints = getSheetBreakpoints()
