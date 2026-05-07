@@ -12,7 +12,9 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 - **Deprecated** — no longer applies but not actively replaced (rare).
 - **Superseded by ADR-XXXX** — a later ADR replaces this one. The superseded ADR is never deleted — the history is the point.
 
-**Immutability:** once an ADR is Accepted, its body is not edited to reflect a change of direction. A new ADR is written that supersedes it. Small corrections (typos, broken links, clarifications) are fine; substantive change requires a new ADR.
+**Immutability:** once an ADR is Accepted, its body is not edited to reflect a change of direction. A new ADR is written that supersedes it. Small corrections (typos, broken links, clarifications, editorial compaction without altering the decision) are fine; substantive change requires a new ADR.
+
+**Style:** ≤50 lines per ADR. Bullets over prose. Caveman-ultra: drop articles, filler, hedging — keep technical terms exact. Each ADR has Context (bullets), Decision (1–2 sentences), Options (one bullet per option with terse pros/cons), Trade-offs (bullets), Consequences (Easier/Harder/Revisit-when bullets). Steelman alternatives — name the real reason each lost. No strawmen, no exhaustive comparison tables, no narrative paragraphs.
 
 **Template:** see `0000-template.md` — copy it to start a new ADR.
 

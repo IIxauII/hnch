@@ -2,48 +2,35 @@
 
 **Status:** Proposed | Accepted | Deprecated | Superseded by ADR-XXXX
 **Date:** YYYY-MM-DD
-**Deciders:** [Names]
 
 ## Context
 
-What is the situation that forces a decision? What constraints and forces are at play? What problem are we solving?
+- Forcing situation, constraint, or problem.
+- One bullet per fact. No prose paragraphs.
 
 ## Decision
 
-One or two sentences stating clearly what we are doing. The rest of the document explains why.
+One or two sentences. What we do.
 
-## Options Considered
+## Options
 
-### Option A: [Name]
+- **A — [name]:** one-line summary. Pros: x, y. Cons: z.
+- **B — [chosen]:** one-line summary. Pros: x, y. Cons: z.
+- **C — [name]:** one-line summary. Pros: x. Cons: y, z.
 
-| Dimension | Assessment |
-|-----------|------------|
-| Complexity | Low / Medium / High |
-| Cost | [notes] |
-| Scalability | [notes] |
-| Team familiarity | [notes] |
+## Trade-offs
 
-**Pros:** [list]
-**Cons:** [list]
-
-### Option B: [Name]
-
-[Same format]
-
-### Option C: [Name]
-
-[Same format]
-
-## Trade-off Analysis
-
-The key reason we chose the accepted option over the others. Be honest about what we give up.
+- What we give up by picking the chosen option.
+- One bullet per cost.
 
 ## Consequences
 
-What becomes easier as a result of this decision. What becomes harder. What we'll need to revisit, and under what conditions.
+- Easier: x.
+- Harder: y.
+- Revisit when: z.
 
-## Action Items
-
-- [ ] Follow-up implementation step
-- [ ] Documentation or communication task
-- [ ] Revisit trigger to watch for
+<!--
+Style: ≤50 lines total. Bullets over prose. Caveman-ultra: drop articles, filler, hedging. Technical terms exact.
+Steelman alternatives — name the real reason each lost. No strawmen.
+Action Items section optional; only include if there are concrete follow-ups not captured in Consequences.
+-->

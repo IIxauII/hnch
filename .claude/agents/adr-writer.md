@@ -57,14 +57,18 @@ Key facts you must respect:
 6. **Update** `adr/README.md` index with the new row.
 7. **Set status** to `Proposed` initially. Only the user / orchestrator promotes to `Accepted`.
 
-## Quality Bar
+## Style — HARD CAP 50 LINES
 
-- **Context:** explain the situation forcing the decision. A reader six months from now should understand what was at stake.
-- **Decision:** one or two crisp sentences. The rest of the doc explains why.
-- **Options Considered:** at least two, ideally three. Each with the dimensions table from the template. Don't strawman alternatives — steelman them.
-- **Trade-off Analysis:** name the cost of the chosen option. "Easier X, harder Y."
-- **Consequences:** what becomes easier, what becomes harder, what we'll need to revisit and when.
-- **Action Items:** concrete follow-ups, including documentation updates (`schema.md`, `CLAUDE.md` "Current decisions at a glance").
+ADRs are terse. Bullets over prose. Caveman-ultra: drop articles, filler, hedging. Technical terms exact. No narrative paragraphs, no exhaustive option-comparison tables.
+
+- **Context:** bullet list of forcing facts/constraints. No paragraphs.
+- **Decision:** 1–2 sentences. What we do.
+- **Options:** one bullet per option — `**X — [name]:** summary. Pros: a, b. Cons: c.` Steelman, don't strawman. 2–4 options max.
+- **Trade-offs:** bullets naming what we give up.
+- **Consequences:** `Easier: x. Harder: y. Revisit when: z.`
+- **Action Items:** OPTIONAL. Include only when concrete follow-ups exist not already implied by Consequences. Skip otherwise.
+
+If you can't fit it in 50 lines, you're padding. Cut.
 
 ## Rules
 
