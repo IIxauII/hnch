@@ -19,7 +19,6 @@ import {
   IonAvatar,
   IonButton,
   IonButtons,
-  IonChip,
   IonCol,
   IonContent,
   IonFooter,
@@ -35,6 +34,8 @@ import {
   IonModal,
   IonNote,
   IonRow,
+  IonSegment,
+  IonSegmentButton,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone'
@@ -109,7 +110,6 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
     IonAvatar,
     IonButton,
     IonButtons,
-    IonChip,
     IonCol,
     IonContent,
     IonFooter,
@@ -125,6 +125,8 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
     IonModal,
     IonNote,
     IonRow,
+    IonSegment,
+    IonSegmentButton,
     IonTitle,
     IonToolbar,
     QrDisplaySheetComponent,
@@ -276,15 +278,19 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
                             }
                           </ion-label>
                           @if (p.id === myId()) {
-                            <ion-chip
+                            <ion-segment
                               slot="end"
-                              [color]="isParticipantViewer(p) ? 'medium' : 'primary'"
-                              [attr.aria-label]="isParticipantViewer(p) ? 'You are observing. Tap to switch to voter.' : 'You are a voter. Tap to switch to observer.'"
-                              [attr.aria-pressed]="isParticipantViewer(p)"
-                              (click)="onToggleRole()"
+                              [value]="myRole()"
+                              (ionChange)="onSegmentChange($event)"
+                              aria-label="Role"
                             >
-                              <ion-label>{{ isParticipantViewer(p) ? 'Observing' : 'Voter' }}</ion-label>
-                            </ion-chip>
+                              <ion-segment-button value="voter">
+                                <ion-label>Voter</ion-label>
+                              </ion-segment-button>
+                              <ion-segment-button value="viewer">
+                                <ion-label>Viewer</ion-label>
+                              </ion-segment-button>
+                            </ion-segment>
                           } @else if (isParticipantViewer(p)) {
                             <ion-note slot="end" aria-label="Observer">observer</ion-note>
                           } @else if (!onlineIds().has(p.id)) {
@@ -570,6 +576,14 @@ export class LobbyPage {
     () => this.docService.settings()?.hostParticipantId ?? null,
   )
 
+  /** Current user's role for segment binding. */
+  protected readonly myRole = computed(() => {
+    const id = this.myId()
+    if (!id) return undefined
+    const me = this.activeParticipants().find((p) => p.id === id)
+    return me ? participantRole(me) : undefined
+  })
+
   /** True when a participant's effective role is `'viewer'`. */
   protected isParticipantViewer(p: { role?: 'voter' | 'viewer' }): boolean {
     return participantRole(p) === 'viewer'
@@ -581,6 +595,14 @@ export class LobbyPage {
     if (!id) return
     this.haptic.impactLight()
     this.docService.toggleRole(id)
+  }
+
+  /** Segment change handler for role toggle. */
+  protected onSegmentChange(event: any): void {
+    const newRole = event.detail?.value as string | undefined
+    if (newRole && newRole !== this.myRole()) {
+      this.onToggleRole()
+    }
   }
 
   protected readonly isHost = computed(() => {
