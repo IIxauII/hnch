@@ -285,7 +285,7 @@ export class ScalePickerSheetComponent {
   protected readonly editorOpen = signal(false);
 
   /** Custom scale being edited (undefined = create mode). */
-  protected readonly editingCustomScale = signal<CustomScale | undefined>();
+  protected readonly editingCustomScale = signal<CustomScale | undefined>(undefined);
   protected readonly customEditorOpen = signal(false);
 
   protected readonly formatId = formatScaleId;
