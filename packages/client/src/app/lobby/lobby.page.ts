@@ -376,9 +376,8 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
 
     <ion-modal
       #roundStartModal
+      class="hnch-form-modal"
       [isOpen]="roundStartOpen()"
-      [breakpoints]="[0, 0.6, 0.95]"
-      [initialBreakpoint]="0.6"
       (didDismiss)="roundStartOpen.set(false)"
     >
       <ng-template>
@@ -391,9 +390,8 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
 
     <ion-modal
       #sessionSettingsModal
+      class="hnch-form-modal"
       [isOpen]="sessionSettingsOpen()"
-      [breakpoints]="[0, 0.6, 0.95]"
-      [initialBreakpoint]="0.6"
       (didDismiss)="sessionSettingsOpen.set(false)"
     >
       <ng-template>
@@ -422,9 +420,8 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
     </ion-modal>
 
     <ion-modal
+      class="hnch-form-modal"
       [isOpen]="roundEditOpen()"
-      [breakpoints]="[0, 0.6, 0.95]"
-      [initialBreakpoint]="0.6"
       (didDismiss)="onRoundEditDismiss()"
     >
       <ng-template>

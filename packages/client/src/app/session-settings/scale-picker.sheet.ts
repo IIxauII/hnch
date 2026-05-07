@@ -208,9 +208,8 @@ import { ScaleEditorSheetComponent } from './scale-editor.sheet'
     <!-- Builtin preset card-toggle editor -->
     <ion-modal
       #editorModal
+      class="hnch-form-modal"
       [isOpen]="editorOpen()"
-      [breakpoints]="[0, 0.6, 0.95]"
-      [initialBreakpoint]="0.6"
       (didDismiss)="editorOpen.set(false)"
     >
       <ng-template>
@@ -226,9 +225,8 @@ import { ScaleEditorSheetComponent } from './scale-editor.sheet'
     <!-- Custom scale creator / editor -->
     <ion-modal
       #customEditorModal
+      class="hnch-form-modal"
       [isOpen]="customEditorOpen()"
-      [breakpoints]="[0, 0.6, 1]"
-      [initialBreakpoint]="1"
       (didDismiss)="customEditorOpen.set(false)"
     >
       <ng-template>

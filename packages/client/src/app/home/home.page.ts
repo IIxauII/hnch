@@ -151,9 +151,8 @@ import { presentSheet } from '../utils/present-sheet'
     <!-- Password prompt half-sheet — outside grid so overlay portal is unaffected -->
     <ion-modal
       #passwordModal
+      class="hnch-form-modal"
       [isOpen]="passwordPromptOpen()"
-      [breakpoints]="[0, 0.6, 0.95]"
-      [initialBreakpoint]="0.6"
       (didDismiss)="passwordPromptOpen.set(false)"
     >
       <ng-template>

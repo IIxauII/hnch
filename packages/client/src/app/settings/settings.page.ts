@@ -227,9 +227,8 @@ import { presentSheet } from '../utils/present-sheet'
     <!-- Relay URL editor half-sheet — outside grid so overlay portal is unaffected -->
     <ion-modal
       #relayUrlModal
+      class="hnch-form-modal"
       [isOpen]="relayUrlEditorOpen()"
-      [breakpoints]="[0, 0.6, 0.95]"
-      [initialBreakpoint]="0.6"
       (didDismiss)="relayUrlEditorOpen.set(false)"
     >
       <ng-template>
