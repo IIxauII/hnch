@@ -10,6 +10,8 @@
   },
   "scripts": {
     "preinstall": "npx -y only-allow pnpm",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
     "lint": "pnpm -r --if-present run lint",
     "test": "pnpm -r --if-present run test",
     "build": "pnpm -r --if-present run build",
@@ -25,6 +27,7 @@
     "release:dry": "for p in shared relay client cli; do pnpm exec semantic-release --extends ./packages/$p/.releaserc.json --dry-run --no-ci || exit 1; done"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.14",
     "@semantic-release/changelog": "6.0.3",
     "@semantic-release/exec": "7.1.0",
     "@semantic-release/git": "10.0.1",
