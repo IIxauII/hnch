@@ -107,7 +107,6 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
               <section class="page-section" aria-label="Room code">
                 <header class="page-section-header">
                   <h2 class="page-section-title">Room code</h2>
-                  <span class="page-section-meta">Enter the 6-character code your host shared.</span>
                 </header>
                 <div class="page-section-body">
                   <app-segmented-code-input #codeInput [formControl]="codeControl" />
