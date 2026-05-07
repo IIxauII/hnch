@@ -88,7 +88,7 @@ import { ScalePreferenceService } from '../core/scale-preference.service'
         display: block;
         margin-top: 0.75rem;
         font-size: 0.8rem;
-        color: var(--ion-color-medium);
+        color: var(--ion-color-step-600);
       }
     `,
   ],

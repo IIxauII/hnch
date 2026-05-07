@@ -441,7 +441,7 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
         background: transparent;
         border: none;
         padding: 0;
-        color: var(--ion-color-medium);
+        color: var(--ion-color-step-600);
         font: inherit;
         cursor: pointer;
         text-align: left;
@@ -458,23 +458,23 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       .participants-summary {
         margin: 0.125rem 0 0;
         font-size: 0.85rem;
-        color: var(--ion-color-medium);
+        color: var(--ion-color-step-600);
       }
       .swipe-hint {
         margin: 0.25rem 1rem 0.25rem;
         font-size: 0.8rem;
-        color: var(--ion-color-medium);
+        color: var(--ion-color-step-600);
       }
       ion-avatar ion-icon {
         font-size: 2rem;
-        color: var(--ion-color-medium);
+        color: var(--ion-color-step-600);
       }
       ion-item.offline ion-label {
-        color: var(--ion-color-medium);
+        color: var(--ion-color-step-600);
       }
       .host-icon {
         font-size: 1rem;
-        color: var(--ion-color-medium);
+        color: var(--ion-color-step-600);
         vertical-align: middle;
         margin-inline-start: 0.25rem;
       }
@@ -496,10 +496,10 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       }
       .results-descriptor {
         margin: 0;
-        color: var(--ion-color-medium);
+        color: var(--ion-color-step-600);
       }
       .results-descriptor.placeholder {
-        color: var(--ion-color-medium);
+        color: var(--ion-color-step-600);
         font-style: italic;
       }
       .edit-btn {

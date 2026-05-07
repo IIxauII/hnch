@@ -44,7 +44,7 @@ import type { ParticipantSnapshot } from '@hnch/shared'
         width: 0.75rem;
         height: 0.75rem;
         border-radius: 50%;
-        border: 1.5px solid var(--ion-color-medium);
+        border: 1.5px solid var(--ion-color-step-600);
         background: transparent;
       }
       .dot.voted {
@@ -52,7 +52,7 @@ import type { ParticipantSnapshot } from '@hnch/shared'
         border-color: var(--ion-color-primary);
       }
       .count {
-        color: var(--ion-color-medium);
+        color: var(--ion-color-step-600);
         font-size: 0.95rem;
       }
     `,

@@ -155,7 +155,7 @@ import { formatScaleId } from '@hnch/shared'
   styles: [
     `
       .value {
-        color: var(--ion-color-medium);
+        color: var(--ion-color-step-600);
         font-size: 0.95rem;
         margin-right: 0.25rem;
       }

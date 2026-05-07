@@ -61,12 +61,12 @@ export interface JumpBackInSummary {
       ion-item h2 {
         font-size: 17px;
         font-weight: 600;
-        color: var(--hnch-text);
+        color: var(--ion-text-color);
         margin: 0 0 2px;
       }
       ion-item p {
         font-size: 14px;
-        color: var(--hnch-muted);
+        color: var(--ion-color-step-600);
         margin: 0;
       }
       .icon-tile {

@@ -79,7 +79,7 @@ interface HistoryEntry {
       .history-heading {
         font-size: 0.875rem;
         font-weight: 600;
-        color: var(--ion-color-medium);
+        color: var(--ion-color-step-600);
         margin: 0 0 0.5rem;
         text-transform: uppercase;
         letter-spacing: 0.05em;
@@ -91,7 +91,7 @@ interface HistoryEntry {
       }
       .history-item {
         font-size: 0.875rem;
-        color: var(--ion-color-medium);
+        color: var(--ion-color-step-600);
         padding: 0.25rem 0;
         border-top: 1px solid var(--ion-color-step-100, rgba(0, 0, 0, 0.06));
       }
@@ -100,12 +100,12 @@ interface HistoryEntry {
       }
       .round-label {
         font-weight: 600;
-        color: var(--ion-color-medium);
+        color: var(--ion-color-step-600);
       }
       .round-title,
       .round-summary,
       .round-elapsed {
-        color: var(--ion-color-medium);
+        color: var(--ion-color-step-600);
       }
       .edit-btn {
         --padding-start: 0.25rem;

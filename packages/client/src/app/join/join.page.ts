@@ -150,14 +150,14 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
       .page-subtitle {
         margin: 0 4px 16px;
         font-size: 15px;
-        color: var(--hnch-muted);
+        color: var(--ion-color-step-600);
         letter-spacing: -0.2px;
       }
       .code-card {
         background: var(--ion-background-color-step-50);
         border-radius: 16px;
         padding: 20px 18px;
-        border: 0.5px solid var(--hnch-sep);
+        border: 0.5px solid var(--ion-color-step-200);
         display: flex;
         flex-direction: column;
         gap: 12px;
@@ -165,7 +165,7 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
       .card-label {
         font-size: 12px;
         font-weight: 600;
-        color: var(--hnch-muted);
+        color: var(--ion-color-step-600);
         text-transform: uppercase;
         letter-spacing: 0.6px;
       }
@@ -180,12 +180,12 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
       ion-item h2 {
         font-size: 16px;
         font-weight: 600;
-        color: var(--hnch-text);
+        color: var(--ion-text-color);
         margin: 0 0 2px;
       }
       ion-item p {
         font-size: 13px;
-        color: var(--hnch-muted);
+        color: var(--ion-color-step-600);
         margin: 0;
       }
       .icon-tile {
@@ -205,7 +205,7 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
       .list-footer {
         margin: 4px 16px 0;
         font-size: 13px;
-        color: var(--hnch-muted);
+        color: var(--ion-color-step-600);
       }
       .submit-wrap {
         padding: 28px 0 24px;

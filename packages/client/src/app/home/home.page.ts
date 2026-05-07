@@ -170,12 +170,12 @@ import { presentSheet } from '../utils/present-sheet'
       ion-item h2 {
         font-size: 17px;
         font-weight: 600;
-        color: var(--hnch-text);
+        color: var(--ion-text-color);
         margin: 0 0 2px;
       }
       ion-item p {
         font-size: 14px;
-        color: var(--hnch-muted);
+        color: var(--ion-color-step-600);
         margin: 0;
       }
       .icon-tile {
@@ -192,8 +192,8 @@ import { presentSheet } from '../utils/present-sheet'
         color: var(--hnch-accent-ink);
       }
       .icon-tile--neutral {
-        background: var(--hnch-fill);
-        color: var(--hnch-text);
+        background: var(--ion-background-color-step-100);
+        color: var(--ion-text-color);
       }
       .icon-tile ion-icon {
         font-size: 20px;

@@ -117,26 +117,26 @@ import { BrandMarkComponent } from '../shared/brand-mark.component'
         font-weight: 700;
         letter-spacing: 0.36px;
         line-height: 1.05;
-        color: var(--hnch-text);
+        color: var(--ion-text-color);
       }
       .subtitle {
         margin: 0;
         font-size: 17px;
         letter-spacing: -0.4px;
-        color: var(--hnch-muted);
+        color: var(--ion-color-step-600);
       }
       ion-list {
         background: transparent;
       }
       ion-item {
         --background: var(--ion-background-color-step-50);
-        --border-color: var(--hnch-sep);
+        --border-color: var(--ion-color-step-200);
       }
       .footer-note {
         display: block;
         padding: 8px 16px 0;
         font-size: 13px;
-        color: var(--hnch-muted);
+        color: var(--ion-color-step-600);
       }
       ion-footer ion-toolbar {
         --background: transparent;

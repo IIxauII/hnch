@@ -178,20 +178,20 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
       }
       .descriptor {
         margin: 0 0 1rem;
-        color: var(--ion-color-medium);
+        color: var(--ion-color-step-600);
       }
       .elapsed {
         font-size: 2rem;
         font-weight: 600;
         font-variant-numeric: tabular-nums;
         margin: 0.5rem 0 1rem;
-        color: var(--ion-color-medium);
+        color: var(--ion-color-step-600);
       }
       .section {
         margin: 1.5rem 0 0.5rem;
         font-size: 1rem;
         font-weight: 600;
-        color: var(--ion-color-medium);
+        color: var(--ion-color-step-600);
       }
       .grid {
         display: grid;
@@ -221,14 +221,14 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
         }
       }
       .empty {
-        color: var(--ion-color-medium);
+        color: var(--ion-color-step-600);
         margin: 2rem 0;
         text-align: center;
       }
       .observer-notice {
         margin: 2rem 0;
         text-align: center;
-        color: var(--ion-color-medium);
+        color: var(--ion-color-step-600);
         font-size: 1.1rem;
       }
     `,

@@ -81,14 +81,14 @@ const TILE_COUNT = 6
       flex: 1;
       height: 48px;
       border-radius: 10px;
-      background: var(--hnch-fill);
+      background: var(--ion-background-color-step-100);
       border: 1.5px solid transparent;
       outline: none;
       text-align: center;
       font-family: 'SF Mono', 'Fira Mono', 'Roboto Mono', monospace;
       font-size: 26px;
       font-weight: 600;
-      color: var(--hnch-text);
+      color: var(--ion-text-color);
       text-transform: uppercase;
       caret-color: transparent;
       transition: border-color 0.15s ease;
@@ -104,7 +104,7 @@ const TILE_COUNT = 6
     .separator {
       flex: 0 0 8px;
       height: 2px;
-      background: var(--hnch-muted-2);
+      background: var(--ion-color-step-400);
       border-radius: 1px;
     }
   `],

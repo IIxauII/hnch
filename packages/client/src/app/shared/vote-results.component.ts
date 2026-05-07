@@ -139,7 +139,7 @@ interface VoteGroup {
       }
       .group.didnt-vote .card,
       .group.didnt-vote .count {
-        color: var(--ion-color-medium);
+        color: var(--ion-color-step-600);
       }
       .group.didnt-vote .card {
         font-weight: 600;
@@ -155,7 +155,7 @@ interface VoteGroup {
         font-weight: 700;
       }
       .count {
-        color: var(--ion-color-medium);
+        color: var(--ion-color-step-600);
       }
       .chips {
         display: flex;
@@ -164,7 +164,7 @@ interface VoteGroup {
       }
       .elapsed {
         margin: 0.75rem 0 0;
-        color: var(--ion-color-medium);
+        color: var(--ion-color-step-600);
         font-size: 0.95rem;
       }
       .stats {
@@ -175,7 +175,7 @@ interface VoteGroup {
         align-items: center;
       }
       .stat {
-        color: var(--ion-color-medium);
+        color: var(--ion-color-step-600);
         font-size: 0.875rem;
       }
       .stats .spread-chip {

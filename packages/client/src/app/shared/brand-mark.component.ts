@@ -45,7 +45,7 @@ import {
       display: flex;
       align-items: center;
       justify-content: center;
-      background: var(--hnch-text);
+      background: var(--ion-text-color);
       color: var(--ion-background-color);
       font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
       font-weight: 700;
