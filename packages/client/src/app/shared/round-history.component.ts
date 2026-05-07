@@ -7,7 +7,14 @@ import {
 } from '@angular/core'
 import { formatElapsed } from '@hnch/shared'
 import type { ParticipantSnapshot, Round } from '@hnch/shared'
-import { IonButton, IonIcon } from '@ionic/angular/standalone'
+import {
+  IonAccordion,
+  IonAccordionGroup,
+  IonButton,
+  IonIcon,
+  IonItem,
+  IonLabel,
+} from '@ionic/angular/standalone'
 import { addIcons } from 'ionicons'
 import { pencilOutline } from 'ionicons/icons'
 
@@ -34,37 +41,60 @@ interface HistoryEntry {
  */
 @Component({
   selector: 'app-round-history',
-  imports: [IonButton, IonIcon],
+  imports: [IonAccordion, IonAccordionGroup, IonButton, IonIcon, IonItem, IonLabel],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (entries().length > 0) {
       <section class="history" aria-label="Round history">
         <h3 class="history-heading">History</h3>
-        <ul class="history-list" role="list">
+        <ion-accordion-group
+          [multiple]="false"
+          expand="inset"
+          class="history-accordion"
+        >
           @for (entry of entries(); track entry.roundNumber) {
-            <li class="history-item">
-              <span class="round-label">Round {{ entry.roundNumber }}</span>
-              @if (entry.title) {
-                <span class="round-title">: {{ entry.title }}</span>
-              }
-              <span class="round-summary"> — {{ entry.summary }}</span>
-              @if (entry.elapsed) {
-                <span class="round-elapsed"> — {{ entry.elapsed }}</span>
-              }
-              @if (isHost()) {
-                <ion-button
-                  fill="clear"
-                  size="small"
-                  class="edit-btn"
-                  [attr.aria-label]="'Edit round ' + entry.roundNumber + ' descriptor'"
-                  (click)="editTriggered.emit(entry.roundId)"
-                >
-                  <ion-icon name="pencil-outline" slot="icon-only" />
-                </ion-button>
-              }
-            </li>
+            <ion-accordion [value]="entry.roundId">
+              <ion-item slot="header" [lines]="'none'">
+                <ion-label>
+                  <div class="round-header">
+                    <span class="round-label">Round {{ entry.roundNumber }}</span>
+                    @if (entry.title) {
+                      <span class="round-title">: {{ entry.title }}</span>
+                    }
+                    <span class="round-summary"> — {{ entry.summary }}</span>
+                    @if (entry.elapsed) {
+                      <span class="round-elapsed"> — {{ entry.elapsed }}</span>
+                    }
+                  </div>
+                </ion-label>
+                @if (isHost()) {
+                  <ion-button
+                    fill="clear"
+                    size="small"
+                    class="edit-btn"
+                    slot="end"
+                    [attr.aria-label]="'Edit round ' + entry.roundNumber + ' descriptor'"
+                    (click)="$event.stopPropagation(); editTriggered.emit(entry.roundId)"
+                  >
+                    <ion-icon name="pencil-outline" slot="icon-only" />
+                  </ion-button>
+                }
+              </ion-item>
+              <div class="accordion-body">
+                <div class="vote-detail">
+                  <p class="detail-label">Vote Distribution:</p>
+                  <p class="detail-value">{{ entry.summary }}</p>
+                </div>
+                @if (entry.elapsed) {
+                  <div class="vote-detail">
+                    <p class="detail-label">Elapsed:</p>
+                    <p class="detail-value">{{ entry.elapsed }}</p>
+                  </div>
+                }
+              </div>
+            </ion-accordion>
           }
-        </ul>
+        </ion-accordion-group>
       </section>
     }
   `,
@@ -84,19 +114,14 @@ interface HistoryEntry {
         text-transform: uppercase;
         letter-spacing: 0.05em;
       }
-      .history-list {
-        list-style: none;
-        margin: 0;
-        padding: 0;
+      .history-accordion {
+        --ion-accordion-background: transparent;
       }
-      .history-item {
+      .round-header {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem;
         font-size: 0.875rem;
-        color: var(--ion-color-step-600);
-        padding: 0.25rem 0;
-        border-top: 1px solid var(--ion-color-step-100, rgba(0, 0, 0, 0.06));
-      }
-      .history-item:first-child {
-        border-top: none;
       }
       .round-label {
         font-weight: 600;
@@ -111,7 +136,25 @@ interface HistoryEntry {
         --padding-start: 0.25rem;
         --padding-end: 0.25rem;
         height: 1.25rem;
-        vertical-align: middle;
+      }
+      .accordion-body {
+        padding: 1rem 1.5rem;
+        font-size: 0.875rem;
+      }
+      .vote-detail {
+        margin-bottom: 0.5rem;
+      }
+      .vote-detail:last-child {
+        margin-bottom: 0;
+      }
+      .detail-label {
+        margin: 0 0 0.25rem;
+        font-weight: 600;
+        color: var(--ion-color-step-600);
+      }
+      .detail-value {
+        margin: 0;
+        color: var(--ion-color-step-500);
       }
     `,
   ],

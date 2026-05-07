@@ -25,13 +25,25 @@ import type { Round } from '@hnch/shared'
 vi.mock('@ionic/angular/standalone', async () => {
   const { Component: Comp } = await import('@angular/core')
 
+  @Comp({ selector: 'ion-accordion', template: '<ng-content></ng-content>', standalone: true })
+  class IonAccordion {}
+
+  @Comp({ selector: 'ion-accordion-group', template: '<ng-content></ng-content>', standalone: true })
+  class IonAccordionGroup {}
+
   @Comp({ selector: 'ion-button', template: '', standalone: true })
   class IonButton {}
 
   @Comp({ selector: 'ion-icon', template: '', standalone: true })
   class IonIcon {}
 
-  return { IonButton, IonIcon }
+  @Comp({ selector: 'ion-item', template: '<ng-content></ng-content>', standalone: true })
+  class IonItem {}
+
+  @Comp({ selector: 'ion-label', template: '<ng-content></ng-content>', standalone: true })
+  class IonLabel {}
+
+  return { IonAccordion, IonAccordionGroup, IonButton, IonIcon, IonItem, IonLabel }
 })
 
 vi.mock('ionicons', () => ({ addIcons: vi.fn() }))
