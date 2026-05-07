@@ -344,22 +344,26 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       <ion-footer>
         <ion-toolbar>
           @if (lastRevealedRound()) {
-            <div class="footer-row">
-              <ion-button
-                expand="block"
-                fill="outline"
-                (click)="onRevote()"
-              >
-                Re-vote
-              </ion-button>
-              <ion-button
-                expand="block"
-                color="primary"
-                (click)="openRoundStart()"
-              >
-                Next Round {{ nextRoundNumber() }}
-              </ion-button>
-            </div>
+            <ion-row class="footer-row">
+              <ion-col size="6">
+                <ion-button
+                  expand="block"
+                  fill="outline"
+                  (click)="onRevote()"
+                >
+                  Re-vote
+                </ion-button>
+              </ion-col>
+              <ion-col size="6">
+                <ion-button
+                  expand="block"
+                  color="primary"
+                  (click)="openRoundStart()"
+                >
+                  Next Round {{ nextRoundNumber() }}
+                </ion-button>
+              </ion-col>
+            </ion-row>
           } @else {
             <ion-button
               expand="block"
@@ -516,9 +520,6 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
         --padding-end: 0.25rem;
       }
       .footer-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 0.5rem;
         padding: 0.25rem 0.5rem;
       }
     `,

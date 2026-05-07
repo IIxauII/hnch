@@ -140,22 +140,26 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
               } @else {
                 <h2 class="section">Pick your estimate</h2>
 
-                <div class="grid" role="group" aria-label="Choose your estimate">
-                  @for (card of round.scale.cards; track card) {
-                    <ion-card
-                      button
-                      class="card"
-                      [class.selected]="card === myVote()"
-                      [attr.aria-pressed]="card === myVote()"
-                      [attr.aria-label]="'Card ' + card"
-                      (click)="onCardTap(card)"
-                    >
-                      <ion-card-content class="card-face">
-                        {{ card }}
-                      </ion-card-content>
-                    </ion-card>
-                  }
-                </div>
+                <ion-grid class="vote-card-grid">
+                  <ion-row role="group" aria-label="Choose your estimate">
+                    @for (card of round.scale.cards; track card) {
+                      <ion-col size="4" sizeSm="3" sizeMd="2">
+                        <ion-card
+                          button
+                          class="card"
+                          [class.selected]="card === myVote()"
+                          [attr.aria-pressed]="card === myVote()"
+                          [attr.aria-label]="'Card ' + card"
+                          (click)="onCardTap(card)"
+                        >
+                          <ion-card-content class="card-face">
+                            {{ card }}
+                          </ion-card-content>
+                        </ion-card>
+                      </ion-col>
+                    }
+                  </ion-row>
+                </ion-grid>
               }
             } @else {
               <p class="empty">No active round.</p>
@@ -205,10 +209,8 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
         font-weight: 600;
         color: var(--ion-color-step-600);
       }
-      .grid {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 0.75rem;
+      .vote-card-grid {
+        --ion-grid-column-padding: 0.375rem;
       }
       .card {
         margin: 0;
