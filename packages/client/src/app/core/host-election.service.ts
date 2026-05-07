@@ -59,7 +59,6 @@ export class HostElectionService {
     const rawOnlineIds = this.docService.onlineParticipantIds();
     const activeIds = new Set(this.docService.activeParticipants().map((p) => p.id));
     const onlineIds = new Set([...rawOnlineIds].filter((id) => activeIds.has(id)));
-    const myId = this.participantIdService.id();
 
     // 1. Host is online AND active → no action, cancel any pending debounce.
     if (onlineIds.has(hostId)) {

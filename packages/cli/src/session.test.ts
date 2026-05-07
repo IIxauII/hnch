@@ -4,8 +4,6 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { createServer, type Server } from 'node:http';
-import { randomUUID } from 'node:crypto';
 import { createCodePool } from '../../relay/src/code-pool.js';
 import { createRoomStore } from '../../relay/src/room-store.js';
 import { createRelayServer } from '../../relay/src/server.js';

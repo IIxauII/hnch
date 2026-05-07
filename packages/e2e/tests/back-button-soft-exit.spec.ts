@@ -65,7 +65,7 @@ test.describe('Back-chevron soft exit', () => {
   test('estimating back chevron navigates to /lobby/:code — session not torn down', async ({
     host,
   }) => {
-    const code = await host.createSession();
+    await host.createSession();
     await host.page.waitForURL(/\/lobby\//);
 
     const lobbyUrl = host.page.url();

@@ -3,7 +3,6 @@
 // Run automatically on postinstall, prebuild, prestart. Idempotent.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 const here = import.meta.dirname;
 const pkgPath = resolve(here, '..', 'package.json');

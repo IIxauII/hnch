@@ -29,11 +29,9 @@ vi.mock('@capacitor/preferences', () => ({
 
 type MediaChangeHandler = (e: MediaQueryListEvent) => void;
 
-let currentMediaMatches = false;
 let mediaChangeHandler: MediaChangeHandler | null = null;
 
 function createMockMediaQueryList(matches: boolean): MediaQueryList {
-  currentMediaMatches = matches;
   return {
     matches,
     media: '(prefers-color-scheme: dark)',

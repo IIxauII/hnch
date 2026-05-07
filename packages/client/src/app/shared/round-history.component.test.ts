@@ -15,7 +15,6 @@
  * Pattern: Ionic component stubs + TestBed, matching avatar-vote-row style.
  */
 
-import { Component, NO_ERRORS_SCHEMA } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it, vi } from 'vitest';
 import type { Round } from '@hnch/shared';

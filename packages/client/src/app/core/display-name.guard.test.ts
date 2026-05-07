@@ -16,7 +16,7 @@
 
 import { TestBed } from '@angular/core/testing';
 import { type UrlSegment } from '@angular/router';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@ionic/angular/standalone', () => ({}));
 vi.mock('@capacitor/preferences', () => ({

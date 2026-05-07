@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, input, OnInit, output } from '@angular/core';
-import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import {
   IonButton,
   IonButtons,
@@ -128,7 +128,7 @@ export class RelayUrlEditorSheetComponent implements OnInit {
   }
 
   protected onClear(): void {
-    this.saved.emit();
+    this.saved.emit(undefined);
     this.closeRequested.emit();
   }
 }

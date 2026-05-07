@@ -222,9 +222,9 @@ export class SessionSettingsSheetComponent {
   // ---------------------------------------------------------------------------
 
   protected onSessionNameBlur(): void {
-    const input = this.sessionNameInput();
-    if (!input) return;
-    const trimmed = (input.value as string).trim();
+    const sessionNameInputElement = this.sessionNameInput();
+    if (!sessionNameInputElement) return;
+    const trimmed = (sessionNameInputElement.value as string).trim();
     this.docService.updateSettings({ name: trimmed || undefined });
   }
 

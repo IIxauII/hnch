@@ -9,8 +9,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { resolve, dirname, basename } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolve, basename } from 'node:path';
 
 const here = import.meta.dirname;
 const repoRoot = resolve(here, '..');

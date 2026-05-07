@@ -3,7 +3,7 @@ import { ESTIMATING } from './fixtures/helpers';
 
 test.describe('Viewer role', () => {
   test('can toggle between voter and observer roles', async ({ player }) => {
-    const code = await player.createSession();
+    await player.createSession();
 
     // Start round
     await player.startRound();

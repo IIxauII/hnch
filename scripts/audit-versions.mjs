@@ -13,8 +13,7 @@
 
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 
 const __dirname = import.meta.dirname;
 const repoRoot = resolve(__dirname, '..');
@@ -30,8 +29,8 @@ const PACKAGES = ['shared', 'relay', 'client', 'cli'];
  */
 function compareSemver(a, b) {
   const splitFn = (s) => {
-    const [main, pre = ''] = s.split('-');
-    const nums = main.split('.').map((n) => Number.parseInt(n, 10));
+    const [base, pre = ''] = s.split('-');
+    const nums = base.split('.').map((n) => Number.parseInt(n, 10));
     return { nums, pre };
   };
   const aa = splitFn(a);

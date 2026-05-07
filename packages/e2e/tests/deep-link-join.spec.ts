@@ -1,5 +1,4 @@
-import { test, expect } from './fixtures/app.fixture';
-import { BASE_URL, JOIN, ONBOARDING } from './fixtures/helpers';
+import { test } from './fixtures/app.fixture';
 
 test.describe('Deep-link join (/join?code=...)', () => {
   test('pre-fills code and joins when navigating via deep link', async ({ host, player }) => {

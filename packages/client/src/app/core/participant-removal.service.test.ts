@@ -32,7 +32,7 @@ interface ParticipantLike {
   removedBy?: string;
 }
 
-function makeDocMock(selfId: string) {
+function makeDocMock(_selfId: string) {
   const participantsSignal = signal<ParticipantLike[]>([]);
   const hasSessionSignal = signal(true);
   const hasFirstSyncCompletedSignal = signal(true);

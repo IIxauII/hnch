@@ -50,7 +50,6 @@ import {
   ensurePolyfill,
   resetPolyfillPromise,
   getPolyfillPromise,
-  setPolyfillPromiseForTesting,
   QrScannerService,
   type MinimalModalController,
   type QrScanErrorReason,

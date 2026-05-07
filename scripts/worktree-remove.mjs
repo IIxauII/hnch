@@ -12,8 +12,7 @@
 // you no longer need it.
 
 import { spawnSync } from 'node:child_process';
-import { resolve, dirname, basename } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolve, basename } from 'node:path';
 
 const here = import.meta.dirname;
 const repoRoot = resolve(here, '..');

@@ -148,7 +148,7 @@ export class ScalePreferenceService {
     const current = this.customScalesSignal();
     const idx = current.findIndex((s) => s.id === id);
     if (idx === -1) return;
-    const updated = current.map((s) => (s.id === id ? { ...s, label, cards } : s));
+    const updated = current.map((s) => (s.id === id ? Object.assign({}, s, { label, cards }) : s));
     this.customScalesSignal.set(updated);
     await Preferences.set({
       key: ScalePreferenceService.CUSTOM_SCALES_KEY,

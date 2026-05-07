@@ -4,7 +4,7 @@
  * Tests via the exported pure fn — no Angular DI, no TestBed.
  */
 
-import { describe, expect, it, vi, beforeEach, type Mock } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 // ---------------------------------------------------------------------------
 // Module-level mocks (hoisted)

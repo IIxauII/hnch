@@ -118,7 +118,7 @@ describe('RelayUrlEditorSheetComponent output contract', () => {
         this.closeRequested.emit();
       },
       onClear() {
-        this.saved.emit();
+        this.saved.emit(undefined);
         this.closeRequested.emit();
       },
     };

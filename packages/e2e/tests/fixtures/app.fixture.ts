@@ -480,7 +480,7 @@ async function clearStorage(context: BrowserContext): Promise<void> {
     // (e.g. Ionic modal frames) where localStorage access throws SecurityError.
     // Guard: bail out if localStorage is not accessible.
     try {
-      localStorage.length;
+      void localStorage.length;
     } catch {
       return;
     }

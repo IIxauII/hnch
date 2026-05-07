@@ -179,7 +179,6 @@ export function ScalePicker({
           const isSelected = scale.id === selectedScaleId;
           const isExpanded = expandedId === scale.id;
           const isBuiltin = scale.id in BUILTIN_SCALES;
-          const isCustom = scale.id.startsWith('custom-');
           const isCreateAction = scale.id === '__create-custom__';
           const cardPreview = scale.cards.join(', ');
           const isNoneOption = showNoneOption && scale.id === '';

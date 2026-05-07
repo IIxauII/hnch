@@ -16,7 +16,7 @@
  *  - SessionEndService observer → tested via the harness's sessionEndedAt signal
  */
 
-import { computed, effect, signal, type Signal, type WritableSignal } from '@angular/core';
+import { computed, signal, type Signal, type WritableSignal } from '@angular/core';
 import {
   appendRound,
   castVote,
@@ -38,7 +38,7 @@ import {
 } from '@hnch/shared';
 import { Awareness } from 'y-protocols/awareness';
 import * as Y from 'yjs';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -608,7 +608,9 @@ describe('DocService — endSessionForEveryone', () => {
     const before = Date.now();
     h.endSessionForEveryone();
     const after = Date.now();
-    const ts = h.meta()?.sessionEndedAt!;
+    const meta = h.meta();
+    const ts = meta?.sessionEndedAt;
+    expect(ts).toBeDefined();
     expect(ts).toBeGreaterThanOrEqual(before);
     expect(ts).toBeLessThanOrEqual(after);
   });
@@ -620,7 +622,11 @@ describe('DocService — endSessionForEveryone', () => {
     // Second call updates the timestamp (LWW merge); both values are valid numbers
     expect(typeof h.meta()?.sessionEndedAt).toBe('number');
     // Value may equal or exceed first
-    expect(h.meta()?.sessionEndedAt!).toBeGreaterThanOrEqual(first!);
+    const meta = h.meta();
+    const second = meta?.sessionEndedAt;
+    expect(second).toBeDefined();
+    expect(first).toBeDefined();
+    expect(second).toBeGreaterThanOrEqual(first!);
   });
 
   it('remote peer sees sessionEndedAt after merge', () => {
@@ -735,8 +741,8 @@ describe('DocService — multi-peer merge via Y.Doc', () => {
     host.castVote(roundId, 'p-host', '5');
     joiner.mergeFrom(host.getDoc());
 
-    const r = joiner.rounds().find((r: Round) => r.id === roundId);
-    expect(r?.votes['p-host']).toBe('5');
+    const round = joiner.rounds().find((r: Round) => r.id === roundId);
+    expect(round?.votes['p-host']).toBe('5');
   });
 
   it('reveal from host propagates to joiner', () => {
@@ -746,8 +752,8 @@ describe('DocService — multi-peer merge via Y.Doc', () => {
     host.revealRound(roundId, NOW + 2000);
     joiner.mergeFrom(host.getDoc());
 
-    const r = joiner.rounds().find((r: Round) => r.id === roundId);
-    expect(r?.revealedAt).toBe(NOW + 2000);
+    const revealedRound = joiner.rounds().find((r: Round) => r.id === roundId);
+    expect(revealedRound?.revealedAt).toBe(NOW + 2000);
   });
 });
 
@@ -791,7 +797,6 @@ describe('DocService — activeParticipants / onlineParticipants / offlinePartic
     // p-joiner is in online set (awareness) but we soft-delete them
     h.leaveSession('p-joiner');
     // onlineParticipants filters through activeParticipants, so p-joiner is excluded
-    const onlineIds = h.onlineParticipantIdsSignal();
     // awareness has p-host (local); p-joiner was added by upsert but has no separate Awareness
     expect(h.onlineParticipants().every((p) => !p.leftAt)).toBe(true);
   });

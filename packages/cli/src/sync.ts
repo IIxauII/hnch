@@ -82,19 +82,19 @@ export function connect(opts: ConnectOptions): SyncConnection {
   return {
     doc: opts.doc,
     awareness: provider.awareness,
-    updateCredentials(opts: { passwordHash?: string | null }): void {
-      if (opts.passwordHash === currentPasswordHash) return;
-      currentPasswordHash = opts.passwordHash ?? undefined;
+    updateCredentials(subOpts: { passwordHash?: string | null }): void {
+      if (subOpts.passwordHash === currentPasswordHash) return;
+      currentPasswordHash = subOpts.passwordHash ?? undefined;
       // Reconnect with new credentials
       provider.shouldConnect = false;
       provider.disconnect();
       // Update params and reconnect
       const did = provider.params['did'] ?? '';
-      const params: Record<string, string> = { did };
+      const subParams: Record<string, string> = { did };
       if (currentPasswordHash !== undefined) {
-        params['pw'] = currentPasswordHash;
+        subParams['pw'] = currentPasswordHash;
       }
-      provider.params = params;
+      provider.params = subParams;
       provider.connect();
     },
     disconnect(): void {

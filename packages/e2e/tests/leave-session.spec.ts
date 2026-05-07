@@ -42,7 +42,7 @@ test.describe('Leave session flow', () => {
 
   test('cancel on leave alert dismisses dialog without leaving', async ({ host }) => {
     // Create a session
-    const code = await host.createSession();
+    await host.createSession();
     await host.page.waitForURL(/\/lobby/);
 
     // Open action sheet

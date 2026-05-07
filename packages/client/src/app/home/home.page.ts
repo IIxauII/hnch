@@ -468,7 +468,7 @@ export class HomePage {
       // If empty password, room stays in open mode (created that way by default)
 
       await this.router.navigate(['/lobby', code]);
-    } catch (e) {
+    } catch {
       const code = this.docService.roomCode();
       await this.toast('Failed to set password. Room created without password.');
       if (code) {

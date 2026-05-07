@@ -118,7 +118,7 @@ export function createRoomStore(codePool: CodePool, options: RoomStoreOptions = 
   const byCode = new Map<string, string>();
 
   return {
-    createRoom(options?: CreateRoomOptions): RoomRecord {
+    createRoom(roomOptions?: CreateRoomOptions): RoomRecord {
       const uuid = uuidGenerator();
       const code = codePool.mint();
       const doc = new Y.Doc();
@@ -126,7 +126,7 @@ export function createRoomStore(codePool: CodePool, options: RoomStoreOptions = 
       const record: RoomRecord = {
         uuid,
         code,
-        passwordHash: options?.passwordHash,
+        passwordHash: roomOptions?.passwordHash,
         invitesOutstanding: new Set<string>(),
         doc,
         awareness,
