@@ -24,6 +24,11 @@
   ],
   "rules": {
     "no-async-await": "warn",
+    "no-underscore-dangle": "off",
+    "no-extraneous-class": "off",
+    "no-await-in-loop": "warn",
+    "consistent-function-scoping": "warn",
+    "no-useless-undefined": "off",
     "no-restricted-imports": [
       "error",
       {
