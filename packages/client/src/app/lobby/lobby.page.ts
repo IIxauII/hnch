@@ -21,6 +21,10 @@ import {
   IonAvatar,
   IonButton,
   IonButtons,
+  IonCard,
+  IonCardContent,
+  IonCardHeader,
+  IonCardTitle,
   IonChip,
   IonContent,
   IonFooter,
@@ -113,6 +117,10 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
     IonAvatar,
     IonButton,
     IonButtons,
+    IonCard,
+    IonCardContent,
+    IonCardHeader,
+    IonCardTitle,
     IonChip,
     IonContent,
     IonFooter,
@@ -171,40 +179,52 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
     <ion-content class="ion-padding">
       <app-connection-status-banner />
       <div class="lobby-shell">
-        @if (roomCode(); as code) {
-          <h1 class="room-code">{{ code }}</h1>
-          <button
-            type="button"
-            class="subtitle"
-            (click)="openSessionSettings()"
-          >
-            {{ subtitle() }}
-          </button>
-        }
-
         <ion-grid class="lobby-grid">
           <ion-row class="lobby-row">
           <ion-col size="12" class="lobby-rail-col">
           <div class="lobby-rail">
-            <ion-list lines="inset" class="actions">
-              <ion-item button (click)="onShareInvite()">
-                <ion-icon
-                  slot="start"
-                  name="share-outline"
-                  aria-hidden="true"
-                ></ion-icon>
-                <ion-label>Share invite</ion-label>
-              </ion-item>
-              <ion-item button (click)="onShowQr()">
-                <ion-icon
-                  slot="start"
-                  name="qr-code-outline"
-                  aria-hidden="true"
-                ></ion-icon>
-                <ion-label>Show QR code</ion-label>
-              </ion-item>
-            </ion-list>
 
+            <!-- Room card -->
+            <ion-card class="section-card" aria-label="Room">
+              <ion-card-header>
+                @if (roomCode(); as code) {
+                  <ion-card-title>
+                    <h1 class="room-code">{{ code }}</h1>
+                  </ion-card-title>
+                  <button
+                    type="button"
+                    class="subtitle"
+                    (click)="openSessionSettings()"
+                  >
+                    {{ subtitle() }}
+                  </button>
+                }
+              </ion-card-header>
+              <ion-card-content>
+                <ion-list lines="inset" class="actions">
+                  <ion-item button (click)="onShareInvite()">
+                    <ion-icon
+                      slot="start"
+                      name="share-outline"
+                      aria-hidden="true"
+                    ></ion-icon>
+                    <ion-label>Share invite</ion-label>
+                  </ion-item>
+                  <ion-item button (click)="onShowQr()">
+                    <ion-icon
+                      slot="start"
+                      name="qr-code-outline"
+                      aria-hidden="true"
+                    ></ion-icon>
+                    <ion-label>Show QR code</ion-label>
+                  </ion-item>
+                </ion-list>
+              </ion-card-content>
+            </ion-card>
+
+            <!-- Participants card -->
+            <ion-card class="section-card" aria-label="Participants">
+              <ion-card-content class="participants-card-content">
             <ion-accordion-group [value]="participantsAccordionValue()" expand="inset">
               <ion-accordion value="open">
                 <ion-item slot="header" lines="inset">
@@ -303,20 +323,19 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
                 </div>
               </ion-accordion>
             </ion-accordion-group>
+              </ion-card-content>
+            </ion-card>
+
           </div>
           </ion-col>
 
           <ion-col size="12" class="lobby-pane-col">
           <div class="lobby-pane">
             @if (lastRevealedRound(); as round) {
-              <section class="results-section" aria-label="Round {{ lastRevealedRoundIndex() }} Results">
-                <h2 class="results-heading">Round {{ lastRevealedRoundIndex() }} Results</h2>
-                <div class="results-descriptor-row">
-                  @if (round.title) {
-                    <p class="results-descriptor">{{ round.title }}</p>
-                  } @else if (isHost()) {
-                    <p class="results-descriptor placeholder">Add a descriptor</p>
-                  }
+              <!-- Results card -->
+              <ion-card class="section-card" [attr.aria-label]="'Round ' + lastRevealedRoundIndex() + ' Results'">
+                <ion-card-header>
+                  <ion-card-title>Round {{ lastRevealedRoundIndex() }} Results</ion-card-title>
                   @if (isHost()) {
                     <ion-button
                       fill="clear"
@@ -328,22 +347,39 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
                       <ion-icon name="pencil-outline" slot="icon-only" />
                     </ion-button>
                   }
-                </div>
-                <app-vote-results
-                  [round]="round"
-                  [participants]="participants()"
-                  [myId]="myId()"
-                />
-              </section>
+                </ion-card-header>
+                <ion-card-content>
+                  <div class="results-descriptor-row">
+                    @if (round.title) {
+                      <p class="results-descriptor">{{ round.title }}</p>
+                    } @else if (isHost()) {
+                      <p class="results-descriptor placeholder">Add a descriptor</p>
+                    }
+                  </div>
+                  <app-vote-results
+                    [round]="round"
+                    [participants]="participants()"
+                    [myId]="myId()"
+                  />
+                </ion-card-content>
+              </ion-card>
             }
 
             @if (pastRevealedRounds().length > 0) {
-              <app-round-history
-                [rounds]="pastRevealedRounds()"
-                [participants]="participants()"
-                [isHost]="isHost()"
-                (editTriggered)="openRoundEditById($event)"
-              />
+              <!-- History card -->
+              <ion-card class="section-card" aria-label="Round history">
+                <ion-card-header>
+                  <ion-card-title>Round history</ion-card-title>
+                </ion-card-header>
+                <ion-card-content class="history-card-content">
+                  <app-round-history
+                    [rounds]="pastRevealedRounds()"
+                    [participants]="participants()"
+                    [isHost]="isHost()"
+                    (editTriggered)="openRoundEditById($event)"
+                  />
+                </ion-card-content>
+              </ion-card>
             }
           </div>
           </ion-col>
@@ -459,12 +495,6 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
   `,
   styles: [
     `
-      .room-code {
-        font-size: 2.5rem;
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        margin: 0.5rem 0 0.25rem;
-      }
       .subtitle {
         appearance: none;
         background: transparent;
@@ -480,9 +510,11 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
         outline-offset: 2px;
         border-radius: 4px;
       }
-      .actions,
+      .actions {
+        margin-top: 0;
+      }
       .participants {
-        margin-top: 1.25rem;
+        margin-top: 0;
       }
       .participants-summary {
         margin: 0.125rem 0 0;
@@ -507,15 +539,33 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
         vertical-align: middle;
         margin-inline-start: 0.25rem;
       }
-      .results-section {
-        margin-top: 1.5rem;
-        padding-top: 1rem;
-        border-top: 2px solid var(--ion-color-step-200, rgba(0, 0, 0, 0.12));
+      /* Cards */
+      .section-card {
+        margin: 0 0 1rem;
+        border: 1px solid var(--hnch-sep);
+        background: var(--hnch-surface);
       }
-      .results-heading {
-        font-size: 1.25rem;
+      .section-card ion-card-header {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+      }
+      .section-card ion-card-title {
+        font-size: 1rem;
         font-weight: 700;
-        margin: 0 0 0.25rem;
+      }
+      .participants-card-content,
+      .history-card-content {
+        padding: 0;
+      }
+      .room-code {
+        font-size: 2.5rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        margin: 0.25rem 0 0.25rem;
+        display: inline;
       }
       .results-descriptor-row {
         display: flex;

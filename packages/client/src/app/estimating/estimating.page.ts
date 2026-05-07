@@ -15,6 +15,8 @@ import {
   IonButtons,
   IonCard,
   IonCardContent,
+  IonCardHeader,
+  IonCardTitle,
   IonChip,
   IonCol,
   IonContent,
@@ -70,6 +72,8 @@ import { OverflowMenuComponent, type OverflowMenuItem } from '../shared/overflow
     IonButtons,
     IonCard,
     IonCardContent,
+    IonCardHeader,
+    IonCardTitle,
     IonChip,
     IonCol,
     IonContent,
@@ -121,48 +125,63 @@ import { OverflowMenuComponent, type OverflowMenuItem } from '../shared/overflow
       <div class="page-shell">
       <app-connection-status-banner />
       @if (currentRound(); as round) {
-        <h1 class="title">Round {{ roundIndex() }}</h1>
-        @if (round.title) {
-          <p class="descriptor">{{ round.title }}</p>
-        }
 
-        @if (elapsedLabel(); as label) {
-          <p class="elapsed" role="status" aria-live="off">{{ label }}</p>
-        }
+        <!-- Round card -->
+        <ion-card class="section-card">
+          <ion-card-header>
+            <ion-card-title>
+              <h1 class="title">Round {{ roundIndex() }}</h1>
+            </ion-card-title>
+            @if (round.title) {
+              <p class="descriptor">{{ round.title }}</p>
+            }
+            @if (elapsedLabel(); as label) {
+              <p class="elapsed" role="status" aria-live="off">{{ label }}</p>
+            }
+          </ion-card-header>
+          <ion-card-content>
+            <app-avatar-vote-row
+              [participants]="onlineVoterParticipants()"
+              [votedIds]="votedIds()"
+            />
+          </ion-card-content>
+        </ion-card>
 
-        <app-avatar-vote-row
-          [participants]="onlineVoterParticipants()"
-          [votedIds]="votedIds()"
-        />
+        <!-- Vote card -->
+        <ion-card class="section-card">
+          <ion-card-header>
+            <ion-card-title>Cast your vote</ion-card-title>
+          </ion-card-header>
+          <ion-card-content>
+            @if (isViewer()) {
+              <p class="observer-notice" role="status" aria-live="polite">
+                You're observing this round
+              </p>
+            } @else {
+              <ion-grid class="grid" role="group" aria-label="Choose your estimate">
+                <ion-row>
+                  @for (card of round.scale.cards; track card) {
+                    <ion-col size="4" size-md="3">
+                      <ion-card
+                        button
+                        class="card"
+                        [class.selected]="card === myVote()"
+                        [attr.aria-pressed]="card === myVote()"
+                        [attr.aria-label]="'Card ' + card"
+                        (click)="onCardTap(card)"
+                      >
+                        <ion-card-content class="card-face">
+                          {{ card }}
+                        </ion-card-content>
+                      </ion-card>
+                    </ion-col>
+                  }
+                </ion-row>
+              </ion-grid>
+            }
+          </ion-card-content>
+        </ion-card>
 
-        @if (isViewer()) {
-          <p class="observer-notice" role="status" aria-live="polite">
-            You're observing this round
-          </p>
-        } @else {
-          <h2 class="section">Pick your estimate</h2>
-
-          <ion-grid class="grid" role="group" aria-label="Choose your estimate">
-            <ion-row>
-              @for (card of round.scale.cards; track card) {
-                <ion-col size="4" size-md="3">
-                  <ion-card
-                    button
-                    class="card"
-                    [class.selected]="card === myVote()"
-                    [attr.aria-pressed]="card === myVote()"
-                    [attr.aria-label]="'Card ' + card"
-                    (click)="onCardTap(card)"
-                  >
-                    <ion-card-content class="card-face">
-                      {{ card }}
-                    </ion-card-content>
-                  </ion-card>
-                </ion-col>
-              }
-            </ion-row>
-          </ion-grid>
-        }
       } @else {
         <p class="empty">No active round.</p>
       }
@@ -187,26 +206,34 @@ import { OverflowMenuComponent, type OverflowMenuItem } from '../shared/overflow
   `,
   styles: [
     `
+      /* Section cards */
+      .section-card {
+        margin: 0 0 1rem;
+        border: 1px solid var(--hnch-sep);
+        background: var(--hnch-surface);
+      }
+      .section-card ion-card-header {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+      }
       .title {
         font-size: 1.75rem;
         font-weight: 700;
         margin: 0.25rem 0 0.25rem;
+        display: inline;
       }
       .descriptor {
-        margin: 0 0 1rem;
+        margin: 0.25rem 0 0;
         color: var(--ion-color-medium);
       }
       .elapsed {
         font-size: 2rem;
         font-weight: 600;
         font-variant-numeric: tabular-nums;
-        margin: 0.5rem 0 1rem;
-        color: var(--ion-color-medium);
-      }
-      .section {
-        margin: 1.5rem 0 0.5rem;
-        font-size: 1rem;
-        font-weight: 600;
+        margin: 0.5rem 0 0;
         color: var(--ion-color-medium);
       }
       .grid {

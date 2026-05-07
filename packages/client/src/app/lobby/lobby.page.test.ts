@@ -15,9 +15,15 @@ vi.mock('@ionic/angular/standalone', () => ({
   IonAvatar: {},
   IonButton: {},
   IonButtons: {},
+  IonCard: {},
+  IonCardContent: {},
+  IonCardHeader: {},
+  IonCardTitle: {},
   IonChip: {},
+  IonCol: {},
   IonContent: {},
   IonFooter: {},
+  IonGrid: {},
   IonHeader: {},
   IonIcon: {},
   IonItem: {},
@@ -28,8 +34,10 @@ vi.mock('@ionic/angular/standalone', () => ({
   IonList: {},
   IonModal: {},
   IonNote: {},
+  IonRow: {},
   IonTitle: {},
   IonToolbar: {},
+  PopoverController: {},
 }))
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false } }))
 vi.mock('@capacitor/share', () => ({ Share: { share: vi.fn() } }))
