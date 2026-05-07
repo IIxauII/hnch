@@ -2,20 +2,20 @@
 
 This document describes the shape of the Yjs doc that represents a single hnch session. The doc is the single source of truth for session state — everything that needs to survive a client reconnect, be visible to all participants, or be snapshotted by the relay lives here.
 
-**Scope.** Schema v1. Any change to this document is a schema change and requires a new ADR (see [ADR-0013](adr/0013-round-model-flat-parentroundid.md) for an example of a schema-shape decision).
+**Scope.** Schema v1. Any change to this document is a schema change and requires a new ADR (see [ADR-0013](../adr/0013-round-model-flat-parentroundid.md) for an example of a schema-shape decision).
 
 **Related ADRs.** This schema derives from decisions in:
-- [ADR-0003](adr/0003-state-sync-yjs.md) — Yjs as the CRDT library
-- [ADR-0005](adr/0005-device-identity-capacitor-device-plugin.md) — device identity (`participantId` is the device ID)
-- [ADR-0006](adr/0006-ephemeral-sessions.md) — sessions are per-meeting
-- [ADR-0008](adr/0008-room-code-format.md) — room codes resolve to `roomUuid`
-- [ADR-0010](adr/0010-host-election.md) — host election mechanics (`hostParticipantId` storage)
-- [ADR-0013](adr/0013-round-model-flat-parentroundid.md) — flat rounds with `parentRoundId` lineage
-- [ADR-0018](adr/0018-remove-timer-add-unanimous-reveal.md) — removed countdown timer; added unanimous auto-reveal; `timerStartedAt` repurposed as stopwatch origin
-- [ADR-0019](adr/0019-scale-customization.md) — scale customization: 5 builtin presets, sentinel removal, device-local overrides and custom scales
-- [ADR-0036](adr/0036-participant-removal-lifecycle.md) — participant removal lifecycle (`leftAt` / `removedBy` soft-delete fields)
+- [ADR-0003](../adr/0003-state-sync-yjs.md) — Yjs as the CRDT library
+- [ADR-0005](../adr/0005-device-identity-capacitor-device-plugin.md) — device identity (`participantId` is the device ID)
+- [ADR-0006](../adr/0006-ephemeral-sessions.md) — sessions are per-meeting
+- [ADR-0008](../adr/0008-room-code-format.md) — room codes resolve to `roomUuid`
+- [ADR-0010](../adr/0010-host-election.md) — host election mechanics (`hostParticipantId` storage)
+- [ADR-0013](../adr/0013-round-model-flat-parentroundid.md) — flat rounds with `parentRoundId` lineage
+- [ADR-0018](../adr/0018-remove-timer-add-unanimous-reveal.md) — removed countdown timer; added unanimous auto-reveal; `timerStartedAt` repurposed as stopwatch origin
+- [ADR-0019](../adr/0019-scale-customization.md) — scale customization: 5 builtin presets, sentinel removal, device-local overrides and custom scales
+- [ADR-0036](../adr/0036-participant-removal-lifecycle.md) — participant removal lifecycle (`leftAt` / `removedBy` soft-delete fields)
 
-**Not covered here.** Teams are local-only and never enter the Yjs doc (see [ADR-0007](adr/0007-teams-local-only.md)). Access control tokens (password hash, invite tokens) are managed by the relay and not stored in the doc ([ADR-0009](adr/0009-access-control-relay-tokens.md)). Room codes are a relay-side lookup to `roomUuid` and do not appear in the doc ([ADR-0008](adr/0008-room-code-format.md), [ADR-0012](adr/0012-snapshot-policy.md)).
+**Not covered here.** Teams are local-only and never enter the Yjs doc (see [ADR-0007](../adr/0007-teams-local-only.md)). Access control tokens (password hash, invite tokens) are managed by the relay and not stored in the doc ([ADR-0009](../adr/0009-access-control-relay-tokens.md)). Room codes are a relay-side lookup to `roomUuid` and do not appear in the doc ([ADR-0008](../adr/0008-room-code-format.md), [ADR-0012](../adr/0012-snapshot-policy.md)).
 
 ## Top-level structure
 
@@ -52,7 +52,7 @@ Host-editable. Changes propagate to all clients via Yjs. The "host" at any momen
 
 ### Host authority mechanics (summary)
 
-- `hostParticipantId` is stable across network blips — reconnecting within the 5-second debounce window does not trigger a new election ([ADR-0010](adr/0010-host-election.md)).
+- `hostParticipantId` is stable across network blips — reconnecting within the 5-second debounce window does not trigger a new election ([ADR-0010](../adr/0010-host-election.md)).
 - Liveness check: is there an awareness entry for `hostParticipantId`? If no, and the absence persists beyond the 5-second debounce, election runs (lowest Yjs peer ID among connected participants wins) and the winner's `participantId` is written to this field.
 - "No reclaim": a former host who reconnects after losing the role does not automatically regain it.
 
@@ -60,24 +60,24 @@ Host-editable. Changes propagate to all clients via Yjs. The "host" at any momen
 
 `Y.Map<participantId, Y.Map>`.
 
-- **Key:** `participantId`. In schema v1, this equals the device ID from [ADR-0005](adr/0005-device-identity-capacitor-device-plugin.md).
+- **Key:** `participantId`. In schema v1, this equals the device ID from [ADR-0005](../adr/0005-device-identity-capacitor-device-plugin.md).
 - **Value:** a `Y.Map` with the following fields:
 
 | Field | Type | Description |
 |---|---|---|
 | `displayName` | `string` | The name shown to other participants. User-editable. |
 | `joinedAt` | `number` | Unix milliseconds when this participant first joined the session. |
-| `role?` | `'voter' \| 'viewer'` | Optional participant role ([ADR-0020](adr/0020-participant-viewer-voter-role.md)). Defaults to `'voter'` if absent. Viewers cannot vote and are excluded from unanimous auto-reveal checks. |
-| `leftAt?` | `number` | Optional. Unix milliseconds when the participant was removed from the active roster ([ADR-0036](adr/0036-participant-removal-lifecycle.md)). Absent ⇒ active. Set on voluntary "Leave Session" or host kick. NOT set by transient disconnect — offline presence stays awareness-driven. Cleared on re-join (self upsert in `joinSession`). |
-| `removedBy?` | `string` | Optional. `participantId` of the actor that wrote `leftAt`. Equal to the target ⇒ voluntary leave; otherwise ⇒ kicked by host. Used by clients to render the right toast/system message ([ADR-0036](adr/0036-participant-removal-lifecycle.md)). |
+| `role?` | `'voter' \| 'viewer'` | Optional participant role ([ADR-0020](../adr/0020-participant-viewer-voter-role.md)). Defaults to `'voter'` if absent. Viewers cannot vote and are excluded from unanimous auto-reveal checks. |
+| `leftAt?` | `number` | Optional. Unix milliseconds when the participant was removed from the active roster ([ADR-0036](../adr/0036-participant-removal-lifecycle.md)). Absent ⇒ active. Set on voluntary "Leave Session" or host kick. NOT set by transient disconnect — offline presence stays awareness-driven. Cleared on re-join (self upsert in `joinSession`). |
+| `removedBy?` | `string` | Optional. `participantId` of the actor that wrote `leftAt`. Equal to the target ⇒ voluntary leave; otherwise ⇒ kicked by host. Used by clients to render the right toast/system message ([ADR-0036](../adr/0036-participant-removal-lifecycle.md)). |
 
 A participant stays in this map even if they disconnect — the map is cumulative for the session's lifetime. Online status is derived from **awareness**, not from this map.
 
-**Active vs. removed.** Active rosters (lobby, voter denominator, "didn't vote" set) filter on `!leftAt`. Round history (`round.votes` keyed by `participantId`) reads the raw `participants` map so removed names still resolve in past rounds ([ADR-0036](adr/0036-participant-removal-lifecycle.md)).
+**Active vs. removed.** Active rosters (lobby, voter denominator, "didn't vote" set) filter on `!leftAt`. Round history (`round.votes` keyed by `participantId`) reads the raw `participants` map so removed names still resolve in past rounds ([ADR-0036](../adr/0036-participant-removal-lifecycle.md)).
 
 ## `rounds` — the flat list of round records
 
-`Y.Array<Y.Map>`. Re-votes are modeled by creating a new round with `parentRoundId` pointing at the prior round ([ADR-0013](adr/0013-round-model-flat-parentroundid.md)).
+`Y.Array<Y.Map>`. Re-votes are modeled by creating a new round with `parentRoundId` pointing at the prior round ([ADR-0013](../adr/0013-round-model-flat-parentroundid.md)).
 
 Each round's `Y.Map`:
 
@@ -89,13 +89,13 @@ Each round's `Y.Map`:
 | `ticketId?` | `string` | Tracker reference like `"PROJ-1234"`; inherited from parent on re-vote. |
 | `parentRoundId?` | `string` | If this is a re-vote, the `id` of the previous round in the chain. |
 | `scale` | `Scale` | Snapshotted at round creation from `settings.defaultScale` (or chosen per-round by the host). Independent after creation — changing `settings.defaultScale` later does not alter existing rounds. |
-| `timerStartedAt?` | `number` | Unix milliseconds when voting started. Always written at round creation. Used as a stopwatch origin for elapsed voting time display ([ADR-0018](adr/0018-remove-timer-add-unanimous-reveal.md)). |
-| `revealedAt?` | `number` | Unix milliseconds when the round was revealed. Written by the host (manual reveal) or by any client when all online participants have voted (unanimous auto-reveal, [ADR-0018](adr/0018-remove-timer-add-unanimous-reveal.md)). Absent means not yet revealed. |
+| `timerStartedAt?` | `number` | Unix milliseconds when voting started. Always written at round creation. Used as a stopwatch origin for elapsed voting time display ([ADR-0018](../adr/0018-remove-timer-add-unanimous-reveal.md)). |
+| `revealedAt?` | `number` | Unix milliseconds when the round was revealed. Written by the host (manual reveal) or by any client when all online participants have voted (unanimous auto-reveal, [ADR-0018](../adr/0018-remove-timer-add-unanimous-reveal.md)). Absent means not yet revealed. |
 | `createdBy` | `string` | `participantId` of whoever created the round. |
 | `createdAt` | `number` | Unix milliseconds when the round was created. |
-| `votes` | `Y.Map<participantId, string>` | Votes keyed by participant. The value is the card face (e.g. `"5"`, `"M"`, `"High"`). Vote-change-before-reveal ([ADR-0013](adr/0013-round-model-flat-parentroundid.md)) is just overwriting this key. Only the final value is retained. |
+| `votes` | `Y.Map<participantId, string>` | Votes keyed by participant. The value is the card face (e.g. `"5"`, `"M"`, `"High"`). Vote-change-before-reveal ([ADR-0013](../adr/0013-round-model-flat-parentroundid.md)) is just overwriting this key. Only the final value is retained. |
 
-Note: `revealMode` and `timerDurationMs` were removed in [ADR-0018](adr/0018-remove-timer-add-unanimous-reveal.md). Reveal is always manual + unanimous auto-reveal. `timerStartedAt` is retained as a stopwatch origin.
+Note: `revealMode` and `timerDurationMs` were removed in [ADR-0018](../adr/0018-remove-timer-add-unanimous-reveal.md). Reveal is always manual + unanimous auto-reveal. `timerStartedAt` is retained as a stopwatch origin.
 
 ## Scale type
 
