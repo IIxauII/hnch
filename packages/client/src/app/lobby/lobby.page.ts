@@ -32,8 +32,11 @@ import {
   IonItemSliding,
   IonLabel,
   IonList,
+  IonCol,
+  IonGrid,
   IonModal,
   IonNote,
+  IonRow,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone'
@@ -119,10 +122,13 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
     IonItemOption,
     IonItemOptions,
     IonItemSliding,
+    IonCol,
+    IonGrid,
     IonLabel,
     IonList,
     IonModal,
     IonNote,
+    IonRow,
     IonTitle,
     IonToolbar,
     QrDisplaySheetComponent,
@@ -176,7 +182,9 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
           </button>
         }
 
-        <div class="lobby-grid">
+        <ion-grid class="lobby-grid">
+          <ion-row class="lobby-row">
+          <ion-col size="12" class="lobby-rail-col">
           <div class="lobby-rail">
             <ion-list lines="inset" class="actions">
               <ion-item button (click)="onShareInvite()">
@@ -296,7 +304,9 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
               </ion-accordion>
             </ion-accordion-group>
           </div>
+          </ion-col>
 
+          <ion-col size="12" class="lobby-pane-col">
           <div class="lobby-pane">
             @if (lastRevealedRound(); as round) {
               <section class="results-section" aria-label="Round {{ lastRevealedRoundIndex() }} Results">
@@ -336,7 +346,9 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
               />
             }
           </div>
-        </div>
+          </ion-col>
+          </ion-row>
+        </ion-grid>
       </div>
     </ion-content>
 
@@ -545,22 +557,30 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
         margin-inline: auto;
         width: 100%;
       }
+      .lobby-grid {
+        --ion-grid-padding: 0;
+        --ion-grid-column-padding: 1rem;
+      }
+      .lobby-row {
+        align-items: start;
+      }
+      @media (min-width: 1024px) {
+        .lobby-rail-col {
+          flex: 0 0 var(--hnch-rail-width);
+          max-width: var(--hnch-rail-width);
+          position: sticky;
+          top: 0;
+          align-self: flex-start;
+        }
+        .lobby-pane-col {
+          flex: 1 1 0;
+          max-width: none;
+        }
+      }
       @media (hover: hover) and (pointer: fine) {
         ion-item[button] {
           --background-hover: var(--ion-color-primary-tint);
           --background-hover-opacity: 0.16;
-        }
-      }
-      @media (min-width: 1024px) {
-        .lobby-grid {
-          display: grid;
-          grid-template-columns: var(--hnch-rail-width) 1fr;
-          gap: 2rem;
-          align-items: start;
-        }
-        .lobby-rail {
-          position: sticky;
-          top: 0;
         }
       }
     `,

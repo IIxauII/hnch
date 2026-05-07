@@ -13,8 +13,11 @@ import { computeRoundStats, formatElapsed, isActiveParticipant, isConsensus } fr
 import type { ParticipantSnapshot, Round, RoundStats, SpreadLabel } from '@hnch/shared'
 import {
   IonChip,
+  IonCol,
+  IonGrid,
   IonItemGroup,
   IonLabel,
+  IonRow,
 } from '@ionic/angular/standalone'
 
 import { HapticService } from '../core/haptic.service'
@@ -45,50 +48,56 @@ interface VoteGroup {
  */
 @Component({
   selector: 'app-vote-results',
-  imports: [DecimalPipe, IonChip, IonItemGroup, IonLabel],
+  imports: [DecimalPipe, IonChip, IonCol, IonGrid, IonItemGroup, IonLabel, IonRow],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="vote-groups">
-      @for (group of voteGroups(); track group.card; let i = $index) {
-        <ion-item-group
-          class="group"
-          [style.--i]="i"
-          [attr.aria-label]="voteCountLabel(group.voterNames.length) + ' for ' + group.card"
-        >
-          <div class="group-header">
-            <span class="card">{{ group.card }}</span>
-            <span class="count">({{ voteCountLabel(group.voterNames.length) }})</span>
-          </div>
-          <div class="chips">
-            @for (name of group.voterNames; track name) {
-              <ion-chip color="primary">
-                <ion-label>{{ name }}</ion-label>
-              </ion-chip>
-            }
-          </div>
-        </ion-item-group>
-      }
+    <ion-grid class="vote-groups">
+      <ion-row>
+        @for (group of voteGroups(); track group.card; let i = $index) {
+          <ion-col size="12">
+            <ion-item-group
+              class="group"
+              [style.--i]="i"
+              [attr.aria-label]="voteCountLabel(group.voterNames.length) + ' for ' + group.card"
+            >
+              <div class="group-header">
+                <span class="card">{{ group.card }}</span>
+                <span class="count">({{ voteCountLabel(group.voterNames.length) }})</span>
+              </div>
+              <div class="chips">
+                @for (name of group.voterNames; track name) {
+                  <ion-chip color="primary">
+                    <ion-label>{{ name }}</ion-label>
+                  </ion-chip>
+                }
+              </div>
+            </ion-item-group>
+          </ion-col>
+        }
 
-      @if (didntVoteNames().length > 0) {
-        <ion-item-group
-          class="group didnt-vote"
-          [style.--i]="voteGroups().length"
-          aria-label="Participants who did not vote"
-        >
-          <div class="group-header">
-            <span class="card">Didn't vote</span>
-            <span class="count">({{ didntVoteNames().length }})</span>
-          </div>
-          <div class="chips">
-            @for (name of didntVoteNames(); track name) {
-              <ion-chip>
-                <ion-label>{{ name }}</ion-label>
-              </ion-chip>
-            }
-          </div>
-        </ion-item-group>
-      }
-    </div>
+        @if (didntVoteNames().length > 0) {
+          <ion-col size="12" class="didnt-vote">
+            <ion-item-group
+              class="group didnt-vote"
+              [style.--i]="voteGroups().length"
+              aria-label="Participants who did not vote"
+            >
+              <div class="group-header">
+                <span class="card">Didn't vote</span>
+                <span class="count">({{ didntVoteNames().length }})</span>
+              </div>
+              <div class="chips">
+                @for (name of didntVoteNames(); track name) {
+                  <ion-chip>
+                    <ion-label>{{ name }}</ion-label>
+                  </ion-chip>
+                }
+              </div>
+            </ion-item-group>
+          </ion-col>
+        }
+      </ion-row>
+    </ion-grid>
 
     @if (stats(); as s) {
       <div class="stats" role="region" aria-label="Round statistics">
@@ -186,18 +195,11 @@ interface VoteGroup {
         min-height: 1.5rem;
       }
 
+      .vote-groups {
+        --ion-grid-padding: 0;
+      }
       @media (min-width: 1024px) {
-        .vote-groups {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 1rem;
-        }
-        .vote-groups .didnt-vote {
-          grid-column: 1 / -1;
-        }
-        .vote-groups .group:nth-child(2):not(.didnt-vote) {
-          border-top: none;
-        }
+        .vote-groups ion-col:not(.didnt-vote) { flex: 0 0 50%; max-width: 50%; }
       }
 
       /* Reveal animation — ux.md §6: 80ms stagger, 200ms fade-in-up */

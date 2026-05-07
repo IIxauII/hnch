@@ -16,11 +16,14 @@ import {
   IonCard,
   IonCardContent,
   IonChip,
+  IonCol,
   IonContent,
   IonFooter,
+  IonGrid,
   IonHeader,
   IonIcon,
   IonLabel,
+  IonRow,
   IonTitle,
   IonToolbar,
   PopoverController,
@@ -68,11 +71,14 @@ import { OverflowMenuComponent, type OverflowMenuItem } from '../shared/overflow
     IonCard,
     IonCardContent,
     IonChip,
+    IonCol,
     IonContent,
     IonFooter,
+    IonGrid,
     IonHeader,
     IonIcon,
     IonLabel,
+    IonRow,
     IonTitle,
     IonToolbar,
   ],
@@ -136,22 +142,26 @@ import { OverflowMenuComponent, type OverflowMenuItem } from '../shared/overflow
         } @else {
           <h2 class="section">Pick your estimate</h2>
 
-          <div class="grid" role="group" aria-label="Choose your estimate">
-            @for (card of round.scale.cards; track card) {
-              <ion-card
-                button
-                class="card"
-                [class.selected]="card === myVote()"
-                [attr.aria-pressed]="card === myVote()"
-                [attr.aria-label]="'Card ' + card"
-                (click)="onCardTap(card)"
-              >
-                <ion-card-content class="card-face">
-                  {{ card }}
-                </ion-card-content>
-              </ion-card>
-            }
-          </div>
+          <ion-grid class="grid" role="group" aria-label="Choose your estimate">
+            <ion-row>
+              @for (card of round.scale.cards; track card) {
+                <ion-col size="4" size-md="3">
+                  <ion-card
+                    button
+                    class="card"
+                    [class.selected]="card === myVote()"
+                    [attr.aria-pressed]="card === myVote()"
+                    [attr.aria-label]="'Card ' + card"
+                    (click)="onCardTap(card)"
+                  >
+                    <ion-card-content class="card-face">
+                      {{ card }}
+                    </ion-card-content>
+                  </ion-card>
+                </ion-col>
+              }
+            </ion-row>
+          </ion-grid>
         }
       } @else {
         <p class="empty">No active round.</p>
@@ -200,9 +210,11 @@ import { OverflowMenuComponent, type OverflowMenuItem } from '../shared/overflow
         color: var(--ion-color-medium);
       }
       .grid {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 0.75rem;
+        --ion-grid-padding: 0;
+        --ion-grid-column-padding: 0.5rem;
+      }
+      @media (min-width: 1024px) {
+        .grid ion-col { flex: 0 0 20%; max-width: 20%; }
       }
       .card {
         margin: 0;
@@ -237,6 +249,12 @@ import { OverflowMenuComponent, type OverflowMenuItem } from '../shared/overflow
           }
         }
       }
+      @media (min-width: 768px) {
+        .card-face {
+          min-height: 5.5rem;
+          font-size: 2rem;
+        }
+      }
       .empty {
         color: var(--ion-color-medium);
         margin: 2rem 0;
@@ -247,21 +265,6 @@ import { OverflowMenuComponent, type OverflowMenuItem } from '../shared/overflow
         text-align: center;
         color: var(--ion-color-medium);
         font-size: 1.1rem;
-      }
-      @media (min-width: 768px) {
-        .grid {
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 1rem;
-        }
-        .card-face {
-          min-height: 5.5rem;
-          font-size: 2rem;
-        }
-      }
-      @media (min-width: 1024px) {
-        .grid {
-          grid-template-columns: repeat(5, minmax(0, 1fr));
-        }
       }
     `,
   ],

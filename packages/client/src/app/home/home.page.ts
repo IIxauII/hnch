@@ -202,16 +202,6 @@ import { OverflowMenuComponent, type OverflowMenuItem } from '../shared/overflow
       .icon-tile ion-icon {
         font-size: 20px;
       }
-      @media (min-width: 768px) {
-        ion-list.actions {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 1rem;
-        }
-        ion-list.actions app-jump-back-in-banner {
-          grid-column: 1 / -1;
-        }
-      }
     `,
   ],
 })

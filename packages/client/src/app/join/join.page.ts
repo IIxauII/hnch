@@ -23,14 +23,17 @@ import {
   IonBackButton,
   IonButton,
   IonButtons,
+  IonCol,
   IonContent,
   IonFooter,
+  IonGrid,
   IonHeader,
   IonIcon,
   IonInput,
   IonItem,
   IonLabel,
   IonList,
+  IonRow,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone'
@@ -71,14 +74,17 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
     IonBackButton,
     IonButton,
     IonButtons,
+    IonCol,
     IonContent,
     IonFooter,
+    IonGrid,
     IonHeader,
     IonIcon,
     IonInput,
     IonItem,
     IonLabel,
     IonList,
+    IonRow,
     IonTitle,
     IonToolbar,
     ReactiveFormsModule,
@@ -98,41 +104,49 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
       <div class="page-shell">
         <p class="page-subtitle">Enter the 6-character code your host shared.</p>
 
-        <div class="join-grid">
-          <div class="code-card">
-            <div class="card-label">Room code</div>
-            <app-segmented-code-input #codeInput [formControl]="codeControl" />
-          </div>
-
-          <ion-list inset="true" class="qr-list">
-            <ion-item button="true" detail="true" [disabled]="isSubmitting()" (click)="onScanQr()">
-              <div class="icon-tile" slot="start" aria-hidden="true">
-                <ion-icon name="qr-code-outline"></ion-icon>
+        <ion-grid class="join-grid">
+          <ion-row>
+            <ion-col size="12" size-md="6">
+              <div class="code-card">
+                <div class="card-label">Room code</div>
+                <app-segmented-code-input #codeInput [formControl]="codeControl" />
               </div>
-              <ion-label>
-                <h2>Scan QR code</h2>
-                <p>Point your camera at the host's screen</p>
-              </ion-label>
-            </ion-item>
-          </ion-list>
+            </ion-col>
 
-          @if (needsPassword()) {
-            <ion-list inset="true" class="password-list">
-              <ion-item lines="none">
-                <ion-input
-                  [formControl]="passwordControl"
-                  label="Password"
-                  labelPlacement="stacked"
-                  type="password"
-                  enterkeyhint="go"
-                  placeholder="Enter the room password"
-                  (keydown.enter)="submit()"
-                ></ion-input>
-              </ion-item>
-              <p class="list-footer">This room is password-protected.</p>
-            </ion-list>
-          }
-        </div>
+            <ion-col size="12" size-md="6">
+              <ion-list inset="true" class="qr-list">
+                <ion-item button="true" detail="true" [disabled]="isSubmitting()" (click)="onScanQr()">
+                  <div class="icon-tile" slot="start" aria-hidden="true">
+                    <ion-icon name="qr-code-outline"></ion-icon>
+                  </div>
+                  <ion-label>
+                    <h2>Scan QR code</h2>
+                    <p>Point your camera at the host's screen</p>
+                  </ion-label>
+                </ion-item>
+              </ion-list>
+            </ion-col>
+
+            @if (needsPassword()) {
+              <ion-col size="12">
+                <ion-list inset="true" class="password-list">
+                  <ion-item lines="none">
+                    <ion-input
+                      [formControl]="passwordControl"
+                      label="Password"
+                      labelPlacement="stacked"
+                      type="password"
+                      enterkeyhint="go"
+                      placeholder="Enter the room password"
+                      (keydown.enter)="submit()"
+                    ></ion-input>
+                  </ion-item>
+                  <p class="list-footer">This room is password-protected.</p>
+                </ion-list>
+              </ion-col>
+            }
+          </ion-row>
+        </ion-grid>
 
         <div class="submit-wrap">
           <ion-button
@@ -222,21 +236,10 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
         --background: transparent;
       }
       .join-grid {
-        display: contents;
+        --ion-grid-padding: 0;
       }
-      @media (min-width: 768px) {
-        .join-grid {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-          gap: 1rem;
-          align-items: start;
-        }
-        .join-grid .password-list {
-          grid-column: 1 / -1;
-        }
-        .join-grid ion-list.qr-list {
-          margin-block-start: 0;
-        }
+      .join-grid ion-list.qr-list {
+        margin-block-start: 0;
       }
     `,
   ],
