@@ -155,14 +155,14 @@ import { presentSheet } from '../utils/present-sheet'
   styles: [
     `
       ion-content {
-        --background: var(--hnch-bg);
+        --background: var(--ion-background-color);
       }
       ion-list.actions {
         background: transparent;
         margin-block-start: 8px;
       }
       ion-item {
-        --background: var(--hnch-surface);
+        --background: var(--ion-background-color-step-50);
         --inner-padding-top: 12px;
         --inner-padding-bottom: 12px;
         --padding-start: 16px;

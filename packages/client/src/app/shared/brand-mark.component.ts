@@ -46,7 +46,7 @@ import {
       align-items: center;
       justify-content: center;
       background: var(--hnch-text);
-      color: var(--hnch-bg);
+      color: var(--ion-background-color);
       font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
       font-weight: 700;
       letter-spacing: -0.02em;
@@ -67,7 +67,7 @@ import {
       right: -3px;
       border-radius: 50%;
       background: var(--hnch-accent);
-      border: 2px solid var(--hnch-bg);
+      border: 2px solid var(--ion-background-color);
       flex-shrink: 0;
     }
   `],

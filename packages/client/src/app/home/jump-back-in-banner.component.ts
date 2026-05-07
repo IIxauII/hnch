@@ -48,7 +48,7 @@ export interface JumpBackInSummary {
         display: contents;
       }
       ion-item {
-        --background: var(--hnch-surface);
+        --background: var(--ion-background-color-step-50);
         --inner-padding-top: 12px;
         --inner-padding-bottom: 12px;
         --padding-start: 16px;

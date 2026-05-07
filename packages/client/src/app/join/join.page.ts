@@ -143,7 +143,7 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
   styles: [
     `
       ion-content {
-        --background: var(--hnch-bg);
+        --background: var(--ion-background-color);
         --padding-start: 16px;
         --padding-end: 16px;
       }
@@ -154,7 +154,7 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
         letter-spacing: -0.2px;
       }
       .code-card {
-        background: var(--hnch-surface);
+        background: var(--ion-background-color-step-50);
         border-radius: 16px;
         padding: 20px 18px;
         border: 0.5px solid var(--hnch-sep);
@@ -175,7 +175,7 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
         margin-block-start: 16px;
       }
       ion-item {
-        --background: var(--hnch-surface);
+        --background: var(--ion-background-color-step-50);
       }
       ion-item h2 {
         font-size: 16px;

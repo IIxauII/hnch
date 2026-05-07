@@ -8,9 +8,10 @@
 
 :root {
   // Background & surfaces
-  --hnch-bg:           #F2F2F7;
-  --hnch-surface:      #FFFFFF;
-  --hnch-surface-2:    #FAFAFB;
+  --ion-background-color:           #F2F2F7;
+  --ion-background-color-rgb:       242, 242, 247;
+  --ion-background-color-step-50:   #FFFFFF;
+  --ion-background-color-step-100:  #FAFAFB;
 
   // Glass — plan §variables.scss values
   --hnch-glass:        rgba(255, 255, 255, 0.72);
@@ -65,9 +66,10 @@
 
 :root.ion-palette-dark {
   // Background & surfaces
-  --hnch-bg:           #000000;
-  --hnch-surface:      #1C1C1E;
-  --hnch-surface-2:    #2C2C2E;
+  --ion-background-color:           #000000;
+  --ion-background-color-rgb:       0, 0, 0;
+  --ion-background-color-step-50:   #1C1C1E;
+  --ion-background-color-step-100:  #2C2C2E;
 
   // Glass — plan §variables.scss values
   --hnch-glass:        rgba(28, 28, 30, 0.66);

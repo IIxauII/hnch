@@ -99,7 +99,7 @@ import { BrandMarkComponent } from '../shared/brand-mark.component'
         --border-width: 0;
       }
       ion-content {
-        --background: var(--hnch-bg);
+        --background: var(--ion-background-color);
         --padding-start: 24px;
         --padding-end: 24px;
         --padding-top: 64px;
@@ -129,7 +129,7 @@ import { BrandMarkComponent } from '../shared/brand-mark.component'
         background: transparent;
       }
       ion-item {
-        --background: var(--hnch-surface);
+        --background: var(--ion-background-color-step-50);
         --border-color: var(--hnch-sep);
       }
       .footer-note {
