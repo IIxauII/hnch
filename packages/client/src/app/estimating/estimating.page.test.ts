@@ -10,8 +10,6 @@ vi.mock('@ionic/angular/standalone', () => ({
   IonButtons: {},
   IonCard: {},
   IonCardContent: {},
-  IonCardHeader: {},
-  IonCardTitle: {},
   IonChip: {},
   IonCol: {},
   IonContent: {},

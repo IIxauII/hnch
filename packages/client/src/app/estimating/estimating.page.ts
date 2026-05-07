@@ -15,8 +15,6 @@ import {
   IonButtons,
   IonCard,
   IonCardContent,
-  IonCardHeader,
-  IonCardTitle,
   IonChip,
   IonCol,
   IonContent,
@@ -72,8 +70,6 @@ import { OverflowMenuComponent, type OverflowMenuItem } from '../shared/overflow
     IonButtons,
     IonCard,
     IonCardContent,
-    IonCardHeader,
-    IonCardTitle,
     IonChip,
     IonCol,
     IonContent,
@@ -126,33 +122,31 @@ import { OverflowMenuComponent, type OverflowMenuItem } from '../shared/overflow
       <app-connection-status-banner />
       @if (currentRound(); as round) {
 
-        <!-- Round card -->
-        <ion-card class="section-card">
-          <ion-card-header>
-            <ion-card-title>
-              <h1 class="title">Round {{ roundIndex() }}</h1>
-            </ion-card-title>
+        <!-- Round info section -->
+        <section class="page-section page-section--no-top-border" aria-label="Round {{ roundIndex() }}">
+          <header class="page-section-header">
+            <h1 class="round-title">Round {{ roundIndex() }}</h1>
             @if (round.title) {
-              <p class="descriptor">{{ round.title }}</p>
+              <span class="page-section-meta">{{ round.title }}</span>
             }
+          </header>
+          <div class="page-section-body">
             @if (elapsedLabel(); as label) {
               <p class="elapsed" role="status" aria-live="off">{{ label }}</p>
             }
-          </ion-card-header>
-          <ion-card-content>
             <app-avatar-vote-row
               [participants]="onlineVoterParticipants()"
               [votedIds]="votedIds()"
             />
-          </ion-card-content>
-        </ion-card>
+          </div>
+        </section>
 
-        <!-- Vote card -->
-        <ion-card class="section-card">
-          <ion-card-header>
-            <ion-card-title>Cast your vote</ion-card-title>
-          </ion-card-header>
-          <ion-card-content>
+        <!-- Vote section -->
+        <section class="page-section" aria-label="Vote">
+          <header class="page-section-header">
+            <h2 class="page-section-title">Cast your vote</h2>
+          </header>
+          <div class="page-section-body">
             @if (isViewer()) {
               <p class="observer-notice" role="status" aria-live="polite">
                 You're observing this round
@@ -179,8 +173,8 @@ import { OverflowMenuComponent, type OverflowMenuItem } from '../shared/overflow
                 </ion-row>
               </ion-grid>
             }
-          </ion-card-content>
-        </ion-card>
+          </div>
+        </section>
 
       } @else {
         <p class="empty">No active round.</p>
@@ -206,35 +200,17 @@ import { OverflowMenuComponent, type OverflowMenuItem } from '../shared/overflow
   `,
   styles: [
     `
-      /* Section cards */
-      .section-card {
-        margin: 0 0 1rem;
-        border: 1px solid var(--hnch-sep);
-        background: var(--hnch-surface);
-      }
-      .section-card ion-card-header {
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.5rem;
-      }
-      .title {
-        font-size: 1.75rem;
-        font-weight: 700;
-        margin: 0.25rem 0 0.25rem;
-        display: inline;
-      }
-      .descriptor {
-        margin: 0.25rem 0 0;
-        color: var(--ion-color-medium);
+      .round-title {
+        font-size: var(--hnch-text-h1);
+        font-weight: var(--hnch-font-weight-bold);
+        margin: 0;
+        letter-spacing: var(--hnch-letter-spacing-display);
       }
       .elapsed {
-        font-size: 2rem;
-        font-weight: 600;
+        font-size: var(--hnch-text-caption);
         font-variant-numeric: tabular-nums;
-        margin: 0.5rem 0 0;
         color: var(--ion-color-medium);
+        margin: 0.25rem 0;
       }
       .grid {
         --ion-grid-padding: 0;
@@ -298,10 +274,10 @@ import { OverflowMenuComponent, type OverflowMenuItem } from '../shared/overflow
         text-align: center;
       }
       .observer-notice {
+        font-size: var(--hnch-text-body);
         margin: 2rem 0;
         text-align: center;
         color: var(--ion-color-medium);
-        font-size: 1.1rem;
       }
     `,
   ],
