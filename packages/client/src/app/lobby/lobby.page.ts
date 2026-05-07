@@ -561,12 +561,6 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
           position: sticky;
           top: 0;
         }
-        /* Footer inner content aligns with the right pane */
-        .lobby-footer-shell .footer-row,
-        .lobby-footer-shell ion-button[expand='block'] {
-          max-width: calc(var(--hnch-content-max) - var(--hnch-rail-width) - 2rem);
-          margin-inline-start: calc(var(--hnch-rail-width) + 2rem);
-        }
       }
     `,
   ],
