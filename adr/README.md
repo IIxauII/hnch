@@ -56,7 +56,8 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0035](0035-wrong-password-post-upgrade-close.md) | Wrong-password rejection on WS close 4002 (supersedes ADR-0017 password-enforcement clause) | Accepted |
 | [0036](0036-participant-removal-lifecycle.md) | Participant removal lifecycle — voluntary leave + host kick via soft-delete `leftAt` / `removedBy` | Accepted |
 | [0037](0037-self-hosted-runner-pool-covers-all-non-health-jobs.md) | Self-hosted runner pool covers all CI/CD jobs except `runner-health.yml` (extends ADR-0029 + ADR-0032) | Proposed |
-| [0038](0038-responsive-layout-and-keyboard.md) | Responsive layout system & keyboard-shortcut contract | Accepted |
+| [0038](0038-responsive-layout-and-keyboard.md) | Responsive layout system & keyboard-shortcut contract | Accepted (§Option D `ion-grid` rejection superseded by ADR-0039) |
+| [0039](0039-ion-grid-section-cards-popover-overflow.md) | UI vocabulary follow-up — `ion-grid`, `ion-popover` overflow menus, and `ion-card` section grouping (supersedes ADR-0038 §Option D for layout-vocabulary) | Accepted |
 
 ## When to write an ADR
 

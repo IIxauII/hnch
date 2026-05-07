@@ -180,6 +180,8 @@ Use Ionic's responsive grid system (`size`, `size-md`, `size-lg`) instead of pla
 **Pros:** declarative, Ionic-native, no manual breakpoint math.
 **Cons:** introduces a parallel layout system to plain CSS Grid (which the codebase already uses for the card grid) without solving anything CSS Grid + custom-property breakpoints does not. The codebase becomes inconsistent — some grids are `ion-grid`, others are `display: grid`. The cost of inconsistency is paid forever; the benefit is small.
 
+> **Note:** superseded by [ADR-0039](0039-ion-grid-section-cards-popover-overflow.md) — see that ADR for the new `ion-grid` stance.
+
 ## Trade-off Analysis
 
 Option A is the cheapest possible change but does not deliver the thing being asked for. It centers the phone experience inside a desktop window rather than producing a desktop experience.
