@@ -167,8 +167,11 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
             }
           </ion-row>
         </ion-grid>
-
-        <div class="submit-wrap">
+      </div>
+    </ion-content>
+    <ion-footer>
+      <ion-toolbar>
+        <div class="page-footer-shell">
           <ion-button
             expand="block"
             size="large"
@@ -178,9 +181,8 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
             Join
           </ion-button>
         </div>
-      </div>
-    </ion-content>
-    <ion-footer></ion-footer>
+      </ion-toolbar>
+    </ion-footer>
   `,
   styles: [
     `
@@ -214,11 +216,14 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
         color: var(--ion-color-medium);
         margin: 0;
       }
-      .submit-wrap {
-        padding: 28px 0 24px;
-      }
       ion-footer {
         --background: transparent;
+      }
+      .page-footer-shell {
+        max-width: var(--hnch-content-max);
+        margin-inline: auto;
+        width: 100%;
+        padding: 0.25rem 0;
       }
       .join-grid {
         --ion-grid-padding: 0;
