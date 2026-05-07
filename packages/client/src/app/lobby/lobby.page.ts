@@ -529,11 +529,10 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
         padding: 0.25rem 0.5rem;
       }
       /* ------------------------------------------------------------------ */
-      /* Lobby shell — wider cap than the default .page-shell (960px)        */
+      /* Lobby shell — caps and centers per ADR-0038 §3 (--hnch-content-max) */
       /* ------------------------------------------------------------------ */
       .lobby-shell {
-        --lobby-content-max: 1280px;
-        max-width: var(--lobby-content-max);
+        max-width: var(--hnch-content-max);
         margin-inline: auto;
         width: 100%;
       }
@@ -541,7 +540,7 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       /* Desktop two-pane grid (≥1024px)                                    */
       /* ------------------------------------------------------------------ */
       .lobby-footer-shell {
-        max-width: var(--lobby-content-max, 1280px);
+        max-width: var(--hnch-content-max);
         margin-inline: auto;
         width: 100%;
       }
@@ -565,7 +564,7 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
         /* Footer inner content aligns with the right pane */
         .lobby-footer-shell .footer-row,
         .lobby-footer-shell ion-button[expand='block'] {
-          max-width: calc(100% - var(--hnch-rail-width) - 2rem);
+          max-width: calc(var(--hnch-content-max) - var(--hnch-rail-width) - 2rem);
           margin-inline-start: calc(var(--hnch-rail-width) + 2rem);
         }
       }

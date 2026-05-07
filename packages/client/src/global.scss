@@ -73,16 +73,21 @@
  * Desktop modal sizing — ADR-0038.
  *
  * At ≥1024px, `breakpoints` is `undefined` (via getSheetBreakpoints()),
- * so Ionic renders the default centered card dialog — no positioning
- * workaround needed. The `.hnch-sheet` cssClass is the desktop-size hook.
- * Mobile (<1024px) cascade is untouched.
+ * so Ionic renders the default centered card dialog. Explicit `--height`
+ * is required because sheet templates use `<ion-content>`, which is
+ * absolutely positioned and collapses to 0 inside a `--height: auto`
+ * modal. Mobile (<1024px) cascade is untouched.
  */
 @media (min-width: 1024px) {
   ion-modal.hnch-sheet {
     --width: var(--hnch-modal-max);
     --max-width: var(--hnch-modal-max);
-    --height: auto;
+    --height: 70vh;
+    --min-height: 360px;
     --max-height: 90vh;
     --border-radius: 16px;
+  }
+  ion-modal.hnch-sheet::part(handle) {
+    display: none;
   }
 }
