@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const __dirname = import.meta.dirname;
 const repoRoot = resolve(__dirname, '..');
 
 const PLACEHOLDER = '0.0.0-semantically-released';
@@ -57,7 +57,7 @@ function highestTagVersion(pkg) {
       encoding: 'utf8',
     });
   } catch (err) {
-    throw new Error(`git tag --list failed for ${pkg}: ${err.message}`);
+    throw new Error(`git tag --list failed for ${pkg}: ${err.message}`, { cause: err });
   }
   const versions = raw
     .split('\n')
@@ -66,7 +66,7 @@ function highestTagVersion(pkg) {
     .map((t) => t.replace(new RegExp(`^${pkg}-v`), ''))
     .filter((v) => /^\d+\.\d+\.\d+/.test(v));
   if (versions.length === 0) return null;
-  return versions.sort(compareSemver).at(-1);
+  return versions.toSorted(compareSemver).at(-1);
 }
 
 function readPkgVersion(pkg) {

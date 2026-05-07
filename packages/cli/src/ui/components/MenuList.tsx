@@ -26,7 +26,7 @@ export function MenuList({ items, onSelect, onClose, title }: MenuListProps): Re
   }
 
   const firstEnabled = items.findIndex((item) => !item.disabled);
-  const [cursor, setCursor] = useState(firstEnabled >= 0 ? firstEnabled : 0);
+  const [cursor, setCursor] = useState(Math.max(firstEnabled, 0));
 
   useInput((input, key) => {
     if (key.upArrow) {

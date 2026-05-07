@@ -107,7 +107,7 @@ describe('AccentService', () => {
 
   it('setAccent writes Preferences and updates --ion-color-primary', async () => {
     mockPreferences.get.mockResolvedValue({ value: null });
-    mockPreferences.set.mockResolvedValue(undefined);
+    mockPreferences.set.mockResolvedValue();
     const svc = await createService();
     await svc.loadFromStorage();
 
@@ -124,7 +124,7 @@ describe('AccentService', () => {
 
   it('setAccent writes all six Ionic primary vars', async () => {
     mockPreferences.get.mockResolvedValue({ value: null });
-    mockPreferences.set.mockResolvedValue(undefined);
+    mockPreferences.set.mockResolvedValue();
     const svc = await createService();
     await svc.loadFromStorage();
 

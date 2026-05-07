@@ -84,7 +84,7 @@ describe('relay-api', () => {
     });
 
     it('throws if httpBaseUrl is undefined', async () => {
-      await expect(mintRoom(undefined)).rejects.toThrow('mintRoom: httpBaseUrl is required');
+      await expect(mintRoom()).rejects.toThrow('mintRoom: httpBaseUrl is required');
       expect(mockFetch).not.toHaveBeenCalled();
     });
 

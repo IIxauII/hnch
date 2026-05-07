@@ -70,7 +70,7 @@ function makeMockModalCtrl(dismissData: string | { reason: QrScanErrorReason } |
   mockPresent: ReturnType<typeof vi.fn>;
   mockOnWillDismiss: ReturnType<typeof vi.fn>;
 } {
-  const mockPresent = vi.fn().mockResolvedValue(undefined);
+  const mockPresent = vi.fn().mockResolvedValue();
   const mockOnWillDismiss = vi.fn().mockResolvedValue({ data: dismissData, role: 'cancel' });
   const mockCreate = vi.fn().mockResolvedValue({
     present: mockPresent,
@@ -262,7 +262,7 @@ describe('QrScannerService.scanForCode() routing', () => {
     resetPolyfillPromise();
     isNative = false;
 
-    mockModalPresent = vi.fn().mockResolvedValue(undefined);
+    mockModalPresent = vi.fn().mockResolvedValue();
     mockModalOnWillDismiss = vi.fn().mockResolvedValue({ data: null });
     mockModalCreate = vi.fn().mockResolvedValue({
       present: mockModalPresent,

@@ -5,12 +5,12 @@ import { isLikelyUrl } from './is-likely-url.js';
 
 /** Escape pipe characters in Markdown table cell content. */
 function escMd(s: string): string {
-  return s.replace(/\|/g, '\\|');
+  return s.replaceAll(/\|/g, '\\|');
 }
 
 /** Escape `]` (closes link text) and `\` (escape char) for use inside a Markdown link label. */
 function escMdLinkText(s: string): string {
-  return s.replace(/\\/g, '\\\\').replace(/]/g, '\\]');
+  return s.replaceAll(/\\/g, '\\\\').replaceAll(/]/g, '\\]');
 }
 
 /** Pick a backtick fence longer than any backtick run in `s`. */
@@ -96,7 +96,7 @@ function buildVoteTable(round: Round, nameById: ReadonlyMap<string, string>): st
   const groups = [...byCard.entries()].map(([card, voters]) => ({
     card,
     scaleIndex: scaleOrder.get(card) ?? Number.MAX_SAFE_INTEGER,
-    voters: [...voters].sort().map(escMd),
+    voters: [...voters].toSorted().map(escMd),
   }));
 
   groups.sort((a, b) => {

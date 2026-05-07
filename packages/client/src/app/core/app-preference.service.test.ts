@@ -121,7 +121,7 @@ describe('AppPreferenceService', () => {
   describe('setDefaultSessionName', () => {
     it('updates the signal and persists to Preferences', async () => {
       mockPreferences.get.mockResolvedValue({ value: null });
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
       const svc = await createService();
       await svc.setDefaultSessionName('Sprint Team');
       expect(svc.defaultSessionName()).toBe('Sprint Team');
@@ -133,7 +133,7 @@ describe('AppPreferenceService', () => {
 
     it('clears the preference when passed undefined', async () => {
       mockPreferences.get.mockResolvedValue({ value: null });
-      mockPreferences.remove.mockResolvedValue(undefined);
+      mockPreferences.remove.mockResolvedValue();
       const svc = await createService();
       await svc.setDefaultSessionName(undefined);
       expect(svc.defaultSessionName()).toBeUndefined();
@@ -150,7 +150,7 @@ describe('AppPreferenceService', () => {
   describe('setDefaultPassword', () => {
     it('sets flag to true and persists', async () => {
       mockPreferences.get.mockResolvedValue({ value: null });
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
       const svc = await createService();
       await svc.setDefaultPassword(true);
       expect(svc.defaultPassword()).toBe(true);
@@ -162,7 +162,7 @@ describe('AppPreferenceService', () => {
 
     it('sets flag to false and persists', async () => {
       mockPreferences.get.mockResolvedValue({ value: null });
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
       const svc = await createService();
       await svc.setDefaultPassword(false);
       expect(svc.defaultPassword()).toBe(false);
@@ -180,7 +180,7 @@ describe('AppPreferenceService', () => {
   describe('setRelayUrl', () => {
     it('persists HTTP URL and updates signal', async () => {
       mockPreferences.get.mockResolvedValue({ value: null });
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
       const svc = await createService();
       await svc.setRelayUrl('http://localhost:1234');
       expect(svc.relayHttpUrl()).toBe('http://localhost:1234');
@@ -192,7 +192,7 @@ describe('AppPreferenceService', () => {
 
     it('removes preference and clears signal when passed undefined', async () => {
       mockPreferences.get.mockResolvedValue({ value: null });
-      mockPreferences.remove.mockResolvedValue(undefined);
+      mockPreferences.remove.mockResolvedValue();
       const svc = await createService();
       await svc.setRelayUrl(undefined);
       expect(svc.relayHttpUrl()).toBeUndefined();
@@ -213,7 +213,7 @@ describe('AppPreferenceService', () => {
 
     it('transforms http:// to ws://', async () => {
       mockPreferences.get.mockResolvedValue({ value: null });
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
       const svc = await createService();
       await svc.setRelayUrl('http://relay.example.com:1234');
       expect(svc.relayWsUrl()).toBe('ws://relay.example.com:1234');
@@ -221,7 +221,7 @@ describe('AppPreferenceService', () => {
 
     it('transforms https:// to wss://', async () => {
       mockPreferences.get.mockResolvedValue({ value: null });
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
       const svc = await createService();
       await svc.setRelayUrl('https://relay.example.com');
       expect(svc.relayWsUrl()).toBe('wss://relay.example.com');
@@ -229,8 +229,8 @@ describe('AppPreferenceService', () => {
 
     it('updates reactively when relayHttpUrl changes', async () => {
       mockPreferences.get.mockResolvedValue({ value: null });
-      mockPreferences.set.mockResolvedValue(undefined);
-      mockPreferences.remove.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
+      mockPreferences.remove.mockResolvedValue();
       const svc = await createService();
 
       await svc.setRelayUrl('http://host-a.example.com');

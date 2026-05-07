@@ -152,7 +152,7 @@ describe('ScalePreferenceService', () => {
   describe('togglePresetCard', () => {
     it('disables a card index for a known builtin scale', async () => {
       mockPreferences.get.mockImplementation(allKeysNull());
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
       const svc = await createService();
 
       await svc.togglePresetCard('fibonacci', 0);
@@ -166,7 +166,7 @@ describe('ScalePreferenceService', () => {
 
     it('re-enables a previously disabled card index', async () => {
       mockPreferences.get.mockImplementation(allKeysNull());
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
       const svc = await createService();
 
       await svc.togglePresetCard('fibonacci', 0);
@@ -177,7 +177,7 @@ describe('ScalePreferenceService', () => {
 
     it('does not disable the last enabled card (guard prevents empty scale)', async () => {
       mockPreferences.get.mockImplementation(allKeysNull());
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
       const svc = await createService();
 
       // fibonacci has 8 cards (indices 0-7); disable 7 of them
@@ -217,7 +217,7 @@ describe('ScalePreferenceService', () => {
   describe('addCustomScale', () => {
     it('appends a new scale and returns its id', async () => {
       mockPreferences.get.mockImplementation(allKeysNull());
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
       const svc = await createService();
 
       const id = await svc.addCustomScale('My Scale', ['XS', 'S', 'M', 'L']);
@@ -233,7 +233,7 @@ describe('ScalePreferenceService', () => {
 
     it('persists to Preferences', async () => {
       mockPreferences.get.mockImplementation(allKeysNull());
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
       const svc = await createService();
 
       await svc.addCustomScale('Scale A', ['1', '2']);
@@ -249,7 +249,7 @@ describe('ScalePreferenceService', () => {
         randomUUID: vi.fn().mockReturnValueOnce('uuid-1').mockReturnValueOnce('uuid-2'),
       });
       mockPreferences.get.mockImplementation(allKeysNull());
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
       const svc = await createService();
 
       await svc.addCustomScale('A', ['1']);
@@ -266,7 +266,7 @@ describe('ScalePreferenceService', () => {
   describe('updateCustomScale', () => {
     it('updates label and cards in place', async () => {
       mockPreferences.get.mockImplementation(allKeysNull());
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
       const svc = await createService();
       const id = await svc.addCustomScale('Old Label', ['1', '2']);
 
@@ -280,7 +280,7 @@ describe('ScalePreferenceService', () => {
 
     it('is a no-op when id is not found', async () => {
       mockPreferences.get.mockImplementation(allKeysNull());
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
       const svc = await createService();
       await svc.addCustomScale('Keep', ['1']);
 
@@ -298,7 +298,7 @@ describe('ScalePreferenceService', () => {
   describe('deleteCustomScale', () => {
     it('removes the scale by id', async () => {
       mockPreferences.get.mockImplementation(allKeysNull());
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
       const svc = await createService();
       const id = await svc.addCustomScale('Delete Me', ['X']);
 
@@ -319,7 +319,7 @@ describe('ScalePreferenceService', () => {
         randomUUID: vi.fn().mockReturnValueOnce('keep').mockReturnValueOnce('remove'),
       });
       mockPreferences.get.mockImplementation(allKeysNull());
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
       const svc = await createService();
 
       await svc.addCustomScale('Keep', ['1']);
@@ -339,7 +339,7 @@ describe('ScalePreferenceService', () => {
   describe('setDefaultScaleId', () => {
     it('updates the defaultScaleId signal', async () => {
       mockPreferences.get.mockImplementation(allKeysNull());
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
       const svc = await createService();
 
       await svc.setDefaultScaleId('t-shirt');
@@ -368,13 +368,13 @@ describe('ScalePreferenceService', () => {
 
     it('appends custom scales after builtins', async () => {
       mockPreferences.get.mockImplementation(allKeysNull());
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
       const svc = await createService();
 
       await svc.addCustomScale('My Custom', ['A', 'B']);
 
       const scales = svc.availableScales();
-      const lastScale = scales[scales.length - 1]!;
+      const lastScale = scales.at(-1)!;
       expect(lastScale.id).toBe('custom-test-uuid-1234');
     });
   });
@@ -402,7 +402,7 @@ describe('ScalePreferenceService', () => {
 
     it('resolves to t-shirt when defaultScaleId is set to t-shirt', async () => {
       mockPreferences.get.mockImplementation(allKeysNull());
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
       const svc = await createService();
       await svc.setDefaultScaleId('t-shirt');
       expect(svc.defaultScale().id).toBe('t-shirt');

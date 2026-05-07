@@ -42,7 +42,7 @@ export function App({
   const [projection, setProjection] = useState<DocProjection>(session.projection());
   const [status, setStatus] = useState<SyncStatus>('connecting');
   const [onlineIds, setOnlineIds] = useState<Set<string>>(session.onlineIds());
-  const [elapsedMs, setElapsedMs] = useState<number | undefined>(undefined);
+  const [elapsedMs, setElapsedMs] = useState<number | undefined>();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [accessMode, setAccessMode] = useState<'open' | 'password'>(
     initialAccessMode === 'password' ? 'password' : 'open',
@@ -278,7 +278,7 @@ export function App({
   // The latest revealed round for results display in Lobby
   const revealedRounds = projection.rounds.filter((r) => r.revealedAt !== undefined);
   const latestRevealedRound: Round | null =
-    revealedRounds.length > 0 ? revealedRounds[revealedRounds.length - 1]! : null;
+    revealedRounds.length > 0 ? revealedRounds.at(-1)! : null;
 
   return (
     <Box flexDirection="column">

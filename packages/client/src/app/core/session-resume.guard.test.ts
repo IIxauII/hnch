@@ -12,8 +12,8 @@ vi.mock('@ionic/angular/standalone', () => ({}));
 vi.mock('@capacitor/preferences', () => ({
   Preferences: {
     get: vi.fn().mockResolvedValue({ value: null }),
-    set: vi.fn().mockResolvedValue(undefined),
-    remove: vi.fn().mockResolvedValue(undefined),
+    set: vi.fn().mockResolvedValue(),
+    remove: vi.fn().mockResolvedValue(),
   },
 }));
 
@@ -49,7 +49,7 @@ function makeDocService(hasSession = false, roomCode: string | null = null) {
 
 function makeLastSessionService() {
   return {
-    clear: vi.fn().mockResolvedValue(undefined),
+    clear: vi.fn().mockResolvedValue(),
   };
 }
 

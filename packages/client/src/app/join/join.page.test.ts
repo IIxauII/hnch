@@ -30,7 +30,7 @@ vi.mock('@hnch/shared', () => ({
   formatRoomCode: (s: string) => s,
   hashPassword: vi.fn(),
   isValidRoomCode: (s: string) => s.length === 6,
-  normalizeRoomCode: (s: string) => s.toUpperCase().replace(/-/g, ''),
+  normalizeRoomCode: (s: string) => s.toUpperCase().replaceAll(/-/g, ''),
   parseInviteContent: vi.fn(),
 }));
 

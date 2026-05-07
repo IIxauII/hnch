@@ -228,7 +228,7 @@ describe('session integration', () => {
     expect(host.projection().settings.name).toBe('Sprint 43');
 
     // Remove name by passing undefined
-    host.updateName(undefined);
+    host.updateName();
     await sleep(300);
     expect(host.projection().settings.name).toBeUndefined();
 

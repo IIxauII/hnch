@@ -50,7 +50,7 @@ function computeStats(votes: Record<string, string>): {
   const values = Object.values(votes)
     .map((v) => parseFloat(v))
     .filter((n) => !isNaN(n))
-    .sort((a, b) => a - b);
+    .toSorted((a, b) => a - b);
 
   if (values.length === 0) {
     return { average: '-', median: '-', agreement: '-' };
@@ -91,7 +91,7 @@ function compactRoundSummary(round: Round, roundNum: number): string {
     counts.set(v, (counts.get(v) ?? 0) + 1);
   }
   const tally = [...counts.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .toSorted((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .map(([card, count]) => `${card}×${count}`)
     .join(', ');
 

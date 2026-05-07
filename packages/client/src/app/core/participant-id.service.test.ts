@@ -86,7 +86,7 @@ describe('ParticipantIdService', () => {
   describe('fresh install (Device.getId() fallback)', () => {
     it('calls Device.getId() when no legacy key exists', async () => {
       mockPreferences.get.mockResolvedValue({ value: null });
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
       mockDevice.getId.mockResolvedValue({ identifier: 'device-native-id-xyz' });
 
       const svc = await createService();
@@ -98,7 +98,7 @@ describe('ParticipantIdService', () => {
 
     it('writes the Device.getId() result to Preferences under the legacy key', async () => {
       mockPreferences.get.mockResolvedValue({ value: null });
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
       mockDevice.getId.mockResolvedValue({ identifier: 'device-native-id-xyz' });
 
       const svc = await createService();
@@ -112,7 +112,7 @@ describe('ParticipantIdService', () => {
 
     it('caches the Device id in the signal', async () => {
       mockPreferences.get.mockResolvedValue({ value: null });
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
       mockDevice.getId.mockResolvedValue({ identifier: 'device-native-id-xyz' });
 
       const svc = await createService();

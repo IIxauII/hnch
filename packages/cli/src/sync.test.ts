@@ -20,7 +20,7 @@ const providerState = vi.hoisted(() => ({
     this.instances.length = 0;
   },
   last() {
-    return this.instances[this.instances.length - 1];
+    return this.instances.at(-1);
   },
 }));
 

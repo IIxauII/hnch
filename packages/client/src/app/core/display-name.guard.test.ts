@@ -22,8 +22,8 @@ vi.mock('@ionic/angular/standalone', () => ({}));
 vi.mock('@capacitor/preferences', () => ({
   Preferences: {
     get: vi.fn().mockResolvedValue({ value: null }),
-    set: vi.fn().mockResolvedValue(undefined),
-    remove: vi.fn().mockResolvedValue(undefined),
+    set: vi.fn().mockResolvedValue(),
+    remove: vi.fn().mockResolvedValue(),
   },
 }));
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false } }));
@@ -56,7 +56,7 @@ function makeRouter(navigationUrl?: string) {
 function makeDisplayNameService(name: string | null) {
   return {
     getDisplayName: vi.fn().mockResolvedValue(name),
-    setPendingJoinUrl: vi.fn().mockResolvedValue(undefined),
+    setPendingJoinUrl: vi.fn().mockResolvedValue(),
   };
 }
 
@@ -135,7 +135,7 @@ describe('displayNameGuard', () => {
 
     it('falls back to "/join" when getCurrentNavigation() is null', async () => {
       const displayNameMock = makeDisplayNameService(null);
-      const routerMock = makeRouter(/* no nav */ undefined);
+      const routerMock = makeRouter(/* no nav */ );
 
       await runGuard(displayNameMock, routerMock, [seg('join')]);
 

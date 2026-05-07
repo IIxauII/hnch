@@ -26,8 +26,8 @@ vi.mock('./relay/relay-api', () => ({
 vi.mock('@capacitor/preferences', () => ({
   Preferences: {
     get: vi.fn().mockResolvedValue({ value: null }),
-    set: vi.fn().mockResolvedValue(undefined),
-    remove: vi.fn().mockResolvedValue(undefined),
+    set: vi.fn().mockResolvedValue(),
+    remove: vi.fn().mockResolvedValue(),
   },
 }));
 
@@ -69,8 +69,8 @@ function makeDocService(
 
 function makeLastSessionService() {
   return {
-    record: vi.fn().mockResolvedValue(undefined),
-    clear: vi.fn().mockResolvedValue(undefined),
+    record: vi.fn().mockResolvedValue(),
+    clear: vi.fn().mockResolvedValue(),
     get: vi.fn().mockResolvedValue(null),
   };
 }

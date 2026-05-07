@@ -16,7 +16,7 @@ test.describe('QR display modal', () => {
 
     // Room code text is readable alongside the QR
     const codeText = await host.page.locator(QR_MODAL.codeText).textContent();
-    expect(codeText?.replace(/[^A-Z0-9]/gi, '')).toBe(code);
+    expect(codeText?.replaceAll(/[^A-Z0-9]/gi, '')).toBe(code);
 
     // Dismiss via Done
     await host.page.locator(QR_MODAL.doneBtn).click();

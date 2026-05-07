@@ -7,7 +7,7 @@ function makeModal(dismissData: { data?: unknown; role?: string } = {}): {
   onDidDismiss: ReturnType<typeof vi.fn>;
 } {
   return {
-    present: vi.fn().mockResolvedValue(undefined),
+    present: vi.fn().mockResolvedValue(),
     onDidDismiss: vi.fn().mockResolvedValue(dismissData),
   };
 }
@@ -15,7 +15,7 @@ function makeModal(dismissData: { data?: unknown; role?: string } = {}): {
 describe('presentSheet', () => {
   it('restores focus to the previously focused element after dismiss', async () => {
     const button = document.createElement('button');
-    document.body.appendChild(button);
+    document.body.append(button);
     button.focus();
     expect(document.activeElement).toBe(button);
 
@@ -49,7 +49,7 @@ describe('presentSheet', () => {
 
   it('does not throw when invoking element removed before dismiss', async () => {
     const button = document.createElement('button');
-    document.body.appendChild(button);
+    document.body.append(button);
     button.focus();
 
     // Remove from DOM before dismiss fires.

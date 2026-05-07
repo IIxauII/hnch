@@ -206,7 +206,7 @@ export class CustomScaleEditorSheetComponent implements OnInit, OnDestroy {
    * If provided, the sheet opens in edit mode: pre-fills name and cards,
    * and calls `updateCustomScale()` on save.
    */
-  readonly existingScale = input<CustomScale | undefined>(undefined);
+  readonly existingScale = input<CustomScale | undefined>();
 
   /** Emits the id of the newly-created scale (create mode). */
   readonly created = output<string>();

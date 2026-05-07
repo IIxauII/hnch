@@ -240,10 +240,10 @@ async function handleResume(): Promise<void> {
     const message = err instanceof Error ? err.message : String(err);
     if (message.includes('Room not found')) {
       return await onSessionExpired({ clearLastSession, logger: console, exit: process.exit });
-    } else {
+    }
       console.error('Could not reach relay — try again later.');
       process.exit(0);
-    }
+    
   }
 
   if (resolved.accessMode === 'password' && !cache.passwordHash) {

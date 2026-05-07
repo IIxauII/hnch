@@ -101,7 +101,7 @@ export class HostElectionService {
     if (onlineIds.has(hostId)) return;
 
     // Compute the winner: lexicographically lowest active-online participantId.
-    const sorted = [...onlineIds].sort();
+    const sorted = [...onlineIds].toSorted();
     if (sorted.length === 0) return;
 
     const winner = sorted[0]!;

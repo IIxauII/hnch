@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const here = dirname(fileURLToPath(import.meta.url));
+const here = import.meta.dirname;
 const pkgPath = resolve(here, '..', 'package.json');
 const outPath = resolve(here, '..', 'src', 'environments', 'version.ts');
 

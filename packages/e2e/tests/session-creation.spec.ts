@@ -10,7 +10,7 @@ test.describe('Session creation', () => {
 
     // Room code displayed on page (formatted with dash)
     const displayedCode = await host.page.locator(LOBBY.roomCode).textContent();
-    expect(displayedCode?.replace(/[^A-Z0-9]/gi, '')).toBe(code);
+    expect(displayedCode?.replaceAll(/[^A-Z0-9]/gi, '')).toBe(code);
 
     // Participant count is 1
     await host.expectParticipantCount(1);

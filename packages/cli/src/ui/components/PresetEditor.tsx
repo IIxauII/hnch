@@ -31,7 +31,7 @@ export function PresetEditor({
       newDisabled.add(index);
     }
 
-    const result = Array.from(newDisabled).sort((a, b) => a - b);
+    const result = Array.from(newDisabled).toSorted((a, b) => a - b);
     onOverrideChange(scaleId, result);
   };
 

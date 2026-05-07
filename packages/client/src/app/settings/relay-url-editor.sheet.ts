@@ -94,7 +94,7 @@ import {
 })
 export class RelayUrlEditorSheetComponent implements OnInit {
   /** Current relay URL override — pre-fills the input. */
-  readonly currentUrl = input<string | undefined>(undefined);
+  readonly currentUrl = input<string | undefined>();
 
   /** Emits the trimmed new URL on Done, or undefined on Clear. */
   readonly saved = output<string | undefined>();
@@ -128,7 +128,7 @@ export class RelayUrlEditorSheetComponent implements OnInit {
   }
 
   protected onClear(): void {
-    this.saved.emit(undefined);
+    this.saved.emit();
     this.closeRequested.emit();
   }
 }

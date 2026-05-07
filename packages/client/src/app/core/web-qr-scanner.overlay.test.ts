@@ -12,7 +12,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Module-level mocks (hoisted before imports)
 // ---------------------------------------------------------------------------
 
-const mockDismiss = vi.fn().mockResolvedValue(undefined);
+const mockDismiss = vi.fn().mockResolvedValue();
 const mockModalCtrlCreate = vi.fn();
 
 vi.mock('@ionic/angular/standalone', () => ({
@@ -22,8 +22,8 @@ vi.mock('@ionic/angular/standalone', () => ({
   },
 }));
 
-const mockStartScan = vi.fn().mockResolvedValue(undefined);
-const mockStopScan = vi.fn().mockResolvedValue(undefined);
+const mockStartScan = vi.fn().mockResolvedValue();
+const mockStopScan = vi.fn().mockResolvedValue();
 const mockAddListener = vi.fn();
 
 vi.mock('@capacitor-mlkit/barcode-scanning', () => ({
@@ -97,9 +97,9 @@ describe('WebQrScannerOverlayComponent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Restore default implementations after clearAllMocks
-    mockStartScan.mockResolvedValue(undefined);
-    mockStopScan.mockResolvedValue(undefined);
-    mockDismiss.mockResolvedValue(undefined);
+    mockStartScan.mockResolvedValue();
+    mockStopScan.mockResolvedValue();
+    mockDismiss.mockResolvedValue();
     TestBed.resetTestingModule();
   });
 
@@ -109,7 +109,7 @@ describe('WebQrScannerOverlayComponent', () => {
 
   it('dismisses with rawValue when barcode is scanned', async () => {
     let capturedListener: ((e: unknown) => void) | null = null;
-    const listenerHandle = { remove: vi.fn().mockResolvedValue(undefined) };
+    const listenerHandle = { remove: vi.fn().mockResolvedValue() };
     mockAddListener.mockImplementation((_event: string, cb: (e: unknown) => void) => {
       capturedListener = cb;
       return Promise.resolve(listenerHandle);
@@ -127,7 +127,7 @@ describe('WebQrScannerOverlayComponent', () => {
 
   it('removes listener on successful scan', async () => {
     let capturedListener: ((e: unknown) => void) | null = null;
-    const listenerHandle = { remove: vi.fn().mockResolvedValue(undefined) };
+    const listenerHandle = { remove: vi.fn().mockResolvedValue() };
     mockAddListener.mockImplementation((_event: string, cb: (e: unknown) => void) => {
       capturedListener = cb;
       return Promise.resolve(listenerHandle);
@@ -147,7 +147,7 @@ describe('WebQrScannerOverlayComponent', () => {
   // -------------------------------------------------------------------------
 
   it('dismisses with null when cancel is pressed', async () => {
-    const listenerHandle = { remove: vi.fn().mockResolvedValue(undefined) };
+    const listenerHandle = { remove: vi.fn().mockResolvedValue() };
     mockAddListener.mockResolvedValue(listenerHandle);
 
     await setupTestBed();
@@ -165,7 +165,7 @@ describe('WebQrScannerOverlayComponent', () => {
   // -------------------------------------------------------------------------
 
   it('calls stopScan and removes listener on ngOnDestroy', async () => {
-    const listenerHandle = { remove: vi.fn().mockResolvedValue(undefined) };
+    const listenerHandle = { remove: vi.fn().mockResolvedValue() };
     mockAddListener.mockResolvedValue(listenerHandle);
 
     await setupTestBed();
@@ -179,7 +179,7 @@ describe('WebQrScannerOverlayComponent', () => {
   });
 
   it('teardown is idempotent — stopScan called only once even if destroyed twice', async () => {
-    const listenerHandle = { remove: vi.fn().mockResolvedValue(undefined) };
+    const listenerHandle = { remove: vi.fn().mockResolvedValue() };
     mockAddListener.mockResolvedValue(listenerHandle);
 
     await setupTestBed();
@@ -198,7 +198,7 @@ describe('WebQrScannerOverlayComponent', () => {
   // -------------------------------------------------------------------------
 
   it('passes videoElement to startScan', async () => {
-    const listenerHandle = { remove: vi.fn().mockResolvedValue(undefined) };
+    const listenerHandle = { remove: vi.fn().mockResolvedValue() };
     mockAddListener.mockResolvedValue(listenerHandle);
 
     await setupTestBed();
@@ -210,7 +210,7 @@ describe('WebQrScannerOverlayComponent', () => {
   });
 
   it('starts scan with QrCode format', async () => {
-    const listenerHandle = { remove: vi.fn().mockResolvedValue(undefined) };
+    const listenerHandle = { remove: vi.fn().mockResolvedValue() };
     mockAddListener.mockResolvedValue(listenerHandle);
 
     await setupTestBed();
@@ -224,7 +224,7 @@ describe('WebQrScannerOverlayComponent', () => {
   // -------------------------------------------------------------------------
 
   it('dismisses with { reason: unknown } when startScan throws generic error', async () => {
-    const listenerHandle = { remove: vi.fn().mockResolvedValue(undefined) };
+    const listenerHandle = { remove: vi.fn().mockResolvedValue() };
     mockAddListener.mockResolvedValue(listenerHandle);
     mockStartScan.mockRejectedValue(new Error('videoElement must be provided.'));
 
@@ -235,7 +235,7 @@ describe('WebQrScannerOverlayComponent', () => {
   });
 
   it('dismisses with { reason: unavailable } when BarcodeDetector unsupported', async () => {
-    const listenerHandle = { remove: vi.fn().mockResolvedValue(undefined) };
+    const listenerHandle = { remove: vi.fn().mockResolvedValue() };
     mockAddListener.mockResolvedValue(listenerHandle);
     mockStartScan.mockRejectedValue(new Error('Barcode Detection API is not available'));
 
@@ -246,7 +246,7 @@ describe('WebQrScannerOverlayComponent', () => {
   });
 
   it('dismisses with { reason: permission-denied } when camera access denied', async () => {
-    const listenerHandle = { remove: vi.fn().mockResolvedValue(undefined) };
+    const listenerHandle = { remove: vi.fn().mockResolvedValue() };
     mockAddListener.mockResolvedValue(listenerHandle);
     const err = Object.assign(new DOMException('Permission denied', 'NotAllowedError'), {});
     mockStartScan.mockRejectedValue(err);
@@ -258,7 +258,7 @@ describe('WebQrScannerOverlayComponent', () => {
   });
 
   it('calls stopScan when startScan throws even after listener registered', async () => {
-    const listenerHandle = { remove: vi.fn().mockResolvedValue(undefined) };
+    const listenerHandle = { remove: vi.fn().mockResolvedValue() };
     mockAddListener.mockResolvedValue(listenerHandle);
     mockStartScan.mockRejectedValue(new Error('some camera error'));
 
@@ -275,7 +275,7 @@ describe('WebQrScannerOverlayComponent', () => {
 
   it('does not dismiss when destroyed before addListener resolves', async () => {
     let resolveAddListener!: (v: unknown) => void;
-    const listenerHandle = { remove: vi.fn().mockResolvedValue(undefined) };
+    const listenerHandle = { remove: vi.fn().mockResolvedValue() };
     mockAddListener.mockReturnValue(
       new Promise((res) => {
         resolveAddListener = res;
@@ -302,7 +302,7 @@ describe('WebQrScannerOverlayComponent', () => {
   });
 
   it('calls stopScan when destroyed before startScan resolves', async () => {
-    const listenerHandle = { remove: vi.fn().mockResolvedValue(undefined) };
+    const listenerHandle = { remove: vi.fn().mockResolvedValue() };
     mockAddListener.mockResolvedValue(listenerHandle);
 
     let resolveStartScan!: () => void;
@@ -341,7 +341,7 @@ describe('WebQrScannerOverlayComponent', () => {
 
   it('dismiss runs only once even when listener fires twice', async () => {
     let capturedListener: ((e: unknown) => void) | null = null;
-    const listenerHandle = { remove: vi.fn().mockResolvedValue(undefined) };
+    const listenerHandle = { remove: vi.fn().mockResolvedValue() };
     mockAddListener.mockImplementation((_event: string, cb: (e: unknown) => void) => {
       capturedListener = cb;
       return Promise.resolve(listenerHandle);

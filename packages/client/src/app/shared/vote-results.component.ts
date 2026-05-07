@@ -362,7 +362,7 @@ export class VoteResultsComponent {
       groups.push({
         card,
         scaleIndex: scaleOrder.get(card) ?? Number.MAX_SAFE_INTEGER,
-        voterNames: [...voterNames].sort(),
+        voterNames: [...voterNames].toSorted(),
       });
     }
 

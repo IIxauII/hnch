@@ -18,9 +18,9 @@ export class AppPreferenceService {
   static readonly DEFAULT_PASSWORD_KEY = 'hnch.defaultPassword';
   static readonly RELAY_URL_KEY = 'hnch.relayUrl';
 
-  private readonly defaultSessionNameSignal = signal<string | undefined>(undefined);
+  private readonly defaultSessionNameSignal = signal<string | undefined>();
   private readonly defaultPasswordSignal = signal<boolean>(false);
-  private readonly relayHttpUrlSignal = signal<string | undefined>(undefined);
+  private readonly relayHttpUrlSignal = signal<string | undefined>();
 
   /** User's preferred default session/room name. */
   readonly defaultSessionName: Signal<string | undefined> =
@@ -39,7 +39,7 @@ export class AppPreferenceService {
    */
   readonly relayWsUrl: Signal<string | undefined> = computed(() => {
     const httpUrl = this.relayHttpUrlSignal();
-    if (!httpUrl) return undefined;
+    if (!httpUrl) return;
     return httpUrl.replace(/^https?:\/\//, (match) => (match === 'https://' ? 'wss://' : 'ws://'));
   });
 

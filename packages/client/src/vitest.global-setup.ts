@@ -16,7 +16,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const sharedDir = resolve(fileURLToPath(import.meta.url), '../../../shared');
+const sharedDir = resolve(import.meta.filename, '../../../shared');
 const distIndex = resolve(sharedDir, 'dist/index.js');
 
 export function setup(): void {

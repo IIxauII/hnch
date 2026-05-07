@@ -26,7 +26,7 @@ export function CustomScaleEditor({
 
   const handleNameSubmit = () => {
     const trimmed = name.trim();
-    if (trimmed.length < 1 || trimmed.length > 40) {
+    if (trimmed.length === 0 || trimmed.length > 40) {
       setValidationError('Name must be 1-40 characters');
       return;
     }
@@ -37,7 +37,7 @@ export function CustomScaleEditor({
 
   const handleSave = () => {
     const trimmed = name.trim();
-    if (trimmed.length < 1 || trimmed.length > 40) {
+    if (trimmed.length === 0 || trimmed.length > 40) {
       setValidationError('Name must be 1-40 characters');
       return;
     }

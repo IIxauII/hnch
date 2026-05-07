@@ -150,7 +150,7 @@ describe('ThemeService', () => {
     const mql = createMockMediaQueryList(false);
     vi.spyOn(window, 'matchMedia').mockReturnValue(mql);
     mockPreferences.get.mockResolvedValue({ value: 'system' });
-    mockPreferences.set.mockResolvedValue(undefined);
+    mockPreferences.set.mockResolvedValue();
     const svc = await createService();
     await svc.ensureLoaded();
 
@@ -168,7 +168,7 @@ describe('ThemeService', () => {
 
   it('persists theme to Preferences on setTheme', async () => {
     mockPreferences.get.mockResolvedValue({ value: null });
-    mockPreferences.set.mockResolvedValue(undefined);
+    mockPreferences.set.mockResolvedValue();
     const svc = await createService();
     await svc.ensureLoaded();
 

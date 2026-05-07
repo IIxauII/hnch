@@ -52,7 +52,7 @@ export function generateRoomCode(): string {
  * to check whether the normalized form is well-formed.
  */
 export function normalizeRoomCode(input: string): string {
-  return input.trim().replace(/-/g, '').toUpperCase();
+  return input.trim().replaceAll(/-/g, '').toUpperCase();
 }
 
 /**

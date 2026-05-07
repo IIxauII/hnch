@@ -80,7 +80,7 @@ export class Participant {
     await codeEl.waitFor({ state: 'visible' });
     const code = await codeEl.textContent();
     if (!code) throw new Error('Room code not found on lobby page');
-    return code.replace(/[^A-Z0-9]/gi, ''); // strip dash formatting
+    return code.replaceAll(/[^A-Z0-9]/gi, ''); // strip dash formatting
   }
 
   /** Join an existing session from /home using a room code. */
@@ -375,8 +375,8 @@ export class Participant {
         allChips.push(cardValue?.trim() ?? '');
       }
     }
-    const sorted = [...allChips].sort();
-    const expectedSorted = [...expected].sort();
+    const sorted = [...allChips].toSorted();
+    const expectedSorted = [...expected].toSorted();
     if (sorted.join(',') !== expectedSorted.join(',')) {
       throw new Error(`Expected votes [${expectedSorted}] but got [${sorted}]`);
     }

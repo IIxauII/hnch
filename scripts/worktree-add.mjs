@@ -12,11 +12,11 @@ import { existsSync } from 'node:fs';
 import { resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const here = dirname(fileURLToPath(import.meta.url));
+const here = import.meta.dirname;
 const repoRoot = resolve(here, '..');
 
 const args = process.argv.slice(2);
-if (args.length < 1) {
+if (args.length === 0) {
   console.error('Usage: pnpm worktree:add <name> [base-branch]');
   process.exit(1);
 }
@@ -39,7 +39,7 @@ if (name.includes('..') || name.startsWith('/') || name.startsWith('-')) {
 }
 
 const repoName = basename(repoRoot);
-const worktreeDir = resolve(repoRoot, '..', `${repoName}-${name.replace(/\//g, '-')}`);
+const worktreeDir = resolve(repoRoot, '..', `${repoName}-${name.replaceAll(/\//g, '-')}`);
 
 if (existsSync(worktreeDir)) {
   console.error(`✗ Target dir already exists: ${worktreeDir}`);

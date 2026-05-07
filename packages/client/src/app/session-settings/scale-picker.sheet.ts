@@ -263,7 +263,7 @@ export class ScalePickerSheetComponent {
    * component shows as a radio picker and emits scaleSelected events.
    * If not provided, shows management-only mode (presets + custom with CRUD).
    */
-  readonly selectedScaleId = input<string | undefined>(undefined);
+  readonly selectedScaleId = input<string | undefined>();
 
   /**
    * Emits the newly-selected scale in picker mode. The parent container
@@ -285,7 +285,7 @@ export class ScalePickerSheetComponent {
   protected readonly editorOpen = signal(false);
 
   /** Custom scale being edited (undefined = create mode). */
-  protected readonly editingCustomScale = signal<CustomScale | undefined>(undefined);
+  protected readonly editingCustomScale = signal<CustomScale | undefined>();
   protected readonly customEditorOpen = signal(false);
 
   protected readonly formatId = formatScaleId;

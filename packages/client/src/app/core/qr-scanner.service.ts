@@ -34,7 +34,7 @@ let polyfillPromise: Promise<void> | null = null;
 export function ensurePolyfill(): Promise<void> {
   if (!polyfillPromise) {
     polyfillPromise = import('barcode-detector/polyfill')
-      .then(() => undefined)
+      .then(() => {})
       .catch((err) => {
         polyfillPromise = null;
         throw err;

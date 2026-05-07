@@ -19,7 +19,7 @@ function buildCardOrder(values: string[], scaleCards: string[]): (card: string) 
   const knownIndex = new Map<string, number>();
   scaleCards.forEach((c, i) => knownIndex.set(c, i));
 
-  const unknownSorted = [...new Set(values.filter((v) => !knownIndex.has(v)))].sort();
+  const unknownSorted = [...new Set(values.filter((v) => !knownIndex.has(v)))].toSorted();
   const unknownIndex = new Map<string, number>();
   unknownSorted.forEach((c, i) => unknownIndex.set(c, scaleCards.length + i));
 
@@ -34,7 +34,7 @@ function computeMode(values: string[], cardOrder: (card: string) => number): str
   let best: string | null = null;
   let bestCount = 0;
   // Iterate in stable card order so first-in-scale wins ties
-  const ordered = [...freq.keys()].sort((a, b) => cardOrder(a) - cardOrder(b));
+  const ordered = [...freq.keys()].toSorted((a, b) => cardOrder(a) - cardOrder(b));
   for (const card of ordered) {
     const count = freq.get(card)!;
     if (count > bestCount) {
@@ -67,7 +67,7 @@ export function computeRoundStats(votes: Record<string, string>, scale: Scale): 
 
     const mean = numericValues.reduce((s, n) => s + n, 0) / numericValues.length;
 
-    const sorted = [...numericValues].sort((a, b) => a - b);
+    const sorted = [...numericValues].toSorted((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
     const median = sorted.length % 2 === 1 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
 

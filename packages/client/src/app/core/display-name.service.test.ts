@@ -68,7 +68,7 @@ describe('DisplayNameService', () => {
 
   describe('setDisplayName', () => {
     it('persists the display name to Preferences', async () => {
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
       const svc = await createService();
       await svc.setDisplayName('Bob');
       expect(mockPreferences.set).toHaveBeenCalledWith({
@@ -120,7 +120,7 @@ describe('DisplayNameService', () => {
 
   describe('setPendingJoinUrl', () => {
     it('persists the URL to Preferences', async () => {
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
       const svc = await createService();
       await svc.setPendingJoinUrl('/join?code=XYZ999');
       expect(mockPreferences.set).toHaveBeenCalledWith({
@@ -136,7 +136,7 @@ describe('DisplayNameService', () => {
 
   describe('clearPendingJoinUrl', () => {
     it('removes the pending URL from Preferences', async () => {
-      mockPreferences.remove.mockResolvedValue(undefined);
+      mockPreferences.remove.mockResolvedValue();
       const svc = await createService();
       await svc.clearPendingJoinUrl();
       expect(mockPreferences.remove).toHaveBeenCalledWith({
@@ -145,7 +145,7 @@ describe('DisplayNameService', () => {
     });
 
     it('is idempotent — can be called multiple times without error', async () => {
-      mockPreferences.remove.mockResolvedValue(undefined);
+      mockPreferences.remove.mockResolvedValue();
       const svc = await createService();
       await svc.clearPendingJoinUrl();
       await svc.clearPendingJoinUrl();

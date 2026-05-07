@@ -99,8 +99,8 @@ describe('room store', () => {
     const uuids = store
       .listRooms()
       .map((r) => r.uuid)
-      .sort();
-    expect(uuids).toEqual([a.uuid, b.uuid].sort());
+      .toSorted();
+    expect(uuids).toEqual([a.uuid, b.uuid].toSorted());
   });
 
   it('createRoom accepts an optional passwordHash', () => {

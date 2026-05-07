@@ -130,7 +130,7 @@ export class SegmentedCodeInputComponent implements ControlValueAccessor {
     }
     // Normalize: strip non-alphanumeric, uppercase, take first 6 chars
     const clean = value
-      .replace(/[^a-zA-Z0-9]/g, '')
+      .replaceAll(/[^a-zA-Z0-9]/g, '')
       .toUpperCase()
       .slice(0, TILE_COUNT);
     this.tiles.set(Array.from({ length: TILE_COUNT }, (_, i) => clean[i] ?? ''));
@@ -183,7 +183,7 @@ export class SegmentedCodeInputComponent implements ControlValueAccessor {
   protected onInput(event: Event, index: number): void {
     const input = event.target as HTMLInputElement;
     const raw = input.value;
-    const clean = raw.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    const clean = raw.replaceAll(/[^a-zA-Z0-9]/g, '').toUpperCase();
 
     if (clean.length <= 1) {
       // Single char — normal flow
@@ -210,7 +210,7 @@ export class SegmentedCodeInputComponent implements ControlValueAccessor {
   protected onPaste(event: ClipboardEvent, startIndex: number): void {
     event.preventDefault();
     const pasted = event.clipboardData?.getData('text') ?? '';
-    const clean = pasted.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    const clean = pasted.replaceAll(/[^a-zA-Z0-9]/g, '').toUpperCase();
 
     let charIdx = 0;
     for (let i = startIndex; i < TILE_COUNT && charIdx < clean.length; i++, charIdx++) {

@@ -495,7 +495,7 @@ export function currentRound(projection: DocProjection): Round | null {
     const r = rounds[i]!;
     if (r.revealedAt === undefined) return r;
   }
-  return rounds[rounds.length - 1]!;
+  return rounds.at(-1)!;
 }
 
 /**

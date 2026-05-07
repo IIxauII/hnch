@@ -70,7 +70,7 @@ describe('ExportService', () => {
 
   it('native platform → calls Clipboard.write once with the markdown string', async () => {
     mockIsNativePlatform.mockReturnValue(true);
-    mockClipboardWrite.mockResolvedValue(undefined);
+    mockClipboardWrite.mockResolvedValue();
 
     const svc = await createService();
     await svc.copyRoundsAsMarkdown(minimalInput);
@@ -82,7 +82,7 @@ describe('ExportService', () => {
   it('web platform → calls navigator.clipboard.writeText once', async () => {
     mockIsNativePlatform.mockReturnValue(false);
 
-    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
+    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue();
     Object.defineProperty(globalThis, 'navigator', {
       value: { clipboard: { writeText } },
       writable: true,

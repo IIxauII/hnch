@@ -126,7 +126,7 @@ export class RoundHistoryComponent {
     // but we guard defensively.
     const revealed = this.rounds().filter((r) => r.revealedAt !== undefined);
     // Reverse chronological — newest rounds first in the history list.
-    const reversed = [...revealed].reverse();
+    const reversed = [...revealed].toReversed();
 
     return reversed.map((round, revIdx) => {
       // Round number = position among ALL rounds passed in (before reversing).
@@ -142,7 +142,7 @@ export class RoundHistoryComponent {
       const scaleOrder = new Map<string, number>();
       round.scale.cards.forEach((card, i) => scaleOrder.set(card, i));
 
-      const groups = [...countByCard.entries()].sort((a, b) => {
+      const groups = [...countByCard.entries()].toSorted((a, b) => {
         const byCount = b[1] - a[1];
         if (byCount !== 0) return byCount;
         return (scaleOrder.get(a[0]) ?? 9999) - (scaleOrder.get(b[0]) ?? 9999);

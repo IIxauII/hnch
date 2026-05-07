@@ -91,7 +91,7 @@ class HostElectionHarness {
     const onlineIds = new Set([...rawOnlineIds].filter((id) => activeIds.has(id)));
     if (onlineIds.has(hostId)) return;
 
-    const sorted = [...onlineIds].sort();
+    const sorted = [...onlineIds].toSorted();
     if (sorted.length === 0) return;
 
     const winner = sorted[0]!;

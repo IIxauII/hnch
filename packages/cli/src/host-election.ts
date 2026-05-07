@@ -57,7 +57,7 @@ export function startElection(doc: Y.Doc, awareness: Awareness, myId: string): E
     const onlineIds = getOnlineIds();
     if (onlineIds.has(hostId!)) return;
 
-    const sorted = [...onlineIds].sort();
+    const sorted = [...onlineIds].toSorted();
     if (sorted.length === 0) return;
 
     const winner = sorted[0]!;

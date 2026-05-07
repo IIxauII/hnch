@@ -46,7 +46,7 @@ describe('LastSessionService', () => {
   describe('record', () => {
     it('writes cache entry with timestamp', async () => {
       service = await createService();
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
 
       await service.record({
         roomCode: 'ABC123',
@@ -69,7 +69,7 @@ describe('LastSessionService', () => {
 
     it('uses provided now() for timestamp', async () => {
       service = await createService();
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
 
       const fixedTime = 1_000_000;
       await service.record(
@@ -88,7 +88,7 @@ describe('LastSessionService', () => {
 
     it('accepts both lastScreen values', async () => {
       service = await createService();
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
 
       await service.record({
         roomCode: 'ABC123',
@@ -138,7 +138,7 @@ describe('LastSessionService', () => {
       mockPreferences.get.mockResolvedValueOnce({
         value: 'not-valid-json{',
       });
-      mockPreferences.remove.mockResolvedValueOnce(undefined);
+      mockPreferences.remove.mockResolvedValueOnce();
 
       const result = await service.get();
 
@@ -157,7 +157,7 @@ describe('LastSessionService', () => {
           lastSeenAt: Date.now(),
         }),
       });
-      mockPreferences.remove.mockResolvedValueOnce(undefined);
+      mockPreferences.remove.mockResolvedValueOnce();
 
       const result = await service.get();
 
@@ -174,7 +174,7 @@ describe('LastSessionService', () => {
           lastSeenAt: Date.now(),
         }),
       });
-      mockPreferences.remove.mockResolvedValueOnce(undefined);
+      mockPreferences.remove.mockResolvedValueOnce();
 
       const result = await service.get();
 
@@ -191,7 +191,7 @@ describe('LastSessionService', () => {
           lastScreen: 'lobby',
         }),
       });
-      mockPreferences.remove.mockResolvedValueOnce(undefined);
+      mockPreferences.remove.mockResolvedValueOnce();
 
       const result = await service.get();
 
@@ -208,7 +208,7 @@ describe('LastSessionService', () => {
           lastSeenAt: Date.now(),
         }),
       });
-      mockPreferences.remove.mockResolvedValueOnce(undefined);
+      mockPreferences.remove.mockResolvedValueOnce();
 
       const result = await service.get();
 
@@ -226,7 +226,7 @@ describe('LastSessionService', () => {
           lastSeenAt: Date.now(),
         }),
       });
-      mockPreferences.remove.mockResolvedValueOnce(undefined);
+      mockPreferences.remove.mockResolvedValueOnce();
 
       const result = await service.get();
 
@@ -244,7 +244,7 @@ describe('LastSessionService', () => {
           lastSeenAt: 'not-a-number',
         }),
       });
-      mockPreferences.remove.mockResolvedValueOnce(undefined);
+      mockPreferences.remove.mockResolvedValueOnce();
 
       const result = await service.get();
 
@@ -257,7 +257,7 @@ describe('LastSessionService', () => {
       mockPreferences.get.mockResolvedValueOnce({
         value: 'null',
       });
-      mockPreferences.remove.mockResolvedValueOnce(undefined);
+      mockPreferences.remove.mockResolvedValueOnce();
 
       const result = await service.get();
 
@@ -284,7 +284,7 @@ describe('LastSessionService', () => {
       mockPreferences.get.mockResolvedValueOnce({
         value: JSON.stringify(cacheEntry),
       });
-      mockPreferences.remove.mockResolvedValueOnce(undefined);
+      mockPreferences.remove.mockResolvedValueOnce();
 
       const result = await service.get({ now: () => now });
 
@@ -358,7 +358,7 @@ describe('LastSessionService', () => {
   describe('clear', () => {
     it('removes the cache entry', async () => {
       service = await createService();
-      mockPreferences.remove.mockResolvedValueOnce(undefined);
+      mockPreferences.remove.mockResolvedValueOnce();
 
       await service.clear();
 
@@ -370,7 +370,7 @@ describe('LastSessionService', () => {
 
     it('can be called multiple times', async () => {
       service = await createService();
-      mockPreferences.remove.mockResolvedValue(undefined);
+      mockPreferences.remove.mockResolvedValue();
 
       await service.clear();
       await service.clear();
@@ -386,7 +386,7 @@ describe('LastSessionService', () => {
   describe('record + get flow', () => {
     it('get returns what record wrote', async () => {
       service = await createService();
-      mockPreferences.set.mockResolvedValue(undefined);
+      mockPreferences.set.mockResolvedValue();
       mockPreferences.get.mockResolvedValue({ value: null });
 
       // Capture what was written
