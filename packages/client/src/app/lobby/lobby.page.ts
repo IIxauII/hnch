@@ -14,8 +14,8 @@ import { Share } from '@capacitor/share'
 import { formatRoomCode, participantRole } from '@hnch/shared'
 import type { Round } from '@hnch/shared'
 import {
-  ActionSheetController,
   AlertController,
+  PopoverController,
   IonAccordion,
   IonAccordionGroup,
   IonAvatar,
@@ -70,6 +70,7 @@ import { assertRoomCode } from '../core/room-join.service'
 import { shouldRecordCache } from '../core/cache-record-guard'
 import { QrDisplaySheetComponent } from './qr-display.sheet'
 import { getSheetBreakpoints, getSheetInitialBreakpoint, presentSheet } from '../utils/present-sheet'
+import { OverflowMenuComponent, type OverflowMenuItem } from '../shared/overflow-menu.component'
 import { rejectionCopy } from '../join/join.page'
 import { participantsAccordionValueFor, summarizeParticipants } from './lobby-summary'
 
@@ -151,7 +152,7 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
           <app-connection-chip></app-connection-chip>
           <ion-button
             aria-label="More options"
-            (click)="openActionSheet()"
+            (click)="openActionSheet($event)"
           >
             <ion-icon
               slot="icon-only"
@@ -574,7 +575,7 @@ export class LobbyPage implements OnInit, OnDestroy {
   private readonly haptic = inject(HapticService)
   private readonly participantIdService = inject(ParticipantIdService)
   private readonly lastSessionService = inject(LastSessionService)
-  private readonly actionSheetCtrl = inject(ActionSheetController)
+  private readonly popoverCtrl = inject(PopoverController)
   private readonly alertCtrl = inject(AlertController)
   private readonly toastService = inject(ToastService)
   private readonly exportService = inject(ExportService)
@@ -874,49 +875,45 @@ export class LobbyPage implements OnInit, OnDestroy {
     await this.router.navigate(['/estimating', code])
   }
 
-  protected async openActionSheet(): Promise<void> {
-    const buttons: { text: string; role?: string; handler?: () => void }[] = [
-      {
-        text: 'Session settings',
-        handler: () => {
-          this.openSessionSettings()
-        },
-      },
-      {
-        text: 'Leave session',
-        role: 'destructive',
-        handler: () => {
-          void this.confirmLeave()
-        },
-      },
+  protected async openActionSheet(event: MouseEvent): Promise<void> {
+    const items: OverflowMenuItem[] = [
+      { id: 'session-settings', label: 'Session settings' },
     ]
 
-    if (this.isHost()) {
-      buttons.splice(1, 0, {
-        text: 'End session for everyone',
-        role: 'destructive',
-        handler: () => {
-          void this.confirmEndSession()
-        },
-      })
-    }
-
     if (this.hasRevealedRounds()) {
-      buttons.splice(1, 0, {
-        text: 'Copy results',
-        handler: () => {
-          void this.copyResults()
-        },
-      })
+      items.push({ id: 'copy-results', label: 'Copy results' })
     }
 
-    buttons.push({ text: 'Cancel', role: 'cancel' })
+    if (this.isHost()) {
+      items.push({ id: 'end-session', label: 'End session for everyone', role: 'destructive' })
+    }
 
-    const sheet = await this.actionSheetCtrl.create({
-      header: 'Session',
-      buttons,
+    items.push({ id: 'leave-session', label: 'Leave session', role: 'destructive' })
+
+    const popover = await this.popoverCtrl.create({
+      component: OverflowMenuComponent,
+      componentProps: { items },
+      event,
     })
-    await sheet.present()
+    await popover.present()
+
+    const { data } = await popover.onDidDismiss<string>()
+    if (!data) return
+
+    switch (data) {
+      case 'session-settings':
+        this.openSessionSettings()
+        break
+      case 'copy-results':
+        void this.copyResults()
+        break
+      case 'end-session':
+        void this.confirmEndSession()
+        break
+      case 'leave-session':
+        void this.confirmLeave()
+        break
+    }
   }
 
   protected async confirmEndSession(): Promise<void> {

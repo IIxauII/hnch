@@ -6,7 +6,6 @@ import { readFileSync } from 'fs'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@ionic/angular/standalone', () => ({
-  IonBackButton: {},
   IonButton: {},
   IonButtons: {},
   IonCard: {},
@@ -16,12 +15,14 @@ vi.mock('@ionic/angular/standalone', () => ({
   IonFooter: {},
   IonHeader: {},
   IonIcon: {},
+  IonItem: {},
   IonLabel: {},
+  IonList: {},
   IonTitle: {},
   IonToast: {},
   IonToolbar: {},
-  ActionSheetController: {},
   AlertController: {},
+  PopoverController: {},
 }))
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false } }))
 

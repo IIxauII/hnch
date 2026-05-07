@@ -10,7 +10,6 @@ import {
 import { Router } from '@angular/router'
 import { formatElapsed, participantRole, type ParticipantSnapshot } from '@hnch/shared'
 import {
-  ActionSheetController,
   AlertController,
   IonButton,
   IonButtons,
@@ -24,6 +23,7 @@ import {
   IonLabel,
   IonTitle,
   IonToolbar,
+  PopoverController,
 } from '@ionic/angular/standalone'
 import { addIcons } from 'ionicons'
 import { chevronBackOutline, ellipsisHorizontalCircle } from 'ionicons/icons'
@@ -39,6 +39,7 @@ import { shouldRecordCache } from '../core/cache-record-guard'
 import { ParticipantIdService } from '../core/participant-id.service'
 import { TimerTickService } from '../core/timer-tick.service'
 import { AvatarVoteRowComponent } from './avatar-vote-row.component'
+import { OverflowMenuComponent, type OverflowMenuItem } from '../shared/overflow-menu.component'
 
 /**
  * Estimating — ux.md §5.5.
@@ -103,7 +104,7 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
           <app-connection-chip></app-connection-chip>
           <ion-button
             aria-label="More options"
-            (click)="openActionSheet()"
+            (click)="openActionSheet($event)"
           >
             <ion-icon slot="icon-only" name="ellipsis-horizontal-circle"></ion-icon>
           </ion-button>
@@ -272,7 +273,7 @@ export class EstimatingPage implements OnInit, OnDestroy {
   private readonly haptic = inject(HapticService)
   private readonly lastSessionService = inject(LastSessionService)
   private readonly timerTick = inject(TimerTickService)
-  private readonly actionSheetCtrl = inject(ActionSheetController)
+  private readonly popoverCtrl = inject(PopoverController)
   private readonly alertCtrl = inject(AlertController)
   private readonly shortcuts = inject(KeyboardShortcutService)
 
@@ -493,43 +494,42 @@ export class EstimatingPage implements OnInit, OnDestroy {
     void this.router.navigate(['/lobby', code])
   }
 
-  protected async openActionSheet(): Promise<void> {
-    const buttons: { text: string; role?: string; handler?: () => void }[] = [
-      {
-        text: 'Session settings',
-        handler: () => {
-          // Navigate to lobby (session settings sheet lives there).
-          const code = this.docService.roomCode()
-          assertRoomCode(code, 'estimating.openActionSheet[Session settings]')
-          void this.router.navigate(['/lobby', code])
-        },
-      },
-      {
-        text: 'Leave session',
-        role: 'destructive',
-        handler: () => {
-          void this.confirmLeave()
-        },
-      },
+  protected async openActionSheet(event: MouseEvent): Promise<void> {
+    const items: OverflowMenuItem[] = [
+      { id: 'session-settings', label: 'Session settings' },
     ]
 
     if (this.isHost()) {
-      buttons.splice(1, 0, {
-        text: 'End session for everyone',
-        role: 'destructive',
-        handler: () => {
-          void this.confirmEndSession()
-        },
-      })
+      items.push({ id: 'end-session', label: 'End session for everyone', role: 'destructive' })
     }
 
-    buttons.push({ text: 'Cancel', role: 'cancel' })
+    items.push({ id: 'leave-session', label: 'Leave session', role: 'destructive' })
 
-    const sheet = await this.actionSheetCtrl.create({
-      header: 'Session',
-      buttons,
+    const popover = await this.popoverCtrl.create({
+      component: OverflowMenuComponent,
+      componentProps: { items },
+      event,
     })
-    await sheet.present()
+    await popover.present()
+
+    const { data } = await popover.onDidDismiss<string>()
+    if (!data) return
+
+    switch (data) {
+      case 'session-settings': {
+        // Session settings sheet lives on Lobby; navigate there.
+        const code = this.docService.roomCode()
+        assertRoomCode(code, 'estimating.openActionSheet[Session settings]')
+        void this.router.navigate(['/lobby', code])
+        break
+      }
+      case 'end-session':
+        void this.confirmEndSession()
+        break
+      case 'leave-session':
+        void this.confirmLeave()
+        break
+    }
   }
 
   private async confirmLeave(): Promise<void> {

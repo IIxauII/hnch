@@ -8,7 +8,6 @@ import {
 import { Router } from '@angular/router'
 import { hashPassword, type JoinRejectionReason } from '@hnch/shared'
 import {
-  ActionSheetController,
   IonButton,
   IonButtons,
   IonContent,
@@ -20,6 +19,7 @@ import {
   IonModal,
   IonTitle,
   IonToolbar,
+  PopoverController,
 } from '@ionic/angular/standalone'
 import { addIcons } from 'ionicons'
 import {
@@ -49,6 +49,7 @@ import {
 } from './jump-back-in-banner.component'
 import { PasswordPromptSheetComponent } from './password-prompt.sheet'
 import { getSheetBreakpoints, getSheetInitialBreakpoint, presentSheet } from '../utils/present-sheet'
+import { OverflowMenuComponent, type OverflowMenuItem } from '../shared/overflow-menu.component'
 
 /**
  * Home launchpad — ux.md §5.2.
@@ -95,7 +96,7 @@ import { getSheetBreakpoints, getSheetInitialBreakpoint, presentSheet } from '..
         <ion-buttons slot="end">
           <ion-button
             aria-label="More options"
-            (click)="openActionSheet()"
+            (click)="openActionSheet($event)"
           >
             <ion-icon
               slot="icon-only"
@@ -219,7 +220,7 @@ export class HomePage {
   protected readonly sheetInitialBreakpoint = getSheetInitialBreakpoint()
 
   private readonly router = inject(Router)
-  private readonly actionSheetCtrl = inject(ActionSheetController)
+  private readonly popoverCtrl = inject(PopoverController)
   private readonly toastService = inject(ToastService)
   private readonly appPrefs = inject(AppPreferenceService)
   private readonly displayNameService = inject(DisplayNameService)
@@ -432,23 +433,24 @@ export class HomePage {
     }
   }
 
-  protected async openActionSheet(): Promise<void> {
-    const sheet = await this.actionSheetCtrl.create({
-      header: 'hnch',
-      buttons: [
-        {
-          text: 'Settings',
-          handler: () => {
-            void this.router.navigate(['/settings'])
-          },
-        },
-        {
-          text: 'Cancel',
-          role: 'cancel',
-        },
-      ],
+  protected async openActionSheet(event: MouseEvent): Promise<void> {
+    const items: OverflowMenuItem[] = [
+      { id: 'settings', label: 'Settings' },
+    ]
+
+    const popover = await this.popoverCtrl.create({
+      component: OverflowMenuComponent,
+      componentProps: { items },
+      event,
     })
-    await sheet.present()
+    await popover.present()
+
+    const { data } = await popover.onDidDismiss<string>()
+    if (!data) return
+
+    if (data === 'settings') {
+      void this.router.navigate(['/settings'])
+    }
   }
 
   private async loadBannerFromCache(): Promise<void> {
