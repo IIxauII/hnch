@@ -11,13 +11,7 @@
 
 ## Decision
 
-Password hashing: PBKDF2-SHA-256 via Web Crypto (`crypto.subtle.deriveBits`), 100k iterations, 32-byte output hex-encoded (64 chars), salt = room UUID. `hashPassword(password, salt): Promise<string>` lives in `@hnch/shared`. Invite-only dropped from v1 — `accessMode` union becomes `'open' | 'password'`. Relay endpoints: `POST /rooms` body extended with `passwordHash?`; new `PATCH /rooms/:uuid/access` accepts `{ passwordHash: <hex> | null }` — no auth required (UUID unguessable, in-memory-only). Existing WS connections NOT evicted on access change. Password enforcement on WS upgrade: missing `pw` → `400`; mismatch → HTTP `403` close `4002` via `crypto.timingSafeEqual`. (Enforcement clause superseded by [ADR-0035](0035-wrong-password-post-upgrade-close.md) — rejection now post-upgrade close `4002`, not pre-upgrade `403`.)
-
-## Options
-
-- **A — argon2id via `hash-wasm`:** memory-hard, GPU-resistant. Cons: ~50 KB WASM; slow on low-end mobile; memory-hardness defends against threat that doesn't exist (no persistent hash storage).
-- **B — PBKDF2 via Web Crypto (chosen):** zero deps; hardware-accelerated; ~200 ms on iPhone SE; available in browser + Node 20+; adequate for in-memory-only relay. Cons: not memory-hard — must be replaced if architecture ever persists hashes.
-- **C — SHA-256 via Web Crypto:** simplest. Cons: no key stretching; trivially brute-forced if leaked; marginal cost over PBKDF2 ≈ 0.
+Password hashing: PBKDF2-SHA-256 via Web Crypto (`crypto.subtle.deriveBits`), 100k iterations, 32-byte output hex-encoded (64 chars), salt = room UUID. `hashPassword(password, salt): Promise<string>` lives in `@hnch/shared`. Zero deps; hardware-accelerated; ~200 ms on iPhone SE; available browser + Node 20+; adequate for in-memory-only relay (not memory-hard — must be replaced if architecture ever persists hashes). Invite-only dropped from v1 — `accessMode` union becomes `'open' | 'password'`. Relay endpoints: `POST /rooms` body extended with `passwordHash?`; new `PATCH /rooms/:uuid/access` accepts `{ passwordHash: <hex> | null }` — no auth required (UUID unguessable, in-memory-only). Existing WS connections NOT evicted on access change. Password enforcement on WS upgrade: missing `pw` → `400`; mismatch → HTTP `403` close `4002` via `crypto.timingSafeEqual`. (Enforcement clause superseded by [ADR-0035](0035-wrong-password-post-upgrade-close.md) — rejection now post-upgrade close `4002`, not pre-upgrade `403`.)
 
 ## Trade-offs
 
@@ -30,14 +24,3 @@ Password hashing: PBKDF2-SHA-256 via Web Crypto (`crypto.subtle.deriveBits`), 10
 - Easier: zero new deps; binary access model (open/password); host controls access without reconnect; share/QR/deep-links carry only codes.
 - Harder: no fine-grained admission; no memory-hardness guarantee; UUID guessing is hardening gap.
 - Revisit when: relay gains persistent storage → revisit hashing scheme; demand for per-person admission → reintroduce invite-only via new ADR; UUID leakage concern → host-auth tokens on mutating endpoints.
-
-## Action Items
-
-- [ ] Add `hashPassword()` to `@hnch/shared`.
-- [ ] Update `packages/shared/src/auth.ts` — remove invite types/close codes from active use.
-- [ ] Extend `POST /rooms` to accept `{ passwordHash }`.
-- [ ] Implement `PATCH /rooms/:uuid/access`.
-- [ ] Enforce password validation in WS upgrade.
-- [ ] Wire client Join page password field for `accessMode === 'password'`.
-- [ ] Wire session-settings access picker to `PATCH`.
-- [ ] Remove "Invite only" from access picker UI.

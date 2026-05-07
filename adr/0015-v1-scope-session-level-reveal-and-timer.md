@@ -14,12 +14,6 @@
 
 Narrow schema to match v1 UI: (1) reveal modes `'manual' | 'timer'`, drop `'unanimous'`. (2) `revealMode` lives on `settings` only (rename `defaultRevealMode` → `revealMode`); no per-round field. (3) `timerDurationMs` lives on `settings` only (rename `defaultTimerDurationMs` → `timerDurationMs`); no per-round field. (4) Rounds keep only genuinely per-round state: `id, title?, description?, ticketId?, parentRoundId?, scale, timerStartedAt?, revealedAt?, createdBy, createdAt, votes`. ADR-0011's host-as-timer-authority unchanged — only field location moves. ADR-0013's flat-rounds + vote-change rules unchanged.
 
-## Options
-
-- **A — Narrow to v1 (chosen):** schema = implementation contract; no "reserved for future" fields; single CRDT write at round start; no `'unanimous'` observer code path. Cons: future per-round overrides or unanimous reveal need new ADR + additive schema change.
-- **B — Keep flexibility, v1 UI uses subset:** future enabling is UI-only; round records document "what mode was this round." Cons: dead state in doc; "why is this field here?"; precedence rules (round vs session) easy to get wrong; ongoing complexity tax for unshipped features.
-- **C — Keep per-round fields but drop `'unanimous'`:** preserves theoretical per-round-timer flexibility. Cons: same dead-state concern as B, smaller; still pays resolution tax; no user signal for use case.
-
 ## Trade-offs
 
 - Re-introducing per-round overrides or unanimous later requires new ADR + additive schema amendment.
@@ -30,10 +24,3 @@ Narrow schema to match v1 UI: (1) reveal modes `'manual' | 'timer'`, drop `'unan
 - Easier: `schema.md` matches implementation; reveal-mode logic = single read from `settings`; one CRDT write per round start; `'unanimous'` observer code gone.
 - Harder: future schema amendment for per-round overrides or new reveal modes (bounded cost — additive).
 - Revisit when: users request per-story timer durations; users request auto-reveal-when-all-voted; analytics needs per-round reveal-mode history.
-
-## Action Items
-
-- [ ] Update `schema.md` — narrower settings shape, drop per-round `revealMode`/`timerDurationMs`, drop `'unanimous'` member + derived-state note.
-- [ ] Minor-correct [ADR-0011](0011-timer-authority.md) Context line "configurable per round" — clarification only.
-- [ ] Update `adr/README.md` index and `CLAUDE.md` "Current decisions at a glance".
-- [ ] Implementation: host-side timer-expiry reads `settings.timerDurationMs` + `round.timerStartedAt`.

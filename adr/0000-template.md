@@ -12,15 +12,9 @@
 
 One or two sentences. What we do.
 
-## Options
-
-- **A — [name]:** one-line summary. Pros: x, y. Cons: z.
-- **B — [chosen]:** one-line summary. Pros: x, y. Cons: z.
-- **C — [name]:** one-line summary. Pros: x. Cons: y, z.
-
 ## Trade-offs
 
-- What we give up by picking the chosen option.
+- What we give up by picking this.
 - One bullet per cost.
 
 ## Consequences
@@ -30,7 +24,7 @@ One or two sentences. What we do.
 - Revisit when: z.
 
 <!--
-Style: ≤50 lines total. Bullets over prose. Caveman-ultra: drop articles, filler, hedging. Technical terms exact.
-Steelman alternatives — name the real reason each lost. No strawmen.
-Action Items section optional; only include if there are concrete follow-ups not captured in Consequences.
+Style: terse. Bullets over prose. Caveman-ultra: drop articles, filler, hedging. Technical terms exact.
+NO Options/Alternatives section. NO Action Items / phase checklists. NO implementation phases.
+The decision and its trade-offs are what survives. Rejected alternatives belong in commit/PR discussion, not in the durable ADR.
 -->

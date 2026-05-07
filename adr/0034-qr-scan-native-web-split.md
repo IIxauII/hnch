@@ -19,29 +19,17 @@ Keep `@capacitor-mlkit/barcode-scanning` as sole QR dep. Branch on `Capacitor.is
 
 Decoded payload → existing `parseInviteContent()`.
 
-## Options
-
-- **A — Hide button on web:** zero new code. Cons: loses scan-to-join for entire PWA user base (largest share pre-Phase-6b). Rejected.
-- **B — Replace plugin (`@capacitor/barcode-scanner`, `ngx-scanner`, `zxing-js`):** single library across surfaces. Cons: drops MLKit-quality native decoder + native UI; web side still needs same polyfill on Safari/Firefox; rewrite cost for no win. Rejected.
-- **C — Single plugin + platform branch + lazy ZXing-WASM polyfill on web (CHOSEN):** native byte-for-byte unchanged → zero regression risk; lazy import keeps WASM out of initial bundle (~100–300 ms one-time WASM init on first scan); follows Capawesome's recommended path. Cons: two code paths to keep in sync; bare web overlay in v1; HTTPS required for `getUserMedia()` (prod via [ADR-0029](0029-relay-deployment.md), localhost OK per spec).
-
 ## Trade-offs
 
 - Platform branch in QR service contract — must remember on plugin major-version bump. Mitigation: branch local to one service + one overlay; converges at "raw decoded string" → existing `parseInviteContent()`.
 - Bare web overlay in v1 (no reticle/hint/branded chrome). Acceptable vs no scanner at all; brandable later without ADR.
 - Lazy import is load-bearing for bundle budget; eager would push ~300–500 KB closer to 2 MB hard limit and penalize non-scanners.
+- HTTPS required for `getUserMedia()` (prod via [ADR-0029](0029-relay-deployment.md), localhost OK per spec).
+- Hide-button-on-web rejected: loses scan-to-join for entire PWA user base.
+- Replace-plugin (`zxing-js`/`ngx-scanner`) rejected: drops MLKit-quality native decoder + native UI; web side still needs same polyfill anyway.
 
 ## Consequences
 
 - Easier: iOS Safari + Firefox PWA gain working scan; native untouched (no Phase-6b coupling); initial bundle unchanged; one library across both surfaces; deep-link contract unaffected.
 - Harder: runtime branch part of contract → tests must mock both; bare web overlay; first-scan WASM init latency (need "starting camera…" spinner); Playwright e2e can't easily exercise real camera → web path coverage limited to mocked unit tests.
-- Revisit when: plugin ships usable web `scan()` UI (collapse branch); Safari + Firefox both ship native `BarcodeDetector` (delete polyfill); UX demands polished web overlay (impl task, not ADR); polyfill bundle >1 MB or trust posture changes (revisit Option B); demand for non-QR formats (current shape extends).
-
-## Action Items
-
-- [ ] Implement platform branch in [`packages/client/src/app/core/qr-scanner.service.ts`](../packages/client/src/app/core/qr-scanner.service.ts).
-- [ ] Add web-only overlay component (`<video>` + Cancel) co-located with service.
-- [ ] Add `barcode-detector` to `packages/client/package.json`; confirm zero initial-bundle impact (separate chunk).
-- [ ] Unit tests: both branches (`isNativePlatform` true/false, mock dynamic import + `BarcodeDetector` polyfill).
-- [ ] Verify production HTTPS satisfies `getUserMedia()` end-to-end on real iOS Safari after next deploy.
-- [ ] Update `CLAUDE.md` glance with one-liner.
+- Revisit when: plugin ships usable web `scan()` UI (collapse branch); Safari + Firefox both ship native `BarcodeDetector` (delete polyfill); UX demands polished web overlay; polyfill bundle >1 MB or trust posture changes; demand for non-QR formats.

@@ -14,17 +14,10 @@
 Relay holds **in-memory snapshot** of each room's Yjs doc as opaque binary blob.
 
 - **When:** captured on last-peer disconnect, timestamped.
-- **TTL:** 24h from last-peer-disconnect; expired snapshots discarded.
-- **Storage:** in-memory only; relay restart/redeploy discards snapshots.
+- **TTL:** 24h from last-peer-disconnect; expired snapshots discarded. Covers "back tomorrow" — most common rejoin window.
+- **Storage:** in-memory only; relay restart/redeploy discards snapshots. Nothing on disk → privacy intact.
 - **Keying:** by stable internal room UUID (decoupled from 6-char code in ADR-0008).
 - **Content-blindness preserved:** relay does not parse/inspect; same opaque CRDT blob it was forwarding.
-
-## Options
-
-- **A — No snapshots:** stateless relay, simplest. Cons: phone-dies-mid-meeting → cannot rejoin from laptop. Unacceptable.
-- **B — In-memory, 1h TTL:** minimal memory; covers lunch break. Cons: fails overnight return.
-- **C — In-memory, 24h TTL (chosen):** covers "back tomorrow" — most common rejoin window; nothing on disk → privacy intact; restart loss rare and acceptable.
-- **D — In-memory + on-disk, 24h TTL:** survives restarts. Cons: shifts privacy posture (server now persists session data, even opaque); adds encryption-at-rest, backup, retention questions.
 
 ## Trade-offs
 
@@ -36,11 +29,4 @@ Relay holds **in-memory snapshot** of each room's Yjs doc as opaque binary blob.
 
 - Easier: returned-on-new-device case works; privacy framing intact (no disk writes); footprint trivial at scale.
 - Harder: relay tracks "no clients but has snapshot" as distinct state — lifecycle SM grows; redeploys need comms strategy ("idle sessions may be lost") or accepted loss.
-- Revisit when: users complain after relay events → add Option D on-disk; memory pressure from many idle snapshots → overall cap or LRU eviction.
-
-## Action Items
-
-- [ ] Implement empty-room snapshot capture on last-peer-disconnect.
-- [ ] 24h TTL sweeper.
-- [ ] Snapshot-delivery handshake when client connects to otherwise-empty room.
-- [ ] Document relay memory characteristics for ops planning.
+- Revisit when: users complain after relay events → add on-disk persistence; memory pressure from many idle snapshots → overall cap or LRU eviction.

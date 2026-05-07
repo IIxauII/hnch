@@ -16,34 +16,18 @@
 
 Route every Linux GHA job to `vars.LINUX_RUNNER` except `runner-health.yml` and Dependabot. Uniform `runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}`; no fork-PR conditional on new flips. Flipped: `ci.yml` residuals, `release.yml`, `deploy-client.yml`, `deploy-relay.yml`. On `deploy-relay.yml` staging step: set `npm_config_target_platform=linux` + `npm_config_target_arch=x64` so pnpm optional-native resolution targets VPS arch; `.npmrc` `supported-architectures` fallback documented. `runner-health.yml` stays `ubuntu-latest`. Existing fork-PR guards on `verify`/`e2e` unchanged.
 
-## Options
-
-- **A — Flip everything except `runner-health.yml`, no fork-PR fallback on new flips (CHOSEN):** uniform expression; one toggle covers full CI/CD surface; spend → cron + Dependabot only. Cons: retires home-internet-independence rationale; mini load +3–5 short jobs/active day; `NPM_TOKEN` flows through self-hosted (ephemeral container, one-job lifetime); cross-arch hazard on `deploy-relay.yml` is permanent maintenance item.
-- **B — Stop at four cheap `ci.yml` jobs; release/deploys stay `ubuntu-latest`:** smallest blast radius; no cross-arch hazard; no new credential surface. Cons: leaves largest residual consumers (release ~25 + deploys ~30–50 min/mo) on hosted without load-bearing reason; two carve-outs to remember; Phase 6b macOS billing pressure lands against bigger budget.
-- **C — Also move `runner-health.yml` to self-hosted:** zero hosted spend. Cons: defeats workflow purpose — dead pool produces no failure signal, looks identical to "no problem" in Actions UI. Rejected.
-- **D — Flip everything but require fork-PR fallback yaml on new flips too:** future-proof for opening repo. Cons: defensive verbosity for case requiring `pull_request_target` or maintainer-approved-run anyway; addendum + yaml pass straightforward when needed. Rejected as default.
-
 ## Trade-offs
 
 - Theoretical out-of-band dispatch path lost (release from phone on cellular while mini down) — toggle is one command, `runner-health.yml` raises alarm within hour, not an actual operational pattern.
 - Mini load increase modest, sequential (release → deploy chain, not parallel) → ADR-0032 RAM gate methodology still applies.
 - Cross-arch mitigation only effective if it survives future yaml edits; smoke test (`curl -fsS https://hnch.dev/health`) is safety net but won't catch silent runtime breakage on uncovered code paths.
 - `NPM_TOKEN` reaches self-hosted container per release; bounded by ephemeral one-job lifetime same as `RELEASE_TOKEN`; secret-type count grows by one.
+- Stop-at-cheap-`ci.yml` rejected: leaves largest residual consumers (release ~25 + deploys ~30–50 min/mo) on hosted without load-bearing reason; two carve-outs to remember.
+- Moving `runner-health.yml` rejected: defeats workflow purpose — dead pool produces no failure signal, looks identical to "no problem".
+- Fork-PR fallback yaml on new flips rejected as default: defensive verbosity for case requiring `pull_request_target` or maintainer-approved-run anyway.
 
 ## Consequences
 
 - Easier: hosted spend → near-zero (`runner-health.yml` cron + Dependabot only); single rollback for entire CI/CD via `gh variable set LINUX_RUNNER --body '["ubuntu-latest"]'`; new Linux workflows default to pool by convention; Phase 6b macOS billing trajectory more comfortable.
 - Harder: cross-arch deploy mitigation = permanent burden on `deploy-relay.yml`, regression caught only by smoke test; release tarball can be half-shipped if mini reboots mid-deploy (recovery via [ADR-0029](0029-relay-deployment.md) symlink-rollback runbook + idempotent re-dispatch); `NPM_TOKEN` rotation now part of mini-runner secret hygiene; pool sizing was for 4-lane verify, sequential release/deploy fits but back-to-back relay+client tags can briefly queue.
 - Revisit when: ≥1 deploy/release blocked per quarter by mini-side issue (carve back release/deploys, or invest in mini availability); cross-arch artifact regression smoke test misses; repo opens to fork PRs (addendum ADR for new flips); team grows past solo (ADR-0032 trigger).
-
-## Action Items
-
-Phased per `/Users/xau/.claude/plans/unified-squishing-rossum.md`:
-- [ ] Phase 1: flip `ci.yml` residuals (`detect-changes`, `version-audit`, `pr-title-lint`, `verify-summary`).
-- [ ] Phase 2: flip `release.yml`; verify via releasable-scope commit.
-- [ ] Phase 3: flip `deploy-client.yml`.
-- [ ] Phase 4: flip `deploy-relay.yml` w/ cross-arch env on staging step; verify tarball arm64-binary-free + smoke passes.
-- [ ] Phase 5: after 1 week, snapshot `gh api /user/settings/billing/actions`, record in `infra/README.md`.
-- [ ] Update `CLAUDE.md` glance + adjust [ADR-0029](0029-relay-deployment.md) / [ADR-0032](0032-self-hosted-github-actions-runner.md) entries to point runner-location at ADR-0037 (flag for orchestrator). Pool architecture + runner image ([ADR-0033](0033-runner-image-from-debian-and-actions-runner-tarball.md)) unchanged.
-- [ ] Update `infra/README.md` "Self-hosted runner pool" intro: workflows on pool, `runner-health.yml` exception + why; cross-arch deploy mitigation subsection (env-var contract, deploy-fail checks, `.npmrc` fallback).
-- [ ] Quarterly: track whether toggle used for mini-side reasons during release/deploy windows; if yes, draft carve-back ADR.

@@ -18,18 +18,13 @@
 
 Bare-metal IONOS VPS, Node relay supervised by `systemd`, Caddy reverse proxy terminating TLS via Let's Encrypt. Single origin `https://hnch.dev` — Caddy routes `/health`, `/rooms*`, `/ws*` to `127.0.0.1:1234`; everything else served from static client dir.
 
-## Options
-
-- **A — Bare-metal VPS + Caddy + systemd (chosen):** ~50 MB combined infra footprint. Pros: lowest RAM overhead; Caddy ACME built-in; single origin = no CORS, one cert; `systemctl restart` one-liner; rollback = symlink swap; matches ADR-0012 single-process model. Cons: single instance → 10–30 s deploy downtime; manual provisioning unless bootstrap-scripted; no horizontal scale; abuse mitigation needs follow-up ADR.
-- **B — Docker Compose on same VPS:** Pros: reproducible image-tag deploys; easy sidecars later; clean host. Cons: Docker daemon ~150–200 MB RSS material against 1 GB ceiling; extra config layer; image registry to maintain.
-- **C — Managed PaaS (Fly/Railway/Render):** Pros: zero VPS ops, built-in observability, auto-scale. Cons: $5–25/mo recurring on top of paid IONOS; vendor lock-in; less runtime control; doesn't solve same-origin PWA hosting without further config.
-
 ## Trade-offs
 
 - Caddy over nginx: built-in ACME, no certbot to babysit, shorter config for two-route single-origin.
 - Bare-metal over Docker: ~150–200 MB daemon RAM vs 1 GB ceiling outweighs reproducibility benefit for single-process app.
 - Single origin over `relay.hnch.dev` subdomain: no CORS, one cert, clean join URL ([ADR-0026](0026-deep-link-url-format.md)).
 - systemd over pm2/forever: already on box, integrates with journald, no new dep.
+- Managed PaaS (Fly/Railway/Render) rejected: $5–25/mo recurring on top of paid IONOS; vendor lock-in; doesn't solve same-origin PWA hosting without further config.
 - Give up: graceful-restart, horizontal scale, built-in observability — each a future ADR, not v1 blocker.
 
 ## Consequences

@@ -21,12 +21,6 @@
 4. **Persistence divergence (ADR-0004):** plain JSON files under `~/.config/hnch/` (`config.json`, `last-session.json`). Yjs doc in-memory only; relay's 24h snapshot (ADR-0012) carries continuity for `hnch resume`. No WKWebView concern in Node.
 5. **Repo layout (ADR-0014):** "three packages" wording relaxed; `e2e` + `cli` join via same `workspace:*` conventions.
 
-## Options
-
-- **A — Fourth package in monorepo (chosen):** Pros: single source of truth in `@hnch/shared`, atomic protocol PRs, no version skew. Cons: CI surface grows; CLI tests run on every PR.
-- **B — Separate repo, published `@hnch/shared`:** Pros: clean scope, independent CI. Cons: version skew = exact failure mode ADR-0014 cited; two-PR coordination defeats parity smoke-test.
-- **C — No CLI:** Pros: smallest surface. Cons: loses parity smoke-test; no terminal workflow; CLI already scaffolded by demand.
-
 ## Trade-offs
 
 - Every protocol change must land in both clients — discipline cost, not tooling cost (`pnpm -r run test` + e2e catch most).
@@ -37,10 +31,4 @@
 
 - Easier: second runtime exercises `@hnch/shared` + relay; terminal workflow without simulator; protocol bugs surface across two clients.
 - Harder: lockstep protocol updates; bigger workspace; CLI deps in install graph.
-- Revisit when: parity contract becomes burdensome (mobile-only feature forced through CLI) → narrow parity to wire-protocol only; CLI gains genuinely platform-specific surfaces; second non-Capacitor consumer appears (generalize divergence patterns); CLI extracted to own repo (re-evaluate Option B).
-
-## Action Items
-
-- [ ] Update CLAUDE.md "Current decisions at a glance" referencing CLI as fourth deliverable + divergences.
-- [ ] Cross-link from ADR-0004, ADR-0005, ADR-0014 to this ADR (typo-class additions).
-- [ ] Lint/test failing if CLI re-implements protocol type instead of importing `@hnch/shared`.
+- Revisit when: parity contract becomes burdensome (mobile-only feature forced through CLI) → narrow parity to wire-protocol only; CLI gains genuinely platform-specific surfaces; second non-Capacitor consumer appears (generalize divergence patterns); CLI extracted to own repo.

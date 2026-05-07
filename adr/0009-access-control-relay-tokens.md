@@ -15,13 +15,6 @@
 
 Access control **enforced at the relay via opaque join tokens**. Relay holds minimal per-room metadata (password hash if set, set of outstanding single-use invite tokens with expiries), validates at socket-join. Relay stays content-blind — tokens opaque to its semantics. Password rooms: host registers hash on creation (plaintext never leaves client); joiners submit same hash. Invite rooms: host's client mints short-lived single-use tokens, delivered out-of-band; relay accepts valid unexpired unused token, marks redeemed.
 
-## Options
-
-- **A — Fully client-side enforcement:** simplest, relay pure. Cons: trivially bypassed by modified client → not a gate, just UX steering. Rejected.
-- **B — Relay-enforced opaque tokens (chosen):** real gates, relay still content-blind, plaintext never reaches server, single-use tokens self-destruct. Cons: small admission-control state per active room; invite flow needs host↔joiner messaging path.
-- **C — Hybrid (relay passwords, client invites):** simpler than B. Cons: inconsistent security model; invite-only becomes theatre again.
-- **D — Authoritative session server:** classical auth, audit logs. Cons: contradicts ADR-0001; overkill for threat model.
-
 ## Trade-offs
 
 - Relay no longer purely stateless — small per-room admission state.
@@ -33,9 +26,3 @@ Access control **enforced at the relay via opaque join tokens**. Relay holds min
 - Easier: real protection for users who opt-in; plaintext passwords never reach relay; leaked invite links self-destruct.
 - Harder: "room exists for access purposes" vs "room has clients" become distinct states.
 - Revisit when: granular permissions (voter/viewer at admission) needed → extend token with role payload via superseding ADR; vote integrity work → bind tokens to signed identities.
-
-## Action Items
-
-- [ ] Extend relay model: `rooms[uuid] = { code, passwordHash?, invitesOutstanding: Set<token>, snapshot? }`.
-- [ ] Design invite flow protocol (request → approve → token delivery).
-- [ ] Choose client password-hash scheme (argon2id WASM sensible default).

@@ -19,27 +19,14 @@
 
 Peer ID = device identifier from ADR-0005. UI shows current host with crown icon.
 
-## Options
-
-- **A — Creator + lowest-ID-on-drop with debounce (chosen):** respects creator intent; deterministic without consensus protocol; debounce handles blips; no-reclaim keeps state simple. Cons: lex device ID is arbitrary ordering.
-- **B — Earliest-joined-among-connected:** "senior peer" intuitive. Cons: needs stable join timestamps via awareness (manipulable); flaps when senior peer steps away; ignores creator intent.
-- **C — Explicit handoff + automatic fallback:** intentional baton-pass useful for facilitator handoff. Cons: extra UI scope creep for v1; auto-on-drop alone covers known scenarios.
-- **D — No host, all consensual:** elegant pure-CRDT. Cons: timer expiry/reveal/admission need single actor; races otherwise incoherent.
-
 ## Trade-offs
 
 - 5s debounce window where no host exists → manual-reveal disabled, auto-reveal paused.
+- Lex device ID is arbitrary ordering.
 - Doc is writable by any peer → malicious client could fake `hostPeerId`. Consistent with v1 vote-integrity posture.
 
 ## Consequences
 
 - Easier: clear owner for reveal/admission/timer; convergence without consensus; blips don't disrupt flow.
 - Harder: edge case host-drops-at-timer-expiry needs explicit handling.
-- Revisit when: users want explicit handoff → add Option C; vote-signing/device-key work → signed host claims.
-
-## Action Items
-
-- [ ] Awareness-based connected-peer view used for election.
-- [ ] 5s debounce + election as client-side state machine.
-- [ ] Crown UI on participant list.
-- [ ] Test host-drops-during-timer-countdown — new host inherits via `timerStartedAt` (ADR-0011).
+- Revisit when: users want explicit handoff → add intentional baton-pass; vote-signing/device-key work → signed host claims.

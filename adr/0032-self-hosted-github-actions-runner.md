@@ -17,22 +17,17 @@
 
 Run Linux CI (`verify`, `e2e`) on four ephemeral, rootless, arm64-native Podman containers on the M4, supervised by per-user `LaunchAgent`. One job per container, then destroyed. Pool size = matrix lane count. Workflow `runs-on` selected via `vars.LINUX_RUNNER` for one-command rollback. Tart-based macOS runner deferred to Phase 9, gated on 4-day p95 RAM measurement (RAM is soldered on M4).
 
-## Options
-
-- **A — Ephemeral arm64 Podman pool on M4 (CHOSEN):** rootless top-to-bottom; PAT only on host, 1-hour token in container; `gh variable set LINUX_RUNNER` rollback. Pros: no host pollution, arm64 native, leaves room for Tart. Cons: home-internet/M4 uptime dependency; 16 GB ceiling binds at Phase 9; PAT scoping discipline required.
-- **B — IONOS VPS hosts runner:** reuse existing box. Cons: 1 GB RAM, prod co-located → swap risk, blast radius. Rejected.
-- **C — 2014 MacBook Air:** dedicated. Cons: EOL OS, Intel, 4–8 GB RAM. Rejected.
-- **D — actions-runner-controller (k8s):** canonical ephemeral runners. Cons: Kubernetes for one mini = order-of-magnitude overkill. Rejected.
-- **E — Paid macOS-runner SaaS (Anka, Orka, EC2 Mac):** managed. Cons: $25–250/mo recurring; doesn't help Linux jobs. Rejected on cost.
-- **F — Direct host install of `actions/runner` on M4:** simplest. Cons: pollutes daily-driver host, state leaks between jobs. Rejected — violates clean-host constraint.
-- **G — x64 Linux containers via Rosetta:** max parity to ubuntu-latest. Cons: Rosetta CPU tax on every step; entire toolchain has arm64 builds. Rejected as default; documented as `--platform linux/amd64` escape hatch.
-
 ## Trade-offs
 
 - New uptime dependency: home internet + M4 awake. Mitigation: `vars.LINUX_RUNNER` toggle, manual.
 - 16 GB RAM ceiling becomes order-time decision before Phase 9 (Tart + iOS VM); soldered RAM.
 - New credential surface: fine-grained PAT in macOS Keychain on daily-driver. Narrow scope (`Administration: Read and write` on one repo).
 - More moving parts: Dockerfile + supervisor + LaunchAgent + cache layout + weekly prune + health-check workflow.
+- IONOS VPS rejected as runner host: 1 GB RAM, prod co-located → swap risk, blast radius.
+- actions-runner-controller (k8s) rejected: order-of-magnitude overkill for one mini.
+- Paid macOS-runner SaaS rejected on cost ($25–250/mo); doesn't help Linux jobs anyway.
+- Direct host install rejected: pollutes daily-driver host, state leaks between jobs.
+- x64 via Rosetta rejected as default; documented as `--platform linux/amd64` escape hatch.
 
 ## Consequences
 

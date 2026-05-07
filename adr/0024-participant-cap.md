@@ -18,13 +18,6 @@
 4. **Test-only configurability:** `HNCH_ROOM_CAP` env var clamped `[1, MAX_ROOM_PARTICIPANTS]` — can only *lower*. Production deploy MUST leave unset. Broader env-var posture per ADR-0027.
 5. **UX on rejection:** "Room is full" wording, distinguishable from `4001 / unknown-room` ("session expired") + `4002 / wrong-password` ("incorrect password") — three reject reasons drive three recovery paths. Mapped via `JoinRejectionReason` in `@hnch/shared`; mobile renders via mapping, CLI prints + exits non-zero.
 
-## Options
-
-- **A — Relay-only at WS upgrade, 4006 (chosen):** Pros: relay only authority on live count; client-runtime-agnostic; structured close code. Cons: rejected peer pays one round-trip (same as every other ADR-0016 rejection).
-- **B — Client soft-cap + relay hard-cap:** Pros: instant client feedback. Cons: client never reliably knows live count (awareness lag); two enforcement points = drift hazard; saved round-trip rare.
-- **C — No cap:** Pros: simplest. Cons: ADR-0001 sized for ≤20; gradual degradation (partial sync, missed votes); trivial DoS via 200 sockets.
-- **D — Higher cap (50/100):** Pros: larger sessions accommodated. Cons: exceeds architecture sizing; raising later is safe + easy, lowering breaks active sessions — pick conservative.
-
 ## Trade-offs
 
 - Cap counts raw sockets, not unique `did` — multi-tab use is real + `did` is client-supplied (ADR-0005) so dedup is bypassable hygiene-theater.
@@ -37,12 +30,3 @@
 - Easier: enforcement in one place (`packages/relay/src/server.ts:297-300`); new clients inherit cap; 4006 has canonical home.
 - Harder: lowering cap mid-session unsafe; ops must verify `HNCH_ROOM_CAP` unset; no queue/waitlist UX; occupancy oracle on unprotected rooms.
 - Revisit when: demand for >20 sessions → successor ADR after re-validating broadcast cost; DoS via cap-as-oracle → rate-limit/jitter `4006` (no new ADR if wire unchanged); per-room cap → new ADR (touches schema + per-room state); env-var posture grows → fold into ADR-0027.
-
-## Action Items
-
-- [ ] Update CLAUDE.md "Current decisions at a glance".
-- [ ] Cross-link ADR-0016 (4006 activated, **T17**), ADR-0001 (cap is enforced contract), ADR-0009 (cap fires post-credential).
-- [ ] **T26/T27 typo fix:** `packages/shared/src/auth.ts:57` (T26) + `packages/relay/src/server.ts:294` (T27) cite "ADR-0020" for cap; update to this ADR.
-- [ ] Verify e2e `room-full.spec.ts` asserts via `JOIN_REJECTION_CLOSE_CODES['room-full']`.
-- [ ] Confirm "Room is full" copy distinct from `unknown-room` + `wrong-password`; deploy checklist verifies `HNCH_ROOM_CAP` unset in prod (ADR-0027 scope).
-- [ ] Defense-in-depth: log effective `ROOM_CAP` at relay startup; WARN if < `MAX_ROOM_PARTICIPANTS`.
