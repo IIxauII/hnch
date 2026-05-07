@@ -76,7 +76,7 @@
 .page-section {
   margin-block: 1.5rem;
 }
-.page-section:first-of-type {
+.page-section--no-top-border {
   margin-block-start: 0;
 }
 .page-section-header {
@@ -87,7 +87,7 @@
   padding-block: 0.5rem;
   border-top: 1px solid var(--hnch-sep);
 }
-.page-section:first-of-type .page-section-header {
+.page-section--no-top-border .page-section-header {
   border-top: none;
   padding-block-start: 0;
 }

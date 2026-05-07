@@ -173,7 +173,7 @@ import { summarizeParticipants } from './lobby-summary'
           <div class="lobby-rail">
 
             <!-- Room section -->
-            <section class="page-section" aria-label="Room">
+            <section class="page-section page-section--no-top-border" aria-label="Room">
               <header class="page-section-header">
                 @if (roomCode(); as code) {
                   <h1 class="room-code">{{ code }}</h1>
@@ -212,7 +212,7 @@ import { summarizeParticipants } from './lobby-summary'
             <section class="page-section" aria-label="Participants">
               <header class="page-section-header">
                 <h2 class="page-section-title">Participants</h2>
-                <span class="page-section-meta">{{ participantsSummary() || (activeParticipants().length + ' active') }}</span>
+                <span class="page-section-meta">{{ participantsSummary() }}</span>
               </header>
               <div class="page-section-body">
                 @if (isHost()) {
@@ -309,7 +309,7 @@ import { summarizeParticipants } from './lobby-summary'
           <div class="lobby-pane">
             @if (lastRevealedRound(); as round) {
               <!-- Results section -->
-              <section class="page-section" [attr.aria-label]="'Round ' + lastRevealedRoundIndex() + ' Results'">
+              <section class="page-section" [attr.aria-label]="'Round ' + (lastRevealedRoundIndex() ?? '?') + ' Results'">
                 <header class="page-section-header">
                   <h2 class="page-section-title">Round {{ lastRevealedRoundIndex() }} Results</h2>
                   <div class="results-header-end">
