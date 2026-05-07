@@ -34,11 +34,28 @@
   --hnch-fill:         rgba(120, 120, 128, 0.16);
   --hnch-fill-strong:  rgba(120, 120, 128, 0.24);
 
-  // Semantic — light
-  // Values from ionic-screens.jsx:24–28
-  --hnch-success:      #30D158;
-  --hnch-warning:      #FF9F0A;
-  --hnch-danger:       #FF453A;
+  // Semantic — Ionic-native overrides (light)
+  // Drives <ion-chip color="success">, color="warning", color="danger" everywhere.
+  --ion-color-success:           #30D158;
+  --ion-color-success-rgb:       48, 209, 88;
+  --ion-color-success-contrast:  #ffffff;
+  --ion-color-success-contrast-rgb: 255, 255, 255;
+  --ion-color-success-shade:     #2ab84d;
+  --ion-color-success-tint:      #45d669;
+
+  --ion-color-warning:           #FF9F0A;
+  --ion-color-warning-rgb:       255, 159, 10;
+  --ion-color-warning-contrast:  #000000;
+  --ion-color-warning-contrast-rgb: 0, 0, 0;
+  --ion-color-warning-shade:     #e08c09;
+  --ion-color-warning-tint:      #ffaa23;
+
+  --ion-color-danger:            #FF453A;
+  --ion-color-danger-rgb:        255, 69, 58;
+  --ion-color-danger-contrast:   #ffffff;
+  --ion-color-danger-contrast-rgb: 255, 255, 255;
+  --ion-color-danger-shade:      #e03d33;
+  --ion-color-danger-tint:       #ff584e;
 }
 
 // ---------------------------------------------------------------------------
@@ -74,8 +91,26 @@
   --hnch-fill:         rgba(120, 120, 128, 0.32);
   --hnch-fill-strong:  rgba(118, 118, 128, 0.40);
 
-  // Semantic — dark
-  --hnch-success:      #30D158;
-  --hnch-warning:      #FF9F0A;
-  --hnch-danger:       #FF453A;
+  // Semantic — Ionic-native overrides (dark)
+  // Hex values mirror light mode; Ionic palette stays vivid in both themes.
+  --ion-color-success:           #30D158;
+  --ion-color-success-rgb:       48, 209, 88;
+  --ion-color-success-contrast:  #000000;
+  --ion-color-success-contrast-rgb: 0, 0, 0;
+  --ion-color-success-shade:     #2ab84d;
+  --ion-color-success-tint:      #45d669;
+
+  --ion-color-warning:           #FF9F0A;
+  --ion-color-warning-rgb:       255, 159, 10;
+  --ion-color-warning-contrast:  #000000;
+  --ion-color-warning-contrast-rgb: 0, 0, 0;
+  --ion-color-warning-shade:     #e08c09;
+  --ion-color-warning-tint:      #ffaa23;
+
+  --ion-color-danger:            #FF453A;
+  --ion-color-danger-rgb:        255, 69, 58;
+  --ion-color-danger-contrast:   #ffffff;
+  --ion-color-danger-contrast-rgb: 255, 255, 255;
+  --ion-color-danger-shade:      #e03d33;
+  --ion-color-danger-tint:       #ff584e;
 }
