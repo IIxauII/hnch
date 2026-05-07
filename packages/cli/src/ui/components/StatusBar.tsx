@@ -4,7 +4,7 @@ import type { SyncStatus } from '../../sync.js';
 
 interface Props {
   roomCode: string;
-  sessionName?: string;
+  sessionName?: string | undefined;
   status: SyncStatus;
   isHost: boolean;
 }

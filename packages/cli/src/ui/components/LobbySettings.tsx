@@ -18,10 +18,10 @@ export interface LobbySettingsProps {
   displayName: string;
   currentScale: Scale;
   accessMode: 'open' | 'password' | 'invite';
-  presetOverrides?: PresetOverrides;
-  customScales?: CustomScale[];
+  presetOverrides?: PresetOverrides | undefined;
+  customScales?: CustomScale[] | undefined;
   /** When false (joiner), only Display name row is shown. Defaults to true. */
-  isHost?: boolean;
+  isHost?: boolean | undefined;
   onChangeName: (name: string | undefined) => void;
   onChangeScale: (scale: Scale) => void;
   onChangeDisplayName: (name: string) => void;

@@ -37,9 +37,9 @@ export interface CreateSessionOptions {
   readonly participantId: string;
   readonly displayName: string;
   readonly relayUrl: string;
-  readonly sessionName?: string;
-  readonly password?: string;
-  readonly defaultScale?: Scale;
+  readonly sessionName?: string | undefined;
+  readonly password?: string | undefined;
+  readonly defaultScale?: Scale | undefined;
 }
 
 export interface JoinSessionOptions {
@@ -47,8 +47,8 @@ export interface JoinSessionOptions {
   readonly displayName: string;
   readonly relayUrl: string;
   readonly roomCode: string;
-  readonly password?: string;
-  readonly onRejection?: (reason: JoinRejectionReason) => void;
+  readonly password?: string | undefined;
+  readonly onRejection?: ((reason: JoinRejectionReason) => void) | undefined;
 }
 
 export interface SessionHandle {
@@ -125,7 +125,7 @@ export async function createSession(opts: CreateSessionOptions): Promise<Session
     participantId: opts.participantId,
     displayName: opts.displayName,
     defaultScale: opts.defaultScale ?? FIBONACCI_SCALE,
-    sessionName: opts.sessionName,
+    ...(opts.sessionName !== undefined && { sessionName: opts.sessionName }),
   });
 
   awareness.setLocalStateField('participantId', opts.participantId);
@@ -181,8 +181,8 @@ export interface WireOptions {
   roomUuid: string;
   participantId: string;
   relayUrl: string;
-  passwordHash?: string;
-  onRejection?: (reason: JoinRejectionReason) => void;
+  passwordHash?: string | undefined;
+  onRejection?: ((reason: JoinRejectionReason) => void) | undefined;
 }
 
 export function wireSession(opts: WireOptions): SessionHandle {
@@ -310,7 +310,7 @@ export function wireSession(opts: WireOptions): SessionHandle {
         id,
         createdAt: Date.now(),
         createdBy: participantId,
-        title,
+        ...(title !== undefined && { title }),
       });
       return id;
     },
@@ -322,10 +322,10 @@ export function wireSession(opts: WireOptions): SessionHandle {
         id,
         createdAt: Date.now(),
         createdBy: participantId,
-        parentRoundId: round?.id,
-        title: round?.title,
-        description: round?.description,
-        ticketId: round?.ticketId,
+        ...(round?.id !== undefined && { parentRoundId: round.id }),
+        ...(round?.title !== undefined && { title: round.title }),
+        ...(round?.description !== undefined && { description: round.description }),
+        ...(round?.ticketId !== undefined && { ticketId: round.ticketId }),
       });
       return id;
     },
@@ -335,7 +335,10 @@ export function wireSession(opts: WireOptions): SessionHandle {
     },
 
     updateName(name: string | undefined) {
-      patchSettings(doc, { name });
+      // patchSettings interprets undefined values as "delete the key";
+      // cast is required because exactOptionalPropertyTypes rejects explicit undefined
+      // in Partial<Settings> even though the runtime behavior is intentional.
+      patchSettings(doc, { name } as { name?: string });
     },
 
     updateScale(scale: Scale) {

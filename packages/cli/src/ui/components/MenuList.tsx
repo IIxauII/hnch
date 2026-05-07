@@ -4,8 +4,8 @@ import { Box, Text, useInput } from 'ink';
 export interface MenuItem {
   label: string;
   value: string;
-  detail?: string;
-  disabled?: boolean;
+  detail?: string | undefined;
+  disabled?: boolean | undefined;
 }
 
 interface MenuListProps {
@@ -28,7 +28,7 @@ export function MenuList({ items, onSelect, onClose, title }: MenuListProps): Re
   const firstEnabled = items.findIndex((item) => !item.disabled);
   const [cursor, setCursor] = useState(Math.max(firstEnabled, 0));
 
-  useInput((input, key) => {
+  useInput((_input, key) => {
     if (key.upArrow) {
       setCursor((c) => {
         let next = (c - 1 + items.length) % items.length;
@@ -68,7 +68,7 @@ export function MenuList({ items, onSelect, onClose, title }: MenuListProps): Re
           const isDisabled = item.disabled ?? false;
           return (
             <Box key={item.value} gap={1}>
-              <Text color={isCursor ? 'cyan' : undefined} dimColor={isDisabled}>
+              <Text {...(isCursor && { color: 'cyan' as const })} dimColor={isDisabled}>
                 {isCursor ? '>' : ' '}
               </Text>
               <Text bold={isCursor} dimColor={isDisabled}>

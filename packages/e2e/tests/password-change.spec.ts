@@ -78,7 +78,6 @@ test.describe('Mid-session password change', () => {
 
   test('host changes password mid-session; old password rejected, new password accepted', async ({
     host,
-    _player,
     createParticipant,
   }) => {
     const joinerOldPw = await createParticipant('JoinerOldPw');

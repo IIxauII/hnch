@@ -20,7 +20,7 @@ export class ToastService {
       message,
       duration: 4000,
       position: 'top',
-      buttons: closeIcon ? [{ icon: 'close', role: 'cancel' }] : undefined,
+      ...(closeIcon && { buttons: [{ icon: 'close', role: 'cancel' }] }),
     });
     await t.present();
   }

@@ -39,10 +39,10 @@ export class AppComponent {
   // Eager-instantiate global effect services. The inject() calls
   // ensure Angular creates these singletons; each service's effect
   // self-gates on `docService.hasSession()`.
-  private readonly _hostElection = inject(HostElectionService);
-  private readonly _sessionEnd = inject(SessionEndService);
-  private readonly _participantRemoval = inject(ParticipantRemovalService);
-  private readonly _theme = inject(ThemeService);
+  private readonly hostElection = inject(HostElectionService);
+  private readonly sessionEnd = inject(SessionEndService);
+  private readonly participantRemoval = inject(ParticipantRemovalService);
+  private readonly theme = inject(ThemeService);
 
   /**
    * Scratch signal tracking the previous `hostParticipantId` so we can
@@ -53,6 +53,11 @@ export class AppComponent {
   private readonly previousHostId = signal<string | null>(null);
 
   constructor() {
+    // Consume effect services to mark them as used
+    void this.hostElection;
+    void this.sessionEnd;
+    void this.participantRemoval;
+    void this.theme;
     effect(() => {
       const hostId = this.docService.settings()?.hostParticipantId ?? null;
       const prev = this.previousHostId();

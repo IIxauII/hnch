@@ -12,10 +12,8 @@ import { BASE_URL, HOME, JOIN, fillRoomCode } from './fixtures/helpers';
  * to the home page with an error toast.
  */
 test.describe('Room full rejection', () => {
-  test('room-full rejection shows toast and navigates to home', {
-    timeout: 30_000,
-    trace: 'off',
-  }, async ({ host, createParticipant }) => {
+  test('room-full rejection shows toast and navigates to home', async ({ host, createParticipant }) => {
+    test.setTimeout(30_000);
     // The relay is configured via HNCH_ROOM_CAP env var (default: 20).
     // For this test, we use a cap of 3, so the 4th joiner will be rejected.
 

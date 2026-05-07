@@ -14,8 +14,8 @@ import { TextInput } from './TextInput.js';
 import { ScalePicker } from './ScalePicker.js';
 
 interface ConfigSettingsProps {
-  presetOverrides?: PresetOverrides;
-  customScales?: CustomScale[];
+  presetOverrides?: PresetOverrides | undefined;
+  customScales?: CustomScale[] | undefined;
 }
 
 type SettingsState =

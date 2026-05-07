@@ -11,7 +11,7 @@ import type { LastSessionCache } from '@hnch/shared';
 import { configDir } from './config.js';
 
 export interface CliLastSessionCache extends LastSessionCache {
-  readonly passwordHash?: string;
+  readonly passwordHash?: string | undefined;
 }
 
 const SESSION_TTL = 24 * 60 * 60 * 1000; // 24h in ms

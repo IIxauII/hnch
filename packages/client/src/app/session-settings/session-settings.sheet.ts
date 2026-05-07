@@ -225,7 +225,8 @@ export class SessionSettingsSheetComponent {
     const sessionNameInputElement = this.sessionNameInput();
     if (!sessionNameInputElement) return;
     const trimmed = (sessionNameInputElement.value as string).trim();
-    this.docService.updateSettings({ name: trimmed || undefined });
+    const update = { ...((trimmed) && { name: trimmed }) };
+    this.docService.updateSettings(update);
   }
 
   protected openScalePicker(): void {

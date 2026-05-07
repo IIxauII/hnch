@@ -284,11 +284,12 @@ export class HomePage {
       // flow that bailed early) so createSession's single-session
       // invariant holds.
       this.docService.endSession();
+      const defaultSessionName = this.appPrefs.defaultSessionName();
       this.docService.createSession({
         participantId,
         displayName: displayName ?? '',
         defaultScale: this.scalePrefs.defaultScale(),
-        sessionName: this.appPrefs.defaultSessionName() || undefined,
+        ...(defaultSessionName && { sessionName: defaultSessionName }),
         roomUuid: minted.uuid,
         roomCode: minted.code,
       });

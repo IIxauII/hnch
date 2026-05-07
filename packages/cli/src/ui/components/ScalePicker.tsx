@@ -191,7 +191,7 @@ export function ScalePicker({
           return (
             <Box key={scale.id || 'none'} flexDirection="column">
               <Box gap={1}>
-                <Text color={isCursor ? 'cyan' : undefined}>{isCursor ? '>' : ' '}</Text>
+                <Text {...(isCursor && { color: 'cyan' as const })}>{isCursor ? '>' : ' '}</Text>
                 <Text bold={isCursor}>{displayName}</Text>
                 {!isNoneOption && !isCreateAction && <Text dimColor>{cardPreview}</Text>}
                 {isSelected && <Text color="cyan">[current]</Text>}

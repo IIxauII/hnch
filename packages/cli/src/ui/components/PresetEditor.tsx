@@ -58,7 +58,7 @@ export function PresetEditor({
               key={card}
               inverse={isCursor}
               bold={!isDisabled}
-              color={isDisabled ? undefined : 'cyan'}
+              {...(!isDisabled && { color: 'cyan' as const })}
               strikethrough={isDisabled}
               dimColor={isDisabled}
             >

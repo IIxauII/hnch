@@ -365,7 +365,11 @@ export class JoinPage {
       });
 
       this.docService.connect(
-        { roomCode: code, deviceId: participantId, passwordHash },
+        {
+          roomCode: code,
+          deviceId: participantId,
+          ...(passwordHash !== undefined && { passwordHash }),
+        },
         { roomUuid: uuid },
       );
 

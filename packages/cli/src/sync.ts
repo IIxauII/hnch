@@ -24,13 +24,13 @@ export interface ConnectOptions {
   /** Device/participant ID. */
   readonly deviceId: string;
   /** Password hash for protected rooms. */
-  readonly passwordHash?: string;
+  readonly passwordHash?: string | undefined;
   /** Pre-created awareness instance to share. */
-  readonly awareness?: Awareness;
+  readonly awareness?: Awareness | undefined;
   /** Called on every status change. */
-  readonly onStatusChange?: (status: SyncStatus) => void;
+  readonly onStatusChange?: ((status: SyncStatus) => void) | undefined;
   /** Called when the relay rejects the connection. */
-  readonly onRejection?: (reason: JoinRejectionReason) => void;
+  readonly onRejection?: ((reason: JoinRejectionReason) => void) | undefined;
 }
 
 export interface SyncConnection {

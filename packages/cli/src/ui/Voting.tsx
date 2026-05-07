@@ -12,7 +12,7 @@ interface Props {
   isHost: boolean;
   myId: string;
   myRole: 'voter' | 'viewer';
-  elapsedMs?: number;
+  elapsedMs?: number | undefined;
   roomCode: string;
   shareOpen: boolean;
   settingsOpen: boolean;

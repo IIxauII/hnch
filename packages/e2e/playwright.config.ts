@@ -10,7 +10,7 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: isCI,
   retries: 0,
-  workers: isCI ? 4 : undefined,
+  ...(isCI && { workers: 4 }),
   // Fail-fast in CI: any single failure aborts the run so a bootstrap
   // crash doesn't burn the 10-min CI cap on 73 trailing tests against a
   // blank page. Local: 0 (Playwright treats 0 as disabled = run

@@ -20,11 +20,11 @@ export interface CliConfig {
   participantId: string;
   displayName: string;
   relayUrl: string;
-  defaultScale?: string;
-  defaultSessionName?: string;
-  defaultPassword?: boolean;
-  presetOverrides?: PresetOverrides;
-  customScales?: CustomScale[];
+  defaultScale?: string | undefined;
+  defaultSessionName?: string | undefined;
+  defaultPassword?: boolean | undefined;
+  presetOverrides?: PresetOverrides | undefined;
+  customScales?: CustomScale[] | undefined;
 }
 
 // Production relay (http scheme for Node.js fetch; ws scheme derived in sync.ts).

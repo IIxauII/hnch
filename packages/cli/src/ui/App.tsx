@@ -17,8 +17,8 @@ interface Props {
   participantId: string;
   displayName: string;
   accessMode: 'open' | 'password' | 'invite';
-  presetOverrides?: PresetOverrides;
-  customScales?: CustomScale[];
+  presetOverrides?: PresetOverrides | undefined;
+  customScales?: CustomScale[] | undefined;
 }
 
 type Screen = 'lobby' | 'voting';

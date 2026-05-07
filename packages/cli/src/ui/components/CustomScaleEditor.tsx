@@ -122,7 +122,7 @@ export function CustomScaleEditor({
             {cards.map((card, i) => {
               const isCursor = i === cardCursor;
               return (
-                <Text key={i} inverse={isCursor} color={isCursor ? undefined : 'cyan'}>
+                <Text key={i} inverse={isCursor} {...(!isCursor && { color: 'cyan' as const })}>
                   {card.length > 0 ? card : '·'}
                 </Text>
               );

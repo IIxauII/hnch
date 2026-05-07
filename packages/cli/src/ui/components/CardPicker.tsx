@@ -4,10 +4,10 @@ import type { Scale } from '@hnch/shared';
 
 interface Props {
   scale: Scale;
-  selected?: string;
+  selected?: string | undefined;
   onSelect: (card: string) => void;
   onClear: () => void;
-  disabled?: boolean;
+  disabled?: boolean | undefined;
 }
 
 export function CardPicker({
@@ -19,7 +19,7 @@ export function CardPicker({
 }: Props): React.ReactElement {
   const [cursor, setCursor] = useState(0);
 
-  useInput((input, key) => {
+  useInput((_input, key) => {
     if (disabled) return;
 
     if (key.leftArrow) {
@@ -49,7 +49,7 @@ export function CardPicker({
               key={card}
               inverse={isCursor}
               bold={isSelected}
-              color={isSelected ? 'cyan' : undefined}
+              {...(isSelected && { color: 'cyan' as const })}
             >
               {isSelected ? `[${card}]` : ` ${card} `}
             </Text>

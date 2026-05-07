@@ -37,7 +37,7 @@ import type { CodePool } from './code-pool.js';
 export interface RoomRecord {
   readonly uuid: string;
   readonly code: string;
-  passwordHash?: PasswordHash;
+  passwordHash?: PasswordHash | undefined;
   readonly invitesOutstanding: Set<string>;
   readonly doc: Y.Doc;
   readonly awareness: Awareness;

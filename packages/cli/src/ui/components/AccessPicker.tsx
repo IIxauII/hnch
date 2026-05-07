@@ -25,7 +25,7 @@ export function AccessPicker({
   }, [mode]);
 
   useInput(
-    (input, key) => {
+    (_input, key) => {
       if (key.leftArrow) {
         setCursor((c) => Math.max(0, c - 1));
       } else if (key.rightArrow) {
@@ -53,7 +53,7 @@ export function AccessPicker({
           const isActive = m === mode;
           const label = m === 'open' ? 'Open' : 'Password';
           return (
-            <Text key={m} inverse={isCursor} bold={isActive} color={isActive ? 'cyan' : undefined}>
+            <Text key={m} inverse={isCursor} bold={isActive} {...(isActive && { color: 'cyan' as const })}>
               {isActive ? `[${label}]` : ` ${label} `}
             </Text>
           );
