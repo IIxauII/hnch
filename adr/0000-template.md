@@ -2,48 +2,29 @@
 
 **Status:** Proposed | Accepted | Deprecated | Superseded by ADR-XXXX
 **Date:** YYYY-MM-DD
-**Deciders:** [Names]
 
 ## Context
 
-What is the situation that forces a decision? What constraints and forces are at play? What problem are we solving?
+- Forcing situation, constraint, or problem.
+- One bullet per fact. No prose paragraphs.
 
 ## Decision
 
-One or two sentences stating clearly what we are doing. The rest of the document explains why.
+One or two sentences. What we do.
 
-## Options Considered
+## Trade-offs
 
-### Option A: [Name]
-
-| Dimension | Assessment |
-|-----------|------------|
-| Complexity | Low / Medium / High |
-| Cost | [notes] |
-| Scalability | [notes] |
-| Team familiarity | [notes] |
-
-**Pros:** [list]
-**Cons:** [list]
-
-### Option B: [Name]
-
-[Same format]
-
-### Option C: [Name]
-
-[Same format]
-
-## Trade-off Analysis
-
-The key reason we chose the accepted option over the others. Be honest about what we give up.
+- What we give up by picking this.
+- One bullet per cost.
 
 ## Consequences
 
-What becomes easier as a result of this decision. What becomes harder. What we'll need to revisit, and under what conditions.
+- Easier: x.
+- Harder: y.
+- Revisit when: z.
 
-## Action Items
-
-- [ ] Follow-up implementation step
-- [ ] Documentation or communication task
-- [ ] Revisit trigger to watch for
+<!--
+Style: terse. Bullets over prose. Caveman-ultra: drop articles, filler, hedging. Technical terms exact.
+NO Options/Alternatives section. NO Action Items / phase checklists. NO implementation phases.
+The decision and its trade-offs are what survives. Rejected alternatives belong in commit/PR discussion, not in the durable ADR.
+-->
