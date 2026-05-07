@@ -57,7 +57,8 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0036](0036-participant-removal-lifecycle.md) | Participant removal lifecycle — voluntary leave + host kick via soft-delete `leftAt` / `removedBy` | Accepted |
 | [0037](0037-self-hosted-runner-pool-covers-all-non-health-jobs.md) | Self-hosted runner pool covers all CI/CD jobs except `runner-health.yml` (extends ADR-0029 + ADR-0032) | Proposed |
 | [0038](0038-responsive-layout-and-keyboard.md) | Responsive layout system & keyboard-shortcut contract | Accepted (§Option D `ion-grid` rejection superseded by ADR-0039) |
-| [0039](0039-ion-grid-section-cards-popover-overflow.md) | UI vocabulary follow-up — `ion-grid`, `ion-popover` overflow menus, and `ion-card` section grouping (supersedes ADR-0038 §Option D for layout-vocabulary) | Accepted |
+| [0039](0039-ion-grid-section-cards-popover-overflow.md) | UI vocabulary follow-up — `ion-grid`, `ion-popover` overflow menus, and `ion-card` section grouping (supersedes ADR-0038 §Option D for layout-vocabulary) | Accepted (§D3 `ion-card` section grouping superseded by ADR-0040) |
+| [0040](0040-flat-sections-and-type-scale.md) | Flat sections + Apple-ish type scale on Lobby and Estimating (supersedes ADR-0039 §D3 only) | Accepted |
 
 ## When to write an ADR
 

@@ -53,6 +53,23 @@
   --hnch-rail-width: 320px;
   /* Centered-dialog max-width at >=1024 (replaces half-sheet). */
   --hnch-modal-max: 480px;
+
+  /* Type scale — see ADR-0040.
+     Values in px so they don't scale with body em changes. */
+  --hnch-text-display: 32px;   /* room code, big stat numbers */
+  --hnch-text-h1:      22px;   /* page-level heading inside content */
+  --hnch-text-h2:      17px;   /* section heading */
+  --hnch-text-body:    15px;   /* default body */
+  --hnch-text-caption: 13px;   /* muted descriptors */
+  --hnch-text-micro:   11px;   /* uppercase section labels */
+
+  --hnch-font-weight-bold:     700;
+  --hnch-font-weight-semibold: 600;
+  --hnch-font-weight-medium:   500;
+  --hnch-font-weight-normal:   400;
+
+  --hnch-letter-spacing-display: -0.02em;
+  --hnch-letter-spacing-micro:    0.08em;
 }
 
 // ---------------------------------------------------------------------------

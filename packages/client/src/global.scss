@@ -69,6 +69,44 @@
   outline-offset: 2px;
 }
 
+/* Flat-section pattern — see ADR-0040.
+   Replaces ion-card framing on Lobby + Estimating; pages compose
+   <section class="page-section"> blocks with a uppercase micro
+   heading and a thin top divider. */
+.page-section {
+  margin-block: 1.5rem;
+}
+.page-section:first-of-type {
+  margin-block-start: 0;
+}
+.page-section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-block: 0.5rem;
+  border-top: 1px solid var(--hnch-sep);
+}
+.page-section:first-of-type .page-section-header {
+  border-top: none;
+  padding-block-start: 0;
+}
+.page-section-title {
+  font-size: var(--hnch-text-micro);
+  font-weight: var(--hnch-font-weight-medium);
+  letter-spacing: var(--hnch-letter-spacing-micro);
+  text-transform: uppercase;
+  color: var(--ion-color-medium);
+  margin: 0;
+}
+.page-section-meta {
+  font-size: var(--hnch-text-caption);
+  color: var(--ion-color-medium);
+}
+.page-section-body {
+  padding-block: 0.5rem;
+}
+
 /*
  * Desktop modal sizing — ADR-0038.
  *

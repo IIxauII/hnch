@@ -70,6 +70,8 @@ No new tokens are introduced. If a card needs a color the existing token set doe
 
 **Width inheritance.** Cards inherit width constraints from the `.page-shell` (single-column screens) and `.lobby-shell` grid columns (Lobby two-pane). No new `max-width` rules on the card itself. If a card looks too wide on a particular viewport, the fix is at the shell level, not at the card level.
 
+> **Note:** superseded by [ADR-0040](0040-flat-sections-and-type-scale.md) — see that ADR for the new flat-section + type-scale stance.
+
 ## Options Considered
 
 ### Option A: Land all three changes (chosen)
