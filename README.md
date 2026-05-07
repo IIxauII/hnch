@@ -69,7 +69,7 @@ pnpm typecheck         # Type-check without emit
 # Per-package targets
 pnpm --filter shared test
 pnpm --filter @hnch/relay typecheck
-pnpm --filter @hnch/cli build
+pnpm --filter @xauyxau/hnch build
 ```
 
 ## Configuration

@@ -34,19 +34,15 @@ Curated list of bugs, technical-debt items, features, and improvements. Updated 
 
 ---
 
-### 2.2 Reconnect UX — "Reconnecting…" banner not yet designed or built
+### 2.2 Reconnect UX — "Reconnecting…" banner — **shipped**
 
-`ux.md §8` flags the reconnecting-banner as an open question. The y-websocket provider already emits connect/disconnect lifecycle events, but the UI has no visual feedback during a momentary network blip. Users currently see no indicator that the app is trying to reconnect.
-
-**Suggested approach:** show a slim non-blocking banner ("Reconnecting…") fixed to the top of Lobby and Estimating screens while the sync provider is in the `connecting` state (not the initial connect, only after a drop). Dismiss automatically on reconnect. This resolves the open UX question and closes an ADR-0025 action item about wiring the reconnect state into the UI.
+**SHIPPED** — Implemented as `ConnectionStatusBannerComponent` (`packages/client/src/app/shared/connection-status-banner.component.ts`), mounted at the top of `<ion-content>` on Lobby and Estimating. Shown when `DocService.reconnecting()` is true (debounced ~5 s, gated on first-connect). On reconnect, a transient `ion-toast` ("Reconnected") auto-dismisses. See `ux.md §8` for the full spec.
 
 ---
 
-### 2.3 Host-election transition state — no UI during 5-second debounce
+### 2.3 Host-election transition state — **resolved**
 
-`ux.md §8` and ADR-0010 describe a 5-second debounce before the lowest-peer-ID client promotes itself to host. During those 5 seconds, participants have no host. The UI currently shows no feedback.
-
-**Suggested approach:** show a status chip or inline message ("Waiting for a new host…") in the Lobby participant list area during the debounce window. Dismiss immediately when `settings.hostParticipantId` changes. Prevents user confusion when the host drops mid-session.
+**RESOLVED** (issue #43) — No inline status during the 5-second debounce. Instead, the post-election toast names the prior host ("Alice disconnected. Bob is now the host."), giving participants context once the new host is elected. The 5-second silence is accepted as too short for a useful inline indicator. See `ux.md §8`.
 
 ---
 
@@ -157,11 +153,9 @@ ADR-0013 §7 action items list "export formats beyond clipboard markdown dump" a
 
 ---
 
-### 4.5 CLI: `hnch config` command for relay URL preference
+### 4.5 CLI: `hnch config` command for relay URL preference — **shipped**
 
-The relay URL is currently set via environment variable or defaults to `https://hnch.dev`. Power users running a self-hosted relay have to set `HNCH_RELAY_URL` manually on every shell session. A `hnch config set relayUrl <url>` subcommand writing to `~/.config/hnch/config.json` would make this persistent.
-
-`packages/cli/src/config.ts` already handles the config directory path — this is an additive command.
+**SHIPPED** — `hnch config --relay-url <url>` persists the relay URL to `~/.config/hnch/config.json` (handled by `packages/cli/src/config.ts`). The default is `https://hnch.dev`. See `cli.md §Config` for usage.
 
 ---
 

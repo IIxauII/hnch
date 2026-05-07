@@ -245,7 +245,7 @@ This design work is ~1 hour; resolve it before relay code lands.
 
 These apply across phases; flagging them once here saves repeating per phase.
 
-**CLI parity.** The `@hnch/cli` package (`packages/cli`) is a terminal client that ships alongside the mobile/PWA client. It uses the same relay protocol and `@hnch/shared` doc schema. Any session-behavior change (rounds, reveal, host election, access control, scales) must be reflected in both clients. See [`cli.md`](cli.md) for commands and conventions.
+**CLI parity.** The `@xauyxau/hnch` package (`packages/cli`) is a terminal client that ships alongside the mobile/PWA client. It uses the same relay protocol and `@hnch/shared` doc schema. Any session-behavior change (rounds, reveal, host election, access control, scales) must be reflected in both clients. See [`cli.md`](cli.md) for commands and conventions.
 
 **Tests.** We are not writing a separate test-strategy document for v1. Rule of thumb:
 - Pure shared utilities get unit tests (as `room-code.ts` already does).
