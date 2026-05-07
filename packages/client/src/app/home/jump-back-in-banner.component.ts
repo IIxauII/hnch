@@ -79,8 +79,8 @@ export interface JumpBackInSummary {
         margin-inline-end: 12px;
       }
       .icon-tile--accent {
-        background: var(--hnch-accent);
-        color: var(--hnch-accent-ink);
+        background: var(--ion-color-primary);
+        color: var(--ion-color-primary-contrast);
       }
       .icon-tile ion-icon {
         font-size: 20px;

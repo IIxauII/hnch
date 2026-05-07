@@ -188,8 +188,8 @@ import { presentSheet } from '../utils/present-sheet'
         margin-inline-end: 12px;
       }
       .icon-tile--accent {
-        background: var(--hnch-accent);
-        color: var(--hnch-accent-ink);
+        background: var(--ion-color-primary);
+        color: var(--ion-color-primary-contrast);
       }
       .icon-tile--neutral {
         background: var(--ion-background-color-step-100);

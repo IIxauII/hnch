@@ -98,7 +98,7 @@ const TILE_COUNT = 6
 
     .tile.focused,
     .tile:focus {
-      border-color: var(--hnch-accent);
+      border-color: var(--ion-color-primary);
     }
 
     .separator {

@@ -89,7 +89,6 @@ describe('AccentService', () => {
     await svc.loadFromStorage()
 
     expect(svc.accent()).toBe('racing-green')
-    expect(getCssVar('--hnch-accent')).toBe('#0B3D2E')
     expect(getCssVar('--ion-color-primary')).toBe('#0B3D2E')
   })
 
@@ -118,7 +117,6 @@ describe('AccentService', () => {
       value: 'blue',
     })
     expect(getCssVar('--ion-color-primary')).toBe('#0A84FF')
-    expect(getCssVar('--hnch-accent')).toBe('#0A84FF')
     expect(svc.accent()).toBe('blue')
   })
 
@@ -149,7 +147,6 @@ describe('AccentService', () => {
     document.documentElement.classList.add(DARK_CLASS)
     await svc.loadFromStorage()
 
-    expect(getCssVar('--hnch-accent')).toBe('#F2F2F7')
     expect(getCssVar('--ion-color-primary')).toBe('#F2F2F7')
   })
 
@@ -159,13 +156,12 @@ describe('AccentService', () => {
     await svc.loadFromStorage()
 
     // Initially light
-    expect(getCssVar('--hnch-accent')).toBe('#1C1C1E')
+    expect(getCssVar('--ion-color-primary')).toBe('#1C1C1E')
 
     // Add dark class then trigger observer
     document.documentElement.classList.add(DARK_CLASS)
     triggerClassMutation()
 
-    expect(getCssVar('--hnch-accent')).toBe('#F2F2F7')
     expect(getCssVar('--ion-color-primary')).toBe('#F2F2F7')
   })
 
@@ -180,7 +176,6 @@ describe('AccentService', () => {
     document.documentElement.classList.add(DARK_CLASS)
     await svc.loadFromStorage()
 
-    expect(getCssVar('--hnch-accent')).toBe('#1F6B4F')
     expect(getCssVar('--ion-color-primary')).toBe('#1F6B4F')
   })
 
@@ -191,13 +186,12 @@ describe('AccentService', () => {
     await svc.loadFromStorage()
 
     // Dark override active
-    expect(getCssVar('--hnch-accent')).toBe('#1F6B4F')
+    expect(getCssVar('--ion-color-primary')).toBe('#1F6B4F')
 
     // Remove dark class then trigger observer
     document.documentElement.classList.remove(DARK_CLASS)
     triggerClassMutation()
 
-    expect(getCssVar('--hnch-accent')).toBe('#0B3D2E')
     expect(getCssVar('--ion-color-primary')).toBe('#0B3D2E')
   })
 
@@ -250,6 +244,6 @@ describe('AccentService', () => {
 
     expect(mockPreferences.get).toHaveBeenCalledWith({ key: 'hnch.accent' })
     expect(svc.accent()).toBe('teal')
-    expect(getCssVar('--hnch-accent')).toBe('#40C8E0')
+    expect(getCssVar('--ion-color-primary')).toBe('#40C8E0')
   })
 })

@@ -66,7 +66,7 @@ import {
       bottom: -3px;
       right: -3px;
       border-radius: 50%;
-      background: var(--hnch-accent);
+      background: var(--ion-color-primary);
       border: 2px solid var(--ion-background-color);
       flex-shrink: 0;
     }

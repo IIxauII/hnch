@@ -195,8 +195,8 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
         display: flex;
         align-items: center;
         justify-content: center;
-        background: var(--hnch-accent-soft);
-        color: var(--hnch-accent);
+        background: rgba(var(--ion-color-primary-rgb), 0.14);
+        color: var(--ion-color-primary);
         margin-inline-end: 12px;
       }
       .icon-tile ion-icon {

@@ -65,8 +65,8 @@ export function tint(hex: string, pct: number): string {
  * Manages the app's accent colour preference.
  *
  * Persists the choice via Capacitor Preferences (`hnch.accent`) and writes
- * CSS custom properties onto `<html>` — both `--hnch-accent-*` design tokens
- * and `--ion-color-primary-*` so that Ionic components automatically re-color.
+ * CSS custom properties onto `<html>` — `--ion-color-primary-*` — so that
+ * Ionic components automatically re-color.
  *
  * Dark-mode overrides (graphite, racing-green) are re-applied whenever the
  * `.ion-palette-dark` class changes on `<html>`.
@@ -128,11 +128,6 @@ export class AccentService {
     const inkRgb = hexToRgbTuple(def.ink)
     const shadedBase = shade(def.base, 12)
     const tintedBase = tint(def.base, 12)
-
-    el.style.setProperty('--hnch-accent', def.base)
-    el.style.setProperty('--hnch-accent-rgb', rgb)
-    el.style.setProperty('--hnch-accent-soft', def.soft)
-    el.style.setProperty('--hnch-accent-ink', def.ink)
 
     el.style.setProperty('--ion-color-primary', def.base)
     el.style.setProperty('--ion-color-primary-rgb', rgb)
