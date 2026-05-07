@@ -1,3 +1,10 @@
+# [1.15.0](https://github.com/IIxauII/hnch/compare/client-v1.14.0...client-v1.15.0) (2026-05-07)
+
+
+### Features
+
+* **client,e2e:** settings UX rework, colored accent options ([#107](https://github.com/IIxauII/hnch/issues/107)) ([1ff78ab](https://github.com/IIxauII/hnch/commit/1ff78ab4fb7f047acdb2868638a73e21eb3a30ba))
+
 # [1.14.0](https://github.com/IIxauII/hnch/compare/client-v1.13.0...client-v1.14.0) (2026-05-02)
 
 
