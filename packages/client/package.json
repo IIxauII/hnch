@@ -14,6 +14,9 @@
     "prebuild": "node scripts/generate-version.mjs",
     "watch": "ng build --watch --configuration development",
     "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "format:check": "biome format .",
+    "lint": "oxlint .",
     "lint:templates": "eslint 'src/**/*.html'"
   },
   "private": true,

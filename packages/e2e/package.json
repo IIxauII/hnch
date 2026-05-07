@@ -8,7 +8,10 @@
     "test:headed": "playwright test --headed --project chromium",
     "test:chromium": "playwright test --project chromium",
     "test:webkit": "playwright test --project webkit",
-    "test:firefox": "playwright test --project firefox"
+    "test:firefox": "playwright test --project firefox",
+    "typecheck": "tsc --noEmit",
+    "format:check": "biome format .",
+    "lint": "oxlint ."
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",

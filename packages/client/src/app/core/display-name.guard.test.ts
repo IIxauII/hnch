@@ -135,7 +135,7 @@ describe('displayNameGuard', () => {
 
     it('falls back to "/join" when getCurrentNavigation() is null', async () => {
       const displayNameMock = makeDisplayNameService(null);
-      const routerMock = makeRouter(/* no nav */ );
+      const routerMock = makeRouter(/* no nav */);
 
       await runGuard(displayNameMock, routerMock, [seg('join')]);
 

@@ -225,7 +225,7 @@ export class SessionSettingsSheetComponent {
     const sessionNameInputElement = this.sessionNameInput();
     if (!sessionNameInputElement) return;
     const trimmed = (sessionNameInputElement.value as string).trim();
-    const update = { ...((trimmed) && { name: trimmed }) };
+    const update = { ...(trimmed && { name: trimmed }) };
     this.docService.updateSettings(update);
   }
 

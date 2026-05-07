@@ -53,7 +53,12 @@ export function AccessPicker({
           const isActive = m === mode;
           const label = m === 'open' ? 'Open' : 'Password';
           return (
-            <Text key={m} inverse={isCursor} bold={isActive} {...(isActive && { color: 'cyan' as const })}>
+            <Text
+              key={m}
+              inverse={isCursor}
+              bold={isActive}
+              {...(isActive && { color: 'cyan' as const })}
+            >
               {isActive ? `[${label}]` : ` ${label} `}
             </Text>
           );
