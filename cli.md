@@ -1,6 +1,6 @@
 # cli.md — CLI conventions for hnch
 
-The CLI (`packages/cli`, package `@hnch/cli`) is a shipping surface alongside the mobile/PWA client. It targets developers and automation users who prefer a terminal workflow, and serves as a parity smoke-test client — it speaks the same Yjs-over-WebSocket protocol as the mobile client with no feature delta in core session behavior.
+The CLI (`packages/cli`, package `@xauyxau/hnch`) is a shipping surface alongside the mobile/PWA client. It targets developers and automation users who prefer a terminal workflow, and serves as a parity smoke-test client — it speaks the same Yjs-over-WebSocket protocol as the mobile client with no feature delta in core session behavior.
 
 Consult [`angular.md`](angular.md) and [`ionic.md`](ionic.md) when working on the mobile client. This document covers the CLI surface only.
 
@@ -19,10 +19,10 @@ Consult [`angular.md`](angular.md) and [`ionic.md`](ionic.md) when working on th
 
 ```
 # development
-pnpm --filter @hnch/cli dev
+pnpm --filter @xauyxau/hnch dev
 
 # built binary
-pnpm --filter @hnch/cli build
+pnpm --filter @xauyxau/hnch build
 node packages/cli/dist/index.js <command>
 ```
 
@@ -69,7 +69,7 @@ hnch config [--name "Alice"] [--relay-url http://...] [--scale <id>] [--session-
 | Flag | Description |
 |---|---|
 | `--name` | Display name used in sessions |
-| `--relay-url` | Override the relay URL (default: `http://localhost:1234`) |
+| `--relay-url` | Override the relay URL (default: `https://hnch.dev`) |
 | `--scale` | Default scale ID for `create` (empty string clears) |
 | `--session-name` | Default session name for `create` (empty string clears) |
 | `--password` / `--no-password` | Whether `create` prompts for a password by default |
@@ -85,24 +85,32 @@ Scale customization (preset overrides, custom scales) is persisted in `config.js
 ```
 packages/cli/
   src/
-    index.ts          — entry point, yargs command wiring
-    session.ts        — createSession / joinSession / wireSession / reconnect
-    sync.ts           — y-websocket provider setup
-    relay-api.ts      — HTTP client for GET /rooms/:code and POST /rooms
-    config.ts         — config read/write helpers
-    last-session.ts   — last-session cache read/write
-    host-election.ts  — host-election observer (shared logic with mobile)
+    index.ts                  — entry point, yargs command wiring
+    session.ts                — createSession / joinSession / wireSession / reconnect
+    sync.ts                   — y-websocket provider setup
+    relay-api.ts              — HTTP client for GET /rooms/:code and POST /rooms
+    config.ts                 — config read/write helpers
+    last-session.ts           — last-session cache read/write
+    host-election.ts          — host-election observer (shared logic with mobile)
+    room-code-input.ts        — room-code parsing / formatting helpers
+    session-end-observer.ts   — observer for meta.sessionEndedAt (ADR-0023)
+    session-expired.ts        — expired-room error handling
+    share.ts                  — invite-URL generation for terminal output
     ui/
       App.tsx         — root Ink component (Lobby / Voting screens)
       Lobby.tsx
       Voting.tsx
-      components/     — CardPicker, ParticipantList, ScalePicker, etc.
+      components/     — AccessPicker, CardPicker, ConfigSettings, CustomScaleEditor,
+                        HostActionsMenu, LobbySettings, MenuList, ParticipantList,
+                        PresetEditor, ScalePicker, SharePicker, StatusBar, TextInput, etc.
+      hooks/
+        useTransientNotice.ts — hook for transient status messages
 ```
 
 ## Testing
 
 ```
-pnpm --filter @hnch/cli test
+pnpm --filter @xauyxau/hnch test
 ```
 
 Unit tests live in `src/session.test.ts` and `src/ui/components/settings.test.ts`. The CLI is also exercised by the Playwright e2e suite in `packages/e2e` as a parity smoke client.
