@@ -15,24 +15,20 @@ describe('ConnectionStatusBannerComponent', () => {
     'utf-8',
   )
 
-  it('has aria-live="polite" on the banner div', () => {
+  it('has aria-live="polite" on the ion-chip', () => {
     expect(sourceFile).toContain('aria-live="polite"')
   })
 
-  it('has role="status" on the banner div', () => {
+  it('has role="status" on the ion-chip', () => {
     expect(sourceFile).toContain('role="status"')
   })
 
-  it('has data-testid="connection-status-banner" on the banner div', () => {
+  it('has data-testid="connection-status-banner" on the ion-chip', () => {
     expect(sourceFile).toContain('data-testid="connection-status-banner"')
   })
 
-  it('uses --ion-color-warning-tint token for background', () => {
-    expect(sourceFile).toContain('--ion-color-warning-tint')
-  })
-
-  it('uses --ion-color-warning-contrast token for text color', () => {
-    expect(sourceFile).toContain('--ion-color-warning-contrast')
+  it('uses color="warning" on ion-chip', () => {
+    expect(sourceFile).toContain('color="warning"')
   })
 
   it('uses ChangeDetectionStrategy.OnPush', () => {

@@ -6,7 +6,7 @@ import {
   inject,
   signal,
 } from '@angular/core'
-import { IonIcon, IonToast } from '@ionic/angular/standalone'
+import { IonChip, IonIcon, IonLabel, IonToast } from '@ionic/angular/standalone'
 import { addIcons } from 'ionicons'
 import { syncOutline } from 'ionicons/icons'
 
@@ -25,19 +25,19 @@ import { DocService } from '../core/doc/doc.service'
  */
 @Component({
   selector: 'app-connection-status-banner',
-  imports: [IonIcon, IonToast],
+  imports: [IonChip, IonIcon, IonLabel, IonToast],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (reconnecting()) {
-      <div
-        class="banner"
+      <ion-chip
+        color="warning"
         role="status"
         aria-live="polite"
         data-testid="connection-status-banner"
       >
-        <ion-icon name="sync-outline" class="banner-icon" aria-hidden="true"></ion-icon>
-        Reconnecting…
-      </div>
+        <ion-icon name="sync-outline" aria-hidden="true"></ion-icon>
+        <ion-label>Reconnecting…</ion-label>
+      </ion-chip>
     }
 
     <ion-toast
@@ -50,21 +50,9 @@ import { DocService } from '../core/doc/doc.service'
   `,
   styles: [
     `
-      .banner {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.5rem 1rem;
-        background: var(--ion-color-warning-tint);
-        color: var(--ion-color-warning-contrast);
-        border-radius: 8px;
-        font-size: 0.9rem;
-        font-weight: 500;
+      :host {
+        display: block;
         margin-bottom: 0.75rem;
-      }
-      .banner-icon {
-        font-size: 1.1rem;
-        flex-shrink: 0;
       }
     `,
   ],
