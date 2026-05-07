@@ -98,7 +98,7 @@ import { presentSheet } from '../utils/present-sheet'
     <ion-header [translucent]="true">
       <ion-toolbar>
         <ion-title size="large">hnch</ion-title>
-        <ion-buttons slot="end">
+        <ion-buttons slot="end" class="ion-hide-lg-up">
           <ion-button
             aria-label="More options"
             (click)="openActionSheet()"
