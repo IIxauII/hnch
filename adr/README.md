@@ -12,7 +12,9 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 - **Deprecated** — no longer applies but not actively replaced (rare).
 - **Superseded by ADR-XXXX** — a later ADR replaces this one. The superseded ADR is never deleted — the history is the point.
 
-**Immutability:** once an ADR is Accepted, its body is not edited to reflect a change of direction. A new ADR is written that supersedes it. Small corrections (typos, broken links, clarifications) are fine; substantive change requires a new ADR.
+**Immutability:** once an ADR is Accepted, its body is not edited to reflect a change of direction. A new ADR is written that supersedes it. Small corrections (typos, broken links, clarifications, editorial compaction without altering the decision) are fine; substantive change requires a new ADR.
+
+**Style:** terse, bullet-driven. Caveman-ultra: drop articles, filler, hedging — keep technical terms exact. Sections, in order: Context (bullets), Decision (1–2 sentences), Trade-offs (bullets), Consequences (Easier/Harder/Revisit-when bullets). **No Options/Alternatives section** — rejected paths belong in commit/PR discussion, not in the durable ADR. **No Action Items / phase checklists / implementation phases** — track those in the PR or in `plans/`. The ADR captures the decision and what it costs us; nothing else.
 
 **Template:** see `0000-template.md` — copy it to start a new ADR.
 
