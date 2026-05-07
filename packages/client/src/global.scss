@@ -72,12 +72,9 @@
 /* Flat-section pattern — see ADR-0040.
    Replaces ion-card framing on Lobby + Estimating; pages compose
    <section class="page-section"> blocks with a uppercase micro
-   heading and a thin top divider. */
+   heading and a thin top divider between consecutive sections. */
 .page-section {
   margin-block: 1.5rem;
-}
-.page-section--no-top-border {
-  margin-block-start: 0;
 }
 .page-section-header {
   display: flex;
@@ -85,11 +82,10 @@
   justify-content: space-between;
   gap: 0.5rem;
   padding-block: 0.5rem;
-  border-top: 1px solid var(--hnch-sep);
 }
-.page-section--no-top-border .page-section-header {
-  border-top: none;
-  padding-block-start: 0;
+.page-section + .page-section .page-section-header {
+  border-top: 1px solid var(--hnch-sep);
+  padding-block-start: 0.5rem;
 }
 .page-section-title {
   font-size: var(--hnch-text-micro);
@@ -105,6 +101,16 @@
 }
 .page-section-body {
   padding-block: 0.5rem;
+}
+
+/* Inside flat sections, ion-list / ion-item must not paint the
+   default Ionic surface fill — sections are flat by design. */
+.page-section-body ion-list {
+  background: transparent;
+}
+.page-section-body ion-item {
+  --background: transparent;
+  --inner-padding-end: 0;
 }
 
 /*

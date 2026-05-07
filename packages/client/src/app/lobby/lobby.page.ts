@@ -173,7 +173,7 @@ import { summarizeParticipants } from './lobby-summary'
           <div class="lobby-rail">
 
             <!-- Room section -->
-            <section class="page-section page-section--no-top-border" aria-label="Room">
+            <section class="page-section" aria-label="Room">
               <header class="page-section-header">
                 @if (roomCode(); as code) {
                   <h1 class="room-code">{{ code }}</h1>

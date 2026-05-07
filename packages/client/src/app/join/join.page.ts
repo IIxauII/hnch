@@ -32,7 +32,6 @@ import {
   IonInput,
   IonItem,
   IonLabel,
-  IonList,
   IonRow,
   IonTitle,
   IonToolbar,
@@ -83,7 +82,6 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
     IonInput,
     IonItem,
     IonLabel,
-    IonList,
     IonRow,
     IonTitle,
     IonToolbar,
@@ -102,47 +100,70 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
     </ion-header>
     <ion-content [fullscreen]="true">
       <div class="page-shell">
-        <p class="page-subtitle">Enter the 6-character code your host shared.</p>
-
         <ion-grid class="join-grid">
           <ion-row>
+            <!-- Code section -->
             <ion-col size="12" size-md="6">
-              <div class="code-card">
-                <div class="card-label">Room code</div>
-                <app-segmented-code-input #codeInput [formControl]="codeControl" />
-              </div>
+              <section class="page-section" aria-label="Room code">
+                <header class="page-section-header">
+                  <h2 class="page-section-title">Room code</h2>
+                  <span class="page-section-meta">Enter the 6-character code your host shared.</span>
+                </header>
+                <div class="page-section-body">
+                  <app-segmented-code-input #codeInput [formControl]="codeControl" />
+                </div>
+              </section>
             </ion-col>
 
+            <!-- Or scan section -->
             <ion-col size="12" size-md="6">
-              <ion-list inset="true" class="qr-list">
-                <ion-item button="true" detail="true" [disabled]="isSubmitting()" (click)="onScanQr()">
-                  <div class="icon-tile" slot="start" aria-hidden="true">
-                    <ion-icon name="qr-code-outline"></ion-icon>
-                  </div>
-                  <ion-label>
-                    <h2>Scan QR code</h2>
-                    <p>Point your camera at the host's screen</p>
-                  </ion-label>
-                </ion-item>
-              </ion-list>
+              <section class="page-section" aria-label="Or scan">
+                <header class="page-section-header">
+                  <h2 class="page-section-title">Or scan</h2>
+                </header>
+                <div class="page-section-body">
+                  <ion-item
+                    button="true"
+                    detail="true"
+                    lines="none"
+                    [disabled]="isSubmitting()"
+                    (click)="onScanQr()"
+                    aria-label="Scan QR code"
+                  >
+                    <div class="icon-tile" slot="start" aria-hidden="true">
+                      <ion-icon name="qr-code-outline"></ion-icon>
+                    </div>
+                    <ion-label>
+                      <p class="scan-label">Scan QR code</p>
+                      <p class="scan-meta">Point your camera at the host's screen</p>
+                    </ion-label>
+                  </ion-item>
+                </div>
+              </section>
             </ion-col>
 
+            <!-- Password section (gated) -->
             @if (needsPassword()) {
               <ion-col size="12">
-                <ion-list inset="true" class="password-list">
-                  <ion-item lines="none">
-                    <ion-input
-                      [formControl]="passwordControl"
-                      label="Password"
-                      labelPlacement="stacked"
-                      type="password"
-                      enterkeyhint="go"
-                      placeholder="Enter the room password"
-                      (keydown.enter)="submit()"
-                    ></ion-input>
-                  </ion-item>
-                  <p class="list-footer">This room is password-protected.</p>
-                </ion-list>
+                <section class="page-section" aria-label="Password">
+                  <header class="page-section-header">
+                    <h2 class="page-section-title">Password</h2>
+                    <span class="page-section-meta">This room is password-protected.</span>
+                  </header>
+                  <div class="page-section-body">
+                    <ion-item lines="none">
+                      <ion-input
+                        [formControl]="passwordControl"
+                        label="Password"
+                        labelPlacement="stacked"
+                        type="password"
+                        enterkeyhint="go"
+                        placeholder="Enter the room password"
+                        (keydown.enter)="submit()"
+                      ></ion-input>
+                    </ion-item>
+                  </div>
+                </section>
               </ion-col>
             }
           </ion-row>
@@ -169,47 +190,6 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
         --padding-start: 16px;
         --padding-end: 16px;
       }
-      .page-subtitle {
-        margin: 0 4px 16px;
-        font-size: 15px;
-        color: var(--hnch-muted);
-        letter-spacing: -0.2px;
-      }
-      .code-card {
-        background: var(--hnch-surface);
-        border-radius: 16px;
-        padding: 20px 18px;
-        border: 0.5px solid var(--hnch-sep);
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-      }
-      .card-label {
-        font-size: 12px;
-        font-weight: 600;
-        color: var(--hnch-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.6px;
-      }
-      ion-list.qr-list,
-      ion-list.password-list {
-        background: transparent;
-        margin-block-start: 16px;
-      }
-      ion-item {
-        --background: var(--hnch-surface);
-      }
-      ion-item h2 {
-        font-size: 16px;
-        font-weight: 600;
-        color: var(--hnch-text);
-        margin: 0 0 2px;
-      }
-      ion-item p {
-        font-size: 13px;
-        color: var(--hnch-muted);
-        margin: 0;
-      }
       .icon-tile {
         width: 32px;
         height: 32px;
@@ -224,10 +204,16 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
       .icon-tile ion-icon {
         font-size: 18px;
       }
-      .list-footer {
-        margin: 4px 16px 0;
-        font-size: 13px;
-        color: var(--hnch-muted);
+      .scan-label {
+        font-size: var(--hnch-text-body);
+        font-weight: var(--hnch-font-weight-semibold);
+        color: var(--hnch-text);
+        margin: 0 0 2px;
+      }
+      .scan-meta {
+        font-size: var(--hnch-text-caption);
+        color: var(--ion-color-medium);
+        margin: 0;
       }
       .submit-wrap {
         padding: 28px 0 24px;
@@ -238,8 +224,11 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
       .join-grid {
         --ion-grid-padding: 0;
       }
-      .join-grid ion-list.qr-list {
-        margin-block-start: 0;
+      @media (hover: hover) and (pointer: fine) {
+        ion-item[button] {
+          --background-hover: var(--ion-color-primary-tint);
+          --background-hover-opacity: 0.16;
+        }
       }
     `,
   ],

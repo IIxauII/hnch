@@ -123,7 +123,7 @@ import { OverflowMenuComponent, type OverflowMenuItem } from '../shared/overflow
       @if (currentRound(); as round) {
 
         <!-- Round info section -->
-        <section class="page-section page-section--no-top-border" aria-label="Round {{ roundIndex() }}">
+        <section class="page-section" aria-label="Round {{ roundIndex() }}">
           <header class="page-section-header">
             <h1 class="round-title">Round {{ roundIndex() }}</h1>
             @if (round.title) {

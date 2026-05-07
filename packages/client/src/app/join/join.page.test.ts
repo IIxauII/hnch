@@ -22,7 +22,6 @@ vi.mock('@ionic/angular/standalone', () => ({
   IonInput: {},
   IonItem: {},
   IonLabel: {},
-  IonList: {},
   IonRow: {},
   IonTitle: {},
   IonToolbar: {},
