@@ -45,6 +45,13 @@
   --ion-color-danger-contrast-rgb: 255, 255, 255;
   --ion-color-danger-shade:      #e03d33;
   --ion-color-danger-tint:       #ff584e;
+
+  // Component-level Ionic vars — set once so per-component overrides
+  // for --background / --border-color become unnecessary.
+  --ion-toolbar-background:  var(--ion-background-color);
+  --ion-toolbar-color:       var(--ion-text-color);
+  --ion-item-background:     var(--ion-background-color-step-50);
+  --ion-item-border-color:   var(--ion-color-step-200);
 }
 
 // ---------------------------------------------------------------------------
@@ -91,4 +98,11 @@
   --ion-color-danger-contrast-rgb: 255, 255, 255;
   --ion-color-danger-shade:      #e03d33;
   --ion-color-danger-tint:       #ff584e;
+
+  // Component-level Ionic vars — set once so per-component overrides
+  // for --background / --border-color become unnecessary.
+  --ion-toolbar-background:  var(--ion-background-color);
+  --ion-toolbar-color:       var(--ion-text-color);
+  --ion-item-background:     var(--ion-background-color-step-50);
+  --ion-item-border-color:   var(--ion-color-step-200);
 }

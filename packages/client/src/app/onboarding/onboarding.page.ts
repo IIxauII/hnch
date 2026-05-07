@@ -128,10 +128,6 @@ import { BrandMarkComponent } from '../shared/brand-mark.component'
       ion-list {
         background: transparent;
       }
-      ion-item {
-        --background: var(--ion-background-color-step-50);
-        --border-color: var(--ion-color-step-200);
-      }
       .footer-note {
         display: block;
         padding: 8px 16px 0;

@@ -174,9 +174,6 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
         background: transparent;
         margin-block-start: 16px;
       }
-      ion-item {
-        --background: var(--ion-background-color-step-50);
-      }
       ion-item h2 {
         font-size: 16px;
         font-weight: 600;
