@@ -13,6 +13,8 @@ import { computeRoundStats, formatElapsed, isActiveParticipant, isConsensus } fr
 import type { ParticipantSnapshot, Round, RoundStats, SpreadLabel } from '@hnch/shared';
 import { IonChip, IonItemGroup, IonLabel } from '@ionic/angular/standalone';
 
+import { VoteResultCardComponent } from './ui/vote-result-card.component';
+
 import { HapticService } from '../core/haptic.service';
 
 /**
@@ -41,27 +43,18 @@ interface VoteGroup {
  */
 @Component({
   selector: 'app-vote-results',
-  imports: [DecimalPipe, IonChip, IonItemGroup, IonLabel],
+  imports: [DecimalPipe, IonChip, IonItemGroup, IonLabel, VoteResultCardComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @for (group of voteGroups(); track group.card; let i = $index) {
-      <ion-item-group
+      <hnch-vote-result-card
         class="group"
         [style.--i]="i"
-        [attr.aria-label]="voteCountLabel(group.voterNames.length) + ' for ' + group.card"
-      >
-        <div class="group-header">
-          <span class="card">{{ group.card }}</span>
-          <span class="count">({{ voteCountLabel(group.voterNames.length) }})</span>
-        </div>
-        <div class="chips">
-          @for (name of group.voterNames; track name) {
-            <ion-chip color="primary">
-              <ion-label>{{ name }}</ion-label>
-            </ion-chip>
-          }
-        </div>
-      </ion-item-group>
+        [card]="group.card"
+        [voters]="group.voterNames"
+        [isWinner]="i === 0"
+        [isMyVote]="myVoteCard() === group.card"
+      />
     }
 
     @if (didntVoteNames().length > 0) {
@@ -322,6 +315,13 @@ export class VoteResultsComponent {
       }, delay);
     });
   }
+
+  /** The card the current user voted for, or null if they didn't vote / aren't known. */
+  readonly myVoteCard = computed<string | null>(() => {
+    const myId = this.myId();
+    if (myId === null) return null;
+    return this.round().votes[myId] ?? null;
+  });
 
   /**
    * Name lookup by `participantId`. "You (name)" for the current user
