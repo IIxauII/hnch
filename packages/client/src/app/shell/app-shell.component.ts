@@ -23,9 +23,10 @@ import { RailComponent } from './rail/rail.component';
       contentId="main"
       when="(min-width: 1024px)"
       [class.shell-rail-hidden]="mode() === 'hidden'"
+      data-testid="app-shell"
     >
       <ion-menu side="start" contentId="main" type="overlay" [disabled]="mode() === 'hidden'">
-        <hnch-rail [mode]="mode()" />
+        <hnch-rail [mode]="mode()" data-testid="app-rail" />
       </ion-menu>
       <ion-router-outlet id="main" />
     </ion-split-pane>
