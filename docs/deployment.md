@@ -8,7 +8,7 @@ Production deployment for hnch. See [ADR-0029](../adr/0029-relay-deployment.md) 
 |---|---|---|
 | Relay (`@hnch/relay`) | `<vps-ssh-alias>` (IONOS, Debian) | `deploy-relay.yml` workflow on `relay-v*` tags → tarball over SSH → systemd unit |
 | PWA static (`@hnch/client`) | same VPS, `/var/www/hnch-client` | `deploy-client.yml` workflow on `client-v*` tags → rsync → atomic symlink swap |
-| CLI (`@xauyxau/hnch`) | npm registry | TBD: automated publish not yet wired; manual `npm publish` from `packages/cli` |
+| CLI (`@xauyxau/hnch`) | npm registry | `release.yml` runs semantic-release; `cli-v*` tags trigger npm publish via `@semantic-release/npm` (configured in `packages/cli/.releaserc.json`) |
 
 All three surfaces speak to the same relay at `wss://hnch.dev/ws/:uuid` and `https://hnch.dev/rooms/:code`. Single origin, single Let's Encrypt cert, no CORS.
 
