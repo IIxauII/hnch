@@ -13,7 +13,10 @@ import { FormsModule } from '@angular/forms';
 import { type CustomScale } from '@hnch/shared';
 import {
   IonButton,
+  IonButtons,
   IonChip,
+  IonContent,
+  IonHeader,
   IonIcon,
   IonInput,
   IonItem,
@@ -22,16 +25,17 @@ import {
   IonNote,
   IonReorder,
   IonReorderGroup,
+  IonTitle,
+  IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { addOutline, closeCircle } from 'ionicons/icons';
 
 import { HapticService } from '../core/haptic.service';
 import { ScalePreferenceService } from '../core/scale-preference.service';
-import { FormModalShellComponent } from '../shared/ui/form-modal-shell.component';
 
 /**
- * Custom scale creator / editor modal.
+ * Custom scale creator / editor half-sheet.
  *
  * Create mode (no `existingScale`): builds a new scale, calls
  * `addCustomScale()`, emits `created` with the new id.
@@ -51,9 +55,11 @@ import { FormModalShellComponent } from '../shared/ui/form-modal-shell.component
   host: { class: 'ion-page' },
   imports: [
     FormsModule,
-    FormModalShellComponent,
     IonButton,
+    IonButtons,
     IonChip,
+    IonContent,
+    IonHeader,
     IonIcon,
     IonInput,
     IonItem,
@@ -62,17 +68,26 @@ import { FormModalShellComponent } from '../shared/ui/form-modal-shell.component
     IonNote,
     IonReorder,
     IonReorderGroup,
+    IonTitle,
+    IonToolbar,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <hnch-form-modal-shell
-      [title]="title()"
-      [submitLabel]="persistedId() ? 'Done' : 'Create'"
-      (submit)="closeRequested.emit()"
-    >
+    <ion-header>
+      <ion-toolbar>
+        <ion-buttons slot="start">
+          <ion-button (click)="closeRequested.emit()">
+            {{ persistedId() ? 'Done' : 'Cancel' }}
+          </ion-button>
+        </ion-buttons>
+        <ion-title>{{ title() }}</ion-title>
+      </ion-toolbar>
+    </ion-header>
+
+    <ion-content class="ion-padding-top">
 
       <!-- Scale name -->
-      <ion-list lines="inset" class="ion-padding-top">
+      <ion-list lines="inset">
         <ion-item>
           <ion-input
             label="Scale name"
@@ -155,7 +170,8 @@ import { FormModalShellComponent } from '../shared/ui/form-modal-shell.component
           Add one more card to enable saving.
         </ion-note>
       }
-    </hnch-form-modal-shell>
+
+    </ion-content>
   `,
   styles: [
     `
@@ -174,10 +190,6 @@ import { FormModalShellComponent } from '../shared/ui/form-modal-shell.component
       ion-chip {
         --background: var(--ion-color-primary-tint);
         --color: var(--ion-color-primary-contrast);
-      }
-      ion-button {
-        font: var(--hnch-title);
-        --border-radius: var(--hnch-r-sm);
       }
     `,
   ],

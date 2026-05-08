@@ -9,15 +9,26 @@
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@ionic/angular/standalone', () => ({
+  ActionSheetController: {},
   AlertController: {},
+  IonAccordion: {},
+  IonAccordionGroup: {},
+  IonAvatar: {},
   IonButton: {},
   IonButtons: {},
+  IonChip: {},
   IonContent: {},
   IonFooter: {},
   IonHeader: {},
   IonIcon: {},
+  IonItem: {},
+  IonItemOption: {},
+  IonItemOptions: {},
+  IonItemSliding: {},
+  IonLabel: {},
   IonList: {},
   IonModal: {},
+  IonNote: {},
   IonTitle: {},
   IonToolbar: {},
 }));

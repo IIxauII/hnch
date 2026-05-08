@@ -1,7 +1,17 @@
 import { ChangeDetectionStrategy, Component, effect, input, output, signal } from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
-import { IonInput, IonItem, IonLabel, IonNote } from '@ionic/angular/standalone';
-import { FormModalShellComponent } from '../shared/ui/form-modal-shell.component';
+import {
+  IonButton,
+  IonContent,
+  IonFooter,
+  IonHeader,
+  IonInput,
+  IonItem,
+  IonLabel,
+  IonNote,
+  IonTitle,
+  IonToolbar,
+} from '@ionic/angular/standalone';
 
 export interface RoundEditSubmission {
   readonly title: string;
@@ -11,45 +21,69 @@ export interface RoundEditSubmission {
 @Component({
   selector: 'app-round-edit-sheet',
   host: { class: 'ion-page' },
-  imports: [FormModalShellComponent, IonInput, IonItem, IonLabel, IonNote, ReactiveFormsModule],
+  imports: [
+    IonButton,
+    IonContent,
+    IonFooter,
+    IonHeader,
+    IonInput,
+    IonItem,
+    IonLabel,
+    IonNote,
+    IonTitle,
+    IonToolbar,
+    ReactiveFormsModule,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <hnch-form-modal-shell
-      title="Edit Round {{ roundNumber() }}"
-      submitLabel="Save"
-      (submit)="submit()"
-    >
-      <div class="ion-padding">
-        <ion-item>
-          <ion-label position="stacked">What are you estimating?</ion-label>
-          <ion-input
-            [formControl]="titleControl"
-            placeholder="e.g., Login redesign"
-            autocapitalize="sentences"
-            aria-label="Round title"
-          ></ion-input>
-        </ion-item>
-        <ion-item>
-          <ion-label position="stacked">Notes (optional)</ion-label>
-          <ion-input
-            [formControl]="descriptionControl"
-            placeholder="Optional details"
-            autocapitalize="sentences"
-            aria-label="Round notes"
-          ></ion-input>
-        </ion-item>
-        @if (titleControl.invalid && titleControl.touched) {
-          <ion-note class="error" color="danger" aria-live="polite">
-            Title must be 120 characters or fewer.
-          </ion-note>
-        }
-        @if (descriptionControl.invalid && descriptionControl.touched) {
-          <ion-note class="error" color="danger" aria-live="polite">
-            Notes must be 500 characters or fewer.
-          </ion-note>
-        }
-      </div>
-    </hnch-form-modal-shell>
+    <ion-header>
+      <ion-toolbar>
+        <ion-title>Edit Round {{ roundNumber() }}</ion-title>
+      </ion-toolbar>
+    </ion-header>
+    <ion-content class="ion-padding">
+      <ion-item>
+        <ion-label position="stacked">What are you estimating?</ion-label>
+        <ion-input
+          [formControl]="titleControl"
+          placeholder="e.g., Login redesign"
+          autocapitalize="sentences"
+          aria-label="Round title"
+        ></ion-input>
+      </ion-item>
+      <ion-item>
+        <ion-label position="stacked">Notes (optional)</ion-label>
+        <ion-input
+          [formControl]="descriptionControl"
+          placeholder="Optional details"
+          autocapitalize="sentences"
+          aria-label="Round notes"
+        ></ion-input>
+      </ion-item>
+      @if (titleControl.invalid && titleControl.touched) {
+        <ion-note class="error" color="danger" aria-live="polite">
+          Title must be 120 characters or fewer.
+        </ion-note>
+      }
+      @if (descriptionControl.invalid && descriptionControl.touched) {
+        <ion-note class="error" color="danger" aria-live="polite">
+          Notes must be 500 characters or fewer.
+        </ion-note>
+      }
+    </ion-content>
+    <ion-footer>
+      <ion-toolbar>
+        <ion-button
+          expand="block"
+          color="primary"
+          [disabled]="isSubmitting() || titleControl.value.trim() === ''"
+          (click)="submit()"
+          aria-label="Save round details"
+        >
+          Save
+        </ion-button>
+      </ion-toolbar>
+    </ion-footer>
   `,
   styles: [
     `

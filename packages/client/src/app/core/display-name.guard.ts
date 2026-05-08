@@ -6,7 +6,7 @@ import { DisplayNameService } from './display-name.service';
 
 /**
  * Functional guard that gates the non-onboarding routes on a persisted
- * display name. See roadmap.md Phase 1 §3.
+ * display name. See  and §3 and roadmap.md Phase 1 §3.
  *
  * Flow:
  *  - If a display name is already persisted, the route matches.

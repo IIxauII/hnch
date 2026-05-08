@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/app.fixture';
-import { BASE_URL, JOIN } from './fixtures/helpers';
+import { BASE_URL, JOIN, LOBBY } from './fixtures/helpers';
 
 test.describe('Deep-link join with pw=1 hint', () => {
   test('pw=1 shows password field before resolve fetch completes', async ({ host, player }) => {
@@ -80,7 +80,7 @@ test.describe('Deep-link join with pw=1 hint', () => {
     // Fill password and join.
     await passwordInput.locator('input').fill('hunter2');
     await player.page.locator(JOIN.joinBtn).click();
-    await player.page.waitForURL(/\/lobby\//, { timeout: 10_000 });
+    await player.page.locator(LOBBY.roomCode).waitFor({ state: 'visible', timeout: 10_000 });
 
     await host.expectParticipantCount(2);
     await player.expectParticipantCount(2);
@@ -126,7 +126,7 @@ test.describe('Deep-link join with pw=1 hint', () => {
 
     // Field disappears; join proceeds without password — lobby is success signal.
     await expect(passwordInput).not.toBeVisible({ timeout: 8_000 });
-    await player.page.waitForURL(/\/lobby\//, { timeout: 10_000 });
+    await player.page.locator(LOBBY.roomCode).waitFor({ state: 'visible', timeout: 10_000 });
 
     await host.expectParticipantCount(2);
     await player.expectParticipantCount(2);

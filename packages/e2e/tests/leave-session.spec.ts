@@ -70,7 +70,8 @@ test.describe('Leave session flow', () => {
     await host.page.waitForURL(/\/lobby/);
     expect(host.page.url()).toContain('/lobby');
 
-    // Lobby is still rendered (participants list always visible regardless of viewport)
-    await expect(host.page.locator(LOBBY.lobbyReady)).toBeVisible();
+    // Room code should still be visible
+    const roomCode = host.page.locator(LOBBY.roomCode);
+    await expect(roomCode).toBeVisible();
   });
 });

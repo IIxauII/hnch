@@ -13,8 +13,6 @@ import { computeRoundStats, formatElapsed, isActiveParticipant, isConsensus } fr
 import type { ParticipantSnapshot, Round, RoundStats, SpreadLabel } from '@hnch/shared';
 import { IonChip, IonItemGroup, IonLabel } from '@ionic/angular/standalone';
 
-import { VoteResultCardComponent } from './ui/vote-result-card.component';
-
 import { HapticService } from '../core/haptic.service';
 
 /**
@@ -43,18 +41,27 @@ interface VoteGroup {
  */
 @Component({
   selector: 'app-vote-results',
-  imports: [DecimalPipe, IonChip, IonItemGroup, IonLabel, VoteResultCardComponent],
+  imports: [DecimalPipe, IonChip, IonItemGroup, IonLabel],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @for (group of voteGroups(); track group.card; let i = $index) {
-      <hnch-vote-result-card
+      <ion-item-group
         class="group"
         [style.--i]="i"
-        [card]="group.card"
-        [voters]="group.voterNames"
-        [isWinner]="i === 0"
-        [isMyVote]="myVoteCard() === group.card"
-      />
+        [attr.aria-label]="voteCountLabel(group.voterNames.length) + ' for ' + group.card"
+      >
+        <div class="group-header">
+          <span class="card">{{ group.card }}</span>
+          <span class="count">({{ voteCountLabel(group.voterNames.length) }})</span>
+        </div>
+        <div class="chips">
+          @for (name of group.voterNames; track name) {
+            <ion-chip color="primary">
+              <ion-label>{{ name }}</ion-label>
+            </ion-chip>
+          }
+        </div>
+      </ion-item-group>
     }
 
     @if (didntVoteNames().length > 0) {
@@ -173,7 +180,7 @@ interface VoteGroup {
         min-height: 1.5rem;
       }
 
-      /* Reveal animation: 80ms stagger, 200ms fade-in-up */
+      /* Reveal animation — : 80ms stagger, 200ms fade-in-up */
       @keyframes fadeInUp {
         from {
           opacity: 0;
@@ -239,7 +246,7 @@ interface VoteGroup {
         background: var(--ion-color-success, #2dd36f);
         border-radius: 1.25rem;
         padding: 1rem 2rem;
-        box-shadow: var(--hnch-shadow-3);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
         white-space: nowrap;
         animation: consensusScaleIn 380ms cubic-bezier(0.34, 1.56, 0.64, 1) both,
                    consensusPulse 900ms ease-in-out 380ms 3;
@@ -315,13 +322,6 @@ export class VoteResultsComponent {
       }, delay);
     });
   }
-
-  /** The card the current user voted for, or null if they didn't vote / aren't known. */
-  readonly myVoteCard = computed<string | null>(() => {
-    const myId = this.myId();
-    if (myId === null) return null;
-    return this.round().votes[myId] ?? null;
-  });
 
   /**
    * Name lookup by `participantId`. "You (name)" for the current user

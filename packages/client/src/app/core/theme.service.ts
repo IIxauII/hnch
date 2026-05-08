@@ -15,7 +15,7 @@ const DARK_CLASS = 'ion-palette-dark';
  * `main.ts` calls {@link ensureLoaded} so the class is applied before
  * first paint — no flash-of-wrong-theme once Angular renders.
  *
- * See ionic.md (dark-mode / theming section).
+ * See ionic.md (dark-mode / theming section)
  */
 @Injectable({ providedIn: 'root' })
 export class ThemeService {

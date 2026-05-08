@@ -12,26 +12,39 @@ import { Share } from '@capacitor/share';
 import { formatRoomCode, participantRole } from '@hnch/shared';
 import type { Round } from '@hnch/shared';
 import {
+  ActionSheetController,
   AlertController,
+  IonAccordion,
+  IonAccordionGroup,
+  IonAvatar,
   IonButton,
   IonButtons,
+  IonChip,
   IonContent,
   IonFooter,
   IonHeader,
   IonIcon,
+  IonItem,
+  IonItemOption,
+  IonItemOptions,
+  IonItemSliding,
+  IonLabel,
   IonList,
   IonModal,
+  IonNote,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
   chevronBackOutline,
-  chevronForwardOutline,
   ellipsisHorizontalCircle,
   pencilOutline,
+  personCircleOutline,
+  personRemoveOutline,
   qrCodeOutline,
   shareOutline,
+  starOutline,
 } from 'ionicons/icons';
 
 import { ConnectionChipComponent } from '../core/connection-chip.component';
@@ -55,25 +68,32 @@ import { shouldRecordCache } from '../core/cache-record-guard';
 import { QrDisplaySheetComponent } from './qr-display.sheet';
 import { presentSheet } from '../utils/present-sheet';
 import { rejectionCopy } from '../join/join.page';
-import { summarizeParticipants } from './lobby-summary';
-import { ActionMenuService } from '../shared/ui/action-menu.service';
-import { PageHeaderComponent } from '../shared/ui/page-header.component';
-import { ParticipantRowComponent } from '../shared/ui/participant-row.component';
-import { SectionCardComponent } from '../shared/ui/section-card.component';
+import { participantsAccordionValueFor, summarizeParticipants } from './lobby-summary';
 
 /**
- * Lobby
+ * Lobby host variant.
  *
- * Redesigned layout (Phase D):
- *  - Giant `62BFVN` hero removed. Code lives in a SectionCard (mobile-only).
- *  - PageHeader eyebrow="lobby" title=roomName subtitle=participantCount·scale.
- *  - Mobile toolbar: roomName (Inter Tight), ⋯ ActionMenu, ion-back-button for soft exit.
- *  - SectionCard "Code" (ion-hide-lg-up) — segmented code + Share + QR in footer.
- *  - SectionCard "Participants" — flat hnch-participant-row list (NO accordion).
- *  - SectionCard "Round history" — RoundHistoryComponent.
- *  - SectionCard "Scale" — preset name + session-settings tap.
- *  - VoteResults card between Participants and Round history on reveal.
- *  - Footer (host only): Start/Next round + Re-vote.
+ * Phase 2 only renders the host view because there are no joiners
+ * without a relay. Phase 3 will split this into host + joiner
+ * subtemplates driven by `settings.hostParticipantId ===
+ * myParticipantId`.
+ *
+ * Session-settings sheet is wired through the ⋯ menu and the
+ * subtitle tap. Share invite uses `@capacitor/share` with a
+ * clipboard fallback on web.
+ *
+ * The Lobby owns the session's lifetime (plan §3.10): leaving here
+ * — either via the top-left back control or the ⋯ → "Leave
+ * session" entry — prompts an `ion-alert` confirmation per
+ * §2 "Destructive actions" and calls `docService.endSession()`
+ * before popping to Home. The native `ion-back-button` would pop
+ * without running our confirmation, so we render a custom back
+ * chevron that routes through the same handler.
+ *
+ * After a round is revealed, Estimating navigates back to Lobby.
+ * Lobby shows the full VoteResultsComponent for the latest revealed
+ * round, and RoundHistoryComponent for any older revealed rounds.
+ * The host gets Re-vote and Next Round controls in the footer.
  */
 @Component({
   selector: 'app-lobby',
@@ -81,23 +101,30 @@ import { SectionCardComponent } from '../shared/ui/section-card.component';
   imports: [
     ConnectionChipComponent,
     ConnectionStatusBannerComponent,
+    IonAccordion,
+    IonAccordionGroup,
+    IonAvatar,
     IonButton,
     IonButtons,
+    IonChip,
     IonContent,
     IonFooter,
     IonHeader,
     IonIcon,
+    IonItem,
+    IonItemOption,
+    IonItemOptions,
+    IonItemSliding,
+    IonLabel,
     IonList,
     IonModal,
+    IonNote,
     IonTitle,
     IonToolbar,
-    PageHeaderComponent,
-    ParticipantRowComponent,
     QrDisplaySheetComponent,
     RoundEditSheetComponent,
     RoundHistoryComponent,
     RoundStartSheetComponent,
-    SectionCardComponent,
     SessionSettingsSheetComponent,
     VoteResultsComponent,
   ],
@@ -110,168 +137,228 @@ import { SectionCardComponent } from '../shared/ui/section-card.component';
             aria-label="Back to home"
             (click)="softExit()"
           >
-            <ion-icon slot="icon-only" name="chevron-back-outline"></ion-icon>
+            <ion-icon
+              slot="icon-only"
+              name="chevron-back-outline"
+            ></ion-icon>
           </ion-button>
         </ion-buttons>
-        <ion-title style="font: var(--hnch-title)">{{ roomName() }}</ion-title>
+        <ion-title>Lobby</ion-title>
         <ion-buttons slot="end">
           <app-connection-chip></app-connection-chip>
-          <ion-button aria-label="More options" (click)="openMenu()">
-            <ion-icon slot="icon-only" name="ellipsis-horizontal-circle"></ion-icon>
+          <ion-button
+            aria-label="More options"
+            (click)="openActionSheet()"
+          >
+            <ion-icon
+              slot="icon-only"
+              name="ellipsis-horizontal-circle"
+            ></ion-icon>
           </ion-button>
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
+    <ion-content class="ion-padding">
+      <app-connection-status-banner />
+      @if (roomCode(); as code) {
+        <h1 class="room-code">{{ code }}</h1>
+        <button
+          type="button"
+          class="subtitle"
+          (click)="openSessionSettings()"
+        >
+          {{ subtitle() }}
+        </button>
+      }
 
-    <ion-content>
-      <div class="page-body">
-        <app-connection-status-banner />
+      <ion-list lines="inset" class="actions">
+        <ion-item button (click)="onShareInvite()">
+          <ion-icon
+            slot="start"
+            name="share-outline"
+            aria-hidden="true"
+          ></ion-icon>
+          <ion-label>Share invite</ion-label>
+        </ion-item>
+        <ion-item button (click)="onShowQr()">
+          <ion-icon
+            slot="start"
+            name="qr-code-outline"
+            aria-hidden="true"
+          ></ion-icon>
+          <ion-label>Show QR code</ion-label>
+        </ion-item>
+      </ion-list>
 
-        <hnch-page-header
-          eyebrow="lobby"
-          [title]="roomName()"
-          [subtitle]="pageSubtitle()"
-        />
-
-        <!-- Code card (mobile only) -->
-        <hnch-section-card class="code-card ion-hide-lg-up">
-          <div class="code-display">
-            <span class="code-text" aria-label="Room code {{ formattedRoomCode() }}">
-              {{ formattedRoomCode() }}
-            </span>
-          </div>
-          <div footer class="code-actions">
-            <ion-button
-              fill="clear"
-              size="small"
-              aria-label="Share invite"
-              (click)="onShareInvite()"
-            >
-              <ion-icon slot="start" name="share-outline" aria-hidden="true"></ion-icon>
-              Share
-            </ion-button>
-            <ion-button
-              fill="clear"
-              size="small"
-              aria-label="Show QR code"
-              (click)="onShowQr()"
-            >
-              <ion-icon slot="start" name="qr-code-outline" aria-hidden="true"></ion-icon>
-              QR code
-            </ion-button>
-          </div>
-        </hnch-section-card>
-
-        <!-- Participants card (NO accordion) -->
-        <hnch-section-card title="Participants">
-          <ion-list lines="none" class="participants-list">
-            @for (p of activeParticipants(); track p.id) {
-              <hnch-participant-row
-                [participant]="p"
-                [isMe]="p.id === myId()"
-                [isHost]="p.id === hostId()"
-                [canEditRole]="p.id === myId()"
-                [online]="onlineIds().has(p.id)"
-                [canKick]="isHost() && p.id !== myId()"
-                (roleChange)="onRoleChange(p.id, $event)"
-                (kick)="onRemoveTap(p.id, p.displayName)"
-              />
+      <ion-accordion-group [value]="participantsAccordionValue()" expand="inset">
+        <ion-accordion value="open">
+          <ion-item slot="header" lines="inset">
+            <ion-label>
+              Participants ({{ activeParticipants().length }})
+              @if (participantsSummary()) {
+                <p class="participants-summary">{{ participantsSummary() }}</p>
+              }
+            </ion-label>
+          </ion-item>
+          <div slot="content">
+            @if (isHost()) {
+              <p class="swipe-hint">Swipe a row for host actions.</p>
             }
-          </ion-list>
-          <p footer class="participants-footer">
-            {{ participantsSummary() }}
-          </p>
-        </hnch-section-card>
-
-        <!-- VoteResults appears when latest round is revealed -->
-        @if (lastRevealedRound(); as round) {
-          <hnch-section-card class="results-card">
-            <div class="results-header-row">
-              <h2 class="results-heading">Round {{ lastRevealedRoundIndex() }} Results</h2>
-              @if (round.title) {
-                <p class="results-descriptor">{{ round.title }}</p>
-              } @else if (isHost()) {
-                <p class="results-descriptor placeholder">Add a descriptor</p>
+            <ion-list lines="inset" class="participants">
+              @for (p of activeParticipants(); track p.id) {
+                @if (isHost() && p.id !== myId()) {
+                  <ion-item-sliding>
+                    <ion-item
+                      [class.offline]="!onlineIds().has(p.id)"
+                      [attr.aria-label]="p.displayName"
+                    >
+                      <ion-avatar slot="start" aria-hidden="true">
+                        <ion-icon name="person-circle-outline"></ion-icon>
+                      </ion-avatar>
+                      <ion-label>
+                        {{ p.displayName }}
+                        @if (p.id === hostId()) {
+                          <ion-icon
+                            name="star-outline"
+                            class="host-icon"
+                            aria-label="Host"
+                          ></ion-icon>
+                        }
+                      </ion-label>
+                      @if (isParticipantViewer(p)) {
+                        <ion-note slot="end" aria-label="Observer">observer</ion-note>
+                      } @else if (!onlineIds().has(p.id)) {
+                        <ion-note slot="end">Offline</ion-note>
+                      }
+                    </ion-item>
+                    <ion-item-options side="end">
+                      <ion-item-option
+                        color="primary"
+                        [attr.aria-label]="'Make ' + p.displayName + ' host'"
+                        (click)="onHandoffTap(p.id, p.displayName)"
+                      >
+                        <ion-icon slot="icon-only" name="star-outline"></ion-icon>
+                      </ion-item-option>
+                      <ion-item-option
+                        color="danger"
+                        [attr.aria-label]="'Remove ' + p.displayName + ' from session'"
+                        (click)="onRemoveTap(p.id, p.displayName)"
+                      >
+                        <ion-icon slot="icon-only" name="person-remove-outline"></ion-icon>
+                      </ion-item-option>
+                    </ion-item-options>
+                  </ion-item-sliding>
+                } @else {
+                  <ion-item
+                    [class.offline]="!onlineIds().has(p.id)"
+                    [attr.aria-label]="p.id === myId() ? 'You (' + p.displayName + ')' : p.displayName"
+                  >
+                    <ion-avatar slot="start" aria-hidden="true">
+                      <ion-icon name="person-circle-outline"></ion-icon>
+                    </ion-avatar>
+                    <ion-label>
+                      {{ p.id === myId() ? 'You (' + p.displayName + ')' : p.displayName }}
+                      @if (p.id === hostId()) {
+                        <ion-icon
+                          name="star-outline"
+                          class="host-icon"
+                          aria-label="Host"
+                        ></ion-icon>
+                      }
+                    </ion-label>
+                    @if (p.id === myId()) {
+                      <ion-chip
+                        slot="end"
+                        [color]="isParticipantViewer(p) ? 'medium' : 'primary'"
+                        [attr.aria-label]="isParticipantViewer(p) ? 'You are observing. Tap to switch to voter.' : 'You are a voter. Tap to switch to observer.'"
+                        [attr.aria-pressed]="isParticipantViewer(p)"
+                        (click)="onToggleRole()"
+                      >
+                        <ion-label>{{ isParticipantViewer(p) ? 'Observing' : 'Voter' }}</ion-label>
+                      </ion-chip>
+                    } @else if (isParticipantViewer(p)) {
+                      <ion-note slot="end" aria-label="Observer">observer</ion-note>
+                    } @else if (!onlineIds().has(p.id)) {
+                      <ion-note slot="end">Offline</ion-note>
+                    }
+                  </ion-item>
+                }
               }
-              @if (isHost()) {
-                <ion-button
-                  fill="clear"
-                  size="small"
-                  class="edit-btn"
-                  aria-label="Edit round descriptor"
-                  (click)="openRoundEdit(round)"
-                >
-                  <ion-icon name="pencil-outline" slot="icon-only" aria-hidden="true" />
-                </ion-button>
-              }
-            </div>
-            <app-vote-results
-              [round]="round"
-              [participants]="participants()"
-              [myId]="myId()"
-            />
-          </hnch-section-card>
-        }
+            </ion-list>
+          </div>
+        </ion-accordion>
+      </ion-accordion-group>
 
-        <!-- Round history -->
-        @if (pastRevealedRounds().length > 0) {
-          <hnch-section-card title="Round history">
-            <app-round-history
-              [rounds]="pastRevealedRounds()"
-              [participants]="participants()"
-              [isHost]="isHost()"
-              (editTriggered)="openRoundEditById($event)"
-            />
-          </hnch-section-card>
-        }
+      @if (lastRevealedRound(); as round) {
+        <section class="results-section" aria-label="Round {{ lastRevealedRoundIndex() }} Results">
+          <h2 class="results-heading">Round {{ lastRevealedRoundIndex() }} Results</h2>
+          <div class="results-descriptor-row">
+            @if (round.title) {
+              <p class="results-descriptor">{{ round.title }}</p>
+            } @else if (isHost()) {
+              <p class="results-descriptor placeholder">Add a descriptor</p>
+            }
+            @if (isHost()) {
+              <ion-button
+                fill="clear"
+                size="small"
+                class="edit-btn"
+                aria-label="Edit round descriptor"
+                (click)="openRoundEdit(round)"
+              >
+                <ion-icon name="pencil-outline" slot="icon-only" />
+              </ion-button>
+            }
+          </div>
+          <app-vote-results
+            [round]="round"
+            [participants]="participants()"
+            [myId]="myId()"
+          />
+        </section>
+      }
 
-        <!-- Scale card -->
-        <hnch-section-card title="Scale">
-          <button
-            type="button"
-            class="scale-btn"
-            aria-label="Change scale: {{ scaleName() }}"
-            (click)="openSessionSettings()"
-          >
-            <span class="scale-name">{{ scaleName() }}</span>
-            <ion-icon name="chevron-forward-outline" class="scale-chevron" aria-hidden="true"></ion-icon>
-          </button>
-        </hnch-section-card>
-      </div>
+      @if (pastRevealedRounds().length > 0) {
+        <app-round-history
+          [rounds]="pastRevealedRounds()"
+          [participants]="participants()"
+          [isHost]="isHost()"
+          (editTriggered)="openRoundEditById($event)"
+        />
+      }
     </ion-content>
 
     @if (isHost()) {
       <ion-footer>
-        <div class="footer-inner">
+        <ion-toolbar>
           @if (lastRevealedRound()) {
-            <ion-button
-              expand="block"
-              fill="outline"
-              class="footer-btn"
-              (click)="onRevote()"
-            >
-              Re-vote
-            </ion-button>
-            <ion-button
-              expand="block"
-              color="primary"
-              class="footer-btn"
-              (click)="openRoundStart()"
-            >
-              Next Round {{ nextRoundNumber() }}
-            </ion-button>
+            <div class="footer-row">
+              <ion-button
+                expand="block"
+                fill="outline"
+                (click)="onRevote()"
+              >
+                Re-vote
+              </ion-button>
+              <ion-button
+                expand="block"
+                color="primary"
+                (click)="openRoundStart()"
+              >
+                Next Round {{ nextRoundNumber() }}
+              </ion-button>
+            </div>
           } @else {
             <ion-button
               expand="block"
               color="primary"
-              class="footer-btn"
               [disabled]="!hasSession()"
               (click)="openRoundStart()"
             >
               Start Round {{ nextRoundNumber() }}
             </ion-button>
           }
-        </div>
+        </ion-toolbar>
       </ion-footer>
     }
 
@@ -280,7 +367,6 @@ import { SectionCardComponent } from '../shared/ui/section-card.component';
       [isOpen]="roundStartOpen()"
       [breakpoints]="[0, 0.6, 0.95]"
       [initialBreakpoint]="0.6"
-      cssClass="hnch-form-modal"
       (didDismiss)="roundStartOpen.set(false)"
     >
       <ng-template>
@@ -296,7 +382,6 @@ import { SectionCardComponent } from '../shared/ui/section-card.component';
       [isOpen]="sessionSettingsOpen()"
       [breakpoints]="[0, 0.6, 0.95]"
       [initialBreakpoint]="0.6"
-      cssClass="hnch-form-modal"
       (didDismiss)="sessionSettingsOpen.set(false)"
     >
       <ng-template>
@@ -328,7 +413,6 @@ import { SectionCardComponent } from '../shared/ui/section-card.component';
       [isOpen]="roundEditOpen()"
       [breakpoints]="[0, 0.6, 0.95]"
       [initialBreakpoint]="0.6"
-      cssClass="hnch-form-modal"
       (didDismiss)="onRoundEditDismiss()"
     >
       <ng-template>
@@ -342,121 +426,91 @@ import { SectionCardComponent } from '../shared/ui/section-card.component';
         }
       </ng-template>
     </ion-modal>
+
   `,
   styles: [
     `
-      ion-content {
-        --background: var(--hnch-bg);
+      .room-code {
+        font-size: 2.5rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        margin: 0.5rem 0 0.25rem;
       }
-      .page-body {
-        display: flex;
-        flex-direction: column;
-        gap: var(--hnch-sp-4);
-        padding: 0 var(--hnch-sp-4) var(--hnch-sp-6);
-        max-width: 720px;
-        margin: 0 auto;
-      }
-      /* Code card */
-      .code-display {
-        display: flex;
-        justify-content: center;
-        padding-block: var(--hnch-sp-2);
-      }
-      .code-text {
-        font: var(--hnch-numeral-lg);
-        letter-spacing: var(--hnch-numeral-tracking);
-        color: var(--hnch-text);
-        font-variant-numeric: tabular-nums;
-      }
-      .code-actions {
-        display: flex;
-        justify-content: center;
-        gap: var(--hnch-sp-3);
-        padding-block: var(--hnch-sp-2) var(--hnch-sp-3);
-        border-top: 1px solid var(--hnch-muted-2);
-      }
-      /* Participants */
-      .participants-list {
-        margin: 0;
-        padding: 0;
-      }
-      .participants-footer {
-        margin: var(--hnch-sp-2) var(--hnch-sp-4) 0;
-        font: var(--hnch-body-sm);
-        color: var(--hnch-muted);
-        padding-top: var(--hnch-sp-2);
-        border-top: 1px solid var(--hnch-muted-2);
-      }
-      /* Results */
-      .results-header-row {
-        display: flex;
-        align-items: flex-start;
-        gap: var(--hnch-sp-2);
-        margin-bottom: var(--hnch-sp-3);
-        flex-wrap: wrap;
-      }
-      .results-heading {
-        margin: 0;
-        font: var(--hnch-title);
-        flex: 1;
-      }
-      .results-descriptor {
-        margin: 0;
-        font: var(--hnch-body-sm);
-        color: var(--hnch-muted);
-        width: 100%;
-      }
-      .results-descriptor.placeholder {
-        font-style: italic;
-      }
-      .edit-btn {
-        --padding-start: var(--hnch-sp-1);
-        --padding-end: var(--hnch-sp-1);
-        margin: 0;
-      }
-      /* Scale */
-      .scale-btn {
+      .subtitle {
         appearance: none;
         background: transparent;
         border: none;
-        padding: var(--hnch-sp-1) 0;
-        display: flex;
-        align-items: center;
-        gap: var(--hnch-sp-2);
+        padding: 0;
+        color: var(--ion-color-medium);
+        font: inherit;
         cursor: pointer;
-        width: 100%;
-        font: var(--hnch-body);
-        color: var(--hnch-text);
-      }
-      .scale-btn:focus-visible {
-        outline: 2px solid var(--ion-color-primary);
-        outline-offset: 2px;
-        border-radius: var(--hnch-r-xs);
-      }
-      .scale-name {
-        flex: 1;
         text-align: left;
       }
-      .scale-chevron {
-        font-size: 16px;
-        color: var(--hnch-muted);
+      .subtitle:focus-visible {
+        outline: 2px solid var(--ion-color-primary);
+        outline-offset: 2px;
+        border-radius: 4px;
       }
-      /* Footer */
-      ion-footer {
-        --background: var(--hnch-bg);
-        box-shadow: none;
+      .actions,
+      .participants {
+        margin-top: 1.25rem;
       }
-      .footer-inner {
+      .participants-summary {
+        margin: 0.125rem 0 0;
+        font-size: 0.85rem;
+        color: var(--ion-color-medium);
+      }
+      .swipe-hint {
+        margin: 0.25rem 1rem 0.25rem;
+        font-size: 0.8rem;
+        color: var(--ion-color-medium);
+      }
+      ion-avatar ion-icon {
+        font-size: 2rem;
+        color: var(--ion-color-medium);
+      }
+      ion-item.offline ion-label {
+        color: var(--ion-color-medium);
+      }
+      .host-icon {
+        font-size: 1rem;
+        color: var(--ion-color-medium);
+        vertical-align: middle;
+        margin-inline-start: 0.25rem;
+      }
+      .results-section {
+        margin-top: 1.5rem;
+        padding-top: 1rem;
+        border-top: 2px solid var(--ion-color-step-200, rgba(0, 0, 0, 0.12));
+      }
+      .results-heading {
+        font-size: 1.25rem;
+        font-weight: 700;
+        margin: 0 0 0.25rem;
+      }
+      .results-descriptor-row {
         display: flex;
-        gap: var(--hnch-sp-3);
-        padding: var(--hnch-sp-3) var(--hnch-sp-4) var(--hnch-sp-6);
-        max-width: 720px;
-        margin: 0 auto;
+        align-items: center;
+        gap: 0.25rem;
+        margin-bottom: 0.75rem;
       }
-      .footer-btn {
-        flex: 1;
-        font: var(--hnch-title);
-        --border-radius: var(--hnch-r-sm);
+      .results-descriptor {
+        margin: 0;
+        color: var(--ion-color-medium);
+      }
+      .results-descriptor.placeholder {
+        color: var(--ion-color-medium);
+        font-style: italic;
+      }
+      .edit-btn {
+        --padding-start: 0.25rem;
+        --padding-end: 0.25rem;
+      }
+      .footer-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+        padding: 0.25rem 0.5rem;
       }
     `,
   ],
@@ -467,10 +521,10 @@ export class LobbyPage {
   private readonly haptic = inject(HapticService);
   private readonly participantIdService = inject(ParticipantIdService);
   private readonly lastSessionService = inject(LastSessionService);
+  private readonly actionSheetCtrl = inject(ActionSheetController);
   private readonly alertCtrl = inject(AlertController);
   private readonly toastService = inject(ToastService);
   private readonly exportService = inject(ExportService);
-  private readonly actionMenuService = inject(ActionMenuService);
 
   protected readonly hasSession = this.docService.hasSession;
   protected readonly participants = this.docService.participants;
@@ -478,16 +532,44 @@ export class LobbyPage {
   protected readonly onlineIds = this.docService.onlineParticipantIds;
   protected readonly rounds = this.docService.rounds;
 
+  /** Round-start modal visibility. Two-way bound to `ion-modal`. */
   protected readonly roundStartOpen = signal(false);
+
+  /** Session-settings modal visibility. Two-way bound to `ion-modal`. */
   protected readonly sessionSettingsOpen = signal(false);
+
+  /** QR display modal visibility. */
   protected readonly qrOpen = signal(false);
+
+  /** Round-edit modal visibility. */
   protected readonly roundEditOpen = signal(false);
+
+  /** Round currently being edited, or null when no edit is open. */
   protected readonly editingRound = signal<Round | null>(null);
+
+  /**
+   * Access state lives here (not in SessionSettingsSheetComponent) so
+   * it survives the modal's destroy/recreate lifecycle.
+   */
   protected readonly lobbyAccessMode = signal<'open' | 'password'>('open');
   protected readonly lobbyAccessPassword = signal('');
 
   protected readonly myId = this.participantIdService.id;
+
   protected readonly hostId = computed(() => this.docService.settings()?.hostParticipantId ?? null);
+
+  /** True when a participant's effective role is `'viewer'`. */
+  protected isParticipantViewer(p: { role?: 'voter' | 'viewer' }): boolean {
+    return participantRole(p) === 'viewer';
+  }
+
+  /** Toggle own voter↔viewer role. Wired to the self-row chip. */
+  protected onToggleRole(): void {
+    const id = this.myId();
+    if (!id) return;
+    this.haptic.impactLight();
+    this.docService.toggleRole(id);
+  }
 
   protected readonly isHost = computed(() => {
     const hostId = this.hostId();
@@ -495,30 +577,15 @@ export class LobbyPage {
     return !!myId && !!hostId && myId === hostId;
   });
 
+  /**
+   * Relay-assigned 6-character room code (ADR-0008). The code is
+   * plumbed through `DocService` after `POST /rooms` resolves; schema.md
+   * is explicit that codes do not live in the Yjs doc, so we read it
+   * from the service's dedicated signal rather than `meta()`.
+   */
   protected readonly roomCode = this.docService.roomCode;
 
-  protected readonly roomName = computed(() => {
-    const settings = this.docService.settings();
-    return settings?.name || 'Lobby';
-  });
-
-  protected readonly formattedRoomCode = computed(() => {
-    const code = this.roomCode();
-    return code ? formatRoomCode(code) : '';
-  });
-
-  protected readonly scaleName = computed(() => {
-    const settings = this.docService.settings();
-    if (!settings?.defaultScale) return '—';
-    return formatScaleId(settings.defaultScale.id);
-  });
-
-  protected readonly pageSubtitle = computed(() => {
-    const count = this.activeParticipants().length;
-    const scale = this.scaleName();
-    return `${count} participant${count === 1 ? '' : 's'} · ${scale}`;
-  });
-
+  /** Invite URL derived from the room code + runtime origin (`window.location.origin`). */
   protected readonly inviteUrl = computed(() => {
     const code = this.roomCode();
     if (!code) return '';
@@ -526,8 +593,27 @@ export class LobbyPage {
     return this.lobbyAccessMode() === 'password' ? `${base}&pw=1` : base;
   });
 
+  /** Dash-formatted room code for human display. */
+  protected readonly formattedRoomCode = computed(() => {
+    const code = this.roomCode();
+    return code ? formatRoomCode(code) : '';
+  });
+
+  /** 1-based index for the "Start Round N" / "Next Round N" label. */
   protected readonly nextRoundNumber = computed(() => this.rounds().length + 1);
 
+  protected readonly subtitle = computed(() => {
+    const settings = this.docService.settings();
+    if (!settings || !settings.defaultScale) return '';
+    const round = this.nextRoundNumber();
+    const scaleName = formatScaleId(settings.defaultScale.id);
+    return `Round ${round} • ${scaleName}`;
+  });
+
+  /**
+   * The most recently revealed round, or null if no rounds have been
+   * revealed yet. Drives the inline results display.
+   */
   protected readonly lastRevealedRound = computed(() => {
     const rounds = this.rounds();
     for (let i = rounds.length - 1; i >= 0; i--) {
@@ -537,6 +623,9 @@ export class LobbyPage {
     return null;
   });
 
+  /**
+   * 1-based index of `lastRevealedRound` within `rounds()`.
+   */
   protected readonly lastRevealedRoundIndex = computed(() => {
     const round = this.lastRevealedRound();
     if (!round) return null;
@@ -544,18 +633,34 @@ export class LobbyPage {
     return idx >= 0 ? idx + 1 : null;
   });
 
+  /** True when at least one round has been revealed (gates "Copy results" button). */
   protected readonly hasRevealedRounds = computed(() =>
     this.rounds().some((r) => r.revealedAt != null),
   );
 
+  /**
+   * Controls accordion open/closed state. Null collapses when a round
+   * has been revealed so results stay above the fold.
+   */
+  protected readonly participantsAccordionValue = computed(() =>
+    participantsAccordionValueFor(this.lastRevealedRound() !== null),
+  );
+
+  /**
+   * Short summary line shown in the accordion header when collapsed —
+   * e.g. "3 online · 1 offline · 1 viewer". Uses active participants only.
+   */
   protected readonly participantsSummary = computed(() =>
-    summarizeParticipants(
-      this.activeParticipants(),
-      this.onlineIds(),
-      (p) => participantRole(p) === 'viewer',
+    summarizeParticipants(this.activeParticipants(), this.onlineIds(), (p) =>
+      this.isParticipantViewer(p),
     ),
   );
 
+  /**
+   * All revealed rounds except the most recent. Passed to
+   * RoundHistoryComponent — only shown when there are 2+ revealed rounds
+   * so there is at least one past entry alongside the current results.
+   */
   protected readonly pastRevealedRounds = computed(() => {
     const rounds = this.rounds();
     const last = this.lastRevealedRound();
@@ -563,6 +668,7 @@ export class LobbyPage {
     return rounds.filter((r) => r.revealedAt !== undefined && r.id !== last.id);
   });
 
+  /** 1-based round number for the edit modal header. */
   protected readonly editingRoundNumber = computed<number>(() => {
     const round = this.editingRound();
     if (!round) return 1;
@@ -574,18 +680,27 @@ export class LobbyPage {
   private readonly sessionSettingsModalRef = viewChild<IonModal>('sessionSettingsModal');
   private readonly qrModalRef = viewChild<IonModal>('qrModal');
 
+  // Tracks the last uuid written to the cache so the effect does not
+  // re-fire on every Yjs doc mutation (votes, awareness, etc.) while
+  // connected to the same room. Reset to null when status leaves
+  // 'connected' so a reconnect re-writes and bumps the TTL.
   private lastRecordedUuid: string | null = null;
 
   constructor() {
     addIcons({
-      chevronBackOutline,
-      chevronForwardOutline,
-      ellipsisHorizontalCircle,
-      pencilOutline,
-      qrCodeOutline,
-      shareOutline,
+      'chevron-back-outline': chevronBackOutline,
+      'ellipsis-horizontal-circle': ellipsisHorizontalCircle,
+      'pencil-outline': pencilOutline,
+      'person-circle-outline': personCircleOutline,
+      'person-remove-outline': personRemoveOutline,
+      'qr-code-outline': qrCodeOutline,
+      'share-outline': shareOutline,
+      'star-outline': starOutline,
     });
 
+    // Refresh the jump-back-in cache only once per (uuid, screen)
+    // transition — deduped via lastRecordedUuid so we don't write on
+    // every Yjs doc mutation while staying connected (ADR-0022 §5).
     effect(() => {
       const code = this.docService.roomCode();
       const uuid = this.docService.meta()?.roomUuid;
@@ -604,6 +719,10 @@ export class LobbyPage {
       }
     });
 
+    // Auto-navigate to Estimating when a round starts. Covers
+    // non-host clients who are sitting on the Lobby when the host
+    // taps "Start Round" — without this, only the host's click
+    // handler navigates.
     effect(() => {
       const round = this.docService.currentRound();
       if (round && round.revealedAt === undefined) {
@@ -613,6 +732,10 @@ export class LobbyPage {
       }
     });
 
+    // WS rejection handler — covers all reasons a joiner can be rejected
+    // while already on Lobby (e.g. host changes password mid-session,
+    // room-full race, etc.). Captures code synchronously at signal-flip
+    // time before endSession clears it.
     effect(() => {
       const reason = this.docService.lastRejection();
       if (reason === null) return;
@@ -645,9 +768,16 @@ export class LobbyPage {
     await this.router.navigate(['/estimating', code]);
   }
 
+  /**
+   * Re-vote path (ADR-0013). Appends a new round with
+   * `parentRoundId = lastRevealedRound.id`, inheriting `title` /
+   * `description` / `ticketId` so the descriptor carries over to
+   * Estimating without another trip through the round-start sheet.
+   */
   protected async onRevote(): Promise<void> {
     const round = this.lastRevealedRound();
     if (!round) return;
+
     this.docService.startRound({
       parentRoundId: round.id,
       ...(round.title !== undefined && { title: round.title }),
@@ -659,73 +789,49 @@ export class LobbyPage {
     await this.router.navigate(['/estimating', code]);
   }
 
-  protected async openMenu(): Promise<void> {
-    const items: { id: string; label: string; role?: 'destructive' | 'cancel'; icon?: string }[] = [
-      { id: 'settings', label: 'Session settings', icon: 'settings-outline' },
+  protected async openActionSheet(): Promise<void> {
+    const buttons: { text: string; role?: string; handler?: () => void }[] = [
+      {
+        text: 'Session settings',
+        handler: () => {
+          this.openSessionSettings();
+        },
+      },
+      {
+        text: 'Leave session',
+        role: 'destructive',
+        handler: () => {
+          void this.confirmLeave();
+        },
+      },
     ];
 
     if (this.isHost()) {
-      items.push({ id: 'edit-name', label: 'Edit room name', icon: 'pencil-outline' });
+      buttons.splice(1, 0, {
+        text: 'End session for everyone',
+        role: 'destructive',
+        handler: () => {
+          void this.confirmEndSession();
+        },
+      });
     }
 
     if (this.hasRevealedRounds()) {
-      items.push({ id: 'copy-results', label: 'Copy results', icon: 'copy-outline' });
-    }
-
-    items.push({ id: 'leave', label: 'Leave session', role: 'destructive' });
-
-    if (this.isHost()) {
-      items.push({ id: 'end', label: 'End session for everyone', role: 'destructive' });
-    }
-
-    items.push({ id: 'cancel', label: 'Cancel', role: 'cancel' });
-
-    const id = await this.actionMenuService.open(items, { header: 'Session' });
-    switch (id) {
-      case 'settings':
-        this.openSessionSettings();
-        break;
-      case 'edit-name':
-        await this.promptRoomName();
-        break;
-      case 'copy-results':
-        await this.copyResults();
-        break;
-      case 'leave':
-        await this.confirmLeave();
-        break;
-      case 'end':
-        await this.confirmEndSession();
-        break;
-    }
-  }
-
-  private async promptRoomName(): Promise<void> {
-    const alert = await this.alertCtrl.create({
-      header: 'Room name',
-      inputs: [
-        {
-          name: 'name',
-          type: 'text',
-          value: this.roomName(),
-          placeholder: 'Session name',
-          attributes: { maxlength: 60 },
+      buttons.splice(1, 0, {
+        text: 'Copy results',
+        handler: () => {
+          void this.copyResults();
         },
-      ],
-      buttons: [
-        { text: 'Cancel', role: 'cancel' },
-        {
-          text: 'Save',
-          handler: (data: { name: string }) => {
-            const trimmed = data.name.trim();
-            if (trimmed) {
-              this.docService.updateSettings({ name: trimmed });
-            }
-          },
-        },
-      ],
+      });
+    }
+
+    buttons.push({ text: 'Cancel', role: 'cancel' });
+
+    const sheet = await this.actionSheetCtrl.create({
+      header: 'Session',
+      buttons,
     });
-    await alert.present();
+    await sheet.present();
   }
 
   protected async confirmEndSession(): Promise<void> {
@@ -769,6 +875,7 @@ export class LobbyPage {
     const url = this.inviteUrl();
     const formatted = this.formattedRoomCode();
     if (!url) return;
+
     try {
       await Share.share({
         title: 'Join my hnch session',
@@ -777,13 +884,16 @@ export class LobbyPage {
         dialogTitle: 'Share invite',
       });
     } catch (err: unknown) {
+      // User-cancelled share sheets throw — silently ignore.
       if (err instanceof Error && err.message?.includes('cancel')) return;
+      // navigator.share unavailable or other failure — clipboard fallback.
       await this.copyToClipboard(url, formatted);
     }
   }
 
   private async copyResults(): Promise<void> {
     try {
+      // Pass raw participants() — includes departed — so names still resolve per ADR-0036.
       const participantsRecord = Object.fromEntries(
         this.docService.participants().map((p) => [p.id, p]),
       );
@@ -843,10 +953,25 @@ export class LobbyPage {
     this.editingRound.set(null);
   }
 
+  /**
+   * Soft exit — back-chevron path. Navigates to Home WITHOUT clearing
+   * the last-session cache, so the Jump-back-in banner remains visible.
+   * Does not tear down the WebSocket; the session stays alive in the
+   * background while the user is on Home.
+   *
+   * Per plan §4: back is NOT destructive, so no confirmation dialog.
+   */
   protected softExit(): void {
     void this.router.navigate(['/home']);
   }
 
+  /**
+   * Destructive-action confirmation. Wired ONLY to the
+   * ⋯ → "Leave session" action-sheet item so the session is never
+   * torn down without an explicit user confirmation.
+   *
+   * The back chevron uses `softExit()` instead — no dialog, cache kept.
+   */
   protected async confirmLeave(): Promise<void> {
     const alert = await this.alertCtrl.create({
       header: 'Leave session?',
@@ -869,22 +994,43 @@ export class LobbyPage {
   private async leaveSession(): Promise<void> {
     const selfId = this.myId();
     if (selfId) {
+      // Write the soft-delete before disconnecting so peers see the removal (ADR-0036).
       this.docService.leaveSession(selfId);
+      // Flush the Yjs update through the WebSocket before closing (best-effort, 500 ms cap).
       await this.docService.flushUpdates();
     }
     this.docService.endSession();
+    // Destructive leave — clear cache so Jump-back-in banner does not reappear (ADR-0022).
     await this.lastSessionService.clear();
     await this.router.navigate(['/home']);
   }
 
-  /** Role change from ParticipantRowComponent (only fired for self). */
-  protected onRoleChange(participantId: string, _newRole: 'voter' | 'viewer'): void {
-    const myId = this.myId();
-    if (participantId !== myId) return;
-    this.haptic.impactLight();
-    this.docService.toggleRole(participantId);
+  /**
+   * Handoff tap handler. Shows confirmation dialog, and on confirm calls
+   * updateSettings to transfer host to the target participant.
+   */
+  protected async onHandoffTap(participantId: string, displayName: string): Promise<void> {
+    const alert = await this.alertCtrl.create({
+      header: 'Make host?',
+      message: `Make ${displayName} the host?`,
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        {
+          text: 'Confirm',
+          handler: () => {
+            this.haptic.impactMedium();
+            this.docService.updateSettings({ hostParticipantId: participantId });
+          },
+        },
+      ],
+    });
+    await alert.present();
   }
 
+  /**
+   * Host kick — confirmation dialog On confirm writes
+   * `leftAt` + `removedBy` to the target's record (ADR-0036).
+   */
   protected async onRemoveTap(participantId: string, displayName: string): Promise<void> {
     const alert = await this.alertCtrl.create({
       header: `Remove ${displayName} from session?`,
@@ -910,9 +1056,16 @@ export class LobbyPage {
 }
 
 // ---------------------------------------------------------------------------
-// Module-private helpers
+// Module-private formatters
 // ---------------------------------------------------------------------------
 
+/**
+ * Format a scale id for display. Capitalizes the first character so
+ * `'fibonacci'` reads as "Fibonacci" and `'t-shirt'` reads as
+ * "T-shirt". Custom scale ids (`'custom-<uuid>'`) get the same
+ * treatment — acceptable per  because custom-scale display is a
+ * Phase 6 concern.
+ */
 function formatScaleId(id: string): string {
   if (id.length === 0) return id;
   return id.charAt(0).toUpperCase() + id.slice(1);

@@ -39,7 +39,7 @@ import { CustomScaleEditorSheetComponent } from './custom-scale-editor.sheet';
 import { ScaleEditorSheetComponent } from './scale-editor.sheet';
 
 /**
- * Unified scale picker and management component.
+ * Unified scale picker and management component & §5.7.
  *
  * Can be used in two modes:
  * 1. **Picker mode** (with selectedScaleId + scaleSelected output): radio group over all
@@ -211,7 +211,6 @@ import { ScaleEditorSheetComponent } from './scale-editor.sheet';
       [isOpen]="editorOpen()"
       [breakpoints]="[0, 0.6, 0.95]"
       [initialBreakpoint]="0.6"
-      cssClass="hnch-form-modal"
       (didDismiss)="editorOpen.set(false)"
     >
       <ng-template>
@@ -230,7 +229,6 @@ import { ScaleEditorSheetComponent } from './scale-editor.sheet';
       [isOpen]="customEditorOpen()"
       [breakpoints]="[0, 0.6, 1]"
       [initialBreakpoint]="1"
-      cssClass="hnch-form-modal"
       (didDismiss)="customEditorOpen.set(false)"
     >
       <ng-template>

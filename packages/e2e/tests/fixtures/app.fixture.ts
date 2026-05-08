@@ -75,13 +75,12 @@ export class Participant {
       await this.onboard();
     }
     await this.page.locator(HOME.createCard).click();
-    await this.page.waitForURL(/\/lobby\//);
-    // Phase D: room code is in the URL as /lobby/XXXXXX.
-    // The span.code-text element is inside the mobile-only code card (ion-hide-lg-up)
-    // and is hidden at desktop viewports. Extract code from URL instead.
-    const match = this.page.url().match(/\/lobby\/([A-Z0-9]+)/i);
-    if (!match?.[1]) throw new Error(`Room code not found in URL: ${this.page.url()}`);
-    return match[1].toUpperCase();
+    await this.page.waitForURL(/\/lobby/);
+    const codeEl = this.page.locator(LOBBY.roomCode);
+    await codeEl.waitFor({ state: 'visible' });
+    const code = await codeEl.textContent();
+    if (!code) throw new Error('Room code not found on lobby page');
+    return code.replaceAll(/[^A-Z0-9]/gi, ''); // strip dash formatting
   }
 
   /** Join an existing session from /home using a room code. */
@@ -178,23 +177,9 @@ export class Participant {
 
   // -- Settings (from lobby) ------------------------------------------------
 
-  /** Open session settings sheet from the lobby action menu. */
+  /** Open session settings sheet from the lobby subtitle button. */
   async openSettings(): Promise<void> {
-    // Phase D: session settings are accessed via ⋯ action menu → "Session settings".
-    // Use the last ion-button in the lobby header (the ⋯ / More options button).
-    // CSS attribute selector [aria-label] may not match Ionic shadow-DOM hydration;
-    // use .last() in the end-slot buttons group for reliability.
-    const actionBtn = this.page
-      .locator('app-lobby:not(.ion-page-hidden) ion-header ion-buttons[slot="end"] ion-button')
-      .last();
-    await actionBtn.waitFor({ state: 'visible' });
-    await actionBtn.evaluate((el: HTMLElement) => el.click());
-    const actionSheet = this.page.locator('ion-action-sheet');
-    await actionSheet.waitFor({ state: 'visible', timeout: 5_000 });
-    const settingsOption = this.page.locator(
-      'ion-action-sheet button:has-text("Session settings")',
-    );
-    await settingsOption.evaluate((el: HTMLElement) => el.click());
+    await this.page.locator(LOBBY.subtitle).click();
     await this.page.locator('app-session-settings-sheet').waitFor({ state: 'visible' });
   }
 
@@ -256,10 +241,9 @@ export class Participant {
       await this.page.waitForURL(/\/(join|lobby)/);
     }
     // Deep-link auto-submit fires on JoinPage activation (ADR-0026 §3).
-    // Wait for /lobby URL as success signal — works for both first-time
+    // Wait for lobby content as success signal — works for both first-time
     // (onboarding redirect → JoinPage auto-submit) and returning-user paths.
-    // Phase D: LOBBY.roomCode is hidden at desktop viewports; use URL as signal.
-    await this.page.waitForURL(/\/lobby\//, { timeout: 10_000 });
+    await this.page.locator(LOBBY.roomCode).waitFor({ state: 'visible', timeout: 10_000 });
   }
 
   /** Close the session settings sheet. */
@@ -380,12 +364,12 @@ export class Participant {
     await resultsSection.waitFor({ state: 'visible', timeout: 10_000 });
     const cards = this.page.locator(LOBBY.groupCard);
     await cards.first().waitFor({ state: 'visible' });
-    // Phase D: vote groups are hnch-vote-result-card elements; card value in .card-glyph
+    // Collect all card values from vote groups (scoped to results section)
     const allChips: string[] = [];
     const groupCount = await this.page.locator(LOBBY.voteGroups).count();
     for (let i = 0; i < groupCount; i++) {
       const group = this.page.locator(LOBBY.voteGroups).nth(i);
-      const cardValue = await group.locator('.card-glyph').textContent();
+      const cardValue = await group.locator('.card').textContent();
       const chipLabels = await group.locator('ion-chip ion-label').allTextContents();
       for (const _ of chipLabels) {
         allChips.push(cardValue?.trim() ?? '');
@@ -406,8 +390,8 @@ export class Participant {
     if (!url.includes('/estimating')) {
       throw new Error(`Expected to be on /estimating but URL is ${url}`);
     }
-    // Phase D: results section is hnch-section-card.results-card
-    await this.page.locator('hnch-section-card.results-card').waitFor({ state: 'hidden' });
+    // Ensure results section (shown after reveal) is not visible
+    await this.page.locator('section.results-section').waitFor({ state: 'hidden' });
   }
 
   /** Assert this participant sees host controls. */
@@ -431,9 +415,14 @@ export class Participant {
   /** Assert participant count shown in lobby. */
   async expectParticipantCount(n: number): Promise<void> {
     const { expect } = await import('@playwright/test');
-    // Phase D: no accordion; participant rows are flat hnch-participant-row elements.
-    // Wait for exactly N rows in the active (non-hidden) lobby page.
-    await expect(this.page.locator(LOBBY.participantItems)).toHaveCount(n, { timeout: 10_000 });
+    // Ionic's router outlet briefly keeps two app-lobby instances in DOM
+    // during forward/back navigation transitions (neither gets ion-page-hidden
+    // until the animation settles). Wait until only one non-hidden lobby
+    // remains before asserting, so strict-mode doesn't fire on the transient
+    // duplicate (reproduced in back-button-soft-exit after banner tap returns
+    // to the same lobby URL).
+    await expect(this.page.locator(LOBBY.participantCount)).toHaveCount(1, { timeout: 5_000 });
+    await expect(this.page.locator(LOBBY.participantCount)).toContainText(`(${n})`);
   }
 }
 

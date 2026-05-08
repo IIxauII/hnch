@@ -1,7 +1,17 @@
 import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
-import { IonInput, IonItem, IonLabel, IonNote } from '@ionic/angular/standalone';
-import { FormModalShellComponent } from '../shared/ui/form-modal-shell.component';
+import {
+  IonButton,
+  IonContent,
+  IonFooter,
+  IonHeader,
+  IonInput,
+  IonItem,
+  IonLabel,
+  IonNote,
+  IonTitle,
+  IonToolbar,
+} from '@ionic/angular/standalone';
 
 /**
  * Payload emitted by {@link RoundStartSheetComponent} when the host
@@ -15,7 +25,7 @@ export interface RoundStartSubmission {
 }
 
 /**
- * Round-start modal content.
+ * Round-start half-sheet content.
  *
  * Rendered inside an `<ion-modal>` by the caller; this component
  * owns only the internal chrome (title, descriptor input, footer
@@ -27,30 +37,53 @@ export interface RoundStartSubmission {
 @Component({
   selector: 'app-round-start-sheet',
   host: { class: 'ion-page' },
-  imports: [FormModalShellComponent, IonInput, IonItem, IonLabel, IonNote, ReactiveFormsModule],
+  imports: [
+    IonButton,
+    IonContent,
+    IonFooter,
+    IonHeader,
+    IonInput,
+    IonItem,
+    IonLabel,
+    IonNote,
+    IonTitle,
+    IonToolbar,
+    ReactiveFormsModule,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <hnch-form-modal-shell
-      title="Start Round {{ roundNumber() }}"
-      submitLabel="Start"
-      (submit)="submit()"
-    >
-      <div class="ion-padding">
-        <ion-item>
-          <ion-label position="stacked">What are you estimating?</ion-label>
-          <ion-input
-            [formControl]="titleControl"
-            placeholder="e.g., Login redesign"
-            autocapitalize="sentences"
-            enterkeyhint="done"
-            (keydown.enter)="submit()"
-          ></ion-input>
-        </ion-item>
-        <ion-note class="helper">
-          This will appear on everyone's Estimating screen.
-        </ion-note>
-      </div>
-    </hnch-form-modal-shell>
+    <ion-header>
+      <ion-toolbar>
+        <ion-title>Start Round {{ roundNumber() }}</ion-title>
+      </ion-toolbar>
+    </ion-header>
+    <ion-content class="ion-padding">
+      <ion-item>
+        <ion-label position="stacked">What are you estimating?</ion-label>
+        <ion-input
+          [formControl]="titleControl"
+          placeholder="e.g., Login redesign"
+          autocapitalize="sentences"
+          enterkeyhint="done"
+          (keydown.enter)="submit()"
+        ></ion-input>
+      </ion-item>
+      <ion-note class="helper">
+        This will appear on everyone's Estimating screen.
+      </ion-note>
+    </ion-content>
+    <ion-footer>
+      <ion-toolbar>
+        <ion-button
+          expand="block"
+          color="primary"
+          [disabled]="isSubmitting()"
+          (click)="submit()"
+        >
+          Start
+        </ion-button>
+      </ion-toolbar>
+    </ion-footer>
   `,
   styles: [
     `

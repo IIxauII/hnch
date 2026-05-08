@@ -17,8 +17,8 @@ const ROUND_EDIT = {
   // the modal, or page.getByRole('textbox', { name: 'Round title' }).
   titleInputNative: 'app-round-edit-sheet input[aria-label="Round title"]',
   saveBtn: 'app-round-edit-sheet ion-button:has-text("Save")',
-  // Phase D: pencil is inside .results-header-row (no .results-descriptor-row class)
-  currentRoundPencil: '.results-header-row ion-button.edit-btn',
+  /** Pencil scoped to the inline results section (latest revealed round). */
+  currentRoundPencil: '.results-descriptor-row ion-button.edit-btn',
   /** Pencil in history for round N — `n` is 1-based round number. */
   historyPencil: (n: number) =>
     `app-round-history li:has(.round-label:text-is("Round ${n}")) ion-button.edit-btn`,
@@ -97,7 +97,7 @@ test.describe('Round descriptor edit (post-reveal)', () => {
     await expect(player.page.locator(descriptor)).toHaveText('Foo (backend)', { timeout: 3_000 });
   });
 
-  test('empty title: save is no-op (modal stays open); non-empty title saves (AC #6)', async ({
+  test('Save disabled when title empty; re-enabled when non-empty (AC #6)', async ({
     host,
     player,
   }) => {
@@ -105,20 +105,20 @@ test.describe('Round descriptor edit (post-reveal)', () => {
     await openCurrentRoundEdit(host.page);
 
     const titleInput = host.page.locator(ROUND_EDIT.titleInputNative);
-    const modal = host.page.locator(ROUND_EDIT.modal);
+    // ion-button is a web component; toBeDisabled() checks ARIA but Playwright
+    // doesn't always detect Ionic's disabled state via the host element.
+    // Scope to the inner shadow <button> which carries the native disabled property.
+    const saveBtnNative = host.page.locator(
+      'app-round-edit-sheet ion-button:has-text("Save") button',
+    );
 
-    // Phase D: form-modal-shell no longer binds [disabled] on Save — the guard
-    // is at submit time (titleControl.value.trim() === '' → return, no emit).
-    // Verify: clear title → Save click → modal stays open (no-op, no dismiss).
+    // Clear — Save must be disabled
     await titleInput.fill('');
-    await host.page.locator(ROUND_EDIT.saveBtn).evaluate((el: HTMLElement) => el.click());
-    // Modal must remain visible (save was a no-op)
-    await expect(modal).toBeVisible();
+    await expect(saveBtnNative).toBeDisabled();
 
-    // Fill title → Save click → modal dismisses
+    // Type non-empty — Save must re-enable
     await titleInput.fill('Something');
-    await host.page.locator(ROUND_EDIT.saveBtn).evaluate((el: HTMLElement) => el.click());
-    await modal.waitFor({ state: 'hidden', timeout: 5_000 });
+    await expect(saveBtnNative).toBeEnabled();
   });
 
   test('history row pencil edits past round; both clients see updated label (AC #5)', async ({

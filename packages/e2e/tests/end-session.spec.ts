@@ -141,8 +141,8 @@ test.describe('End session for everyone', () => {
 
     await alert.waitFor({ state: 'hidden', timeout: 5_000 });
 
-    // Still on /lobby — participant list always visible
+    // Still on /lobby
     await host.page.waitForURL(/\/lobby/);
-    await expect(host.page.locator(LOBBY.lobbyReady)).toBeVisible();
+    await expect(host.page.locator(LOBBY.roomCode)).toBeVisible();
   });
 });

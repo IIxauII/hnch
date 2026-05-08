@@ -39,9 +39,9 @@ test.describe('Auto-reconnect after transient disconnect', () => {
       .first()
       .waitFor({ state: 'hidden', timeout: 5_000 });
 
-    // Still on lobby, participant list always visible
+    // Still on lobby, room code still visible
     await host.page.waitForURL(/\/lobby/);
-    await expect(host.page.locator(LOBBY.lobbyReady)).toBeVisible();
+    await expect(host.page.locator(LOBBY.roomCode)).toBeVisible();
   });
 
   test('after reconnect, session state (participants + scale) is preserved', async ({
@@ -62,8 +62,8 @@ test.describe('Auto-reconnect after transient disconnect', () => {
     // Restore network
     await host.page.context().setOffline(false);
 
-    // Wait for reconnect (participant list visible = sync restored)
-    await expect(host.page.locator(LOBBY.lobbyReady)).toBeVisible({ timeout: 15_000 });
+    // Wait for reconnect (room code remains visible = sync restored)
+    await expect(host.page.locator(LOBBY.roomCode)).toBeVisible({ timeout: 15_000 });
 
     // Session state preserved: both participants still listed
     await host.expectParticipantCount(2);
@@ -111,9 +111,9 @@ test.describe('Auto-reconnect after transient disconnect', () => {
     await host.page.waitForTimeout(500);
     await host.page.context().setOffline(false);
 
-    // Host stays on lobby, participant list visible after reconnect
+    // Host stays on lobby and room code is still visible
     await host.page.waitForURL(/\/lobby/, { timeout: 10_000 });
-    await expect(host.page.locator(LOBBY.lobbyReady)).toBeVisible({ timeout: 10_000 });
+    await expect(host.page.locator(LOBBY.roomCode)).toBeVisible({ timeout: 10_000 });
 
     // Host still has start-round controls
     await expect(host.page.locator('ion-button', { hasText: LOBBY.startRoundBtn })).toBeVisible({

@@ -1,10 +1,21 @@
 import { ChangeDetectionStrategy, Component, output } from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
-import { IonInput, IonItem, IonLabel, IonList } from '@ionic/angular/standalone';
-import { FormModalShellComponent } from '../shared/ui/form-modal-shell.component';
+import {
+  IonButton,
+  IonButtons,
+  IonContent,
+  IonFooter,
+  IonHeader,
+  IonInput,
+  IonItem,
+  IonLabel,
+  IonList,
+  IonTitle,
+  IonToolbar,
+} from '@ionic/angular/standalone';
 
 /**
- * Password prompt modal for create flow.
+ * Password prompt half-sheet for create flow.
  *
  * Single password input field (optional). User can leave blank.
  * Emits password string on confirm (may be empty), or cancel on dismissal.
@@ -12,15 +23,32 @@ import { FormModalShellComponent } from '../shared/ui/form-modal-shell.component
 @Component({
   selector: 'app-password-prompt-sheet',
   host: { class: 'ion-page' },
-  imports: [FormModalShellComponent, IonInput, IonItem, IonLabel, IonList, ReactiveFormsModule],
+  imports: [
+    IonButton,
+    IonButtons,
+    IonContent,
+    IonFooter,
+    IonHeader,
+    IonInput,
+    IonItem,
+    IonLabel,
+    IonList,
+    IonTitle,
+    IonToolbar,
+    ReactiveFormsModule,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <hnch-form-modal-shell
-      title="Set Password (optional)"
-      submitLabel="Set"
-      (submit)="onConfirm()"
-    >
-      <ion-list lines="inset" class="ion-padding-top">
+    <ion-header>
+      <ion-toolbar>
+        <ion-title>Set Password (optional)</ion-title>
+        <ion-buttons slot="end">
+          <ion-button (click)="closeRequested.emit()">Cancel</ion-button>
+        </ion-buttons>
+      </ion-toolbar>
+    </ion-header>
+    <ion-content class="ion-padding-top">
+      <ion-list lines="inset">
         <ion-item>
           <ion-label position="stacked">Password</ion-label>
           <ion-input
@@ -33,8 +61,42 @@ import { FormModalShellComponent } from '../shared/ui/form-modal-shell.component
           ></ion-input>
         </ion-item>
       </ion-list>
-    </hnch-form-modal-shell>
+    </ion-content>
+
+    <ion-footer>
+      <ion-toolbar>
+        <div class="footer-row">
+          <ion-button
+            expand="block"
+            fill="outline"
+            (click)="closeRequested.emit()"
+          >
+            Cancel
+          </ion-button>
+          <ion-button
+            expand="block"
+            color="primary"
+            (click)="onConfirm()"
+          >
+            Confirm
+          </ion-button>
+        </div>
+      </ion-toolbar>
+    </ion-footer>
   `,
+  styles: [
+    `
+      .footer-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+        padding: 0.25rem 0.5rem;
+      }
+      ion-footer {
+        border-top: 1px solid var(--ion-color-step-200, rgba(0, 0, 0, 0.12));
+      }
+    `,
+  ],
 })
 export class PasswordPromptSheetComponent {
   /**

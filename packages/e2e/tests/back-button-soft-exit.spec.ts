@@ -57,9 +57,9 @@ test.describe('Back-chevron soft exit', () => {
     // Lands on same URL
     expect(host.page.url()).toBe(lobbyUrl);
 
-    // State intact: participant count still 1, lobby rendered
+    // State intact: participant count still 1, room code visible
     await host.expectParticipantCount(1);
-    await expect(host.page.locator(LOBBY.lobbyReady)).toBeVisible();
+    await expect(host.page.locator(LOBBY.roomCode)).toBeVisible();
   });
 
   test('estimating back chevron navigates to /lobby/:code — session not torn down', async ({
@@ -74,24 +74,19 @@ test.describe('Back-chevron soft exit', () => {
     await host.startRound();
     await host.page.waitForURL(/\/estimating\//);
 
-    // Phase D: estimating uses ion-back-button (not ion-button) in slot="start".
-    // Click the ion-back-button's inner shadow button to trigger navigation.
-    const backBtn = host.page.locator(
-      'app-estimating:not(.ion-page-hidden) ion-header ion-back-button',
-    );
+    // Tap estimating back chevron — first button in the estimating header (slot="start").
+    const backBtn = host.page
+      .locator('app-estimating:not(.ion-page-hidden) ion-header ion-button')
+      .first();
     await backBtn.waitFor({ state: 'visible' });
-    await backBtn.evaluate((el: HTMLElement) => {
-      const btn = el.shadowRoot?.querySelector('button');
-      if (btn) btn.click();
-      else el.click();
-    });
+    await backBtn.evaluate((el: HTMLElement) => el.click());
 
     // Soft exit → /lobby/:code (same code, NOT /home)
     await host.page.waitForURL(/\/lobby\//, { timeout: 10_000 });
     expect(host.page.url()).toBe(lobbyUrl);
 
-    // Session alive: lobby rendered, host controls present
-    await expect(host.page.locator(LOBBY.lobbyReady)).toBeVisible();
+    // Session alive: room code visible, host controls present
+    await expect(host.page.locator(LOBBY.roomCode)).toBeVisible();
     await host.expectIsHost();
 
     // Participant count still 1 — session not torn down

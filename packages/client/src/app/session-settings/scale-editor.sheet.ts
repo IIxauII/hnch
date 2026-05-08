@@ -1,13 +1,24 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 import { BUILTIN_SCALES, formatScaleId } from '@hnch/shared';
-import { IonItem, IonLabel, IonList, IonNote, IonToggle } from '@ionic/angular/standalone';
+import {
+  IonButton,
+  IonButtons,
+  IonContent,
+  IonHeader,
+  IonItem,
+  IonLabel,
+  IonList,
+  IonNote,
+  IonTitle,
+  IonToggle,
+  IonToolbar,
+} from '@ionic/angular/standalone';
 
 import { HapticService } from '../core/haptic.service';
 import { ScalePreferenceService } from '../core/scale-preference.service';
-import { FormModalShellComponent } from '../shared/ui/form-modal-shell.component';
 
 /**
- * Preset card customization modal.
+ * Preset card customization half-sheet.
  *
  * Shows every card in a builtin scale as a toggle row. Toggling a card
  * calls `ScalePreferenceService.togglePresetCard()` which persists the
@@ -19,15 +30,31 @@ import { FormModalShellComponent } from '../shared/ui/form-modal-shell.component
 @Component({
   selector: 'app-scale-editor-sheet',
   host: { class: 'ion-page' },
-  imports: [FormModalShellComponent, IonItem, IonLabel, IonList, IonNote, IonToggle],
+  imports: [
+    IonButton,
+    IonButtons,
+    IonContent,
+    IonHeader,
+    IonItem,
+    IonLabel,
+    IonList,
+    IonNote,
+    IonTitle,
+    IonToggle,
+    IonToolbar,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <hnch-form-modal-shell
-      [title]="title()"
-      submitLabel="Done"
-      (submit)="closeRequested.emit()"
-    >
-      <ion-list lines="inset" [attr.aria-label]="title() + ' card toggles'" class="ion-padding-top">
+    <ion-header>
+      <ion-toolbar>
+        <ion-title>{{ title() }}</ion-title>
+        <ion-buttons slot="end">
+          <ion-button (click)="closeRequested.emit()">Done</ion-button>
+        </ion-buttons>
+      </ion-toolbar>
+    </ion-header>
+    <ion-content class="ion-padding-top">
+      <ion-list lines="inset" [attr.aria-label]="title() + ' card toggles'">
         @for (card of cardRows(); track card.index) {
           <ion-item>
             <ion-label>
@@ -46,7 +73,7 @@ import { FormModalShellComponent } from '../shared/ui/form-modal-shell.component
       <ion-note class="hint ion-padding-horizontal">
         At least one card must remain enabled.
       </ion-note>
-    </hnch-form-modal-shell>
+    </ion-content>
   `,
   styles: [
     `

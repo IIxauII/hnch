@@ -8,10 +8,8 @@ test.describe('Session creation', () => {
     // Room code is 6 alphanumeric characters
     expect(code).toMatch(/^[A-Z0-9]{6}$/);
 
-    // Room code is in the DOM (mobile card hidden at desktop, but textContent readable)
-    const codeEl = host.page.locator(LOBBY.roomCode);
-    await codeEl.waitFor({ state: 'attached' });
-    const displayedCode = await codeEl.textContent();
+    // Room code displayed on page (formatted with dash)
+    const displayedCode = await host.page.locator(LOBBY.roomCode).textContent();
     expect(displayedCode?.replaceAll(/[^A-Z0-9]/gi, '')).toBe(code);
 
     // Participant count is 1

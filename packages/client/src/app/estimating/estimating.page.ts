@@ -2,8 +2,8 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@a
 import { Router } from '@angular/router';
 import { formatElapsed, participantRole, type ParticipantSnapshot } from '@hnch/shared';
 import {
+  ActionSheetController,
   AlertController,
-  IonBackButton,
   IonButton,
   IonButtons,
   IonCard,
@@ -18,7 +18,7 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { ellipsisHorizontalCircle } from 'ionicons/icons';
+import { chevronBackOutline, ellipsisHorizontalCircle } from 'ionicons/icons';
 
 import { ConnectionChipComponent } from '../core/connection-chip.component';
 import { ConnectionStatusBannerComponent } from '../shared/connection-status-banner.component';
@@ -30,18 +30,21 @@ import { shouldRecordCache } from '../core/cache-record-guard';
 import { ParticipantIdService } from '../core/participant-id.service';
 import { TimerTickService } from '../core/timer-tick.service';
 import { AvatarVoteRowComponent } from './avatar-vote-row.component';
-import { ActionMenuService } from '../shared/ui/action-menu.service';
 
 /**
  * Estimating
  *
- * Phase D changes:
- *  - Mobile toolbar title "Round N" uses `var(--hnch-numeral-lg)` Fraunces.
- *  - Subject text uses `var(--hnch-display-md)` Fraunces directly below toolbar.
- *  - Eyebrow "round subject" above subject text.
- *  - ⋯ menu: Settings + Leave + End session.
- *  - Drop the custom back chevron — use IonBackButton defaultHref="/lobby/{code}".
- *  - CRITICAL FIX: Round N is now Fraunces (was sans in bug report).
+ * Pick-your-card screen. Presence of a vote is public (shown in the
+ * avatar row); the value stays hidden until reveal.
+ *
+ * Features:
+ *  - Title "Round N" uses the current round's 1-based index.
+ *  - Elapsed time stopwatch counting up from round start.
+ *  - Card grid with tap-to-vote / tap-again-to-unvote (ADR-0013).
+ *  - Unanimous auto-reveal: when all online participants have voted,
+ *    `revealedAt` is written automatically (ADR-0018).
+ *  - Host-only manual Reveal button.
+ *  - Auto-navigation to Lobby (with inline results) when `revealedAt` is written.
  */
 @Component({
   selector: 'app-estimating',
@@ -50,7 +53,6 @@ import { ActionMenuService } from '../shared/ui/action-menu.service';
     AvatarVoteRowComponent,
     ConnectionChipComponent,
     ConnectionStatusBannerComponent,
-    IonBackButton,
     IonButton,
     IonButtons,
     IonCard,
@@ -69,17 +71,17 @@ import { ActionMenuService } from '../shared/ui/action-menu.service';
     <ion-header>
       <ion-toolbar>
         <ion-buttons slot="start">
-          <ion-back-button
-            [defaultHref]="backHref()"
+          <ion-button
             aria-label="Back to lobby"
-          ></ion-back-button>
+            (click)="softExit()"
+          >
+            <ion-icon
+              slot="icon-only"
+              name="chevron-back-outline"
+            ></ion-icon>
+          </ion-button>
         </ion-buttons>
-        <!-- Round N in Fraunces numeral-lg — CRITICAL FIX for typography bug -->
-        <ion-title>
-          <span class="round-title" aria-label="Round {{ roundIndex() }}">
-            Round {{ roundIndex() }}
-          </span>
-        </ion-title>
+        <ion-title>Estimating</ion-title>
         <ion-buttons slot="end">
           <ion-chip
             [color]="isViewer() ? 'medium' : 'primary'"
@@ -92,30 +94,23 @@ import { ActionMenuService } from '../shared/ui/action-menu.service';
           <app-connection-chip></app-connection-chip>
           <ion-button
             aria-label="More options"
-            (click)="openMenu()"
+            (click)="openActionSheet()"
           >
             <ion-icon slot="icon-only" name="ellipsis-horizontal-circle"></ion-icon>
           </ion-button>
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
-
     <ion-content class="ion-padding">
       <app-connection-status-banner />
-
       @if (currentRound(); as round) {
-        <!-- Subject eyebrow + Fraunces heading -->
+        <h1 class="title">Round {{ roundIndex() }}</h1>
         @if (round.title) {
-          <p class="subject-eyebrow" aria-hidden="true">round subject</p>
-          <h1 class="subject-title">{{ round.title }}</h1>
+          <p class="descriptor">{{ round.title }}</p>
         }
 
         @if (elapsedLabel(); as label) {
-          @if (isHost()) {
-            <p class="elapsed elapsed--host" role="status" aria-live="off" aria-label="Elapsed time: {{ label }}">{{ label }}</p>
-          } @else {
-            <p class="elapsed elapsed--voter" role="status" aria-live="off" aria-label="Elapsed time: {{ label }}">{{ label }}</p>
-          }
+          <p class="elapsed" role="status" aria-live="off">{{ label }}</p>
         }
 
         <app-avatar-vote-row
@@ -128,7 +123,7 @@ import { ActionMenuService } from '../shared/ui/action-menu.service';
             You're observing this round
           </p>
         } @else {
-          <h2 class="cards-eyebrow">Pick your estimate</h2>
+          <h2 class="section">Pick your estimate</h2>
 
           <div class="grid" role="group" aria-label="Choose your estimate">
             @for (card of round.scale.cards; track card) {
@@ -166,77 +161,53 @@ import { ActionMenuService } from '../shared/ui/action-menu.service';
         </ion-toolbar>
       </ion-footer>
     }
+
   `,
   styles: [
     `
-      /* Round N in toolbar — Fraunces numeral-lg (CRITICAL FIX) */
-      .round-title {
-        font: var(--hnch-numeral-lg);
-        letter-spacing: var(--hnch-numeral-tracking);
-        font-variant-numeric: tabular-nums;
+      .title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin: 0.25rem 0 0.25rem;
       }
-      /* Subject area */
-      .subject-eyebrow {
-        margin: 0 0 var(--hnch-sp-1);
-        font: var(--hnch-eyebrow);
-        letter-spacing: var(--hnch-eyebrow-tracking);
-        text-transform: uppercase;
-        color: var(--hnch-muted);
-      }
-      .subject-title {
-        margin: 0 0 var(--hnch-sp-3);
-        font: var(--hnch-display-md);
-        letter-spacing: var(--hnch-display-tracking);
-        color: var(--hnch-text);
-      }
-      .elapsed {
-        margin: 0 0 var(--hnch-sp-3);
-        font-variant-numeric: tabular-nums;
-        letter-spacing: var(--hnch-numeral-tracking);
+      .descriptor {
+        margin: 0 0 1rem;
         color: var(--ion-color-medium);
       }
-      /* Host sees large elapsed timer (numeral-xl); voters see compact pill (numeral-lg) */
-      .elapsed--host {
-        font: var(--hnch-numeral-xl);
+      .elapsed {
+        font-size: 2rem;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        margin: 0.5rem 0 1rem;
+        color: var(--ion-color-medium);
       }
-      .elapsed--voter {
-        font: var(--hnch-numeral-lg);
+      .section {
+        margin: 1.5rem 0 0.5rem;
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--ion-color-medium);
       }
-      .cards-eyebrow {
-        margin: var(--hnch-sp-4) 0 var(--hnch-sp-2);
-        font: var(--hnch-eyebrow);
-        letter-spacing: var(--hnch-eyebrow-tracking);
-        text-transform: uppercase;
-        color: var(--hnch-muted);
-      }
-      /* Vote card grid */
       .grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
-        gap: var(--hnch-sp-3);
-      }
-      @media (min-width: 768px) {
-        .grid {
-          grid-template-columns: repeat(auto-fit, minmax(112px, 140px));
-        }
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.75rem;
       }
       .card {
         margin: 0;
-        border-radius: var(--hnch-r-lg);
         border: 2px solid transparent;
-        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        transition: border-color 0.15s ease, background 0.15s ease;
       }
       .card.selected {
         border-color: var(--ion-color-primary);
-        box-shadow: var(--hnch-shadow-3);
+        background: var(--ion-color-primary-tint);
       }
       .card-face {
         display: flex;
         align-items: center;
         justify-content: center;
-        min-height: 80px;
-        font: var(--hnch-card-glyph);
-        padding: var(--hnch-sp-4) var(--hnch-sp-2);
+        min-height: 4.5rem;
+        font-size: 1.75rem;
+        font-weight: 700;
       }
       @media (prefers-reduced-motion: reduce) {
         .card {
@@ -245,15 +216,14 @@ import { ActionMenuService } from '../shared/ui/action-menu.service';
       }
       .empty {
         color: var(--ion-color-medium);
-        margin: var(--hnch-sp-7) 0;
+        margin: 2rem 0;
         text-align: center;
-        font: var(--hnch-body);
       }
       .observer-notice {
-        margin: var(--hnch-sp-7) 0;
+        margin: 2rem 0;
         text-align: center;
         color: var(--ion-color-medium);
-        font: var(--hnch-body);
+        font-size: 1.1rem;
       }
     `,
   ],
@@ -265,17 +235,28 @@ export class EstimatingPage {
   private readonly haptic = inject(HapticService);
   private readonly lastSessionService = inject(LastSessionService);
   private readonly timerTick = inject(TimerTickService);
+  private readonly actionSheetCtrl = inject(ActionSheetController);
   private readonly alertCtrl = inject(AlertController);
-  private readonly actionMenuService = inject(ActionMenuService);
 
   protected readonly currentRound = this.docService.currentRound;
   protected readonly onlineParticipants = this.docService.onlineParticipants;
 
+  // Tracks the last uuid written to the cache so the effect does not
+  // re-fire on every Yjs doc mutation while connected to the same room.
+  // Reset to null when status leaves 'connected' so a reconnect
+  // re-writes and bumps the TTL.
   private lastRecordedUuid: string | null = null;
 
   constructor() {
-    addIcons({ ellipsisHorizontalCircle });
+    addIcons({
+      'chevron-back-outline': chevronBackOutline,
+      'ellipsis-horizontal-circle': ellipsisHorizontalCircle,
+    });
 
+    // Bump `hnch.lastSession` so a reopen lands on Estimating rather
+    // than Lobby (plan §3.8). Deduped via lastRecordedUuid so we don't
+    // write on every Yjs doc mutation while staying connected
+    // (ADR-0022 §5).
     effect(() => {
       const code = this.docService.roomCode();
       const uuid = this.docService.meta()?.roomUuid;
@@ -294,6 +275,9 @@ export class EstimatingPage {
       }
     });
 
+    // Auto-navigate to Lobby when `revealedAt` is written — covers
+    // unanimous auto-reveal and host manual reveal. Scoped to this
+    // component's lifetime.
     effect(() => {
       const round = this.docService.currentRound();
       if (round?.revealedAt !== undefined) {
@@ -303,6 +287,8 @@ export class EstimatingPage {
       }
     });
 
+    // Unanimous auto-reveal: when all online voters have voted,
+    // write `revealedAt`. Guard: require at least 1 online voter (ADR-0018).
     effect(() => {
       const round = this.docService.currentRound();
       const onlineVoterIds = this.onlineVoterIds();
@@ -315,6 +301,12 @@ export class EstimatingPage {
 
   private readonly myId = this.participantIdService.id;
 
+  /**
+   * 1-based index of the current round within `rounds()`. Re-votes and
+   * Next Round both append, so the array-index lookup is exact. Returns
+   * `null` when there's no active round (transient — we just navigated
+   * in).
+   */
   protected readonly roundIndex = computed(() => {
     const round = this.currentRound();
     if (!round) return null;
@@ -323,12 +315,7 @@ export class EstimatingPage {
     return idx >= 0 ? idx + 1 : null;
   });
 
-  /** Back href — `/lobby/{code}` when code is known, else `/home`. */
-  protected readonly backHref = computed(() => {
-    const code = this.docService.roomCode();
-    return code ? `/lobby/${code}` : '/home';
-  });
-
+  /** The current user's card, or `null` when they haven't voted yet. */
   protected readonly myVote = computed<string | null>(() => {
     const id = this.myId();
     const round = this.currentRound();
@@ -336,6 +323,16 @@ export class EstimatingPage {
     return round.votes[id] ?? null;
   });
 
+  /**
+   * Set of participantIds that have a vote in the current round,
+   * filtered against awareness. A peer that cast a vote and then
+   * silently dropped (no close frame, just a dead connection) keeps
+   * its entry in `round.votes` — ADR-0011 treats the cast vote as
+   * authoritative — but we don't want the avatar row to keep showing
+   * them as "voted" when the tally won't include them on reveal.
+   * Revealed chips (§3.7) intentionally skip this filter because
+   * there the tally *is* the post-reveal record.
+   */
   protected readonly votedIds = computed<ReadonlySet<string>>(() => {
     const round = this.currentRound();
     if (!round) return new Set();
@@ -365,6 +362,7 @@ export class EstimatingPage {
     return !!myId && !!hostId && myId === hostId;
   });
 
+  /** True when the current user's effective role is `'viewer'`. */
   protected readonly isViewer = computed(() => {
     const myId = this.myId();
     if (!myId) return false;
@@ -372,6 +370,10 @@ export class EstimatingPage {
     return me ? participantRole(me) === 'viewer' : false;
   });
 
+  /**
+   * Elapsed voting time label (M:SS counting up), or `null` before the
+   * round's stopwatch has started. Driven by the 4 Hz wall-clock tick.
+   */
   protected readonly elapsedLabel = computed<string | null>(() => {
     const round = this.docService.currentRound();
     if (!round || round.timerStartedAt === undefined) return null;
@@ -406,29 +408,58 @@ export class EstimatingPage {
     this.docService.revealRound(round.id);
     const code = this.docService.roomCode();
     assertRoomCode(code, 'estimating.onReveal');
+    // replaceUrl: back-nav from Lobby (results view) should pop to the
+    // screen before Estimating, not bounce back here (plan §3.10).
     await this.router.navigate(['/lobby', code], { replaceUrl: true });
   }
 
-  protected async openMenu(): Promise<void> {
-    const items: { id: string; label: string; role?: 'destructive' | 'cancel' }[] = [
-      { id: 'leave', label: 'Leave session', role: 'destructive' },
+  /**
+   * Soft exit — back-chevron path. Navigates back to Lobby in the SAME
+   * session WITHOUT clearing the cache. Does not tear down the WebSocket.
+   */
+  protected softExit(): void {
+    const code = this.docService.roomCode();
+    assertRoomCode(code, 'estimating.softExit');
+    void this.router.navigate(['/lobby', code]);
+  }
+
+  protected async openActionSheet(): Promise<void> {
+    const buttons: { text: string; role?: string; handler?: () => void }[] = [
+      {
+        text: 'Session settings',
+        handler: () => {
+          // Navigate to lobby (session settings sheet lives there).
+          const code = this.docService.roomCode();
+          assertRoomCode(code, 'estimating.openActionSheet[Session settings]');
+          void this.router.navigate(['/lobby', code]);
+        },
+      },
+      {
+        text: 'Leave session',
+        role: 'destructive',
+        handler: () => {
+          void this.confirmLeave();
+        },
+      },
     ];
 
     if (this.isHost()) {
-      items.splice(0, 0, { id: 'end', label: 'End session for everyone', role: 'destructive' });
+      buttons.splice(1, 0, {
+        text: 'End session for everyone',
+        role: 'destructive',
+        handler: () => {
+          void this.confirmEndSession();
+        },
+      });
     }
 
-    items.push({ id: 'cancel', label: 'Cancel', role: 'cancel' });
+    buttons.push({ text: 'Cancel', role: 'cancel' });
 
-    const id = await this.actionMenuService.open(items, { header: 'Session' });
-    switch (id) {
-      case 'leave':
-        await this.confirmLeave();
-        break;
-      case 'end':
-        await this.confirmEndSession();
-        break;
-    }
+    const sheet = await this.actionSheetCtrl.create({
+      header: 'Session',
+      buttons,
+    });
+    await sheet.present();
   }
 
   private async confirmLeave(): Promise<void> {
@@ -453,10 +484,13 @@ export class EstimatingPage {
   private async leaveSession(): Promise<void> {
     const selfId = this.myId();
     if (selfId) {
+      // Write the soft-delete before disconnecting so peers see the removal (ADR-0036).
       this.docService.leaveSession(selfId);
+      // Flush the Yjs update through the WebSocket before closing (best-effort, 500 ms cap).
       await this.docService.flushUpdates();
     }
     this.docService.endSession();
+    // Destructive leave — clear cache so Jump-back-in banner does not reappear (ADR-0022).
     await this.lastSessionService.clear();
     await this.router.navigate(['/home']);
   }
@@ -484,6 +518,8 @@ export class EstimatingPage {
 // ---------------------------------------------------------------------------
 /**
  * Pure predicate: should the current round auto-reveal?
+ * Guards: round must exist + not already revealed, at least 1 online voter,
+ * all online voters have voted.
  */
 export function shouldAutoReveal(
   round:

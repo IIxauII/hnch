@@ -72,11 +72,11 @@ export interface JumpBackInSummary {
       .icon-tile {
         width: 36px;
         height: 36px;
-        border-radius: var(--hnch-r-sm);
+        border-radius: 10px;
         display: flex;
         align-items: center;
         justify-content: center;
-        margin-inline-end: var(--hnch-sp-3);
+        margin-inline-end: 12px;
       }
       .icon-tile--accent {
         background: var(--hnch-accent);

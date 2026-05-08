@@ -20,12 +20,13 @@ import {
   IonIcon,
   IonInput,
   IonItem,
+  IonLabel,
   IonList,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { ellipsisHorizontalOutline, qrCodeOutline } from 'ionicons/icons';
+import { qrCodeOutline } from 'ionicons/icons';
 
 import { environment } from '../../environments/environment';
 import { AppPreferenceService } from '../core/app-preference.service';
@@ -36,15 +37,22 @@ import { type QrScanErrorReason, QrScannerService } from '../core/qr-scanner.ser
 import { RelayRejectionError, resolveRoom } from '../core/relay/relay-api';
 import { ToastService } from '../services/toast.service';
 import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.component';
-import { ActionMenuService } from '../shared/ui/action-menu.service';
-import { PageHeaderComponent } from '../shared/ui/page-header.component';
 
 /**
- * Join Room (manual-entry path).
+ * Join Room manual-entry path.
  *
- * Eyebrow "join" + serif "Enter room code". Below: existing
- * SegmentedCodeInputComponent. Password field when room requires it.
- * Footer: QR scan item + Join button.
+ * The user types a 6-character code; we `GET /rooms/:code` to resolve
+ * it to a UUID (ADR-0016) and then hand off to `DocService.connect()`.
+ * On a successful resolve we seed the doc with the returned UUID + the
+ * code the user typed, open the y-websocket, and navigate to Lobby.
+ *
+ * Phase 3 only surfaces `unknown-room` in practice — the relay runs in
+ * permissive mode per plan §2.4. Other `JoinRejectionReason`s have
+ * user-visible copy wired already so Phase 5 doesn't need template
+ * churn to turn on password / invite enforcement.
+ *
+ * Three join paths feed this screen: manual code entry, `?code=`
+ * deep link (auto-populates), and QR scan (auto-populates + submits).
  */
 @Component({
   selector: 'app-join',
@@ -59,10 +67,10 @@ import { PageHeaderComponent } from '../shared/ui/page-header.component';
     IonIcon,
     IonInput,
     IonItem,
+    IonLabel,
     IonList,
     IonTitle,
     IonToolbar,
-    PageHeaderComponent,
     ReactiveFormsModule,
     SegmentedCodeInputComponent,
   ],
@@ -73,134 +81,131 @@ import { PageHeaderComponent } from '../shared/ui/page-header.component';
         <ion-buttons slot="start">
           <ion-back-button defaultHref="/home"></ion-back-button>
         </ion-buttons>
-        <ion-title style="font: var(--hnch-title)">Join</ion-title>
-        <ion-buttons slot="end">
-          <ion-button aria-label="More options" (click)="openMenu()">
-            <ion-icon slot="icon-only" name="ellipsis-horizontal-outline"></ion-icon>
-          </ion-button>
-        </ion-buttons>
+        <ion-title size="large">Join a Room</ion-title>
       </ion-toolbar>
     </ion-header>
-
     <ion-content [fullscreen]="true">
-      <div class="page-body">
-        <hnch-page-header
-          eyebrow="join"
-          title="Enter room code"
-          subtitle="Ask your host for the 6-character code."
-        />
+      <p class="page-subtitle">Enter the 6-character code your host shared.</p>
 
-        <div class="code-wrap">
-          <app-segmented-code-input [formControl]="codeControl" />
-        </div>
-
-        @if (needsPassword()) {
-          <ion-list inset="true" class="password-list">
-            <ion-item lines="none">
-              <ion-input
-                [formControl]="passwordControl"
-                label="Password"
-                labelPlacement="stacked"
-                type="password"
-                enterkeyhint="go"
-                placeholder="Enter the room password"
-                aria-label="Room password"
-                (keydown.enter)="submit()"
-              ></ion-input>
-            </ion-item>
-          </ion-list>
-          <p class="password-hint">This room is password-protected.</p>
-        }
-
-        @if (errorText()) {
-          <p class="error-text" role="alert" aria-live="polite">{{ errorText() }}</p>
-        }
+      <div class="code-card">
+        <div class="card-label">Room code</div>
+        <app-segmented-code-input [formControl]="codeControl" />
       </div>
-    </ion-content>
 
-    <ion-footer>
-      <div class="footer-inner">
-        <ion-button
-          fill="clear"
-          class="scan-btn"
-          aria-label="Scan QR code"
-          [disabled]="isSubmitting()"
-          (click)="onScanQr()"
-        >
-          <ion-icon slot="start" name="qr-code-outline" aria-hidden="true"></ion-icon>
-          Scan QR code
-        </ion-button>
+      <ion-list inset="true" class="qr-list">
+        <ion-item button="true" detail="true" [disabled]="isSubmitting()" (click)="onScanQr()">
+          <div class="icon-tile" slot="start" aria-hidden="true">
+            <ion-icon name="qr-code-outline"></ion-icon>
+          </div>
+          <ion-label>
+            <h2>Scan QR code</h2>
+            <p>Point your camera at the host's screen</p>
+          </ion-label>
+        </ion-item>
+      </ion-list>
+
+      @if (needsPassword()) {
+        <ion-list inset="true" class="password-list">
+          <ion-item lines="none">
+            <ion-input
+              [formControl]="passwordControl"
+              label="Password"
+              labelPlacement="stacked"
+              type="password"
+              enterkeyhint="go"
+              placeholder="Enter the room password"
+              (keydown.enter)="submit()"
+            ></ion-input>
+          </ion-item>
+          <p class="list-footer">This room is password-protected.</p>
+        </ion-list>
+      }
+
+      <div class="submit-wrap">
         <ion-button
           expand="block"
-          color="primary"
           size="large"
-          class="join-btn"
-          aria-label="Join room"
           [disabled]="!canJoin() || isSubmitting()"
           (click)="submit()"
         >
           Join
         </ion-button>
       </div>
-    </ion-footer>
+    </ion-content>
+    <ion-footer></ion-footer>
   `,
   styles: [
     `
       ion-content {
         --background: var(--hnch-bg);
+        --padding-start: 16px;
+        --padding-end: 16px;
       }
-      .page-body {
+      .page-subtitle {
+        margin: 0 4px 16px;
+        font-size: 15px;
+        color: var(--hnch-muted);
+        letter-spacing: -0.2px;
+      }
+      .code-card {
+        background: var(--hnch-surface);
+        border-radius: 16px;
+        padding: 20px 18px;
+        border: 0.5px solid var(--hnch-sep);
         display: flex;
         flex-direction: column;
-        padding: 0 var(--hnch-sp-4) var(--hnch-sp-6);
-        max-width: 480px;
-        margin: 0 auto;
+        gap: 12px;
       }
-      .code-wrap {
-        display: flex;
-        justify-content: center;
-        padding-block: var(--hnch-sp-4);
-        max-width: 420px;
-        margin: 0 auto;
-        width: 100%;
+      .card-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--hnch-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
       }
-      .password-list {
+      ion-list.qr-list,
+      ion-list.password-list {
         background: transparent;
-        margin-block-start: var(--hnch-sp-3);
+        margin-block-start: 16px;
       }
       ion-item {
         --background: var(--hnch-surface);
       }
-      .password-hint {
-        margin: var(--hnch-sp-2) var(--hnch-sp-4) 0;
-        font: var(--hnch-body-sm);
+      ion-item h2 {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--hnch-text);
+        margin: 0 0 2px;
+      }
+      ion-item p {
+        font-size: 13px;
+        color: var(--hnch-muted);
+        margin: 0;
+      }
+      .icon-tile {
+        width: 32px;
+        height: 32px;
+        border-radius: 9px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--hnch-accent-soft);
+        color: var(--hnch-accent);
+        margin-inline-end: 12px;
+      }
+      .icon-tile ion-icon {
+        font-size: 18px;
+      }
+      .list-footer {
+        margin: 4px 16px 0;
+        font-size: 13px;
         color: var(--hnch-muted);
       }
-      .error-text {
-        margin: var(--hnch-sp-3) var(--hnch-sp-4) 0;
-        font: var(--hnch-body-sm);
-        color: var(--ion-color-danger);
+      .submit-wrap {
+        padding: 28px 0 24px;
       }
       ion-footer {
-        --background: var(--hnch-bg);
-        box-shadow: none;
-      }
-      .footer-inner {
-        display: flex;
-        flex-direction: column;
-        gap: var(--hnch-sp-2);
-        padding: var(--hnch-sp-3) var(--hnch-sp-4) var(--hnch-sp-6);
-        max-width: 480px;
-        margin: 0 auto;
-      }
-      .scan-btn {
-        font: var(--hnch-body);
-        color: var(--hnch-muted);
-        align-self: center;
-      }
-      .join-btn {
-        font: var(--hnch-title);
-        --border-radius: var(--hnch-r-sm);
+        --background: transparent;
       }
     `,
   ],
@@ -214,8 +219,13 @@ export class JoinPage {
   private readonly participantIdService = inject(ParticipantIdService);
   private readonly qrScanner = inject(QrScannerService);
   private readonly toastService = inject(ToastService);
-  private readonly actionMenuService = inject(ActionMenuService);
 
+  /**
+   * Raw form control bound to the `ion-input`. We reformat the value on
+   * every edit so the user sees `XXX-XXX` even if they typed it flat or
+   * with mixed case; the underlying model stays in the normalized (no
+   * dash, uppercase) form that `isValidRoomCode` expects.
+   */
   protected readonly codeControl = new FormControl('', { nonNullable: true });
   protected readonly passwordControl = new FormControl('', { nonNullable: true });
 
@@ -227,15 +237,24 @@ export class JoinPage {
     initialValue: this.passwordControl.value,
   });
 
+  /**
+   * Normalized version of the field's current value — no dashes,
+   * uppercase. The Join button gates on this.
+   */
   private readonly normalizedCode = computed(() => normalizeRoomCode(this.rawValue()));
 
+  /** Set after resolving the room code — `true` when accessMode is `'password'`. */
   protected readonly needsPassword = signal(false);
-  protected readonly errorText = signal<string | null>(null);
 
+  /** The resolved room UUID, cached between resolve and connect. */
   private resolvedUuid: string | null = null;
 
   protected readonly canJoin = computed(() => {
     if (!isValidRoomCode(this.normalizedCode())) return false;
+    // Password gate applies only after the resolve step has identified
+    // the room as password-protected (`resolvedUuid !== null`). Before
+    // resolve, an unverified `pw=1` URL hint must not block submit()
+    // from running the resolve that would clear or confirm it.
     if (this.resolvedUuid !== null && this.needsPassword() && !this.rawPassword().trim())
       return false;
     return true;
@@ -244,35 +263,52 @@ export class JoinPage {
   protected readonly isSubmitting = signal(false);
 
   constructor() {
-    addIcons({
-      'qr-code-outline': qrCodeOutline,
-      'ellipsis-horizontal-outline': ellipsisHorizontalOutline,
-    });
+    addIcons({ 'qr-code-outline': qrCodeOutline });
 
+    // Live-reformat the field as the user types: normalize to strip
+    // dashes + uppercase, then re-insert the dash once we have six
+    // characters so the chrome matches 's `XXX-XXX` hint.
+    // `emitEvent: false` keeps the write from re-entering the
+    // valueChanges stream and flipping the caret.
     this.codeControl.valueChanges.subscribe((value) => {
       const normalized = normalizeRoomCode(value);
       const formatted = formatRoomCode(normalized);
       if (formatted !== value) {
         this.codeControl.setValue(formatted, { emitEvent: false });
       }
+      // Reset password state when the code changes — a different code
+      // may resolve to a different access mode.
       if (this.resolvedUuid !== null || this.needsPassword()) {
         this.resolvedUuid = null;
         this.needsPassword.set(false);
         this.passwordControl.reset();
       }
-      this.errorText.set(null);
     });
 
+    // Deep-link auto-fill + auto-submit: if navigated via /join?code=K7P9MR,
+    // seed the input and immediately kick off the same flow as manual Join.
+    // The displayNameGuard stashes /join?code=... for post-onboarding resume,
+    // so this also fires after the onboarding → resume flow.
+    //
+    // Auto-submit only when arriving with a code param — direct nav with no
+    // code (e.g. Home → Join button, Back from Lobby) must not auto-submit.
     const codeParam = this.route.snapshot.queryParamMap.get('code');
     if (codeParam) {
       const formatted = formatRoomCode(normalizeRoomCode(codeParam));
       this.codeControl.setValue(formatted);
 
+      // Apply the URL `pw=1` hint AFTER setting the code, so the
+      // valueChanges reset (which fires on setValue) does not wipe it.
       const pwParam = this.route.snapshot.queryParamMap.get('pw');
       if (pwParam === '1') {
         this.needsPassword.set(true);
       }
 
+      // Defer one microtask so valueChanges fires and normalizedCode() updates
+      // before submit() reads canJoin(). Only auto-submit if the user already
+      // has a display name — the guard handles the no-name case by stashing
+      // the URL and redirecting to onboarding; after onboarding completes and
+      // the user lands back here, getDisplayName() will resolve non-null.
       void this.displayNameService.getDisplayName().then((name) => {
         if (shouldAutoSubmitDeepLink(codeParam, name)) {
           void this.submit();
@@ -284,10 +320,12 @@ export class JoinPage {
   protected async submit(): Promise<void> {
     if (!this.canJoin() || this.isSubmitting()) return;
     this.isSubmitting.set(true);
-    this.errorText.set(null);
 
     const code = this.normalizedCode();
     try {
+      // Phase 1: resolve the code to get UUID + accessMode.
+      // If we already resolved (user is submitting with a password),
+      // skip the resolve step and go straight to connect.
       let uuid = this.resolvedUuid;
       if (uuid === null) {
         const resolved = await resolveRoom(
@@ -297,16 +335,19 @@ export class JoinPage {
         uuid = resolved.uuid;
 
         if (resolved.accessMode === 'password') {
+          // Show the password field and wait for the user to fill it in.
           this.resolvedUuid = uuid;
           this.needsPassword.set(true);
           this.isSubmitting.set(false);
           return;
         }
 
+        // Room is open — clear any stale pw=1 hint set before resolve.
         this.needsPassword.set(false);
         this.passwordControl.reset();
       }
 
+      // Phase 2: connect with credentials.
       const [displayName, participantId] = await Promise.all([
         this.displayNameService.getDisplayName(),
         this.participantIdService.getOrCreateId(),
@@ -334,14 +375,16 @@ export class JoinPage {
 
       const roomCode = this.docService.roomCode();
       if (!roomCode) {
-        throw new Error('join.page submit: docService.roomCode() is null after joinSession');
+        throw new Error(
+          'join.page submit: docService.roomCode() is null after joinSession — programming error',
+        );
       }
       await this.router.navigate(['/lobby', roomCode]);
     } catch (err) {
       if (err instanceof RelayRejectionError) {
-        this.errorText.set(rejectionCopy(err.reason));
+        await this.showRejectionToast(err.reason);
       } else {
-        this.errorText.set("Couldn't reach the relay. Check your connection and try again.");
+        await this.showGenericErrorToast();
       }
     } finally {
       this.isSubmitting.set(false);
@@ -355,31 +398,35 @@ export class JoinPage {
     if (result.status === 'cancelled') return;
 
     if (result.status === 'error') {
-      await this.toastService.error(qrScanErrorCopy(result.reason));
+      await this.toast(qrScanErrorCopy(result.reason));
       return;
     }
 
+    // result.status === 'ok'
     const code = parseInviteContent(result.value);
     if (!code) {
-      await this.toastService.error("That doesn't look like an hnch invite");
+      await this.toast("That doesn't look like an hnch invite");
       return;
     }
 
+    // Populate the input and auto-submit — the existing submit()
+    // handles open rooms (→ lobby) and password rooms (→ show field).
     this.codeControl.setValue(formatRoomCode(code));
     await this.submit();
   }
 
-  protected async openMenu(): Promise<void> {
-    const id = await this.actionMenuService.open(
-      [
-        { id: 'settings', label: 'Settings', icon: 'settings-outline' },
-        { id: 'cancel', label: 'Cancel', role: 'cancel' },
-      ],
-      { header: 'Join' },
-    );
-    if (id === 'settings') {
-      await this.router.navigate(['/settings']);
-    }
+  private async showRejectionToast(reason: JoinRejectionReason): Promise<void> {
+    await this.toast(rejectionCopy(reason));
+  }
+
+  private async showGenericErrorToast(): Promise<void> {
+    // Network failure or an unexpected 5xx — the relay wasn't reachable
+    // enough to give us a decoded rejection reason.
+    await this.toast("Couldn't reach the relay. Check your connection and try again.");
+  }
+
+  private async toast(message: string): Promise<void> {
+    await this.toastService.error(message);
   }
 }
 
@@ -387,6 +434,11 @@ export class JoinPage {
 // Exported helpers (also used in tests)
 // ---------------------------------------------------------------------------
 
+/**
+ * Returns true when a deep-link auto-submit should be attempted.
+ * Both conditions must hold: a code param was present in the URL, and the
+ * user already has a display name (guard handles the no-name case separately).
+ */
 export function shouldAutoSubmitDeepLink(
   codeParam: string | null,
   displayName: string | null,
@@ -399,6 +451,14 @@ export function shouldAutoSubmitDeepLink(
 // Module-private copy
 // ---------------------------------------------------------------------------
 
+/**
+ * Map a `JoinRejectionReason` to user-visible copy. Phase 3 only
+ * surfaces `unknown-room` (the relay is permissive until Phase 5); the
+ * rest are stubbed with generic copy so the exhaustive switch stays
+ * compile-checked as new reasons land.
+ *
+ * Exported so tests can lock the close-code → copy mapping.
+ */
 export function rejectionCopy(reason: JoinRejectionReason): string {
   switch (reason) {
     case 'unknown-room':
@@ -418,6 +478,10 @@ export function rejectionCopy(reason: JoinRejectionReason): string {
   }
 }
 
+/**
+ * Map a `QrScanErrorReason` to user-visible copy.
+ * Exported so tests can lock the reason → copy mapping.
+ */
 export function qrScanErrorCopy(reason: QrScanErrorReason): string {
   switch (reason) {
     case 'permission-denied':

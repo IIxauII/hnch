@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@angular/core';
-import { IonApp } from '@ionic/angular/standalone';
+import { IonApp, IonRouterOutlet } from '@ionic/angular/standalone';
 
-import { AppShellComponent } from './shell/app-shell.component';
 import { DocService } from './core/doc/doc.service';
 import { formatHostChangeMessage } from './core/host-change-message';
 import { HapticService } from './core/haptic.service';
@@ -14,7 +13,7 @@ import { ToastService } from './services/toast.service';
 
 /**
  * Root shell. Provides the `ion-app` container and the single nav stack
- * (`ion-router-outlet`). Per architecture conventions the app uses a single nav stack —
+ * (`ion-router-outlet`). Per  the app uses a single nav stack —
  * no tabs, no side menu — so this shell stays deliberately minimal.
  *
  * Services that run global effects (host election, host-change toast)
@@ -23,11 +22,11 @@ import { ToastService } from './services/toast.service';
  */
 @Component({
   selector: 'app-root',
-  imports: [IonApp, AppShellComponent],
+  imports: [IonApp, IonRouterOutlet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ion-app>
-      <hnch-app-shell />
+      <ion-router-outlet></ion-router-outlet>
     </ion-app>
   `,
 })

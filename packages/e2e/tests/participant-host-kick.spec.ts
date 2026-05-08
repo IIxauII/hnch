@@ -29,10 +29,8 @@ async function openSwipeDrawer(
   // Uses ion-label text content rather than aria-label because Ionic web
   // components may not reflect host-element aria-label attributes reliably
   // when queried from page.evaluate before hydration settles.
-  // Phase D: participant rows are in ion-list.participants-list inside hnch-participant-row.
-  // Name is in span.participant-name inside ion-label; use :has(span.participant-name) for match.
   const rowLocator = page.locator(
-    `ion-list.participants-list hnch-participant-row ion-item-sliding:has(span.participant-name:text-is("${participantName}"))`,
+    `ion-list.participants ion-item-sliding:has(ion-label:text-is("${participantName}"))`,
   );
   await rowLocator.waitFor({ state: 'visible', timeout: 5_000 });
 
@@ -177,7 +175,7 @@ test.describe('Host kick participant (ADR-0036)', () => {
     await player.joinSession(code);
 
     // Assert: player reaches lobby — relay accepted the connection.
-    await expect(player.page.locator(LOBBY.lobbyReady)).toBeVisible({ timeout: 10_000 });
+    await expect(player.page.locator(LOBBY.roomCode)).toBeVisible({ timeout: 10_000 });
     expect(player.page.url()).toMatch(/\/lobby/);
 
     // Assert: host sees count back at 2 and Player's name in the active roster.

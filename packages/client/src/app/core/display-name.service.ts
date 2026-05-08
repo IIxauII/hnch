@@ -6,7 +6,8 @@ import { Preferences } from '@capacitor/preferences';
  *
  * Uses Capacitor Preferences so the same code path works on web (via
  * localStorage under the hood) and on native (KeyChain on iOS,
- * SharedPreferences on Android). See ADR-0005 for identity strategy.
+ * SharedPreferences on Android). See ADR-0005 for identity strategy
+ *  for the onboarding flow this feeds.
  *
  * Keys are namespaced under `hnch.` to avoid collision with any
  * other data the bundled webview might persist.
