@@ -99,6 +99,7 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component';
           </ion-chip>
           <app-connection-chip></app-connection-chip>
           <ion-button
+            class="ion-hide-lg-up"
             aria-label="More options"
             (click)="openActionSheet()"
           >

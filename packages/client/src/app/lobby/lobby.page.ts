@@ -154,6 +154,7 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
         <ion-buttons slot="end">
           <app-connection-chip></app-connection-chip>
           <ion-button
+            class="ion-hide-lg-up"
             aria-label="More options"
             (click)="openActionSheet()"
           >
