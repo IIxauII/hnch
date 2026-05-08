@@ -5,6 +5,8 @@
  * stylesheet imports and truly app-wide rules.
  */
 
+@use 'theme/breakpoints' as *;
+
 /* Core CSS required for Ionic components to work properly */
 @import "@ionic/angular/css/core.css";
 
@@ -61,8 +63,6 @@
 // Must live in global.scss (not component SCSS) because ion-modal is portalled
 // outside the component tree and ignores encapsulated styles.
 // ---------------------------------------------------------------------------
-
-@use 'theme/breakpoints' as *;
 
 @media (min-width: $bp-md) {
   ion-modal.modal-centered::part(content) {
