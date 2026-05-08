@@ -54,3 +54,22 @@
   ion-radio[value="racing-green"]::part(label) { color: #1F6B4F; }
   ion-radio[value="graphite"]::part(label)     { color: #F2F2F7; }
 }
+
+// ---------------------------------------------------------------------------
+// Desktop modal — centered dialog style
+// Applied by SurfaceService.openModal() via the 'modal-centered' CSS class.
+// Must live in global.scss (not component SCSS) because ion-modal is portalled
+// outside the component tree and ignores encapsulated styles.
+// ---------------------------------------------------------------------------
+
+@use 'theme/breakpoints' as *;
+
+@media (min-width: $bp-md) {
+  ion-modal.modal-centered::part(content) {
+    --width: min(480px, 90vw);
+    --height: auto;
+    --max-height: 80vh;
+    --border-radius: 16px;
+  }
+  ion-modal.modal-centered::part(handle) { display: none; }
+}
