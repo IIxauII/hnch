@@ -59,8 +59,9 @@
  * Apply via class="hnch-form-modal" on <ion-modal>. */
 .hnch-form-modal {
   --width: min(560px, 92vw);
-  --height: auto;
-  --max-height: 80vh;
+  --height: min(640px, 90vh);
+  --min-height: 320px;
+  --max-height: 90vh;
   --border-radius: 16px;
 }
 
@@ -68,6 +69,7 @@
   .hnch-form-modal {
     --width: 100%;
     --height: 100%;
+    --min-height: 100%;
     --max-height: 100%;
     --border-radius: 0;
   }

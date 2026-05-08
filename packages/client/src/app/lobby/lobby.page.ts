@@ -785,8 +785,7 @@ export class LobbyPage {
   }
 
   protected openRoundStart(): void {
-    const modal = this.modalRef();
-    if (modal) void presentSheet({ modal });
+    this.roundStartOpen.set(true);
   }
 
   protected async onRoundStart(submission: RoundStartSubmission): Promise<void> {
@@ -794,7 +793,6 @@ export class LobbyPage {
       ...(submission.title !== null && { title: submission.title }),
     });
     await this.modalRef()?.dismiss();
-    this.roundStartOpen.set(false);
     const code = this.docService.roomCode();
     assertRoomCode(code, 'lobby.onRoundStart');
     await this.router.navigate(['/estimating', code]);
@@ -886,13 +884,11 @@ export class LobbyPage {
   }
 
   protected openSessionSettings(): void {
-    const modal = this.sessionSettingsModalRef();
-    if (modal) void presentSheet({ modal });
+    this.sessionSettingsOpen.set(true);
   }
 
   protected async closeSessionSettings(): Promise<void> {
     await this.sessionSettingsModalRef()?.dismiss();
-    this.sessionSettingsOpen.set(false);
   }
 
   protected onAccessChanged(selection: {

@@ -345,7 +345,6 @@ export class ScalePickerSheetComponent {
 
   protected async closeEditor(): Promise<void> {
     await this.editorModalRef()?.dismiss();
-    this.editorOpen.set(false);
   }
 
   protected openCustomEditor(scale?: CustomScale): void {
@@ -355,7 +354,6 @@ export class ScalePickerSheetComponent {
 
   protected async closeCustomEditor(): Promise<void> {
     await this.customEditorModalRef()?.dismiss();
-    this.customEditorOpen.set(false);
   }
 
   protected onCustomScaleCreated(id: string): void {

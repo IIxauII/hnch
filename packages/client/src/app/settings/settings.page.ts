@@ -380,13 +380,11 @@ export class SettingsPage {
   // ---------------------------------------------------------------------------
 
   protected openRelayUrlEditor(): void {
-    const modal = this.relayUrlModalRef();
-    if (modal) void presentSheet({ modal });
+    this.relayUrlEditorOpen.set(true);
   }
 
   protected async closeRelayUrlEditor(): Promise<void> {
     await this.relayUrlModalRef()?.dismiss();
-    this.relayUrlEditorOpen.set(false);
   }
 
   protected onRelayUrlSaved(url: string | undefined): void {

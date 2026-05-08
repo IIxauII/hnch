@@ -42,7 +42,6 @@ import { mintRoom, patchRoomAccess } from '../core/relay/relay-api';
 import { assertRoomCode, RoomJoinService } from '../core/room-join.service';
 import { JumpBackInBannerComponent, type JumpBackInSummary } from './jump-back-in-banner.component';
 import { PasswordPromptSheetComponent } from './password-prompt.sheet';
-import { presentSheet } from '../utils/present-sheet';
 import { IconTileComponent } from '../shared/icon-tile.component';
 
 /**
@@ -295,8 +294,7 @@ export class HomePage {
       // navigate to lobby directly.
       if (this.appPrefs.defaultPassword()) {
         this.pendingRoomUuid = minted.uuid;
-        const modal = this.passwordModalRef();
-        if (modal) void presentSheet({ modal });
+        this.passwordPromptOpen.set(true);
       } else {
         await this.router.navigate(['/lobby', minted.code]);
       }
@@ -445,9 +443,8 @@ export class HomePage {
         throw new Error('onPasswordSubmitted: no pending room uuid/code');
       }
 
-      // Dismiss the modal and close the signal
+      // Dismiss the modal (didDismiss binding resets the signal)
       await this.passwordModalRef()?.dismiss();
-      this.passwordPromptOpen.set(false);
 
       // If password is non-empty, hash and apply it
       if (password.trim()) {
@@ -474,7 +471,6 @@ export class HomePage {
    */
   protected async onPasswordPromptClosed(): Promise<void> {
     await this.passwordModalRef()?.dismiss();
-    this.passwordPromptOpen.set(false);
     const code = this.docService.roomCode();
     if (!code) {
       throw new Error('onPasswordPromptClosed: docService.roomCode() is null — no active session');
