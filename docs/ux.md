@@ -102,6 +102,7 @@ Leave session, End session for everyone → ⋯ action sheet with `role: 'destru
 | Scale picker | `ion-modal` half-sheet | Session settings → Scale row |
 | Access picker | `ion-modal` half-sheet | Session settings → Access row |
 | Round-start modal | `ion-modal` half-sheet | Lobby → Start Round N (optional descriptor input) |
+| Round descriptor editor | `ion-modal` half-sheet (`app-round-edit-sheet`) | Lobby results → pencil icon on current round results row; Lobby history → pencil icon on a past-round row (host only) |
 | Display name editor | `ion-modal` half-sheet | Settings → Display name row |
 | Theme picker | `ion-modal` half-sheet | Settings → Theme row |
 | Scale picker (settings) | `ion-modal` half-sheet | Settings → Default scale row |
