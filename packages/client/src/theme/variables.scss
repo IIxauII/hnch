@@ -24,6 +24,37 @@
   --hnch-shadow-2: 0 8px 24px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.08);
   --hnch-shadow-3: 0 0 0 2px var(--ion-color-primary), 0 6px 18px rgba(0,0,0,0.10);
 
+  // Type ramp — font-family BAKED IN. Raw font-family outside this file is banned by lint.
+  // Display headings (Fraunces serif, 600 weight)
+  --hnch-display-xl: 600 56px/1.05 'Fraunces', Georgia, serif;
+  --hnch-display-lg: 600 40px/1.1 'Fraunces', Georgia, serif;
+  --hnch-display-md: 600 28px/1.15 'Fraunces', Georgia, serif;
+
+  // Numerals (Fraunces serif, 600 weight, tabular-nums applied at consumer)
+  --hnch-numeral-xl: 600 72px/1 'Fraunces', Georgia, serif;
+  --hnch-numeral-lg: 600 44px/1 'Fraunces', Georgia, serif;
+
+  // Vote card glyph (Fraunces serif)
+  --hnch-card-glyph: 600 32px/1 'Fraunces', Georgia, serif;
+
+  // Chrome typography (Inter Tight sans)
+  --hnch-title:    600 20px/1.3 'Inter Tight', system-ui, sans-serif;
+  --hnch-body:     450 15px/1.45 'Inter Tight', system-ui, sans-serif;
+  --hnch-body-sm:  450 13px/1.4 'Inter Tight', system-ui, sans-serif;
+  --hnch-eyebrow:  600 11px/1.3 'Inter Tight', system-ui, sans-serif;
+
+  // Code/mono (JetBrains Mono)
+  --hnch-mono: 500 13px/1.4 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+
+  // Letter-spacing for ramp (apply via dedicated vars where used)
+  --hnch-display-tracking: -0.015em;
+  --hnch-numeral-tracking: -0.01em;
+  --hnch-eyebrow-tracking: 0.14em;
+
+  // DEPRECATED: kept for backwards compat during migration
+  --hnch-font-display: 600 28px/1.15 'Fraunces', Georgia, serif;
+  --hnch-font-body: 450 15px/1.45 'Inter Tight', system-ui, sans-serif;
+
   // Background & surfaces
   --hnch-bg:           #F2F2F7;
   --hnch-surface:      #FFFFFF;
