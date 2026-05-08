@@ -4,7 +4,7 @@ import { displayNameGuard } from './core/display-name.guard';
 import { sessionResumeGuard } from './core/session-resume.guard';
 
 /**
- * Route table for hnch v1 per roadmap.md §3 and ux.md §3.
+ * Route table for hnch v1 per roadmap.md §3
  *
  * All seven v1 screens are lazy-loaded via `loadComponent` so the
  * initial bundle only carries the route table, the app shell, and

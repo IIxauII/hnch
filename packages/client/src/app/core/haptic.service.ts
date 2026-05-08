@@ -9,7 +9,7 @@ import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
  * promise is intentionally not awaited (haptic latency should never
  * block UI). The plugin is a safe no-op on web.
  *
- * See ux.md §6 for the full haptic map.
+ * See documentation for the full haptic map.
  */
 @Injectable({ providedIn: 'root' })
 export class HapticService {

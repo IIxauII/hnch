@@ -36,13 +36,13 @@ Curated list of bugs, technical-debt items, features, and improvements. Updated 
 
 ### 2.2 Reconnect UX — "Reconnecting…" banner — **shipped**
 
-**SHIPPED** — Implemented as `ConnectionStatusBannerComponent` (`packages/client/src/app/shared/connection-status-banner.component.ts`), mounted at the top of `<ion-content>` on Lobby and Estimating. Shown when `DocService.reconnecting()` is true (debounced ~5 s, gated on first-connect). On reconnect, a transient `ion-toast` ("Reconnected") auto-dismisses. See `ux.md §8` for the full spec.
+**SHIPPED** — Implemented as `ConnectionStatusBannerComponent` (`packages/client/src/app/shared/connection-status-banner.component.ts`), mounted at the top of `<ion-content>` on Lobby and Estimating. Shown when `DocService.reconnecting()` is true (debounced ~5 s, gated on first-connect). On reconnect, a transient `ion-toast` ("Reconnected") auto-dismisses. See v1 design for the full spec.
 
 ---
 
 ### 2.3 Host-election transition state — **resolved**
 
-**RESOLVED** (issue #43) — No inline status during the 5-second debounce. Instead, the post-election toast names the prior host ("Alice disconnected. Bob is now the host."), giving participants context once the new host is elected. The 5-second silence is accepted as too short for a useful inline indicator. See `ux.md §8`.
+**RESOLVED** (issue #43) — No inline status during the 5-second debounce. Instead, the post-election toast names the prior host ("Alice disconnected. Bob is now the host."), giving participants context once the new host is elected. The 5-second silence is accepted as too short for a useful inline indicator. See v1 design.
 
 ---
 
@@ -131,7 +131,7 @@ ADR-0013 §7 action items list "export formats beyond clipboard markdown dump" a
 
 ### 4.2 Consensus indicator in Lobby results
 
-`ux.md §8` defers this to post-v1 but the architecture is ready today. When all cast votes in a revealed round are equal, show a celebratory state: distinct icon/colour treatment on the results section, a "Consensus!" banner, and a distinct haptic (using the haptic service already wired in Phase 6a).
+v1 design defers this to post-v1 but the architecture is ready today. When all cast votes in a revealed round are equal, show a celebratory state: distinct icon/colour treatment on the results section, a "Consensus!" banner, and a distinct haptic (using the haptic service already wired in Phase 6a).
 
 **Scope:** purely a display-layer addition — no schema change needed, no new ADR. Consensus is computed from the already-projected round results.
 
@@ -139,7 +139,7 @@ ADR-0013 §7 action items list "export formats beyond clipboard markdown dump" a
 
 ### 4.3 Re-vote breadcrumb in Lobby results
 
-`ux.md §8` notes that `parentRoundId` is stored but not surfaced in the UI. When viewing results for a re-voted round (Round N with a non-null `parentRoundId`), show a subtitle like "Re-vote of Round 1" to help teams track how many attempts it took to reach consensus.
+v1 design notes that `parentRoundId` is stored but not surfaced in the UI. When viewing results for a re-voted round (Round N with a non-null `parentRoundId`), show a subtitle like "Re-vote of Round 1" to help teams track how many attempts it took to reach consensus.
 
 **Scope:** read-only display change. Walk the `parentRoundId` chain to count attempts; show "Attempt N" or "Re-vote of Round M".
 
@@ -147,7 +147,7 @@ ADR-0013 §7 action items list "export formats beyond clipboard markdown dump" a
 
 ### 4.4 Password-hint in invite URL
 
-`ux.md §8` asks: should invite URLs for password-protected rooms include a hint that a password is required? Currently, joining via a deep link into a password-protected room involves a round-trip: the client fetches the room, discovers it is password-protected, then shows the password field.
+v1 design asks: should invite URLs for password-protected rooms include a hint that a password is required? Currently, joining via a deep link into a password-protected room involves a round-trip: the client fetches the room, discovers it is password-protected, then shows the password field.
 
 **Proposed:** append `?code=XXXXXX&protected=1` (or similar) to the invite URL so the Join screen can pre-show the password field without a round-trip. This interacts with ADR-0009's opaque-token model — a full decision needs an ADR amendment before implementing.
 
@@ -215,5 +215,5 @@ These are deliberately excluded from v1 per `roadmap.md §11` but worth keeping 
 - **Jira / Linear integrations** — story-point writing back to trackers; post-v1.
 - **Account sign-in / cross-device identity** — device-scoped identity (ADR-0005) is the v1 model.
 - **Session history / analytics** — beyond the Jump-back-in banner; post-v1.
-- **Liquid Glass / iOS 26 theming** — `@rdlabo/ionic-theme-ios26` deferred pending package stabilisation (`ux.md §7`).
+- **Liquid Glass / iOS 26 theming** — `@rdlabo/ionic-theme-ios26` deferred pending package stabilisation (v1 design).
 - **Export formats beyond clipboard markdown** — CSV/PDF/JSON export; post-v1.

@@ -42,7 +42,7 @@ import { PageHeaderComponent } from '../shared/ui/page-header.component';
 import { SectionCardComponent } from '../shared/ui/section-card.component';
 
 /**
- * App Settings screen — ux.md §5.7.
+ * App Settings screen
  *
  * Phase D redesign:
  *  - Mobile toolbar: "Settings" Inter Tight, leading back-button.

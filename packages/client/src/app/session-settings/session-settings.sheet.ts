@@ -37,7 +37,7 @@ import { formatScaleId } from '@hnch/shared';
 import { FormModalShellComponent } from '../shared/ui/form-modal-shell.component';
 
 /**
- * Session settings modal — ux.md §5.8.
+ * Session settings modal
  *
  * Two rows (Scale, Access) with chevrons that open the corresponding
  * picker half-sheets. Scale writes through to `DocService` immediately

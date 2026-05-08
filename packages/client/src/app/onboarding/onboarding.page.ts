@@ -15,9 +15,8 @@ import { DisplayNameService } from '../core/display-name.service';
 
 /**
  * First-run Onboarding: capture a display name and persist it before
- * the user can reach any other screen. Wireframe in ux.md §5.1; flow
- * in §4.1. The name is attached to the ADR-0005 `participantId`
- * later, once a session is created or joined.
+ * the user can reach any other screen. The name is attached to the
+ * ADR-0005 `participantId` later, once a session is created or joined.
  *
  * Continue is disabled while the trimmed input is empty. On tap the
  * name is persisted via `DisplayNameService`, and we resume any

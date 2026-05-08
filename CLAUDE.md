@@ -16,7 +16,6 @@ Implementation through Phase 6a (PWA polish) plus mobile-parity gap closure. Pha
 
 - `docs/project.md` — product and design overview: what the app does, high-level architecture, user-visible behavior. The authoritative source for *what* the product is.
 - `docs/schema.md` — the Yjs doc schema. Authoritative for the *shape* of session state, cross-linked to the ADRs that justify each field.
-- `docs/ux.md` — user experience design: screen inventory, flows, per-screen wireframes, interaction patterns, theming. The authoritative source for *what the user sees and does*. Cross-links to ADRs where UX decisions touch architecture.
 - `docs/roadmap.md` — phased implementation plan from the current scaffold to a v1 candidate. A map, not a spec: each phase has a scope and an exit bar.
 - `docs/angular.md` — Angular and TypeScript coding conventions for the client package: signals, standalone components, control-flow syntax, accessibility baseline, and other house rules. Consult before writing or reviewing client code.
 - `docs/ionic.md` — Ionic-specific conventions: platform mode, dark mode / theming (class-based toggling via `ThemeService`), half-sheet modal pattern, component imports, icons, safe areas. Consult alongside `docs/angular.md`.

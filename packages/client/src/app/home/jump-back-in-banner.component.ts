@@ -6,7 +6,7 @@ import { returnUpBackOutline } from 'ionicons/icons';
 import type { LastSessionScreen } from '../core/last-session.service';
 
 /**
- * Jump-back-in banner — ux.md §5.2.
+ * Jump-back-in banner
  *
  * Renders as a third row inside the parent's `ion-list.actions`,
  * matching the Create Room / Join Room rows. The host element uses

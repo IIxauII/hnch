@@ -14,7 +14,7 @@ import { ToastService } from './services/toast.service';
 
 /**
  * Root shell. Provides the `ion-app` container and the single nav stack
- * (`ion-router-outlet`). Per ux.md §2 the app uses a single nav stack —
+ * (`ion-router-outlet`). Per architecture conventions the app uses a single nav stack —
  * no tabs, no side menu — so this shell stays deliberately minimal.
  *
  * Services that run global effects (host election, host-change toast)

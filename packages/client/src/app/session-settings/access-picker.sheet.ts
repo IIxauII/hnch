@@ -42,7 +42,7 @@ const OPTIONS: readonly AccessOption[] = [
 ];
 
 /**
- * Access picker half-sheet — ux.md §5.8.
+ * Access picker half-sheet
  *
  * Phase 2 scope per plan §3.6: the component *renders* the picker and
  * the conditional password input, but the container doesn't write

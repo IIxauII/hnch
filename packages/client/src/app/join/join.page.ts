@@ -40,7 +40,7 @@ import { ActionMenuService } from '../shared/ui/action-menu.service';
 import { PageHeaderComponent } from '../shared/ui/page-header.component';
 
 /**
- * Join Room — ux.md §5.3 manual-entry path.
+ * Join Room (manual-entry path).
  *
  * Eyebrow "join" + serif "Enter room code". Below: existing
  * SegmentedCodeInputComponent. Password field when room requires it.

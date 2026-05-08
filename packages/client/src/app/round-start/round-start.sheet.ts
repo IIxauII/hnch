@@ -15,7 +15,7 @@ export interface RoundStartSubmission {
 }
 
 /**
- * Round-start modal content — ux.md §5.8 "Round-start modal".
+ * Round-start modal content.
  *
  * Rendered inside an `<ion-modal>` by the caller; this component
  * owns only the internal chrome (title, descriptor input, footer

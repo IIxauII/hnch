@@ -62,7 +62,7 @@ import { ParticipantRowComponent } from '../shared/ui/participant-row.component'
 import { SectionCardComponent } from '../shared/ui/section-card.component';
 
 /**
- * Lobby — ux.md §5.4.
+ * Lobby
  *
  * Redesigned layout (Phase D):
  *  - Giant `62BFVN` hero removed. Code lives in a SectionCard (mobile-only).

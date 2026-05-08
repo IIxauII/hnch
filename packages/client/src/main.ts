@@ -18,7 +18,7 @@ import { ScalePreferenceService } from './app/core/scale-preference.service';
 import { ThemeService } from './app/core/theme.service';
 
 // Ionic's `mode` is intentionally left unset — Ionic auto-detects per
-// platform (iOS on iPhone, Material on Android / PWA). See ux.md §2.
+// platform (iOS on iPhone, Material on Android / PWA).
 bootstrapApplication(AppComponent, {
   providers: [
     provideIonicAngular(),

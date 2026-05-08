@@ -173,7 +173,7 @@ interface VoteGroup {
         min-height: 1.5rem;
       }
 
-      /* Reveal animation — ux.md §6: 80ms stagger, 200ms fade-in-up */
+      /* Reveal animation: 80ms stagger, 200ms fade-in-up */
       @keyframes fadeInUp {
         from {
           opacity: 0;

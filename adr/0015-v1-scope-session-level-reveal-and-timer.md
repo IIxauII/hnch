@@ -7,7 +7,7 @@
 
 - ADR-0013 round shape carried per-round `revealMode` and `timerDurationMs?`, with session-level defaults inherited.
 - `revealMode` union included `'manual' | 'timer' | 'unanimous'`.
-- Drafting `ux.md` narrowed scope: reveal triggered by host (manual) or timer expiry only — `'unanimous'` rejected (slow-voter pressure, last-second change-of-mind surprise). Timer duration session-level only — no real planning-poker motivation for per-round overrides.
+- v1 scope narrowed: reveal triggered by host (manual) or timer expiry only — `'unanimous'` rejected (slow-voter pressure, last-second change-of-mind surprise). Timer duration session-level only — no real planning-poker motivation for per-round overrides.
 - Schema today carries fields v1 UI never populates/reads. Choice: keep flexibility vs narrow now.
 
 ## Decision

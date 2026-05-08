@@ -41,7 +41,7 @@ import { PageHeaderComponent } from '../shared/ui/page-header.component';
 import { SectionCardComponent } from '../shared/ui/section-card.component';
 
 /**
- * Home launchpad — ux.md §5.2.
+ * Home launchpad
  *
  * Two primary entry points (Create, Join) in a SectionCard, an optional
  * "Recent" SectionCard with a Jump-back-in banner above them, and a ⋯

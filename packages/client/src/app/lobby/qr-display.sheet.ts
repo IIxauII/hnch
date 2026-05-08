@@ -10,7 +10,7 @@ import {
 import QRCode from 'qrcode';
 
 /**
- * Full-screen QR display — ux.md §6 "QR display".
+ * Full-screen QR display.
  *
  * Renders the invite URL as a large QR code with the formatted room
  * code below for readability and accessibility. The caller owns the

@@ -5,8 +5,7 @@ This document sketches the path from today's scaffolding to a shippable v1. It i
 Sibling docs:
 - [`project.md`](project.md) — what the product is.
 - [`schema.md`](schema.md) — the Yjs doc shape (authoritative).
-- [`ux.md`](ux.md) — what the user sees and does (authoritative).
-- [`adr/`](../adr/README.md) — why each structural choice was made.
+- - [`adr/`](../adr/README.md) — why each structural choice was made.
 
 Implementation phases are intentionally *vertical slices* — each phase ends at a demonstrable outcome rather than a layer completion. This keeps the project continuously demoable and forces end-to-end thinking early.
 
@@ -34,7 +33,7 @@ What already exists at the moment this roadmap is written:
 - `packages/relay` — a 32-line stub `index.ts` that prints a sanity-check line. No y-websocket server, no handshake, no snapshot store.
 - `packages/shared` — two real modules: `room-code.ts` (6-char no-look-alike generator per [ADR-0008](../adr/0008-room-code-format.md), covered by `room-code.test.ts`) and `auth.ts` (type skeletons for `JoinCredentials` / `JoinResponse` per [ADR-0009](../adr/0009-access-control-relay-tokens.md)). No Yjs doc-shape types yet.
 - `mise.toml` pinning pnpm/node/etc. (from scaffolding phase).
-- 15 accepted ADRs. [`schema.md`](schema.md) and [`ux.md`](ux.md) current with [ADR-0015](../adr/0015-v1-scope-session-level-reveal-and-timer.md).
+- 15 accepted ADRs. [`schema.md`](schema.md) and this directory current with [ADR-0015](../adr/0015-v1-scope-session-level-reveal-and-timer.md).
 
 Concrete implication: Phase 1 starts with real work on three fronts (client bootstrap, shared Yjs types, dev-loop ergonomics) but with all the architecture questions already answered.
 
@@ -59,7 +58,7 @@ Each phase assumes the previous one passes its exit bar. Within a phase, orderin
 **Scope.** Get the shell working; no session behavior yet.
 
 **Work.**
-- Bootstrap: `provideIonicAngular()` in `main.ts` with Ionic's default mode (auto-detected per platform — iOS on iPhone, Material on Android/PWA). See [`ux.md` §2](ux.md#2-app-shell--navigation).
+- Bootstrap: `provideIonicAngular()` in `main.ts` with Ionic's default mode (auto-detected per platform — iOS on iPhone, Material on Android/PWA). See architecture conventions.
 - Angular routing: six routes for the v1 screens — `onboarding`, `home`, `join`, `lobby`, `estimating`, `settings`. Placeholder components, nothing more. Route guard that redirects to `onboarding` on first launch (no stored display name).
 - `packages/shared`: add `doc.ts` — TypeScript interfaces that mirror [`schema.md`](schema.md) one-to-one: `Meta`, `Settings`, `Participant`, `Round`, `Scale`, `RevealMode`, awareness payload. These are the types client and relay will share going forward. No Yjs bindings yet (those live in the client — shared is platform-neutral).
 - Onboarding screen: name input + Continue button, writes to `@capacitor/preferences`. Handles the pending-join-URL case (if the app launched via deep link before onboarding, stash it and resume to Join after save).
@@ -82,7 +81,7 @@ Each phase assumes the previous one passes its exit bar. Within a phase, orderin
 **Work.**
 - Doc service: a client-side service that owns a `Y.Doc`, exposes strongly-typed read/write helpers derived from the Phase-1 shared types, and emits observables for Settings / Participants / current Round. No persistence, no relay — the doc is in-memory.
 - Lobby screen: wired to the doc. Shows participants (just you), settings summary, Share / QR placeholders, and "Start Round 1" button.
-- Session Settings half-sheet ([`ux.md` §5.7](ux.md#57-overlays)): scale picker, access picker. Access has no runtime effect yet — just writes to `settings`.
+- Session Settings half-sheet (architecture conventions): scale picker, access picker. Access has no runtime effect yet — just writes to `settings`.
 - Round-start modal: captures optional descriptor, writes a new Round.
 - Estimating screen: 3-column card grid, vote cast + change, avatar row (just you, trivially), host-only Reveal button.
 - Lobby post-reveal: results shown inline (grouped by vote value, voter chips, stats). Re-vote (creates Round with `parentRoundId`) and Next Round both work.
@@ -178,11 +177,11 @@ This design work is ~1 hour; resolve it before relay code lands.
 - Client:
   - Access picker on Session Settings writes the chosen mode; host's create-room / update-settings flow registers the credential with the relay via `PATCH`.
   - Join Room screen: renders the password field inline when the entered code resolves to a password-protected room; surfaces error toasts for the rejection reasons.
-  - Share sheet (`@capacitor/share`) from the Lobby Share button with clipboard fallback on web; content per `ux.md` §6.
+  - Share sheet (`@capacitor/share`) from the Lobby Share button with clipboard fallback on web; content per v1 design
   - Deep-link join via `/join?code=` query param with onboarding resume support.
   - QR display modal on Lobby: full-screen `ion-modal` with invite URL encoded as a large QR via `qrcode` library.
   - QR scanning on Join Room via `@capacitor-mlkit/barcode-scanning`; auto-submits on valid scan, shows password field if room is password-protected.
-- Expired-room handling: when relay returns `unknown-room`, show the toast + return to Home (per `ux.md` §4.6).
+- Expired-room handling: when relay returns `unknown-room`, show the toast + return to Home (per v1 design).
 
 **ADRs touched.** [ADR-0017](../adr/0017-password-hashing-drop-invite-only.md) — password hashing scheme and invite-only removal.
 
@@ -202,7 +201,7 @@ This design work is ~1 hour; resolve it before relay code lands.
 - Theme: Settings screen with display-name editor and theme picker (System / Light / Dark). Persist via Preferences; apply pre-first-paint.
 - Settings screen's remaining content: version, open-source licenses, privacy.
 - Reveal animation (staggered 80 ms fade-in-up) — easy to add late, intentionally deferred to polish.
-- Haptics (`@capacitor/haptics`): wire the full haptic map from `ux.md` §6. The plugin is a no-op on web, but the wiring can be written and structurally verified now; actual feedback fires once the native build lands.
+- Haptics (`@capacitor/haptics`): wire the full haptic map from v1 design The plugin is a no-op on web, but the wiring can be written and structurally verified now; actual feedback fires once the native build lands.
 - Accessibility sweep:
   - VoiceOver labels on non-text interactive elements (estimate cards, QR buttons, avatar rows).
   - Verify touch targets on the smallest supported iPhone (Safari responsive mode).
@@ -273,5 +272,5 @@ These are *not* in this roadmap and will be called out if they drift in:
 - Integrations with trackers (Jira, Linear, etc.).
 - Account sign-in or cross-device identity.
 - Export formats beyond a future clipboard markdown dump ([ADR-0013](../adr/0013-round-model-flat-parentroundid.md) action item, not v1).
-- Consensus indicator in Lobby results ([`ux.md` §8](ux.md#8-open-ux-questions)).
-- Liquid Glass / iOS 26 theme ([`ux.md` §7](ux.md#7-theming)).
+- Consensus indicator in Lobby results (architecture conventions).
+- Liquid Glass / iOS 26 theme (architecture conventions).

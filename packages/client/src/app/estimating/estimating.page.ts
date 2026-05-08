@@ -33,7 +33,7 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component';
 import { ActionMenuService } from '../shared/ui/action-menu.service';
 
 /**
- * Estimating — ux.md §5.5.
+ * Estimating
  *
  * Phase D changes:
  *  - Mobile toolbar title "Round N" uses `var(--hnch-numeral-lg)` Fraunces.

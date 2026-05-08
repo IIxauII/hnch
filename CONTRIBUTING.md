@@ -110,7 +110,6 @@ If the change shifts user-visible behavior or product scope, update the relevant
 
 - `docs/project.md` — product overview.
 - `docs/schema.md` — Yjs document shape.
-- `docs/ux.md` — screens, flows, wireframes.
 - `docs/roadmap.md` — phased plan and exit bars.
 - `docs/angular.md` / `docs/ionic.md` — client coding conventions.
 

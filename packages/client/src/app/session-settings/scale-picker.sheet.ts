@@ -39,7 +39,7 @@ import { CustomScaleEditorSheetComponent } from './custom-scale-editor.sheet';
 import { ScaleEditorSheetComponent } from './scale-editor.sheet';
 
 /**
- * Unified scale picker and management component — ux.md §5.8 & §5.7.
+ * Unified scale picker and management component.
  *
  * Can be used in two modes:
  * 1. **Picker mode** (with selectedScaleId + scaleSelected output): radio group over all

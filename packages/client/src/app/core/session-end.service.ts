@@ -7,7 +7,7 @@ import { ToastService } from '../services/toast.service';
 
 /**
  * Observes `meta.sessionEndedAt` and handles both sides of the
- * "End session for everyone" flow (ux.md §4.5):
+ * "End session for everyone" flow:
  *
  * - Local trigger (`endSessionForEveryone()` just called): show "Session
  *   ended." toast, navigate to Home, tear down.
