@@ -18,10 +18,11 @@ test.describe('Unknown room handling', () => {
     await fillRoomCode(player.page, 'A2B3C4');
     await player.page.locator(JOIN.joinBtn).click();
 
-    // Expect the "isn't active" toast to appear
-    const toast = player.page.locator('ion-toast');
-    await toast.waitFor({ state: 'visible', timeout: 5_000 });
-    await expect(toast).toContainText("isn't active");
+    // Phase D: join page shows inline error text (p.error-text) instead of a toast
+    // for unknown-room rejection. The redesign avoids full-page toast for inline errors.
+    const errorEl = player.page.locator('p.error-text[role="alert"]');
+    await errorEl.waitFor({ state: 'visible', timeout: 5_000 });
+    await expect(errorEl).toContainText("isn't active");
 
     // Should stay on the join page
     expect(player.page.url()).toContain('/join');

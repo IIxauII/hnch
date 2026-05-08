@@ -24,10 +24,14 @@ test.describe('Round management', () => {
     await host.nextRound();
     await player.waitForEstimating();
 
-    // Verify we're in Round 2 — scope to app-estimating to avoid strict-mode
-    // violation (lobby stays in Ionic's DOM stack alongside estimating)
-    await expect(host.page.locator('app-estimating h1.title')).toContainText('Round 2');
-    await expect(player.page.locator('app-estimating h1.title')).toContainText('Round 2');
+    // Phase D: "Round N" is in ion-title span.round-title (toolbar). Scope to
+    // app-estimating to avoid strict-mode violation from the lobby in the stack.
+    await expect(
+      host.page.locator('app-estimating:not(.ion-page-hidden) ion-title span.round-title'),
+    ).toContainText('Round 2');
+    await expect(
+      player.page.locator('app-estimating:not(.ion-page-hidden) ion-title span.round-title'),
+    ).toContainText('Round 2');
 
     // No votes cast yet — card grid should have no selected cards
     await expect(host.page.locator(ESTIMATING.selectedCard)).not.toBeVisible();

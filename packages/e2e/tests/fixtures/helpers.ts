@@ -42,8 +42,10 @@ export const ONBOARDING = {
 // Home
 // ---------------------------------------------------------------------------
 export const HOME = {
-  createCard: 'ion-item:has(h2:text-is("Create Room"))',
-  joinCard: 'ion-item:has(h2:text-is("Join Room"))',
+  // Phase D: home uses ion-button CTAs inside hnch-section-card (no ion-item/h2).
+  // Match by visible text content (Playwright sees shadow-pierced text via :has-text).
+  createCard: 'ion-button:has-text("Create room")',
+  joinCard: 'ion-button:has-text("Join room")',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -57,8 +59,12 @@ export const JOIN = {
    */
   codeInput: 'app-segmented-code-input',
   passwordInput: 'ion-input[type="password"]',
-  scanQrBtn: 'ion-item:has-text("Scan QR code")',
-  joinBtn: 'ion-button:has-text("Join")',
+  // Phase D: scan QR is now ion-button.scan-btn in footer (not ion-item).
+  // Use class selector since aria-label CSS selector doesn't reliably match Ionic web components.
+  scanQrBtn: 'app-join ion-button.scan-btn',
+  // Scoped to app-join to avoid matching the home page "Join room" button
+  // which is kept in the Ionic DOM stack during navigation
+  joinBtn: 'app-join ion-button:has-text("Join")',
 } as const;
 
 /**
@@ -76,20 +82,31 @@ export async function fillRoomCode(page: Page, code: string): Promise<void> {
 // Lobby
 // ---------------------------------------------------------------------------
 export const LOBBY = {
-  roomCode: 'h1.room-code',
-  subtitle: 'button.subtitle',
-  participantList: 'ion-list.participants',
-  participantItems: 'ion-list.participants ion-item',
-  participantCount: 'ion-accordion ion-item[slot="header"] ion-label',
-  hostIcon: '.host-icon',
+  // Phase D: code lives in .code-text inside mobile code-card (ion-hide-lg-up).
+  // The element is CSS-hidden at desktop (≥1024px) but is always in DOM — use
+  // { state: 'attached' } when reading textContent, not toBeVisible().
+  roomCode: 'span.code-text',
+  // Always-visible signal that the lobby page has fully rendered.
+  // Use this instead of roomCode for "lobby loaded" assertions at desktop viewports.
+  lobbyReady: 'app-lobby:not(.ion-page-hidden) ion-list.participants-list',
+  // Phase D: scale button in Scale SectionCard — used to verify scale label
+  subtitle: 'button.scale-btn',
+  // Phase D: flat list, no accordion
+  participantList: 'ion-list.participants-list',
+  participantItems: 'app-lobby:not(.ion-page-hidden) hnch-participant-row',
+  // Phase D: participant count shown as text in .participants-footer ("N online")
+  // Tests that need to assert count should use participantItems count or participantsSummary.
+  participantCount: 'app-lobby:not(.ion-page-hidden) .participants-footer',
+  hostIcon: '.host-badge',
   startRoundBtn: /Start Round \d+/,
-  /** Results section shown after a round is revealed */
-  resultsSection: 'section.results-section',
-  resultsHeading: 'section.results-section h2',
-  voteGroups: 'section.results-section ion-item-group.group:not(.didnt-vote)',
-  groupCard: 'section.results-section ion-item-group .card',
-  voterChips: 'section.results-section ion-chip ion-label',
-  didntVoteGroup: 'section.results-section ion-item-group.didnt-vote',
+  /** Results section: now a hnch-section-card with class results-card */
+  resultsSection: 'hnch-section-card.results-card',
+  resultsHeading: 'hnch-section-card.results-card .results-heading',
+  // Phase D: vote groups are hnch-vote-result-card inside app-vote-results
+  voteGroups: 'app-vote-results hnch-vote-result-card',
+  groupCard: 'app-vote-results hnch-vote-result-card .card-glyph',
+  voterChips: 'app-vote-results ion-chip ion-label',
+  didntVoteGroup: 'app-vote-results ion-item-group.didnt-vote',
   revoteBtn: 'ion-button:has-text("Re-vote")',
   nextRoundBtn: /Next Round \d+/,
 } as const;
@@ -98,7 +115,9 @@ export const LOBBY = {
 // QR display modal
 // ---------------------------------------------------------------------------
 export const QR_MODAL = {
-  showBtn: 'ion-item:has-text("Show QR code")',
+  // Phase D: QR button is inside mobile code-card (ion-hide-lg-up hidden at desktop).
+  // Use evaluate() with waitFor({ state: 'attached' }) to click hidden element.
+  showBtn: 'hnch-section-card.code-card ion-button:has-text("QR code")',
   img: 'app-qr-display-sheet img',
   codeText: 'app-qr-display-sheet .room-code',
   doneBtn: 'app-qr-display-sheet ion-button:has-text("Done")',
@@ -116,7 +135,9 @@ export const ROUND_START = {
 // Estimating
 // ---------------------------------------------------------------------------
 export const ESTIMATING = {
-  roundTitle: 'h1.title',
+  // Phase D: "Round N" is in ion-title span.round-title (toolbar); h1 is the descriptor/subject
+  roundTitle: 'ion-title span.round-title',
+  roundSubject: 'h1.subject-title',
   elapsed: 'p.elapsed',
   cardGrid: 'div.grid',
   card: (value: string) => `app-estimating ion-card.card:has(ion-card-content:text-is("${value}"))`,

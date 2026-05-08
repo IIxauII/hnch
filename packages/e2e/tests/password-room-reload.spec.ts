@@ -62,7 +62,7 @@ test.describe('Password-room reload', () => {
     // Lands on the same lobby
     expect(host.page.url()).toBe(lobbyUrl);
 
-    // Room code visible and host controls present
-    await expect(host.page.locator(LOBBY.roomCode)).toBeVisible();
+    // Lobby rendered and host controls present
+    await expect(host.page.locator(LOBBY.lobbyReady)).toBeVisible();
   });
 });

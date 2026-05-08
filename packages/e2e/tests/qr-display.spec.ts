@@ -5,8 +5,11 @@ test.describe('QR display modal', () => {
   test('opens with QR image and room code, then dismisses via Done', async ({ host }) => {
     const code = await host.createSession();
 
-    // Open the QR modal
-    await host.page.locator(QR_MODAL.showBtn).click();
+    // Phase D: QR button is in mobile-only code card (ion-hide-lg-up hidden at desktop).
+    // The element IS in DOM — use waitFor attached then evaluate to bypass display:none.
+    const qrBtn = host.page.locator(QR_MODAL.showBtn);
+    await qrBtn.waitFor({ state: 'attached' });
+    await qrBtn.evaluate((el: HTMLElement) => el.click());
 
     // QR image is visible and contains a base64 data URL
     const img = host.page.locator(QR_MODAL.img);
