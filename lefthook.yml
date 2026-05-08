@@ -19,3 +19,8 @@ pre-commit:
     - name: angular-templates
       glob: 'packages/client/**/*.html'
       run: pnpm --filter @hnch/client exec eslint {staged_files}
+
+commit-msg:
+  commands:
+    scope-check:
+      run: bash scripts/check-commit-scope.sh {1}
