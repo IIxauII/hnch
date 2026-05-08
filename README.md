@@ -92,7 +92,7 @@ pnpm --filter @xauyxau/hnch build
 - [project.md](docs/project.md) — what the product is, core mechanics, principles.
 - [roadmap.md](docs/roadmap.md) — phased implementation plan and exit bars.
 - [schema.md](docs/schema.md) — Yjs document structure (authoritative).
-- [ux.md](docs/ux.md) — screens, flows, wireframes, interaction patterns.
+- [ux.md](docs/ux.md) — user flows and interaction patterns.
 - [cli.md](docs/cli.md) — CLI package design and behavior.
 - [angular.md](docs/angular.md) — Angular coding conventions for the client.
 - [ionic.md](docs/ionic.md) — Ionic theming, platform modes, safe areas.
