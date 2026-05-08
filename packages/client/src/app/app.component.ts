@@ -31,7 +31,12 @@ import { ToastService } from './services/toast.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ion-app>
-      <ion-split-pane contentId="main" when="lg" [disabled]="!isInSession()">
+      <ion-split-pane
+        contentId="main"
+        when="lg"
+        [disabled]="!isInSession()"
+        style="--side-min-width: 240px; --side-max-width: 280px; --side-width: 260px;"
+      >
         @if (isInSession()) {
           <ion-menu contentId="main" type="overlay">
             <app-side-nav />
