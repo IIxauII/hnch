@@ -34,7 +34,7 @@ What already exists at the moment this roadmap is written:
 - `packages/relay` — a 32-line stub `index.ts` that prints a sanity-check line. No y-websocket server, no handshake, no snapshot store.
 - `packages/shared` — two real modules: `room-code.ts` (6-char no-look-alike generator per [ADR-0008](../adr/0008-room-code-format.md), covered by `room-code.test.ts`) and `auth.ts` (type skeletons for `JoinCredentials` / `JoinResponse` per [ADR-0009](../adr/0009-access-control-relay-tokens.md)). No Yjs doc-shape types yet.
 - `mise.toml` pinning pnpm/node/etc. (from scaffolding phase).
-- 15 accepted ADRs. [`schema.md`](schema.md) and [`ux.md`](ux.md) current with [ADR-0015](../adr/0015-v1-scope-session-level-reveal-and-timer.md).
+- Accepted ADRs cover all architectural decisions. [`schema.md`](schema.md) and [`ux.md`](ux.md) current with [ADR-0018](../adr/0018-remove-timer-add-unanimous-reveal.md).
 
 Concrete implication: Phase 1 starts with real work on three fronts (client bootstrap, shared Yjs types, dev-loop ergonomics) but with all the architecture questions already answered.
 
@@ -138,7 +138,7 @@ This design work is ~1 hour; resolve it before relay code lands.
 
 **Scope.** Robustness — the two coordination-flavored features that make the product feel reliable.
 
-> **Note.** This phase was originally scoped around a countdown-timer reveal (ADR-0011 + ADR-0015). Those ADRs were superseded by [ADR-0018](../adr/0018-remove-timer-add-unanimous-reveal.md) before Phase 4 shipped: the countdown timer, `settings.revealMode`, and `settings.timerDurationMs` were removed. What shipped in Phase 4 is:
+> **Note.** This phase originally scoped a countdown-timer reveal; [ADR-0018](../adr/0018-remove-timer-add-unanimous-reveal.md) replaced that with manual + unanimous auto-reveal before Phase 4 shipped. The countdown timer, `settings.revealMode`, and `settings.timerDurationMs` were removed. What shipped in Phase 4 is:
 
 **Work.**
 - Reveal semantics ([ADR-0018](../adr/0018-remove-timer-add-unanimous-reveal.md)):
@@ -155,7 +155,7 @@ This design work is ~1 hour; resolve it before relay code lands.
   - Unit: election-lowest-peer-ID logic.
   - Integration: a "simulated disconnect" test that runs two Yjs peers and verifies host handoff.
 
-**ADRs touched.** [ADR-0018](../adr/0018-remove-timer-add-unanimous-reveal.md) (supersedes ADR-0011 + ADR-0015), consumer of [ADR-0010](../adr/0010-host-election.md).
+**ADRs touched.** [ADR-0018](../adr/0018-remove-timer-add-unanimous-reveal.md), consumer of [ADR-0010](../adr/0010-host-election.md).
 
 **Risks.**
 - Unanimous-reveal idempotence is subtle. Worth a simulation test (two peers, last vote cast, assert `revealedAt` lands exactly once even under races).

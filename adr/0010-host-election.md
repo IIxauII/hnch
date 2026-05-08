@@ -5,7 +5,7 @@
 
 ## Context
 
-- ADR-0001 relay has no concept of "host," but several ops need one authoritative actor: manual reveal, auto-reveal broadcast (ADR-0011), invite admission (ADR-0009).
+- ADR-0001 relay has no concept of "host," but several ops need one authoritative actor: manual reveal, invite admission (ADR-0009).
 - Host migration required — if host drops, session continues without manual intervention.
 - Election must be deterministic under churn yet stable enough that brief disconnects don't flap the role.
 
