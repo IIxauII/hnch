@@ -52,6 +52,7 @@ Thumbs.db
 # Claude Code per-user settings (not committed)
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+.claude/screens/
 
 # Node.js compile cache (runtime artefact, not source)
 node-compile-cache/
