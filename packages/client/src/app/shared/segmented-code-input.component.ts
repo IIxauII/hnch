@@ -6,10 +6,10 @@ import {
   ViewChildren,
   forwardRef,
   signal,
-} from '@angular/core'
-import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms'
+} from '@angular/core';
+import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 
-const TILE_COUNT = 6
+const TILE_COUNT = 6;
 
 /**
  * Segmented 6-char code input — ControlValueAccessor.
@@ -66,7 +66,8 @@ const TILE_COUNT = 6
       }
     </div>
   `,
-  styles: [`
+  styles: [
+    `
     :host {
       display: block;
     }
@@ -107,51 +108,55 @@ const TILE_COUNT = 6
       background: var(--ion-color-step-400);
       border-radius: 1px;
     }
-  `],
+  `,
+  ],
 })
 export class SegmentedCodeInputComponent implements ControlValueAccessor {
-  @ViewChildren('tileInput') tileInputs!: QueryList<ElementRef<HTMLInputElement>>
+  @ViewChildren('tileInput') tileInputs!: QueryList<ElementRef<HTMLInputElement>>;
 
-  protected readonly tiles = signal<string[]>(Array(TILE_COUNT).fill(''))
-  protected readonly focusedIndex = signal<number>(-1)
-  protected readonly isDisabled = signal<boolean>(false)
+  protected readonly tiles = signal<string[]>(Array(TILE_COUNT).fill(''));
+  protected readonly focusedIndex = signal<number>(-1);
+  protected readonly isDisabled = signal<boolean>(false);
 
-  private onChange: (value: string) => void = () => {}
-  private onTouched: () => void = () => {}
+  private onChange: (value: string) => void = () => {};
+  private onTouched: () => void = () => {};
 
   // ControlValueAccessor -------------------------------------------------
 
   writeValue(value: string | null | undefined): void {
     if (!value) {
-      this.tiles.set(Array(TILE_COUNT).fill(''))
-      return
+      this.tiles.set(Array(TILE_COUNT).fill(''));
+      return;
     }
     // Normalize: strip non-alphanumeric, uppercase, take first 6 chars
-    const clean = value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, TILE_COUNT)
-    this.tiles.set(Array.from({ length: TILE_COUNT }, (_, i) => clean[i] ?? ''))
+    const clean = value
+      .replaceAll(/[^a-zA-Z0-9]/g, '')
+      .toUpperCase()
+      .slice(0, TILE_COUNT);
+    this.tiles.set(Array.from({ length: TILE_COUNT }, (_, i) => clean[i] ?? ''));
   }
 
   registerOnChange(fn: (value: string) => void): void {
-    this.onChange = fn
+    this.onChange = fn;
   }
 
   registerOnTouched(fn: () => void): void {
-    this.onTouched = fn
+    this.onTouched = fn;
   }
 
   setDisabledState(disabled: boolean): void {
-    this.isDisabled.set(disabled)
+    this.isDisabled.set(disabled);
   }
 
   // Event handlers -------------------------------------------------------
 
   protected onFocus(index: number): void {
-    this.focusedIndex.set(index)
+    this.focusedIndex.set(index);
   }
 
   protected onBlur(): void {
-    this.focusedIndex.set(-1)
-    this.onTouched()
+    this.focusedIndex.set(-1);
+    this.onTouched();
   }
 
   protected onKeyDown(event: KeyboardEvent, index: number): void {
@@ -159,83 +164,83 @@ export class SegmentedCodeInputComponent implements ControlValueAccessor {
       if (this.tiles()[index] === '') {
         // Move to previous tile
         if (index > 0) {
-          this.focusTile(index - 1)
+          this.focusTile(index - 1);
         }
       } else {
-        this.setTile(index, '')
-        this.emitChange()
+        this.setTile(index, '');
+        this.emitChange();
       }
-      event.preventDefault()
+      event.preventDefault();
     } else if (event.key === 'ArrowLeft' && index > 0) {
-      this.focusTile(index - 1)
-      event.preventDefault()
+      this.focusTile(index - 1);
+      event.preventDefault();
     } else if (event.key === 'ArrowRight' && index < TILE_COUNT - 1) {
-      this.focusTile(index + 1)
-      event.preventDefault()
+      this.focusTile(index + 1);
+      event.preventDefault();
     }
   }
 
   protected onInput(event: Event, index: number): void {
-    const input = event.target as HTMLInputElement
-    const raw = input.value
-    const clean = raw.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()
+    const input = event.target as HTMLInputElement;
+    const raw = input.value;
+    const clean = raw.replaceAll(/[^a-zA-Z0-9]/g, '').toUpperCase();
 
     if (clean.length <= 1) {
       // Single char — normal flow
-      this.setTile(index, clean)
+      this.setTile(index, clean);
       // Sync native value to single clean char
-      input.value = clean
-      this.emitChange()
+      input.value = clean;
+      this.emitChange();
       if (clean && index < TILE_COUNT - 1) {
-        this.focusTile(index + 1)
+        this.focusTile(index + 1);
       }
     } else {
       // Multi-char (iOS SMS autofill / IME) — distribute like paste
-      let charIdx = 0
+      let charIdx = 0;
       for (let i = index; i < TILE_COUNT && charIdx < clean.length; i++, charIdx++) {
-        this.setTile(i, clean[charIdx] ?? '')
+        this.setTile(i, clean[charIdx] ?? '');
       }
-      this.emitChange()
-      const lastFilled = Math.min(index + clean.length - 1, TILE_COUNT - 1)
-      const nextFocus = Math.min(lastFilled + 1, TILE_COUNT - 1)
-      this.focusTile(nextFocus)
+      this.emitChange();
+      const lastFilled = Math.min(index + clean.length - 1, TILE_COUNT - 1);
+      const nextFocus = Math.min(lastFilled + 1, TILE_COUNT - 1);
+      this.focusTile(nextFocus);
     }
   }
 
   protected onPaste(event: ClipboardEvent, startIndex: number): void {
-    event.preventDefault()
-    const pasted = event.clipboardData?.getData('text') ?? ''
-    const clean = pasted.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()
+    event.preventDefault();
+    const pasted = event.clipboardData?.getData('text') ?? '';
+    const clean = pasted.replaceAll(/[^a-zA-Z0-9]/g, '').toUpperCase();
 
-    let charIdx = 0
+    let charIdx = 0;
     for (let i = startIndex; i < TILE_COUNT && charIdx < clean.length; i++, charIdx++) {
-      this.setTile(i, clean[charIdx] ?? '')
+      this.setTile(i, clean[charIdx] ?? '');
     }
-    this.emitChange()
-    this.onTouched()
+    this.emitChange();
+    this.onTouched();
 
     // Focus last filled tile or the tile after
-    const lastFilled = Math.min(startIndex + clean.length - 1, TILE_COUNT - 1)
-    const nextFocus = Math.min(lastFilled + 1, TILE_COUNT - 1)
-    this.focusTile(nextFocus)
+    const lastFilled = Math.min(startIndex + clean.length - 1, TILE_COUNT - 1);
+    const nextFocus = Math.min(lastFilled + 1, TILE_COUNT - 1);
+    this.focusTile(nextFocus);
   }
 
   // Private helpers ------------------------------------------------------
 
   private setTile(index: number, char: string): void {
-    this.tiles.update(prev => prev.map((t, i) => (i === index ? char : t)))
+    this.tiles.update((prev) => prev.map((t, i) => (i === index ? char : t)));
   }
 
   private emitChange(): void {
-    const value = this.tiles().join('')
-    this.onChange(value)
+    const value = this.tiles().join('');
+    this.onChange(value);
   }
 
   private focusTile(index: number): void {
-    const inputs = this.tileInputs?.toArray()
+    const inputs = this.tileInputs?.toArray();
     if (inputs?.[index]) {
-      inputs[index].nativeElement.focus()
-      this.focusedIndex.set(index)
+      inputs[index].nativeElement.focus();
+      this.focusedIndex.set(index);
     }
   }
 }

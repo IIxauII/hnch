@@ -1,9 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  output,
-} from '@angular/core'
-import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms'
+import { ChangeDetectionStrategy, Component, output } from '@angular/core';
+import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import {
   IonButton,
   IonButtons,
@@ -16,7 +12,7 @@ import {
   IonList,
   IonTitle,
   IonToolbar,
-} from '@ionic/angular/standalone'
+} from '@ionic/angular/standalone';
 
 /**
  * Password prompt half-sheet for create flow.
@@ -107,21 +103,21 @@ export class PasswordPromptSheetComponent {
    * Emitted when user confirms. Passes the password string
    * (may be empty if user left field blank).
    */
-  readonly passwordSubmitted = output<string>()
+  readonly passwordSubmitted = output<string>();
 
   /**
    * Emitted when user taps Cancel or dismisses sheet.
    */
-  readonly closeRequested = output<void>()
+  readonly closeRequested = output<void>();
 
   protected readonly passwordControl = new FormControl<string>('', {
     nonNullable: true,
     validators: [Validators.maxLength(120)],
-  })
+  });
 
   protected onConfirm(): void {
-    if (this.passwordControl.invalid) return
-    const password = this.passwordControl.value.trim()
-    this.passwordSubmitted.emit(password)
+    if (this.passwordControl.invalid) return;
+    const password = this.passwordControl.value.trim();
+    this.passwordSubmitted.emit(password);
   }
 }

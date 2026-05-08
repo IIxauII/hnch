@@ -6,7 +6,7 @@
  * flattened result.
  */
 
-import { BUILTIN_SCALES, type Scale } from './doc.js'
+import { BUILTIN_SCALES, type Scale } from './doc.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -19,7 +19,7 @@ import { BUILTIN_SCALES, type Scale } from './doc.js'
  * Example: disabling card at index 7 ("21") from Fibonacci:
  *   { fibonacci: [7] }
  */
-export type PresetOverrides = Record<string, number[]>
+export type PresetOverrides = Record<string, number[]>;
 
 /**
  * A fully user-defined scale stored on-device. ID must be prefixed `custom-`
@@ -27,11 +27,11 @@ export type PresetOverrides = Record<string, number[]>
  */
 export interface CustomScale {
   /** Unique identifier, always prefixed `custom-`. */
-  id: string
+  id: string;
   /** Human-readable label shown in pickers. */
-  label: string
+  label: string;
   /** Card faces in display order. */
-  cards: string[]
+  cards: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -52,21 +52,21 @@ export function resolveScale(
   customs?: CustomScale[],
 ): Scale | undefined {
   if (id.startsWith('custom-')) {
-    const custom = (customs ?? []).find((c) => c.id === id)
-    if (custom) return { id: custom.id, cards: custom.cards }
-    return undefined
+    const custom = (customs ?? []).find((c) => c.id === id);
+    if (custom) return { id: custom.id, cards: custom.cards };
+    return undefined;
   }
 
-  const builtin = BUILTIN_SCALES[id]
+  const builtin = BUILTIN_SCALES[id];
   if (builtin) {
-    const disabled = (overrides ?? {})[id] ?? []
-    if (disabled.length === 0) return builtin
-    const cards = builtin.cards.filter((_, i) => !disabled.includes(i))
-    if (cards.length === 0) return undefined
-    return { id, cards }
+    const disabled = (overrides ?? {})[id] ?? [];
+    if (disabled.length === 0) return builtin;
+    const cards = builtin.cards.filter((_, i) => !disabled.includes(i));
+    if (cards.length === 0) return undefined;
+    return { id, cards };
   }
 
-  return undefined
+  return undefined;
 }
 
 /**
@@ -82,9 +82,9 @@ export function buildAvailableScales(
 ): Scale[] {
   const builtins = Object.keys(BUILTIN_SCALES)
     .map((id) => resolveScale(id, overrides, customs))
-    .filter((s): s is Scale => s !== undefined)
+    .filter((s): s is Scale => s !== undefined);
 
-  const customScales: Scale[] = (customs ?? []).map((c) => ({ id: c.id, cards: c.cards }))
+  const customScales: Scale[] = (customs ?? []).map((c) => ({ id: c.id, cards: c.cards }));
 
-  return [...builtins, ...customScales]
+  return [...builtins, ...customScales];
 }

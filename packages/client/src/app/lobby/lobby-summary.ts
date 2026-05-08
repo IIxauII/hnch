@@ -1,4 +1,4 @@
-import type { ParticipantSnapshot } from '@hnch/shared'
+import type { ParticipantSnapshot } from '@hnch/shared';
 
 /**
  * Compute the human-readable participant-section summary
@@ -10,20 +10,20 @@ export function summarizeParticipants(
   onlineIds: ReadonlySet<string>,
   isViewer: (p: ParticipantSnapshot) => boolean,
 ): string {
-  let onlineVoters = 0
-  let viewers = 0
-  let offline = 0
+  let onlineVoters = 0;
+  let viewers = 0;
+  let offline = 0;
   for (const p of participants) {
-    const online = onlineIds.has(p.id)
-    if (isViewer(p)) viewers++
-    else if (online) onlineVoters++
-    else offline++
+    const online = onlineIds.has(p.id);
+    if (isViewer(p)) viewers++;
+    else if (online) onlineVoters++;
+    else offline++;
   }
-  const parts: string[] = []
-  if (onlineVoters > 0) parts.push(`${onlineVoters} online`)
-  if (offline > 0) parts.push(`${offline} offline`)
-  if (viewers > 0) parts.push(`${viewers} viewer${viewers === 1 ? '' : 's'}`)
-  return parts.join(' · ')
+  const parts: string[] = [];
+  if (onlineVoters > 0) parts.push(`${onlineVoters} online`);
+  if (offline > 0) parts.push(`${offline} offline`);
+  if (viewers > 0) parts.push(`${viewers} viewer${viewers === 1 ? '' : 's'}`);
+  return parts.join(' · ');
 }
 
 /**
@@ -32,8 +32,6 @@ export function summarizeParticipants(
  * Collapses once a round has been revealed so results stay above
  * the fold. Pure helper exported for unit testing.
  */
-export function participantsAccordionValueFor(
-  hasRevealedRound: boolean,
-): 'open' | null {
-  return hasRevealedRound ? null : 'open'
+export function participantsAccordionValueFor(hasRevealedRound: boolean): 'open' | null {
+  return hasRevealedRound ? null : 'open';
 }

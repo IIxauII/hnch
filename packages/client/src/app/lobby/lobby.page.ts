@@ -6,11 +6,11 @@ import {
   inject,
   signal,
   viewChild,
-} from '@angular/core'
-import { Router } from '@angular/router'
-import { Share } from '@capacitor/share'
-import { formatRoomCode, participantRole } from '@hnch/shared'
-import type { Round } from '@hnch/shared'
+} from '@angular/core';
+import { Router } from '@angular/router';
+import { Share } from '@capacitor/share';
+import { formatRoomCode, participantRole } from '@hnch/shared';
+import type { Round } from '@hnch/shared';
 import {
   ActionSheetController,
   AlertController,
@@ -38,8 +38,8 @@ import {
   IonSegmentButton,
   IonTitle,
   IonToolbar,
-} from '@ionic/angular/standalone'
-import { addIcons } from 'ionicons'
+} from '@ionic/angular/standalone';
+import { addIcons } from 'ionicons';
 import {
   chevronBackOutline,
   ellipsisHorizontalCircle,
@@ -49,30 +49,30 @@ import {
   qrCodeOutline,
   shareOutline,
   starOutline,
-} from 'ionicons/icons'
+} from 'ionicons/icons';
 
-import { ConnectionChipComponent } from '../core/connection-chip.component'
-import { ConnectionStatusBannerComponent } from '../shared/connection-status-banner.component'
-import { ExportService } from '../core/export.service'
-import { ToastService } from '../services/toast.service'
-import { DocService } from '../core/doc/doc.service'
-import { HapticService } from '../core/haptic.service'
-import { LastSessionService } from '../core/last-session.service'
-import { ParticipantIdService } from '../core/participant-id.service'
+import { ConnectionChipComponent } from '../core/connection-chip.component';
+import { ConnectionStatusBannerComponent } from '../shared/connection-status-banner.component';
+import { ExportService } from '../core/export.service';
+import { ToastService } from '../services/toast.service';
+import { DocService } from '../core/doc/doc.service';
+import { HapticService } from '../core/haptic.service';
+import { LastSessionService } from '../core/last-session.service';
+import { ParticipantIdService } from '../core/participant-id.service';
 import {
   RoundStartSheetComponent,
   type RoundStartSubmission,
-} from '../round-start/round-start.sheet'
-import { RoundEditSheetComponent } from './round-edit.sheet'
-import { SessionSettingsSheetComponent } from '../session-settings/session-settings.sheet'
-import { RoundHistoryComponent } from '../shared/round-history.component'
-import { VoteResultsComponent } from '../shared/vote-results.component'
-import { assertRoomCode } from '../core/room-join.service'
-import { shouldRecordCache } from '../core/cache-record-guard'
-import { QrDisplaySheetComponent } from './qr-display.sheet'
-import { presentSheet } from '../utils/present-sheet'
-import { rejectionCopy } from '../join/join.page'
-import { participantsAccordionValueFor, summarizeParticipants } from './lobby-summary'
+} from '../round-start/round-start.sheet';
+import { RoundEditSheetComponent } from './round-edit.sheet';
+import { SessionSettingsSheetComponent } from '../session-settings/session-settings.sheet';
+import { RoundHistoryComponent } from '../shared/round-history.component';
+import { VoteResultsComponent } from '../shared/vote-results.component';
+import { assertRoomCode } from '../core/room-join.service';
+import { shouldRecordCache } from '../core/cache-record-guard';
+import { QrDisplaySheetComponent } from './qr-display.sheet';
+import { presentSheet } from '../utils/present-sheet';
+import { rejectionCopy } from '../join/join.page';
+import { participantsAccordionValueFor, summarizeParticipants } from './lobby-summary';
 
 /**
  * Lobby — ux.md §5.4 host variant.
@@ -532,84 +532,82 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
   ],
 })
 export class LobbyPage {
-  private readonly router = inject(Router)
-  private readonly docService = inject(DocService)
-  private readonly haptic = inject(HapticService)
-  private readonly participantIdService = inject(ParticipantIdService)
-  private readonly lastSessionService = inject(LastSessionService)
-  private readonly actionSheetCtrl = inject(ActionSheetController)
-  private readonly alertCtrl = inject(AlertController)
-  private readonly toastService = inject(ToastService)
-  private readonly exportService = inject(ExportService)
+  private readonly router = inject(Router);
+  private readonly docService = inject(DocService);
+  private readonly haptic = inject(HapticService);
+  private readonly participantIdService = inject(ParticipantIdService);
+  private readonly lastSessionService = inject(LastSessionService);
+  private readonly actionSheetCtrl = inject(ActionSheetController);
+  private readonly alertCtrl = inject(AlertController);
+  private readonly toastService = inject(ToastService);
+  private readonly exportService = inject(ExportService);
 
-  protected readonly hasSession = this.docService.hasSession
-  protected readonly participants = this.docService.participants
-  protected readonly activeParticipants = this.docService.activeParticipants
-  protected readonly onlineIds = this.docService.onlineParticipantIds
-  protected readonly rounds = this.docService.rounds
+  protected readonly hasSession = this.docService.hasSession;
+  protected readonly participants = this.docService.participants;
+  protected readonly activeParticipants = this.docService.activeParticipants;
+  protected readonly onlineIds = this.docService.onlineParticipantIds;
+  protected readonly rounds = this.docService.rounds;
 
   /** Round-start modal visibility. Two-way bound to `ion-modal`. */
-  protected readonly roundStartOpen = signal(false)
+  protected readonly roundStartOpen = signal(false);
 
   /** Session-settings modal visibility. Two-way bound to `ion-modal`. */
-  protected readonly sessionSettingsOpen = signal(false)
+  protected readonly sessionSettingsOpen = signal(false);
 
   /** QR display modal visibility. */
-  protected readonly qrOpen = signal(false)
+  protected readonly qrOpen = signal(false);
 
   /** Round-edit modal visibility. */
-  protected readonly roundEditOpen = signal(false)
+  protected readonly roundEditOpen = signal(false);
 
   /** Round currently being edited, or null when no edit is open. */
-  protected readonly editingRound = signal<Round | null>(null)
+  protected readonly editingRound = signal<Round | null>(null);
 
   /**
    * Access state lives here (not in SessionSettingsSheetComponent) so
    * it survives the modal's destroy/recreate lifecycle.
    */
-  protected readonly lobbyAccessMode = signal<'open' | 'password'>('open')
-  protected readonly lobbyAccessPassword = signal('')
+  protected readonly lobbyAccessMode = signal<'open' | 'password'>('open');
+  protected readonly lobbyAccessPassword = signal('');
 
-  protected readonly myId = this.participantIdService.id
+  protected readonly myId = this.participantIdService.id;
 
-  protected readonly hostId = computed(
-    () => this.docService.settings()?.hostParticipantId ?? null,
-  )
+  protected readonly hostId = computed(() => this.docService.settings()?.hostParticipantId ?? null);
 
   /** Current user's role for segment binding. */
   protected readonly myRole = computed(() => {
-    const id = this.myId()
-    if (!id) return undefined
-    const me = this.activeParticipants().find((p) => p.id === id)
-    return me ? participantRole(me) : undefined
-  })
+    const id = this.myId();
+    if (!id) return undefined;
+    const me = this.activeParticipants().find((p) => p.id === id);
+    return me ? participantRole(me) : undefined;
+  });
 
   /** True when a participant's effective role is `'viewer'`. */
   protected isParticipantViewer(p: { role?: 'voter' | 'viewer' }): boolean {
-    return participantRole(p) === 'viewer'
+    return participantRole(p) === 'viewer';
   }
 
   /** Toggle own voter↔viewer role. Wired to the self-row chip. */
   protected onToggleRole(): void {
-    const id = this.myId()
-    if (!id) return
-    this.haptic.impactLight()
-    this.docService.toggleRole(id)
+    const id = this.myId();
+    if (!id) return;
+    this.haptic.impactLight();
+    this.docService.toggleRole(id);
   }
 
   /** Segment change handler for role toggle. */
   protected onSegmentChange(event: any): void {
-    const newRole = event.detail?.value as string | undefined
+    const newRole = event.detail?.value as string | undefined;
     if (newRole && newRole !== this.myRole()) {
-      this.onToggleRole()
+      this.onToggleRole();
     }
   }
 
   protected readonly isHost = computed(() => {
-    const hostId = this.hostId()
-    const myId = this.myId()
-    return !!myId && !!hostId && myId === hostId
-  })
+    const hostId = this.hostId();
+    const myId = this.myId();
+    return !!myId && !!hostId && myId === hostId;
+  });
 
   /**
    * Relay-assigned 6-character room code (ADR-0008). The code is
@@ -617,60 +615,60 @@ export class LobbyPage {
    * is explicit that codes do not live in the Yjs doc, so we read it
    * from the service's dedicated signal rather than `meta()`.
    */
-  protected readonly roomCode = this.docService.roomCode
+  protected readonly roomCode = this.docService.roomCode;
 
   /** Invite URL derived from the room code + runtime origin (`window.location.origin`). */
   protected readonly inviteUrl = computed(() => {
-    const code = this.roomCode()
-    if (!code) return ''
-    const base = `${window.location.origin}/join?code=${code}`
-    return this.lobbyAccessMode() === 'password' ? `${base}&pw=1` : base
-  })
+    const code = this.roomCode();
+    if (!code) return '';
+    const base = `${window.location.origin}/join?code=${code}`;
+    return this.lobbyAccessMode() === 'password' ? `${base}&pw=1` : base;
+  });
 
   /** Dash-formatted room code for human display. */
   protected readonly formattedRoomCode = computed(() => {
-    const code = this.roomCode()
-    return code ? formatRoomCode(code) : ''
-  })
+    const code = this.roomCode();
+    return code ? formatRoomCode(code) : '';
+  });
 
   /** 1-based index for the "Start Round N" / "Next Round N" label. */
-  protected readonly nextRoundNumber = computed(() => this.rounds().length + 1)
+  protected readonly nextRoundNumber = computed(() => this.rounds().length + 1);
 
   protected readonly subtitle = computed(() => {
-    const settings = this.docService.settings()
-    if (!settings || !settings.defaultScale) return ''
-    const round = this.nextRoundNumber()
-    const scaleName = formatScaleId(settings.defaultScale.id)
-    return `Round ${round} • ${scaleName}`
-  })
+    const settings = this.docService.settings();
+    if (!settings || !settings.defaultScale) return '';
+    const round = this.nextRoundNumber();
+    const scaleName = formatScaleId(settings.defaultScale.id);
+    return `Round ${round} • ${scaleName}`;
+  });
 
   /**
    * The most recently revealed round, or null if no rounds have been
    * revealed yet. Drives the inline results display.
    */
   protected readonly lastRevealedRound = computed(() => {
-    const rounds = this.rounds()
+    const rounds = this.rounds();
     for (let i = rounds.length - 1; i >= 0; i--) {
-      const r = rounds[i]!
-      if (r.revealedAt !== undefined) return r
+      const r = rounds[i]!;
+      if (r.revealedAt !== undefined) return r;
     }
-    return null
-  })
+    return null;
+  });
 
   /**
    * 1-based index of `lastRevealedRound` within `rounds()`.
    */
   protected readonly lastRevealedRoundIndex = computed(() => {
-    const round = this.lastRevealedRound()
-    if (!round) return null
-    const idx = this.rounds().findIndex((r) => r.id === round.id)
-    return idx >= 0 ? idx + 1 : null
-  })
+    const round = this.lastRevealedRound();
+    if (!round) return null;
+    const idx = this.rounds().findIndex((r) => r.id === round.id);
+    return idx >= 0 ? idx + 1 : null;
+  });
 
   /** True when at least one round has been revealed (gates "Copy results" button). */
-  protected readonly hasRevealedRounds = computed(
-    () => this.rounds().some((r) => r.revealedAt != null),
-  )
+  protected readonly hasRevealedRounds = computed(() =>
+    this.rounds().some((r) => r.revealedAt != null),
+  );
 
   /**
    * Controls accordion open/closed state. Null collapses when a round
@@ -678,19 +676,17 @@ export class LobbyPage {
    */
   protected readonly participantsAccordionValue = computed(() =>
     participantsAccordionValueFor(this.lastRevealedRound() !== null),
-  )
+  );
 
   /**
    * Short summary line shown in the accordion header when collapsed —
    * e.g. "3 online · 1 offline · 1 viewer". Uses active participants only.
    */
   protected readonly participantsSummary = computed(() =>
-    summarizeParticipants(
-      this.activeParticipants(),
-      this.onlineIds(),
-      (p) => this.isParticipantViewer(p),
+    summarizeParticipants(this.activeParticipants(), this.onlineIds(), (p) =>
+      this.isParticipantViewer(p),
     ),
-  )
+  );
 
   /**
    * All revealed rounds except the most recent. Passed to
@@ -698,33 +694,29 @@ export class LobbyPage {
    * so there is at least one past entry alongside the current results.
    */
   protected readonly pastRevealedRounds = computed(() => {
-    const rounds = this.rounds()
-    const last = this.lastRevealedRound()
-    if (!last) return []
-    return rounds.filter(
-      (r) => r.revealedAt !== undefined && r.id !== last.id,
-    )
-  })
+    const rounds = this.rounds();
+    const last = this.lastRevealedRound();
+    if (!last) return [];
+    return rounds.filter((r) => r.revealedAt !== undefined && r.id !== last.id);
+  });
 
   /** 1-based round number for the edit modal header. */
   protected readonly editingRoundNumber = computed<number>(() => {
-    const round = this.editingRound()
-    if (!round) return 1
-    const idx = this.rounds().findIndex((r) => r.id === round.id)
-    return idx >= 0 ? idx + 1 : 1
-  })
+    const round = this.editingRound();
+    if (!round) return 1;
+    const idx = this.rounds().findIndex((r) => r.id === round.id);
+    return idx >= 0 ? idx + 1 : 1;
+  });
 
-  private readonly modalRef = viewChild<IonModal>('roundStartModal')
-  private readonly sessionSettingsModalRef = viewChild<IonModal>(
-    'sessionSettingsModal',
-  )
-  private readonly qrModalRef = viewChild<IonModal>('qrModal')
+  private readonly modalRef = viewChild<IonModal>('roundStartModal');
+  private readonly sessionSettingsModalRef = viewChild<IonModal>('sessionSettingsModal');
+  private readonly qrModalRef = viewChild<IonModal>('qrModal');
 
   // Tracks the last uuid written to the cache so the effect does not
   // re-fire on every Yjs doc mutation (votes, awareness, etc.) while
   // connected to the same room. Reset to null when status leaves
   // 'connected' so a reconnect re-writes and bumps the TTL.
-  private lastRecordedUuid: string | null = null
+  private lastRecordedUuid: string | null = null;
 
   constructor() {
     addIcons({
@@ -736,76 +728,76 @@ export class LobbyPage {
       'qr-code-outline': qrCodeOutline,
       'share-outline': shareOutline,
       'star-outline': starOutline,
-    })
+    });
 
     // Refresh the jump-back-in cache only once per (uuid, screen)
     // transition — deduped via lastRecordedUuid so we don't write on
     // every Yjs doc mutation while staying connected (ADR-0022 §5).
     effect(() => {
-      const code = this.docService.roomCode()
-      const uuid = this.docService.meta()?.roomUuid
-      const status = this.docService.syncStatus()
+      const code = this.docService.roomCode();
+      const uuid = this.docService.meta()?.roomUuid;
+      const status = this.docService.syncStatus();
       if (status !== 'connected') {
-        this.lastRecordedUuid = null
-        return
+        this.lastRecordedUuid = null;
+        return;
       }
       if (shouldRecordCache(code, uuid, status, this.lastRecordedUuid)) {
-        this.lastRecordedUuid = uuid ?? null
+        this.lastRecordedUuid = uuid ?? null;
         void this.lastSessionService.record({
           roomCode: code!,
           roomUuid: uuid!,
           lastScreen: 'lobby',
-        })
+        });
       }
-    })
+    });
 
     // Auto-navigate to Estimating when a round starts. Covers
     // non-host clients who are sitting on the Lobby when the host
     // taps "Start Round" — without this, only the host's click
     // handler navigates.
     effect(() => {
-      const round = this.docService.currentRound()
+      const round = this.docService.currentRound();
       if (round && round.revealedAt === undefined) {
-        const code = this.docService.roomCode()
-        assertRoomCode(code, 'lobby.autoNav')
-        void this.router.navigate(['/estimating', code])
+        const code = this.docService.roomCode();
+        assertRoomCode(code, 'lobby.autoNav');
+        void this.router.navigate(['/estimating', code]);
       }
-    })
+    });
 
     // WS rejection handler — covers all reasons a joiner can be rejected
     // while already on Lobby (e.g. host changes password mid-session,
     // room-full race, etc.). Captures code synchronously at signal-flip
     // time before endSession clears it.
     effect(() => {
-      const reason = this.docService.lastRejection()
-      if (reason === null) return
-      const code = this.roomCode()
+      const reason = this.docService.lastRejection();
+      if (reason === null) return;
+      const code = this.roomCode();
       void (async () => {
-        this.docService.endSession()
-        await this.toastService.error(rejectionCopy(reason))
+        this.docService.endSession();
+        await this.toastService.error(rejectionCopy(reason));
         if (reason === 'wrong-password') {
-          await this.router.navigate(['/join'], { queryParams: { code } })
+          await this.router.navigate(['/join'], { queryParams: { code } });
         } else {
-          await this.router.navigate(['/home'])
+          await this.router.navigate(['/home']);
         }
-      })()
-    })
+      })();
+    });
   }
 
   protected openRoundStart(): void {
-    const modal = this.modalRef()
-    if (modal) void presentSheet({ modal })
+    const modal = this.modalRef();
+    if (modal) void presentSheet({ modal });
   }
 
   protected async onRoundStart(submission: RoundStartSubmission): Promise<void> {
     this.docService.startRound({
       ...(submission.title !== null && { title: submission.title }),
-    })
-    await this.modalRef()?.dismiss()
-    this.roundStartOpen.set(false)
-    const code = this.docService.roomCode()
-    assertRoomCode(code, 'lobby.onRoundStart')
-    await this.router.navigate(['/estimating', code])
+    });
+    await this.modalRef()?.dismiss();
+    this.roundStartOpen.set(false);
+    const code = this.docService.roomCode();
+    assertRoomCode(code, 'lobby.onRoundStart');
+    await this.router.navigate(['/estimating', code]);
   }
 
   /**
@@ -815,18 +807,18 @@ export class LobbyPage {
    * Estimating without another trip through the round-start sheet.
    */
   protected async onRevote(): Promise<void> {
-    const round = this.lastRevealedRound()
-    if (!round) return
+    const round = this.lastRevealedRound();
+    if (!round) return;
 
     this.docService.startRound({
       parentRoundId: round.id,
       ...(round.title !== undefined && { title: round.title }),
       ...(round.description !== undefined && { description: round.description }),
       ...(round.ticketId !== undefined && { ticketId: round.ticketId }),
-    })
-    const code = this.docService.roomCode()
-    assertRoomCode(code, 'lobby.onRevote')
-    await this.router.navigate(['/estimating', code])
+    });
+    const code = this.docService.roomCode();
+    assertRoomCode(code, 'lobby.onRevote');
+    await this.router.navigate(['/estimating', code]);
   }
 
   protected async openActionSheet(): Promise<void> {
@@ -834,44 +826,44 @@ export class LobbyPage {
       {
         text: 'Session settings',
         handler: () => {
-          this.openSessionSettings()
+          this.openSessionSettings();
         },
       },
       {
         text: 'Leave session',
         role: 'destructive',
         handler: () => {
-          void this.confirmLeave()
+          void this.confirmLeave();
         },
       },
-    ]
+    ];
 
     if (this.isHost()) {
       buttons.splice(1, 0, {
         text: 'End session for everyone',
         role: 'destructive',
         handler: () => {
-          void this.confirmEndSession()
+          void this.confirmEndSession();
         },
-      })
+      });
     }
 
     if (this.hasRevealedRounds()) {
       buttons.splice(1, 0, {
         text: 'Copy results',
         handler: () => {
-          void this.copyResults()
+          void this.copyResults();
         },
-      })
+      });
     }
 
-    buttons.push({ text: 'Cancel', role: 'cancel' })
+    buttons.push({ text: 'Cancel', role: 'cancel' });
 
     const sheet = await this.actionSheetCtrl.create({
       header: 'Session',
       buttons,
-    })
-    await sheet.present()
+    });
+    await sheet.present();
   }
 
   protected async confirmEndSession(): Promise<void> {
@@ -884,34 +876,37 @@ export class LobbyPage {
           text: 'End session',
           role: 'destructive',
           handler: () => {
-            this.haptic.impactHeavy()
-            this.docService.endSessionForEveryone()
+            this.haptic.impactHeavy();
+            this.docService.endSessionForEveryone();
           },
         },
       ],
-    })
-    await alert.present()
+    });
+    await alert.present();
   }
 
   protected openSessionSettings(): void {
-    const modal = this.sessionSettingsModalRef()
-    if (modal) void presentSheet({ modal })
+    const modal = this.sessionSettingsModalRef();
+    if (modal) void presentSheet({ modal });
   }
 
   protected async closeSessionSettings(): Promise<void> {
-    await this.sessionSettingsModalRef()?.dismiss()
-    this.sessionSettingsOpen.set(false)
+    await this.sessionSettingsModalRef()?.dismiss();
+    this.sessionSettingsOpen.set(false);
   }
 
-  protected onAccessChanged(selection: { mode: 'open' | 'password'; password: string | null }): void {
-    this.lobbyAccessMode.set(selection.mode)
-    this.lobbyAccessPassword.set(selection.password ?? '')
+  protected onAccessChanged(selection: {
+    mode: 'open' | 'password';
+    password: string | null;
+  }): void {
+    this.lobbyAccessMode.set(selection.mode);
+    this.lobbyAccessPassword.set(selection.password ?? '');
   }
 
   protected async onShareInvite(): Promise<void> {
-    const url = this.inviteUrl()
-    const formatted = this.formattedRoomCode()
-    if (!url) return
+    const url = this.inviteUrl();
+    const formatted = this.formattedRoomCode();
+    if (!url) return;
 
     try {
       await Share.share({
@@ -919,12 +914,12 @@ export class LobbyPage {
         text: `Room code: ${formatted}`,
         url,
         dialogTitle: 'Share invite',
-      })
+      });
     } catch (err: unknown) {
       // User-cancelled share sheets throw — silently ignore.
-      if (err instanceof Error && err.message?.includes('cancel')) return
+      if (err instanceof Error && err.message?.includes('cancel')) return;
       // navigator.share unavailable or other failure — clipboard fallback.
-      await this.copyToClipboard(url, formatted)
+      await this.copyToClipboard(url, formatted);
     }
   }
 
@@ -933,64 +928,61 @@ export class LobbyPage {
       // Pass raw participants() — includes departed — so names still resolve per ADR-0036.
       const participantsRecord = Object.fromEntries(
         this.docService.participants().map((p) => [p.id, p]),
-      )
+      );
       await this.exportService.copyRoundsAsMarkdown({
         rounds: this.docService.rounds(),
         participants: participantsRecord,
-      })
-      await this.toastService.info('Results copied')
+      });
+      await this.toastService.info('Results copied');
     } catch (err: unknown) {
-      console.warn('copyResults failed', err)
-      await this.toastService.error('Clipboard unavailable')
+      console.warn('copyResults failed', err);
+      await this.toastService.error('Clipboard unavailable');
     }
   }
 
-  private async copyToClipboard(
-    url: string,
-    formattedCode: string,
-  ): Promise<void> {
+  private async copyToClipboard(url: string, formattedCode: string): Promise<void> {
     try {
-      await navigator.clipboard.writeText(url)
-      await this.toastService.info(`Invite link copied! (${formattedCode})`)
+      await navigator.clipboard.writeText(url);
+      await this.toastService.info(`Invite link copied! (${formattedCode})`);
     } catch {
-      await this.toastService.error('Could not share the invite link.')
+      await this.toastService.error('Could not share the invite link.');
     }
   }
 
   protected onShowQr(): void {
-    const modal = this.qrModalRef()
-    if (modal) void presentSheet({ modal })
+    const modal = this.qrModalRef();
+    if (modal) void presentSheet({ modal });
   }
 
   protected async closeQr(): Promise<void> {
-    await this.qrModalRef()?.dismiss()
-    this.qrOpen.set(false)
+    await this.qrModalRef()?.dismiss();
+    this.qrOpen.set(false);
   }
 
   protected openRoundEdit(round: Round): void {
-    this.editingRound.set(round)
-    this.roundEditOpen.set(true)
+    this.editingRound.set(round);
+    this.roundEditOpen.set(true);
   }
 
   protected openRoundEditById(roundId: string): void {
-    const round = this.rounds().find((r) => r.id === roundId)
-    if (round) this.openRoundEdit(round)
+    const round = this.rounds().find((r) => r.id === roundId);
+    if (round) this.openRoundEdit(round);
   }
 
   protected onRoundEditDismiss(): void {
-    this.roundEditOpen.set(false)
-    this.editingRound.set(null)
+    this.roundEditOpen.set(false);
+    this.editingRound.set(null);
   }
 
   protected onRoundEditSave(payload: { title: string; description: string | null }): void {
-    const round = this.editingRound()
-    if (!round) return
+    const round = this.editingRound();
+    if (!round) return;
     this.docService.updateRoundDescriptor(round.id, {
       title: payload.title,
       ...(payload.description !== null && { description: payload.description }),
-    })
-    this.roundEditOpen.set(false)
-    this.editingRound.set(null)
+    });
+    this.roundEditOpen.set(false);
+    this.editingRound.set(null);
   }
 
   /**
@@ -1002,7 +994,7 @@ export class LobbyPage {
    * Per plan §4: back is NOT destructive, so no confirmation dialog.
    */
   protected softExit(): void {
-    void this.router.navigate(['/home'])
+    void this.router.navigate(['/home']);
   }
 
   /**
@@ -1022,27 +1014,27 @@ export class LobbyPage {
           text: 'Leave',
           role: 'destructive',
           handler: () => {
-            this.haptic.impactHeavy()
-            void this.leaveSession()
+            this.haptic.impactHeavy();
+            void this.leaveSession();
           },
         },
       ],
-    })
-    await alert.present()
+    });
+    await alert.present();
   }
 
   private async leaveSession(): Promise<void> {
-    const selfId = this.myId()
+    const selfId = this.myId();
     if (selfId) {
       // Write the soft-delete before disconnecting so peers see the removal (ADR-0036).
-      this.docService.leaveSession(selfId)
+      this.docService.leaveSession(selfId);
       // Flush the Yjs update through the WebSocket before closing (best-effort, 500 ms cap).
-      await this.docService.flushUpdates()
+      await this.docService.flushUpdates();
     }
-    this.docService.endSession()
+    this.docService.endSession();
     // Destructive leave — clear cache so Jump-back-in banner does not reappear (ADR-0022).
-    await this.lastSessionService.clear()
-    await this.router.navigate(['/home'])
+    await this.lastSessionService.clear();
+    await this.router.navigate(['/home']);
   }
 
   /**
@@ -1058,13 +1050,13 @@ export class LobbyPage {
         {
           text: 'Confirm',
           handler: () => {
-            this.haptic.impactMedium()
-            this.docService.updateSettings({ hostParticipantId: participantId })
+            this.haptic.impactMedium();
+            this.docService.updateSettings({ hostParticipantId: participantId });
           },
         },
       ],
-    })
-    await alert.present()
+    });
+    await alert.present();
   }
 
   /**
@@ -1082,16 +1074,16 @@ export class LobbyPage {
           text: 'Remove',
           role: 'destructive',
           handler: () => {
-            this.haptic.impactHeavy()
-            const hostId = this.myId()
+            this.haptic.impactHeavy();
+            const hostId = this.myId();
             if (hostId) {
-              this.docService.removeParticipant(hostId, participantId)
+              this.docService.removeParticipant(hostId, participantId);
             }
           },
         },
       ],
-    })
-    await alert.present()
+    });
+    await alert.present();
   }
 }
 
@@ -1107,7 +1099,6 @@ export class LobbyPage {
  * Phase 6 concern.
  */
 function formatScaleId(id: string): string {
-  if (id.length === 0) return id
-  return id.charAt(0).toUpperCase() + id.slice(1)
+  if (id.length === 0) return id;
+  return id.charAt(0).toUpperCase() + id.slice(1);
 }
-

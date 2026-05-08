@@ -5,12 +5,12 @@ import {
   effect,
   inject,
   signal,
-} from '@angular/core'
-import { IonChip, IonIcon, IonLabel, IonToast } from '@ionic/angular/standalone'
-import { addIcons } from 'ionicons'
-import { syncOutline } from 'ionicons/icons'
+} from '@angular/core';
+import { IonChip, IonIcon, IonLabel, IonToast } from '@ionic/angular/standalone';
+import { addIcons } from 'ionicons';
+import { syncOutline } from 'ionicons/icons';
 
-import { DocService } from '../core/doc/doc.service'
+import { DocService } from '../core/doc/doc.service';
 
 /**
  * Inline reconnecting banner — plan §3.9 / issue #42.
@@ -58,44 +58,44 @@ import { DocService } from '../core/doc/doc.service'
   ],
 })
 export class ConnectionStatusBannerComponent {
-  private readonly docService = inject(DocService)
-  private readonly destroyRef = inject(DestroyRef)
+  private readonly docService = inject(DocService);
+  private readonly destroyRef = inject(DestroyRef);
 
-  protected readonly reconnecting = this.docService.reconnecting
+  protected readonly reconnecting = this.docService.reconnecting;
 
   /**
    * Flipped to `true` on the falling edge of `reconnecting()` (true → false).
    * Cleared after 1500 ms so the toast dismisses naturally.
    */
-  protected readonly recentlyReconnected = signal(false)
+  protected readonly recentlyReconnected = signal(false);
 
   constructor() {
-    addIcons({ 'sync-outline': syncOutline })
+    addIcons({ 'sync-outline': syncOutline });
 
-    let clearTimer: ReturnType<typeof setTimeout> | null = null
+    let clearTimer: ReturnType<typeof setTimeout> | null = null;
 
     // Detect falling edge (true → false) via closure-tracked `previous`.
     // Same pattern as connection-chip.component.ts:137-150.
-    let previous = false
+    let previous = false;
     effect(() => {
-      const current = this.reconnecting()
+      const current = this.reconnecting();
       if (previous && !current) {
         // Falling edge: transition from reconnecting → connected.
         if (clearTimer !== null) {
-          clearTimeout(clearTimer)
-          clearTimer = null
+          clearTimeout(clearTimer);
+          clearTimer = null;
         }
-        this.recentlyReconnected.set(true)
+        this.recentlyReconnected.set(true);
         clearTimer = setTimeout(() => {
-          this.recentlyReconnected.set(false)
-          clearTimer = null
-        }, 1500)
+          this.recentlyReconnected.set(false);
+          clearTimer = null;
+        }, 1500);
       }
-      previous = current
-    })
+      previous = current;
+    });
 
     this.destroyRef.onDestroy(() => {
-      if (clearTimer !== null) clearTimeout(clearTimer)
-    })
+      if (clearTimer !== null) clearTimeout(clearTimer);
+    });
   }
 }

@@ -19,10 +19,7 @@
       }
     ],
     "@semantic-release/release-notes-generator",
-    [
-      "@semantic-release/npm",
-      { "npmPublish": true, "pkgRoot": "packages/cli" }
-    ],
+    ["@semantic-release/npm", { "npmPublish": true, "pkgRoot": "packages/cli" }],
     [
       "@semantic-release/changelog",
       {

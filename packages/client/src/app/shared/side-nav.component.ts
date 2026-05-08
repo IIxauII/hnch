@@ -1,10 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-} from '@angular/core'
-import { RouterLink, RouterLinkActive } from '@angular/router'
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { RouterLink, RouterLinkActive } from '@angular/router';
 import {
   IonContent,
   IonHeader,
@@ -14,13 +9,13 @@ import {
   IonList,
   IonTitle,
   IonToolbar,
-} from '@ionic/angular/standalone'
-import { addIcons } from 'ionicons'
-import { homeOutline, peopleOutline, settingsOutline } from 'ionicons/icons'
+} from '@ionic/angular/standalone';
+import { addIcons } from 'ionicons';
+import { homeOutline, peopleOutline, settingsOutline } from 'ionicons/icons';
 
-import { DocService } from '../core/doc/doc.service'
+import { DocService } from '../core/doc/doc.service';
 
-addIcons({ homeOutline, peopleOutline, settingsOutline })
+addIcons({ homeOutline, peopleOutline, settingsOutline });
 
 /**
  * SideNavComponent — permanent left-rail nav rendered inside ion-menu
@@ -86,16 +81,18 @@ addIcons({ homeOutline, peopleOutline, settingsOutline })
       </ion-list>
     </ion-content>
   `,
-  styles: [`
+  styles: [
+    `
     .active-link {
       --background: var(--ion-background-color-step-100);
     }
-  `],
+  `,
+  ],
 })
 export class SideNavComponent {
-  private readonly docService = inject(DocService)
+  private readonly docService = inject(DocService);
 
   protected readonly activeSessionCode = computed(() =>
-    this.docService.hasSession() ? this.docService.roomCode() : null
-  )
+    this.docService.hasSession() ? this.docService.roomCode() : null,
+  );
 }

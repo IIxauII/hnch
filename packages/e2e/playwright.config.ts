@@ -1,8 +1,8 @@
-import { defineConfig, devices } from '@playwright/test'
+import { defineConfig, devices } from '@playwright/test';
 
-const isCI = !!process.env['CI']
-const CLIENT_PORT = process.env['CLIENT_PORT'] ?? '4200'
-const RELAY_PORT = process.env['RELAY_PORT'] ?? '1234'
+const isCI = !!process.env['CI'];
+const CLIENT_PORT = process.env['CLIENT_PORT'] ?? '4200';
+const RELAY_PORT = process.env['RELAY_PORT'] ?? '1234';
 
 export default defineConfig({
   globalSetup: './global-setup.ts',
@@ -10,7 +10,7 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: isCI,
   retries: 0,
-  workers: isCI ? 4 : undefined,
+  ...(isCI && { workers: 4 }),
   // Fail-fast in CI: any single failure aborts the run so a bootstrap
   // crash doesn't burn the 10-min CI cap on 73 trailing tests against a
   // blank page. Local: 0 (Playwright treats 0 as disabled = run
@@ -43,4 +43,4 @@ export default defineConfig({
       env: { CLIENT_PORT },
     },
   ],
-})
+});

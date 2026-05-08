@@ -8,9 +8,9 @@ import {
   OnInit,
   output,
   signal,
-} from '@angular/core'
-import { FormsModule } from '@angular/forms'
-import { type CustomScale } from '@hnch/shared'
+} from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { type CustomScale } from '@hnch/shared';
 import {
   IonButton,
   IonButtons,
@@ -27,12 +27,12 @@ import {
   IonReorderGroup,
   IonTitle,
   IonToolbar,
-} from '@ionic/angular/standalone'
-import { addIcons } from 'ionicons'
-import { addOutline, closeCircle } from 'ionicons/icons'
+} from '@ionic/angular/standalone';
+import { addIcons } from 'ionicons';
+import { addOutline, closeCircle } from 'ionicons/icons';
 
-import { HapticService } from '../core/haptic.service'
-import { ScalePreferenceService } from '../core/scale-preference.service'
+import { HapticService } from '../core/haptic.service';
+import { ScalePreferenceService } from '../core/scale-preference.service';
 
 /**
  * Custom scale creator / editor half-sheet.
@@ -195,137 +195,137 @@ import { ScalePreferenceService } from '../core/scale-preference.service'
   ],
 })
 export class CustomScaleEditorSheetComponent implements OnInit, OnDestroy {
-  private readonly scalePrefs = inject(ScalePreferenceService)
-  private readonly haptics = inject(HapticService)
+  private readonly scalePrefs = inject(ScalePreferenceService);
+  private readonly haptics = inject(HapticService);
 
-  private nameDebounceHandle: ReturnType<typeof setTimeout> | null = null
-  private savingInProgress = false
-  private saveNeeded = false
+  private nameDebounceHandle: ReturnType<typeof setTimeout> | null = null;
+  private savingInProgress = false;
+  private saveNeeded = false;
 
   /**
    * If provided, the sheet opens in edit mode: pre-fills name and cards,
    * and calls `updateCustomScale()` on save.
    */
-  readonly existingScale = input<CustomScale | undefined>(undefined)
+  readonly existingScale = input<CustomScale | undefined>();
 
   /** Emits the id of the newly-created scale (create mode). */
-  readonly created = output<string>()
+  readonly created = output<string>();
 
   /** Emits the id of the updated scale (edit mode). */
-  readonly updated = output<string>()
+  readonly updated = output<string>();
 
   /** Emits when the sheet should close (Cancel or after Save). */
-  readonly closeRequested = output<void>()
+  readonly closeRequested = output<void>();
 
-  protected readonly name = signal('')
-  protected newCard = ''
-  protected readonly cards = signal<string[]>([])
+  protected readonly name = signal('');
+  protected newCard = '';
+  protected readonly cards = signal<string[]>([]);
 
   /** Null in create mode until first auto-save mints the id. */
-  protected readonly persistedId = signal<string | null>(null)
+  protected readonly persistedId = signal<string | null>(null);
 
-  protected readonly isEditMode = computed(() => !!this.existingScale())
+  protected readonly isEditMode = computed(() => !!this.existingScale());
 
   protected readonly title = computed(() =>
     this.isEditMode() ? 'Edit Custom Scale' : 'Create Custom Scale',
-  )
+  );
 
   protected readonly canSave = computed(
     () => this.name().trim().length > 0 && this.cards().length >= 2,
-  )
+  );
 
   constructor() {
-    addIcons({ 'add-outline': addOutline, 'close-circle': closeCircle })
+    addIcons({ 'add-outline': addOutline, 'close-circle': closeCircle });
   }
 
   ngOnInit(): void {
-    const existing = this.existingScale()
+    const existing = this.existingScale();
     if (existing) {
-      this.name.set(existing.label)
-      this.cards.set([...existing.cards])
-      this.persistedId.set(existing.id)
+      this.name.set(existing.label);
+      this.cards.set([...existing.cards]);
+      this.persistedId.set(existing.id);
     }
   }
 
   ngOnDestroy(): void {
     if (this.nameDebounceHandle !== null) {
-      clearTimeout(this.nameDebounceHandle)
+      clearTimeout(this.nameDebounceHandle);
     }
   }
 
   protected onNameInput(value: string): void {
-    this.name.set(value)
+    this.name.set(value);
     if (this.nameDebounceHandle !== null) {
-      clearTimeout(this.nameDebounceHandle)
+      clearTimeout(this.nameDebounceHandle);
     }
     this.nameDebounceHandle = setTimeout(() => {
-      this.nameDebounceHandle = null
-      void this.autoSave()
-    }, 250)
+      this.nameDebounceHandle = null;
+      void this.autoSave();
+    }, 250);
   }
 
   protected onAddCard(): void {
-    const face = this.newCard.trim()
-    if (!face) return
-    this.haptics.impactLight()
-    this.cards.update((prev) => [...prev, face])
-    this.newCard = ''
-    void this.autoSave()
+    const face = this.newCard.trim();
+    if (!face) return;
+    this.haptics.impactLight();
+    this.cards.update((prev) => [...prev, face]);
+    this.newCard = '';
+    void this.autoSave();
   }
 
   protected onDeleteCard(index: number, event: Event): void {
-    event.stopPropagation()
-    this.haptics.impactLight()
-    this.cards.update((prev) => prev.filter((_, i) => i !== index))
-    void this.autoSave()
+    event.stopPropagation();
+    this.haptics.impactLight();
+    this.cards.update((prev) => prev.filter((_, i) => i !== index));
+    void this.autoSave();
   }
 
   protected onReorder(
     event: CustomEvent<{
-      from: number
-      to: number
-      complete: (data?: boolean | unknown[]) => unknown
+      from: number;
+      to: number;
+      complete: (data?: boolean | unknown[]) => unknown;
     }>,
   ): void {
-    const { from, to, complete } = event.detail
+    const { from, to, complete } = event.detail;
     this.cards.update((prev) => {
-      const reordered = [...prev]
-      const moved = reordered.splice(from, 1)[0]!
-      reordered.splice(to, 0, moved)
-      return reordered
-    })
-    complete(false)
-    void this.autoSave()
+      const reordered = [...prev];
+      const moved = reordered.splice(from, 1)[0]!;
+      reordered.splice(to, 0, moved);
+      return reordered;
+    });
+    complete(false);
+    void this.autoSave();
   }
 
   private async autoSave(): Promise<void> {
-    if (!this.canSave()) return
+    if (!this.canSave()) return;
     if (this.savingInProgress) {
-      this.saveNeeded = true
-      return
+      this.saveNeeded = true;
+      return;
     }
 
-    this.savingInProgress = true
+    this.savingInProgress = true;
     try {
-      const label = this.name().trim()
-      const cards = this.cards()
-      const currentId = this.persistedId()
+      const label = this.name().trim();
+      const cards = this.cards();
+      const currentId = this.persistedId();
 
       if (currentId === null) {
-        const id = await this.scalePrefs.addCustomScale(label, cards)
-        this.persistedId.set(id)
-        this.created.emit(id)
+        const id = await this.scalePrefs.addCustomScale(label, cards);
+        this.persistedId.set(id);
+        this.created.emit(id);
       } else {
-        await this.scalePrefs.updateCustomScale(currentId, label, cards)
-        this.updated.emit(currentId)
+        await this.scalePrefs.updateCustomScale(currentId, label, cards);
+        this.updated.emit(currentId);
       }
     } finally {
-      this.savingInProgress = false
+      this.savingInProgress = false;
     }
 
     if (this.saveNeeded) {
-      this.saveNeeded = false
-      void this.autoSave()
+      this.saveNeeded = false;
+      void this.autoSave();
     }
   }
 }

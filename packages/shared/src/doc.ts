@@ -29,9 +29,9 @@
  */
 export interface Scale {
   /** Builtin IDs: `'fibonacci'`, `'t-shirt'`, `'powers-of-2'`, `'linear'`, `'risk'`. Custom scales use a `custom-` prefix. */
-  id: string
+  id: string;
   /** Card faces, in display order. */
-  cards: string[]
+  cards: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -40,13 +40,13 @@ export interface Scale {
 
 export interface Meta {
   /** Internal UUID for this session. Room codes (ADR-0008) are a relay-side lookup to this UUID. */
-  roomUuid: string
+  roomUuid: string;
   /** Unix milliseconds when the session was created. */
-  createdAt: number
+  createdAt: number;
   /** `participantId` of the creator. This is also the initial host (ADR-0010). */
-  createdBy: string
+  createdBy: string;
   /** Unix milliseconds when the host ended the session for everyone. Optional. Absent means session is still active. */
-  sessionEndedAt?: number
+  sessionEndedAt?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -55,11 +55,11 @@ export interface Meta {
 
 export interface Settings {
   /** Human-readable session name, e.g. `"Sprint 42 planning"`. Optional. */
-  name?: string
+  name?: string;
   /** Scale inherited by newly-created rounds. Snapshotted into each round at creation. */
-  defaultScale: Scale
+  defaultScale: Scale;
   /** The `participantId` currently holding host authority (ADR-0010). */
-  hostParticipantId: string
+  hostParticipantId: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -68,29 +68,29 @@ export interface Settings {
 
 export interface Participant {
   /** The name shown to other participants. User-editable. */
-  displayName: string
+  displayName: string;
   /** Unix milliseconds when this participant first joined the session. */
-  joinedAt: number
+  joinedAt: number;
   /**
    * Participant role in the session (ADR-0020). Absent means `'voter'`.
    * Voters cast estimates; viewers observe without voting and are excluded
    * from unanimous auto-reveal (ADR-0018).
    */
-  role?: 'voter' | 'viewer'
+  role?: 'voter' | 'viewer';
   /**
    * Unix milliseconds when the participant left or was removed (ADR-0036).
    * Absent means the participant is active. Set by `leaveSession` (voluntary
    * leave) or `removeParticipant` (host kick). Tab-close / network drop do
    * NOT set this — those are handled by Yjs awareness.
    */
-  leftAt?: number
+  leftAt?: number;
   /**
    * `participantId` of the actor who triggered the removal (ADR-0036).
    * Equal to the participant's own id ⇒ voluntary leave.
    * Different id ⇒ kicked by that host.
    * Always set alongside `leftAt`; absent when `leftAt` is absent.
    */
-  removedBy?: string
+  removedBy?: string;
 }
 
 /**
@@ -98,7 +98,7 @@ export interface Participant {
  * (backward-compatible default — existing sessions have no role field).
  */
 export function participantRole(p: Pick<Participant, 'role'>): 'voter' | 'viewer' {
-  return p.role ?? 'voter'
+  return p.role ?? 'voter';
 }
 
 /**
@@ -110,7 +110,7 @@ export function participantRole(p: Pick<Participant, 'role'>): 'voter' | 'viewer
  * filtered — so departed names still resolve on past rounds.
  */
 export function isActiveParticipant(p: Pick<Participant, 'leftAt'>): boolean {
-  return p.leftAt === undefined
+  return p.leftAt === undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -119,32 +119,32 @@ export function isActiveParticipant(p: Pick<Participant, 'leftAt'>): boolean {
 
 export interface Round {
   /** UUID. */
-  id: string
+  id: string;
   /** E.g. `"Auth migration"`. Optional; inherited from parent on re-vote. */
-  title?: string
+  title?: string;
   /** Longer context; inherited from parent on re-vote. */
-  description?: string
+  description?: string;
   /** Tracker reference like `"PROJ-1234"`; inherited from parent on re-vote. */
-  ticketId?: string
+  ticketId?: string;
   /** If this is a re-vote, the `id` of the previous round in the chain. */
-  parentRoundId?: string
+  parentRoundId?: string;
   /** Snapshotted at round creation from `settings.defaultScale`; independent after creation. */
-  scale: Scale
+  scale: Scale;
   /**
    * Unix milliseconds when voting started (written at round creation).
    * Used as a stopwatch origin to show elapsed voting time (ADR-0018).
    */
-  timerStartedAt?: number
+  timerStartedAt?: number;
   /**
    * Unix milliseconds when the round was revealed. Written by the host
    * (manual reveal) or by any client when all online participants have
    * voted (unanimous auto-reveal, ADR-0018). Absent means not yet revealed.
    */
-  revealedAt?: number
+  revealedAt?: number;
   /** `participantId` of whoever created the round. */
-  createdBy: string
+  createdBy: string;
   /** Unix milliseconds when the round was created. */
-  createdAt: number
+  createdAt: number;
   /**
    * Votes keyed by `participantId`. Value is the card face string (e.g.
    * `"5"`, `"M"`, `"High"`). Vote-change-before-reveal is just overwriting
@@ -153,7 +153,7 @@ export interface Round {
    * In the Yjs doc this is a `Y.Map<string, string>`; the `Record` shape
    * here is the platform-neutral projection.
    */
-  votes: Record<string, string>
+  votes: Record<string, string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -171,7 +171,7 @@ export interface Round {
  */
 export interface AwarenessPayload {
   /** Maps an awareness entry back to a `participants` entry. */
-  participantId: string
+  participantId: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -184,7 +184,7 @@ export interface AwarenessPayload {
 export const FIBONACCI_SCALE: Scale = {
   id: 'fibonacci',
   cards: ['0', '1', '2', '3', '5', '8', '13', '21'],
-}
+};
 
 /**
  * T-shirt sizes for teams that prefer relative-size estimation over
@@ -193,7 +193,7 @@ export const FIBONACCI_SCALE: Scale = {
 export const TSHIRT_SCALE: Scale = {
   id: 't-shirt',
   cards: ['XS', 'S', 'M', 'L', 'XL'],
-}
+};
 
 /**
  * Powers-of-two sequence. Common in engineering sub-teams that think in
@@ -202,7 +202,7 @@ export const TSHIRT_SCALE: Scale = {
 export const POWERS_OF_2_SCALE: Scale = {
   id: 'powers-of-2',
   cards: ['1', '2', '4', '8', '16', '32', '64'],
-}
+};
 
 /**
  * Simple linear 1–10 scale for teams unfamiliar with Fibonacci.
@@ -210,7 +210,7 @@ export const POWERS_OF_2_SCALE: Scale = {
 export const LINEAR_SCALE: Scale = {
   id: 'linear',
   cards: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'],
-}
+};
 
 /**
  * Risk assessment scale for risk-estimation ceremonies.
@@ -218,7 +218,7 @@ export const LINEAR_SCALE: Scale = {
 export const RISK_SCALE: Scale = {
   id: 'risk',
   cards: ['Low', 'Medium', 'High', 'Critical'],
-}
+};
 
 /**
  * Convenience lookup for the builtin scales. Custom scales created by
@@ -231,7 +231,7 @@ export const BUILTIN_SCALES: Readonly<Record<string, Scale>> = {
   [POWERS_OF_2_SCALE.id]: POWERS_OF_2_SCALE,
   [LINEAR_SCALE.id]: LINEAR_SCALE,
   [RISK_SCALE.id]: RISK_SCALE,
-}
+};
 
 /**
  * Human-readable display names for the builtin scale IDs.
@@ -242,7 +242,7 @@ export const SCALE_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   'powers-of-2': 'Powers of 2',
   linear: 'Linear (1–10)',
   risk: 'Risk',
-}
+};
 
 /**
  * Returns a human-readable label for a scale ID. For builtin scales this is
@@ -251,11 +251,11 @@ export const SCALE_DISPLAY_NAMES: Readonly<Record<string, string>> = {
  * unknown ID is title-cased word-by-word as a best-effort fallback.
  */
 export function formatScaleId(id: string): string {
-  if (id in SCALE_DISPLAY_NAMES) return SCALE_DISPLAY_NAMES[id]!
-  if (id.length === 0) return id
-  const stripped = id.startsWith('custom-') ? id.slice('custom-'.length) : id
+  if (id in SCALE_DISPLAY_NAMES) return SCALE_DISPLAY_NAMES[id]!;
+  if (id.length === 0) return id;
+  const stripped = id.startsWith('custom-') ? id.slice('custom-'.length) : id;
   return stripped
     .split('-')
     .map((word) => (word.length === 0 ? word : word.charAt(0).toUpperCase() + word.slice(1)))
-    .join(' ')
+    .join(' ');
 }

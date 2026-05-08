@@ -1,7 +1,7 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core'
-import { IonIcon } from '@ionic/angular/standalone'
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { IonIcon } from '@ionic/angular/standalone';
 
-export type IconTileVariant = 'accent' | 'neutral' | 'soft'
+export type IconTileVariant = 'accent' | 'neutral' | 'soft';
 
 /**
  * Icon-in-tile primitive.
@@ -67,6 +67,6 @@ export type IconTileVariant = 'accent' | 'neutral' | 'soft'
   ],
 })
 export class IconTileComponent {
-  readonly icon = input.required<string>()
-  readonly variant = input<IconTileVariant>('neutral')
+  readonly icon = input.required<string>();
+  readonly variant = input<IconTileVariant>('neutral');
 }

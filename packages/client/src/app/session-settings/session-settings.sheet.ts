@@ -7,8 +7,8 @@ import {
   output,
   signal,
   viewChild,
-} from '@angular/core'
-import { hashPassword, type Scale } from '@hnch/shared'
+} from '@angular/core';
+import { hashPassword, type Scale } from '@hnch/shared';
 import {
   IonButton,
   IonButtons,
@@ -23,23 +23,23 @@ import {
   IonNote,
   IonTitle,
   IonToolbar,
-} from '@ionic/angular/standalone'
-import { addIcons } from 'ionicons'
-import { chevronForwardOutline } from 'ionicons/icons'
+} from '@ionic/angular/standalone';
+import { addIcons } from 'ionicons';
+import { chevronForwardOutline } from 'ionicons/icons';
 
-import { environment } from '../../environments/environment'
-import { AppPreferenceService } from '../core/app-preference.service'
-import { DocService } from '../core/doc/doc.service'
-import { patchRoomAccess } from '../core/relay/relay-api'
-import { ToastService } from '../services/toast.service'
+import { environment } from '../../environments/environment';
+import { AppPreferenceService } from '../core/app-preference.service';
+import { DocService } from '../core/doc/doc.service';
+import { patchRoomAccess } from '../core/relay/relay-api';
+import { ToastService } from '../services/toast.service';
 import {
   AccessPickerSheetComponent,
   type AccessMode,
   type AccessSelection,
-} from './access-picker.sheet'
-import { ScalePickerSheetComponent } from './scale-picker.sheet'
-import { presentSheet } from '../utils/present-sheet'
-import { formatScaleId } from '@hnch/shared'
+} from './access-picker.sheet';
+import { ScalePickerSheetComponent } from './scale-picker.sheet';
+import { presentSheet } from '../utils/present-sheet';
+import { formatScaleId } from '@hnch/shared';
 
 /**
  * Session settings half-sheet — ux.md §5.8.
@@ -163,60 +163,58 @@ import { formatScaleId } from '@hnch/shared'
   ],
 })
 export class SessionSettingsSheetComponent {
-  private readonly appPrefs = inject(AppPreferenceService)
-  private readonly docService = inject(DocService)
-  private readonly toastService = inject(ToastService)
+  private readonly appPrefs = inject(AppPreferenceService);
+  private readonly docService = inject(DocService);
+  private readonly toastService = inject(ToastService);
 
-  protected readonly settings = this.docService.settings
+  protected readonly settings = this.docService.settings;
 
   /**
    * Fires when the user taps Done. The Lobby owns the outer sheet's
    * `ion-modal` and is responsible for dismissing it.
    */
-  readonly closeRequested = output<void>()
+  readonly closeRequested = output<void>();
 
   /**
    * Access state is owned by the parent (LobbyPage) so it survives
    * modal dismiss/recreate cycles. The settings sheet reads and
    * updates it via input/output bindings.
    */
-  readonly accessMode = input<AccessMode>('open')
-  readonly accessPassword = input<string>('')
-  readonly accessChanged = output<AccessSelection>()
+  readonly accessMode = input<AccessMode>('open');
+  readonly accessPassword = input<string>('');
+  readonly accessChanged = output<AccessSelection>();
 
   /**
    * Host state — controls whether room name input is editable.
    * Only the host can edit session name.
    */
-  readonly isHost = input<boolean>(false)
+  readonly isHost = input<boolean>(false);
 
   /** Inner picker visibility flags. */
-  protected readonly scaleOpen = signal(false)
-  protected readonly accessOpen = signal(false)
+  protected readonly scaleOpen = signal(false);
+  protected readonly accessOpen = signal(false);
 
   /** Current settings.defaultScale, or `null` until session boots. */
   protected readonly currentScale = computed<Scale | null>(
     () => this.settings()?.defaultScale ?? null,
-  )
+  );
 
   protected readonly scaleLabel = computed(() => {
-    const id = this.currentScale()?.id
-    if (!id) return ''
-    return formatScaleId(id)
-  })
+    const id = this.currentScale()?.id;
+    if (!id) return '';
+    return formatScaleId(id);
+  });
 
-  protected readonly accessLabel = computed(() =>
-    formatAccessLabel(this.accessMode()),
-  )
+  protected readonly accessLabel = computed(() => formatAccessLabel(this.accessMode()));
 
-  private readonly sessionNameInput = viewChild<IonInput>('sessionNameInput')
-  private readonly scaleModalRef = viewChild<IonModal>('scaleModal')
-  private readonly accessModalRef = viewChild<IonModal>('accessModal')
+  private readonly sessionNameInput = viewChild<IonInput>('sessionNameInput');
+  private readonly scaleModalRef = viewChild<IonModal>('scaleModal');
+  private readonly accessModalRef = viewChild<IonModal>('accessModal');
 
   constructor() {
     addIcons({
       'chevron-forward-outline': chevronForwardOutline,
-    })
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -224,20 +222,21 @@ export class SessionSettingsSheetComponent {
   // ---------------------------------------------------------------------------
 
   protected onSessionNameBlur(): void {
-    const input = this.sessionNameInput()
-    if (!input) return
-    const trimmed = (input.value as string).trim()
-    this.docService.updateSettings({ name: trimmed || undefined })
+    const sessionNameInputElement = this.sessionNameInput();
+    if (!sessionNameInputElement) return;
+    const trimmed = (sessionNameInputElement.value as string).trim();
+    const update = { ...(trimmed && { name: trimmed }) };
+    this.docService.updateSettings(update);
   }
 
   protected openScalePicker(): void {
-    const modal = this.scaleModalRef()
-    if (modal) void presentSheet({ modal })
+    const modal = this.scaleModalRef();
+    if (modal) void presentSheet({ modal });
   }
 
   protected openAccessPicker(): void {
-    const modal = this.accessModalRef()
-    if (modal) void presentSheet({ modal })
+    const modal = this.accessModalRef();
+    if (modal) void presentSheet({ modal });
   }
 
   // ---------------------------------------------------------------------------
@@ -245,49 +244,49 @@ export class SessionSettingsSheetComponent {
   // ---------------------------------------------------------------------------
 
   protected onScaleSelected(scale: Scale): void {
-    this.docService.updateSettings({ defaultScale: scale })
+    this.docService.updateSettings({ defaultScale: scale });
   }
 
   protected async closeScalePicker(): Promise<void> {
-    await this.scaleModalRef()?.dismiss()
-    this.scaleOpen.set(false)
+    await this.scaleModalRef()?.dismiss();
+    this.scaleOpen.set(false);
   }
 
   protected onAccessSelected(selection: AccessSelection): void {
-    this.accessChanged.emit(selection)
+    this.accessChanged.emit(selection);
 
     // Fire-and-forget relay PATCH — update access mode on the relay.
-    void this.syncAccessToRelay(selection)
+    void this.syncAccessToRelay(selection);
   }
 
   private async syncAccessToRelay(selection: AccessSelection): Promise<void> {
-    const roomUuid = this.docService.meta()?.roomUuid
-    if (!roomUuid) return
+    const roomUuid = this.docService.meta()?.roomUuid;
+    if (!roomUuid) return;
 
     try {
       if (selection.mode === 'password' && selection.password) {
-        const hash = await hashPassword(selection.password, roomUuid)
+        const hash = await hashPassword(selection.password, roomUuid);
         await patchRoomAccess(
           this.appPrefs.relayHttpUrl() ?? environment.relayHttpUrl,
           roomUuid,
           hash,
-        )
+        );
       } else if (selection.mode === 'open') {
         await patchRoomAccess(
           this.appPrefs.relayHttpUrl() ?? environment.relayHttpUrl,
           roomUuid,
           null,
-        )
+        );
       }
       // 'invite' mode is a no-op per ADR-0017 (dropped from v1).
     } catch {
-      await this.toastService.error('Failed to update access mode. Try again.')
+      await this.toastService.error('Failed to update access mode. Try again.');
     }
   }
 
   protected async closeAccessPicker(): Promise<void> {
-    await this.accessModalRef()?.dismiss()
-    this.accessOpen.set(false)
+    await this.accessModalRef()?.dismiss();
+    this.accessOpen.set(false);
   }
 }
 
@@ -298,8 +297,8 @@ export class SessionSettingsSheetComponent {
 function formatAccessLabel(mode: AccessMode): string {
   switch (mode) {
     case 'open':
-      return 'Open'
+      return 'Open';
     case 'password':
-      return 'Password'
+      return 'Password';
   }
 }

@@ -13,12 +13,12 @@
  * the format: generation, normalization, validation, and display.
  */
 
-const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
-const CODE_LENGTH = 6
+const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const CODE_LENGTH = 6;
 
 // Compile-time-ish sanity check: the alphabet must be 31 chars to match ADR-0008.
 if (ALPHABET.length !== 31) {
-  throw new Error(`Room code alphabet must be 31 characters, got ${ALPHABET.length}`)
+  throw new Error(`Room code alphabet must be 31 characters, got ${ALPHABET.length}`);
 }
 
 /**
@@ -29,21 +29,21 @@ if (ALPHABET.length !== 31) {
  * modulo (bytes >= 248) to guarantee a uniform distribution.
  */
 export function generateRoomCode(): string {
-  const max = Math.floor(256 / ALPHABET.length) * ALPHABET.length // 31 * 8 = 248
-  const chars: string[] = []
+  const max = Math.floor(256 / ALPHABET.length) * ALPHABET.length; // 31 * 8 = 248
+  const chars: string[] = [];
   // Oversample: grabbing 2x bytes means we almost never need a second round.
-  const bytes = new Uint8Array(CODE_LENGTH * 2)
+  const bytes = new Uint8Array(CODE_LENGTH * 2);
   while (chars.length < CODE_LENGTH) {
-    globalThis.crypto.getRandomValues(bytes)
+    globalThis.crypto.getRandomValues(bytes);
     for (let i = 0; i < bytes.length && chars.length < CODE_LENGTH; i++) {
-      const b = bytes[i]!
+      const b = bytes[i]!;
       if (b < max) {
-        chars.push(ALPHABET[b % ALPHABET.length]!)
+        chars.push(ALPHABET[b % ALPHABET.length]!);
       }
       // else: reject and continue to avoid modulo bias
     }
   }
-  return chars.join('')
+  return chars.join('');
 }
 
 /**
@@ -52,7 +52,7 @@ export function generateRoomCode(): string {
  * to check whether the normalized form is well-formed.
  */
 export function normalizeRoomCode(input: string): string {
-  return input.trim().replace(/-/g, '').toUpperCase()
+  return input.trim().replaceAll(/-/g, '').toUpperCase();
 }
 
 /**
@@ -61,11 +61,11 @@ export function normalizeRoomCode(input: string): string {
  * input should normalize first via `normalizeRoomCode`.
  */
 export function isValidRoomCode(code: string): boolean {
-  if (code.length !== CODE_LENGTH) return false
+  if (code.length !== CODE_LENGTH) return false;
   for (const ch of code) {
-    if (!ALPHABET.includes(ch)) return false
+    if (!ALPHABET.includes(ch)) return false;
   }
-  return true
+  return true;
 }
 
 /**
@@ -81,9 +81,9 @@ export function isValidRoomCode(code: string): boolean {
  * on in-progress user input.
  */
 export function formatRoomCode(code: string, withDash = true): string {
-  const normalized = normalizeRoomCode(code)
-  if (!withDash || normalized.length !== CODE_LENGTH) return normalized
-  return `${normalized.slice(0, 3)}-${normalized.slice(3)}`
+  const normalized = normalizeRoomCode(code);
+  if (!withDash || normalized.length !== CODE_LENGTH) return normalized;
+  return `${normalized.slice(0, 3)}-${normalized.slice(3)}`;
 }
 
 /**
@@ -97,21 +97,21 @@ export function formatRoomCode(code: string, withDash = true): string {
  * doesn't contain a recognizable room code.
  */
 export function parseInviteContent(raw: string): string | null {
-  const trimmed = raw.trim()
+  const trimmed = raw.trim();
 
   // Case 1: URL form — extract the `code` query param.
   try {
-    const url = new URL(trimmed)
-    const code = url.searchParams.get('code')
+    const url = new URL(trimmed);
+    const code = url.searchParams.get('code');
     if (code) {
-      const normalized = normalizeRoomCode(code)
-      return isValidRoomCode(normalized) ? normalized : null
+      const normalized = normalizeRoomCode(code);
+      return isValidRoomCode(normalized) ? normalized : null;
     }
   } catch {
     // Not a URL — fall through to bare-code path.
   }
 
   // Case 2: bare code.
-  const normalized = normalizeRoomCode(trimmed)
-  return isValidRoomCode(normalized) ? normalized : null
+  const normalized = normalizeRoomCode(trimmed);
+  return isValidRoomCode(normalized) ? normalized : null;
 }

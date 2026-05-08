@@ -6,332 +6,342 @@
  * the event loop clean on exit.
  */
 
-import type { AddressInfo } from 'node:net'
-import type { Server } from 'node:http'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createCodePool } from './code-pool.js'
-import { createRoomStore, type RoomStore } from './room-store.js'
-import WebSocket from 'ws'
-import { hashPassword, MAX_ROOM_PARTICIPANTS, JOIN_REJECTION_CLOSE_CODES } from '@hnch/shared'
+import type { AddressInfo } from 'node:net';
+import type { Server } from 'node:http';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { createCodePool } from './code-pool.js';
+import { createRoomStore, type RoomStore } from './room-store.js';
+import WebSocket from 'ws';
+import { hashPassword, MAX_ROOM_PARTICIPANTS, JOIN_REJECTION_CLOSE_CODES } from '@hnch/shared';
 import {
   createRelayServer,
   type CreateRoomResponse,
   type ResolveRoomRejection,
   type ResolveRoomResponse,
-} from './server.js'
+} from './server.js';
 
 describe('relay server', () => {
-  let server: Server
-  let baseUrl: string
-  let roomStore: RoomStore
+  let server: Server;
+  let baseUrl: string;
+  let roomStore: RoomStore;
 
   beforeEach(async () => {
-    roomStore = createRoomStore(createCodePool())
-    server = createRelayServer({ roomStore })
+    roomStore = createRoomStore(createCodePool());
+    server = createRelayServer({ roomStore });
     await new Promise<void>((resolve) => {
       server.listen(0, '127.0.0.1', () => {
-        resolve()
-      })
-    })
-    const address = server.address() as AddressInfo
-    baseUrl = `http://127.0.0.1:${address.port}`
-  })
+        resolve();
+      });
+    });
+    const address = server.address() as AddressInfo;
+    baseUrl = `http://127.0.0.1:${address.port}`;
+  });
 
   afterEach(async () => {
     await new Promise<void>((resolve, reject) => {
       server.close((err) => {
-        if (err) reject(err)
-        else resolve()
-      })
-    })
-  })
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  });
 
   describe('GET /health', () => {
     it('returns 200 with { status: "ok" }', async () => {
-      const res = await fetch(`${baseUrl}/health`)
-      expect(res.status).toBe(200)
-      expect(res.headers.get('content-type')).toMatch(/application\/json/)
-      const body = (await res.json()) as unknown
-      expect(body).toEqual({ status: 'ok' })
-    })
+      const res = await fetch(`${baseUrl}/health`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toMatch(/application\/json/);
+      const body = (await res.json()) as unknown;
+      expect(body).toEqual({ status: 'ok' });
+    });
 
     it('POST /health returns 404 (method narrowing)', async () => {
-      const res = await fetch(`${baseUrl}/health`, { method: 'POST' })
-      expect(res.status).toBe(404)
-    })
+      const res = await fetch(`${baseUrl}/health`, { method: 'POST' });
+      expect(res.status).toBe(404);
+    });
 
     it('query string is stripped before routing', async () => {
-      const res = await fetch(`${baseUrl}/health?probe=1`)
-      expect(res.status).toBe(200)
-      const body = (await res.json()) as unknown
-      expect(body).toEqual({ status: 'ok' })
-    })
-  })
+      const res = await fetch(`${baseUrl}/health?probe=1`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as unknown;
+      expect(body).toEqual({ status: 'ok' });
+    });
+  });
 
   describe('POST /rooms', () => {
     it('mints a room and returns its uuid + code', async () => {
-      const res = await fetch(`${baseUrl}/rooms`, { method: 'POST' })
-      expect(res.status).toBe(201)
-      const body = (await res.json()) as CreateRoomResponse
-      expect(typeof body.uuid).toBe('string')
-      expect(body.uuid.length).toBeGreaterThan(0)
+      const res = await fetch(`${baseUrl}/rooms`, { method: 'POST' });
+      expect(res.status).toBe(201);
+      const body = (await res.json()) as CreateRoomResponse;
+      expect(typeof body.uuid).toBe('string');
+      expect(body.uuid.length).toBeGreaterThan(0);
       // ADR-0008 alphabet: A-Z minus O/I/L, digits 2-9.
-      expect(body.code).toMatch(/^[A-HJKMNP-Z2-9]{6}$/)
-      expect(roomStore.roomCount).toBe(1)
-      expect(roomStore.getByUuid(body.uuid)?.code).toBe(body.code)
-    })
+      expect(body.code).toMatch(/^[A-HJKMNP-Z2-9]{6}$/);
+      expect(roomStore.roomCount).toBe(1);
+      expect(roomStore.getByUuid(body.uuid)?.code).toBe(body.code);
+    });
 
     it('accepts an empty JSON body', async () => {
       const res = await fetch(`${baseUrl}/rooms`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: '{}',
-      })
-      expect(res.status).toBe(201)
-    })
+      });
+      expect(res.status).toBe(201);
+    });
 
     it('rejects a malformed body with 400', async () => {
       const res = await fetch(`${baseUrl}/rooms`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: 'not valid json',
-      })
-      expect(res.status).toBe(400)
-      expect(roomStore.roomCount).toBe(0)
-    })
+      });
+      expect(res.status).toBe(400);
+      expect(roomStore.roomCount).toBe(0);
+    });
 
     it('consecutive calls mint distinct rooms', async () => {
-      const a = await (await fetch(`${baseUrl}/rooms`, { method: 'POST' })).json() as CreateRoomResponse
-      const b = await (await fetch(`${baseUrl}/rooms`, { method: 'POST' })).json() as CreateRoomResponse
-      expect(a.uuid).not.toBe(b.uuid)
-      expect(a.code).not.toBe(b.code)
-      expect(roomStore.roomCount).toBe(2)
-    })
-  })
+      const a = (await (
+        await fetch(`${baseUrl}/rooms`, { method: 'POST' })
+      ).json()) as CreateRoomResponse;
+      const b = (await (
+        await fetch(`${baseUrl}/rooms`, { method: 'POST' })
+      ).json()) as CreateRoomResponse;
+      expect(a.uuid).not.toBe(b.uuid);
+      expect(a.code).not.toBe(b.code);
+      expect(roomStore.roomCount).toBe(2);
+    });
+  });
 
   describe('GET /rooms/:code', () => {
     it('resolves a live code to { uuid, accessMode: "open" }', async () => {
-      const record = roomStore.createRoom()
-      const res = await fetch(`${baseUrl}/rooms/${record.code}`)
-      expect(res.status).toBe(200)
-      const body = (await res.json()) as ResolveRoomResponse
-      expect(body).toEqual({ uuid: record.uuid, accessMode: 'open' })
-    })
+      const record = roomStore.createRoom();
+      const res = await fetch(`${baseUrl}/rooms/${record.code}`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as ResolveRoomResponse;
+      expect(body).toEqual({ uuid: record.uuid, accessMode: 'open' });
+    });
 
     it('normalizes lowercase and dashed input', async () => {
-      const record = roomStore.createRoom()
-      const dashed = `${record.code.slice(0, 3)}-${record.code.slice(3)}`.toLowerCase()
-      const res = await fetch(`${baseUrl}/rooms/${encodeURIComponent(dashed)}`)
-      expect(res.status).toBe(200)
-      const body = (await res.json()) as ResolveRoomResponse
-      expect(body.uuid).toBe(record.uuid)
-    })
+      const record = roomStore.createRoom();
+      const dashed = `${record.code.slice(0, 3)}-${record.code.slice(3)}`.toLowerCase();
+      const res = await fetch(`${baseUrl}/rooms/${encodeURIComponent(dashed)}`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as ResolveRoomResponse;
+      expect(body.uuid).toBe(record.uuid);
+    });
 
     it('returns 404 with { reason: "unknown-room" } for an unknown code', async () => {
-      const res = await fetch(`${baseUrl}/rooms/ZZZZZZ`)
-      expect(res.status).toBe(404)
-      const body = (await res.json()) as ResolveRoomRejection
-      expect(body).toEqual({ reason: 'unknown-room' })
-    })
+      const res = await fetch(`${baseUrl}/rooms/ZZZZZZ`);
+      expect(res.status).toBe(404);
+      const body = (await res.json()) as ResolveRoomRejection;
+      expect(body).toEqual({ reason: 'unknown-room' });
+    });
 
     it('returns 404 after the room is deleted', async () => {
-      const record = roomStore.createRoom()
-      roomStore.deleteRoom(record.uuid)
-      const res = await fetch(`${baseUrl}/rooms/${record.code}`)
-      expect(res.status).toBe(404)
-    })
-  })
+      const record = roomStore.createRoom();
+      roomStore.deleteRoom(record.uuid);
+      const res = await fetch(`${baseUrl}/rooms/${record.code}`);
+      expect(res.status).toBe(404);
+    });
+  });
 
   describe('POST /rooms with passwordHash', () => {
     it('creates a password-protected room', async () => {
-      const pw = await hashPassword('secret', 'test-salt')
+      const pw = await hashPassword('secret', 'test-salt');
       const res = await fetch(`${baseUrl}/rooms`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ passwordHash: pw }),
-      })
-      expect(res.status).toBe(201)
-      const body = (await res.json()) as CreateRoomResponse
-      const record = roomStore.getByUuid(body.uuid)!
-      expect(record.passwordHash).toBe(pw)
-    })
+      });
+      expect(res.status).toBe(201);
+      const body = (await res.json()) as CreateRoomResponse;
+      const record = roomStore.getByUuid(body.uuid)!;
+      expect(record.passwordHash).toBe(pw);
+    });
 
     it('resolves a password-protected room with accessMode "password"', async () => {
-      const pw = await hashPassword('secret', 'test-salt')
+      const pw = await hashPassword('secret', 'test-salt');
       const createRes = await fetch(`${baseUrl}/rooms`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ passwordHash: pw }),
-      })
-      const { code } = (await createRes.json()) as CreateRoomResponse
-      const res = await fetch(`${baseUrl}/rooms/${code}`)
-      const body = (await res.json()) as ResolveRoomResponse
-      expect(body.accessMode).toBe('password')
-    })
+      });
+      const { code } = (await createRes.json()) as CreateRoomResponse;
+      const res = await fetch(`${baseUrl}/rooms/${code}`);
+      const body = (await res.json()) as ResolveRoomResponse;
+      expect(body.accessMode).toBe('password');
+    });
 
     it('rejects a malformed passwordHash with 400', async () => {
       const res = await fetch(`${baseUrl}/rooms`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ passwordHash: 'not-valid-hex' }),
-      })
-      expect(res.status).toBe(400)
-      expect(roomStore.roomCount).toBe(0)
-    })
-  })
+      });
+      expect(res.status).toBe(400);
+      expect(roomStore.roomCount).toBe(0);
+    });
+  });
 
   describe('WS /ws/:uuid password enforcement', () => {
     it('accepts connection to open room without pw', async () => {
-      const record = roomStore.createRoom()
-      const wsUrl = baseUrl.replace('http', 'ws')
-      const ws = new WebSocket(`${wsUrl}/ws/${record.uuid}?did=device-1`)
+      const record = roomStore.createRoom();
+      const wsUrl = baseUrl.replace('http', 'ws');
+      const ws = new WebSocket(`${wsUrl}/ws/${record.uuid}?did=device-1`);
       await new Promise<void>((resolve, reject) => {
-        ws.on('open', () => { ws.close(); resolve() })
-        ws.on('error', reject)
-      })
-    })
+        ws.on('open', () => {
+          ws.close();
+          resolve();
+        });
+        ws.on('error', reject);
+      });
+    });
 
     it('accepts connection to password-protected room with correct pw', async () => {
-      const pw = await hashPassword('secret', 'room-uuid-1')
-      const record = roomStore.createRoom({ passwordHash: pw })
-      const wsUrl = baseUrl.replace('http', 'ws')
-      const ws = new WebSocket(`${wsUrl}/ws/${record.uuid}?did=device-1&pw=${pw}`)
+      const pw = await hashPassword('secret', 'room-uuid-1');
+      const record = roomStore.createRoom({ passwordHash: pw });
+      const wsUrl = baseUrl.replace('http', 'ws');
+      const ws = new WebSocket(`${wsUrl}/ws/${record.uuid}?did=device-1&pw=${pw}`);
       await new Promise<void>((resolve, reject) => {
-        ws.on('open', () => { ws.close(); resolve() })
-        ws.on('error', reject)
-      })
-    })
+        ws.on('open', () => {
+          ws.close();
+          resolve();
+        });
+        ws.on('error', reject);
+      });
+    });
 
     it('rejects connection to password-protected room with wrong pw', async () => {
-      const correctPw = await hashPassword('secret', 'room-uuid-1')
-      const wrongPw = await hashPassword('wrong', 'room-uuid-1')
-      const record = roomStore.createRoom({ passwordHash: correctPw })
-      const wsUrl = baseUrl.replace('http', 'ws')
-      const ws = new WebSocket(`${wsUrl}/ws/${record.uuid}?did=device-1&pw=${wrongPw}`)
+      const correctPw = await hashPassword('secret', 'room-uuid-1');
+      const wrongPw = await hashPassword('wrong', 'room-uuid-1');
+      const record = roomStore.createRoom({ passwordHash: correctPw });
+      const wsUrl = baseUrl.replace('http', 'ws');
+      const ws = new WebSocket(`${wsUrl}/ws/${record.uuid}?did=device-1&pw=${wrongPw}`);
       // Wrong-password is a post-upgrade WS close (4002) per ADR-0016, not HTTP 403.
       await new Promise<void>((resolve) => {
         ws.on('close', (code) => {
-          expect(code).toBe(4002)
-          resolve()
-        })
-        ws.on('error', () => resolve())
-      })
-    })
+          expect(code).toBe(4002);
+          resolve();
+        });
+        ws.on('error', () => resolve());
+      });
+    });
 
     it('rejects connection to password-protected room with missing pw', async () => {
-      const pw = await hashPassword('secret', 'room-uuid-1')
-      const record = roomStore.createRoom({ passwordHash: pw })
-      const wsUrl = baseUrl.replace('http', 'ws')
-      const ws = new WebSocket(`${wsUrl}/ws/${record.uuid}?did=device-1`)
+      const pw = await hashPassword('secret', 'room-uuid-1');
+      const record = roomStore.createRoom({ passwordHash: pw });
+      const wsUrl = baseUrl.replace('http', 'ws');
+      const ws = new WebSocket(`${wsUrl}/ws/${record.uuid}?did=device-1`);
       await new Promise<void>((resolve) => {
-        ws.on('error', () => resolve())
+        ws.on('error', () => resolve());
         ws.on('unexpected-response', (_req, res) => {
-          expect(res.statusCode).toBe(400)
-          resolve()
-        })
-      })
-    })
-  })
+          expect(res.statusCode).toBe(400);
+          resolve();
+        });
+      });
+    });
+  });
 
   describe('PATCH /rooms/:uuid/access', () => {
     it('sets a password on an open room', async () => {
-      const record = roomStore.createRoom()
-      const pw = await hashPassword('secret', record.uuid)
+      const record = roomStore.createRoom();
+      const pw = await hashPassword('secret', record.uuid);
       const res = await fetch(`${baseUrl}/rooms/${record.uuid}/access`, {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ passwordHash: pw }),
-      })
-      expect(res.status).toBe(200)
-      const body = (await res.json()) as { accessMode: string }
-      expect(body.accessMode).toBe('password')
-      expect(roomStore.getByUuid(record.uuid)!.passwordHash).toBe(pw)
-    })
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { accessMode: string };
+      expect(body.accessMode).toBe('password');
+      expect(roomStore.getByUuid(record.uuid)!.passwordHash).toBe(pw);
+    });
 
     it('removes a password (reverts to open)', async () => {
-      const pw = await hashPassword('secret', 'salt')
-      const record = roomStore.createRoom({ passwordHash: pw })
+      const pw = await hashPassword('secret', 'salt');
+      const record = roomStore.createRoom({ passwordHash: pw });
       const res = await fetch(`${baseUrl}/rooms/${record.uuid}/access`, {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ passwordHash: null }),
-      })
-      expect(res.status).toBe(200)
-      const body = (await res.json()) as { accessMode: string }
-      expect(body.accessMode).toBe('open')
-      expect(roomStore.getByUuid(record.uuid)!.passwordHash).toBeUndefined()
-    })
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { accessMode: string };
+      expect(body.accessMode).toBe('open');
+      expect(roomStore.getByUuid(record.uuid)!.passwordHash).toBeUndefined();
+    });
 
     it('returns 404 for unknown UUID', async () => {
       const res = await fetch(`${baseUrl}/rooms/00000000-0000-0000-0000-000000000000/access`, {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ passwordHash: null }),
-      })
-      expect(res.status).toBe(404)
-    })
+      });
+      expect(res.status).toBe(404);
+    });
 
     it('rejects malformed passwordHash with 400', async () => {
-      const record = roomStore.createRoom()
+      const record = roomStore.createRoom();
       const res = await fetch(`${baseUrl}/rooms/${record.uuid}/access`, {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ passwordHash: 'bad' }),
-      })
-      expect(res.status).toBe(400)
-    })
-  })
+      });
+      expect(res.status).toBe(400);
+    });
+  });
 
   describe('unknown routes', () => {
     it('return 404 JSON', async () => {
-      const res = await fetch(`${baseUrl}/does-not-exist`)
-      expect(res.status).toBe(404)
-      const body = (await res.json()) as unknown
-      expect(body).toEqual({ error: 'not-found' })
-    })
-  })
+      const res = await fetch(`${baseUrl}/does-not-exist`);
+      expect(res.status).toBe(404);
+      const body = (await res.json()) as unknown;
+      expect(body).toEqual({ error: 'not-found' });
+    });
+  });
 
   describe('DELETE /test/rooms/:uuid (route disabled by default)', () => {
     it('returns 404 when HNCH_ENABLE_TEST_ROUTES is not set', async () => {
-      const record = roomStore.createRoom()
-      const res = await fetch(`${baseUrl}/test/rooms/${record.uuid}`, { method: 'DELETE' })
-      expect(res.status).toBe(404)
-    })
-  })
+      const record = roomStore.createRoom();
+      const res = await fetch(`${baseUrl}/test/rooms/${record.uuid}`, { method: 'DELETE' });
+      expect(res.status).toBe(404);
+    });
+  });
 
   describe('WS participant cap', () => {
     it('rejects the connection that would exceed MAX_ROOM_PARTICIPANTS', async () => {
-      const record = roomStore.createRoom()
-      const wsUrl = baseUrl.replace('http', 'ws')
-      const sockets: WebSocket[] = []
+      const record = roomStore.createRoom();
+      const wsUrl = baseUrl.replace('http', 'ws');
+      const sockets: WebSocket[] = [];
 
       // Open MAX_ROOM_PARTICIPANTS connections — all must succeed.
       for (let i = 0; i < MAX_ROOM_PARTICIPANTS; i += 1) {
-        const ws = new WebSocket(`${wsUrl}/ws/${record.uuid}?did=device-${i}`)
+        const ws = new WebSocket(`${wsUrl}/ws/${record.uuid}?did=device-${i}`);
         await new Promise<void>((resolve, reject) => {
-          ws.on('open', () => resolve())
-          ws.on('error', reject)
+          ws.on('open', () => resolve());
+          ws.on('error', reject);
           ws.on('unexpected-response', (_req, res) => {
-            reject(new Error(`unexpected rejection at connection ${i}: ${res.statusCode}`))
-          })
-        })
-        sockets.push(ws)
+            reject(new Error(`unexpected rejection at connection ${i}: ${res.statusCode}`));
+          });
+        });
+        sockets.push(ws);
       }
 
       // The (MAX_ROOM_PARTICIPANTS + 1)th connection must be closed with WS 4006.
-      const overflow = new WebSocket(`${wsUrl}/ws/${record.uuid}?did=device-overflow`)
+      const overflow = new WebSocket(`${wsUrl}/ws/${record.uuid}?did=device-overflow`);
       await new Promise<void>((resolve) => {
         overflow.on('close', (code) => {
-          expect(code).toBe(JOIN_REJECTION_CLOSE_CODES['room-full'])
-          resolve()
-        })
-        overflow.on('error', () => resolve())
-      })
+          expect(code).toBe(JOIN_REJECTION_CLOSE_CODES['room-full']);
+          resolve();
+        });
+        overflow.on('error', () => resolve());
+      });
 
       // Clean up.
       for (const ws of sockets) {
-        ws.close()
+        ws.close();
       }
-    })
-  })
-})
+    });
+  });
+});

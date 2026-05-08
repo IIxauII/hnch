@@ -1,11 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  input,
-  output,
-  signal,
-} from '@angular/core'
-import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms'
+import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
+import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import {
   IonButton,
   IonContent,
@@ -17,7 +11,7 @@ import {
   IonNote,
   IonTitle,
   IonToolbar,
-} from '@ionic/angular/standalone'
+} from '@ionic/angular/standalone';
 
 /**
  * Payload emitted by {@link RoundStartSheetComponent} when the host
@@ -27,7 +21,7 @@ import {
  */
 export interface RoundStartSubmission {
   /** Optional descriptor; the user may submit with it blank. */
-  readonly title: string | null
+  readonly title: string | null;
 }
 
 /**
@@ -106,27 +100,27 @@ export class RoundStartSheetComponent {
    * 1-based index for the "Start Round N" title. Callers pass the
    * index the next round will occupy (rounds.length + 1).
    */
-  readonly roundNumber = input.required<number>()
+  readonly roundNumber = input.required<number>();
 
   /**
    * Fires once the host confirms. The modal host is responsible for
    * dismissing the `ion-modal` — this component only emits the value.
    */
-  readonly submitted = output<RoundStartSubmission>()
+  readonly submitted = output<RoundStartSubmission>();
 
   protected readonly titleControl = new FormControl<string>('', {
     nonNullable: true,
     validators: [Validators.maxLength(120)],
-  })
+  });
 
-  protected readonly isSubmitting = signal(false)
+  protected readonly isSubmitting = signal(false);
 
   protected submit(): void {
-    if (this.isSubmitting()) return
-    this.isSubmitting.set(true)
+    if (this.isSubmitting()) return;
+    this.isSubmitting.set(true);
 
-    const raw = this.titleControl.value.trim()
-    this.submitted.emit({ title: raw === '' ? null : raw })
+    const raw = this.titleControl.value.trim();
+    this.submitted.emit({ title: raw === '' ? null : raw });
     // Leave isSubmitting latched — the modal is about to close and
     // the component will be destroyed; unlatching could race a
     // double-tap that arrives after submit but before dismiss.

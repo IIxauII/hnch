@@ -2,7 +2,7 @@
 // `ng build` replaces `environment.ts` with `environment.prod.ts`.
 // The list of file replacements can be found in `angular.json`.
 
-import { APP_VERSION } from './version'
+import { APP_VERSION } from './version';
 
 /**
  * Development environment config.
@@ -17,10 +17,10 @@ import { APP_VERSION } from './version'
  * prod because Angular's `fileReplacements` swaps the whole file at build
  * time.
  */
-const clientPort = parseInt(window.location.port || '4200', 10)
-let relayPort = 1234 + (clientPort - 4200)
-if (!Number.isFinite(relayPort) || relayPort < 1 || relayPort > 65535) relayPort = 1234
-const host = window.location.hostname || 'localhost'
+const clientPort = parseInt(window.location.port || '4200', 10);
+let relayPort = 1234 + (clientPort - 4200);
+if (!Number.isFinite(relayPort) || relayPort < 1 || relayPort > 65535) relayPort = 1234;
+const host = window.location.hostname || 'localhost';
 
 // Dev assumes HTTP/WS; HTTPS tunnels (ngrok, `ng serve --ssl`) will hit mixed-content errors.
 export const environment = {
@@ -28,7 +28,7 @@ export const environment = {
   relayHttpUrl: `http://${host}:${relayPort}`,
   relayWsUrl: `ws://${host}:${relayPort}`,
   appVersion: APP_VERSION,
-}
+};
 
 /*
  * For easier debugging in development mode, you can import the following file

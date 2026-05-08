@@ -16,76 +16,76 @@
  * tests can trigger it deterministically with an injected `now`.
  */
 
-import type { RoomStore } from './room-store.js'
+import type { RoomStore } from './room-store.js';
 
 /** Default TTL: 24 hours, per ADR-0012. */
-export const SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1000
+export const SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1000;
 /** Default sweep cadence: once per hour. */
-export const DEFAULT_SWEEP_INTERVAL_MS = 60 * 60 * 1000
+export const DEFAULT_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 
 export interface SnapshotSweeperOptions {
   /** Override the retention window. Tests typically set this to a few ms. */
-  readonly ttlMs?: number
+  readonly ttlMs?: number;
   /** Override the sweep cadence. Tests typically pass `start: false` instead. */
-  readonly intervalMs?: number
+  readonly intervalMs?: number;
   /** Wall-clock source, injectable for deterministic tests. */
-  readonly now?: () => number
+  readonly now?: () => number;
   /**
    * When `false`, the sweeper does not schedule its own interval; the
    * caller drives sweeps via `sweep()`. Useful in tests.
    */
-  readonly start?: boolean
+  readonly start?: boolean;
 }
 
 export interface SnapshotSweeper {
   /** Runs a single eviction pass against the store. */
-  sweep(): void
+  sweep(): void;
   /** Cancels the scheduled interval, if one was started. */
-  stop(): void
+  stop(): void;
 }
 
 export function createSnapshotSweeper(
   store: RoomStore,
   options: SnapshotSweeperOptions = {},
 ): SnapshotSweeper {
-  const ttlMs = options.ttlMs ?? SNAPSHOT_TTL_MS
-  const intervalMs = options.intervalMs ?? DEFAULT_SWEEP_INTERVAL_MS
-  const now = options.now ?? Date.now
+  const ttlMs = options.ttlMs ?? SNAPSHOT_TTL_MS;
+  const intervalMs = options.intervalMs ?? DEFAULT_SWEEP_INTERVAL_MS;
+  const now = options.now ?? Date.now;
 
   function sweep(): void {
-    const cutoff = now() - ttlMs
+    const cutoff = now() - ttlMs;
     // Collect first, delete second, so we aren't mutating the map
     // underneath `listRooms()`'s iterator.
-    const toDelete: string[] = []
+    const toDelete: string[] = [];
     for (const record of store.listRooms()) {
       if (
         record.connections === 0 &&
         record.lastEmptyAt !== undefined &&
         record.lastEmptyAt <= cutoff
       ) {
-        toDelete.push(record.uuid)
+        toDelete.push(record.uuid);
       }
     }
     for (const uuid of toDelete) {
-      store.deleteRoom(uuid)
+      store.deleteRoom(uuid);
     }
   }
 
-  let handle: ReturnType<typeof setInterval> | undefined
+  let handle: ReturnType<typeof setInterval> | undefined;
   if (options.start !== false) {
-    handle = setInterval(sweep, intervalMs)
+    handle = setInterval(sweep, intervalMs);
     // Don't keep the event loop alive just for the sweeper — the
     // server's own listening socket is the canonical keep-alive.
-    handle.unref?.()
+    handle.unref?.();
   }
 
   return {
     sweep,
     stop(): void {
       if (handle !== undefined) {
-        clearInterval(handle)
-        handle = undefined
+        clearInterval(handle);
+        handle = undefined;
       }
     },
-  }
+  };
 }

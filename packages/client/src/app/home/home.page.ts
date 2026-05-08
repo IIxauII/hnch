@@ -1,12 +1,6 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  inject,
-  signal,
-  viewChild,
-} from '@angular/core'
-import { Router } from '@angular/router'
-import { hashPassword, type JoinRejectionReason } from '@hnch/shared'
+import { ChangeDetectionStrategy, Component, inject, signal, viewChild } from '@angular/core';
+import { Router } from '@angular/router';
+import { hashPassword, type JoinRejectionReason } from '@hnch/shared';
 import {
   ActionSheetController,
   IonButton,
@@ -23,36 +17,33 @@ import {
   IonRow,
   IonTitle,
   IonToolbar,
-} from '@ionic/angular/standalone'
-import { addIcons } from 'ionicons'
+} from '@ionic/angular/standalone';
+import { addIcons } from 'ionicons';
 import {
   addOutline,
   arrowForwardOutline,
   ellipsisHorizontalOutline,
   returnUpBackOutline,
-} from 'ionicons/icons'
+} from 'ionicons/icons';
 
-import { environment } from '../../environments/environment'
-import { AppPreferenceService } from '../core/app-preference.service'
-import { ToastService } from '../services/toast.service'
-import { DisplayNameService } from '../core/display-name.service'
-import { DocService } from '../core/doc/doc.service'
+import { environment } from '../../environments/environment';
+import { AppPreferenceService } from '../core/app-preference.service';
+import { ToastService } from '../services/toast.service';
+import { DisplayNameService } from '../core/display-name.service';
+import { DocService } from '../core/doc/doc.service';
 import {
   LastSessionService,
   type LastSessionCache,
   type LastSessionScreen,
-} from '../core/last-session.service'
-import { ParticipantIdService } from '../core/participant-id.service'
-import { ScalePreferenceService } from '../core/scale-preference.service'
-import { mintRoom, patchRoomAccess } from '../core/relay/relay-api'
-import { assertRoomCode, RoomJoinService } from '../core/room-join.service'
-import {
-  JumpBackInBannerComponent,
-  type JumpBackInSummary,
-} from './jump-back-in-banner.component'
-import { PasswordPromptSheetComponent } from './password-prompt.sheet'
-import { presentSheet } from '../utils/present-sheet'
-import { IconTileComponent } from '../shared/icon-tile.component'
+} from '../core/last-session.service';
+import { ParticipantIdService } from '../core/participant-id.service';
+import { ScalePreferenceService } from '../core/scale-preference.service';
+import { mintRoom, patchRoomAccess } from '../core/relay/relay-api';
+import { assertRoomCode, RoomJoinService } from '../core/room-join.service';
+import { JumpBackInBannerComponent, type JumpBackInSummary } from './jump-back-in-banner.component';
+import { PasswordPromptSheetComponent } from './password-prompt.sheet';
+import { presentSheet } from '../utils/present-sheet';
+import { IconTileComponent } from '../shared/icon-tile.component';
 
 /**
  * Home launchpad — ux.md §5.2.
@@ -190,16 +181,16 @@ import { IconTileComponent } from '../shared/icon-tile.component'
   ],
 })
 export class HomePage {
-  private readonly router = inject(Router)
-  private readonly actionSheetCtrl = inject(ActionSheetController)
-  private readonly toastService = inject(ToastService)
-  private readonly appPrefs = inject(AppPreferenceService)
-  private readonly displayNameService = inject(DisplayNameService)
-  private readonly participantIdService = inject(ParticipantIdService)
-  private readonly scalePrefs = inject(ScalePreferenceService)
-  private readonly lastSessionService = inject(LastSessionService)
-  private readonly docService = inject(DocService)
-  private readonly roomJoinService = inject(RoomJoinService)
+  private readonly router = inject(Router);
+  private readonly actionSheetCtrl = inject(ActionSheetController);
+  private readonly toastService = inject(ToastService);
+  private readonly appPrefs = inject(AppPreferenceService);
+  private readonly displayNameService = inject(DisplayNameService);
+  private readonly participantIdService = inject(ParticipantIdService);
+  private readonly scalePrefs = inject(ScalePreferenceService);
+  private readonly lastSessionService = inject(LastSessionService);
+  private readonly docService = inject(DocService);
+  private readonly roomJoinService = inject(RoomJoinService);
 
   /**
    * Summary passed into the banner. `null` means "no banner" — either
@@ -207,42 +198,42 @@ export class HomePage {
    * `unknown-room` bounce. Populated once async from
    * `lastSessionService.get()` in the constructor.
    */
-  protected readonly jumpBackInSummary = signal<JumpBackInSummary | null>(null)
+  protected readonly jumpBackInSummary = signal<JumpBackInSummary | null>(null);
 
   /**
    * True when the cached session is stale (relay reported unknown-room).
    * Banner remains visible but dimmed; tapping it shows the expired toast
    * and clears the entry.
    */
-  protected readonly jumpBackInStale = signal(false)
+  protected readonly jumpBackInStale = signal(false);
 
   /**
    * `true` while a rejoin is in flight. Bound to the banner's
    * `disabled` state so double-taps are swallowed, and guards the
    * `onResumeJumpBack` handler against re-entry.
    */
-  protected readonly resuming = signal(false)
+  protected readonly resuming = signal(false);
 
   /**
    * Guards the Create Room button against double-tap while the
    * displayName + participantId reads are in flight. Pure in-memory
    * re-entrancy flag; no view binding.
    */
-  private creating = false
+  private creating = false;
 
   /**
    * State for the password prompt half-sheet. Opened after room is
    * minted if appPrefs.defaultPassword() is true.
    */
-  protected readonly passwordPromptOpen = signal(false)
+  protected readonly passwordPromptOpen = signal(false);
 
   /**
    * Cached room UUID from the successful mintRoom call, used to
    * patchRoomAccess if user sets a password.
    */
-  private pendingRoomUuid: string | null = null
+  private pendingRoomUuid: string | null = null;
 
-  private readonly passwordModalRef = viewChild<IonModal>('passwordModal')
+  private readonly passwordModalRef = viewChild<IonModal>('passwordModal');
 
   constructor() {
     addIcons({
@@ -250,18 +241,18 @@ export class HomePage {
       'arrow-forward-outline': arrowForwardOutline,
       'ellipsis-horizontal-outline': ellipsisHorizontalOutline,
       'return-up-back-outline': returnUpBackOutline,
-    })
-    void this.loadBannerFromCache()
+    });
+    void this.loadBannerFromCache();
   }
 
   ionViewWillEnter(): void {
-    void this.loadBannerFromCache()
+    void this.loadBannerFromCache();
   }
 
   protected async onCreateRoom(): Promise<void> {
     // Guard against double-tap; both Preferences reads are async.
-    if (this.creating) return
-    this.creating = true
+    if (this.creating) return;
+    this.creating = true;
 
     try {
       // The displayNameGuard has already ensured this is non-null
@@ -274,23 +265,22 @@ export class HomePage {
         // we introduce a local-session cache we do this eagerly; if
         // the relay is unreachable the promise rejects and we bail.
         // Use AppPreferenceService relay URL override, fallback to environment default.
-        mintRoom(
-          this.appPrefs.relayHttpUrl() ?? environment.relayHttpUrl,
-        ),
-      ])
+        mintRoom(this.appPrefs.relayHttpUrl() ?? environment.relayHttpUrl),
+      ]);
 
       // Tear down any leftover session (e.g. back-nav from a prior
       // flow that bailed early) so createSession's single-session
       // invariant holds.
-      this.docService.endSession()
+      this.docService.endSession();
+      const defaultSessionName = this.appPrefs.defaultSessionName();
       this.docService.createSession({
         participantId,
         displayName: displayName ?? '',
         defaultScale: this.scalePrefs.defaultScale(),
-        sessionName: this.appPrefs.defaultSessionName() || undefined,
+        ...(defaultSessionName && { sessionName: defaultSessionName }),
         roomUuid: minted.uuid,
         roomCode: minted.code,
-      })
+      });
 
       // Open the sync connection so our own writes propagate and the
       // UI's status chip starts reflecting live state. ADR-0005's
@@ -299,24 +289,24 @@ export class HomePage {
       this.docService.connect({
         roomCode: minted.code,
         deviceId: participantId,
-      })
+      });
 
       // If defaultPassword is enabled, show password prompt; otherwise
       // navigate to lobby directly.
       if (this.appPrefs.defaultPassword()) {
-        this.pendingRoomUuid = minted.uuid
-        const modal = this.passwordModalRef()
-        if (modal) void presentSheet({ modal })
+        this.pendingRoomUuid = minted.uuid;
+        const modal = this.passwordModalRef();
+        if (modal) void presentSheet({ modal });
       } else {
-        await this.router.navigate(['/lobby', minted.code])
+        await this.router.navigate(['/lobby', minted.code]);
       }
     } finally {
-      this.creating = false
+      this.creating = false;
     }
   }
 
   protected async onJoinRoom(): Promise<void> {
-    await this.router.navigate(['/join'])
+    await this.router.navigate(['/join']);
   }
 
   /**
@@ -334,39 +324,37 @@ export class HomePage {
     // the second tap reliably clear the banner even if resuming() is still
     // true from the first tap's finally block not having run yet.
     if (this.jumpBackInStale()) {
-      await this.lastSessionService.clear()
-      this.jumpBackInSummary.set(null)
-      this.jumpBackInStale.set(false)
-      return
+      await this.lastSessionService.clear();
+      this.jumpBackInSummary.set(null);
+      this.jumpBackInStale.set(false);
+      return;
     }
-    if (this.resuming()) return
-    this.resuming.set(true)
+    if (this.resuming()) return;
+    this.resuming.set(true);
     try {
       // Re-read the cache at tap time rather than trusting the signal:
       // the entry may have aged past TTL since the banner first
       // rendered (cold-start banners that idle for 24 h), and re-reading
       // sweeps stale entries in one place.
-      const cache = await this.lastSessionService.get()
+      const cache = await this.lastSessionService.get();
       if (!cache) {
-        this.jumpBackInSummary.set(null)
-        this.jumpBackInStale.set(false)
-        return
+        this.jumpBackInSummary.set(null);
+        this.jumpBackInStale.set(false);
+        return;
       }
 
-      const outcome = await this.roomJoinService.rejoin(
-        cache.roomCode,
-      )
+      const outcome = await this.roomJoinService.rejoin(cache.roomCode);
 
       if (outcome.type === 'unknown-room') {
         // Relay has forgotten this room (ADR-0012's TTL lapsed or the
         // server restarted). Mark banner as stale instead of immediately
         // clearing — it renders dimmed and a second tap clears it.
-        this.docService.endSession()
-        this.jumpBackInStale.set(true)
+        this.docService.endSession();
+        this.jumpBackInStale.set(true);
         await this.toast(
           "That session isn't active anymore. Start a new one or join a fresh code.",
-        )
-        return
+        );
+        return;
       }
 
       if (outcome.type === 'password-required') {
@@ -374,33 +362,31 @@ export class HomePage {
         // to Join page which auto-fills the code and shows the password field.
         await this.router.navigate(['/join'], {
           queryParams: { code: cache.roomCode },
-        })
-        return
+        });
+        return;
       }
 
       if (outcome.type === 'rejected') {
         // Phase-5 rejection reasons land here once enforcement is on.
-        this.docService.endSession()
-        await this.toast(rejectionCopy(outcome.reason))
-        return
+        this.docService.endSession();
+        await this.toast(rejectionCopy(outcome.reason));
+        return;
       }
 
       if (outcome.type === 'network-error') {
         // Network down — let user retry; don't clear the banner.
-        await this.toast(
-          "Couldn't reach the relay. Check your connection and try again.",
-        )
-        return
+        await this.toast("Couldn't reach the relay. Check your connection and try again.");
+        return;
       }
 
       // 'connected' or 'timeout' — navigate into the session
-      const code = this.docService.roomCode()
-      assertRoomCode(code, 'home.onResumeJumpBack')
+      const code = this.docService.roomCode();
+      assertRoomCode(code, 'home.onResumeJumpBack');
       await this.router.navigate([routeForScreen(cache.lastScreen, code)], {
         replaceUrl: true,
-      })
+      });
     } finally {
-      this.resuming.set(false)
+      this.resuming.set(false);
     }
   }
 
@@ -411,7 +397,7 @@ export class HomePage {
         {
           text: 'Settings',
           handler: () => {
-            void this.router.navigate(['/settings'])
+            void this.router.navigate(['/settings']);
           },
         },
         {
@@ -419,26 +405,26 @@ export class HomePage {
           role: 'cancel',
         },
       ],
-    })
-    await sheet.present()
+    });
+    await sheet.present();
   }
 
   private async loadBannerFromCache(): Promise<void> {
-    const cache = await this.lastSessionService.get()
+    const cache = await this.lastSessionService.get();
     if (!cache) {
-      this.jumpBackInSummary.set(null)
-      this.jumpBackInStale.set(false)
-      return
+      this.jumpBackInSummary.set(null);
+      this.jumpBackInStale.set(false);
+      return;
     }
     // Reset stale flag so returning from another screen doesn't keep a stale
     // banner sticky — the next tap will re-test via resolveRoom and re-set
     // stale if the room is still gone.
-    this.jumpBackInStale.set(false)
-    this.jumpBackInSummary.set(summaryFromCache(cache))
+    this.jumpBackInStale.set(false);
+    this.jumpBackInSummary.set(summaryFromCache(cache));
   }
 
   private async toast(message: string): Promise<void> {
-    await this.toastService.error(message)
+    await this.toastService.error(message);
   }
 
   // ---------------------------------------------------------------------------
@@ -452,36 +438,32 @@ export class HomePage {
    */
   protected async onPasswordSubmitted(password: string): Promise<void> {
     try {
-      const uuid = this.pendingRoomUuid
-      const code = this.docService.roomCode()
+      const uuid = this.pendingRoomUuid;
+      const code = this.docService.roomCode();
       if (!uuid || !code) {
         // Defensive: should never happen — createSession ran before this sheet opened.
-        throw new Error('onPasswordSubmitted: no pending room uuid/code')
+        throw new Error('onPasswordSubmitted: no pending room uuid/code');
       }
 
       // Dismiss the modal and close the signal
-      await this.passwordModalRef()?.dismiss()
-      this.passwordPromptOpen.set(false)
+      await this.passwordModalRef()?.dismiss();
+      this.passwordPromptOpen.set(false);
 
       // If password is non-empty, hash and apply it
       if (password.trim()) {
-        const hash = await hashPassword(password, uuid)
-        await patchRoomAccess(
-          this.appPrefs.relayHttpUrl() ?? environment.relayHttpUrl,
-          uuid,
-          hash,
-        )
+        const hash = await hashPassword(password, uuid);
+        await patchRoomAccess(this.appPrefs.relayHttpUrl() ?? environment.relayHttpUrl, uuid, hash);
       }
       // If empty password, room stays in open mode (created that way by default)
 
-      await this.router.navigate(['/lobby', code])
-    } catch (e) {
-      const code = this.docService.roomCode()
-      await this.toast('Failed to set password. Room created without password.')
+      await this.router.navigate(['/lobby', code]);
+    } catch {
+      const code = this.docService.roomCode();
+      await this.toast('Failed to set password. Room created without password.');
       if (code) {
-        await this.router.navigate(['/lobby', code])
+        await this.router.navigate(['/lobby', code]);
       } else {
-        await this.router.navigate(['/home'])
+        await this.router.navigate(['/home']);
       }
     }
   }
@@ -491,13 +473,13 @@ export class HomePage {
    * Navigates to lobby without setting a password (open mode).
    */
   protected async onPasswordPromptClosed(): Promise<void> {
-    await this.passwordModalRef()?.dismiss()
-    this.passwordPromptOpen.set(false)
-    const code = this.docService.roomCode()
+    await this.passwordModalRef()?.dismiss();
+    this.passwordPromptOpen.set(false);
+    const code = this.docService.roomCode();
     if (!code) {
-      throw new Error('onPasswordPromptClosed: docService.roomCode() is null — no active session')
+      throw new Error('onPasswordPromptClosed: docService.roomCode() is null — no active session');
     }
-    await this.router.navigate(['/lobby', code])
+    await this.router.navigate(['/lobby', code]);
   }
 }
 
@@ -509,15 +491,15 @@ function summaryFromCache(cache: LastSessionCache): JumpBackInSummary {
   return {
     roomCode: cache.roomCode,
     lastScreen: cache.lastScreen,
-  }
+  };
 }
 
 function routeForScreen(screen: LastSessionScreen, code: string): string {
   switch (screen) {
     case 'lobby':
-      return `/lobby/${code}`
+      return `/lobby/${code}`;
     case 'estimating':
-      return `/estimating/${code}`
+      return `/estimating/${code}`;
   }
 }
 
@@ -530,18 +512,18 @@ function routeForScreen(screen: LastSessionScreen, code: string): string {
 function rejectionCopy(reason: JoinRejectionReason): string {
   switch (reason) {
     case 'unknown-room':
-      return "That session isn't active anymore."
+      return "That session isn't active anymore.";
     case 'wrong-password':
-      return 'That password is incorrect.'
+      return 'That password is incorrect.';
     case 'invalid-invite':
-      return "That invite link isn't valid."
+      return "That invite link isn't valid.";
     case 'expired-invite':
-      return 'That invite link has expired.'
+      return 'That invite link has expired.';
     case 'invite-already-redeemed':
-      return 'That invite link has already been used.'
+      return 'That invite link has already been used.';
     case 'room-full':
-      return 'That room is full.'
+      return 'That room is full.';
     case 'malformed-credentials':
-      return "Couldn't rejoin with the info on file."
+      return "Couldn't rejoin with the info on file.";
   }
 }

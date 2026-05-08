@@ -5,7 +5,7 @@ import {
   inject,
   signal,
   viewChild,
-} from '@angular/core'
+} from '@angular/core';
 import {
   IonBackButton,
   IonButtons,
@@ -26,22 +26,22 @@ import {
   IonTitle,
   IonToggle,
   IonToolbar,
-} from '@ionic/angular/standalone'
+} from '@ionic/angular/standalone';
 
-import { formatScaleId, type Scale } from '@hnch/shared'
+import { formatScaleId, type Scale } from '@hnch/shared';
 
-import { environment } from '../../environments/environment'
-import { AccentService } from '../core/accent.service'
-import { type AccentKey, ACCENTS } from '../core/accent.tokens'
-import { AppPreferenceService } from '../core/app-preference.service'
-import { DocService } from '../core/doc/doc.service'
-import { DisplayNameService } from '../core/display-name.service'
-import { ParticipantIdService } from '../core/participant-id.service'
-import { ScalePreferenceService } from '../core/scale-preference.service'
-import { ThemeService, type Theme } from '../core/theme.service'
-import { ScalePickerSheetComponent } from '../session-settings/scale-picker.sheet'
-import { RelayUrlEditorSheetComponent } from './relay-url-editor.sheet'
-import { presentSheet } from '../utils/present-sheet'
+import { environment } from '../../environments/environment';
+import { AccentService } from '../core/accent.service';
+import { type AccentKey, ACCENTS } from '../core/accent.tokens';
+import { AppPreferenceService } from '../core/app-preference.service';
+import { DocService } from '../core/doc/doc.service';
+import { DisplayNameService } from '../core/display-name.service';
+import { ParticipantIdService } from '../core/participant-id.service';
+import { ScalePreferenceService } from '../core/scale-preference.service';
+import { ThemeService, type Theme } from '../core/theme.service';
+import { ScalePickerSheetComponent } from '../session-settings/scale-picker.sheet';
+import { RelayUrlEditorSheetComponent } from './relay-url-editor.sheet';
+import { presentSheet } from '../utils/present-sheet';
 
 /**
  * App Settings screen — ux.md §5.7.
@@ -242,50 +242,50 @@ import { presentSheet } from '../utils/present-sheet'
   `,
 })
 export class SettingsPage {
-  private readonly displayNameService = inject(DisplayNameService)
-  private readonly docService = inject(DocService)
-  private readonly participantIdService = inject(ParticipantIdService)
-  protected readonly scalePrefs = inject(ScalePreferenceService)
-  protected readonly themeService = inject(ThemeService)
-  protected readonly appPrefs = inject(AppPreferenceService)
-  protected readonly accentService = inject(AccentService)
+  private readonly displayNameService = inject(DisplayNameService);
+  private readonly docService = inject(DocService);
+  private readonly participantIdService = inject(ParticipantIdService);
+  protected readonly scalePrefs = inject(ScalePreferenceService);
+  protected readonly themeService = inject(ThemeService);
+  protected readonly appPrefs = inject(AppPreferenceService);
+  protected readonly accentService = inject(AccentService);
 
-  protected readonly version = environment.appVersion
+  protected readonly version = environment.appVersion;
 
   /** Local cache of display name, loaded on init. */
-  protected readonly displayName = signal('—')
+  protected readonly displayName = signal('—');
 
   protected readonly accentEntries = (
     Object.entries(ACCENTS) as [AccentKey, (typeof ACCENTS)[AccentKey]][]
-  ).map(([key, def]) => ({ key, label: def.label }))
+  ).map(([key, def]) => ({ key, label: def.label }));
 
-  protected readonly accentPopoverOptions = { cssClass: 'accent-select-popover' }
+  protected readonly accentPopoverOptions = { cssClass: 'accent-select-popover' };
 
   protected readonly scaleLabel = computed(() => {
-    const scale = this.scalePrefs.defaultScale()
-    return formatScaleId(scale.id)
-  })
+    const scale = this.scalePrefs.defaultScale();
+    return formatScaleId(scale.id);
+  });
 
   protected readonly relayUrlLabel = computed(() => {
-    const url = this.appPrefs.relayHttpUrl()
-    return url || 'Default'
-  })
+    const url = this.appPrefs.relayHttpUrl();
+    return url || 'Default';
+  });
 
-  protected readonly scalePickerOpen = signal(false)
-  protected readonly relayUrlEditorOpen = signal(false)
+  protected readonly scalePickerOpen = signal(false);
+  protected readonly relayUrlEditorOpen = signal(false);
 
-  private readonly displayNameInput = viewChild<IonInput>('displayNameInput')
-  private readonly defaultSessionNameInput = viewChild<IonInput>('defaultSessionNameInput')
-  private readonly scalePickerModalRef = viewChild<IonModal>('scalePickerModal')
-  private readonly relayUrlModalRef = viewChild<IonModal>('relayUrlModal')
+  private readonly displayNameInput = viewChild<IonInput>('displayNameInput');
+  private readonly defaultSessionNameInput = viewChild<IonInput>('defaultSessionNameInput');
+  private readonly scalePickerModalRef = viewChild<IonModal>('scalePickerModal');
+  private readonly relayUrlModalRef = viewChild<IonModal>('relayUrlModal');
 
   constructor() {
-    void this.loadDisplayName()
+    void this.loadDisplayName();
   }
 
   private async loadDisplayName(): Promise<void> {
-    const name = await this.displayNameService.getDisplayName()
-    if (name) this.displayName.set(name)
+    const name = await this.displayNameService.getDisplayName();
+    if (name) this.displayName.set(name);
   }
 
   // ---------------------------------------------------------------------------
@@ -293,33 +293,31 @@ export class SettingsPage {
   // ---------------------------------------------------------------------------
 
   protected onDisplayNameBlur(): void {
-    const input = this.displayNameInput()
-    if (!input) return
-    const trimmed = (input.value as string | null | undefined ?? '').trim()
+    const input = this.displayNameInput();
+    if (!input) return;
+    const trimmed = ((input.value as string | null | undefined) ?? '').trim();
     if (!trimmed) {
       // Revert to current value — display name is required.
-      input.value = this.displayName()
-      return
+      input.value = this.displayName();
+      return;
     }
-    if (trimmed === this.displayName()) return
-    this.onNameSaved(trimmed)
+    if (trimmed === this.displayName()) return;
+    this.onNameSaved(trimmed);
   }
 
   private onNameSaved(newName: string): void {
-    this.displayName.set(newName)
-    void this.displayNameService.setDisplayName(newName)
+    this.displayName.set(newName);
+    void this.displayNameService.setDisplayName(newName);
 
     // If mid-session, propagate to peers via the Yjs doc.
-    const myId = this.participantIdService.id()
+    const myId = this.participantIdService.id();
     if (myId && this.docService.hasSession()) {
-      const existing = this.docService
-        .participants()
-        .find((p) => p.id === myId)
+      const existing = this.docService.participants().find((p) => p.id === myId);
       if (existing) {
         this.docService.upsertParticipant(myId, {
           displayName: newName,
           joinedAt: existing.joinedAt,
-        })
+        });
       }
     }
   }
@@ -329,15 +327,15 @@ export class SettingsPage {
   // ---------------------------------------------------------------------------
 
   protected onThemeSelected(value: Theme | null | undefined): void {
-    if (value !== 'system' && value !== 'light' && value !== 'dark') return
-    if (value === this.themeService.theme()) return
-    void this.themeService.setTheme(value)
+    if (value !== 'system' && value !== 'light' && value !== 'dark') return;
+    if (value === this.themeService.theme()) return;
+    void this.themeService.setTheme(value);
   }
 
   protected onAccentSelected(value: string | null | undefined): void {
-    if (!value || !(value in ACCENTS)) return
-    if (value === this.accentService.accent()) return
-    this.accentService.setAccent(value as AccentKey)
+    if (!value || !(value in ACCENTS)) return;
+    if (value === this.accentService.accent()) return;
+    this.accentService.setAccent(value as AccentKey);
   }
 
   // ---------------------------------------------------------------------------
@@ -345,17 +343,17 @@ export class SettingsPage {
   // ---------------------------------------------------------------------------
 
   protected openScalePicker(): void {
-    const modal = this.scalePickerModalRef()
-    if (modal) void presentSheet({ modal })
+    const modal = this.scalePickerModalRef();
+    if (modal) void presentSheet({ modal });
   }
 
   protected async closeScalePicker(): Promise<void> {
-    await this.scalePickerModalRef()?.dismiss()
-    this.scalePickerOpen.set(false)
+    await this.scalePickerModalRef()?.dismiss();
+    this.scalePickerOpen.set(false);
   }
 
   protected onScaleSelected(scale: Scale): void {
-    void this.scalePrefs.setDefaultScaleId(scale.id)
+    void this.scalePrefs.setDefaultScaleId(scale.id);
   }
 
   // ---------------------------------------------------------------------------
@@ -363,10 +361,10 @@ export class SettingsPage {
   // ---------------------------------------------------------------------------
 
   protected onDefaultSessionNameBlur(): void {
-    const input = this.defaultSessionNameInput()
-    if (!input) return
-    const trimmed = (input.value as string | null | undefined ?? '').trim()
-    void this.appPrefs.setDefaultSessionName(trimmed || undefined)
+    const input = this.defaultSessionNameInput();
+    if (!input) return;
+    const trimmed = ((input.value as string | null | undefined) ?? '').trim();
+    void this.appPrefs.setDefaultSessionName(trimmed || undefined);
   }
 
   // ---------------------------------------------------------------------------
@@ -374,7 +372,7 @@ export class SettingsPage {
   // ---------------------------------------------------------------------------
 
   protected onDefaultPasswordToggle(checked: boolean): void {
-    void this.appPrefs.setDefaultPassword(checked)
+    void this.appPrefs.setDefaultPassword(checked);
   }
 
   // ---------------------------------------------------------------------------
@@ -382,16 +380,16 @@ export class SettingsPage {
   // ---------------------------------------------------------------------------
 
   protected openRelayUrlEditor(): void {
-    const modal = this.relayUrlModalRef()
-    if (modal) void presentSheet({ modal })
+    const modal = this.relayUrlModalRef();
+    if (modal) void presentSheet({ modal });
   }
 
   protected async closeRelayUrlEditor(): Promise<void> {
-    await this.relayUrlModalRef()?.dismiss()
-    this.relayUrlEditorOpen.set(false)
+    await this.relayUrlModalRef()?.dismiss();
+    this.relayUrlEditorOpen.set(false);
   }
 
   protected onRelayUrlSaved(url: string | undefined): void {
-    void this.appPrefs.setRelayUrl(url)
+    void this.appPrefs.setRelayUrl(url);
   }
 }
