@@ -47,6 +47,11 @@
   --ion-color-danger-shade:      #e03d33;
   --ion-color-danger-tint:       #ff584e;
 
+  // Typography tokens
+  --hnch-font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --hnch-font-body: 'Inter Tight', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --ion-font-family: var(--hnch-font-body);
+
   // Component-level Ionic vars — set once so per-component overrides
   // for --background / --border-color become unnecessary.
   --ion-toolbar-background:  var(--ion-background-color);
@@ -97,6 +102,11 @@
   --ion-color-danger-contrast-rgb: 255, 255, 255;
   --ion-color-danger-shade:      #e03d33;
   --ion-color-danger-tint:       #ff584e;
+
+  // Typography tokens
+  --hnch-font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --hnch-font-body: 'Inter Tight', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --ion-font-family: var(--hnch-font-body);
 
   // Component-level Ionic vars — set once so per-component overrides
   // for --background / --border-color become unnecessary.
