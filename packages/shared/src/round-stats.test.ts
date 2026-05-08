@@ -82,6 +82,27 @@ describe('computeRoundStats', () => {
     expect(r).toMatchObject({ kind: 'numeric', mean: 8, median: 8, spread: 'unanimous' })
   })
 
+  it('even voter count: fibonacci 5,8 → mean 6.5, median 6.5 (averaged midpoint)', () => {
+    // Exercises the even-count median branch: (sorted[mid-1] + sorted[mid]) / 2
+    const r = computeRoundStats({ a: '5', b: '8' }, FIBONACCI_SCALE)
+    expect(r).not.toBeNull()
+    if (r === null) return
+    expect(r.kind).toBe('numeric')
+    if (r.kind !== 'numeric') return
+    expect(r.mean).toBe(6.5)
+    expect(r.median).toBe(6.5)
+  })
+
+  it('even voter count 4 voters: fibonacci 1,3,5,8 → mean 4.25, median 4 (avg of 3+5)', () => {
+    const r = computeRoundStats({ a: '1', b: '3', c: '5', d: '8' }, FIBONACCI_SCALE)
+    expect(r).not.toBeNull()
+    if (r === null) return
+    expect(r.kind).toBe('numeric')
+    if (r.kind !== 'numeric') return
+    expect(r.mean).toBeCloseTo(4.25)
+    expect(r.median).toBe(4)
+  })
+
   // --- Bug-fix regression tests ---
 
   it('unknown-card tie-break: fibonacci scale, votes foo+bar (both off-scale, 1 each) → mode "bar" (alphabetical first among unknowns)', () => {

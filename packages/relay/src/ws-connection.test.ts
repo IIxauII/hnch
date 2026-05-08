@@ -210,6 +210,49 @@ describe('relay ws connection', () => {
     await b.close()
   })
 
+  it('forwards awareness updates between two connected peers', async () => {
+    const record = roomStore.createRoom()
+    const a = await connectPeer(baseWsUrl, record.uuid)
+    const b = await connectPeer(baseWsUrl, record.uuid)
+    await Promise.all([a.whenSynced, b.whenSynced])
+
+    // Track awareness changes received by B.
+    let receivedStateFromA: Record<string, unknown> | undefined
+    b.awareness.on(
+      'change',
+      (changes: { added: number[]; updated: number[]; removed: number[] }) => {
+        for (const clientId of [...changes.added, ...changes.updated]) {
+          const state = b.awareness.getStates().get(clientId)
+          if (
+            state !== undefined &&
+            (state as Record<string, unknown>)['participantId'] === 'peer-a'
+          ) {
+            receivedStateFromA = state as Record<string, unknown>
+          }
+        }
+      },
+    )
+
+    // The TestPeer helper only wires doc-update sending, not awareness.
+    // Directly encode and send the awareness frame over the wire — this is
+    // exactly what a full y-websocket client provider does automatically and
+    // is the code path in setupWSConnection under test.
+    a.awareness.setLocalState({ participantId: 'peer-a' })
+    const enc = encoding.createEncoder()
+    encoding.writeVarUint(enc, messageAwareness)
+    encoding.writeVarUint8Array(
+      enc,
+      awarenessProtocol.encodeAwarenessUpdate(a.awareness, [a.awareness.clientID]),
+    )
+    a.socket.send(encoding.toUint8Array(enc))
+
+    await waitFor(() => receivedStateFromA !== undefined)
+    expect(receivedStateFromA!['participantId']).toBe('peer-a')
+
+    await a.close()
+    await b.close()
+  })
+
   it('snapshots state so a later peer rehydrates after everyone left (ADR-0012)', async () => {
     // Mint via the HTTP API to mirror the real client flow end-to-end.
     const createRes = await fetch(`${baseHttpUrl}/rooms`, { method: 'POST' })

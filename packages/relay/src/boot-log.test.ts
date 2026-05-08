@@ -20,6 +20,7 @@ describe('logBootBanner (ADR-0027 §6)', () => {
     const logger = makeLogger()
     logBootBanner({
       port: 1234,
+      host: '0.0.0.0',
       roomCap: MAX_ROOM_PARTICIPANTS,
       testRoutesEnabled: false,
       logger,
@@ -27,17 +28,18 @@ describe('logBootBanner (ADR-0027 §6)', () => {
     expect(logger.log).toHaveBeenCalledTimes(1)
     expect(logger.warn).not.toHaveBeenCalled()
     const msg = logger.log.mock.calls[0]![0] as string
-    expect(msg).toContain(':1234')
+    expect(msg).toContain('0.0.0.0:1234')
     expect(msg).toContain(`roomCap=${MAX_ROOM_PARTICIPANTS}`)
     expect(msg).toContain('testRoutes=false')
   })
 
   it('lowered cap (roomCap<MAX, testRoutes=false) → WARN, single line', () => {
     const logger = makeLogger()
-    logBootBanner({ port: 1234, roomCap: 3, testRoutesEnabled: false, logger })
+    logBootBanner({ port: 1234, host: '0.0.0.0', roomCap: 3, testRoutesEnabled: false, logger })
     expect(logger.warn).toHaveBeenCalledTimes(1)
     expect(logger.log).not.toHaveBeenCalled()
     const msg = logger.warn.mock.calls[0]![0] as string
+    expect(msg).toContain('0.0.0.0:1234')
     expect(msg).toContain('roomCap=3')
     expect(msg).toContain('testRoutes=false')
   })
@@ -46,6 +48,7 @@ describe('logBootBanner (ADR-0027 §6)', () => {
     const logger = makeLogger()
     logBootBanner({
       port: 1234,
+      host: '0.0.0.0',
       roomCap: MAX_ROOM_PARTICIPANTS,
       testRoutesEnabled: true,
       logger,
@@ -53,16 +56,18 @@ describe('logBootBanner (ADR-0027 §6)', () => {
     expect(logger.warn).toHaveBeenCalledTimes(1)
     expect(logger.log).not.toHaveBeenCalled()
     const msg = logger.warn.mock.calls[0]![0] as string
+    expect(msg).toContain('0.0.0.0:1234')
     expect(msg).toContain(`roomCap=${MAX_ROOM_PARTICIPANTS}`)
     expect(msg).toContain('testRoutes=true')
   })
 
   it('both non-prod (roomCap<MAX, testRoutes=true) → WARN, single line', () => {
     const logger = makeLogger()
-    logBootBanner({ port: 1234, roomCap: 3, testRoutesEnabled: true, logger })
+    logBootBanner({ port: 1234, host: '0.0.0.0', roomCap: 3, testRoutesEnabled: true, logger })
     expect(logger.warn).toHaveBeenCalledTimes(1)
     expect(logger.log).not.toHaveBeenCalled()
     const msg = logger.warn.mock.calls[0]![0] as string
+    expect(msg).toContain('0.0.0.0:1234')
     expect(msg).toContain('roomCap=3')
     expect(msg).toContain('testRoutes=true')
   })
@@ -76,7 +81,7 @@ describe('logBootBanner (ADR-0027 §6)', () => {
     ]
     for (const cfg of configs) {
       const logger = makeLogger()
-      logBootBanner({ port: 1234, logger, ...cfg })
+      logBootBanner({ port: 1234, host: '0.0.0.0', logger, ...cfg })
       expect(logger.log.mock.calls.length + logger.warn.mock.calls.length).toBe(1)
     }
   })

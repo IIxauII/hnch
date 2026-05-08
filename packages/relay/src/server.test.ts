@@ -107,6 +107,29 @@ describe('relay server', () => {
       expect(a.code).not.toBe(b.code)
       expect(roomStore.roomCount).toBe(2)
     })
+
+    it('rejects a body exceeding MAX_BODY_BYTES (4 KiB) with 400', async () => {
+      // Craft a body that is > 4096 bytes of valid JSON to trigger the size guard.
+      const largeValue = 'x'.repeat(5000)
+      const res = await fetch(`${baseUrl}/rooms`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ passwordHash: largeValue }),
+      })
+      expect(res.status).toBe(400)
+      expect(roomStore.roomCount).toBe(0)
+    })
+
+    it('rejects a non-object JSON body (e.g. a bare string) with 400', async () => {
+      // A JSON string (typeof === 'string') is not an object — the server must reject it.
+      const res = await fetch(`${baseUrl}/rooms`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '"just-a-string"',
+      })
+      expect(res.status).toBe(400)
+      expect(roomStore.roomCount).toBe(0)
+    })
   })
 
   describe('GET /rooms/:code', () => {
