@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@angular/core';
-import { IonApp, IonRouterOutlet } from '@ionic/angular/standalone';
+import { IonApp } from '@ionic/angular/standalone';
 
+import { AppShellComponent } from './shell/app-shell.component';
 import { DocService } from './core/doc/doc.service';
 import { formatHostChangeMessage } from './core/host-change-message';
 import { HapticService } from './core/haptic.service';
@@ -22,11 +23,11 @@ import { ToastService } from './services/toast.service';
  */
 @Component({
   selector: 'app-root',
-  imports: [IonApp, IonRouterOutlet],
+  imports: [IonApp, AppShellComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ion-app>
-      <ion-router-outlet></ion-router-outlet>
+      <hnch-app-shell />
     </ion-app>
   `,
 })
