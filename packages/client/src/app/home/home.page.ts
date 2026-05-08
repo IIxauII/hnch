@@ -1,30 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, signal, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { hashPassword, type JoinRejectionReason } from '@hnch/shared';
-import {
-  ActionSheetController,
-  IonButton,
-  IonButtons,
-  IonCol,
-  IonContent,
-  IonGrid,
-  IonHeader,
-  IonIcon,
-  IonItem,
-  IonLabel,
-  IonList,
-  IonModal,
-  IonRow,
-  IonTitle,
-  IonToolbar,
-} from '@ionic/angular/standalone';
-import { addIcons } from 'ionicons';
-import {
-  addOutline,
-  arrowForwardOutline,
-  ellipsisHorizontalOutline,
-  returnUpBackOutline,
-} from 'ionicons/icons';
+import { IonContent, IonModal } from '@ionic/angular/standalone';
 
 import { environment } from '../../environments/environment';
 import { AppPreferenceService } from '../core/app-preference.service';
@@ -40,9 +17,8 @@ import { ParticipantIdService } from '../core/participant-id.service';
 import { ScalePreferenceService } from '../core/scale-preference.service';
 import { mintRoom, patchRoomAccess } from '../core/relay/relay-api';
 import { assertRoomCode, RoomJoinService } from '../core/room-join.service';
-import { JumpBackInBannerComponent, type JumpBackInSummary } from './jump-back-in-banner.component';
+import { type JumpBackInSummary } from './jump-back-in-banner.component';
 import { PasswordPromptSheetComponent } from './password-prompt.sheet';
-import { IconTileComponent } from '../shared/icon-tile.component';
 
 /**
  * Home launchpad — ux.md §5.2.
@@ -66,77 +42,42 @@ import { IconTileComponent } from '../shared/icon-tile.component';
 @Component({
   selector: 'app-home',
   host: { class: 'ion-page' },
-  imports: [
-    IonButton,
-    IonButtons,
-    IonCol,
-    IonContent,
-    IonGrid,
-    IonHeader,
-    IonIcon,
-    IonItem,
-    IonLabel,
-    IonList,
-    IonModal,
-    IonRow,
-    IonTitle,
-    IonToolbar,
-    JumpBackInBannerComponent,
-    IconTileComponent,
-    PasswordPromptSheetComponent,
-  ],
+  imports: [IonContent, IonModal, PasswordPromptSheetComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <ion-header [translucent]="true">
-      <ion-toolbar>
-        <ion-title size="large">hnch</ion-title>
-        <ion-buttons slot="end" class="ion-hide-lg-up">
-          <ion-button
-            aria-label="More options"
-            (click)="openActionSheet()"
-          >
-            <ion-icon
-              slot="icon-only"
-              name="ellipsis-horizontal-outline"
-            ></ion-icon>
-          </ion-button>
-        </ion-buttons>
-      </ion-toolbar>
-    </ion-header>
     <ion-content [fullscreen]="true">
-      <ion-grid fixed class="page-grid">
-        <ion-row>
-          <ion-col size="12" sizeMd="10" offsetMd="1" sizeLg="8" offsetLg="2">
-            <ion-list inset="true" class="actions">
-              @if (jumpBackInSummary(); as summary) {
-                <app-jump-back-in-banner
-                  [summary]="summary"
-                  [stale]="jumpBackInStale()"
-                  [resuming]="resuming()"
-                  (resumeRequested)="onResumeJumpBack()"
-                />
-              }
-              <ion-item button="true" detail="true" (click)="onCreateRoom()">
-                <app-icon-tile slot="start" icon="add-outline" variant="accent" />
-                <ion-label>
-                  <h2>Create Room</h2>
-                  <p>Start a new session</p>
-                </ion-label>
-              </ion-item>
-              <ion-item button="true" detail="true" (click)="onJoinRoom()">
-                <app-icon-tile slot="start" icon="arrow-forward-outline" variant="neutral" />
-                <ion-label>
-                  <h2>Join Room</h2>
-                  <p>Enter a code or scan QR</p>
-                </ion-label>
-              </ion-item>
-            </ion-list>
-          </ion-col>
-        </ion-row>
-      </ion-grid>
+      <div class="hero">
+        <h1 class="hero-mark">hnch</h1>
+        <p class="hero-tag">Estimate by hunch.</p>
+      </div>
+      <div class="entries">
+        @if (jumpBackInSummary(); as summary) {
+          <button
+            class="entry entry--resume"
+            (click)="onResumeJumpBack()"
+            [disabled]="resuming()"
+            [class.stale]="jumpBackInStale()"
+            aria-label="Resume session {{ summary.roomCode }}"
+          >
+            <span class="entry-eyebrow">Resume</span>
+            <span class="entry-title">{{ summary.roomCode }}</span>
+            <span class="entry-sub">{{ summary.lastScreen === 'estimating' ? 'Estimating round' : 'In the lobby' }}</span>
+          </button>
+        }
+        <button class="entry entry--primary" (click)="onCreateRoom()" aria-label="Create a new room">
+          <span class="entry-eyebrow">New</span>
+          <span class="entry-title">Create room</span>
+          <span class="entry-sub">Start a session and invite the team.</span>
+        </button>
+        <button class="entry entry--secondary" (click)="onJoinRoom()" aria-label="Join an existing room">
+          <span class="entry-eyebrow">Existing</span>
+          <span class="entry-title">Join room</span>
+          <span class="entry-sub">Enter a code or scan a QR.</span>
+        </button>
+      </div>
     </ion-content>
 
-    <!-- Password prompt half-sheet — outside grid so overlay portal is unaffected -->
+    <!-- Password prompt half-sheet — outside content so overlay portal is unaffected -->
     <ion-modal
       #passwordModal
       class="hnch-form-modal"
@@ -156,32 +97,107 @@ import { IconTileComponent } from '../shared/icon-tile.component';
       ion-content {
         --background: var(--ion-background-color);
       }
-      ion-list.actions {
-        background: transparent;
-        margin-block-start: 8px;
+
+      .hero {
+        padding: clamp(48px, 12vw, 144px) 24px clamp(24px, 5vw, 56px);
+        text-align: center;
       }
-      ion-item {
-        --inner-padding-top: 12px;
-        --inner-padding-bottom: 12px;
-        --padding-start: 16px;
-      }
-      ion-item h2 {
-        font-size: 17px;
-        font-weight: 600;
+      .hero-mark {
+        font-family: var(--hnch-font-display);
+        font-weight: 800;
+        font-size: clamp(72px, 14vw, 184px);
+        line-height: 0.9;
+        letter-spacing: -0.04em;
+        margin: 0 0 8px;
+        font-variation-settings: "opsz" 144;
         color: var(--ion-text-color);
-        margin: 0 0 2px;
       }
-      ion-item p {
+      .hero-tag {
+        font-size: clamp(16px, 1.6vw, 22px);
+        color: var(--ion-color-step-600);
+        font-style: italic;
+        font-family: var(--hnch-font-display);
+        font-weight: 400;
+        margin: 0;
+      }
+
+      .entries {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 0 24px clamp(48px, 8vw, 96px);
+        display: grid;
+        gap: 12px;
+        grid-template-columns: 1fr;
+      }
+      @media (min-width: 768px) {
+        .entries { grid-template-columns: 1fr 1fr; }
+        .entries .entry--resume { grid-column: 1 / -1; }
+      }
+
+      .entry {
+        appearance: none;
+        border: 0;
+        text-align: left;
+        background: var(--ion-background-color-step-50);
+        border-radius: 18px;
+        padding: 28px 24px 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        cursor: pointer;
+        transition: transform 0.15s ease, background 0.15s ease;
+        font-family: inherit;
+        width: 100%;
+      }
+      .entry:hover { transform: translateY(-2px); background: var(--ion-background-color-step-100); }
+      .entry:active { transform: translateY(0); }
+      .entry:disabled { opacity: 0.5; cursor: default; transform: none; }
+      .entry.stale { opacity: 0.55; }
+
+      .entry-eyebrow {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--ion-color-step-600);
+      }
+      .entry-title {
+        font-family: var(--hnch-font-display);
+        font-size: 28px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: var(--ion-text-color);
+        font-variation-settings: "opsz" 32;
+      }
+      .entry-sub {
         font-size: 14px;
         color: var(--ion-color-step-600);
-        margin: 0;
+        margin-top: 4px;
+      }
+
+      .entry--primary {
+        background: var(--ion-color-primary);
+      }
+      .entry--primary .entry-eyebrow,
+      .entry--primary .entry-title,
+      .entry--primary .entry-sub { color: var(--ion-color-primary-contrast); }
+      .entry--primary .entry-sub { opacity: 0.85; }
+      .entry--primary:hover { background: var(--ion-color-primary-shade); transform: translateY(-2px); }
+
+      .entry--resume {
+        background: transparent;
+        border: 1px solid var(--ion-color-step-200);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .entry { transition: none; }
+        .entry:hover { transform: none; }
       }
     `,
   ],
 })
 export class HomePage {
   private readonly router = inject(Router);
-  private readonly actionSheetCtrl = inject(ActionSheetController);
   private readonly toastService = inject(ToastService);
   private readonly appPrefs = inject(AppPreferenceService);
   private readonly displayNameService = inject(DisplayNameService);
@@ -235,12 +251,6 @@ export class HomePage {
   private readonly passwordModalRef = viewChild<IonModal>('passwordModal');
 
   constructor() {
-    addIcons({
-      'add-outline': addOutline,
-      'arrow-forward-outline': arrowForwardOutline,
-      'ellipsis-horizontal-outline': ellipsisHorizontalOutline,
-      'return-up-back-outline': returnUpBackOutline,
-    });
     void this.loadBannerFromCache();
   }
 
@@ -386,25 +396,6 @@ export class HomePage {
     } finally {
       this.resuming.set(false);
     }
-  }
-
-  protected async openActionSheet(): Promise<void> {
-    const sheet = await this.actionSheetCtrl.create({
-      header: 'hnch',
-      buttons: [
-        {
-          text: 'Settings',
-          handler: () => {
-            void this.router.navigate(['/settings']);
-          },
-        },
-        {
-          text: 'Cancel',
-          role: 'cancel',
-        },
-      ],
-    });
-    await sheet.present();
   }
 
   private async loadBannerFromCache(): Promise<void> {

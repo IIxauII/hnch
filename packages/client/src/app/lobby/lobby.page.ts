@@ -151,7 +151,6 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
             ></ion-icon>
           </ion-button>
         </ion-buttons>
-        <ion-title>Lobby</ion-title>
         <ion-buttons slot="end">
           <app-connection-chip></app-connection-chip>
           <ion-button
@@ -212,9 +211,6 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
                   </ion-label>
                 </ion-item>
                 <div slot="content">
-                  @if (isHost()) {
-                    <p class="swipe-hint">Swipe a row for host actions.</p>
-                  }
                   <ion-list lines="inset" class="participants">
                     @for (p of activeParticipants(); track p.id) {
                       @if (isHost() && p.id !== myId()) {
@@ -450,10 +446,13 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
   styles: [
     `
       .room-code {
-        font-size: 2.5rem;
+        font-family: var(--hnch-font-display);
+        font-size: clamp(56px, 8vw, 104px);
         font-weight: 700;
-        letter-spacing: 0.08em;
+        letter-spacing: -0.03em;
         margin: 0.5rem 0 0.25rem;
+        line-height: 1;
+        font-variation-settings: "opsz" 72;
       }
       .subtitle {
         appearance: none;
@@ -477,11 +476,6 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       .participants-summary {
         margin: 0.125rem 0 0;
         font-size: 0.85rem;
-        color: var(--ion-color-step-600);
-      }
-      .swipe-hint {
-        margin: 0.25rem 1rem 0.25rem;
-        font-size: 0.8rem;
         color: var(--ion-color-step-600);
       }
       ion-avatar ion-icon {
