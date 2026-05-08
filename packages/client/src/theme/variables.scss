@@ -47,6 +47,30 @@
   --ion-color-danger-shade:      #e03d33;
   --ion-color-danger-tint:       #ff584e;
 
+  // Color steps — light palette ladder from bg toward text.
+  // Ionic does not auto-derive these; they must be defined per palette.
+  // Without these, every var(--ion-color-step-*) reference resolves to an
+  // empty string in light mode (text invisible against light bg).
+  --ion-color-step-50:  #E6E6EB;
+  --ion-color-step-100: #D9D9DD;
+  --ion-color-step-150: #CCCCD0;
+  --ion-color-step-200: #C0C0C3;
+  --ion-color-step-250: #B3B3B6;
+  --ion-color-step-300: #A6A6A9;
+  --ion-color-step-350: #99999C;
+  --ion-color-step-400: #8C8C8F;
+  --ion-color-step-450: #808082;
+  --ion-color-step-500: #737375;
+  --ion-color-step-550: #666668;
+  --ion-color-step-600: #59595B;
+  --ion-color-step-650: #4D4D4E;
+  --ion-color-step-700: #404041;
+  --ion-color-step-750: #333334;
+  --ion-color-step-800: #262627;
+  --ion-color-step-850: #1A1A1A;
+  --ion-color-step-900: #0D0D0D;
+  --ion-color-step-950: #050505;
+
   // Typography tokens
   --hnch-font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
   --hnch-font-body: 'Inter Tight', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
@@ -102,6 +126,27 @@
   --ion-color-danger-contrast-rgb: 255, 255, 255;
   --ion-color-danger-shade:      #e03d33;
   --ion-color-danger-tint:       #ff584e;
+
+  // Color steps — dark palette ladder from bg (#000) toward text (#FFF).
+  --ion-color-step-50:  #1A1A1A;
+  --ion-color-step-100: #2A2A2A;
+  --ion-color-step-150: #353535;
+  --ion-color-step-200: #404040;
+  --ion-color-step-250: #4A4A4A;
+  --ion-color-step-300: #555555;
+  --ion-color-step-350: #5F5F5F;
+  --ion-color-step-400: #6A6A6A;
+  --ion-color-step-450: #757575;
+  --ion-color-step-500: #808080;
+  --ion-color-step-550: #8A8A8A;
+  --ion-color-step-600: #959595;
+  --ion-color-step-650: #A0A0A0;
+  --ion-color-step-700: #AAAAAA;
+  --ion-color-step-750: #B5B5B5;
+  --ion-color-step-800: #C0C0C0;
+  --ion-color-step-850: #CACACA;
+  --ion-color-step-900: #D5D5D5;
+  --ion-color-step-950: #E0E0E0;
 
   // Typography tokens
   --hnch-font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
