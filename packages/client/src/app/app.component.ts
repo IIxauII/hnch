@@ -1,5 +1,8 @@
 import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router } from '@angular/router';
 import { IonApp, IonMenu, IonRouterOutlet, IonSplitPane } from '@ionic/angular/standalone';
+import { filter } from 'rxjs/operators';
 
 import { SideNavComponent } from './shared/side-nav.component';
 
@@ -28,10 +31,12 @@ import { ToastService } from './services/toast.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ion-app>
-      <ion-split-pane contentId="main" when="lg">
-        <ion-menu contentId="main" type="overlay">
-          <app-side-nav />
-        </ion-menu>
+      <ion-split-pane contentId="main" when="lg" [disabled]="!isInSession()">
+        @if (isInSession()) {
+          <ion-menu contentId="main" type="overlay">
+            <app-side-nav />
+          </ion-menu>
+        }
         <ion-router-outlet id="main"></ion-router-outlet>
       </ion-split-pane>
     </ion-app>
@@ -42,6 +47,14 @@ export class AppComponent {
   private readonly haptic = inject(HapticService);
   private readonly participantIdService = inject(ParticipantIdService);
   private readonly toastService = inject(ToastService);
+  private readonly router = inject(Router);
+
+  /**
+   * True when the current route is an in-session screen (lobby/estimating).
+   * Public screens (home, onboarding, join, settings) get a fullscreen
+   * shell with no side rail.
+   */
+  protected readonly isInSession = signal(false);
 
   // Eager-instantiate global effect services. The inject() calls
   // ensure Angular creates these singletons; each service's effect
@@ -65,6 +78,20 @@ export class AppComponent {
     void this.sessionEnd;
     void this.participantRemoval;
     void this.theme;
+
+    // Drive isInSession from router URL — split-pane visible only on
+    // /lobby and /estimating. Initial value reflects the current URL so
+    // a deep-link refresh shows the correct shell from first paint.
+    this.isInSession.set(matchSessionUrl(this.router.url));
+    this.router.events
+      .pipe(
+        filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+        takeUntilDestroyed(),
+      )
+      .subscribe((event) => {
+        this.isInSession.set(matchSessionUrl(event.urlAfterRedirects));
+      });
+
     effect(() => {
       const hostId = this.docService.settings()?.hostParticipantId ?? null;
       const prev = this.previousHostId();
@@ -115,4 +142,13 @@ export class AppComponent {
     this.haptic.notificationWarning();
     await this.toastService.info(message);
   }
+}
+
+/**
+ * URL → in-session predicate. Anything starting with /lobby or /estimating
+ * is in-session; everything else is a public/marketing screen.
+ */
+function matchSessionUrl(url: string): boolean {
+  const path = url.split('?')[0]?.split('#')[0] ?? '';
+  return /^\/(lobby|estimating)(\/|$)/.test(path);
 }
