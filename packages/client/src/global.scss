@@ -97,3 +97,8 @@ body {
     --border-radius: 0;
   }
 }
+
+/* Modal toolbar typography — all ion-modal titles use Inter Tight */
+ion-modal ion-toolbar ion-title {
+  font: var(--hnch-title);
+}
