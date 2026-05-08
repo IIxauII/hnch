@@ -22,6 +22,20 @@
 @import "@ionic/angular/css/flex-utils.css";
 
 /*
+ * Global typography — wire default body font from tokens.
+ * Overrides Ionic's default system font stack.
+ */
+body {
+  font: var(--hnch-body);
+  color: var(--ion-text-color);
+}
+
+/* Tabular numerals helper — apply to elements that need monospaced digits */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
  * Dark mode: class-based toggling via ThemeService.
  *
  * `dark.class.css` activates dark palette when `.ion-palette-dark`
