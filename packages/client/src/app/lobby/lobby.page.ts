@@ -181,24 +181,34 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
               </button>
             }
 
-            <ion-list lines="inset" class="actions">
-              <ion-item button (click)="onShareInvite()">
-                <ion-icon
-                  slot="start"
-                  name="share-outline"
-                  aria-hidden="true"
-                ></ion-icon>
-                <ion-label>Share invite</ion-label>
-              </ion-item>
-              <ion-item button (click)="onShowQr()">
-                <ion-icon
-                  slot="start"
-                  name="qr-code-outline"
-                  aria-hidden="true"
-                ></ion-icon>
-                <ion-label>Show QR code</ion-label>
-              </ion-item>
-            </ion-list>
+            <ion-grid class="share-grid">
+              <ion-row>
+                <ion-col size="6">
+                  <ion-button
+                    expand="block"
+                    fill="outline"
+                    class="share-btn"
+                    aria-label="Share invite link"
+                    (click)="onShareInvite()"
+                  >
+                    <ion-icon slot="start" name="share-outline" aria-hidden="true"></ion-icon>
+                    Share
+                  </ion-button>
+                </ion-col>
+                <ion-col size="6">
+                  <ion-button
+                    expand="block"
+                    fill="outline"
+                    class="share-btn"
+                    aria-label="Show QR code"
+                    (click)="onShowQr()"
+                  >
+                    <ion-icon slot="start" name="qr-code-outline" aria-hidden="true"></ion-icon>
+                    QR code
+                  </ion-button>
+                </ion-col>
+              </ion-row>
+            </ion-grid>
 
             <ion-accordion-group [value]="participantsAccordionValue()" expand="inset">
               <ion-accordion value="open">
@@ -367,14 +377,16 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
               </ion-col>
             </ion-row>
           } @else {
-            <ion-button
-              expand="block"
-              color="primary"
-              [disabled]="!hasSession()"
-              (click)="openRoundStart()"
-            >
-              Start Round {{ nextRoundNumber() }}
-            </ion-button>
+            <div class="start-btn-wrap">
+              <ion-button
+                expand="block"
+                color="primary"
+                [disabled]="!hasSession()"
+                (click)="openRoundStart()"
+              >
+                Start Round {{ nextRoundNumber() }}
+              </ion-button>
+            </div>
           }
         </ion-toolbar>
       </ion-footer>
@@ -468,6 +480,19 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
         outline: 2px solid var(--ion-color-primary);
         outline-offset: 2px;
         border-radius: 4px;
+      }
+      .share-grid {
+        padding: 1rem 0 0;
+        --ion-grid-padding: 0;
+      }
+      .share-btn {
+        --border-radius: 10px;
+        font-size: 14px;
+      }
+      .start-btn-wrap {
+        max-width: 320px;
+        margin: 0 auto;
+        padding: 0 8px;
       }
       .actions,
       .participants {

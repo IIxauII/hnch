@@ -134,26 +134,22 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component';
               } @else {
                 <h2 class="section">Pick your estimate</h2>
 
-                <ion-grid class="vote-card-grid">
-                  <ion-row role="group" aria-label="Choose your estimate">
-                    @for (card of round.scale.cards; track card) {
-                      <ion-col size="4" sizeSm="3" sizeMd="2">
-                        <ion-card
-                          button
-                          class="card"
-                          [class.selected]="card === myVote()"
-                          [attr.aria-pressed]="card === myVote()"
-                          [attr.aria-label]="'Card ' + card"
-                          (click)="onCardTap(card)"
-                        >
-                          <ion-card-content class="card-face">
-                            {{ card }}
-                          </ion-card-content>
-                        </ion-card>
-                      </ion-col>
-                    }
-                  </ion-row>
-                </ion-grid>
+                <div class="vote-card-grid" role="group" aria-label="Choose your estimate">
+                  @for (card of round.scale.cards; track card) {
+                    <ion-card
+                      button
+                      class="card"
+                      [class.selected]="card === myVote()"
+                      [attr.aria-pressed]="card === myVote()"
+                      [attr.aria-label]="'Card ' + card"
+                      (click)="onCardTap(card)"
+                    >
+                      <ion-card-content class="card-face">
+                        {{ card }}
+                      </ion-card-content>
+                    </ion-card>
+                  }
+                </div>
               }
             } @else {
               <p class="empty">No active round.</p>
@@ -204,28 +200,43 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component';
         color: var(--ion-color-step-600);
       }
       .vote-card-grid {
-        --ion-grid-column-padding: 0.375rem;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(112px, 144px));
+        justify-content: center;
+        gap: 14px;
+        margin-top: 0.5rem;
       }
       .card {
         margin: 0;
         border: 2px solid transparent;
-        transition: border-color 0.15s ease, background 0.15s ease;
+        background: var(--ion-background-color-step-50);
+        aspect-ratio: 2 / 3;
+        transition: border-color 0.15s ease, transform 0.15s ease, background 0.15s ease;
       }
       .card.selected {
         border-color: var(--ion-color-primary);
-        background: var(--ion-color-primary-tint);
+        background: var(--ion-background-color-step-50);
+        transform: scale(1.04);
+        outline: 2px solid var(--ion-color-primary);
+        outline-offset: 2px;
       }
       .card-face {
         display: flex;
         align-items: center;
         justify-content: center;
-        min-height: 4.5rem;
-        font-size: 1.75rem;
+        height: 100%;
+        font-family: var(--hnch-font-display);
+        font-size: clamp(36px, 4vw, 56px);
         font-weight: 700;
+        font-variation-settings: "opsz" 48;
+        padding: 0;
       }
       @media (prefers-reduced-motion: reduce) {
         .card {
           transition: none;
+        }
+        .card.selected {
+          transform: none;
         }
       }
       .empty {
