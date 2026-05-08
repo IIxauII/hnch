@@ -164,8 +164,14 @@ jobs:
       - name: Typecheck
         run: pnpm --filter ./packages/${{ matrix.package }} run --if-present typecheck
 
+      - name: Format check
+        run: pnpm --filter ./packages/${{ matrix.package }} run --if-present format:check
+
       - name: Lint
         run: pnpm --filter ./packages/${{ matrix.package }} run --if-present lint
+
+      - name: Lint templates
+        run: pnpm --filter ./packages/${{ matrix.package }} run --if-present lint:templates
 
       - name: Unit tests
         run: pnpm --filter ./packages/${{ matrix.package }} run --if-present test

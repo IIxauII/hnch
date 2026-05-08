@@ -1,7 +1,7 @@
-import { Injectable } from '@angular/core'
-import { Capacitor } from '@capacitor/core'
-import { Clipboard } from '@capacitor/clipboard'
-import { roundsToMarkdown, type RoundExportInput } from '@hnch/shared'
+import { Injectable } from '@angular/core';
+import { Capacitor } from '@capacitor/core';
+import { Clipboard } from '@capacitor/clipboard';
+import { roundsToMarkdown, type RoundExportInput } from '@hnch/shared';
 
 /**
  * Copies session results as Markdown to the device clipboard.
@@ -15,11 +15,11 @@ import { roundsToMarkdown, type RoundExportInput } from '@hnch/shared'
 @Injectable({ providedIn: 'root' })
 export class ExportService {
   async copyRoundsAsMarkdown(input: RoundExportInput): Promise<void> {
-    const md = roundsToMarkdown(input)
+    const md = roundsToMarkdown(input);
     if (Capacitor.isNativePlatform()) {
-      await Clipboard.write({ string: md })
+      await Clipboard.write({ string: md });
     } else {
-      await navigator.clipboard.writeText(md)
+      await navigator.clipboard.writeText(md);
     }
   }
 }

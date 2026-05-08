@@ -14,39 +14,39 @@
  * cooperation.
  */
 
-import { createCodePool } from './code-pool.js'
-import { createRoomStore } from './room-store.js'
-import { createRelayServer, logBootBanner, ROOM_CAP, TEST_ROUTES_ENABLED } from './server.js'
+import { createCodePool } from './code-pool.js';
+import { createRoomStore } from './room-store.js';
+import { createRelayServer, logBootBanner, ROOM_CAP, TEST_ROUTES_ENABLED } from './server.js';
 
-const DEFAULT_PORT = 1234
-const DEFAULT_HOST = '0.0.0.0'
+const DEFAULT_PORT = 1234;
+const DEFAULT_HOST = '0.0.0.0';
 
 function main(): void {
-  const portEnv = process.env['PORT']
-  const port = portEnv === undefined || portEnv === '' ? DEFAULT_PORT : Number(portEnv)
+  const portEnv = process.env['PORT'];
+  const port = portEnv === undefined || portEnv === '' ? DEFAULT_PORT : Number(portEnv);
   if (!Number.isFinite(port) || port < 0 || port > 65535) {
-    console.error(`invalid PORT: ${portEnv}`)
-    process.exit(1)
+    console.error(`invalid PORT: ${portEnv}`);
+    process.exit(1);
   }
 
-  const hostEnv = process.env['HOST']
-  const host = hostEnv === undefined || hostEnv === '' ? DEFAULT_HOST : hostEnv
+  const hostEnv = process.env['HOST'];
+  const host = hostEnv === undefined || hostEnv === '' ? DEFAULT_HOST : hostEnv;
 
-  const codePool = createCodePool()
-  const roomStore = createRoomStore(codePool)
-  const server = createRelayServer({ roomStore })
+  const codePool = createCodePool();
+  const roomStore = createRoomStore(codePool);
+  const server = createRelayServer({ roomStore });
   server.listen(port, host, () => {
-    const address = server.address()
-    const boundPort = typeof address === 'object' && address !== null ? address.port : port
-    const boundHost = typeof address === 'object' && address !== null ? address.address : host
+    const address = server.address();
+    const boundPort = typeof address === 'object' && address !== null ? address.port : port;
+    const boundHost = typeof address === 'object' && address !== null ? address.address : host;
     logBootBanner({
       port: boundPort,
       host: boundHost,
       roomCap: ROOM_CAP,
       testRoutesEnabled: TEST_ROUTES_ENABLED,
       logger: console,
-    })
-  })
+    });
+  });
 
   // Graceful shutdown so `pnpm dev`'s Ctrl-C in a tsx-watch loop
   // actually closes the socket instead of leaking handles.
@@ -55,14 +55,14 @@ function main(): void {
   // period so tsx-watch restarts don't hit EADDRINUSE.
   const shutdown = (): void => {
     server.close(() => {
-      process.exit(0)
-    })
+      process.exit(0);
+    });
     setTimeout(() => {
-      process.exit(0)
-    }, 500).unref()
-  }
-  process.on('SIGINT', shutdown)
-  process.on('SIGTERM', shutdown)
+      process.exit(0);
+    }, 500).unref();
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 }
 
-main()
+main();

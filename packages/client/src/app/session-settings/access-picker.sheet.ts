@@ -1,10 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  input,
-  output,
-} from '@angular/core'
-import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms'
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import {
   IonButton,
   IonButtons,
@@ -19,10 +14,10 @@ import {
   IonRadioGroup,
   IonTitle,
   IonToolbar,
-} from '@ionic/angular/standalone'
+} from '@ionic/angular/standalone';
 
 /** Access modes per ADR-0009. Invite-only dropped from v1 (ADR-0017). */
-export type AccessMode = 'open' | 'password'
+export type AccessMode = 'open' | 'password';
 
 /**
  * What the picker emits on change. `password` is only populated when
@@ -31,20 +26,20 @@ export type AccessMode = 'open' | 'password'
  * a relay-side enforcement story).
  */
 export interface AccessSelection {
-  readonly mode: AccessMode
-  readonly password: string | null
+  readonly mode: AccessMode;
+  readonly password: string | null;
 }
 
 interface AccessOption {
-  readonly mode: AccessMode
-  readonly label: string
-  readonly hint: string
+  readonly mode: AccessMode;
+  readonly label: string;
+  readonly hint: string;
 }
 
 const OPTIONS: readonly AccessOption[] = [
   { mode: 'open', label: 'Open', hint: 'Anyone with the code' },
   { mode: 'password', label: 'Password', hint: 'Set a shared password' },
-]
+];
 
 /**
  * Access picker half-sheet — ux.md §5.8.
@@ -134,24 +129,24 @@ const OPTIONS: readonly AccessOption[] = [
   ],
 })
 export class AccessPickerSheetComponent {
-  readonly currentMode = input.required<AccessMode>()
+  readonly currentMode = input.required<AccessMode>();
 
   /**
    * Seed value for the password input when the sheet opens in
    * `password` mode. Phase 2 keeps this in the container's local
    * signal so switching modes and back doesn't drop the typed value.
    */
-  readonly currentPassword = input<string>('')
+  readonly currentPassword = input<string>('');
 
-  readonly selected = output<AccessSelection>()
-  readonly closeRequested = output<void>()
+  readonly selected = output<AccessSelection>();
+  readonly closeRequested = output<void>();
 
-  protected readonly options = OPTIONS
+  protected readonly options = OPTIONS;
 
   protected readonly passwordControl = new FormControl<string>('', {
     nonNullable: true,
     validators: [Validators.maxLength(120)],
-  })
+  });
 
   constructor() {
     // input()s aren't available until after construction; seed the
@@ -159,17 +154,17 @@ export class AccessPickerSheetComponent {
     // the initial value through a microtask. input.required is
     // computed-y, so read it inside a queueMicrotask.
     queueMicrotask(() => {
-      this.passwordControl.setValue(this.currentPassword(), { emitEvent: false })
-    })
+      this.passwordControl.setValue(this.currentPassword(), { emitEvent: false });
+    });
   }
 
   protected onModeChange(mode: AccessMode | null | undefined): void {
-    if (!mode) return
-    if (mode === this.currentMode()) return
+    if (!mode) return;
+    if (mode === this.currentMode()) return;
     this.selected.emit({
       mode,
       password: mode === 'password' ? this.passwordControl.value : null,
-    })
+    });
   }
 
   /**
@@ -179,10 +174,10 @@ export class AccessPickerSheetComponent {
    * doc writes (Phase 5) coarse-grained.
    */
   protected onPasswordCommit(): void {
-    if (this.currentMode() !== 'password') return
+    if (this.currentMode() !== 'password') return;
     this.selected.emit({
       mode: 'password',
       password: this.passwordControl.value,
-    })
+    });
   }
 }

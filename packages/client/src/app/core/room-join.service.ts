@@ -1,26 +1,21 @@
-import {
-  effect,
-  inject,
-  Injectable,
-  Injector,
-} from '@angular/core'
-import type { JoinRejectionReason } from '@hnch/shared'
-import { normalizeRoomCode } from '@hnch/shared'
+import { effect, inject, Injectable, Injector } from '@angular/core';
+import type { JoinRejectionReason } from '@hnch/shared';
+import { normalizeRoomCode } from '@hnch/shared';
 
-import { environment } from '../../environments/environment'
-import { AppPreferenceService } from './app-preference.service'
-import { DisplayNameService } from './display-name.service'
-import { DocService } from './doc/doc.service'
-import { ParticipantIdService } from './participant-id.service'
-import { RelayRejectionError, resolveRoom } from './relay/relay-api'
+import { environment } from '../../environments/environment';
+import { AppPreferenceService } from './app-preference.service';
+import { DisplayNameService } from './display-name.service';
+import { DocService } from './doc/doc.service';
+import { ParticipantIdService } from './participant-id.service';
+import { RelayRejectionError, resolveRoom } from './relay/relay-api';
 
-export type JoinOutcome = 'connected' | 'timeout' | JoinRejectionReason
+export type JoinOutcome = 'connected' | 'timeout' | JoinRejectionReason;
 
 export interface RejoinResult {
-  readonly type: 'connected'
-  readonly roomCode: string
-  readonly roomUuid: string
-  readonly accessMode: 'open'
+  readonly type: 'connected';
+  readonly roomCode: string;
+  readonly roomUuid: string;
+  readonly accessMode: 'open';
 }
 
 export type RejoinOutcome =
@@ -29,18 +24,18 @@ export type RejoinOutcome =
   | { readonly type: 'unknown-room' }
   | { readonly type: 'timeout' }
   | { readonly type: 'rejected'; readonly reason: JoinRejectionReason }
-  | { readonly type: 'network-error' }
+  | { readonly type: 'network-error' };
 
 /**
  * Dependencies for the pure `rejoinRoom` function — extracted so the logic
  * can be tested without Angular DI overhead.
  */
 export interface RejoinDeps {
-  relayHttpUrl: string | null | undefined
-  getDisplayName: () => Promise<string | null>
-  getParticipantId: () => Promise<string>
-  docService: Pick<DocService, 'endSession' | 'joinSession' | 'connect'>
-  waitForJoinOutcome: (opts?: { timeoutMs?: number }) => Promise<JoinOutcome>
+  relayHttpUrl: string | null | undefined;
+  getDisplayName: () => Promise<string | null>;
+  getParticipantId: () => Promise<string>;
+  docService: Pick<DocService, 'endSession' | 'joinSession' | 'connect'>;
+  waitForJoinOutcome: (opts?: { timeoutMs?: number }) => Promise<JoinOutcome>;
 }
 
 /**
@@ -61,44 +56,38 @@ export async function rejoinRoom(
   deps: RejoinDeps,
   opts: { timeoutMs?: number } = {},
 ): Promise<RejoinOutcome> {
-  const code = normalizeRoomCode(rawCode)
+  const code = normalizeRoomCode(rawCode);
 
-  let resolved: { uuid: string; accessMode: string }
+  let resolved: { uuid: string; accessMode: string };
   try {
-    resolved = await resolveRoom(
-      deps.relayHttpUrl ?? environment.relayHttpUrl,
-      code,
-    )
+    resolved = await resolveRoom(deps.relayHttpUrl ?? environment.relayHttpUrl, code);
   } catch (err) {
     if (err instanceof RelayRejectionError && err.reason === 'unknown-room') {
-      return { type: 'unknown-room' }
+      return { type: 'unknown-room' };
     }
     // Network failure or unexpected 5xx: treat as network error, not as
     // a definitive "room gone" so the caller can retry or fall through.
-    return { type: 'network-error' }
+    return { type: 'network-error' };
   }
 
   if (resolved.accessMode === 'password') {
-    return { type: 'password-required', roomCode: code }
+    return { type: 'password-required', roomCode: code };
   }
 
   const [displayName, participantId] = await Promise.all([
     deps.getDisplayName(),
     deps.getParticipantId(),
-  ])
+  ]);
 
-  deps.docService.endSession()
+  deps.docService.endSession();
   deps.docService.joinSession({
     participantId,
     displayName: displayName ?? '',
     roomCode: code,
-  })
-  deps.docService.connect(
-    { roomCode: code, deviceId: participantId },
-    { roomUuid: resolved.uuid },
-  )
+  });
+  deps.docService.connect({ roomCode: code, deviceId: participantId }, { roomUuid: resolved.uuid });
 
-  const outcome = await deps.waitForJoinOutcome(opts)
+  const outcome = await deps.waitForJoinOutcome(opts);
 
   if (outcome === 'connected') {
     return {
@@ -106,18 +95,18 @@ export async function rejoinRoom(
       roomCode: code,
       roomUuid: resolved.uuid,
       accessMode: 'open',
-    }
+    };
   }
 
   if (outcome === 'unknown-room') {
-    return { type: 'unknown-room' }
+    return { type: 'unknown-room' };
   }
 
   if (outcome === 'timeout') {
-    return { type: 'timeout' }
+    return { type: 'timeout' };
   }
 
-  return { type: 'rejected', reason: outcome }
+  return { type: 'rejected', reason: outcome };
 }
 
 /**
@@ -137,18 +126,18 @@ export async function rejoinRoom(
  */
 @Injectable({ providedIn: 'root' })
 export class RoomJoinService {
-  private readonly appPrefs = inject(AppPreferenceService)
-  private readonly displayNameService = inject(DisplayNameService)
-  private readonly participantIdService = inject(ParticipantIdService)
-  private readonly docService = inject(DocService)
-  private readonly injector = inject(Injector)
+  private readonly appPrefs = inject(AppPreferenceService);
+  private readonly displayNameService = inject(DisplayNameService);
+  private readonly participantIdService = inject(ParticipantIdService);
+  private readonly docService = inject(DocService);
+  private readonly injector = inject(Injector);
 
   /**
    * In-flight rejoin promises keyed by normalized room code.
    * Prevents two rapid navigations to the same code from running
    * parallel rejoins that race each other's `endSession` calls.
    */
-  private readonly inFlightRejoins = new Map<string, Promise<RejoinOutcome>>()
+  private readonly inFlightRejoins = new Map<string, Promise<RejoinOutcome>>();
 
   /**
    * Attempt to (re)join a room identified by the given code.
@@ -167,16 +156,9 @@ export class RoomJoinService {
    * while the first is still in flight returns the existing promise
    * rather than racing a parallel rejoin.
    */
-  async rejoin(
-    rawCode: string,
-    opts: { timeoutMs?: number } = {},
-  ): Promise<RejoinOutcome> {
-    const key = normalizeRoomCode(rawCode)
-    return dedupRejoin(
-      this.inFlightRejoins,
-      key,
-      () => rejoinRoom(rawCode, this.makeDeps(), opts),
-    )
+  async rejoin(rawCode: string, opts: { timeoutMs?: number } = {}): Promise<RejoinOutcome> {
+    const key = normalizeRoomCode(rawCode);
+    return dedupRejoin(this.inFlightRejoins, key, () => rejoinRoom(rawCode, this.makeDeps(), opts));
   }
 
   private makeDeps(): RejoinDeps {
@@ -190,45 +172,43 @@ export class RoomJoinService {
         connect: (creds, opts) => this.docService.connect(creds, opts),
       },
       waitForJoinOutcome: (opts) => this.waitForJoinOutcome(opts),
-    }
+    };
   }
 
   /**
    * Await first decisive event from doc-service signals after a connect()
    * call. Mirrors the same pattern in `home.page.ts`.
    */
-  waitForJoinOutcome(
-    opts: { timeoutMs?: number } = {},
-  ): Promise<JoinOutcome> {
-    const timeoutMs = opts.timeoutMs ?? 5_000
+  waitForJoinOutcome(opts: { timeoutMs?: number } = {}): Promise<JoinOutcome> {
+    const timeoutMs = opts.timeoutMs ?? 5_000;
     return new Promise((resolve) => {
-      let settled = false
-      let timeoutId: ReturnType<typeof setTimeout> | null = null
+      let settled = false;
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
       const settle = (outcome: JoinOutcome): void => {
-        if (settled) return
-        settled = true
-        if (timeoutId !== null) clearTimeout(timeoutId)
-        queueMicrotask(() => ref.destroy())
-        resolve(outcome)
-      }
+        if (settled) return;
+        settled = true;
+        if (timeoutId !== null) clearTimeout(timeoutId);
+        queueMicrotask(() => ref.destroy());
+        resolve(outcome);
+      };
 
       const ref = effect(
         () => {
-          if (settled) return
-          const rejection = this.docService.lastRejection()
+          if (settled) return;
+          const rejection = this.docService.lastRejection();
           if (rejection !== null) {
-            settle(rejection)
-            return
+            settle(rejection);
+            return;
           }
-          const status = this.docService.syncStatus()
-          if (status === 'connected') settle('connected')
+          const status = this.docService.syncStatus();
+          if (status === 'connected') settle('connected');
         },
         { injector: this.injector },
-      )
+      );
 
-      timeoutId = setTimeout(() => settle('timeout'), timeoutMs)
-    })
+      timeoutId = setTimeout(() => settle('timeout'), timeoutMs);
+    });
   }
 }
 
@@ -243,12 +223,9 @@ export class RoomJoinService {
  *
  * Usage: `const code = assertRoomCode(docService.roomCode(), 'lobby.softExit')`
  */
-export function assertRoomCode(
-  code: string | null,
-  where: string,
-): asserts code is string {
+export function assertRoomCode(code: string | null, where: string): asserts code is string {
   if (code === null) {
-    throw new Error(`${where}: docService.roomCode() is null — no active session`)
+    throw new Error(`${where}: docService.roomCode() is null — no active session`);
   }
 }
 
@@ -268,10 +245,12 @@ export function dedupRejoin(
   key: string,
   factory: () => Promise<RejoinOutcome>,
 ): Promise<RejoinOutcome> {
-  const existing = inFlight.get(key)
-  if (existing !== undefined) return existing
+  const existing = inFlight.get(key);
+  if (existing !== undefined) return existing;
 
-  const promise = factory().finally(() => { inFlight.delete(key) })
-  inFlight.set(key, promise)
-  return promise
+  const promise = factory().finally(() => {
+    inFlight.delete(key);
+  });
+  inFlight.set(key, promise);
+  return promise;
 }

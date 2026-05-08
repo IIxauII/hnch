@@ -1,12 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  input,
-  output,
-} from '@angular/core'
-import { BUILTIN_SCALES, formatScaleId } from '@hnch/shared'
+import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
+import { BUILTIN_SCALES, formatScaleId } from '@hnch/shared';
 import {
   IonButton,
   IonButtons,
@@ -19,10 +12,10 @@ import {
   IonTitle,
   IonToggle,
   IonToolbar,
-} from '@ionic/angular/standalone'
+} from '@ionic/angular/standalone';
 
-import { HapticService } from '../core/haptic.service'
-import { ScalePreferenceService } from '../core/scale-preference.service'
+import { HapticService } from '../core/haptic.service';
+import { ScalePreferenceService } from '../core/scale-preference.service';
 
 /**
  * Preset card customization half-sheet.
@@ -94,16 +87,16 @@ import { ScalePreferenceService } from '../core/scale-preference.service'
   ],
 })
 export class ScaleEditorSheetComponent {
-  private readonly scalePrefs = inject(ScalePreferenceService)
-  private readonly haptics = inject(HapticService)
+  private readonly scalePrefs = inject(ScalePreferenceService);
+  private readonly haptics = inject(HapticService);
 
   /** The builtin scale ID to edit (must be a key of BUILTIN_SCALES). */
-  readonly scaleId = input.required<string>()
+  readonly scaleId = input.required<string>();
 
   /** Emits when the user taps Done. */
-  readonly closeRequested = output<void>()
+  readonly closeRequested = output<void>();
 
-  protected readonly title = computed(() => formatScaleId(this.scaleId()))
+  protected readonly title = computed(() => formatScaleId(this.scaleId()));
 
   /**
    * Row view-model computed from the current overrides. Each row carries:
@@ -113,26 +106,26 @@ export class ScaleEditorSheetComponent {
    * - `disableToggle`— true when this is the last enabled card (prevent empty scale)
    */
   protected readonly cardRows = computed(() => {
-    const id = this.scaleId()
-    const builtin = BUILTIN_SCALES[id]
-    if (!builtin) return []
+    const id = this.scaleId();
+    const builtin = BUILTIN_SCALES[id];
+    if (!builtin) return [];
 
-    const disabled = this.scalePrefs.presetOverrides()[id] ?? []
-    const enabledCount = builtin.cards.length - disabled.length
+    const disabled = this.scalePrefs.presetOverrides()[id] ?? [];
+    const enabledCount = builtin.cards.length - disabled.length;
 
     return builtin.cards.map((face, index) => {
-      const enabled = !disabled.includes(index)
+      const enabled = !disabled.includes(index);
       return {
         index,
         face,
         enabled,
         disableToggle: enabled && enabledCount === 1,
-      }
-    })
-  })
+      };
+    });
+  });
 
   protected onToggle(index: number): void {
-    this.haptics.impactLight()
-    void this.scalePrefs.togglePresetCard(this.scaleId(), index)
+    this.haptics.impactLight();
+    void this.scalePrefs.togglePresetCard(this.scaleId(), index);
   }
 }

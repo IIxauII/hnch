@@ -11,90 +11,90 @@
  * avoid zone conflicts during TestBed setup.
  */
 
-import { TestBed } from '@angular/core/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { TestBed } from '@angular/core/testing';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@ionic/angular/standalone', () => ({}))
-vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false } }))
+vi.mock('@ionic/angular/standalone', () => ({}));
+vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false } }));
 
-import { TimerTickService } from './timer-tick.service'
+import { TimerTickService } from './timer-tick.service';
 
-const TICK_INTERVAL = 250
+const TICK_INTERVAL = 250;
 
 afterEach(() => {
-  vi.useRealTimers()
-  TestBed.resetTestingModule()
-})
+  vi.useRealTimers();
+  TestBed.resetTestingModule();
+});
 
 describe('TimerTickService', () => {
   describe('now signal', () => {
     it('starts with a timestamp close to the real Date.now()', () => {
-      vi.useFakeTimers()
-      TestBed.configureTestingModule({})
-      const svc = TestBed.inject(TimerTickService)
+      vi.useFakeTimers();
+      TestBed.configureTestingModule({});
+      const svc = TestBed.inject(TimerTickService);
 
-      const before = Date.now()
-      const value = svc.now()
+      const before = Date.now();
+      const value = svc.now();
       // With fake timers, Date.now() is frozen at the point vi.useFakeTimers() was called.
       // The signal is set at construction time, so it should equal or be just after `before`.
-      expect(value).toBeGreaterThanOrEqual(before)
-    })
+      expect(value).toBeGreaterThanOrEqual(before);
+    });
 
     it('updates after each 250 ms interval', () => {
-      vi.useFakeTimers()
-      TestBed.configureTestingModule({})
-      const svc = TestBed.inject(TimerTickService)
+      vi.useFakeTimers();
+      TestBed.configureTestingModule({});
+      const svc = TestBed.inject(TimerTickService);
 
-      const t0 = svc.now()
+      const t0 = svc.now();
 
-      vi.advanceTimersByTime(TICK_INTERVAL)
-      const t1 = svc.now()
-      expect(t1).toBeGreaterThan(t0)
+      vi.advanceTimersByTime(TICK_INTERVAL);
+      const t1 = svc.now();
+      expect(t1).toBeGreaterThan(t0);
 
-      vi.advanceTimersByTime(TICK_INTERVAL)
-      const t2 = svc.now()
-      expect(t2).toBeGreaterThan(t1)
-    })
+      vi.advanceTimersByTime(TICK_INTERVAL);
+      const t2 = svc.now();
+      expect(t2).toBeGreaterThan(t1);
+    });
 
     it('does not update before 250 ms have elapsed', () => {
-      vi.useFakeTimers()
-      TestBed.configureTestingModule({})
-      const svc = TestBed.inject(TimerTickService)
+      vi.useFakeTimers();
+      TestBed.configureTestingModule({});
+      const svc = TestBed.inject(TimerTickService);
 
-      const t0 = svc.now()
-      vi.advanceTimersByTime(TICK_INTERVAL - 1)
-      expect(svc.now()).toBe(t0)
-    })
-  })
+      const t0 = svc.now();
+      vi.advanceTimersByTime(TICK_INTERVAL - 1);
+      expect(svc.now()).toBe(t0);
+    });
+  });
 
   describe('interval cleanup on destroy', () => {
     it('stops updating after the service is destroyed', () => {
-      vi.useFakeTimers()
-      TestBed.configureTestingModule({})
-      const svc = TestBed.inject(TimerTickService)
+      vi.useFakeTimers();
+      TestBed.configureTestingModule({});
+      const svc = TestBed.inject(TimerTickService);
 
-      vi.advanceTimersByTime(TICK_INTERVAL)
-      const valueBeforeDestroy = svc.now()
+      vi.advanceTimersByTime(TICK_INTERVAL);
+      const valueBeforeDestroy = svc.now();
 
-      TestBed.resetTestingModule() // triggers DestroyRef.onDestroy → clearInterval
+      TestBed.resetTestingModule(); // triggers DestroyRef.onDestroy → clearInterval
 
       // Re-enable real timers and confirm the signal is frozen
-      vi.useRealTimers()
+      vi.useRealTimers();
       // Signal value should not have changed since the interval was cleared
-      expect(svc.now()).toBe(valueBeforeDestroy)
-    })
+      expect(svc.now()).toBe(valueBeforeDestroy);
+    });
 
     it('calls clearInterval when destroyed', () => {
-      vi.useFakeTimers()
-      const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval')
+      vi.useFakeTimers();
+      const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
 
-      TestBed.configureTestingModule({})
-      TestBed.inject(TimerTickService)
+      TestBed.configureTestingModule({});
+      TestBed.inject(TimerTickService);
 
-      TestBed.resetTestingModule()
+      TestBed.resetTestingModule();
 
-      expect(clearIntervalSpy).toHaveBeenCalled()
-      clearIntervalSpy.mockRestore()
-    })
-  })
-})
+      expect(clearIntervalSpy).toHaveBeenCalled();
+      clearIntervalSpy.mockRestore();
+    });
+  });
+});

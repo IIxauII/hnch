@@ -1,7 +1,7 @@
-import type { IonModal } from '@ionic/angular/standalone'
+import type { IonModal } from '@ionic/angular/standalone';
 
 export interface PresentSheetOpts {
-  modal: IonModal
+  modal: IonModal;
 }
 
 /**
@@ -12,16 +12,18 @@ export interface PresentSheetOpts {
  * Returns the overlay's didDismiss result so call sites that inspect
  * `{ data, role }` can continue to do so.
  */
-export async function presentSheet(opts: PresentSheetOpts): Promise<{ data?: unknown; role?: string }> {
-  const previousFocus = document.activeElement as HTMLElement | null
+export async function presentSheet(
+  opts: PresentSheetOpts,
+): Promise<{ data?: unknown; role?: string }> {
+  const previousFocus = document.activeElement as HTMLElement | null;
 
-  await opts.modal.present()
+  await opts.modal.present();
 
-  const result = await opts.modal.onDidDismiss()
+  const result = await opts.modal.onDidDismiss();
 
   if (previousFocus && document.contains(previousFocus)) {
-    previousFocus.focus()
+    previousFocus.focus();
   }
 
-  return result
+  return result;
 }

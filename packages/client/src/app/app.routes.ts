@@ -1,7 +1,7 @@
-import type { Routes } from '@angular/router'
+import type { Routes } from '@angular/router';
 
-import { displayNameGuard } from './core/display-name.guard'
-import { sessionResumeGuard } from './core/session-resume.guard'
+import { displayNameGuard } from './core/display-name.guard';
+import { sessionResumeGuard } from './core/session-resume.guard';
 
 /**
  * Route table for hnch v1 per roadmap.md §3 and ux.md §3.
@@ -27,8 +27,7 @@ import { sessionResumeGuard } from './core/session-resume.guard'
 export const routes: Routes = [
   {
     path: 'onboarding',
-    loadComponent: () =>
-      import('./onboarding/onboarding.page').then((m) => m.OnboardingPage),
+    loadComponent: () => import('./onboarding/onboarding.page').then((m) => m.OnboardingPage),
   },
   {
     path: 'home',
@@ -50,8 +49,7 @@ export const routes: Routes = [
   {
     path: 'estimating/:code',
     canMatch: [displayNameGuard, sessionResumeGuard],
-    loadComponent: () =>
-      import('./estimating/estimating.page').then((m) => m.EstimatingPage),
+    loadComponent: () => import('./estimating/estimating.page').then((m) => m.EstimatingPage),
   },
   // Legacy parameterless variants — redirect to home so old bookmarks
   // fall through to the Jump-back-in banner rather than 404-ing.
@@ -66,8 +64,7 @@ export const routes: Routes = [
   {
     path: 'settings',
     canMatch: [displayNameGuard],
-    loadComponent: () =>
-      import('./settings/settings.page').then((m) => m.SettingsPage),
+    loadComponent: () => import('./settings/settings.page').then((m) => m.SettingsPage),
   },
   {
     path: '',
@@ -78,4 +75,4 @@ export const routes: Routes = [
     path: '**',
     redirectTo: 'home',
   },
-]
+];

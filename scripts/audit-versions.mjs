@@ -13,10 +13,9 @@
 
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const __dirname = import.meta.dirname;
 const repoRoot = resolve(__dirname, '..');
 
 const PLACEHOLDER = '0.0.0-semantically-released';
@@ -30,8 +29,8 @@ const PACKAGES = ['shared', 'relay', 'client', 'cli'];
  */
 function compareSemver(a, b) {
   const splitFn = (s) => {
-    const [main, pre = ''] = s.split('-');
-    const nums = main.split('.').map((n) => Number.parseInt(n, 10));
+    const [base, pre = ''] = s.split('-');
+    const nums = base.split('.').map((n) => Number.parseInt(n, 10));
     return { nums, pre };
   };
   const aa = splitFn(a);
@@ -57,7 +56,7 @@ function highestTagVersion(pkg) {
       encoding: 'utf8',
     });
   } catch (err) {
-    throw new Error(`git tag --list failed for ${pkg}: ${err.message}`);
+    throw new Error(`git tag --list failed for ${pkg}: ${err.message}`, { cause: err });
   }
   const versions = raw
     .split('\n')
@@ -66,7 +65,7 @@ function highestTagVersion(pkg) {
     .map((t) => t.replace(new RegExp(`^${pkg}-v`), ''))
     .filter((v) => /^\d+\.\d+\.\d+/.test(v));
   if (versions.length === 0) return null;
-  return versions.sort(compareSemver).at(-1);
+  return versions.toSorted(compareSemver).at(-1);
 }
 
 function readPkgVersion(pkg) {

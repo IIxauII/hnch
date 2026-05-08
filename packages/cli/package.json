@@ -42,7 +42,9 @@
     "prepublishOnly": "pnpm run build",
     "typecheck": "tsc --noEmit",
     "dev": "tsx src/index.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "format:check": "biome format .",
+    "lint": "oxlint ."
   },
   "dependencies": {
     "clipboardy": "^4.0.0",

@@ -1,21 +1,21 @@
-import React, { useState, useMemo } from 'react'
-import { Box, Text, useApp, useInput } from 'ink'
-import { randomUUID } from 'node:crypto'
+import React, { useState, useMemo } from 'react';
+import { Box, Text, useApp, useInput } from 'ink';
+import { randomUUID } from 'node:crypto';
 import {
   buildAvailableScales,
   formatScaleId,
   type PresetOverrides,
   type CustomScale,
   type Scale,
-} from '@hnch/shared'
-import { readConfig, writeConfig, updateConfig, type CliConfig } from '../../config.js'
-import { MenuList, type MenuItem } from './MenuList.js'
-import { TextInput } from './TextInput.js'
-import { ScalePicker } from './ScalePicker.js'
+} from '@hnch/shared';
+import { readConfig, writeConfig, updateConfig, type CliConfig } from '../../config.js';
+import { MenuList, type MenuItem } from './MenuList.js';
+import { TextInput } from './TextInput.js';
+import { ScalePicker } from './ScalePicker.js';
 
 interface ConfigSettingsProps {
-  presetOverrides?: PresetOverrides
-  customScales?: CustomScale[]
+  presetOverrides?: PresetOverrides | undefined;
+  customScales?: CustomScale[] | undefined;
 }
 
 type SettingsState =
@@ -24,39 +24,37 @@ type SettingsState =
   | 'editing-relay-url'
   | 'editing-session-name'
   | 'picking-scale'
-  | 'picking-default-password'
+  | 'picking-default-password';
 
 export function ConfigSettings({
   presetOverrides,
   customScales,
 }: ConfigSettingsProps): React.ReactElement {
-  const { exit } = useApp()
-  const [state, setState] = useState<SettingsState>('main-menu')
-  const [config, setConfig] = useState<Partial<CliConfig>>(readConfig())
-  const [displayNameInput, setDisplayNameInput] = useState(config.displayName ?? '')
-  const [relayUrlInput, setRelayUrlInput] = useState(config.relayUrl ?? '')
-  const [sessionNameInput, setSessionNameInput] = useState(config.defaultSessionName ?? '')
-  const [localCustomScales, setLocalCustomScales] = useState<CustomScale[]>(customScales ?? [])
-  const [localOverrides, setLocalOverrides] = useState<PresetOverrides>(presetOverrides ?? {})
+  const { exit } = useApp();
+  const [state, setState] = useState<SettingsState>('main-menu');
+  const [config, setConfig] = useState<Partial<CliConfig>>(readConfig());
+  const [displayNameInput, setDisplayNameInput] = useState(config.displayName ?? '');
+  const [relayUrlInput, setRelayUrlInput] = useState(config.relayUrl ?? '');
+  const [sessionNameInput, setSessionNameInput] = useState(config.defaultSessionName ?? '');
+  const [localCustomScales, setLocalCustomScales] = useState<CustomScale[]>(customScales ?? []);
+  const [localOverrides, setLocalOverrides] = useState<PresetOverrides>(presetOverrides ?? {});
 
   // Global quit handler
   useInput(
     (input) => {
       if (input === 'q' || input === 'Q') {
-        exit()
+        exit();
       }
     },
     { isActive: state === 'main-menu' },
-  )
+  );
 
   const scales = useMemo(
     () => buildAvailableScales(localOverrides, localCustomScales),
     [localOverrides, localCustomScales],
-  )
-  const currentScale = config.defaultScale
-  const currentScaleObj = currentScale
-    ? scales.find((s) => s.id === currentScale)
-    : undefined
+  );
+  const currentScale = config.defaultScale;
+  const currentScaleObj = currentScale ? scales.find((s) => s.id === currentScale) : undefined;
 
   const menuItems: MenuItem[] = [
     {
@@ -84,119 +82,119 @@ export function ConfigSettings({
       value: 'default-password',
       detail: `[${config.defaultPassword ? 'on' : 'off'}]`,
     },
-  ]
+  ];
 
   function handleMenuSelect(value: string) {
     if (value === 'display-name') {
-      setDisplayNameInput(config.displayName ?? '')
-      setState('editing-display-name')
+      setDisplayNameInput(config.displayName ?? '');
+      setState('editing-display-name');
     } else if (value === 'relay-url') {
-      setRelayUrlInput(config.relayUrl ?? '')
-      setState('editing-relay-url')
+      setRelayUrlInput(config.relayUrl ?? '');
+      setState('editing-relay-url');
     } else if (value === 'default-scale') {
-      setState('picking-scale')
+      setState('picking-scale');
     } else if (value === 'default-session-name') {
-      setSessionNameInput(config.defaultSessionName ?? '')
-      setState('editing-session-name')
+      setSessionNameInput(config.defaultSessionName ?? '');
+      setState('editing-session-name');
     } else if (value === 'default-password') {
-      setState('picking-default-password')
+      setState('picking-default-password');
     }
   }
 
   function handleDisplayNameSubmit(val: string) {
-    const trimmed = val.trim()
+    const trimmed = val.trim();
     if (trimmed.length > 0) {
-      const updated = { ...config, displayName: trimmed }
-      setConfig(updated)
-      writeConfig({ displayName: trimmed })
+      const updated = { ...config, displayName: trimmed };
+      setConfig(updated);
+      writeConfig({ displayName: trimmed });
     }
-    setState('main-menu')
+    setState('main-menu');
   }
 
   function handleRelayUrlSubmit(val: string) {
-    const trimmed = val.trim()
+    const trimmed = val.trim();
     if (trimmed.length > 0) {
-      const updated = { ...config, relayUrl: trimmed }
-      setConfig(updated)
-      writeConfig({ relayUrl: trimmed })
+      const updated = { ...config, relayUrl: trimmed };
+      setConfig(updated);
+      writeConfig({ relayUrl: trimmed });
     }
-    setState('main-menu')
+    setState('main-menu');
   }
 
   function handleSessionNameSubmit(val: string) {
-    const trimmed = val.trim()
-    const updated = trimmed.length > 0 ? { ...config, defaultSessionName: trimmed } : { ...config }
+    const trimmed = val.trim();
+    const updated = trimmed.length > 0 ? { ...config, defaultSessionName: trimmed } : { ...config };
     if (trimmed.length === 0) {
-      delete updated.defaultSessionName
-      setConfig(updated)
-      updateConfig({ defaultSessionName: '' })
+      delete updated.defaultSessionName;
+      setConfig(updated);
+      updateConfig({ defaultSessionName: '' });
     } else {
-      setConfig(updated)
-      writeConfig({ defaultSessionName: trimmed })
+      setConfig(updated);
+      writeConfig({ defaultSessionName: trimmed });
     }
-    setState('main-menu')
+    setState('main-menu');
   }
 
   function handleScaleSelect(id: string) {
-    const updated = id.length > 0 ? { ...config, defaultScale: id } : { ...config }
+    const updated = id.length > 0 ? { ...config, defaultScale: id } : { ...config };
     if (id.length === 0) {
-      delete updated.defaultScale
-      setConfig(updated)
-      updateConfig({ defaultScale: '' })
+      delete updated.defaultScale;
+      setConfig(updated);
+      updateConfig({ defaultScale: '' });
     } else {
-      setConfig(updated)
-      writeConfig({ defaultScale: id })
+      setConfig(updated);
+      writeConfig({ defaultScale: id });
     }
-    setState('main-menu')
+    setState('main-menu');
   }
 
   function handleScaleOverrideChange(scaleId: string, disabledIndices: number[]) {
-    const updated = { ...localOverrides }
+    const updated = { ...localOverrides };
     if (disabledIndices.length === 0) {
-      delete updated[scaleId]
+      delete updated[scaleId];
     } else {
-      updated[scaleId] = disabledIndices
+      updated[scaleId] = disabledIndices;
     }
-    setLocalOverrides(updated)
-    writeConfig({ presetOverrides: Object.keys(updated).length > 0 ? updated : undefined })
+    setLocalOverrides(updated);
+    writeConfig({ presetOverrides: Object.keys(updated).length > 0 ? updated : undefined });
   }
 
   function handlePasswordToggle(value: string) {
-    const isOn = value === 'on'
-    const updated = { ...config, defaultPassword: isOn }
-    setConfig(updated)
-    writeConfig({ defaultPassword: isOn })
-    setState('main-menu')
+    const isOn = value === 'on';
+    const updated = { ...config, defaultPassword: isOn };
+    setConfig(updated);
+    writeConfig({ defaultPassword: isOn });
+    setState('main-menu');
   }
 
   function handleCustomScaleCreate(name: string, cards: string[]) {
-    const id = `custom-${randomUUID()}`
-    const newCustomScales = [...localCustomScales, { id, label: name, cards }]
-    setLocalCustomScales(newCustomScales)
-    setConfig({ ...config, customScales: newCustomScales })
-    writeConfig({ customScales: newCustomScales })
+    const id = `custom-${randomUUID()}`;
+    const newCustomScales = [...localCustomScales, { id, label: name, cards }];
+    setLocalCustomScales(newCustomScales);
+    setConfig({ ...config, customScales: newCustomScales });
+    writeConfig({ customScales: newCustomScales });
   }
 
   function handleCustomScaleEdit(id: string, name: string, cards: string[]) {
     const newCustomScales = localCustomScales.map((s) =>
-      s.id === id ? { id, label: name, cards } : s
-    )
-    setLocalCustomScales(newCustomScales)
-    setConfig({ ...config, customScales: newCustomScales })
-    writeConfig({ customScales: newCustomScales })
+      s.id === id ? { id, label: name, cards } : s,
+    );
+    setLocalCustomScales(newCustomScales);
+    setConfig({ ...config, customScales: newCustomScales });
+    writeConfig({ customScales: newCustomScales });
   }
 
   function handleCustomScaleDelete(id: string) {
-    const newCustomScales = localCustomScales.filter((s) => s.id !== id)
-    setLocalCustomScales(newCustomScales)
-    let updated = { ...config, customScales: newCustomScales }
+    const newCustomScales = localCustomScales.filter((s) => s.id !== id);
+    setLocalCustomScales(newCustomScales);
+    let updated = { ...config, customScales: newCustomScales };
     if (config.defaultScale === id) {
-      updated.defaultScale = 'fibonacci'
-      writeConfig({ customScales: newCustomScales, defaultScale: 'fibonacci' })
+      updated.defaultScale = 'fibonacci';
+      writeConfig({ customScales: newCustomScales, defaultScale: 'fibonacci' });
     } else {
-      writeConfig({ customScales: newCustomScales })
+      writeConfig({ customScales: newCustomScales });
     }
-    setConfig(updated)
+    setConfig(updated);
   }
 
   if (state === 'main-menu') {
@@ -207,7 +205,7 @@ export function ConfigSettings({
         onSelect={handleMenuSelect}
         onClose={() => exit()}
       />
-    )
+    );
   }
 
   if (state === 'editing-display-name') {
@@ -223,9 +221,9 @@ export function ConfigSettings({
           placeholder="(required)"
           isActive
         />
-        <Text dimColor>⏎ confirm  esc back</Text>
+        <Text dimColor>⏎ confirm esc back</Text>
       </Box>
-    )
+    );
   }
 
   if (state === 'editing-relay-url') {
@@ -241,9 +239,9 @@ export function ConfigSettings({
           placeholder="(required)"
           isActive
         />
-        <Text dimColor>⏎ confirm  esc back</Text>
+        <Text dimColor>⏎ confirm esc back</Text>
       </Box>
-    )
+    );
   }
 
   if (state === 'editing-session-name') {
@@ -259,13 +257,13 @@ export function ConfigSettings({
           placeholder="(leave empty to clear)"
           isActive
         />
-        <Text dimColor>⏎ confirm  esc back</Text>
+        <Text dimColor>⏎ confirm esc back</Text>
       </Box>
-    )
+    );
   }
 
   if (state === 'picking-scale') {
-    const scalesWithNone: Scale[] = [{ id: '', cards: [] }, ...scales]
+    const scalesWithNone: Scale[] = [{ id: '', cards: [] }, ...scales];
     return (
       <Box flexDirection="column" gap={1}>
         <Text bold>── Config Settings ──</Text>
@@ -283,14 +281,14 @@ export function ConfigSettings({
           showNoneOption
         />
       </Box>
-    )
+    );
   }
 
   if (state === 'picking-default-password') {
     const passwordItems = [
       { label: 'On', value: 'on', detail: config.defaultPassword ? '[current]' : undefined },
       { label: 'Off', value: 'off', detail: !config.defaultPassword ? '[current]' : undefined },
-    ]
+    ];
 
     return (
       <Box flexDirection="column" gap={1}>
@@ -302,8 +300,8 @@ export function ConfigSettings({
           onClose={() => setState('main-menu')}
         />
       </Box>
-    )
+    );
   }
 
-  return <Box />
+  return <Box />;
 }
