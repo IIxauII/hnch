@@ -15,7 +15,6 @@ import {
   IonItem,
   IonLabel,
   IonList,
-  IonListHeader,
   IonModal,
   IonNote,
   IonSelect,
@@ -39,21 +38,23 @@ import { ThemeService, type Theme } from '../core/theme.service';
 import { ScalePickerSheetComponent } from '../session-settings/scale-picker.sheet';
 import { RelayUrlEditorSheetComponent } from './relay-url-editor.sheet';
 import { presentSheet } from '../utils/present-sheet';
+import { PageHeaderComponent } from '../shared/ui/page-header.component';
+import { SectionCardComponent } from '../shared/ui/section-card.component';
 
 /**
  * App Settings screen — ux.md §5.7.
  *
- * Four sections: Profile (display name), Appearance (theme + accent),
- * Scales (default scale picker), and About (version).
- * Display name + default session name use inline blur-save.
- * Theme + accent use ion-select with `interface="popover"`.
+ * Phase D redesign:
+ *  - Mobile toolbar: "Settings" Inter Tight, leading back-button.
+ *  - PageHeader eyebrow="preferences" title="Settings".
+ *  - Grouped SectionCards: Profile, Appearance, Defaults, Connection, About.
+ *  - ion-list inset lines="full" inside each card.
+ *  - Right-aligned value previews in body-sm + muted color.
  */
 @Component({
   selector: 'app-settings',
   host: { class: 'ion-page' },
   imports: [
-    RelayUrlEditorSheetComponent,
-    ScalePickerSheetComponent,
     IonBackButton,
     IonButtons,
     IonContent,
@@ -62,7 +63,6 @@ import { presentSheet } from '../utils/present-sheet';
     IonItem,
     IonLabel,
     IonList,
-    IonListHeader,
     IonModal,
     IonNote,
     IonSelect,
@@ -70,6 +70,10 @@ import { presentSheet } from '../utils/present-sheet';
     IonTitle,
     IonToggle,
     IonToolbar,
+    PageHeaderComponent,
+    RelayUrlEditorSheetComponent,
+    ScalePickerSheetComponent,
+    SectionCardComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -78,121 +82,118 @@ import { presentSheet } from '../utils/present-sheet';
         <ion-buttons slot="start">
           <ion-back-button defaultHref="/home"></ion-back-button>
         </ion-buttons>
-        <ion-title>Settings</ion-title>
+        <ion-title style="font: var(--hnch-title)">Settings</ion-title>
       </ion-toolbar>
     </ion-header>
+
     <ion-content>
-      <!-- Profile -->
-      <ion-list-header>
-        <ion-label>Profile</ion-label>
-      </ion-list-header>
-      <ion-list lines="inset">
-        <ion-item>
-          <ion-input
-            #displayNameInput
-            label="Display name"
-            labelPlacement="floating"
-            [value]="displayName()"
-            maxlength="40"
-            aria-label="Display name"
-            (ionBlur)="onDisplayNameBlur()"
-          ></ion-input>
-        </ion-item>
-      </ion-list>
+      <div class="page-body">
+        <hnch-page-header
+          eyebrow="preferences"
+          title="Settings"
+        />
 
-      <!-- Appearance -->
-      <ion-list-header>
-        <ion-label>Appearance</ion-label>
-      </ion-list-header>
-      <ion-list lines="inset">
-        <ion-item>
-          <ion-select
-            label="Theme"
-            interface="popover"
-            [value]="themeService.theme()"
-            (ionChange)="onThemeSelected($event.detail.value)"
-          >
-            <ion-select-option value="system">System</ion-select-option>
-            <ion-select-option value="light">Light</ion-select-option>
-            <ion-select-option value="dark">Dark</ion-select-option>
-          </ion-select>
-        </ion-item>
+        <!-- Profile -->
+        <hnch-section-card eyebrow="profile" title="Profile">
+          <ion-list inset="true" lines="full">
+            <ion-item>
+              <ion-input
+                #displayNameInput
+                label="Display name"
+                labelPlacement="floating"
+                [value]="displayName()"
+                maxlength="40"
+                aria-label="Display name"
+                (ionBlur)="onDisplayNameBlur()"
+              ></ion-input>
+            </ion-item>
+          </ion-list>
+        </hnch-section-card>
 
-        <ion-item>
-          <ion-select
-            label="Accent"
-            interface="popover"
-            [interfaceOptions]="accentPopoverOptions"
-            [value]="accentService.accent()"
-            (ionChange)="onAccentSelected($event.detail.value)"
-          >
-            @for (entry of accentEntries; track entry.key) {
-              <ion-select-option [value]="entry.key">{{ entry.label }}</ion-select-option>
-            }
-          </ion-select>
-        </ion-item>
-      </ion-list>
+        <!-- Appearance -->
+        <hnch-section-card eyebrow="appearance" title="Appearance">
+          <ion-list inset="true" lines="full">
+            <ion-item>
+              <ion-select
+                label="Theme"
+                interface="popover"
+                [value]="themeService.theme()"
+                (ionChange)="onThemeSelected($event.detail.value)"
+                aria-label="Theme"
+              >
+                <ion-select-option value="system">System</ion-select-option>
+                <ion-select-option value="light">Light</ion-select-option>
+                <ion-select-option value="dark">Dark</ion-select-option>
+              </ion-select>
+            </ion-item>
+            <ion-item>
+              <ion-select
+                label="Accent"
+                interface="popover"
+                [interfaceOptions]="accentPopoverOptions"
+                [value]="accentService.accent()"
+                (ionChange)="onAccentSelected($event.detail.value)"
+                aria-label="Accent color"
+              >
+                @for (entry of accentEntries; track entry.key) {
+                  <ion-select-option [value]="entry.key">{{ entry.label }}</ion-select-option>
+                }
+              </ion-select>
+            </ion-item>
+          </ion-list>
+        </hnch-section-card>
 
-      <!-- Scales -->
-      <ion-list-header>
-        <ion-label>Scales</ion-label>
-      </ion-list-header>
-      <ion-list lines="inset">
-        <ion-item button (click)="openScalePicker()">
-          <ion-label>Default scale</ion-label>
-          <ion-note slot="end">{{ scaleLabel() }}</ion-note>
-        </ion-item>
-      </ion-list>
+        <!-- Defaults -->
+        <hnch-section-card eyebrow="defaults" title="Defaults">
+          <ion-list inset="true" lines="full">
+            <ion-item button (click)="openScalePicker()">
+              <ion-label>Default scale</ion-label>
+              <ion-note slot="end" class="value-preview">{{ scaleLabel() }}</ion-note>
+            </ion-item>
+            <ion-item>
+              <ion-input
+                #defaultSessionNameInput
+                label="Default session name"
+                labelPlacement="floating"
+                placeholder="None"
+                [value]="appPrefs.defaultSessionName() ?? ''"
+                maxlength="60"
+                aria-label="Default session name"
+                (ionBlur)="onDefaultSessionNameBlur()"
+              ></ion-input>
+            </ion-item>
+            <ion-item>
+              <ion-label>Password by default</ion-label>
+              <ion-toggle
+                slot="end"
+                [checked]="appPrefs.defaultPassword()"
+                (ionChange)="onDefaultPasswordToggle($event.detail.checked)"
+                aria-label="Enable password by default"
+              ></ion-toggle>
+            </ion-item>
+          </ion-list>
+        </hnch-section-card>
 
-      <!-- Session Defaults -->
-      <ion-list-header>
-        <ion-label>Session Defaults</ion-label>
-      </ion-list-header>
-      <ion-list lines="inset">
-        <ion-item>
-          <ion-input
-            #defaultSessionNameInput
-            label="Default session name"
-            labelPlacement="floating"
-            placeholder="None"
-            [value]="appPrefs.defaultSessionName() ?? ''"
-            maxlength="60"
-            aria-label="Default session name"
-            (ionBlur)="onDefaultSessionNameBlur()"
-          ></ion-input>
-        </ion-item>
-        <ion-item>
-          <ion-label>Password by default</ion-label>
-          <ion-toggle
-            slot="end"
-            [checked]="appPrefs.defaultPassword()"
-            (ionChange)="onDefaultPasswordToggle($event.detail.checked)"
-            aria-label="Enable password by default"
-          ></ion-toggle>
-        </ion-item>
-      </ion-list>
+        <!-- Connection -->
+        <hnch-section-card eyebrow="connection" title="Connection">
+          <ion-list inset="true" lines="full">
+            <ion-item button (click)="openRelayUrlEditor()">
+              <ion-label>Relay URL</ion-label>
+              <ion-note slot="end" class="value-preview">{{ relayUrlLabel() }}</ion-note>
+            </ion-item>
+          </ion-list>
+        </hnch-section-card>
 
-      <!-- Advanced -->
-      <ion-list-header>
-        <ion-label>Advanced</ion-label>
-      </ion-list-header>
-      <ion-list lines="inset">
-        <ion-item button (click)="openRelayUrlEditor()">
-          <ion-label>Relay URL</ion-label>
-          <ion-note slot="end">{{ relayUrlLabel() }}</ion-note>
-        </ion-item>
-      </ion-list>
-
-      <!-- About -->
-      <ion-list-header>
-        <ion-label>About</ion-label>
-      </ion-list-header>
-      <ion-list lines="inset">
-        <ion-item>
-          <ion-label>Version</ion-label>
-          <ion-note slot="end">{{ version }}</ion-note>
-        </ion-item>
-      </ion-list>
+        <!-- About -->
+        <hnch-section-card eyebrow="about" title="About">
+          <ion-list inset="true" lines="full">
+            <ion-item>
+              <ion-label>Version</ion-label>
+              <ion-note slot="end" class="value-preview">{{ version }}</ion-note>
+            </ion-item>
+          </ion-list>
+        </hnch-section-card>
+      </div>
 
       <!-- Scale picker half-sheet -->
       <ion-modal
@@ -229,6 +230,30 @@ import { presentSheet } from '../utils/present-sheet';
       </ion-modal>
     </ion-content>
   `,
+  styles: [
+    `
+      ion-content {
+        --background: var(--hnch-bg);
+      }
+      .page-body {
+        display: flex;
+        flex-direction: column;
+        gap: var(--hnch-sp-4);
+        padding: 0 var(--hnch-sp-4) var(--hnch-sp-6);
+        max-width: 720px;
+        margin: 0 auto;
+      }
+      /* Remove default ion-list inset margin since SectionCard provides its own padding */
+      ion-list {
+        margin: 0;
+        background: transparent;
+      }
+      .value-preview {
+        font: var(--hnch-body-sm);
+        color: var(--ion-color-step-600, rgba(60,60,67,0.6));
+      }
+    `,
+  ],
 })
 export class SettingsPage {
   private readonly displayNameService = inject(DisplayNameService);
@@ -241,7 +266,6 @@ export class SettingsPage {
 
   protected readonly version = environment.appVersion;
 
-  /** Local cache of display name, loaded on init. */
   protected readonly displayName = signal('—');
 
   protected readonly accentEntries = (
@@ -278,7 +302,7 @@ export class SettingsPage {
   }
 
   // ---------------------------------------------------------------------------
-  // Display name — inline blur-save
+  // Display name
   // ---------------------------------------------------------------------------
 
   protected onDisplayNameBlur(): void {
@@ -286,7 +310,6 @@ export class SettingsPage {
     if (!input) return;
     const trimmed = ((input.value as string | null | undefined) ?? '').trim();
     if (!trimmed) {
-      // Revert to current value — display name is required.
       input.value = this.displayName();
       return;
     }
@@ -298,7 +321,6 @@ export class SettingsPage {
     this.displayName.set(newName);
     void this.displayNameService.setDisplayName(newName);
 
-    // If mid-session, propagate to peers via the Yjs doc.
     const myId = this.participantIdService.id();
     if (myId && this.docService.hasSession()) {
       const existing = this.docService.participants().find((p) => p.id === myId);
@@ -312,7 +334,7 @@ export class SettingsPage {
   }
 
   // ---------------------------------------------------------------------------
-  // Theme + accent pickers (ion-select interface="popover")
+  // Theme + accent
   // ---------------------------------------------------------------------------
 
   protected onThemeSelected(value: Theme | null | undefined): void {
@@ -346,7 +368,7 @@ export class SettingsPage {
   }
 
   // ---------------------------------------------------------------------------
-  // Default session name — inline blur-save
+  // Default session name
   // ---------------------------------------------------------------------------
 
   protected onDefaultSessionNameBlur(): void {

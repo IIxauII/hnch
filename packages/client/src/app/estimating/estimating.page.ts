@@ -47,7 +47,6 @@ import { ActionMenuService } from '../shared/ui/action-menu.service';
   selector: 'app-estimating',
   host: { class: 'ion-page' },
   imports: [
-    ActionMenuService,
     AvatarVoteRowComponent,
     ConnectionChipComponent,
     ConnectionStatusBannerComponent,

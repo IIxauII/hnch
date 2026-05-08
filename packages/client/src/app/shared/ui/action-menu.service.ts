@@ -35,11 +35,11 @@ export class ActionMenuService {
    */
   async open(items: ActionMenuItem[], opts?: { header?: string }): Promise<string | null> {
     const sheet = await this.actionSheetCtrl.create({
-      header: opts?.header,
+      ...(opts?.header !== undefined && { header: opts.header }),
       buttons: items.map((item) => ({
         text: item.label,
-        role: item.role,
-        icon: item.icon,
+        ...(item.role !== undefined && { role: item.role }),
+        ...(item.icon !== undefined && { icon: item.icon }),
         data: item.id,
       })),
     });
