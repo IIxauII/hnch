@@ -278,8 +278,8 @@ export class DocService {
    * Active participants filtered to those whose `participantId` is currently
    * in awareness. Used by Lobby's row styling and Estimating's avatar
    * row — a ghost from a silent disconnect drops off here, whereas
-   * the Yjs participants list keeps them (ADR-0011's "the vote was
-   * cast" semantic). Left/kicked participants are excluded (ADR-0036).
+   * the Yjs participants list keeps them ("the vote was cast"
+   * semantic). Left/kicked participants are excluded (ADR-0036).
    */
   readonly onlineParticipants: Signal<readonly ParticipantSnapshot[]> = computed(() => {
     const online = this.onlineParticipantIdsSignal();

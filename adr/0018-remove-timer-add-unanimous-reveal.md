@@ -2,14 +2,13 @@
 
 **Status:** Accepted
 **Date:** 2026-04-23
-**Supersedes:** ADR-0011 (timer canonical time authority), ADR-0015 (v1 scope — session-level reveal and timer)
 
 ## Context
 
 - Two reveal modes shipped: `manual` (host taps) + `timer` (countdown auto-reveal). Countdown added complexity (settings UI, host-authority expiry, fallback grace, host-dropout edge cases) without proportional value.
 - Elapsed voting time useful as feedback ("round took 45s"); countdown pressure + auto-reveal-on-expiry not.
-- Most natural reveal trigger — "everyone voted" — explicitly deferred by ADR-0015. Users expect it from other planning-poker tools.
-- ADR-0015 rejected unanimous citing slow-voter pressure + last-second change-of-mind. Reconsidered: countdown applied more pressure than unanimous; change-of-mind preserved by votes-editable-until-reveal rule (changing vote moves the threshold) + host manual reveal escape hatch.
+- Most natural reveal trigger — "everyone voted" — users expect it from other planning-poker tools.
+- Slow-voter pressure + last-second change-of-mind concern: change-of-mind preserved by votes-editable-until-reveal rule (changing vote moves threshold) + host manual reveal escape hatch.
 
 ## Decision
 
@@ -17,7 +16,7 @@
 
 ## Trade-offs
 
-- Countdown-pressure teams lose feature; re-adding requires new ADR + ADR-0011 host-authority machinery.
+- Countdown-pressure teams lose feature; re-adding requires new ADR + host-authority machinery for expiry.
 - Large groups with awareness-propagation lag could see unanimous-check anomalies.
 
 ## Consequences
