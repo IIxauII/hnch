@@ -172,11 +172,11 @@ import { presentSheet } from '../utils/present-sheet';
       .icon-tile {
         width: 36px;
         height: 36px;
-        border-radius: 10px;
+        border-radius: var(--hnch-r-sm);
         display: flex;
         align-items: center;
         justify-content: center;
-        margin-inline-end: 12px;
+        margin-inline-end: var(--hnch-sp-3);
       }
       .icon-tile--accent {
         background: var(--hnch-accent);
