@@ -239,7 +239,7 @@ interface VoteGroup {
         background: var(--ion-color-success, #2dd36f);
         border-radius: 1.25rem;
         padding: 1rem 2rem;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+        box-shadow: var(--hnch-shadow-3);
         white-space: nowrap;
         animation: consensusScaleIn 380ms cubic-bezier(0.34, 1.56, 0.64, 1) both,
                    consensusPulse 900ms ease-in-out 380ms 3;
