@@ -2,16 +2,18 @@ import { ChangeDetectionStrategy, Component, inject, signal, viewChild } from '@
 import { Router } from '@angular/router';
 import { hashPassword, type JoinRejectionReason } from '@hnch/shared';
 import {
-  ActionSheetController,
   IonButton,
   IonButtons,
+  IonCol,
   IonContent,
+  IonGrid,
   IonHeader,
   IonIcon,
   IonItem,
   IonLabel,
   IonList,
   IonModal,
+  IonRow,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
@@ -21,10 +23,12 @@ import {
   arrowForwardOutline,
   ellipsisHorizontalOutline,
   returnUpBackOutline,
+  settingsOutline,
 } from 'ionicons/icons';
 
 import { environment } from '../../environments/environment';
 import { AppPreferenceService } from '../core/app-preference.service';
+import { SurfaceService } from '../core/surface.service';
 import { ToastService } from '../services/toast.service';
 import { DisplayNameService } from '../core/display-name.service';
 import { DocService } from '../core/doc/doc.service';
@@ -66,13 +70,16 @@ import { presentSheet } from '../utils/present-sheet';
   imports: [
     IonButton,
     IonButtons,
+    IonCol,
     IonContent,
+    IonGrid,
     IonHeader,
     IonIcon,
     IonItem,
     IonLabel,
     IonList,
     IonModal,
+    IonRow,
     IonTitle,
     IonToolbar,
     JumpBackInBannerComponent,
@@ -86,7 +93,7 @@ import { presentSheet } from '../utils/present-sheet';
         <ion-buttons slot="end">
           <ion-button
             aria-label="More options"
-            (click)="openActionSheet()"
+            (click)="openActionSheet($event)"
           >
             <ion-icon
               slot="icon-only"
@@ -97,38 +104,43 @@ import { presentSheet } from '../utils/present-sheet';
       </ion-toolbar>
     </ion-header>
     <ion-content [fullscreen]="true">
-      <ion-list inset="true" class="actions">
-        @if (jumpBackInSummary(); as summary) {
-          <app-jump-back-in-banner
-            [summary]="summary"
-            [stale]="jumpBackInStale()"
-            [resuming]="resuming()"
-            (resumeRequested)="onResumeJumpBack()"
-          />
-        }
-        <ion-item button="true" detail="true" (click)="onCreateRoom()">
-          <div class="icon-tile icon-tile--accent" slot="start" aria-hidden="true">
-            <ion-icon name="add-outline"></ion-icon>
-          </div>
-          <ion-label>
-            <h2>Create Room</h2>
-            <p>Start a new session</p>
-          </ion-label>
-        </ion-item>
-        <ion-item button="true" detail="true" (click)="onJoinRoom()">
-          <div class="icon-tile icon-tile--neutral" slot="start" aria-hidden="true">
-            <ion-icon name="arrow-forward-outline"></ion-icon>
-          </div>
-          <ion-label>
-            <h2>Join Room</h2>
-            <p>Enter a code or scan QR</p>
-          </ion-label>
-        </ion-item>
-      </ion-list>
+      <ion-grid fixed class="page-container">
+        <ion-row><ion-col>
+          <ion-list inset="true" class="actions">
+            @if (jumpBackInSummary(); as summary) {
+              <app-jump-back-in-banner
+                [summary]="summary"
+                [stale]="jumpBackInStale()"
+                [resuming]="resuming()"
+                (resumeRequested)="onResumeJumpBack()"
+              />
+            }
+            <ion-item button="true" detail="true" (click)="onCreateRoom()">
+              <div class="icon-tile icon-tile--accent" slot="start" aria-hidden="true">
+                <ion-icon name="add-outline"></ion-icon>
+              </div>
+              <ion-label>
+                <h2>Create Room</h2>
+                <p>Start a new session</p>
+              </ion-label>
+            </ion-item>
+            <ion-item button="true" detail="true" (click)="onJoinRoom()">
+              <div class="icon-tile icon-tile--neutral" slot="start" aria-hidden="true">
+                <ion-icon name="arrow-forward-outline"></ion-icon>
+              </div>
+              <ion-label>
+                <h2>Join Room</h2>
+                <p>Enter a code or scan QR</p>
+              </ion-label>
+            </ion-item>
+          </ion-list>
+        </ion-col></ion-row>
+      </ion-grid>
 
       <!-- Password prompt half-sheet -->
       <ion-modal
         #passwordModal
+        cssClass="modal-centered"
         [isOpen]="passwordPromptOpen()"
         [breakpoints]="[0, 0.6, 0.95]"
         [initialBreakpoint]="0.6"
@@ -145,6 +157,10 @@ import { presentSheet } from '../utils/present-sheet';
   `,
   styles: [
     `
+      @use '../../theme/breakpoints' as *;
+      @use '../../theme/page-container' as *;
+      @include page-container(560px);
+
       ion-content {
         --background: var(--hnch-bg);
       }
@@ -194,7 +210,7 @@ import { presentSheet } from '../utils/present-sheet';
 })
 export class HomePage {
   private readonly router = inject(Router);
-  private readonly actionSheetCtrl = inject(ActionSheetController);
+  private readonly surface = inject(SurfaceService);
   private readonly toastService = inject(ToastService);
   private readonly appPrefs = inject(AppPreferenceService);
   private readonly displayNameService = inject(DisplayNameService);
@@ -253,6 +269,7 @@ export class HomePage {
       'arrow-forward-outline': arrowForwardOutline,
       'ellipsis-horizontal-outline': ellipsisHorizontalOutline,
       'return-up-back-outline': returnUpBackOutline,
+      'settings-outline': settingsOutline,
     });
     void this.loadBannerFromCache();
   }
@@ -402,12 +419,14 @@ export class HomePage {
     }
   }
 
-  protected async openActionSheet(): Promise<void> {
-    const sheet = await this.actionSheetCtrl.create({
+  protected async openActionSheet(event: Event): Promise<void> {
+    await this.surface.openSheetOrPopover({
       header: 'hnch',
-      buttons: [
+      triggerEvent: event,
+      items: [
         {
           text: 'Settings',
+          icon: 'settings-outline',
           handler: () => {
             void this.router.navigate(['/settings']);
           },
@@ -418,7 +437,6 @@ export class HomePage {
         },
       ],
     });
-    await sheet.present();
   }
 
   private async loadBannerFromCache(): Promise<void> {

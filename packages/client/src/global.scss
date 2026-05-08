@@ -73,3 +73,21 @@
   }
   ion-modal.modal-centered::part(handle) { display: none; }
 }
+
+// ---------------------------------------------------------------------------
+// CTA bar — sticky footer on mobile, inline on desktop.
+// Add class="cta-bar" to any ion-footer containing a primary CTA button.
+// ---------------------------------------------------------------------------
+
+@media (min-width: $bp-md) and (pointer: fine) {
+  ion-footer.cta-bar {
+    position: static;
+    background: transparent;
+    box-shadow: none;
+    border-top: none;
+  }
+  ion-footer.cta-bar ion-toolbar {
+    --background: transparent;
+    --border-width: 0;
+  }
+}

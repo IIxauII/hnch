@@ -14,14 +14,17 @@ import {
   IonBackButton,
   IonButton,
   IonButtons,
+  IonCol,
   IonContent,
   IonFooter,
+  IonGrid,
   IonHeader,
   IonIcon,
   IonInput,
   IonItem,
   IonLabel,
   IonList,
+  IonRow,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
@@ -61,14 +64,17 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
     IonBackButton,
     IonButton,
     IonButtons,
+    IonCol,
     IonContent,
     IonFooter,
+    IonGrid,
     IonHeader,
     IonIcon,
     IonInput,
     IonItem,
     IonLabel,
     IonList,
+    IonRow,
     IonTitle,
     IonToolbar,
     ReactiveFormsModule,
@@ -85,57 +91,65 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
       </ion-toolbar>
     </ion-header>
     <ion-content [fullscreen]="true">
-      <p class="page-subtitle">Enter the 6-character code your host shared.</p>
+      <ion-grid fixed class="page-container">
+        <ion-row><ion-col>
+          <p class="page-subtitle">Enter the 6-character code your host shared.</p>
 
-      <div class="code-card">
-        <div class="card-label">Room code</div>
-        <app-segmented-code-input [formControl]="codeControl" />
-      </div>
-
-      <ion-list inset="true" class="qr-list">
-        <ion-item button="true" detail="true" [disabled]="isSubmitting()" (click)="onScanQr()">
-          <div class="icon-tile" slot="start" aria-hidden="true">
-            <ion-icon name="qr-code-outline"></ion-icon>
+          <div class="code-card">
+            <div class="card-label">Room code</div>
+            <app-segmented-code-input [formControl]="codeControl" />
           </div>
-          <ion-label>
-            <h2>Scan QR code</h2>
-            <p>Point your camera at the host's screen</p>
-          </ion-label>
-        </ion-item>
-      </ion-list>
 
-      @if (needsPassword()) {
-        <ion-list inset="true" class="password-list">
-          <ion-item lines="none">
-            <ion-input
-              [formControl]="passwordControl"
-              label="Password"
-              labelPlacement="stacked"
-              type="password"
-              enterkeyhint="go"
-              placeholder="Enter the room password"
-              (keydown.enter)="submit()"
-            ></ion-input>
-          </ion-item>
-          <p class="list-footer">This room is password-protected.</p>
-        </ion-list>
-      }
+          <ion-list inset="true" class="qr-list">
+            <ion-item button="true" detail="true" [disabled]="isSubmitting()" (click)="onScanQr()">
+              <div class="icon-tile" slot="start" aria-hidden="true">
+                <ion-icon name="qr-code-outline"></ion-icon>
+              </div>
+              <ion-label>
+                <h2>Scan QR code</h2>
+                <p>Point your camera at the host's screen</p>
+              </ion-label>
+            </ion-item>
+          </ion-list>
 
-      <div class="submit-wrap">
-        <ion-button
-          expand="block"
-          size="large"
-          [disabled]="!canJoin() || isSubmitting()"
-          (click)="submit()"
-        >
-          Join
-        </ion-button>
-      </div>
+          @if (needsPassword()) {
+            <ion-list inset="true" class="password-list">
+              <ion-item lines="none">
+                <ion-input
+                  [formControl]="passwordControl"
+                  label="Password"
+                  labelPlacement="stacked"
+                  type="password"
+                  enterkeyhint="go"
+                  placeholder="Enter the room password"
+                  (keydown.enter)="submit()"
+                ></ion-input>
+              </ion-item>
+              <p class="list-footer">This room is password-protected.</p>
+            </ion-list>
+          }
+
+          <div class="submit-wrap">
+            <ion-button
+              expand="block"
+              size="large"
+              [disabled]="!canJoin() || isSubmitting()"
+              (click)="submit()"
+            >
+              Join
+            </ion-button>
+          </div>
+        </ion-col></ion-row>
+      </ion-grid>
     </ion-content>
-    <ion-footer></ion-footer>
+    <ion-footer class="cta-bar"></ion-footer>
   `,
   styles: [
     `
+      @use '../../theme/breakpoints' as *;
+      @use '../../theme/page-container' as *;
+      @include page-container(480px);
+
       ion-content {
         --background: var(--hnch-bg);
         --padding-start: 16px;

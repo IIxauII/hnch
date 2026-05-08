@@ -62,12 +62,12 @@ export class SurfaceService {
       const existing = resolvedOpts.cssClass;
       const classes = Array.isArray(existing) ? existing : existing ? [existing] : [];
 
+      // Remove sheet-specific keys before spreading so exactOptionalPropertyTypes
+      // does not reject `undefined` where the type requires a concrete value.
+      const { breakpoints: _bp, initialBreakpoint: _ibp, ...rest } = resolvedOpts;
       resolvedOpts = {
-        ...resolvedOpts,
+        ...rest,
         cssClass: [...classes, 'modal-centered'],
-        // Omit sheet breakpoints on desktop — centered dialog, not a sheet.
-        breakpoints: undefined,
-        initialBreakpoint: undefined,
       };
     }
 
@@ -82,31 +82,42 @@ export class SurfaceService {
    */
   async openSheetOrPopover(opts: SheetOrPopoverOptions): Promise<void> {
     if (this.modeSignal() === 'desktop') {
-      const popover = await this.popoverCtrl.create({
+      const popoverOpts: Parameters<typeof this.popoverCtrl.create>[0] = {
         component: MenuPopoverComponent,
         componentProps: {
           items: opts.items,
           header: opts.header,
         },
-        event: opts.triggerEvent,
         dismissOnSelect: true,
-      });
+      };
+      if (opts.triggerEvent !== undefined) {
+        popoverOpts.event = opts.triggerEvent;
+      }
+      const popover = await this.popoverCtrl.create(popoverOpts);
       await popover.present();
       return;
     }
 
     // Mobile: ActionSheet
-    const buttons = opts.items.map((item) => ({
-      text: item.text,
-      role: item.role,
-      icon: item.icon,
-      handler: item.handler,
-    }));
+    const buttons = opts.items
+      .filter((item) => item.role !== 'cancel' || true) // keep all including cancel for ActionSheet
+      .map((item) => {
+        type Btn = {
+          text: string;
+          role?: string;
+          icon?: string;
+          handler?: () => void | boolean | Promise<void | boolean>;
+        };
+        const btn: Btn = { text: item.text };
+        if (item.role !== undefined) btn.role = item.role;
+        if (item.icon !== undefined) btn.icon = item.icon;
+        if (item.handler !== undefined) btn.handler = item.handler;
+        return btn;
+      });
 
-    const sheet = await this.actionSheetCtrl.create({
-      header: opts.header,
-      buttons,
-    });
+    const sheetOpts: Parameters<typeof this.actionSheetCtrl.create>[0] = { buttons };
+    if (opts.header !== undefined) sheetOpts.header = opts.header;
+    const sheet = await this.actionSheetCtrl.create(sheetOpts);
     await sheet.present();
   }
 

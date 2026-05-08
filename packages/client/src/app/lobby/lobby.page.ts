@@ -12,7 +12,6 @@ import { Share } from '@capacitor/share';
 import { formatRoomCode, participantRole } from '@hnch/shared';
 import type { Round } from '@hnch/shared';
 import {
-  ActionSheetController,
   AlertController,
   IonAccordion,
   IonAccordionGroup,
@@ -20,8 +19,10 @@ import {
   IonButton,
   IonButtons,
   IonChip,
+  IonCol,
   IonContent,
   IonFooter,
+  IonGrid,
   IonHeader,
   IonIcon,
   IonItem,
@@ -32,17 +33,22 @@ import {
   IonList,
   IonModal,
   IonNote,
+  IonRow,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
   chevronBackOutline,
+  closeCircleOutline,
+  copyOutline,
   ellipsisHorizontalCircle,
+  logOutOutline,
   pencilOutline,
   personCircleOutline,
   personRemoveOutline,
   qrCodeOutline,
+  settingsOutline,
   shareOutline,
   starOutline,
 } from 'ionicons/icons';
@@ -50,6 +56,7 @@ import {
 import { ConnectionChipComponent } from '../core/connection-chip.component';
 import { ConnectionStatusBannerComponent } from '../shared/connection-status-banner.component';
 import { ExportService } from '../core/export.service';
+import { SurfaceService } from '../core/surface.service';
 import { ToastService } from '../services/toast.service';
 import { DocService } from '../core/doc/doc.service';
 import { HapticService } from '../core/haptic.service';
@@ -107,8 +114,10 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
     IonButton,
     IonButtons,
     IonChip,
+    IonCol,
     IonContent,
     IonFooter,
+    IonGrid,
     IonHeader,
     IonIcon,
     IonItem,
@@ -119,6 +128,7 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
     IonList,
     IonModal,
     IonNote,
+    IonRow,
     IonTitle,
     IonToolbar,
     QrDisplaySheetComponent,
@@ -148,7 +158,7 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
           <app-connection-chip></app-connection-chip>
           <ion-button
             aria-label="More options"
-            (click)="openActionSheet()"
+            (click)="openActionSheet($event)"
           >
             <ion-icon
               slot="icon-only"
@@ -159,6 +169,8 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding">
+      <ion-grid fixed class="page-container">
+        <ion-row><ion-col>
       <app-connection-status-banner />
       @if (roomCode(); as code) {
         <h1 class="room-code">{{ code }}</h1>
@@ -326,10 +338,12 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
           (editTriggered)="openRoundEditById($event)"
         />
       }
+        </ion-col></ion-row>
+      </ion-grid>
     </ion-content>
 
     @if (isHost()) {
-      <ion-footer>
+      <ion-footer class="cta-bar">
         <ion-toolbar>
           @if (lastRevealedRound()) {
             <div class="footer-row">
@@ -364,6 +378,7 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
 
     <ion-modal
       #roundStartModal
+      cssClass="modal-centered"
       [isOpen]="roundStartOpen()"
       [breakpoints]="[0, 0.6, 0.95]"
       [initialBreakpoint]="0.6"
@@ -379,6 +394,7 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
 
     <ion-modal
       #sessionSettingsModal
+      cssClass="modal-centered"
       [isOpen]="sessionSettingsOpen()"
       [breakpoints]="[0, 0.6, 0.95]"
       [initialBreakpoint]="0.6"
@@ -397,6 +413,7 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
 
     <ion-modal
       #qrModal
+      cssClass="modal-centered"
       [isOpen]="qrOpen()"
       (didDismiss)="qrOpen.set(false)"
     >
@@ -410,6 +427,7 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
     </ion-modal>
 
     <ion-modal
+      cssClass="modal-centered"
       [isOpen]="roundEditOpen()"
       [breakpoints]="[0, 0.6, 0.95]"
       [initialBreakpoint]="0.6"
@@ -430,6 +448,10 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
   `,
   styles: [
     `
+      @use '../../theme/breakpoints' as *;
+      @use '../../theme/page-container' as *;
+      @include page-container(800px);
+
       .room-code {
         font-size: 2.5rem;
         font-weight: 700;
@@ -521,7 +543,7 @@ export class LobbyPage {
   private readonly haptic = inject(HapticService);
   private readonly participantIdService = inject(ParticipantIdService);
   private readonly lastSessionService = inject(LastSessionService);
-  private readonly actionSheetCtrl = inject(ActionSheetController);
+  private readonly surface = inject(SurfaceService);
   private readonly alertCtrl = inject(AlertController);
   private readonly toastService = inject(ToastService);
   private readonly exportService = inject(ExportService);
@@ -689,11 +711,15 @@ export class LobbyPage {
   constructor() {
     addIcons({
       'chevron-back-outline': chevronBackOutline,
+      'close-circle-outline': closeCircleOutline,
+      'copy-outline': copyOutline,
       'ellipsis-horizontal-circle': ellipsisHorizontalCircle,
+      'log-out-outline': logOutOutline,
       'pencil-outline': pencilOutline,
       'person-circle-outline': personCircleOutline,
       'person-remove-outline': personRemoveOutline,
       'qr-code-outline': qrCodeOutline,
+      'settings-outline': settingsOutline,
       'share-outline': shareOutline,
       'star-outline': starOutline,
     });
@@ -789,16 +815,18 @@ export class LobbyPage {
     await this.router.navigate(['/estimating', code]);
   }
 
-  protected async openActionSheet(): Promise<void> {
-    const buttons: { text: string; role?: string; handler?: () => void }[] = [
+  protected async openActionSheet(event: Event): Promise<void> {
+    const items: { text: string; icon?: string; role?: string; handler?: () => void }[] = [
       {
         text: 'Session settings',
+        icon: 'settings-outline',
         handler: () => {
           this.openSessionSettings();
         },
       },
       {
         text: 'Leave session',
+        icon: 'log-out-outline',
         role: 'destructive',
         handler: () => {
           void this.confirmLeave();
@@ -807,8 +835,9 @@ export class LobbyPage {
     ];
 
     if (this.isHost()) {
-      buttons.splice(1, 0, {
+      items.splice(1, 0, {
         text: 'End session for everyone',
+        icon: 'close-circle-outline',
         role: 'destructive',
         handler: () => {
           void this.confirmEndSession();
@@ -817,21 +846,22 @@ export class LobbyPage {
     }
 
     if (this.hasRevealedRounds()) {
-      buttons.splice(1, 0, {
+      items.splice(1, 0, {
         text: 'Copy results',
+        icon: 'copy-outline',
         handler: () => {
           void this.copyResults();
         },
       });
     }
 
-    buttons.push({ text: 'Cancel', role: 'cancel' });
+    items.push({ text: 'Cancel', role: 'cancel' });
 
-    const sheet = await this.actionSheetCtrl.create({
+    await this.surface.openSheetOrPopover({
       header: 'Session',
-      buttons,
+      triggerEvent: event,
+      items,
     });
-    await sheet.present();
   }
 
   protected async confirmEndSession(): Promise<void> {
