@@ -155,6 +155,11 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
         --padding-start: 16px;
         --padding-end: 16px;
       }
+      @media (min-width: $bp-md) {
+        ion-content {
+          --padding-top: 88px;
+        }
+      }
       .page-subtitle {
         margin: 0 4px 16px;
         font-size: 15px;

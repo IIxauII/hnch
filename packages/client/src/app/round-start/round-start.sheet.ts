@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, input, output, signal } from '@angu
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import {
   IonButton,
+  IonButtons,
   IonContent,
   IonFooter,
   IonHeader,
@@ -39,6 +40,7 @@ export interface RoundStartSubmission {
   host: { class: 'ion-page' },
   imports: [
     IonButton,
+    IonButtons,
     IonContent,
     IonFooter,
     IonHeader,
@@ -74,14 +76,21 @@ export interface RoundStartSubmission {
     </ion-content>
     <ion-footer>
       <ion-toolbar>
-        <ion-button
-          expand="block"
-          color="primary"
-          [disabled]="isSubmitting()"
-          (click)="submit()"
-        >
-          Start
-        </ion-button>
+        <ion-buttons slot="start">
+          <ion-button
+            (click)="cancelled.emit()"
+            aria-label="Cancel"
+          >Cancel</ion-button>
+        </ion-buttons>
+        <ion-buttons slot="end">
+          <ion-button
+            strong="true"
+            color="primary"
+            [disabled]="isSubmitting()"
+            (click)="submit()"
+            aria-label="Start round"
+          >Start</ion-button>
+        </ion-buttons>
       </ion-toolbar>
     </ion-footer>
   `,
@@ -107,6 +116,12 @@ export class RoundStartSheetComponent {
    * dismissing the `ion-modal` — this component only emits the value.
    */
   readonly submitted = output<RoundStartSubmission>();
+
+  /**
+   * Fires when the user taps Cancel. The modal host is responsible for
+   * dismissing the `ion-modal`.
+   */
+  readonly cancelled = output<void>();
 
   protected readonly titleControl = new FormControl<string>('', {
     nonNullable: true,

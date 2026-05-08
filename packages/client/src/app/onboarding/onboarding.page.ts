@@ -88,6 +88,7 @@ import { BrandMarkComponent } from '../shared/brand-mark.component';
         <ion-button
           expand="block"
           size="large"
+          class="continue-btn"
           [disabled]="!canContinue() || isSubmitting()"
           (click)="submit()"
         >
@@ -150,6 +151,10 @@ import { BrandMarkComponent } from '../shared/brand-mark.component';
         --background: transparent;
         --border-width: 0;
         padding: 12px 16px 16px;
+      }
+      ion-button.continue-btn {
+        --background-disabled: var(--hnch-btn-disabled-bg);
+        --color-disabled: var(--hnch-btn-disabled-fg);
       }
     `,
   ],

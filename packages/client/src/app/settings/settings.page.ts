@@ -247,6 +247,10 @@ import { presentSheet } from '../utils/present-sheet';
       @use '../../theme/breakpoints' as *;
       @use '../../theme/page-container' as *;
       @include page-container(720px);
+
+      ion-list-header {
+        padding-inline-start: 16px;
+      }
     `,
   ],
 })

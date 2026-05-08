@@ -172,8 +172,8 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       <ion-grid fixed class="page-container">
         <ion-row><ion-col>
       <app-connection-status-banner />
-      @if (roomCode(); as code) {
-        <h1 class="room-code">{{ code }}</h1>
+      @if (roomCode()) {
+        <h1 class="room-code">{{ formattedRoomCode() }}</h1>
         <button
           type="button"
           class="subtitle"
@@ -388,6 +388,7 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
         <app-round-start-sheet
           [roundNumber]="nextRoundNumber()"
           (submitted)="onRoundStart($event)"
+          (cancelled)="roundStartOpen.set(false)"
         />
       </ng-template>
     </ion-modal>

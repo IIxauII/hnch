@@ -86,7 +86,7 @@ import { formatScaleId } from '@hnch/shared';
           <ion-input
             #sessionNameInput
             type="text"
-            placeholder="Session name"
+            placeholder="e.g., Sprint 24 planning"
             [value]="settings()?.name"
             [disabled]="!isHost()"
             (ionBlur)="onSessionNameBlur()"
