@@ -327,8 +327,8 @@ export class EstimatingPage {
    * Set of participantIds that have a vote in the current round,
    * filtered against awareness. A peer that cast a vote and then
    * silently dropped (no close frame, just a dead connection) keeps
-   * its entry in `round.votes` — ADR-0011 treats the cast vote as
-   * authoritative — but we don't want the avatar row to keep showing
+   * its entry in `round.votes` — cast vote is authoritative — but we
+   * don't want the avatar row to keep showing
    * them as "voted" when the tally won't include them on reveal.
    * Revealed chips (§3.7) intentionally skip this filter because
    * there the tally *is* the post-reveal record.
