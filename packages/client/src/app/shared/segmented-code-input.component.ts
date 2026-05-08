@@ -75,24 +75,29 @@ const TILE_COUNT = 6;
     .code-row {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
+      max-width: 420px;
+      margin-inline: auto;
     }
 
     .tile {
-      flex: 1;
-      height: 48px;
-      border-radius: 10px;
+      flex: 1 1 0;
+      min-width: 0;
+      max-width: 56px;
+      height: 56px;
+      border-radius: 12px;
       background: var(--ion-background-color-step-100);
       border: 1.5px solid transparent;
       outline: none;
       text-align: center;
-      font-family: var(--ion-font-family-monospace, ui-monospace, 'SF Mono', monospace);
-      font-size: 26px;
-      font-weight: 600;
+      font-family: var(--hnch-font-display, var(--ion-font-family-monospace, ui-monospace, 'SF Mono', monospace));
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
       color: var(--ion-text-color);
       text-transform: uppercase;
       caret-color: transparent;
-      transition: border-color 0.15s ease;
+      transition: border-color 0.15s ease, transform 0.12s ease;
       -webkit-appearance: none;
       appearance: none;
     }
