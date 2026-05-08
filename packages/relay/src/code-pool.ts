@@ -25,10 +25,10 @@
  * `release` puts the code straight back into rotation.
  */
 
-import { generateRoomCode } from '@hnch/shared'
+import { generateRoomCode } from '@hnch/shared';
 
 /** How many times to retry code generation before giving up. */
-const DEFAULT_MAX_ATTEMPTS = 64
+const DEFAULT_MAX_ATTEMPTS = 64;
 
 export interface CodePoolOptions {
   /**
@@ -36,13 +36,13 @@ export interface CodePoolOptions {
    * from `@hnch/shared`. Tests inject a deterministic generator to
    * exercise the collision-retry path.
    */
-  readonly generator?: () => string
+  readonly generator?: () => string;
   /**
    * Cap on collision retries. The 31^6 ≈ 887M code space means we
    * will never approach this with a real generator, but a faulty
    * injected generator must still terminate.
    */
-  readonly maxAttempts?: number
+  readonly maxAttempts?: number;
 }
 
 export interface CodePool {
@@ -50,7 +50,7 @@ export interface CodePool {
    * Generates a code that is not in the active or retired set, marks
    * it active, and returns it. Throws after `maxAttempts` collisions.
    */
-  mint(): string
+  mint(): string;
   /**
    * Moves a code out of `active`. Today this is only called by
    * `RoomRecord.deleteRoom()` after the snapshot sweeper drops a room
@@ -59,34 +59,32 @@ export interface CodePool {
    * set is left untouched — see the file header for why it exists but
    * is currently unpopulated.
    */
-  release(code: string): void
+  release(code: string): void;
   /** Inspection helpers for tests and `/health` style probes. */
-  readonly activeCount: number
-  readonly retiredCount: number
+  readonly activeCount: number;
+  readonly retiredCount: number;
 }
 
 export function createCodePool(options: CodePoolOptions = {}): CodePool {
-  const generator = options.generator ?? generateRoomCode
-  const maxAttempts = options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS
+  const generator = options.generator ?? generateRoomCode;
+  const maxAttempts = options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
 
-  const active = new Set<string>()
-  const retired = new Set<string>()
+  const active = new Set<string>();
+  const retired = new Set<string>();
 
   return {
     mint(): string {
       for (let i = 0; i < maxAttempts; i++) {
-        const candidate = generator()
+        const candidate = generator();
         if (!active.has(candidate) && !retired.has(candidate)) {
-          active.add(candidate)
-          return candidate
+          active.add(candidate);
+          return candidate;
         }
       }
-      throw new Error(
-        `code pool: unable to mint a unique code after ${maxAttempts} attempts`,
-      )
+      throw new Error(`code pool: unable to mint a unique code after ${maxAttempts} attempts`);
     },
     release(code: string): void {
-      active.delete(code)
+      active.delete(code);
       // The TTL-bound quarantine required by ADR-0008 is enforced by
       // the caller: `RoomRecord.deleteRoom()` only fires after the
       // snapshot sweeper has held the room (and thus this `active`
@@ -94,10 +92,10 @@ export function createCodePool(options: CodePoolOptions = {}): CodePool {
       // see the file header for the rationale.
     },
     get activeCount(): number {
-      return active.size
+      return active.size;
     },
     get retiredCount(): number {
-      return retired.size
+      return retired.size;
     },
-  }
+  };
 }

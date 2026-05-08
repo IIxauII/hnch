@@ -1,11 +1,6 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  input,
-} from '@angular/core'
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-import type { ParticipantSnapshot } from '@hnch/shared'
+import type { ParticipantSnapshot } from '@hnch/shared';
 
 @Component({
   selector: 'app-avatar-vote-row',
@@ -59,12 +54,12 @@ import type { ParticipantSnapshot } from '@hnch/shared'
   ],
 })
 export class AvatarVoteRowComponent {
-  readonly participants = input.required<readonly ParticipantSnapshot[]>()
-  readonly votedIds = input.required<ReadonlySet<string>>()
+  readonly participants = input.required<readonly ParticipantSnapshot[]>();
+  readonly votedIds = input.required<ReadonlySet<string>>();
 
-  protected readonly votedCount = computed(() => this.votedIds().size)
+  protected readonly votedCount = computed(() => this.votedIds().size);
 
   protected readonly ariaLabel = computed(
     () => `${this.votedCount()} of ${this.participants().length} voted`,
-  )
+  );
 }

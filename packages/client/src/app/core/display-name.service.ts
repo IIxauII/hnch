@@ -1,5 +1,5 @@
-import { Injectable } from '@angular/core'
-import { Preferences } from '@capacitor/preferences'
+import { Injectable } from '@angular/core';
+import { Preferences } from '@capacitor/preferences';
 
 /**
  * Persistent display-name + pending-join-URL storage.
@@ -14,40 +14,40 @@ import { Preferences } from '@capacitor/preferences'
  */
 @Injectable({ providedIn: 'root' })
 export class DisplayNameService {
-  static readonly DISPLAY_NAME_KEY = 'hnch.displayName'
-  static readonly PENDING_JOIN_URL_KEY = 'hnch.pendingJoinUrl'
+  static readonly DISPLAY_NAME_KEY = 'hnch.displayName';
+  static readonly PENDING_JOIN_URL_KEY = 'hnch.pendingJoinUrl';
 
   async getDisplayName(): Promise<string | null> {
     const { value } = await Preferences.get({
       key: DisplayNameService.DISPLAY_NAME_KEY,
-    })
-    return value
+    });
+    return value;
   }
 
   async setDisplayName(name: string): Promise<void> {
     await Preferences.set({
       key: DisplayNameService.DISPLAY_NAME_KEY,
       value: name,
-    })
+    });
   }
 
   async getPendingJoinUrl(): Promise<string | null> {
     const { value } = await Preferences.get({
       key: DisplayNameService.PENDING_JOIN_URL_KEY,
-    })
-    return value
+    });
+    return value;
   }
 
   async setPendingJoinUrl(url: string): Promise<void> {
     await Preferences.set({
       key: DisplayNameService.PENDING_JOIN_URL_KEY,
       value: url,
-    })
+    });
   }
 
   async clearPendingJoinUrl(): Promise<void> {
     await Preferences.remove({
       key: DisplayNameService.PENDING_JOIN_URL_KEY,
-    })
+    });
   }
 }

@@ -1,8 +1,8 @@
-import { inject } from '@angular/core'
-import type { CanMatchFn } from '@angular/router'
-import { Router } from '@angular/router'
+import { inject } from '@angular/core';
+import type { CanMatchFn } from '@angular/router';
+import { Router } from '@angular/router';
 
-import { DisplayNameService } from './display-name.service'
+import { DisplayNameService } from './display-name.service';
 
 /**
  * Functional guard that gates the non-onboarding routes on a persisted
@@ -20,33 +20,33 @@ import { DisplayNameService } from './display-name.service'
  * Preferences read is in flight.
  */
 export const displayNameGuard: CanMatchFn = async (_route, segments) => {
-  const displayNameService = inject(DisplayNameService)
-  const router = inject(Router)
+  const displayNameService = inject(DisplayNameService);
+  const router = inject(Router);
 
-  const name = await displayNameService.getDisplayName()
+  const name = await displayNameService.getDisplayName();
   if (name !== null && name.trim().length > 0) {
-    return true
+    return true;
   }
 
-  const firstSegment = segments[0]?.path
+  const firstSegment = segments[0]?.path;
   if (firstSegment === 'join') {
     // Capture the incoming URL with its query string so onboarding can
     // resume the deep-link. `router.getCurrentNavigation()` is populated
     // while a navigation is in flight and exposes the original URL tree
     // (including query params), which UrlSegment[] alone does not.
-    const nav = router.getCurrentNavigation()
-    const incoming = nav?.extractedUrl ?? nav?.finalUrl
-    const url = incoming ? incoming.toString() : '/join'
-    await displayNameService.setPendingJoinUrl(url)
+    const nav = router.getCurrentNavigation();
+    const incoming = nav?.extractedUrl ?? nav?.finalUrl;
+    const url = incoming ? incoming.toString() : '/join';
+    await displayNameService.setPendingJoinUrl(url);
   } else if (firstSegment === 'lobby' || firstSegment === 'estimating') {
     // Cold-install opening /lobby/:code or /estimating/:code (e.g. shared
     // link). Rewrite through /join?code=CODE so post-onboarding flow uses
     // the existing JoinPage path rather than jumping directly into the
     // session-resume guard which needs a display name to rejoin.
-    const code = segments[1]?.path
-    const redirectUrl = code ? `/join?code=${encodeURIComponent(code)}` : '/join'
-    await displayNameService.setPendingJoinUrl(redirectUrl)
+    const code = segments[1]?.path;
+    const redirectUrl = code ? `/join?code=${encodeURIComponent(code)}` : '/join';
+    await displayNameService.setPendingJoinUrl(redirectUrl);
   }
 
-  return router.createUrlTree(['/onboarding'])
-}
+  return router.createUrlTree(['/onboarding']);
+};

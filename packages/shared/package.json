@@ -18,7 +18,9 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "format:check": "biome format .",
+    "lint": "oxlint ."
   },
   "dependencies": {
     "yjs": "^13.6.30"

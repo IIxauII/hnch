@@ -1,9 +1,4 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  input,
-} from '@angular/core'
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
 /**
  * BrandMark — rounded-square "hnch" tile with accent corner dot.
@@ -34,7 +29,8 @@ import {
       ></span>
     </div>
   `,
-  styles: [`
+  styles: [
+    `
     :host {
       display: inline-block;
       line-height: 0;
@@ -70,12 +66,13 @@ import {
       border: 2px solid var(--hnch-bg);
       flex-shrink: 0;
     }
-  `],
+  `,
+  ],
 })
 export class BrandMarkComponent {
-  readonly size = input<number>(56)
+  readonly size = input<number>(56);
 
-  protected readonly borderRadius = computed(() => Math.round(this.size() * 0.28))
-  protected readonly fontSize = computed(() => Math.round(this.size() * 0.28))
-  protected readonly dotSize = computed(() => Math.round(this.size() * 0.30))
+  protected readonly borderRadius = computed(() => Math.round(this.size() * 0.28));
+  protected readonly fontSize = computed(() => Math.round(this.size() * 0.28));
+  protected readonly dotSize = computed(() => Math.round(this.size() * 0.3));
 }

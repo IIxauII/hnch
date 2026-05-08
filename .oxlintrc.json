@@ -1,0 +1,44 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error",
+    "pedantic": "warn",
+    "nursery": "warn",
+    "restriction": "off",
+    "style": "off"
+  },
+  "ignorePatterns": [
+    "node_modules",
+    "dist",
+    "build",
+    ".angular",
+    "www",
+    "out-tsc",
+    "coverage",
+    ".nyc_output",
+    "playwright-report",
+    "test-results",
+    "packages/client/src/environments/version.ts"
+  ],
+  "rules": {
+    "no-async-await": "warn",
+    "no-underscore-dangle": "off",
+    "no-extraneous-class": "off",
+    "no-await-in-loop": "warn",
+    "consistent-function-scoping": "warn",
+    "no-useless-undefined": "off",
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "@ionic/angular",
+            "message": "Use '@ionic/angular/standalone' — IonicModule blocks tree-shaking"
+          }
+        ]
+      }
+    ]
+  }
+}

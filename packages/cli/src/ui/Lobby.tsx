@@ -1,111 +1,108 @@
-import React, { useEffect } from 'react'
-import { Box, Text, useInput } from 'ink'
-import { isConsensus } from '@hnch/shared'
-import { ParticipantList } from './components/ParticipantList.js'
-import { HostActionsMenu } from './components/HostActionsMenu.js'
-import { SharePicker } from './components/SharePicker.js'
-import { TextInput } from './components/TextInput.js'
-import type { DocProjection, Round } from '@hnch/shared'
+import React, { useEffect } from 'react';
+import { Box, Text, useInput } from 'ink';
+import { isConsensus } from '@hnch/shared';
+import { ParticipantList } from './components/ParticipantList.js';
+import { HostActionsMenu } from './components/HostActionsMenu.js';
+import { SharePicker } from './components/SharePicker.js';
+import { TextInput } from './components/TextInput.js';
+import type { DocProjection, Round } from '@hnch/shared';
 
 interface Props {
-  projection: DocProjection
-  onlineIds: Set<string>
-  isHost: boolean
-  participantId: string
-  rounds: readonly Round[]
+  projection: DocProjection;
+  onlineIds: Set<string>;
+  isHost: boolean;
+  participantId: string;
+  rounds: readonly Round[];
   /** The latest revealed round (null if no rounds revealed yet). */
-  currentRound: Round | null
-  settingsOpen: boolean
-  onStartRound: () => void
-  onNewRound: () => void
-  onRevote: () => void
-  roundTitlePromptActive: boolean
-  roundTitleInput: string
-  onRoundTitleChange: (value: string) => void
-  onRoundTitleSubmit: (value: string) => void
-  onRoundTitleCancel: () => void
-  onOpenSettings: () => void
-  onHandoffHost: (targetId: string) => void
-  onEndSession: () => void
-  onShare: (kind: 'code' | 'url' | 'npx') => void
-  shareOpen: boolean
-  onSetShareOpen: (open: boolean) => void
-  roomCode: string
-  confirmingQuit: boolean
-  myRole: 'voter' | 'viewer'
-  onToggleRole: () => void
-  descriptorPromptActive: boolean
-  descriptorInput: string
-  onDescriptorChange: (value: string) => void
-  onDescriptorSubmit: (value: string) => void
-  onDescriptorCancel: () => void
-  onEditDescriptor: () => void
+  currentRound: Round | null;
+  settingsOpen: boolean;
+  onStartRound: () => void;
+  onNewRound: () => void;
+  onRevote: () => void;
+  roundTitlePromptActive: boolean;
+  roundTitleInput: string;
+  onRoundTitleChange: (value: string) => void;
+  onRoundTitleSubmit: (value: string) => void;
+  onRoundTitleCancel: () => void;
+  onOpenSettings: () => void;
+  onHandoffHost: (targetId: string) => void;
+  onEndSession: () => void;
+  onShare: (kind: 'code' | 'url' | 'npx') => void;
+  shareOpen: boolean;
+  onSetShareOpen: (open: boolean) => void;
+  roomCode: string;
+  confirmingQuit: boolean;
+  myRole: 'voter' | 'viewer';
+  onToggleRole: () => void;
+  descriptorPromptActive: boolean;
+  descriptorInput: string;
+  onDescriptorChange: (value: string) => void;
+  onDescriptorSubmit: (value: string) => void;
+  onDescriptorCancel: () => void;
+  onEditDescriptor: () => void;
 }
 
 function computeStats(votes: Record<string, string>): {
-  average: string
-  median: string
-  agreement: string
+  average: string;
+  median: string;
+  agreement: string;
 } {
   const values = Object.values(votes)
     .map((v) => parseFloat(v))
     .filter((n) => !isNaN(n))
-    .sort((a, b) => a - b)
+    .toSorted((a, b) => a - b);
 
   if (values.length === 0) {
-    return { average: '-', median: '-', agreement: '-' }
+    return { average: '-', median: '-', agreement: '-' };
   }
 
-  const sum = values.reduce((a, b) => a + b, 0)
-  const avg = sum / values.length
-  const mid = Math.floor(values.length / 2)
-  const med =
-    values.length % 2 === 0
-      ? (values[mid - 1]! + values[mid]!) / 2
-      : values[mid]!
+  const sum = values.reduce((a, b) => a + b, 0);
+  const avg = sum / values.length;
+  const mid = Math.floor(values.length / 2);
+  const med = values.length % 2 === 0 ? (values[mid - 1]! + values[mid]!) / 2 : values[mid]!;
 
   // Agreement = % of voters who picked the most common value
-  const allVotes = Object.values(votes)
-  const counts = new Map<string, number>()
+  const allVotes = Object.values(votes);
+  const counts = new Map<string, number>();
   for (const v of allVotes) {
-    counts.set(v, (counts.get(v) ?? 0) + 1)
+    counts.set(v, (counts.get(v) ?? 0) + 1);
   }
-  const maxCount = Math.max(...counts.values())
-  const agr = allVotes.length > 0 ? Math.round((maxCount / allVotes.length) * 100) : 0
+  const maxCount = Math.max(...counts.values());
+  const agr = allVotes.length > 0 ? Math.round((maxCount / allVotes.length) * 100) : 0;
 
   return {
     average: avg.toFixed(1),
     median: med.toFixed(1),
     agreement: `${agr}%`,
-  }
+  };
 }
 
 function formatElapsed(startMs: number, endMs: number): string {
-  const secs = Math.floor((endMs - startMs) / 1000)
-  const min = Math.floor(secs / 60)
-  const sec = secs % 60
-  return `${min}:${sec.toString().padStart(2, '0')}`
+  const secs = Math.floor((endMs - startMs) / 1000);
+  const min = Math.floor(secs / 60);
+  const sec = secs % 60;
+  return `${min}:${sec.toString().padStart(2, '0')}`;
 }
 
 function compactRoundSummary(round: Round, roundNum: number): string {
   // Build "card×count, ..." tally
-  const counts = new Map<string, number>()
+  const counts = new Map<string, number>();
   for (const v of Object.values(round.votes)) {
-    counts.set(v, (counts.get(v) ?? 0) + 1)
+    counts.set(v, (counts.get(v) ?? 0) + 1);
   }
   const tally = [...counts.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .toSorted((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .map(([card, count]) => `${card}×${count}`)
-    .join(', ')
+    .join(', ');
 
-  const title = round.title ? ` ${round.title}` : ''
-  const ticket = round.ticketId ? ` [${round.ticketId}]` : ''
+  const title = round.title ? ` ${round.title}` : '';
+  const ticket = round.ticketId ? ` [${round.ticketId}]` : '';
   const elapsed =
     round.timerStartedAt !== undefined && round.revealedAt !== undefined
       ? ` — ${formatElapsed(round.timerStartedAt, round.revealedAt)}`
-      : ''
+      : '';
 
-  return `Round ${roundNum}:${title}${ticket} — ${tally || '(no votes)'}${elapsed}`
+  return `Round ${roundNum}:${title}${ticket} — ${tally || '(no votes)'}${elapsed}`;
 }
 
 export function Lobby({
@@ -141,112 +138,122 @@ export function Lobby({
   onDescriptorCancel,
   onEditDescriptor,
 }: Props): React.ReactElement {
-  const [handoffMode, setHandoffMode] = React.useState<'idle' | 'picking' | 'confirming'>('idle')
-  const [handoffTargetId, setHandoffTargetId] = React.useState<string | null>(null)
-  const [hostMenuOpen, setHostMenuOpen] = React.useState(false)
-  const [confirmingEndSession, setConfirmingEndSession] = React.useState(false)
+  const [handoffMode, setHandoffMode] = React.useState<'idle' | 'picking' | 'confirming'>('idle');
+  const [handoffTargetId, setHandoffTargetId] = React.useState<string | null>(null);
+  const [hostMenuOpen, setHostMenuOpen] = React.useState(false);
+  const [confirmingEndSession, setConfirmingEndSession] = React.useState(false);
 
   // Reset handoff state and host-only overlays when host role lost
   useEffect(() => {
     if (!isHost) {
-      setHandoffMode('idle')
-      setHandoffTargetId(null)
-      setHostMenuOpen(false)
-      setConfirmingEndSession(false)
+      setHandoffMode('idle');
+      setHandoffTargetId(null);
+      setHostMenuOpen(false);
+      setConfirmingEndSession(false);
     }
-  }, [isHost])
+  }, [isHost]);
 
   useInput(
     (input) => {
       if (input === 'c' || input === 'C') {
-        onSetShareOpen(true)
-        return
+        onSetShareOpen(true);
+        return;
       }
       if (input === 'w' || input === 'W') {
-        onToggleRole()
-        return
+        onToggleRole();
+        return;
       }
       if (isHost) {
-        if (input === 'e' || input === 'E') onOpenSettings()
-        if (input === 's' || input === 'S') onStartRound()
-        if (input === 'h' || input === 'H') setHandoffMode('picking')
-        if (input === 'm' || input === 'M') setHostMenuOpen(true)
+        if (input === 'e' || input === 'E') onOpenSettings();
+        if (input === 's' || input === 'S') onStartRound();
+        if (input === 'h' || input === 'H') setHandoffMode('picking');
+        if (input === 'm' || input === 'M') setHostMenuOpen(true);
         if (currentRound?.revealedAt !== undefined) {
-          if (input === 'n' || input === 'N') onNewRound()
-          if (input === 'v' || input === 'V') onRevote()
-          if (input === 't' || input === 'T') onEditDescriptor()
+          if (input === 'n' || input === 'N') onNewRound();
+          if (input === 'v' || input === 'V') onRevote();
+          if (input === 't' || input === 'T') onEditDescriptor();
         }
       }
     },
-    { isActive: !settingsOpen && !confirmingQuit && handoffMode === 'idle' && !roundTitlePromptActive && !hostMenuOpen && !confirmingEndSession && !shareOpen && !descriptorPromptActive },
-  )
+    {
+      isActive:
+        !settingsOpen &&
+        !confirmingQuit &&
+        handoffMode === 'idle' &&
+        !roundTitlePromptActive &&
+        !hostMenuOpen &&
+        !confirmingEndSession &&
+        !shareOpen &&
+        !descriptorPromptActive,
+    },
+  );
 
   // End session confirmation
   useInput(
     (input, key) => {
       if (input === 'y' || input === 'Y') {
-        onEndSession()
-        setConfirmingEndSession(false)
+        onEndSession();
+        setConfirmingEndSession(false);
       } else if (input === 'n' || input === 'N' || key.escape) {
-        setConfirmingEndSession(false)
+        setConfirmingEndSession(false);
       }
     },
     { isActive: confirmingEndSession },
-  )
+  );
 
   // Handoff picking mode: number selection from online participants (excluding self)
   const otherOnlineParticipants = projection.participants.filter(
     (p) => p.id !== participantId && onlineIds.has(p.id),
-  )
+  );
 
   useInput(
     (input) => {
       if (handoffMode === 'picking') {
-        const num = parseInt(input, 10)
+        const num = parseInt(input, 10);
         if (!isNaN(num) && num >= 1 && num <= otherOnlineParticipants.length) {
-          setHandoffTargetId(otherOnlineParticipants[num - 1]!.id)
-          setHandoffMode('confirming')
+          setHandoffTargetId(otherOnlineParticipants[num - 1]!.id);
+          setHandoffMode('confirming');
         } else if (input === 'Escape' || input === 'q' || input === 'Q') {
-          setHandoffMode('idle')
+          setHandoffMode('idle');
         }
       }
     },
     { isActive: handoffMode === 'picking' },
-  )
+  );
 
   // Handoff confirmation: y/n
   useInput(
     (input) => {
       if (handoffMode === 'confirming' && handoffTargetId) {
         if (input === 'y' || input === 'Y') {
-          onHandoffHost(handoffTargetId)
-          setHandoffMode('idle')
-          setHandoffTargetId(null)
+          onHandoffHost(handoffTargetId);
+          setHandoffMode('idle');
+          setHandoffTargetId(null);
         } else if (input === 'n' || input === 'N' || input === 'Escape') {
-          setHandoffMode('idle')
-          setHandoffTargetId(null)
+          setHandoffMode('idle');
+          setHandoffTargetId(null);
         }
       }
     },
     { isActive: handoffMode === 'confirming' },
-  )
+  );
 
-  const hasRounds = rounds.length > 0
-  const revealedRounds = rounds.filter((r) => r.revealedAt !== undefined)
+  const hasRounds = rounds.length > 0;
+  const revealedRounds = rounds.filter((r) => r.revealedAt !== undefined);
 
   // Past rounds = all revealed rounds except the latest (shown in full)
-  const pastRounds = currentRound !== null ? revealedRounds.slice(0, -1) : revealedRounds
+  const pastRounds = currentRound !== null ? revealedRounds.slice(0, -1) : revealedRounds;
 
   if (hostMenuOpen) {
     return (
       <HostActionsMenu
         onPick={(value) => {
-          setHostMenuOpen(false)
-          if (value === 'end-session') setConfirmingEndSession(true)
+          setHostMenuOpen(false);
+          if (value === 'end-session') setConfirmingEndSession(true);
         }}
         onClose={() => setHostMenuOpen(false)}
       />
-    )
+    );
   }
 
   if (shareOpen) {
@@ -254,12 +261,12 @@ export function Lobby({
       <SharePicker
         roomCode={roomCode}
         onPick={(kind) => {
-          onSetShareOpen(false)
-          onShare(kind)
+          onSetShareOpen(false);
+          onShare(kind);
         }}
         onClose={() => onSetShareOpen(false)}
       />
-    )
+    );
   }
 
   return (
@@ -277,23 +284,19 @@ export function Lobby({
       />
 
       {currentRound?.revealedAt !== undefined && (
-        <ResultsSection
-          projection={projection}
-          round={currentRound}
-          rounds={rounds}
-        />
+        <ResultsSection projection={projection} round={currentRound} rounds={rounds} />
       )}
 
       {pastRounds.length > 0 && (
         <Box flexDirection="column">
           <Text dimColor>── History ──</Text>
           {pastRounds.map((r) => {
-            const roundNum = rounds.indexOf(r) + 1
+            const roundNum = rounds.indexOf(r) + 1;
             return (
               <Text key={r.id} dimColor>
                 {compactRoundSummary(r, roundNum)}
               </Text>
-            )
+            );
           })}
         </Box>
       )}
@@ -320,7 +323,8 @@ export function Lobby({
       {handoffMode === 'confirming' && handoffTargetId && (
         <Box flexDirection="column">
           <Text>
-            Hand off to {projection.participants.find((p) => p.id === handoffTargetId)?.displayName}? [y/n]
+            Hand off to {projection.participants.find((p) => p.id === handoffTargetId)?.displayName}
+            ? [y/n]
           </Text>
         </Box>
       )}
@@ -362,78 +366,79 @@ export function Lobby({
       {confirmingEndSession && (
         <Box>
           <Text color="red">End session for everyone? This cannot be undone. </Text>
-          <Text dimColor>y/n  [Esc] Cancel</Text>
+          <Text dimColor>y/n [Esc] Cancel</Text>
         </Box>
       )}
 
-      {handoffMode === 'idle' && !roundTitlePromptActive && !descriptorPromptActive && !confirmingEndSession && (
-        <Box gap={2}>
-          {isHost ? (
-            <>
-              {currentRound?.revealedAt !== undefined ? (
-                <>
-                  <Text color="yellow">[v] Revote</Text>
-                  <Text color="yellow">[n] Next</Text>
-                  <Text color="yellow">[t] Edit title</Text>
-                  <Text color="yellow">[h] Handoff</Text>
-                  <Text color="yellow">[e] Settings</Text>
-                  <Text color="yellow">[c] Share</Text>
-                  <Text color="yellow">[w] {myRole === 'viewer' ? 'Vote' : 'Observe'}</Text>
-                  <Text color="yellow">[m] Menu</Text>
-                </>
-              ) : (
-                <>
-                  <Text color="yellow">[s] Start round</Text>
-                  <Text color="yellow">[h] Handoff</Text>
-                  <Text color="yellow">[e] Settings</Text>
-                  <Text color="yellow">[c] Share</Text>
-                  <Text color="yellow">[w] {myRole === 'viewer' ? 'Vote' : 'Observe'}</Text>
-                  <Text color="yellow">[m] Menu</Text>
-                </>
-              )}
-            </>
-          ) : (
-            <>
-              <Text dimColor>Waiting for host to start a round...</Text>
-              <Text>[c] Share</Text>
-              <Text color="yellow">[w] {myRole === 'viewer' ? 'Vote' : 'Observe'}</Text>
-            </>
-          )}
-          <Text>[q] Quit</Text>
-        </Box>
-      )}
+      {handoffMode === 'idle' &&
+        !roundTitlePromptActive &&
+        !descriptorPromptActive &&
+        !confirmingEndSession && (
+          <Box gap={2}>
+            {isHost ? (
+              <>
+                {currentRound?.revealedAt !== undefined ? (
+                  <>
+                    <Text color="yellow">[v] Revote</Text>
+                    <Text color="yellow">[n] Next</Text>
+                    <Text color="yellow">[t] Edit title</Text>
+                    <Text color="yellow">[h] Handoff</Text>
+                    <Text color="yellow">[e] Settings</Text>
+                    <Text color="yellow">[c] Share</Text>
+                    <Text color="yellow">[w] {myRole === 'viewer' ? 'Vote' : 'Observe'}</Text>
+                    <Text color="yellow">[m] Menu</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text color="yellow">[s] Start round</Text>
+                    <Text color="yellow">[h] Handoff</Text>
+                    <Text color="yellow">[e] Settings</Text>
+                    <Text color="yellow">[c] Share</Text>
+                    <Text color="yellow">[w] {myRole === 'viewer' ? 'Vote' : 'Observe'}</Text>
+                    <Text color="yellow">[m] Menu</Text>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                <Text dimColor>Waiting for host to start a round...</Text>
+                <Text>[c] Share</Text>
+                <Text color="yellow">[w] {myRole === 'viewer' ? 'Vote' : 'Observe'}</Text>
+              </>
+            )}
+            <Text>[q] Quit</Text>
+          </Box>
+        )}
     </Box>
-  )
+  );
 }
 
 interface ResultsSectionProps {
-  projection: DocProjection
-  round: Round
-  rounds: readonly Round[]
+  projection: DocProjection;
+  round: Round;
+  rounds: readonly Round[];
 }
 
-function ResultsSection({
-  projection,
-  round,
-  rounds,
-}: ResultsSectionProps): React.ReactElement {
-  const roundNum = rounds.indexOf(round) + 1
-  const title = round.title ? ` — ${round.title}` : ''
-  const ticket = round.ticketId ? ` [${round.ticketId}]` : ''
-  const stats = computeStats(round.votes)
-  const nameMap = new Map(projection.participants.map((p) => [p.id, p.displayName]))
+function ResultsSection({ projection, round, rounds }: ResultsSectionProps): React.ReactElement {
+  const roundNum = rounds.indexOf(round) + 1;
+  const title = round.title ? ` — ${round.title}` : '';
+  const ticket = round.ticketId ? ` [${round.ticketId}]` : '';
+  const stats = computeStats(round.votes);
+  const nameMap = new Map(projection.participants.map((p) => [p.id, p.displayName]));
 
   const elapsed =
     round.timerStartedAt !== undefined && round.revealedAt !== undefined
       ? formatElapsed(round.timerStartedAt, round.revealedAt)
-      : null
+      : null;
 
-  const uniqueVote = Object.values(round.votes)[0]
+  const uniqueVote = Object.values(round.votes)[0];
 
   return (
     <Box flexDirection="column" gap={1}>
       <Text bold>
-        Round {roundNum}{title}{ticket} — Results
+        Round {roundNum}
+        {title}
+        {ticket} — Results
       </Text>
 
       {isConsensus(round) && (
@@ -444,13 +449,19 @@ function ResultsSection({
 
       <Box flexDirection="column">
         <Box gap={2}>
-          <Text bold underline>{'Name'.padEnd(20)}</Text>
-          <Text bold underline>{'Estimate'.padEnd(10)}</Text>
+          <Text bold underline>
+            {'Name'.padEnd(20)}
+          </Text>
+          <Text bold underline>
+            {'Estimate'.padEnd(10)}
+          </Text>
         </Box>
         {Object.entries(round.votes).map(([pid, vote]) => (
           <Box key={pid} gap={2}>
             <Text>{(nameMap.get(pid) ?? pid).padEnd(20)}</Text>
-            <Text color="cyan" bold>{vote.padEnd(10)}</Text>
+            <Text color="cyan" bold>
+              {vote.padEnd(10)}
+            </Text>
           </Box>
         ))}
         {projection.participants
@@ -464,11 +475,17 @@ function ResultsSection({
       </Box>
 
       <Box gap={2}>
-        <Text>Avg: <Text bold>{stats.average}</Text></Text>
-        <Text>Med: <Text bold>{stats.median}</Text></Text>
-        <Text>Agreement: <Text bold>{stats.agreement}</Text></Text>
+        <Text>
+          Avg: <Text bold>{stats.average}</Text>
+        </Text>
+        <Text>
+          Med: <Text bold>{stats.median}</Text>
+        </Text>
+        <Text>
+          Agreement: <Text bold>{stats.agreement}</Text>
+        </Text>
         {elapsed !== null && <Text dimColor>⏱ {elapsed}</Text>}
       </Box>
     </Box>
-  )
+  );
 }

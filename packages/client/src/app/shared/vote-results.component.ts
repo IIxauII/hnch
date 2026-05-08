@@ -1,4 +1,4 @@
-import { DecimalPipe } from '@angular/common'
+import { DecimalPipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -8,16 +8,12 @@ import {
   inject,
   input,
   signal,
-} from '@angular/core'
-import { computeRoundStats, formatElapsed, isActiveParticipant, isConsensus } from '@hnch/shared'
-import type { ParticipantSnapshot, Round, RoundStats, SpreadLabel } from '@hnch/shared'
-import {
-  IonChip,
-  IonItemGroup,
-  IonLabel,
-} from '@ionic/angular/standalone'
+} from '@angular/core';
+import { computeRoundStats, formatElapsed, isActiveParticipant, isConsensus } from '@hnch/shared';
+import type { ParticipantSnapshot, Round, RoundStats, SpreadLabel } from '@hnch/shared';
+import { IonChip, IonItemGroup, IonLabel } from '@ionic/angular/standalone';
 
-import { HapticService } from '../core/haptic.service'
+import { HapticService } from '../core/haptic.service';
 
 /**
  * One card's worth of voters, ready for template rendering.
@@ -26,9 +22,9 @@ import { HapticService } from '../core/haptic.service'
  * their natural order rather than lexicographic string order.
  */
 interface VoteGroup {
-  readonly card: string
-  readonly scaleIndex: number
-  readonly voterNames: readonly string[]
+  readonly card: string;
+  readonly scaleIndex: number;
+  readonly voterNames: readonly string[];
 }
 
 /**
@@ -264,67 +260,67 @@ interface VoteGroup {
   ],
 })
 export class VoteResultsComponent {
-  readonly round = input.required<Round>()
-  readonly participants = input.required<readonly ParticipantSnapshot[]>()
-  readonly myId = input<string | null>(null)
+  readonly round = input.required<Round>();
+  readonly participants = input.required<readonly ParticipantSnapshot[]>();
+  readonly myId = input<string | null>(null);
 
-  private readonly haptic = inject(HapticService)
-  private readonly destroyRef = inject(DestroyRef)
+  private readonly haptic = inject(HapticService);
+  private readonly destroyRef = inject(DestroyRef);
 
   /** Tracks which round the reveal-complete haptic has already fired for. */
-  private hapticFiredForRound: string | null = null
+  private hapticFiredForRound: string | null = null;
 
   /** True when all votes in the round are identical (and ≥ 2 voters). */
-  readonly consensus = computed(() => isConsensus(this.round()))
+  readonly consensus = computed(() => isConsensus(this.round()));
 
   /** Controls overlay visibility — resets per round, auto-dismisses after 3s. */
-  readonly showOverlay = signal(false)
+  readonly showOverlay = signal(false);
 
-  private overlayDismissTimer: ReturnType<typeof setTimeout> | null = null
+  private overlayDismissTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     this.destroyRef.onDestroy(() => {
       if (this.overlayDismissTimer !== null) {
-        clearTimeout(this.overlayDismissTimer)
-        this.overlayDismissTimer = null
+        clearTimeout(this.overlayDismissTimer);
+        this.overlayDismissTimer = null;
       }
-    })
+    });
     // Reset overlay when round changes.
     effect(() => {
-      const roundId = this.round().id
+      const roundId = this.round().id;
       // Access roundId to track; reset overlay for new round.
-      void roundId
-      this.showOverlay.set(false)
+      void roundId;
+      this.showOverlay.set(false);
       if (this.overlayDismissTimer !== null) {
-        clearTimeout(this.overlayDismissTimer)
-        this.overlayDismissTimer = null
+        clearTimeout(this.overlayDismissTimer);
+        this.overlayDismissTimer = null;
       }
-    })
+    });
 
     // Fire haptic after the stagger animation completes once per round.
     // On consensus, show overlay and auto-dismiss after 3s.
     effect(() => {
-      const groups = this.voteGroups()
-      const didntVote = this.didntVoteNames()
-      const totalGroups = groups.length + (didntVote.length > 0 ? 1 : 0)
-      if (totalGroups === 0) return
-      const round = this.round()
-      if (this.hapticFiredForRound === round.id) return
-      this.hapticFiredForRound = round.id
-      const delay = Math.max(0, totalGroups - 1) * 80 + 200
-      const consensus = this.consensus()
+      const groups = this.voteGroups();
+      const didntVote = this.didntVoteNames();
+      const totalGroups = groups.length + (didntVote.length > 0 ? 1 : 0);
+      if (totalGroups === 0) return;
+      const round = this.round();
+      if (this.hapticFiredForRound === round.id) return;
+      this.hapticFiredForRound = round.id;
+      const delay = Math.max(0, totalGroups - 1) * 80 + 200;
+      const consensus = this.consensus();
       setTimeout(() => {
-        this.haptic.notificationSuccess()
+        this.haptic.notificationSuccess();
         if (consensus) {
-          this.showOverlay.set(true)
-          setTimeout(() => this.haptic.impactMedium(), 120)
+          this.showOverlay.set(true);
+          setTimeout(() => this.haptic.impactMedium(), 120);
           this.overlayDismissTimer = setTimeout(() => {
-            this.showOverlay.set(false)
-            this.overlayDismissTimer = null
-          }, 3000)
+            this.showOverlay.set(false);
+            this.overlayDismissTimer = null;
+          }, 3000);
         }
-      }, delay)
-    })
+      }, delay);
+    });
   }
 
   /**
@@ -332,50 +328,50 @@ export class VoteResultsComponent {
    * mirrors the Lobby convention; everyone else is rendered verbatim.
    */
   private readonly nameById = computed<ReadonlyMap<string, string>>(() => {
-    const mine = this.myId()
-    const map = new Map<string, string>()
+    const mine = this.myId();
+    const map = new Map<string, string>();
     for (const p of this.participants()) {
-      map.set(p.id, p.id === mine ? `You (${p.displayName})` : p.displayName)
+      map.set(p.id, p.id === mine ? `You (${p.displayName})` : p.displayName);
     }
-    return map
-  })
+    return map;
+  });
 
   /**
    * Groups sorted by count desc, tie-break by `scaleIndex` asc.
    * The `__didnt_vote__` sentinel is filtered out and rendered separately.
    */
   readonly voteGroups = computed<readonly VoteGroup[]>(() => {
-    const round = this.round()
-    const names = this.nameById()
-    const scaleOrder = new Map<string, number>()
-    round.scale.cards.forEach((card, i) => scaleOrder.set(card, i))
+    const round = this.round();
+    const names = this.nameById();
+    const scaleOrder = new Map<string, number>();
+    round.scale.cards.forEach((card, i) => scaleOrder.set(card, i));
 
-    const byCard = new Map<string, string[]>()
+    const byCard = new Map<string, string[]>();
     for (const [participantId, card] of Object.entries(round.votes)) {
-      const name = names.get(participantId) ?? participantId
-      const bucket = byCard.get(card)
+      const name = names.get(participantId) ?? participantId;
+      const bucket = byCard.get(card);
       if (bucket) {
-        bucket.push(name)
+        bucket.push(name);
       } else {
-        byCard.set(card, [name])
+        byCard.set(card, [name]);
       }
     }
 
-    const groups: VoteGroup[] = []
+    const groups: VoteGroup[] = [];
     for (const [card, voterNames] of byCard) {
       groups.push({
         card,
         scaleIndex: scaleOrder.get(card) ?? Number.MAX_SAFE_INTEGER,
-        voterNames: [...voterNames].sort(),
-      })
+        voterNames: [...voterNames].toSorted(),
+      });
     }
 
     groups.sort((a, b) => {
-      const byCount = b.voterNames.length - a.voterNames.length
-      return byCount !== 0 ? byCount : a.scaleIndex - b.scaleIndex
-    })
-    return groups
-  })
+      const byCount = b.voterNames.length - a.voterNames.length;
+      return byCount !== 0 ? byCount : a.scaleIndex - b.scaleIndex;
+    });
+    return groups;
+  });
 
   /**
    * Names of active participants (not kicked/left) who have no entry in
@@ -384,46 +380,46 @@ export class VoteResultsComponent {
    * chip name lookup (`nameById`) so kicked voters show their real names.
    */
   readonly didntVoteNames = computed<readonly string[]>(() => {
-    const round = this.round()
-    const voted = new Set(Object.keys(round.votes))
-    const names = this.nameById()
-    const out: string[] = []
+    const round = this.round();
+    const voted = new Set(Object.keys(round.votes));
+    const names = this.nameById();
+    const out: string[] = [];
     for (const p of this.participants()) {
       if (isActiveParticipant(p) && !voted.has(p.id)) {
-        out.push(names.get(p.id) ?? p.id)
+        out.push(names.get(p.id) ?? p.id);
       }
     }
-    out.sort()
-    return out
-  })
+    out.sort();
+    return out;
+  });
 
   /**
    * Elapsed voting time (revealedAt - timerStartedAt), or null if either
    * timestamp is absent.
    */
   readonly elapsedLabel = computed<string | null>(() => {
-    const round = this.round()
+    const round = this.round();
     if (round.revealedAt === undefined || round.timerStartedAt === undefined) {
-      return null
+      return null;
     }
-    return formatElapsed(round.revealedAt - round.timerStartedAt)
-  })
+    return formatElapsed(round.revealedAt - round.timerStartedAt);
+  });
 
   /** Stats computed via shared util — uses votes + scale directly. */
   readonly stats = computed<RoundStats>(() =>
     computeRoundStats(this.round().votes, this.round().scale),
-  )
+  );
 
   /** "N votes" / "1 vote" — used inside group headers. */
   voteCountLabel(n: number): string {
-    return n === 1 ? '1 vote' : `${n} votes`
+    return n === 1 ? '1 vote' : `${n} votes`;
   }
 
   protected spreadColor(s: SpreadLabel): 'success' | 'warning' | 'danger' {
-    return s === 'unanimous' ? 'success' : s === 'close' ? 'warning' : 'danger'
+    return s === 'unanimous' ? 'success' : s === 'close' ? 'warning' : 'danger';
   }
 
   protected spreadDisplay(s: SpreadLabel): string {
-    return s === 'unanimous' ? 'Unanimous' : s === 'close' ? 'Close' : 'Spread'
+    return s === 'unanimous' ? 'Unanimous' : s === 'close' ? 'Close' : 'Spread';
   }
 }

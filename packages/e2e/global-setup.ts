@@ -10,10 +10,10 @@
 export default async () => {
   // Skip in CI — CI always spawns a fresh relay with correct env vars.
   if (process.env['CI']) {
-    return
+    return;
   }
 
-  const RELAY_PORT = process.env['RELAY_PORT'] ?? '1234'
+  const RELAY_PORT = process.env['RELAY_PORT'] ?? '1234';
 
   console.warn(`
 ⚠  Playwright may reuse an already-running relay on port ${RELAY_PORT}.
@@ -22,5 +22,5 @@ export default async () => {
    return 404 — failures will look like flake. To run tests cleanly:
      • stop any local \`pnpm dev:relay\` first, OR
      • start the relay with HNCH_ENABLE_TEST_ROUTES=1 HNCH_ROOM_CAP=3.
-`)
-}
+`);
+};

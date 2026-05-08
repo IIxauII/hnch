@@ -1,0 +1,21 @@
+# Lefthook config — fast pre-commit guards for hnch.
+#
+# Format with biome, lint with oxlint, lint Angular templates with the
+# trimmed @angular-eslint/template config. Lefthook matches CI: errors
+# block, warnings flow through informationally.
+#
+# Skip via `LEFTHOOK=0 git commit ...` if needed (rare). Hooks are
+# auto-installed on `pnpm install` via lefthook's own postinstall.
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: biome-format
+      glob: '*.{ts,tsx,js,jsx,mjs,cjs,json,jsonc}'
+      run: pnpm exec biome format --write {staged_files} && git add {staged_files}
+    - name: oxlint
+      glob: '*.{ts,tsx,js,jsx,mjs,cjs}'
+      run: pnpm exec oxlint {staged_files}
+    - name: angular-templates
+      glob: 'packages/client/**/*.html'
+      run: pnpm --filter @hnch/client exec eslint {staged_files}

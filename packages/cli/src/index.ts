@@ -8,56 +8,58 @@
  *   hnch config [--name "Alice"] [--relay-url https://...]
  */
 
-import yargs from 'yargs'
-import { hideBin } from 'yargs/helpers'
-import React from 'react'
-import { render } from 'ink'
-import * as Y from 'yjs'
-import { Awareness } from 'y-protocols/awareness'
-import { loadConfig, readConfig, updateConfig } from './config.js'
-import { createSession, joinSession, wireSession } from './session.js'
-import { resolveRoom } from './relay-api.js'
-import { resolveScale, BUILTIN_SCALES, hashPassword, joinDoc } from '@hnch/shared'
-import { normalizeAndValidateRoomCode } from './room-code-input.js'
-import { writeLastSession, clearLastSession, readLastSession } from './last-session.js'
-import { onSessionExpired } from './session-expired.js'
-import { observeSessionEnd } from './session-end-observer.js'
-import { App } from './ui/App.js'
-import { ConfigSettings } from './ui/components/ConfigSettings.js'
-import { createInterface } from 'node:readline'
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
+import React from 'react';
+import { render } from 'ink';
+import * as Y from 'yjs';
+import { Awareness } from 'y-protocols/awareness';
+import { loadConfig, readConfig, updateConfig } from './config.js';
+import { createSession, joinSession, wireSession } from './session.js';
+import { resolveRoom } from './relay-api.js';
+import { resolveScale, BUILTIN_SCALES, hashPassword, joinDoc } from '@hnch/shared';
+import { normalizeAndValidateRoomCode } from './room-code-input.js';
+import { writeLastSession, clearLastSession, readLastSession } from './last-session.js';
+import { onSessionExpired } from './session-expired.js';
+import { observeSessionEnd } from './session-end-observer.js';
+import { App } from './ui/App.js';
+import { ConfigSettings } from './ui/components/ConfigSettings.js';
+import { createInterface } from 'node:readline';
 
 async function promptPassword(): Promise<string> {
   return new Promise((resolve) => {
-    const rl = createInterface({ input: process.stdin, output: process.stderr })
-    process.stderr.write('Password: ')
+    const rl = createInterface({ input: process.stdin, output: process.stderr });
+    process.stderr.write('Password: ');
     rl.question('', (answer) => {
-      rl.close()
-      resolve(answer)
-    })
-  })
+      rl.close();
+      resolve(answer);
+    });
+  });
 }
 
 async function handleCreate(argv: {
-  name?: string
-  password?: boolean
-  scale?: string
+  name?: string;
+  password?: boolean;
+  scale?: string;
 }): Promise<void> {
-  const config = await loadConfig()
+  const config = await loadConfig();
 
-  const resolvedScale = argv.scale ?? config.defaultScale ?? 'fibonacci'
-  const resolvedName = argv.name ?? config.defaultSessionName
-  const resolvedPassword = argv.password ?? config.defaultPassword ?? false
+  const resolvedScale = argv.scale ?? config.defaultScale ?? 'fibonacci';
+  const resolvedName = argv.name ?? config.defaultSessionName;
+  const resolvedPassword = argv.password ?? config.defaultPassword ?? false;
 
-  let password: string | undefined
+  let password: string | undefined;
   if (resolvedPassword) {
-    password = await promptPassword()
+    password = await promptPassword();
   }
 
-  const scale = resolveScale(resolvedScale, config.presetOverrides, config.customScales)
+  const scale = resolveScale(resolvedScale, config.presetOverrides, config.customScales);
   if (!scale) {
-    const builtinIds = Object.keys(BUILTIN_SCALES).join(', ')
-    console.error(`Unknown or fully-disabled scale: "${resolvedScale}". Builtin IDs: ${builtinIds}`)
-    process.exit(1)
+    const builtinIds = Object.keys(BUILTIN_SCALES).join(', ');
+    console.error(
+      `Unknown or fully-disabled scale: "${resolvedScale}". Builtin IDs: ${builtinIds}`,
+    );
+    process.exit(1);
   }
 
   const session = await createSession({
@@ -67,11 +69,11 @@ async function handleCreate(argv: {
     sessionName: resolvedName,
     password,
     defaultScale: scale,
-  })
+  });
 
-  let passwordHash: string | undefined
+  let passwordHash: string | undefined;
   if (password) {
-    passwordHash = await hashPassword(password, session.roomUuid)
+    passwordHash = await hashPassword(password, session.roomUuid);
   }
 
   writeLastSession({
@@ -79,11 +81,11 @@ async function handleCreate(argv: {
     roomUuid: session.roomUuid,
     passwordHash,
     lastSeenAt: Date.now(),
-  })
+  });
 
-  console.error(`Room created: ${session.roomCode}`)
-  console.error(`Share: hnch join ${session.roomCode}`)
-  console.error('')
+  console.error(`Room created: ${session.roomCode}`);
+  console.error(`Share: hnch join ${session.roomCode}`);
+  console.error('');
 
   const { waitUntilExit, unmount: unmountCreate } = render(
     React.createElement(App, {
@@ -94,57 +96,56 @@ async function handleCreate(argv: {
       presetOverrides: config.presetOverrides,
       customScales: config.customScales,
     }),
-  )
+  );
 
   observeSessionEnd({
     doc: session.doc,
     localParticipantId: config.participantId,
     onEnded: async (info) => {
-      console.error(info.isLocal ? 'Session ended.' : `Session ended by ${info.hostName}.`)
-      unmountCreate()
+      console.error(info.isLocal ? 'Session ended.' : `Session ended by ${info.hostName}.`);
+      unmountCreate();
       try {
-        await clearLastSession()
+        await clearLastSession();
       } catch (err) {
-        console.error(`Failed to clear cached session: ${err instanceof Error ? err.message : String(err)}`)
+        console.error(
+          `Failed to clear cached session: ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
-      session.disconnect()
-      process.exit(0)
+      session.disconnect();
+      process.exit(0);
     },
-  })
+  });
 
-  await waitUntilExit()
-  session.disconnect()
-  clearLastSession()
-  process.exit(0)
+  await waitUntilExit();
+  session.disconnect();
+  clearLastSession();
+  process.exit(0);
 }
 
-async function handleJoin(argv: {
-  code: string
-  password?: boolean
-}): Promise<void> {
-  const config = await loadConfig()
-  const code = normalizeAndValidateRoomCode(argv.code)
+async function handleJoin(argv: { code: string; password?: boolean }): Promise<void> {
+  const config = await loadConfig();
+  const code = normalizeAndValidateRoomCode(argv.code);
   if (code === null) {
-    console.error('invalid room code')
-    process.exit(1)
+    console.error('invalid room code');
+    process.exit(1);
   }
 
-  let password: string | undefined
+  let password: string | undefined;
   if (argv.password) {
-    password = await promptPassword()
+    password = await promptPassword();
   }
 
-  const resolved = await resolveRoom(config.relayUrl, code)
+  const resolved = await resolveRoom(config.relayUrl, code);
 
-  let passwordInput: string | undefined
+  let passwordInput: string | undefined;
   if (resolved.accessMode === 'password' && !argv.password) {
-    passwordInput = await promptPassword()
+    passwordInput = await promptPassword();
   } else if (argv.password) {
-    passwordInput = password
+    passwordInput = password;
   }
 
-  let unmountInk: (() => void) | undefined
-  let hadRoomFull = false
+  let unmountInk: (() => void) | undefined;
+  let hadRoomFull = false;
 
   const session = await joinSession({
     participantId: config.participantId,
@@ -154,19 +155,19 @@ async function handleJoin(argv: {
     password: passwordInput,
     onRejection(reason) {
       if (reason === 'unknown-room') {
-        void onSessionExpired({ clearLastSession, logger: console, exit: process.exit })
-        return
+        void onSessionExpired({ clearLastSession, logger: console, exit: process.exit });
+        return;
       }
       if (reason === 'room-full') {
-        hadRoomFull = true
-        unmountInk?.()
+        hadRoomFull = true;
+        unmountInk?.();
       }
     },
-  })
+  });
 
-  let passwordHash: string | undefined
+  let passwordHash: string | undefined;
   if (passwordInput) {
-    passwordHash = await hashPassword(passwordInput, session.roomUuid)
+    passwordHash = await hashPassword(passwordInput, session.roomUuid);
   }
 
   writeLastSession({
@@ -174,10 +175,10 @@ async function handleJoin(argv: {
     roomUuid: session.roomUuid,
     passwordHash,
     lastSeenAt: Date.now(),
-  })
+  });
 
-  console.error(`Joined room: ${session.roomCode}`)
-  console.error('')
+  console.error(`Joined room: ${session.roomCode}`);
+  console.error('');
 
   const inkInstance = render(
     React.createElement(App, {
@@ -188,83 +189,84 @@ async function handleJoin(argv: {
       presetOverrides: config.presetOverrides,
       customScales: config.customScales,
     }),
-  )
-  unmountInk = inkInstance.unmount
+  );
+  unmountInk = inkInstance.unmount;
 
   observeSessionEnd({
     doc: session.doc,
     localParticipantId: config.participantId,
     onEnded: async (info) => {
-      console.error(info.isLocal ? 'Session ended.' : `Session ended by ${info.hostName}.`)
-      unmountInk?.()
+      console.error(info.isLocal ? 'Session ended.' : `Session ended by ${info.hostName}.`);
+      unmountInk?.();
       try {
-        await clearLastSession()
+        await clearLastSession();
       } catch (err) {
-        console.error(`Failed to clear cached session: ${err instanceof Error ? err.message : String(err)}`)
+        console.error(
+          `Failed to clear cached session: ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
-      session.disconnect()
-      process.exit(0)
+      session.disconnect();
+      process.exit(0);
     },
-  })
+  });
 
-  await inkInstance.waitUntilExit()
+  await inkInstance.waitUntilExit();
 
   if (hadRoomFull) {
-    console.error('This room is full (max 20 participants).')
-    session.disconnect()
-    clearLastSession()
-    process.exit(1)
+    console.error('This room is full (max 20 participants).');
+    session.disconnect();
+    clearLastSession();
+    process.exit(1);
   }
 
-  session.disconnect()
-  clearLastSession()
-  process.exit(0)
+  session.disconnect();
+  clearLastSession();
+  process.exit(0);
 }
 
 async function handleResume(): Promise<void> {
-  const config = await loadConfig()
-  const cache = readLastSession()
+  const config = await loadConfig();
+  const cache = readLastSession();
 
   if (!cache) {
-    console.error('No recent session to resume.')
-    process.exit(0)
+    console.error('No recent session to resume.');
+    process.exit(0);
   }
 
-  let resolved: Awaited<ReturnType<typeof resolveRoom>>
+  let resolved: Awaited<ReturnType<typeof resolveRoom>>;
   try {
-    resolved = await resolveRoom(config.relayUrl, cache.roomCode)
+    resolved = await resolveRoom(config.relayUrl, cache.roomCode);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
+    const message = err instanceof Error ? err.message : String(err);
     if (message.includes('Room not found')) {
-      return await onSessionExpired({ clearLastSession, logger: console, exit: process.exit })
-    } else {
-      console.error('Could not reach relay — try again later.')
-      process.exit(0)
+      return await onSessionExpired({ clearLastSession, logger: console, exit: process.exit });
     }
+    console.error('Could not reach relay — try again later.');
+    process.exit(0);
   }
 
   if (resolved.accessMode === 'password' && !cache.passwordHash) {
-    console.error(`Password changed — rejoin with: hnch join ${cache.roomCode} --password`)
-    clearLastSession()
-    process.exit(0)
+    console.error(`Password changed — rejoin with: hnch join ${cache.roomCode} --password`);
+    clearLastSession();
+    process.exit(0);
   }
 
-  console.error(`Rejoining room ${cache.roomCode}…`)
-  console.error('')
+  console.error(`Rejoining room ${cache.roomCode}…`);
+  console.error('');
 
-  const doc = new Y.Doc()
-  const awareness = new Awareness(doc)
+  const doc = new Y.Doc();
+  const awareness = new Awareness(doc);
 
   joinDoc(doc, {
     participantId: config.participantId,
     displayName: config.displayName,
-  })
+  });
 
-  awareness.setLocalStateField('participantId', config.participantId)
+  awareness.setLocalStateField('participantId', config.participantId);
 
-  let hadWrongPassword = false
-  let hadRoomFull = false
-  let unmountInkResume: (() => void) | undefined
+  let hadWrongPassword = false;
+  let hadRoomFull = false;
+  let unmountInkResume: (() => void) | undefined;
 
   const session = wireSession({
     doc,
@@ -276,26 +278,26 @@ async function handleResume(): Promise<void> {
     passwordHash: cache.passwordHash,
     onRejection(reason) {
       if (reason === 'unknown-room') {
-        void onSessionExpired({ clearLastSession, logger: console, exit: process.exit })
-        return
+        void onSessionExpired({ clearLastSession, logger: console, exit: process.exit });
+        return;
       }
       if (reason === 'wrong-password') {
-        hadWrongPassword = true
-        unmountInkResume?.()
+        hadWrongPassword = true;
+        unmountInkResume?.();
       }
       if (reason === 'room-full') {
-        hadRoomFull = true
-        unmountInkResume?.()
+        hadRoomFull = true;
+        unmountInkResume?.();
       }
     },
-  })
+  });
 
   writeLastSession({
     roomCode: session.roomCode,
     roomUuid: session.roomUuid,
     passwordHash: cache.passwordHash,
     lastSeenAt: Date.now(),
-  })
+  });
 
   const inkInstanceResume = render(
     React.createElement(App, {
@@ -306,88 +308,91 @@ async function handleResume(): Promise<void> {
       presetOverrides: config.presetOverrides,
       customScales: config.customScales,
     }),
-  )
-  unmountInkResume = inkInstanceResume.unmount
+  );
+  unmountInkResume = inkInstanceResume.unmount;
 
   observeSessionEnd({
     doc: session.doc,
     localParticipantId: config.participantId,
     onEnded: async (info) => {
-      console.error(info.isLocal ? 'Session ended.' : `Session ended by ${info.hostName}.`)
-      unmountInkResume?.()
+      console.error(info.isLocal ? 'Session ended.' : `Session ended by ${info.hostName}.`);
+      unmountInkResume?.();
       try {
-        await clearLastSession()
+        await clearLastSession();
       } catch (err) {
-        console.error(`Failed to clear cached session: ${err instanceof Error ? err.message : String(err)}`)
+        console.error(
+          `Failed to clear cached session: ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
-      session.disconnect()
-      process.exit(0)
+      session.disconnect();
+      process.exit(0);
     },
-  })
+  });
 
-  await inkInstanceResume.waitUntilExit()
+  await inkInstanceResume.waitUntilExit();
 
   if (hadRoomFull) {
-    console.error('This room is full (max 20 participants).')
-    clearLastSession()
-    process.exit(1)
+    console.error('This room is full (max 20 participants).');
+    clearLastSession();
+    process.exit(1);
   }
 
   if (hadWrongPassword) {
-    console.error(`Password changed — rejoin with: hnch join ${cache.roomCode} --password`)
-    clearLastSession()
-    process.exit(0)
+    console.error(`Password changed — rejoin with: hnch join ${cache.roomCode} --password`);
+    clearLastSession();
+    process.exit(0);
   }
 
-  session.disconnect()
-  clearLastSession()
-  process.exit(0)
+  session.disconnect();
+  clearLastSession();
+  process.exit(0);
 }
 
-
 async function handleConfig(argv: {
-  name?: string
-  relayUrl?: string
-  scale?: string
-  sessionName?: string
-  password?: boolean
+  name?: string;
+  relayUrl?: string;
+  scale?: string;
+  sessionName?: string;
+  password?: boolean;
 }): Promise<void> {
   const hasFlags =
     argv.name !== undefined ||
     argv.relayUrl !== undefined ||
     argv.scale !== undefined ||
     argv.sessionName !== undefined ||
-    argv.password !== undefined
+    argv.password !== undefined;
 
   if (!hasFlags) {
-    const config = await loadConfig()
+    const config = await loadConfig();
     const { waitUntilExit } = render(
       React.createElement(ConfigSettings, {
         presetOverrides: config.presetOverrides,
         customScales: config.customScales,
       }),
-    )
-    await waitUntilExit()
-    process.exit(0)
+    );
+    await waitUntilExit();
+    process.exit(0);
   }
 
-  const patch: Parameters<typeof updateConfig>[0] = {}
-  if (argv.name !== undefined) patch.displayName = argv.name
-  if (argv.relayUrl !== undefined) patch.relayUrl = argv.relayUrl
+  const patch: Parameters<typeof updateConfig>[0] = {};
+  if (argv.name !== undefined) patch.displayName = argv.name;
+  if (argv.relayUrl !== undefined) patch.relayUrl = argv.relayUrl;
   if (argv.scale !== undefined) {
     if (argv.scale !== '') {
-      const cfg = readConfig()
+      const cfg = readConfig();
       if (!resolveScale(argv.scale, cfg.presetOverrides, cfg.customScales)) {
-        console.error(`Unknown scale: "${argv.scale}". Builtin IDs: ${Object.keys(BUILTIN_SCALES).join(', ')}`)
-        return
+        console.error(
+          `Unknown scale: "${argv.scale}". Builtin IDs: ${Object.keys(BUILTIN_SCALES).join(', ')}`,
+        );
+        return;
       }
     }
-    patch.defaultScale = argv.scale
+    patch.defaultScale = argv.scale;
   }
-  if (argv.sessionName !== undefined) patch.defaultSessionName = argv.sessionName
-  if (argv.password !== undefined) patch.defaultPassword = argv.password
-  updateConfig(patch)
-  console.log('Config updated.')
+  if (argv.sessionName !== undefined) patch.defaultSessionName = argv.sessionName;
+  if (argv.password !== undefined) patch.defaultPassword = argv.password;
+  updateConfig(patch);
+  console.log('Config updated.');
 }
 
 const cli = yargs(hideBin(process.argv))
@@ -408,13 +413,14 @@ const cli = yargs(hideBin(process.argv))
         })
         .option('scale', {
           type: 'string',
-          describe: 'Estimation scale ID (fibonacci, t-shirt, powers-of-2, linear, risk, or custom-<id>)',
+          describe:
+            'Estimation scale ID (fibonacci, t-shirt, powers-of-2, linear, risk, or custom-<id>)',
         }),
     (argv) => {
       handleCreate(argv as Parameters<typeof handleCreate>[0]).catch((err) => {
-        console.error(err instanceof Error ? err.message : err)
-        process.exit(1)
-      })
+        console.error(err instanceof Error ? err.message : err);
+        process.exit(1);
+      });
     },
   )
   .command(
@@ -434,9 +440,9 @@ const cli = yargs(hideBin(process.argv))
         }),
     (argv) => {
       handleJoin(argv as Parameters<typeof handleJoin>[0]).catch((err) => {
-        console.error(err instanceof Error ? err.message : err)
-        process.exit(1)
-      })
+        console.error(err instanceof Error ? err.message : err);
+        process.exit(1);
+      });
     },
   )
   .command(
@@ -445,9 +451,9 @@ const cli = yargs(hideBin(process.argv))
     (y) => y,
     () => {
       handleResume().catch((err) => {
-        console.error(err instanceof Error ? err.message : err)
-        process.exit(1)
-      })
+        console.error(err instanceof Error ? err.message : err);
+        process.exit(1);
+      });
     },
   )
   .command(
@@ -477,20 +483,20 @@ const cli = yargs(hideBin(process.argv))
         }),
     (argv) => {
       handleConfig(argv as Parameters<typeof handleConfig>[0]).catch((err) => {
-        console.error(err instanceof Error ? err.message : err)
-        process.exit(1)
-      })
+        console.error(err instanceof Error ? err.message : err);
+        process.exit(1);
+      });
     },
   )
   .demandCommand(1, 'Specify a command: create, join, resume, or config')
   .strict()
-  .help()
+  .help();
 
 // No subcommand → show help + exit 0 (not error)
-const args = hideBin(process.argv)
+const args = hideBin(process.argv);
 if (args.length === 0 || (args.length === 1 && args[0] === '--')) {
-  cli.showHelp()
-  process.exit(0)
+  cli.showHelp();
+  process.exit(0);
 }
 
-cli.parse()
+cli.parse();

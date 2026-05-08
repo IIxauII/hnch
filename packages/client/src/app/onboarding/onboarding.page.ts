@@ -1,13 +1,7 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  signal,
-} from '@angular/core'
-import { toSignal } from '@angular/core/rxjs-interop'
-import { FormControl, ReactiveFormsModule } from '@angular/forms'
-import { Router } from '@angular/router'
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import {
   IonButton,
   IonContent,
@@ -18,10 +12,10 @@ import {
   IonList,
   IonNote,
   IonToolbar,
-} from '@ionic/angular/standalone'
+} from '@ionic/angular/standalone';
 
-import { DisplayNameService } from '../core/display-name.service'
-import { BrandMarkComponent } from '../shared/brand-mark.component'
+import { DisplayNameService } from '../core/display-name.service';
+import { BrandMarkComponent } from '../shared/brand-mark.component';
 
 /**
  * First-run Onboarding: capture a display name and persist it before
@@ -147,39 +141,37 @@ import { BrandMarkComponent } from '../shared/brand-mark.component'
   ],
 })
 export class OnboardingPage {
-  private readonly displayNameService = inject(DisplayNameService)
-  private readonly router = inject(Router)
+  private readonly displayNameService = inject(DisplayNameService);
+  private readonly router = inject(Router);
 
-  protected readonly displayName = new FormControl('', { nonNullable: true })
+  protected readonly displayName = new FormControl('', { nonNullable: true });
 
   private readonly rawValue = toSignal(this.displayName.valueChanges, {
     initialValue: this.displayName.value,
-  })
+  });
 
-  protected readonly canContinue = computed(
-    () => this.rawValue().trim().length > 0,
-  )
+  protected readonly canContinue = computed(() => this.rawValue().trim().length > 0);
 
-  protected readonly isSubmitting = signal(false)
+  protected readonly isSubmitting = signal(false);
 
   protected async submit(): Promise<void> {
     if (!this.canContinue() || this.isSubmitting()) {
-      return
+      return;
     }
-    this.isSubmitting.set(true)
+    this.isSubmitting.set(true);
     try {
-      const name = this.rawValue().trim()
-      await this.displayNameService.setDisplayName(name)
+      const name = this.rawValue().trim();
+      await this.displayNameService.setDisplayName(name);
 
-      const pending = await this.displayNameService.getPendingJoinUrl()
+      const pending = await this.displayNameService.getPendingJoinUrl();
       if (pending !== null && pending.length > 0) {
-        await this.displayNameService.clearPendingJoinUrl()
-        await this.router.navigateByUrl(pending)
-        return
+        await this.displayNameService.clearPendingJoinUrl();
+        await this.router.navigateByUrl(pending);
+        return;
       }
-      await this.router.navigate(['/home'])
+      await this.router.navigate(['/home']);
     } finally {
-      this.isSubmitting.set(false)
+      this.isSubmitting.set(false);
     }
   }
 }
