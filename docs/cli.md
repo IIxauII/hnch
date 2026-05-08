@@ -113,4 +113,4 @@ packages/cli/
 pnpm --filter @xauyxau/hnch test
 ```
 
-Unit tests live in `src/session.test.ts` and `src/ui/components/settings.test.ts`. The CLI is also exercised by the Playwright e2e suite in `packages/e2e` as a parity smoke client.
+Unit tests are spread across `src/*.test.ts` files (`session`, `config`, `host-election`, `last-session`, `relay-api`, `room-code-input`, `session-end-observer`, `session-expired`, `share`, `sync`) and `src/ui/components/settings.test.ts`. A terminal-level e2e harness (node-pty + vitest, covering `create`/`join`/`resume` against a live relay) is planned but not yet implemented — see `docs/backlog.md` §5.2.
