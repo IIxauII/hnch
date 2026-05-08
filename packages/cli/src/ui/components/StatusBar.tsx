@@ -1,22 +1,22 @@
-import React from 'react'
-import { Box, Text } from 'ink'
-import type { SyncStatus } from '../../sync.js'
+import React from 'react';
+import { Box, Text } from 'ink';
+import type { SyncStatus } from '../../sync.js';
 
 interface Props {
-  roomCode: string
-  sessionName?: string
-  status: SyncStatus
-  isHost: boolean
+  roomCode: string;
+  sessionName?: string | undefined;
+  status: SyncStatus;
+  isHost: boolean;
 }
 
 const STATUS_COLORS: Record<SyncStatus, string> = {
   connecting: 'yellow',
   connected: 'green',
   disconnected: 'red',
-}
+};
 
 export function StatusBar({ roomCode, sessionName, status, isHost }: Props): React.ReactElement {
-  const label = sessionName ? `${roomCode} · ${sessionName}` : roomCode
+  const label = sessionName ? `${roomCode} · ${sessionName}` : roomCode;
   return (
     <Box borderStyle="single" borderColor="gray" paddingX={1} justifyContent="space-between">
       <Text bold>hnch · {label}</Text>
@@ -25,5 +25,5 @@ export function StatusBar({ roomCode, sessionName, status, isHost }: Props): Rea
         <Text color={STATUS_COLORS[status]}>{status}</Text>
       </Box>
     </Box>
-  )
+  );
 }

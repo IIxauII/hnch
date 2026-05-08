@@ -12,7 +12,7 @@
  *     dynamic import (cache repopulated, re-attempted).
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 // ---------------------------------------------------------------------------
 // Module-level mocks — hoisted before imports.
@@ -20,36 +20,32 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 // ---------------------------------------------------------------------------
 
 vi.mock('barcode-detector/polyfill', () => {
-  throw new Error('chunk load failed')
-})
+  throw new Error('chunk load failed');
+});
 
 vi.mock('@capacitor-mlkit/barcode-scanning', () => ({
   BarcodeFormat: { QrCode: 'QR_CODE' },
   BarcodeScanner: { scan: vi.fn(), requestPermissions: vi.fn() },
-}))
+}));
 
 vi.mock('@capacitor/core', () => ({
   Capacitor: { isNativePlatform: () => false },
-}))
+}));
 
 vi.mock('@ionic/angular/standalone', () => ({
   ModalController: vi.fn(),
-}))
+}));
 
 vi.mock('./web-qr-scanner.overlay', () => ({
   WebQrScannerOverlayComponent: class WebQrScannerOverlayComponent {},
   mapDomErrorToReason: () => 'unknown',
-}))
+}));
 
 // ---------------------------------------------------------------------------
 // Imported after mocks
 // ---------------------------------------------------------------------------
 
-import {
-  ensurePolyfill,
-  resetPolyfillPromise,
-  getPolyfillPromise,
-} from './qr-scanner.service'
+import { ensurePolyfill, resetPolyfillPromise, getPolyfillPromise } from './qr-scanner.service';
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -57,12 +53,12 @@ import {
 
 describe('ensurePolyfill() — rejection path (production .catch at service.ts:41-44)', () => {
   beforeEach(() => {
-    resetPolyfillPromise()
-  })
+    resetPolyfillPromise();
+  });
 
   afterEach(() => {
-    resetPolyfillPromise()
-  })
+    resetPolyfillPromise();
+  });
 
   /**
    * R4-1: drives the production `.catch` path directly.
@@ -82,23 +78,23 @@ describe('ensurePolyfill() — rejection path (production .catch at service.ts:4
     // --- 1. First call: production .catch must reject and clear cache --------
     // Vitest wraps factory-throw errors; we assert it rejects (any error) —
     // what matters is the cache state, not the exact message.
-    await expect(ensurePolyfill()).rejects.toThrow()
+    await expect(ensurePolyfill()).rejects.toThrow();
 
     // Cache cleared by production .catch (not by test code).
-    expect(getPolyfillPromise()).toBeNull()
+    expect(getPolyfillPromise()).toBeNull();
 
     // --- 2. Second call: a new promise must be created (retry attempted) -----
     // ensurePolyfill() finds null cache → creates a new promise.
     // The new promise will also reject (same mock), but a new attempt was made.
-    const secondAttempt = ensurePolyfill()
+    const secondAttempt = ensurePolyfill();
     // Cache is populated immediately (before await) — a new dynamic import started.
-    expect(getPolyfillPromise()).not.toBeNull()
-    expect(getPolyfillPromise()).toBe(secondAttempt)
+    expect(getPolyfillPromise()).not.toBeNull();
+    expect(getPolyfillPromise()).toBe(secondAttempt);
 
     // The second attempt also rejects (same polyfill mock).
-    await expect(secondAttempt).rejects.toThrow()
+    await expect(secondAttempt).rejects.toThrow();
 
     // Cache cleared again by production .catch.
-    expect(getPolyfillPromise()).toBeNull()
-  })
-})
+    expect(getPolyfillPromise()).toBeNull();
+  });
+});

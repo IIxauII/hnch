@@ -6,12 +6,12 @@ import {
   effect,
   inject,
   signal,
-} from '@angular/core'
-import { IonChip, IonIcon, IonLabel } from '@ionic/angular/standalone'
-import { addIcons } from 'ionicons'
-import { cloudOfflineOutline, syncOutline } from 'ionicons/icons'
+} from '@angular/core';
+import { IonChip, IonIcon, IonLabel } from '@ionic/angular/standalone';
+import { addIcons } from 'ionicons';
+import { cloudOfflineOutline, syncOutline } from 'ionicons/icons';
 
-import { DocService } from './doc/doc.service'
+import { DocService } from './doc/doc.service';
 
 /**
  * Presentation state for the chip. Kept narrow so the template
@@ -19,10 +19,10 @@ import { DocService } from './doc/doc.service'
  * palette without any intermediate translation at render time.
  */
 interface ChipState {
-  readonly label: string
-  readonly color: 'medium' | 'warning'
-  readonly icon: 'cloud-offline-outline' | 'sync-outline'
-  readonly ariaLabel: string
+  readonly label: string;
+  readonly color: 'medium' | 'warning';
+  readonly icon: 'cloud-offline-outline' | 'sync-outline';
+  readonly ariaLabel: string;
 }
 
 /**
@@ -33,7 +33,7 @@ interface ChipState {
  * `HOST_ABSENCE_ELECTION_DEBOUNCE_MS`) can reference the value if
  * needed, though they are intentionally kept as separate constants.
  */
-export const DISCONNECTED_WARNING_DELAY_MS = 5_000
+export const DISCONNECTED_WARNING_DELAY_MS = 5_000;
 
 /**
  * Toolbar status chip — plan §3.9.
@@ -85,8 +85,8 @@ export const DISCONNECTED_WARNING_DELAY_MS = 5_000
   ],
 })
 export class ConnectionChipComponent {
-  private readonly docService = inject(DocService)
-  private readonly destroyRef = inject(DestroyRef)
+  private readonly docService = inject(DocService);
+  private readonly destroyRef = inject(DestroyRef);
 
   /**
    * True once `syncStatus` has been `'disconnected'` continuously for
@@ -94,39 +94,39 @@ export class ConnectionChipComponent {
    * the moment the status transitions away; the effect below owns
    * the one outstanding timer handle.
    */
-  private readonly disconnectedLongEnough = signal(false)
+  private readonly disconnectedLongEnough = signal(false);
 
   protected readonly display = computed<ChipState | null>(() => {
-    const status = this.docService.syncStatus()
+    const status = this.docService.syncStatus();
     switch (status) {
       case 'connected':
       case 'offline':
-        return null
+        return null;
       case 'connecting':
         return {
           label: 'Connecting…',
           color: 'medium',
           icon: 'sync-outline',
           ariaLabel: 'Connecting to relay',
-        }
+        };
       case 'disconnected':
-        if (!this.disconnectedLongEnough()) return null
+        if (!this.disconnectedLongEnough()) return null;
         return {
           label: 'Reconnecting…',
           color: 'warning',
           icon: 'cloud-offline-outline',
           ariaLabel: 'Disconnected from relay, attempting to reconnect',
-        }
+        };
     }
-  })
+  });
 
   constructor() {
     addIcons({
       'cloud-offline-outline': cloudOfflineOutline,
       'sync-outline': syncOutline,
-    })
+    });
 
-    let timerId: ReturnType<typeof setTimeout> | null = null
+    let timerId: ReturnType<typeof setTimeout> | null = null;
 
     // A single reactive effect owns the debounce. On every status
     // change we cancel the pending timer and, if the new status is
@@ -135,22 +135,22 @@ export class ConnectionChipComponent {
     // `disconnectedLongEnough` at `false` without ever flipping
     // visible.
     effect(() => {
-      const status = this.docService.syncStatus()
+      const status = this.docService.syncStatus();
       if (timerId !== null) {
-        clearTimeout(timerId)
-        timerId = null
+        clearTimeout(timerId);
+        timerId = null;
       }
       if (status === 'disconnected') {
         timerId = setTimeout(() => {
-          this.disconnectedLongEnough.set(true)
-        }, DISCONNECTED_WARNING_DELAY_MS)
+          this.disconnectedLongEnough.set(true);
+        }, DISCONNECTED_WARNING_DELAY_MS);
       } else {
-        this.disconnectedLongEnough.set(false)
+        this.disconnectedLongEnough.set(false);
       }
-    })
+    });
 
     this.destroyRef.onDestroy(() => {
-      if (timerId !== null) clearTimeout(timerId)
-    })
+      if (timerId !== null) clearTimeout(timerId);
+    });
   }
 }

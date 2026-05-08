@@ -1,11 +1,4 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  effect,
-  input,
-  output,
-  signal,
-} from '@angular/core'
+import { ChangeDetectionStrategy, Component, effect, input, output, signal } from '@angular/core';
 import {
   IonButton,
   IonButtons,
@@ -13,8 +6,8 @@ import {
   IonHeader,
   IonTitle,
   IonToolbar,
-} from '@ionic/angular/standalone'
-import QRCode from 'qrcode'
+} from '@ionic/angular/standalone';
+import QRCode from 'qrcode';
 
 /**
  * Full-screen QR display — ux.md §6 "QR display".
@@ -26,14 +19,7 @@ import QRCode from 'qrcode'
 @Component({
   selector: 'app-qr-display-sheet',
   host: { class: 'ion-page' },
-  imports: [
-    IonButton,
-    IonButtons,
-    IonContent,
-    IonHeader,
-    IonTitle,
-    IonToolbar,
-  ],
+  imports: [IonButton, IonButtons, IonContent, IonHeader, IonTitle, IonToolbar],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ion-header>
@@ -82,19 +68,19 @@ import QRCode from 'qrcode'
   ],
 })
 export class QrDisplaySheetComponent {
-  readonly inviteUrl = input.required<string>()
-  readonly roomCode = input.required<string>()
-  readonly closeRequested = output<void>()
+  readonly inviteUrl = input.required<string>();
+  readonly roomCode = input.required<string>();
+  readonly closeRequested = output<void>();
 
-  protected readonly qrDataUrl = signal<string | null>(null)
+  protected readonly qrDataUrl = signal<string | null>(null);
 
   constructor() {
     effect(() => {
-      const url = this.inviteUrl()
+      const url = this.inviteUrl();
       if (url) {
-        void this.generateQr(url)
+        void this.generateQr(url);
       }
-    })
+    });
   }
 
   private async generateQr(text: string): Promise<void> {
@@ -103,12 +89,12 @@ export class QrDisplaySheetComponent {
         width: 512,
         margin: 2,
         errorCorrectionLevel: 'M',
-      })
-      this.qrDataUrl.set(dataUrl)
+      });
+      this.qrDataUrl.set(dataUrl);
     } catch {
       // QR generation failure is non-critical — the room code
       // text is still visible as a fallback.
-      this.qrDataUrl.set(null)
+      this.qrDataUrl.set(null);
     }
   }
 }

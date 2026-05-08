@@ -5,7 +5,7 @@ import {
   signal,
   type Signal,
   type WritableSignal,
-} from '@angular/core'
+} from '@angular/core';
 import {
   appendRound as appendRoundY,
   castVote as castVoteY,
@@ -37,20 +37,16 @@ import {
   type Round,
   type Scale,
   type Settings,
-} from '@hnch/shared'
-import { Capacitor } from '@capacitor/core'
-import { Awareness } from 'y-protocols/awareness'
-import * as Y from 'yjs'
-import { IndexeddbPersistence } from 'y-indexeddb'
+} from '@hnch/shared';
+import { Capacitor } from '@capacitor/core';
+import { Awareness } from 'y-protocols/awareness';
+import * as Y from 'yjs';
+import { IndexeddbPersistence } from 'y-indexeddb';
 
-import { environment } from '../../../environments/environment'
-import { AppPreferenceService } from '../app-preference.service'
-import { ToastService } from '../../services/toast.service'
-import {
-  createSyncProvider,
-  type SyncProvider,
-  type SyncStatus,
-} from './sync-provider'
+import { environment } from '../../../environments/environment';
+import { AppPreferenceService } from '../app-preference.service';
+import { ToastService } from '../../services/toast.service';
+import { createSyncProvider, type SyncProvider, type SyncStatus } from './sync-provider';
 
 /**
  * Awareness field name that carries a peer's `participantId`. A
@@ -58,7 +54,7 @@ import {
  * awareness channel is a client-only transport detail — the relay is
  * content-blind (ADR-0001) and never reads this.
  */
-const AWARENESS_PARTICIPANT_ID_FIELD = 'participantId'
+const AWARENESS_PARTICIPANT_ID_FIELD = 'participantId';
 
 /**
  * Caller-facing init for {@link DocService.createSession}. Mirrors the
@@ -67,10 +63,10 @@ const AWARENESS_PARTICIPANT_ID_FIELD = 'participantId'
  * `roomCode` is its human-typeable twin.
  */
 export interface CreateSessionInit {
-  readonly participantId: string
-  readonly displayName: string
-  readonly defaultScale: Scale
-  readonly sessionName?: string
+  readonly participantId: string;
+  readonly displayName: string;
+  readonly defaultScale: Scale;
+  readonly sessionName?: string;
   /**
    * The room's UUID, minted by the relay's `POST /rooms` response
    * (ADR-0016). Tests may pass a stable value; production always
@@ -79,16 +75,16 @@ export interface CreateSessionInit {
    * Optional for back-compat with tests that mint a purely local doc;
    * when omitted, a fresh `crypto.randomUUID()` fills in.
    */
-  readonly roomUuid?: string
+  readonly roomUuid?: string;
   /**
    * The 6-character room code (ADR-0008). Kept on the service as a
    * separate signal rather than inside the Yjs doc — schema.md is
    * explicit that "room codes do not appear in the doc" (the code is
    * a relay-side lookup, the doc travels under the UUID).
    */
-  readonly roomCode?: string
+  readonly roomCode?: string;
   /** Clock injection point. Tests freeze this; production omits. */
-  readonly now?: () => number
+  readonly now?: () => number;
 }
 
 /**
@@ -96,10 +92,10 @@ export interface CreateSessionInit {
  * (ADR-0013); everything else is straight from the round-start modal.
  */
 export interface StartRoundInit {
-  readonly title?: string
-  readonly description?: string
-  readonly ticketId?: string
-  readonly parentRoundId?: string
+  readonly title?: string;
+  readonly description?: string;
+  readonly ticketId?: string;
+  readonly parentRoundId?: string;
 }
 
 /**
@@ -107,9 +103,9 @@ export interface StartRoundInit {
  * environment-configured relay URL; tests may override it.
  */
 export interface ConnectOptions {
-  readonly wsBaseUrl?: string
+  readonly wsBaseUrl?: string;
   /** Override room UUID — required when joining via {@link DocService.joinSession} since meta hasn't synced yet. */
-  readonly roomUuid?: string
+  readonly roomUuid?: string;
 }
 
 /**
@@ -132,34 +128,34 @@ export interface ConnectOptions {
  */
 @Injectable({ providedIn: 'root' })
 export class DocService {
-  private readonly appPrefs = inject(AppPreferenceService)
-  private readonly toastService = inject(ToastService)
+  private readonly appPrefs = inject(AppPreferenceService);
+  private readonly toastService = inject(ToastService);
 
   // ---------------------------------------------------------------------------
   // Private Yjs + sync state
   // ---------------------------------------------------------------------------
 
-  private doc: Y.Doc | null = null
-  private persistence: IndexeddbPersistence | null = null
-  private observers: Array<() => void> = []
-  private readonly projection: WritableSignal<DocProjection | null> =
-    signal<DocProjection | null>(null)
-  private readonly roomCodeSignal: WritableSignal<string | null> = signal<
-    string | null
-  >(null)
-  private provider: SyncProvider | null = null
+  private doc: Y.Doc | null = null;
+  private persistence: IndexeddbPersistence | null = null;
+  private observers: Array<() => void> = [];
+  private readonly projection: WritableSignal<DocProjection | null> = signal<DocProjection | null>(
+    null,
+  );
+  private readonly roomCodeSignal: WritableSignal<string | null> = signal<string | null>(null);
+  private provider: SyncProvider | null = null;
   /**
    * Set in joinSession, consumed by the next connectWithPersistence call,
    * cleared immediately after. Used to gate the post-sync clearOwnLeftStatus
    * callback (ADR-0036 §6 LWW fix).
    */
-  private joinParticipantId: string | null = null
-  private readonly syncStatusSignal: WritableSignal<SyncStatus | 'offline'> =
-    signal<SyncStatus | 'offline'>('offline')
+  private joinParticipantId: string | null = null;
+  private readonly syncStatusSignal: WritableSignal<SyncStatus | 'offline'> = signal<
+    SyncStatus | 'offline'
+  >('offline');
   private readonly lastRejectionSignal: WritableSignal<JoinRejectionReason | null> =
-    signal<JoinRejectionReason | null>(null)
+    signal<JoinRejectionReason | null>(null);
   /** Flips to true on the first `connected` event; resets on endSession. */
-  private readonly hasEverConnectedSignal: WritableSignal<boolean> = signal(false)
+  private readonly hasEverConnectedSignal: WritableSignal<boolean> = signal(false);
   /**
    * Flips to true after the relay sends its first sync_step_2 and y-websocket
    * fires `onSynced`. Resets on `endSession`. Used by
@@ -167,38 +163,32 @@ export class DocService {
    * before this flips came in via the snapshot apply (prior kick), not a live
    * host action on this connection.
    */
-  private readonly hasFirstSyncCompletedSignal: WritableSignal<boolean> = signal(false)
+  private readonly hasFirstSyncCompletedSignal: WritableSignal<boolean> = signal(false);
   /**
    * True while `endSessionForEveryone()` is in flight locally — guards the
    * `SessionEndService` observer from treating a self-triggered end as a
    * remote one.
    */
-  readonly endingSessionLocally: WritableSignal<boolean> = signal(false)
-  private awareness: Awareness | null = null
-  private awarenessOff: (() => void) | null = null
-  private readonly onlineParticipantIdsSignal: WritableSignal<
+  readonly endingSessionLocally: WritableSignal<boolean> = signal(false);
+  private awareness: Awareness | null = null;
+  private awarenessOff: (() => void) | null = null;
+  private readonly onlineParticipantIdsSignal: WritableSignal<ReadonlySet<string>> = signal<
     ReadonlySet<string>
-  > = signal<ReadonlySet<string>>(new Set())
+  >(new Set());
 
   // ---------------------------------------------------------------------------
   // Public signals
   // ---------------------------------------------------------------------------
 
-  readonly hasSession: Signal<boolean> = computed(
-    () => this.projection() !== null,
-  )
+  readonly hasSession: Signal<boolean> = computed(() => this.projection() !== null);
 
-  readonly meta: Signal<Meta | null> = computed(
-    () => this.projection()?.meta ?? null,
-  )
+  readonly meta: Signal<Meta | null> = computed(() => this.projection()?.meta ?? null);
 
-  readonly settings: Signal<Settings | null> = computed(
-    () => this.projection()?.settings ?? null,
-  )
+  readonly settings: Signal<Settings | null> = computed(() => this.projection()?.settings ?? null);
 
   readonly participants: Signal<readonly ParticipantSnapshot[]> = computed(
     () => this.projection()?.participants ?? [],
-  )
+  );
 
   /**
    * Active participants — raw list filtered through `isActiveParticipant`
@@ -211,40 +201,37 @@ export class DocService {
    * still resolve and the `isActiveParticipant` filter is applied inside
    * those components where semantics require it.
    */
-  readonly activeParticipants: Signal<readonly ParticipantSnapshot[]> = computed(
-    () => this.participants().filter(isActiveParticipant),
-  )
+  readonly activeParticipants: Signal<readonly ParticipantSnapshot[]> = computed(() =>
+    this.participants().filter(isActiveParticipant),
+  );
 
-  readonly rounds: Signal<readonly Round[]> = computed(
-    () => this.projection()?.rounds ?? [],
-  )
+  readonly rounds: Signal<readonly Round[]> = computed(() => this.projection()?.rounds ?? []);
 
   readonly currentRound: Signal<Round | null> = computed(() => {
-    const snap = this.projection()
-    return snap ? currentRoundFromProjection(snap) : null
-  })
+    const snap = this.projection();
+    return snap ? currentRoundFromProjection(snap) : null;
+  });
 
   /**
    * The relay-assigned 6-character room code (ADR-0008). `null` before
    * {@link createSession} runs or if the caller didn't plumb a code
    * through (e.g., local-only test seeds).
    */
-  readonly roomCode: Signal<string | null> = this.roomCodeSignal.asReadonly()
+  readonly roomCode: Signal<string | null> = this.roomCodeSignal.asReadonly();
 
   /**
    * Sync connection status. `'offline'` while no provider is attached
    * (pre-connect, post-disconnect); otherwise mirrors the y-websocket
    * `status` event's `connecting | connected | disconnected`.
    */
-  readonly syncStatus: Signal<SyncStatus | 'offline'> =
-    this.syncStatusSignal.asReadonly()
+  readonly syncStatus: Signal<SyncStatus | 'offline'> = this.syncStatusSignal.asReadonly();
 
   /**
    * Last relay-issued join rejection (ADR-0016's close-code table), if
    * any. Reset on each successful connect.
    */
   readonly lastRejection: Signal<JoinRejectionReason | null> =
-    this.lastRejectionSignal.asReadonly()
+    this.lastRejectionSignal.asReadonly();
 
   /**
    * True while the provider is attempting to reconnect after a transient
@@ -262,17 +249,16 @@ export class DocService {
    * transitions observed before this is true — those came from the snapshot
    * apply, not a live host action on this connection (ADR-0036 §6).
    */
-  readonly hasFirstSyncCompleted: Signal<boolean> =
-    this.hasFirstSyncCompletedSignal.asReadonly()
+  readonly hasFirstSyncCompleted: Signal<boolean> = this.hasFirstSyncCompletedSignal.asReadonly();
 
   readonly reconnecting: Signal<boolean> = computed(() => {
-    const s = this.syncStatusSignal()
+    const s = this.syncStatusSignal();
     return (
       this.hasEverConnectedSignal() &&
       (s === 'disconnected' || s === 'connecting') &&
       this.lastRejectionSignal() === null
-    )
-  })
+    );
+  });
 
   /**
    * Set of participantIds that are currently online per awareness
@@ -286,7 +272,7 @@ export class DocService {
    * intersect it against a round's `votes`.
    */
   readonly onlineParticipantIds: Signal<ReadonlySet<string>> =
-    this.onlineParticipantIdsSignal.asReadonly()
+    this.onlineParticipantIdsSignal.asReadonly();
 
   /**
    * Active participants filtered to those whose `participantId` is currently
@@ -295,18 +281,16 @@ export class DocService {
    * the Yjs participants list keeps them (ADR-0011's "the vote was
    * cast" semantic). Left/kicked participants are excluded (ADR-0036).
    */
-  readonly onlineParticipants: Signal<readonly ParticipantSnapshot[]> =
-    computed(() => {
-      const online = this.onlineParticipantIdsSignal()
-      return this.activeParticipants().filter((p) => online.has(p.id))
-    })
+  readonly onlineParticipants: Signal<readonly ParticipantSnapshot[]> = computed(() => {
+    const online = this.onlineParticipantIdsSignal();
+    return this.activeParticipants().filter((p) => online.has(p.id));
+  });
 
   /** Complement of {@link onlineParticipants} within the active set. Rendered dimmed. */
-  readonly offlineParticipants: Signal<readonly ParticipantSnapshot[]> =
-    computed(() => {
-      const online = this.onlineParticipantIdsSignal()
-      return this.activeParticipants().filter((p) => !online.has(p.id))
-    })
+  readonly offlineParticipants: Signal<readonly ParticipantSnapshot[]> = computed(() => {
+    const online = this.onlineParticipantIdsSignal();
+    return this.activeParticipants().filter((p) => !online.has(p.id));
+  });
 
   // ---------------------------------------------------------------------------
   // Lifecycle
@@ -321,14 +305,14 @@ export class DocService {
    */
   createSession(init: CreateSessionInit): string {
     if (this.doc !== null) {
-      throw new Error('DocService.createSession: a session is already active')
+      throw new Error('DocService.createSession: a session is already active');
     }
 
-    const now = init.now ?? (() => Date.now())
-    const roomUuid = init.roomUuid ?? crypto.randomUUID()
-    const createdAt = now()
+    const now = init.now ?? (() => Date.now());
+    const roomUuid = init.roomUuid ?? crypto.randomUUID();
+    const createdAt = now();
 
-    const doc = new Y.Doc()
+    const doc = new Y.Doc();
     const seed: InitDocInit = {
       roomUuid,
       createdAt,
@@ -336,13 +320,13 @@ export class DocService {
       displayName: init.displayName,
       defaultScale: init.defaultScale,
       ...(init.sessionName !== undefined && { sessionName: init.sessionName }),
-    }
-    initDoc(doc, seed)
+    };
+    initDoc(doc, seed);
 
-    this.attach(doc)
-    this.roomCodeSignal.set(init.roomCode ?? null)
-    this.initAwareness(doc, init.participantId)
-    return roomUuid
+    this.attach(doc);
+    this.roomCodeSignal.set(init.roomCode ?? null);
+    this.initAwareness(doc, init.participantId);
+    return roomUuid;
   }
 
   /**
@@ -351,27 +335,23 @@ export class DocService {
    * `hostParticipantId` are received from the relay via Yjs sync,
    * avoiding CRDT-merge conflicts with the creator's initial writes.
    */
-  joinSession(init: {
-    participantId: string
-    displayName: string
-    roomCode?: string
-  }): void {
+  joinSession(init: { participantId: string; displayName: string; roomCode?: string }): void {
     if (this.doc !== null) {
-      throw new Error('DocService.joinSession: a session is already active')
+      throw new Error('DocService.joinSession: a session is already active');
     }
 
-    const doc = new Y.Doc()
+    const doc = new Y.Doc();
     joinDoc(doc, {
       participantId: init.participantId,
       displayName: init.displayName,
-    })
+    });
 
-    this.attach(doc)
-    this.roomCodeSignal.set(init.roomCode ?? null)
-    this.initAwareness(doc, init.participantId)
+    this.attach(doc);
+    this.roomCodeSignal.set(init.roomCode ?? null);
+    this.initAwareness(doc, init.participantId);
     // Store so connectWithPersistence can schedule the post-sync leftAt clear
     // (ADR-0036 §6 LWW fix — delete must run after relay snapshot merges).
-    this.joinParticipantId = init.participantId
+    this.joinParticipantId = init.participantId;
   }
 
   /**
@@ -382,23 +362,23 @@ export class DocService {
    * fields ride on the same object without any wire change.
    */
   connect(credentials: JoinCredentials, opts: ConnectOptions = {}): void {
-    const doc = this.requireDoc('connect')
-    if (this.provider !== null) return
-    const roomUuid = opts.roomUuid ?? this.meta()?.roomUuid
+    const doc = this.requireDoc('connect');
+    if (this.provider !== null) return;
+    const roomUuid = opts.roomUuid ?? this.meta()?.roomUuid;
     if (roomUuid === undefined) {
-      throw new Error('DocService.connect: session has no roomUuid')
+      throw new Error('DocService.connect: session has no roomUuid');
     }
 
     // Start in `connecting` immediately so the UI's status chip doesn't
     // flash `offline` during the one-tick gap before y-websocket's
     // first `status` event fires.
-    this.syncStatusSignal.set('connecting')
+    this.syncStatusSignal.set('connecting');
 
     // Use AppPreferenceService relay URL override if set; fallback to environment default.
-    const wsUrl = opts.wsBaseUrl ?? this.appPrefs.relayWsUrl() ?? environment.relayWsUrl
+    const wsUrl = opts.wsBaseUrl ?? this.appPrefs.relayWsUrl() ?? environment.relayWsUrl;
 
-    void this.connectWithPersistence(doc, roomUuid, wsUrl, credentials, this.joinParticipantId)
-    this.joinParticipantId = null
+    void this.connectWithPersistence(doc, roomUuid, wsUrl, credentials, this.joinParticipantId);
+    this.joinParticipantId = null;
   }
 
   private async connectWithPersistence(
@@ -412,8 +392,8 @@ export class DocService {
     // UI is immediately populated from cache (ADR-0004).
     // Native: SQLite persistence deferred to Phase 6b (ADR-0004).
     if (!Capacitor.isNativePlatform()) {
-      this.persistence = new IndexeddbPersistence(roomUuid, doc)
-      await this.persistence.whenSynced
+      this.persistence = new IndexeddbPersistence(roomUuid, doc);
+      await this.persistence.whenSynced;
     }
 
     this.provider = createSyncProvider({
@@ -424,8 +404,8 @@ export class DocService {
       ...(this.awareness !== null && { awareness: this.awareness }),
       toastService: this.toastService,
       onStatusChange: (status) => {
-        this.syncStatusSignal.set(status)
-        if (status === 'connected') this.hasEverConnectedSignal.set(true)
+        this.syncStatusSignal.set(status);
+        if (status === 'connected') this.hasEverConnectedSignal.set(true);
       },
       onRejectionChange: (reason) => this.lastRejectionSignal.set(reason),
       // ADR-0036 §6 LWW fix: flip `hasFirstSyncCompleted` before clearing any
@@ -435,12 +415,12 @@ export class DocService {
       // Lamport clock than the snapshot's `set('leftAt', ...)` and wins the
       // LWW merge, making the participant active again.
       onSynced: () => {
-        this.hasFirstSyncCompletedSignal.set(true)
+        this.hasFirstSyncCompletedSignal.set(true);
         if (joinParticipantId !== null) {
-          this.clearOwnLeftStatus(joinParticipantId)
+          this.clearOwnLeftStatus(joinParticipantId);
         }
       },
-    })
+    });
   }
 
   /**
@@ -456,12 +436,12 @@ export class DocService {
    *   is best-effort; the local session teardown must not block on it.
    */
   async flushUpdates(cap = 500): Promise<void> {
-    if (this.provider === null) return
-    const ws = (this.provider as unknown as { ws?: WebSocket }).ws
-    if (!ws || ws.readyState !== WebSocket.OPEN) return
-    const deadline = Date.now() + cap
+    if (this.provider === null) return;
+    const ws = (this.provider as unknown as { ws?: WebSocket }).ws;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    const deadline = Date.now() + cap;
     while (ws.bufferedAmount > 0 && Date.now() < deadline) {
-      await new Promise<void>((r) => setTimeout(r, 16))
+      await new Promise<void>((r) => setTimeout(r, 16));
     }
   }
 
@@ -472,12 +452,12 @@ export class DocService {
    */
   disconnect(): void {
     if (this.provider === null) {
-      this.syncStatusSignal.set('offline')
-      return
+      this.syncStatusSignal.set('offline');
+      return;
     }
-    this.provider.disconnect()
-    this.provider = null
-    this.syncStatusSignal.set('offline')
+    this.provider.disconnect();
+    this.provider = null;
+    this.syncStatusSignal.set('offline');
   }
 
   /**
@@ -486,20 +466,20 @@ export class DocService {
    * to `false`. Idempotent — safe to call when no session is active.
    */
   endSession(): void {
-    this.disconnect()
-    this.persistence?.destroy()
-    this.persistence = null
-    this.teardownAwareness()
-    this.detach()
-    this.doc?.destroy()
-    this.doc = null
-    this.projection.set(null)
-    this.roomCodeSignal.set(null)
-    this.lastRejectionSignal.set(null)
-    this.hasEverConnectedSignal.set(false)
-    this.hasFirstSyncCompletedSignal.set(false)
-    this.endingSessionLocally.set(false)
-    this.joinParticipantId = null
+    this.disconnect();
+    this.persistence?.destroy();
+    this.persistence = null;
+    this.teardownAwareness();
+    this.detach();
+    this.doc?.destroy();
+    this.doc = null;
+    this.projection.set(null);
+    this.roomCodeSignal.set(null);
+    this.lastRejectionSignal.set(null);
+    this.hasEverConnectedSignal.set(false);
+    this.hasFirstSyncCompletedSignal.set(false);
+    this.endingSessionLocally.set(false);
+    this.joinParticipantId = null;
   }
 
   // ---------------------------------------------------------------------------
@@ -507,11 +487,11 @@ export class DocService {
   // ---------------------------------------------------------------------------
 
   updateSettings(patch: Partial<Settings>): void {
-    patchSettings(this.requireDoc('updateSettings'), patch)
+    patchSettings(this.requireDoc('updateSettings'), patch);
   }
 
   upsertParticipant(id: string, value: Participant): void {
-    upsertParticipantY(this.requireDoc('upsertParticipant'), id, value)
+    upsertParticipantY(this.requireDoc('upsertParticipant'), id, value);
   }
 
   /**
@@ -519,15 +499,15 @@ export class DocService {
    * Reads the current participant snapshot to preserve all other fields.
    */
   toggleRole(participantId: string): void {
-    const participant = this.participants().find((p) => p.id === participantId)
-    if (!participant) return
-    const currentRole = participantRole(participant)
-    const nextRole = currentRole === 'voter' ? 'viewer' : 'voter'
+    const participant = this.participants().find((p) => p.id === participantId);
+    if (!participant) return;
+    const currentRole = participantRole(participant);
+    const nextRole = currentRole === 'voter' ? 'viewer' : 'voter';
     upsertParticipantY(this.requireDoc('toggleRole'), participantId, {
       displayName: participant.displayName,
       joinedAt: participant.joinedAt,
       role: nextRole,
-    })
+    });
   }
 
   /**
@@ -538,15 +518,15 @@ export class DocService {
    * this keeps the attribution honest once Phase 3 adds joiners.
    */
   startRound(descriptor: StartRoundInit, opts: { now?: () => number } = {}): string {
-    const doc = this.requireDoc('startRound')
-    const settings = this.settings()
-    const createdBy = settings?.hostParticipantId
+    const doc = this.requireDoc('startRound');
+    const settings = this.settings();
+    const createdBy = settings?.hostParticipantId;
     if (!createdBy) {
-      throw new Error('DocService.startRound: no hostParticipantId in settings')
+      throw new Error('DocService.startRound: no hostParticipantId in settings');
     }
-    const id = crypto.randomUUID()
-    const now = opts.now ?? (() => Date.now())
-    const timestamp = now()
+    const id = crypto.randomUUID();
+    const now = opts.now ?? (() => Date.now());
+    const timestamp = now();
     appendRoundY(doc, {
       id,
       createdAt: timestamp,
@@ -559,28 +539,25 @@ export class DocService {
       ...(descriptor.parentRoundId !== undefined && {
         parentRoundId: descriptor.parentRoundId,
       }),
-    })
-    return id
+    });
+    return id;
   }
 
-  updateRoundDescriptor(
-    roundId: string,
-    fields: { title?: string; description?: string },
-  ): void {
-    patchRoundDescriptorY(this.requireDoc('updateRoundDescriptor'), roundId, fields)
+  updateRoundDescriptor(roundId: string, fields: { title?: string; description?: string }): void {
+    patchRoundDescriptorY(this.requireDoc('updateRoundDescriptor'), roundId, fields);
   }
 
   castVote(roundId: string, participantId: string, card: string): void {
-    castVoteY(this.requireDoc('castVote'), roundId, participantId, card)
+    castVoteY(this.requireDoc('castVote'), roundId, participantId, card);
   }
 
   clearVote(roundId: string, participantId: string): void {
-    clearVoteY(this.requireDoc('clearVote'), roundId, participantId)
+    clearVoteY(this.requireDoc('clearVote'), roundId, participantId);
   }
 
   revealRound(roundId: string, opts: { now?: () => number } = {}): void {
-    const now = opts.now ?? (() => Date.now())
-    revealRoundY(this.requireDoc('revealRound'), roundId, now())
+    const now = opts.now ?? (() => Date.now());
+    revealRoundY(this.requireDoc('revealRound'), roundId, now());
   }
 
   /**
@@ -589,8 +566,8 @@ export class DocService {
    * this local trigger from a remote one.
    */
   endSessionForEveryone(): void {
-    this.endingSessionLocally.set(true)
-    endSessionForEveryoneY(this.requireDoc('endSessionForEveryone'))
+    this.endingSessionLocally.set(true);
+    endSessionForEveryoneY(this.requireDoc('endSessionForEveryone'));
   }
 
   /**
@@ -599,7 +576,7 @@ export class DocService {
    * peers before the WS closes.
    */
   leaveSession(selfId: string): void {
-    leaveSessionY(this.requireDoc('leaveSession'), selfId)
+    leaveSessionY(this.requireDoc('leaveSession'), selfId);
   }
 
   /**
@@ -607,7 +584,7 @@ export class DocService {
    * No-op when `targetId === hostId`. UI must gate on `isHost()`.
    */
   removeParticipant(hostId: string, targetId: string): void {
-    removeParticipantY(this.requireDoc('removeParticipant'), hostId, targetId)
+    removeParticipantY(this.requireDoc('removeParticipant'), hostId, targetId);
   }
 
   /**
@@ -622,15 +599,15 @@ export class DocService {
    * No-op when the doc is not active or the participant has no `leftAt`.
    */
   private clearOwnLeftStatus(selfId: string): void {
-    const doc = this.doc
-    if (!doc) return
-    const participantsMap = doc.getMap(DOC_PARTICIPANTS_KEY) as Y.Map<Y.Map<unknown>>
-    const me = participantsMap.get(selfId)
-    if (!me || !me.has('leftAt')) return
+    const doc = this.doc;
+    if (!doc) return;
+    const participantsMap = doc.getMap(DOC_PARTICIPANTS_KEY) as Y.Map<Y.Map<unknown>>;
+    const me = participantsMap.get(selfId);
+    if (!me || !me.has('leftAt')) return;
     doc.transact(() => {
-      me.delete('leftAt')
-      me.delete('removedBy')
-    })
+      me.delete('leftAt');
+      me.delete('removedBy');
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -644,36 +621,36 @@ export class DocService {
    * scale.
    */
   private attach(doc: Y.Doc): void {
-    this.doc = doc
-    this.rebuildProjection()
+    this.doc = doc;
+    this.rebuildProjection();
 
-    const rebuild = (): void => this.rebuildProjection()
-    const meta = doc.getMap(DOC_META_KEY)
-    const settings = doc.getMap(DOC_SETTINGS_KEY)
-    const participants = doc.getMap(DOC_PARTICIPANTS_KEY)
-    const rounds = doc.getArray(DOC_ROUNDS_KEY)
+    const rebuild = (): void => this.rebuildProjection();
+    const meta = doc.getMap(DOC_META_KEY);
+    const settings = doc.getMap(DOC_SETTINGS_KEY);
+    const participants = doc.getMap(DOC_PARTICIPANTS_KEY);
+    const rounds = doc.getArray(DOC_ROUNDS_KEY);
 
-    meta.observeDeep(rebuild)
-    settings.observeDeep(rebuild)
-    participants.observeDeep(rebuild)
-    rounds.observeDeep(rebuild)
+    meta.observeDeep(rebuild);
+    settings.observeDeep(rebuild);
+    participants.observeDeep(rebuild);
+    rounds.observeDeep(rebuild);
 
     this.observers = [
       () => meta.unobserveDeep(rebuild),
       () => settings.unobserveDeep(rebuild),
       () => participants.unobserveDeep(rebuild),
       () => rounds.unobserveDeep(rebuild),
-    ]
+    ];
   }
 
   private detach(): void {
-    for (const off of this.observers) off()
-    this.observers = []
+    for (const off of this.observers) off();
+    this.observers = [];
   }
 
   private rebuildProjection(): void {
-    if (!this.doc) return
-    this.projection.set(projectDoc(this.doc))
+    if (!this.doc) return;
+    this.projection.set(projectDoc(this.doc));
   }
 
   /**
@@ -688,40 +665,37 @@ export class DocService {
    * Lobby / Estimating never observe a "my own row is offline" flash.
    */
   private initAwareness(doc: Y.Doc, participantId: string): void {
-    const awareness = new Awareness(doc)
-    awareness.setLocalStateField(AWARENESS_PARTICIPANT_ID_FIELD, participantId)
+    const awareness = new Awareness(doc);
+    awareness.setLocalStateField(AWARENESS_PARTICIPANT_ID_FIELD, participantId);
 
     const refresh = (): void => {
-      const next = new Set<string>()
+      const next = new Set<string>();
       for (const state of awareness.getStates().values()) {
-        const value = (state as Record<string, unknown>)[
-          AWARENESS_PARTICIPANT_ID_FIELD
-        ]
-        if (typeof value === 'string') next.add(value)
+        const value = (state as Record<string, unknown>)[AWARENESS_PARTICIPANT_ID_FIELD];
+        if (typeof value === 'string') next.add(value);
       }
-      this.onlineParticipantIdsSignal.set(next)
-    }
+      this.onlineParticipantIdsSignal.set(next);
+    };
 
-    awareness.on('change', refresh)
-    refresh()
+    awareness.on('change', refresh);
+    refresh();
 
-    this.awareness = awareness
-    this.awarenessOff = (): void => awareness.off('change', refresh)
+    this.awareness = awareness;
+    this.awarenessOff = (): void => awareness.off('change', refresh);
   }
 
   private teardownAwareness(): void {
-    this.awarenessOff?.()
-    this.awarenessOff = null
-    this.awareness?.destroy()
-    this.awareness = null
-    this.onlineParticipantIdsSignal.set(new Set())
+    this.awarenessOff?.();
+    this.awarenessOff = null;
+    this.awareness?.destroy();
+    this.awareness = null;
+    this.onlineParticipantIdsSignal.set(new Set());
   }
 
   private requireDoc(op: string): Y.Doc {
     if (!this.doc) {
-      throw new Error(`DocService.${op}: no active session`)
+      throw new Error(`DocService.${op}: no active session`);
     }
-    return this.doc
+    return this.doc;
   }
 }
-

@@ -1,32 +1,32 @@
-import React, { useState, useMemo } from 'react'
-import { Box, Text } from 'ink'
+import React, { useState, useMemo } from 'react';
+import { Box, Text } from 'ink';
 import {
   buildAvailableScales,
   formatScaleId,
   type Scale,
   type PresetOverrides,
   type CustomScale,
-} from '@hnch/shared'
-import { MenuList } from './MenuList.js'
-import { AccessPicker } from './AccessPicker.js'
-import { TextInput } from './TextInput.js'
-import { ScalePicker } from './ScalePicker.js'
-import { writeConfig } from '../../config.js'
+} from '@hnch/shared';
+import { MenuList } from './MenuList.js';
+import { AccessPicker } from './AccessPicker.js';
+import { TextInput } from './TextInput.js';
+import { ScalePicker } from './ScalePicker.js';
+import { writeConfig } from '../../config.js';
 
 export interface LobbySettingsProps {
-  sessionName: string | undefined
-  displayName: string
-  currentScale: Scale
-  accessMode: 'open' | 'password' | 'invite'
-  presetOverrides?: PresetOverrides
-  customScales?: CustomScale[]
+  sessionName: string | undefined;
+  displayName: string;
+  currentScale: Scale;
+  accessMode: 'open' | 'password' | 'invite';
+  presetOverrides?: PresetOverrides | undefined;
+  customScales?: CustomScale[] | undefined;
   /** When false (joiner), only Display name row is shown. Defaults to true. */
-  isHost?: boolean
-  onChangeName: (name: string | undefined) => void
-  onChangeScale: (scale: Scale) => void
-  onChangeDisplayName: (name: string) => void
-  onChangeAccess: (mode: 'open' | 'password', password?: string) => Promise<void>
-  onClose: () => void
+  isHost?: boolean | undefined;
+  onChangeName: (name: string | undefined) => void;
+  onChangeScale: (scale: Scale) => void;
+  onChangeDisplayName: (name: string) => void;
+  onChangeAccess: (mode: 'open' | 'password', password?: string) => Promise<void>;
+  onClose: () => void;
 }
 
 /**
@@ -38,7 +38,7 @@ export function filterSettingsItems<T extends { value: string }>(
   items: readonly T[],
   isHost: boolean,
 ): T[] {
-  return isHost ? [...items] : items.filter((i) => i.value === 'display-name')
+  return isHost ? [...items] : items.filter((i) => i.value === 'display-name');
 }
 
 type SettingsState =
@@ -46,7 +46,7 @@ type SettingsState =
   | 'editing-room-name'
   | 'editing-display-name'
   | 'picking-scale'
-  | 'picking-access'
+  | 'picking-access';
 
 export function LobbySettings({
   sessionName,
@@ -62,19 +62,19 @@ export function LobbySettings({
   onChangeAccess,
   onClose,
 }: LobbySettingsProps): React.ReactElement {
-  const [localOverrides, setLocalOverrides] = useState<PresetOverrides>(presetOverrides ?? {})
+  const [localOverrides, setLocalOverrides] = useState<PresetOverrides>(presetOverrides ?? {});
   const scales = useMemo(
     () => buildAvailableScales(localOverrides, customScales),
     [localOverrides, customScales],
-  )
-  const [state, setState] = useState<SettingsState>('main-menu')
-  const [roomNameInput, setRoomNameInput] = useState(sessionName ?? '')
-  const [displayNameInput, setDisplayNameInput] = useState(displayName)
+  );
+  const [state, setState] = useState<SettingsState>('main-menu');
+  const [roomNameInput, setRoomNameInput] = useState(sessionName ?? '');
+  const [displayNameInput, setDisplayNameInput] = useState(displayName);
   const [accessModeLocal, setAccessModeLocal] = useState<'open' | 'password'>(
     accessMode === 'password' ? 'password' : 'open',
-  )
-  const [passwordInput, setPasswordInput] = useState('')
-  const [isUpdating, setIsUpdating] = useState(false)
+  );
+  const [passwordInput, setPasswordInput] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const allMenuItems = [
     {
@@ -97,75 +97,75 @@ export function LobbySettings({
       value: 'display-name',
       detail: `[${displayName}]`,
     },
-  ]
+  ];
 
   // Joiners see only Display name; host items hidden to prevent mutation
-  const menuItems = filterSettingsItems(allMenuItems, isHost)
+  const menuItems = filterSettingsItems(allMenuItems, isHost);
 
   function handleMenuSelect(value: string) {
-    if (!isHost && value !== 'display-name') return
+    if (!isHost && value !== 'display-name') return;
     if (value === 'room-name') {
-      setRoomNameInput(sessionName ?? '')
-      setState('editing-room-name')
+      setRoomNameInput(sessionName ?? '');
+      setState('editing-room-name');
     } else if (value === 'scale') {
-      setState('picking-scale')
+      setState('picking-scale');
     } else if (value === 'access') {
-      setState('picking-access')
+      setState('picking-access');
     } else if (value === 'display-name') {
-      setDisplayNameInput(displayName)
-      setState('editing-display-name')
+      setDisplayNameInput(displayName);
+      setState('editing-display-name');
     }
   }
 
   function handleRoomNameSubmit(val: string) {
-    const trimmed = val.trim() === '' ? undefined : val.trim()
-    onChangeName(trimmed)
-    setState('main-menu')
+    const trimmed = val.trim() === '' ? undefined : val.trim();
+    onChangeName(trimmed);
+    setState('main-menu');
   }
 
   function handleDisplayNameSubmit(val: string) {
-    const trimmed = val.trim()
+    const trimmed = val.trim();
     if (trimmed.length > 0) {
-      onChangeDisplayName(trimmed)
-      process.nextTick(() => writeConfig({ displayName: trimmed }))
+      onChangeDisplayName(trimmed);
+      process.nextTick(() => writeConfig({ displayName: trimmed }));
     }
-    setState('main-menu')
+    setState('main-menu');
   }
 
   function handleScaleSelect(id: string) {
-    const selected = scales.find((s) => s.id === id)
+    const selected = scales.find((s) => s.id === id);
     if (selected) {
-      onChangeScale(selected)
+      onChangeScale(selected);
     }
-    setState('main-menu')
+    setState('main-menu');
   }
 
   function handleScaleOverrideChange(scaleId: string, disabledIndices: number[]) {
-    const updated = { ...localOverrides }
+    const updated = { ...localOverrides };
     if (disabledIndices.length === 0) {
-      delete updated[scaleId]
+      delete updated[scaleId];
     } else {
-      updated[scaleId] = disabledIndices
+      updated[scaleId] = disabledIndices;
     }
-    setLocalOverrides(updated)
-    writeConfig({ presetOverrides: Object.keys(updated).length > 0 ? updated : undefined })
+    setLocalOverrides(updated);
+    writeConfig({ presetOverrides: Object.keys(updated).length > 0 ? updated : undefined });
   }
 
   async function handleAccessSubmit(mode: 'open' | 'password', password?: string) {
-    setIsUpdating(true)
+    setIsUpdating(true);
     try {
-      await onChangeAccess(mode, password)
-      setAccessModeLocal(mode)
+      await onChangeAccess(mode, password);
+      setAccessModeLocal(mode);
       if (mode === 'password') {
-        setPasswordInput(password ?? '')
+        setPasswordInput(password ?? '');
       } else {
-        setPasswordInput('')
+        setPasswordInput('');
       }
     } catch (err) {
-      console.error(`Failed to update access: ${err}`)
+      console.error(`Failed to update access: ${err}`);
     } finally {
-      setIsUpdating(false)
-      setState('main-menu')
+      setIsUpdating(false);
+      setState('main-menu');
     }
   }
 
@@ -177,7 +177,7 @@ export function LobbySettings({
         onSelect={handleMenuSelect}
         onClose={onClose}
       />
-    )
+    );
   }
 
   if (state === 'editing-room-name') {
@@ -193,9 +193,9 @@ export function LobbySettings({
           placeholder="(leave empty to remove)"
           isActive
         />
-        <Text dimColor>⏎ confirm  esc back</Text>
+        <Text dimColor>⏎ confirm esc back</Text>
       </Box>
-    )
+    );
   }
 
   if (state === 'editing-display-name') {
@@ -211,9 +211,9 @@ export function LobbySettings({
           placeholder="(required)"
           isActive
         />
-        <Text dimColor>⏎ confirm  esc back</Text>
+        <Text dimColor>⏎ confirm esc back</Text>
       </Box>
-    )
+    );
   }
 
   if (state === 'picking-scale') {
@@ -229,7 +229,7 @@ export function LobbySettings({
           onClose={() => setState('main-menu')}
         />
       </Box>
-    )
+    );
   }
 
   if (state === 'picking-access') {
@@ -243,7 +243,7 @@ export function LobbySettings({
             password={passwordInput}
             onModeChange={(mode) => {
               if (mode === 'open') {
-                handleAccessSubmit('open')
+                handleAccessSubmit('open');
               }
             }}
             onPasswordChange={setPasswordInput}
@@ -251,8 +251,8 @@ export function LobbySettings({
           />
         )}
       </Box>
-    )
+    );
   }
 
-  return <Box />
+  return <Box />;
 }

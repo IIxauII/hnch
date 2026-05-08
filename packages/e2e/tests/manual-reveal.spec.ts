@@ -1,32 +1,34 @@
-import { test, expect } from './fixtures/app.fixture'
-import { LOBBY } from './fixtures/helpers'
+import { test, expect } from './fixtures/app.fixture';
+import { LOBBY } from './fixtures/helpers';
 
 test.describe('Manual reveal', () => {
   test('host reveals and both clients see all votes', async ({ host, player }) => {
-    const code = await host.createSession()
-    await player.joinSession(code)
-    await host.startRound()
-    await player.waitForEstimating()
+    const code = await host.createSession();
+    await player.joinSession(code);
+    await host.startRound();
+    await player.waitForEstimating();
 
-    await host.castVote('5')
-    await player.castVote('8')
+    await host.castVote('5');
+    await player.castVote('8');
 
     // Host reveals — navigates to /lobby with results
-    await host.reveal()
+    await host.reveal();
 
     // Player auto-navigates to lobby
-    await player.page.waitForURL(/\/lobby/, { timeout: 10_000 })
+    await player.page.waitForURL(/\/lobby/, { timeout: 10_000 });
 
     // Both see the correct votes in the results section
-    await host.expectRevealedVotes(['5', '8'])
-    await player.expectRevealedVotes(['5', '8'])
+    await host.expectRevealedVotes(['5', '8']);
+    await player.expectRevealedVotes(['5', '8']);
 
     // Host sees "Next Round" and "Re-vote" buttons
-    await expect(host.page.locator('ion-button', { hasText: LOBBY.nextRoundBtn })).toBeVisible()
-    await expect(host.page.locator(LOBBY.revoteBtn)).toBeVisible()
+    await expect(host.page.locator('ion-button', { hasText: LOBBY.nextRoundBtn })).toBeVisible();
+    await expect(host.page.locator(LOBBY.revoteBtn)).toBeVisible();
 
     // Player does NOT see host controls
-    await expect(player.page.locator('ion-button', { hasText: LOBBY.nextRoundBtn })).not.toBeVisible()
-    await expect(player.page.locator(LOBBY.revoteBtn)).not.toBeVisible()
-  })
-})
+    await expect(
+      player.page.locator('ion-button', { hasText: LOBBY.nextRoundBtn }),
+    ).not.toBeVisible();
+    await expect(player.page.locator(LOBBY.revoteBtn)).not.toBeVisible();
+  });
+});

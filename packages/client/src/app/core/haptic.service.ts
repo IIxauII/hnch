@@ -1,5 +1,5 @@
-import { Injectable } from '@angular/core'
-import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics'
+import { Injectable } from '@angular/core';
+import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 
 /**
  * Thin injectable wrapper around `@capacitor/haptics`.
@@ -14,22 +14,22 @@ import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics'
 @Injectable({ providedIn: 'root' })
 export class HapticService {
   impactLight(): void {
-    void Haptics.impact({ style: ImpactStyle.Light })
+    void Haptics.impact({ style: ImpactStyle.Light });
   }
 
   impactMedium(): void {
-    void Haptics.impact({ style: ImpactStyle.Medium })
+    void Haptics.impact({ style: ImpactStyle.Medium });
   }
 
   impactHeavy(): void {
-    void Haptics.impact({ style: ImpactStyle.Heavy })
+    void Haptics.impact({ style: ImpactStyle.Heavy });
   }
 
   notificationSuccess(): void {
-    void Haptics.notification({ type: NotificationType.Success })
+    void Haptics.notification({ type: NotificationType.Success });
   }
 
   notificationWarning(): void {
-    void Haptics.notification({ type: NotificationType.Warning })
+    void Haptics.notification({ type: NotificationType.Warning });
   }
 }

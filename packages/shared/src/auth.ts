@@ -19,7 +19,7 @@
  * perspective, this is an opaque string that either matches the
  * registered hash or does not.
  */
-export type PasswordHash = string
+export type PasswordHash = string;
 
 /**
  * A single-use invite token minted by the host for an invite-only room.
@@ -27,7 +27,7 @@ export type PasswordHash = string
  * socket-connect time. Tokens are short-lived and marked redeemed on
  * first successful use.
  */
-export type InviteToken = string
+export type InviteToken = string;
 
 /**
  * The join-credentials payload a client presents at socket-connect time.
@@ -41,13 +41,13 @@ export type InviteToken = string
  */
 export interface JoinCredentials {
   /** The room code to join, in normalized form (uppercase, no dashes). */
-  roomCode: string
+  roomCode: string;
   /** Required for password-protected rooms. */
-  passwordHash?: PasswordHash
+  passwordHash?: PasswordHash;
   /** Required for invite-only rooms. */
-  inviteToken?: InviteToken
+  inviteToken?: InviteToken;
   /** The joiner's device ID (ADR-0005). Also serves as the session's participantId. */
-  deviceId: string
+  deviceId: string;
 }
 
 /**
@@ -64,14 +64,12 @@ export type JoinRejectionReason =
   | 'expired-invite'
   | 'invite-already-redeemed'
   | 'room-full'
-  | 'malformed-credentials'
+  | 'malformed-credentials';
 
 /**
  * Relay response to a join attempt.
  */
-export type JoinResponse =
-  | { ok: true }
-  | { ok: false; reason: JoinRejectionReason }
+export type JoinResponse = { ok: true } | { ok: false; reason: JoinRejectionReason };
 
 /**
  * WebSocket close-code table per ADR-0016. Private-use codes
@@ -87,19 +85,19 @@ export const JOIN_REJECTION_CLOSE_CODES = {
   'invite-already-redeemed': 4005,
   'room-full': 4006,
   'malformed-credentials': 4010,
-} as const satisfies Record<JoinRejectionReason, number>
+} as const satisfies Record<JoinRejectionReason, number>;
 
 /**
  * Reverse lookup: close code → reason. Useful on the client side when
  * interpreting the WS close event.
  */
-export const JOIN_REJECTION_REASONS_BY_CODE: ReadonlyMap<number, JoinRejectionReason> =
-  new Map(
-    (Object.entries(JOIN_REJECTION_CLOSE_CODES) as [JoinRejectionReason, number][])
-      .map(([reason, code]) => [code, reason]),
-  )
+export const JOIN_REJECTION_REASONS_BY_CODE: ReadonlyMap<number, JoinRejectionReason> = new Map(
+  (Object.entries(JOIN_REJECTION_CLOSE_CODES) as [JoinRejectionReason, number][]).map(
+    ([reason, code]) => [code, reason],
+  ),
+);
 
 /**
  * Maximum number of participants allowed in a single room.
  */
-export const MAX_ROOM_PARTICIPANTS = 20
+export const MAX_ROOM_PARTICIPANTS = 20;

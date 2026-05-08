@@ -1,12 +1,6 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  effect,
-  inject,
-} from '@angular/core'
-import { Router } from '@angular/router'
-import { formatElapsed, participantRole, type ParticipantSnapshot } from '@hnch/shared'
+import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
+import { Router } from '@angular/router';
+import { formatElapsed, participantRole, type ParticipantSnapshot } from '@hnch/shared';
 import {
   ActionSheetController,
   AlertController,
@@ -22,20 +16,20 @@ import {
   IonLabel,
   IonTitle,
   IonToolbar,
-} from '@ionic/angular/standalone'
-import { addIcons } from 'ionicons'
-import { chevronBackOutline, ellipsisHorizontalCircle } from 'ionicons/icons'
+} from '@ionic/angular/standalone';
+import { addIcons } from 'ionicons';
+import { chevronBackOutline, ellipsisHorizontalCircle } from 'ionicons/icons';
 
-import { ConnectionChipComponent } from '../core/connection-chip.component'
-import { ConnectionStatusBannerComponent } from '../shared/connection-status-banner.component'
-import { DocService } from '../core/doc/doc.service'
-import { HapticService } from '../core/haptic.service'
-import { LastSessionService } from '../core/last-session.service'
-import { assertRoomCode } from '../core/room-join.service'
-import { shouldRecordCache } from '../core/cache-record-guard'
-import { ParticipantIdService } from '../core/participant-id.service'
-import { TimerTickService } from '../core/timer-tick.service'
-import { AvatarVoteRowComponent } from './avatar-vote-row.component'
+import { ConnectionChipComponent } from '../core/connection-chip.component';
+import { ConnectionStatusBannerComponent } from '../shared/connection-status-banner.component';
+import { DocService } from '../core/doc/doc.service';
+import { HapticService } from '../core/haptic.service';
+import { LastSessionService } from '../core/last-session.service';
+import { assertRoomCode } from '../core/room-join.service';
+import { shouldRecordCache } from '../core/cache-record-guard';
+import { ParticipantIdService } from '../core/participant-id.service';
+import { TimerTickService } from '../core/timer-tick.service';
+import { AvatarVoteRowComponent } from './avatar-vote-row.component';
 
 /**
  * Estimating — ux.md §5.5.
@@ -235,77 +229,77 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component'
   ],
 })
 export class EstimatingPage {
-  private readonly router = inject(Router)
-  private readonly docService = inject(DocService)
-  private readonly participantIdService = inject(ParticipantIdService)
-  private readonly haptic = inject(HapticService)
-  private readonly lastSessionService = inject(LastSessionService)
-  private readonly timerTick = inject(TimerTickService)
-  private readonly actionSheetCtrl = inject(ActionSheetController)
-  private readonly alertCtrl = inject(AlertController)
+  private readonly router = inject(Router);
+  private readonly docService = inject(DocService);
+  private readonly participantIdService = inject(ParticipantIdService);
+  private readonly haptic = inject(HapticService);
+  private readonly lastSessionService = inject(LastSessionService);
+  private readonly timerTick = inject(TimerTickService);
+  private readonly actionSheetCtrl = inject(ActionSheetController);
+  private readonly alertCtrl = inject(AlertController);
 
-  protected readonly currentRound = this.docService.currentRound
-  protected readonly onlineParticipants = this.docService.onlineParticipants
+  protected readonly currentRound = this.docService.currentRound;
+  protected readonly onlineParticipants = this.docService.onlineParticipants;
 
   // Tracks the last uuid written to the cache so the effect does not
   // re-fire on every Yjs doc mutation while connected to the same room.
   // Reset to null when status leaves 'connected' so a reconnect
   // re-writes and bumps the TTL.
-  private lastRecordedUuid: string | null = null
+  private lastRecordedUuid: string | null = null;
 
   constructor() {
     addIcons({
       'chevron-back-outline': chevronBackOutline,
       'ellipsis-horizontal-circle': ellipsisHorizontalCircle,
-    })
+    });
 
     // Bump `hnch.lastSession` so a reopen lands on Estimating rather
     // than Lobby (plan §3.8). Deduped via lastRecordedUuid so we don't
     // write on every Yjs doc mutation while staying connected
     // (ADR-0022 §5).
     effect(() => {
-      const code = this.docService.roomCode()
-      const uuid = this.docService.meta()?.roomUuid
-      const status = this.docService.syncStatus()
+      const code = this.docService.roomCode();
+      const uuid = this.docService.meta()?.roomUuid;
+      const status = this.docService.syncStatus();
       if (status !== 'connected') {
-        this.lastRecordedUuid = null
-        return
+        this.lastRecordedUuid = null;
+        return;
       }
       if (shouldRecordCache(code, uuid, status, this.lastRecordedUuid)) {
-        this.lastRecordedUuid = uuid ?? null
+        this.lastRecordedUuid = uuid ?? null;
         void this.lastSessionService.record({
           roomCode: code!,
           roomUuid: uuid!,
           lastScreen: 'estimating',
-        })
+        });
       }
-    })
+    });
 
     // Auto-navigate to Lobby when `revealedAt` is written — covers
     // unanimous auto-reveal and host manual reveal. Scoped to this
     // component's lifetime.
     effect(() => {
-      const round = this.docService.currentRound()
+      const round = this.docService.currentRound();
       if (round?.revealedAt !== undefined) {
-        const activeCode = this.docService.roomCode()
-        assertRoomCode(activeCode, 'estimating.autoNav')
-        void this.router.navigate(['/lobby', activeCode], { replaceUrl: true })
+        const activeCode = this.docService.roomCode();
+        assertRoomCode(activeCode, 'estimating.autoNav');
+        void this.router.navigate(['/lobby', activeCode], { replaceUrl: true });
       }
-    })
+    });
 
     // Unanimous auto-reveal: when all online voters have voted,
     // write `revealedAt`. Guard: require at least 1 online voter (ADR-0018).
     effect(() => {
-      const round = this.docService.currentRound()
-      const onlineVoterIds = this.onlineVoterIds()
+      const round = this.docService.currentRound();
+      const onlineVoterIds = this.onlineVoterIds();
       if (shouldAutoReveal(round, onlineVoterIds)) {
-        this.haptic.notificationSuccess()
-        this.docService.revealRound(round!.id)
+        this.haptic.notificationSuccess();
+        this.docService.revealRound(round!.id);
       }
-    })
+    });
   }
 
-  private readonly myId = this.participantIdService.id
+  private readonly myId = this.participantIdService.id;
 
   /**
    * 1-based index of the current round within `rounds()`. Re-votes and
@@ -314,20 +308,20 @@ export class EstimatingPage {
    * in).
    */
   protected readonly roundIndex = computed(() => {
-    const round = this.currentRound()
-    if (!round) return null
-    const rounds = this.docService.rounds()
-    const idx = rounds.findIndex((r) => r.id === round.id)
-    return idx >= 0 ? idx + 1 : null
-  })
+    const round = this.currentRound();
+    if (!round) return null;
+    const rounds = this.docService.rounds();
+    const idx = rounds.findIndex((r) => r.id === round.id);
+    return idx >= 0 ? idx + 1 : null;
+  });
 
   /** The current user's card, or `null` when they haven't voted yet. */
   protected readonly myVote = computed<string | null>(() => {
-    const id = this.myId()
-    const round = this.currentRound()
-    if (!id || !round) return null
-    return round.votes[id] ?? null
-  })
+    const id = this.myId();
+    const round = this.currentRound();
+    if (!id || !round) return null;
+    return round.votes[id] ?? null;
+  });
 
   /**
    * Set of participantIds that have a vote in the current round,
@@ -340,83 +334,83 @@ export class EstimatingPage {
    * there the tally *is* the post-reveal record.
    */
   protected readonly votedIds = computed<ReadonlySet<string>>(() => {
-    const round = this.currentRound()
-    if (!round) return new Set()
-    const voterIds = this.onlineVoterIds()
-    return new Set(Object.keys(round.votes).filter((id) => voterIds.has(id)))
-  })
+    const round = this.currentRound();
+    if (!round) return new Set();
+    const voterIds = this.onlineVoterIds();
+    return new Set(Object.keys(round.votes).filter((id) => voterIds.has(id)));
+  });
 
   protected readonly onlineVoterIds = computed<ReadonlySet<string>>(() => {
-    const online = this.docService.onlineParticipantIds()
-    const activeParticipants = this.docService.activeParticipants()
+    const online = this.docService.onlineParticipantIds();
+    const activeParticipants = this.docService.activeParticipants();
     return new Set(
       activeParticipants
         .filter((p) => online.has(p.id) && participantRole(p) !== 'viewer')
         .map((p) => p.id),
-    )
-  })
+    );
+  });
 
   protected readonly onlineVoterParticipants = computed<readonly ParticipantSnapshot[]>(() => {
-    const voterIds = this.onlineVoterIds()
-    const activeParticipants = this.docService.activeParticipants()
-    return activeParticipants.filter((p) => voterIds.has(p.id))
-  })
+    const voterIds = this.onlineVoterIds();
+    const activeParticipants = this.docService.activeParticipants();
+    return activeParticipants.filter((p) => voterIds.has(p.id));
+  });
 
   protected readonly isHost = computed(() => {
-    const myId = this.myId()
-    const hostId = this.docService.settings()?.hostParticipantId
-    return !!myId && !!hostId && myId === hostId
-  })
+    const myId = this.myId();
+    const hostId = this.docService.settings()?.hostParticipantId;
+    return !!myId && !!hostId && myId === hostId;
+  });
 
   /** True when the current user's effective role is `'viewer'`. */
   protected readonly isViewer = computed(() => {
-    const myId = this.myId()
-    if (!myId) return false
-    const me = this.docService.activeParticipants().find((p) => p.id === myId)
-    return me ? participantRole(me) === 'viewer' : false
-  })
+    const myId = this.myId();
+    if (!myId) return false;
+    const me = this.docService.activeParticipants().find((p) => p.id === myId);
+    return me ? participantRole(me) === 'viewer' : false;
+  });
 
   /**
    * Elapsed voting time label (M:SS counting up), or `null` before the
    * round's stopwatch has started. Driven by the 4 Hz wall-clock tick.
    */
   protected readonly elapsedLabel = computed<string | null>(() => {
-    const round = this.docService.currentRound()
-    if (!round || round.timerStartedAt === undefined) return null
-    const elapsed = this.timerTick.now() - round.timerStartedAt
-    return formatElapsed(Math.max(0, elapsed))
-  })
+    const round = this.docService.currentRound();
+    if (!round || round.timerStartedAt === undefined) return null;
+    const elapsed = this.timerTick.now() - round.timerStartedAt;
+    return formatElapsed(Math.max(0, elapsed));
+  });
 
   protected onToggleRole(): void {
-    const id = this.myId()
-    if (!id) return
-    this.haptic.impactLight()
-    this.docService.toggleRole(id)
+    const id = this.myId();
+    if (!id) return;
+    this.haptic.impactLight();
+    this.docService.toggleRole(id);
   }
 
   protected onCardTap(card: string): void {
-    const id = this.myId()
-    const round = this.currentRound()
-    if (!id || !round) return
+    const id = this.myId();
+    const round = this.currentRound();
+    if (!id || !round) return;
 
     if (this.myVote() === card) {
-      this.docService.clearVote(round.id, id)
+      this.docService.clearVote(round.id, id);
     } else {
-      this.docService.castVote(round.id, id, card)
+      this.docService.castVote(round.id, id, card);
     }
-    this.haptic.impactLight()
+    this.haptic.impactLight();
   }
 
   protected async onReveal(): Promise<void> {
-    const round = this.currentRound()
-    if (!round) return
-    this.haptic.impactMedium()
-    this.docService.revealRound(round.id)
-    const code = this.docService.roomCode()
-    assertRoomCode(code, 'estimating.onReveal')
+    const round = this.currentRound();
+    if (!round) return;
+    this.haptic.impactMedium();
+    this.docService.revealRound(round.id);
+    const code = this.docService.roomCode();
+    assertRoomCode(code, 'estimating.onReveal');
     // replaceUrl: back-nav from Lobby (results view) should pop to the
     // screen before Estimating, not bounce back here (plan §3.10).
-    await this.router.navigate(['/lobby', code], { replaceUrl: true })
+    await this.router.navigate(['/lobby', code], { replaceUrl: true });
   }
 
   /**
@@ -424,9 +418,9 @@ export class EstimatingPage {
    * session WITHOUT clearing the cache. Does not tear down the WebSocket.
    */
   protected softExit(): void {
-    const code = this.docService.roomCode()
-    assertRoomCode(code, 'estimating.softExit')
-    void this.router.navigate(['/lobby', code])
+    const code = this.docService.roomCode();
+    assertRoomCode(code, 'estimating.softExit');
+    void this.router.navigate(['/lobby', code]);
   }
 
   protected async openActionSheet(): Promise<void> {
@@ -435,37 +429,37 @@ export class EstimatingPage {
         text: 'Session settings',
         handler: () => {
           // Navigate to lobby (session settings sheet lives there).
-          const code = this.docService.roomCode()
-          assertRoomCode(code, 'estimating.openActionSheet[Session settings]')
-          void this.router.navigate(['/lobby', code])
+          const code = this.docService.roomCode();
+          assertRoomCode(code, 'estimating.openActionSheet[Session settings]');
+          void this.router.navigate(['/lobby', code]);
         },
       },
       {
         text: 'Leave session',
         role: 'destructive',
         handler: () => {
-          void this.confirmLeave()
+          void this.confirmLeave();
         },
       },
-    ]
+    ];
 
     if (this.isHost()) {
       buttons.splice(1, 0, {
         text: 'End session for everyone',
         role: 'destructive',
         handler: () => {
-          void this.confirmEndSession()
+          void this.confirmEndSession();
         },
-      })
+      });
     }
 
-    buttons.push({ text: 'Cancel', role: 'cancel' })
+    buttons.push({ text: 'Cancel', role: 'cancel' });
 
     const sheet = await this.actionSheetCtrl.create({
       header: 'Session',
       buttons,
-    })
-    await sheet.present()
+    });
+    await sheet.present();
   }
 
   private async confirmLeave(): Promise<void> {
@@ -478,27 +472,27 @@ export class EstimatingPage {
           text: 'Leave',
           role: 'destructive',
           handler: () => {
-            this.haptic.impactHeavy()
-            void this.leaveSession()
+            this.haptic.impactHeavy();
+            void this.leaveSession();
           },
         },
       ],
-    })
-    await alert.present()
+    });
+    await alert.present();
   }
 
   private async leaveSession(): Promise<void> {
-    const selfId = this.myId()
+    const selfId = this.myId();
     if (selfId) {
       // Write the soft-delete before disconnecting so peers see the removal (ADR-0036).
-      this.docService.leaveSession(selfId)
+      this.docService.leaveSession(selfId);
       // Flush the Yjs update through the WebSocket before closing (best-effort, 500 ms cap).
-      await this.docService.flushUpdates()
+      await this.docService.flushUpdates();
     }
-    this.docService.endSession()
+    this.docService.endSession();
     // Destructive leave — clear cache so Jump-back-in banner does not reappear (ADR-0022).
-    await this.lastSessionService.clear()
-    await this.router.navigate(['/home'])
+    await this.lastSessionService.clear();
+    await this.router.navigate(['/home']);
   }
 
   private async confirmEndSession(): Promise<void> {
@@ -511,13 +505,13 @@ export class EstimatingPage {
           text: 'End session',
           role: 'destructive',
           handler: () => {
-            this.haptic.impactHeavy()
-            this.docService.endSessionForEveryone()
+            this.haptic.impactHeavy();
+            this.docService.endSessionForEveryone();
           },
         },
       ],
-    })
-    await alert.present()
+    });
+    await alert.present();
   }
 }
 
@@ -528,11 +522,14 @@ export class EstimatingPage {
  * all online voters have voted.
  */
 export function shouldAutoReveal(
-  round: { readonly id: string; readonly revealedAt?: number; readonly votes: Record<string, string> } | null | undefined,
+  round:
+    | { readonly id: string; readonly revealedAt?: number; readonly votes: Record<string, string> }
+    | null
+    | undefined,
   onlineVoterIds: ReadonlySet<string>,
 ): boolean {
-  if (!round || round.revealedAt !== undefined) return false
-  if (onlineVoterIds.size === 0) return false
-  const votedCount = Object.keys(round.votes).filter((id) => onlineVoterIds.has(id)).length
-  return votedCount >= onlineVoterIds.size
+  if (!round || round.revealedAt !== undefined) return false;
+  if (onlineVoterIds.size === 0) return false;
+  const votedCount = Object.keys(round.votes).filter((id) => onlineVoterIds.has(id)).length;
+  return votedCount >= onlineVoterIds.size;
 }

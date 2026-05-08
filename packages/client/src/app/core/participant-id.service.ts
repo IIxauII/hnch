@@ -1,6 +1,6 @@
-import { Injectable, signal, type Signal } from '@angular/core'
-import { Device } from '@capacitor/device'
-import { Preferences } from '@capacitor/preferences'
+import { Injectable, signal, type Signal } from '@angular/core';
+import { Device } from '@capacitor/device';
+import { Preferences } from '@capacitor/preferences';
 
 /**
  * Persistent per-install participant identifier — ADR-0005.
@@ -28,10 +28,10 @@ import { Preferences } from '@capacitor/preferences'
  */
 @Injectable({ providedIn: 'root' })
 export class ParticipantIdService {
-  static readonly PARTICIPANT_ID_KEY = 'hnch.participantId'
+  static readonly PARTICIPANT_ID_KEY = 'hnch.participantId';
 
-  private readonly idSignal = signal<string | null>(null)
-  private loading: Promise<string> | null = null
+  private readonly idSignal = signal<string | null>(null);
+  private loading: Promise<string> | null = null;
 
   /**
    * Readable signal of the cached id, or `null` if {@link ensureLoaded}
@@ -39,7 +39,7 @@ export class ParticipantIdService {
    * reads are synchronous thanks to the `APP_INITIALIZER` harness in
    * `main.ts`; anything on a cold start must await once first.
    */
-  readonly id: Signal<string | null> = this.idSignal.asReadonly()
+  readonly id: Signal<string | null> = this.idSignal.asReadonly();
 
   /**
    * Resolve the participant id, draining the Phase-2 legacy key first
@@ -48,18 +48,18 @@ export class ParticipantIdService {
    * never double-read the Preferences backing store.
    */
   async getOrCreateId(): Promise<string> {
-    const cached = this.idSignal()
-    if (cached) return cached
-    if (this.loading) return this.loading
+    const cached = this.idSignal();
+    if (cached) return cached;
+    if (this.loading) return this.loading;
 
-    this.loading = this.resolve()
+    this.loading = this.resolve();
     try {
-      const id = await this.loading
-      return id
+      const id = await this.loading;
+      return id;
     } finally {
       // Clear the in-flight handle either way; subsequent calls read
       // straight from the signal without re-hitting the plugin bridge.
-      this.loading = null
+      this.loading = null;
     }
   }
 
@@ -69,7 +69,7 @@ export class ParticipantIdService {
    * paints" is the intent at bootstrap, not "create if missing".
    */
   async ensureLoaded(): Promise<string> {
-    return this.getOrCreateId()
+    return this.getOrCreateId();
   }
 
   private async resolve(): Promise<string> {
@@ -79,16 +79,16 @@ export class ParticipantIdService {
     // bump a `schemaVersion` in a later phase, this branch can retire.
     const legacy = await Preferences.get({
       key: ParticipantIdService.PARTICIPANT_ID_KEY,
-    })
+    });
     if (legacy.value) {
-      this.idSignal.set(legacy.value)
-      return legacy.value
+      this.idSignal.set(legacy.value);
+      return legacy.value;
     }
 
     // Fresh install path: ADR-0005's Device.getId(). Capacitor's web
     // backend generates + persists a UUID via localStorage, so the same
     // code path works under PWA, Capacitor iOS, and Capacitor Android.
-    const { identifier } = await Device.getId()
+    const { identifier } = await Device.getId();
     // We still stash it under the legacy key so a future Preferences
     // read cold-start hits the same branch. This keeps
     // `crypto.randomUUID()` and `Device.getId()` installs converging
@@ -97,8 +97,8 @@ export class ParticipantIdService {
     await Preferences.set({
       key: ParticipantIdService.PARTICIPANT_ID_KEY,
       value: identifier,
-    })
-    this.idSignal.set(identifier)
-    return identifier
+    });
+    this.idSignal.set(identifier);
+    return identifier;
   }
 }

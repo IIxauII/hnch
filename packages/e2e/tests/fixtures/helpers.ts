@@ -5,7 +5,7 @@
  * require a single-file update.
  */
 
-import type { Page } from '@playwright/test'
+import type { Page } from '@playwright/test';
 
 export async function expectToast(
   page: Page,
@@ -14,12 +14,12 @@ export async function expectToast(
 ): Promise<void> {
   await page.waitForFunction(
     ({ pattern, flags, isRegex }: { pattern: string; flags: string; isRegex: boolean }) => {
-      const toasts = Array.from(document.querySelectorAll('ion-toast:not(.overlay-hidden)'))
+      const toasts = Array.from(document.querySelectorAll('ion-toast:not(.overlay-hidden)'));
       return toasts.some((t) => {
-        const msg = (t as unknown as { message?: string }).message ?? ''
-        if (isRegex) return new RegExp(pattern, flags).test(msg)
-        return msg === pattern || msg.includes(pattern)
-      })
+        const msg = (t as unknown as { message?: string }).message ?? '';
+        if (isRegex) return new RegExp(pattern, flags).test(msg);
+        return msg === pattern || msg.includes(pattern);
+      });
     },
     {
       pattern: typeof message === 'string' ? message : message.source,
@@ -27,7 +27,7 @@ export async function expectToast(
       isRegex: message instanceof RegExp,
     },
     { timeout: opts?.timeout ?? 5_000 },
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -36,7 +36,7 @@ export async function expectToast(
 export const ONBOARDING = {
   nameInput: 'ion-input[autocapitalize="words"]',
   continueBtn: 'ion-button:has-text("Continue")',
-} as const
+} as const;
 
 // ---------------------------------------------------------------------------
 // Home
@@ -44,7 +44,7 @@ export const ONBOARDING = {
 export const HOME = {
   createCard: 'ion-item:has(h2:text-is("Create Room"))',
   joinCard: 'ion-item:has(h2:text-is("Join Room"))',
-} as const
+} as const;
 
 // ---------------------------------------------------------------------------
 // Join
@@ -59,7 +59,7 @@ export const JOIN = {
   passwordInput: 'ion-input[type="password"]',
   scanQrBtn: 'ion-item:has-text("Scan QR code")',
   joinBtn: 'ion-button:has-text("Join")',
-} as const
+} as const;
 
 /**
  * Type a room code into the segmented join-code input. Focuses the
@@ -67,9 +67,9 @@ export const JOIN = {
  * onInput handler advances focus to the next tile after each character.
  */
 export async function fillRoomCode(page: Page, code: string): Promise<void> {
-  const firstTile = page.locator(JOIN.codeInput).locator('input').first()
-  await firstTile.focus()
-  await page.keyboard.type(code)
+  const firstTile = page.locator(JOIN.codeInput).locator('input').first();
+  await firstTile.focus();
+  await page.keyboard.type(code);
 }
 
 // ---------------------------------------------------------------------------
@@ -92,7 +92,7 @@ export const LOBBY = {
   didntVoteGroup: 'section.results-section ion-item-group.didnt-vote',
   revoteBtn: 'ion-button:has-text("Re-vote")',
   nextRoundBtn: /Next Round \d+/,
-} as const
+} as const;
 
 // ---------------------------------------------------------------------------
 // QR display modal
@@ -102,7 +102,7 @@ export const QR_MODAL = {
   img: 'app-qr-display-sheet img',
   codeText: 'app-qr-display-sheet .room-code',
   doneBtn: 'app-qr-display-sheet ion-button:has-text("Done")',
-} as const
+} as const;
 
 // ---------------------------------------------------------------------------
 // Round-start modal
@@ -110,7 +110,7 @@ export const QR_MODAL = {
 export const ROUND_START = {
   titleInput: 'app-round-start-sheet ion-input',
   startBtn: 'app-round-start-sheet ion-button:has-text("Start")',
-} as const
+} as const;
 
 // ---------------------------------------------------------------------------
 // Estimating
@@ -126,7 +126,7 @@ export const ESTIMATING = {
   voteCount: 'app-estimating:not(.ion-page-hidden) app-avatar-vote-row .count',
   revealBtn: 'ion-button:has-text("Reveal Votes")',
   roleChip: 'app-estimating:not(.ion-page-hidden) ion-header ion-chip',
-} as const
+} as const;
 
 // ---------------------------------------------------------------------------
 // Session settings
@@ -137,18 +137,18 @@ export const SETTINGS_SHEET = {
   scaleValue: 'app-session-settings-sheet ion-item:has(h3:text-is("Scale")) ion-note',
   accessValue: 'app-session-settings-sheet ion-item:has(h3:text-is("Access")) ion-note',
   doneBtn: 'app-session-settings-sheet ion-button:has-text("Done")',
-} as const
+} as const;
 
 export const SCALE_PICKER = {
   option: (label: string) => `app-scale-picker-sheet ion-item:has(h3:text-is("${label}"))`,
   doneBtn: 'app-scale-picker-sheet ion-button:has-text("Done")',
-} as const
+} as const;
 
 export const ACCESS_PICKER = {
   option: (label: string) => `app-access-picker-sheet ion-item:has(h3:text-is("${label}"))`,
   passwordInput: 'app-access-picker-sheet ion-input[type="password"]',
   doneBtn: 'app-access-picker-sheet ion-button:has-text("Done")',
-} as const
+} as const;
 
 // ---------------------------------------------------------------------------
 // App settings (settings page, not session settings)
@@ -163,13 +163,12 @@ export const APP_SETTINGS = {
   defaultScaleRow: 'app-settings ion-item:has(ion-label:text-is("Default scale"))',
   defaultScaleValue: 'app-settings ion-item:has(ion-label:text-is("Default scale")) ion-note',
   versionValue: 'app-settings ion-item:has(ion-label:text-is("Version")) ion-note',
-} as const
+} as const;
 
 /** ion-select-popover option row, addressed by the visible label text. */
 export const SELECT_POPOVER = {
-  option: (label: string) =>
-    `ion-select-popover ion-radio:has-text("${label}")`,
-} as const
+  option: (label: string) => `ion-select-popover ion-radio:has-text("${label}")`,
+} as const;
 
 // ---------------------------------------------------------------------------
 // App settings scale picker (picker mode - builtin scales only)
@@ -179,21 +178,23 @@ export const SELECT_POPOVER = {
 export const APP_SETTINGS_SCALE_PICKER = {
   scaleRadio: (label: string) => `app-scale-picker-sheet ion-radio:has(h3:text-is("${label}"))`,
   scaleItem: (label: string) => `app-scale-picker-sheet ion-item:has(h3:text-is("${label}"))`,
-  editBtn: (label: string) => `app-scale-picker-sheet ion-item:has(h3:text-is("${label}")) ion-button`,
+  editBtn: (label: string) =>
+    `app-scale-picker-sheet ion-item:has(h3:text-is("${label}")) ion-button`,
   doneBtn: 'app-scale-picker-sheet ion-button:has-text("Done")',
-} as const
+} as const;
 
 // ---------------------------------------------------------------------------
 // Preset card toggle editor (scale-editor-sheet)
 // ---------------------------------------------------------------------------
 export const PRESET_CARD_EDITOR = {
-  cardToggle: (cardFace: string) => `app-scale-editor-sheet ion-item:has(h3:text-is("${cardFace}")) ion-toggle`,
+  cardToggle: (cardFace: string) =>
+    `app-scale-editor-sheet ion-item:has(h3:text-is("${cardFace}")) ion-toggle`,
   doneBtn: 'app-scale-editor-sheet ion-button:has-text("Done")',
   cardList: 'app-scale-editor-sheet ion-list',
-} as const
+} as const;
 
 // ---------------------------------------------------------------------------
 // Shared constants
 // ---------------------------------------------------------------------------
 export const BASE_URL =
-  process.env['PLAYWRIGHT_BASE_URL'] ?? `http://localhost:${process.env['CLIENT_PORT'] ?? 4200}`
+  process.env['PLAYWRIGHT_BASE_URL'] ?? `http://localhost:${process.env['CLIENT_PORT'] ?? 4200}`;

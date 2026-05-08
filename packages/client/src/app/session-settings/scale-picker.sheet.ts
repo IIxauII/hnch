@@ -7,9 +7,9 @@ import {
   output,
   signal,
   viewChild,
-} from '@angular/core'
-import { BUILTIN_SCALES, formatScaleId, type Scale } from '@hnch/shared'
-import { type CustomScale } from '@hnch/shared'
+} from '@angular/core';
+import { BUILTIN_SCALES, formatScaleId, type Scale } from '@hnch/shared';
+import { type CustomScale } from '@hnch/shared';
 import {
   IonButton,
   IonButtons,
@@ -29,14 +29,14 @@ import {
   IonRadioGroup,
   IonTitle,
   IonToolbar,
-} from '@ionic/angular/standalone'
-import { addIcons } from 'ionicons'
-import { addOutline, createOutline, trashOutline } from 'ionicons/icons'
+} from '@ionic/angular/standalone';
+import { addIcons } from 'ionicons';
+import { addOutline, createOutline, trashOutline } from 'ionicons/icons';
 
-import { HapticService } from '../core/haptic.service'
-import { ScalePreferenceService } from '../core/scale-preference.service'
-import { CustomScaleEditorSheetComponent } from './custom-scale-editor.sheet'
-import { ScaleEditorSheetComponent } from './scale-editor.sheet'
+import { HapticService } from '../core/haptic.service';
+import { ScalePreferenceService } from '../core/scale-preference.service';
+import { CustomScaleEditorSheetComponent } from './custom-scale-editor.sheet';
+import { ScaleEditorSheetComponent } from './scale-editor.sheet';
 
 /**
  * Unified scale picker and management component — ux.md §5.8 & §5.7.
@@ -253,127 +253,125 @@ import { ScaleEditorSheetComponent } from './scale-editor.sheet'
   ],
 })
 export class ScalePickerSheetComponent {
-  protected readonly scalePrefs = inject(ScalePreferenceService)
-  private readonly haptics = inject(HapticService)
-  private readonly editorModalRef = viewChild<IonModal>('editorModal')
-  private readonly customEditorModalRef = viewChild<IonModal>('customEditorModal')
+  protected readonly scalePrefs = inject(ScalePreferenceService);
+  private readonly haptics = inject(HapticService);
+  private readonly editorModalRef = viewChild<IonModal>('editorModal');
+  private readonly customEditorModalRef = viewChild<IonModal>('customEditorModal');
 
   /**
    * Optional: scale ID for pre-selection in picker mode. If provided,
    * component shows as a radio picker and emits scaleSelected events.
    * If not provided, shows management-only mode (presets + custom with CRUD).
    */
-  readonly selectedScaleId = input<string | undefined>(undefined)
+  readonly selectedScaleId = input<string | undefined>();
 
   /**
    * Emits the newly-selected scale in picker mode. The parent container
    * is responsible for writing to the doc or updating preferences.
    */
-  readonly scaleSelected = output<Scale>()
+  readonly scaleSelected = output<Scale>();
 
   /** Emits when the user taps "Done" in the header. */
-  readonly closeRequested = output<void>()
+  readonly closeRequested = output<void>();
 
-  protected readonly availableScales = this.scalePrefs.availableScales
-  protected readonly presetScales = Object.values(BUILTIN_SCALES)
+  protected readonly availableScales = this.scalePrefs.availableScales;
+  protected readonly presetScales = Object.values(BUILTIN_SCALES);
 
   /** True if in picker mode (selectedScaleId is provided). */
-  protected readonly showPickerMode = computed(() => this.selectedScaleId() !== undefined)
+  protected readonly showPickerMode = computed(() => this.selectedScaleId() !== undefined);
 
   /** ID of the builtin preset being card-toggled. */
-  protected readonly editingScaleId = signal<string | null>(null)
-  protected readonly editorOpen = signal(false)
+  protected readonly editingScaleId = signal<string | null>(null);
+  protected readonly editorOpen = signal(false);
 
   /** Custom scale being edited (undefined = create mode). */
-  protected readonly editingCustomScale = signal<CustomScale | undefined>(undefined)
-  protected readonly customEditorOpen = signal(false)
+  protected readonly editingCustomScale = signal<CustomScale | undefined>(undefined);
+  protected readonly customEditorOpen = signal(false);
 
-  protected readonly formatId = formatScaleId
+  protected readonly formatId = formatScaleId;
 
   constructor() {
     addIcons({
       'create-outline': createOutline,
       'add-outline': addOutline,
       'trash-outline': trashOutline,
-    })
+    });
   }
 
   protected onChange(id: string | null | undefined): void {
-    if (!id) return
-    const next = this.availableScales().find((s) => s.id === id)
-    if (!next) return
-    this.scaleSelected.emit(next)
+    if (!id) return;
+    const next = this.availableScales().find((s) => s.id === id);
+    if (!next) return;
+    this.scaleSelected.emit(next);
   }
 
   protected preview(scale: Scale): string {
-    return scale.cards.join(' · ')
+    return scale.cards.join(' · ');
   }
 
   protected previewBuiltin(id: string): string {
-    const overrides = this.scalePrefs.presetOverrides()
-    const builtin = BUILTIN_SCALES[id]
-    if (!builtin) return ''
-    const disabled = overrides[id] ?? []
+    const overrides = this.scalePrefs.presetOverrides();
+    const builtin = BUILTIN_SCALES[id];
+    if (!builtin) return '';
+    const disabled = overrides[id] ?? [];
     const cards =
-      disabled.length === 0
-        ? builtin.cards
-        : builtin.cards.filter((_, i) => !disabled.includes(i))
-    return this.previewCards(cards)
+      disabled.length === 0 ? builtin.cards : builtin.cards.filter((_, i) => !disabled.includes(i));
+    return this.previewCards(cards);
   }
 
   protected previewCards(cards: string[]): string {
-    return cards.join(' · ')
+    return cards.join(' · ');
   }
 
   private isBuiltin(id: string): boolean {
-    return id in BUILTIN_SCALES
+    return id in BUILTIN_SCALES;
   }
 
   /** Route to the appropriate editor depending on builtin vs custom. */
   protected openEdit(scale: Scale, event: Event): void {
-    event.stopPropagation()
+    event.stopPropagation();
     if (this.isBuiltin(scale.id)) {
-      this.editingScaleId.set(scale.id)
-      this.editorOpen.set(true)
+      this.editingScaleId.set(scale.id);
+      this.editorOpen.set(true);
     } else {
-      const custom = this.scalePrefs.customScales().find((s) => s.id === scale.id)
-      this.editingCustomScale.set(custom)
-      this.customEditorOpen.set(true)
+      const custom = this.scalePrefs.customScales().find((s) => s.id === scale.id);
+      this.editingCustomScale.set(custom);
+      this.customEditorOpen.set(true);
     }
   }
 
   protected openPresetEditor(scaleId: string): void {
-    this.editingScaleId.set(scaleId)
-    this.editorOpen.set(true)
+    this.editingScaleId.set(scaleId);
+    this.editorOpen.set(true);
   }
 
   protected async closeEditor(): Promise<void> {
-    await this.editorModalRef()?.dismiss()
-    this.editorOpen.set(false)
+    await this.editorModalRef()?.dismiss();
+    this.editorOpen.set(false);
   }
 
   protected openCustomEditor(scale?: CustomScale): void {
-    this.editingCustomScale.set(scale)
-    this.customEditorOpen.set(true)
+    this.editingCustomScale.set(scale);
+    this.customEditorOpen.set(true);
   }
 
   protected async closeCustomEditor(): Promise<void> {
-    await this.customEditorModalRef()?.dismiss()
-    this.customEditorOpen.set(false)
+    await this.customEditorModalRef()?.dismiss();
+    this.customEditorOpen.set(false);
   }
 
   protected onCustomScaleCreated(id: string): void {
-    const scale = this.availableScales().find((s) => s.id === id)
-    if (scale) this.scaleSelected.emit(scale)
+    const scale = this.availableScales().find((s) => s.id === id);
+    if (scale) this.scaleSelected.emit(scale);
   }
 
   protected onCustomScaleUpdated(id: string): void {
-    const scale = this.availableScales().find((s) => s.id === id)
-    if (scale) this.scaleSelected.emit(scale)
+    const scale = this.availableScales().find((s) => s.id === id);
+    if (scale) this.scaleSelected.emit(scale);
   }
 
   protected onDeleteCustomScale(scale: CustomScale): void {
-    this.haptics.notificationWarning()
-    void this.scalePrefs.deleteCustomScale(scale.id)
+    this.haptics.notificationWarning();
+    void this.scalePrefs.deleteCustomScale(scale.id);
   }
 }
