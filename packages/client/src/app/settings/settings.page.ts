@@ -212,12 +212,13 @@ import { SectionCardComponent } from '../shared/ui/section-card.component';
         </ng-template>
       </ion-modal>
 
-      <!-- Relay URL editor half-sheet -->
+      <!-- Relay URL editor modal -->
       <ion-modal
         #relayUrlModal
         [isOpen]="relayUrlEditorOpen()"
         [breakpoints]="[0, 0.6, 0.95]"
         [initialBreakpoint]="0.6"
+        cssClass="hnch-form-modal"
         (didDismiss)="relayUrlEditorOpen.set(false)"
       >
         <ng-template>

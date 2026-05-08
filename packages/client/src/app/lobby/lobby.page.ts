@@ -280,6 +280,7 @@ import { SectionCardComponent } from '../shared/ui/section-card.component';
       [isOpen]="roundStartOpen()"
       [breakpoints]="[0, 0.6, 0.95]"
       [initialBreakpoint]="0.6"
+      cssClass="hnch-form-modal"
       (didDismiss)="roundStartOpen.set(false)"
     >
       <ng-template>
@@ -295,6 +296,7 @@ import { SectionCardComponent } from '../shared/ui/section-card.component';
       [isOpen]="sessionSettingsOpen()"
       [breakpoints]="[0, 0.6, 0.95]"
       [initialBreakpoint]="0.6"
+      cssClass="hnch-form-modal"
       (didDismiss)="sessionSettingsOpen.set(false)"
     >
       <ng-template>
@@ -326,6 +328,7 @@ import { SectionCardComponent } from '../shared/ui/section-card.component';
       [isOpen]="roundEditOpen()"
       [breakpoints]="[0, 0.6, 0.95]"
       [initialBreakpoint]="0.6"
+      cssClass="hnch-form-modal"
       (didDismiss)="onRoundEditDismiss()"
     >
       <ng-template>

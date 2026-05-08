@@ -10,10 +10,6 @@ import {
 } from '@angular/core';
 import { hashPassword, type Scale } from '@hnch/shared';
 import {
-  IonButton,
-  IonButtons,
-  IonContent,
-  IonHeader,
   IonIcon,
   IonInput,
   IonItem,
@@ -21,8 +17,6 @@ import {
   IonList,
   IonModal,
   IonNote,
-  IonTitle,
-  IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { chevronForwardOutline } from 'ionicons/icons';
@@ -40,9 +34,10 @@ import {
 import { ScalePickerSheetComponent } from './scale-picker.sheet';
 import { presentSheet } from '../utils/present-sheet';
 import { formatScaleId } from '@hnch/shared';
+import { FormModalShellComponent } from '../shared/ui/form-modal-shell.component';
 
 /**
- * Session settings half-sheet — ux.md §5.8.
+ * Session settings modal — ux.md §5.8.
  *
  * Two rows (Scale, Access) with chevrons that open the corresponding
  * picker half-sheets. Scale writes through to `DocService` immediately
@@ -54,10 +49,7 @@ import { formatScaleId } from '@hnch/shared';
   host: { class: 'ion-page' },
   imports: [
     AccessPickerSheetComponent,
-    IonButton,
-    IonButtons,
-    IonContent,
-    IonHeader,
+    FormModalShellComponent,
     IonIcon,
     IonInput,
     IonItem,
@@ -65,92 +57,88 @@ import { formatScaleId } from '@hnch/shared';
     IonList,
     IonModal,
     IonNote,
-    IonTitle,
-    IonToolbar,
     ScalePickerSheetComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <ion-header>
-      <ion-toolbar>
-        <ion-title>Session settings</ion-title>
-        <ion-buttons slot="end">
-          <ion-button (click)="closeRequested.emit()">Done</ion-button>
-        </ion-buttons>
-      </ion-toolbar>
-    </ion-header>
-    <ion-content class="ion-padding-top">
-      <ion-list lines="inset">
-        <ion-item [disabled]="!isHost()">
-          <ion-label position="floating">Session name</ion-label>
-          <ion-input
-            #sessionNameInput
-            type="text"
-            placeholder="Session name"
-            [value]="settings()?.name"
-            [disabled]="!isHost()"
-            (ionBlur)="onSessionNameBlur()"
-            clearInput
-            aria-label="Session name"
-          ></ion-input>
-        </ion-item>
-        <ion-item button (click)="openScalePicker()">
-          <ion-label>
-            <h3>Scale</h3>
-          </ion-label>
-          <ion-note slot="end" class="value">{{ scaleLabel() }}</ion-note>
-          <ion-icon
-            slot="end"
-            name="chevron-forward-outline"
-            aria-hidden="true"
-          ></ion-icon>
-        </ion-item>
-        <ion-item button (click)="openAccessPicker()">
-          <ion-label>
-            <h3>Access</h3>
-          </ion-label>
-          <ion-note slot="end" class="value">{{ accessLabel() }}</ion-note>
-          <ion-icon
-            slot="end"
-            name="chevron-forward-outline"
-            aria-hidden="true"
-          ></ion-icon>
-        </ion-item>
-      </ion-list>
-    </ion-content>
-
-    <ion-modal
-      #scaleModal
-      [isOpen]="scaleOpen()"
-      [breakpoints]="[0, 0.6, 0.95]"
-      [initialBreakpoint]="0.6"
-      (didDismiss)="scaleOpen.set(false)"
+    <hnch-form-modal-shell
+      title="Session settings"
+      submitLabel="Done"
+      (submit)="closeRequested.emit()"
     >
-      <ng-template>
-        <app-scale-picker-sheet
-          [selectedScaleId]="currentScale()?.id"
-          (scaleSelected)="onScaleSelected($event)"
-          (closeRequested)="closeScalePicker()"
-        />
-      </ng-template>
-    </ion-modal>
+      <div class="ion-padding-top">
+        <ion-list lines="inset">
+          <ion-item [disabled]="!isHost()">
+            <ion-label position="floating">Session name</ion-label>
+            <ion-input
+              #sessionNameInput
+              type="text"
+              placeholder="Session name"
+              [value]="settings()?.name"
+              [disabled]="!isHost()"
+              (ionBlur)="onSessionNameBlur()"
+              clearInput
+              aria-label="Session name"
+            ></ion-input>
+          </ion-item>
+          <ion-item button (click)="openScalePicker()">
+            <ion-label>
+              <h3>Scale</h3>
+            </ion-label>
+            <ion-note slot="end" class="value">{{ scaleLabel() }}</ion-note>
+            <ion-icon
+              slot="end"
+              name="chevron-forward-outline"
+              aria-hidden="true"
+            ></ion-icon>
+          </ion-item>
+          <ion-item button (click)="openAccessPicker()">
+            <ion-label>
+              <h3>Access</h3>
+            </ion-label>
+            <ion-note slot="end" class="value">{{ accessLabel() }}</ion-note>
+            <ion-icon
+              slot="end"
+              name="chevron-forward-outline"
+              aria-hidden="true"
+            ></ion-icon>
+          </ion-item>
+        </ion-list>
+      </div>
 
-    <ion-modal
-      #accessModal
-      [isOpen]="accessOpen()"
-      [breakpoints]="[0, 0.6, 0.95]"
-      [initialBreakpoint]="0.6"
-      (didDismiss)="accessOpen.set(false)"
-    >
-      <ng-template>
-        <app-access-picker-sheet
-          [currentMode]="accessMode()"
-          [currentPassword]="accessPassword()"
-          (selected)="onAccessSelected($event)"
-          (closeRequested)="closeAccessPicker()"
-        />
-      </ng-template>
-    </ion-modal>
+      <ion-modal
+        #scaleModal
+        [isOpen]="scaleOpen()"
+        [breakpoints]="[0, 0.6, 0.95]"
+        [initialBreakpoint]="0.6"
+        (didDismiss)="scaleOpen.set(false)"
+      >
+        <ng-template>
+          <app-scale-picker-sheet
+            [selectedScaleId]="currentScale()?.id"
+            (scaleSelected)="onScaleSelected($event)"
+            (closeRequested)="closeScalePicker()"
+          />
+        </ng-template>
+      </ion-modal>
+
+      <ion-modal
+        #accessModal
+        [isOpen]="accessOpen()"
+        [breakpoints]="[0, 0.6, 0.95]"
+        [initialBreakpoint]="0.6"
+        (didDismiss)="accessOpen.set(false)"
+      >
+        <ng-template>
+          <app-access-picker-sheet
+            [currentMode]="accessMode()"
+            [currentPassword]="accessPassword()"
+            (selected)="onAccessSelected($event)"
+            (closeRequested)="closeAccessPicker()"
+          />
+        </ng-template>
+      </ion-modal>
+    </hnch-form-modal-shell>
   `,
   styles: [
     `

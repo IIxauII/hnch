@@ -1,72 +1,36 @@
 import { ChangeDetectionStrategy, Component, input, OnInit, output } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import {
-  IonButton,
-  IonButtons,
-  IonContent,
-  IonHeader,
-  IonInput,
-  IonItem,
-  IonLabel,
-  IonList,
-  IonNote,
-  IonTitle,
-  IonToolbar,
-} from '@ionic/angular/standalone';
+import { IonInput, IonItem, IonLabel, IonList, IonNote } from '@ionic/angular/standalone';
+import { FormModalShellComponent } from '../shared/ui/form-modal-shell.component';
 
 /**
- * Relay URL editor half-sheet.
+ * Relay URL editor modal.
  *
  * Pre-fills an `ion-input` with the current relay URL override.
- * The Done button validates the URL and emits the value; it is disabled
+ * The Save button validates the URL and emits the value; it is disabled
  * when the input is empty/whitespace-only or invalid URL format.
- * Clear button emits undefined to remove the override (fallback to
- * environment). Parent (Settings page) is responsible for persisting
- * via AppPreferenceService.
+ * Parent (Settings page) is responsible for persisting via AppPreferenceService.
  */
 @Component({
   selector: 'app-relay-url-editor-sheet',
   host: { class: 'ion-page' },
   imports: [
-    IonButton,
-    IonButtons,
-    IonContent,
-    IonHeader,
+    FormModalShellComponent,
     IonInput,
     IonItem,
     IonLabel,
     IonList,
     IonNote,
-    IonTitle,
-    IonToolbar,
     ReactiveFormsModule,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <ion-header>
-      <ion-toolbar>
-        <ion-title>Relay URL</ion-title>
-        <ion-buttons slot="end">
-          @if (urlCtrl.value.trim()) {
-            <ion-button
-              (click)="onClear()"
-              aria-label="Clear relay URL override"
-            >
-              Clear
-            </ion-button>
-          }
-          <ion-button
-            (click)="onDone()"
-            [disabled]="urlCtrl.invalid"
-            aria-label="Save relay URL"
-          >
-            Done
-          </ion-button>
-        </ion-buttons>
-      </ion-toolbar>
-    </ion-header>
-    <ion-content class="ion-padding">
-      <ion-list lines="none">
+    <hnch-form-modal-shell
+      title="Relay URL"
+      submitLabel="Save"
+      (submit)="onDone()"
+    >
+      <ion-list lines="none" class="ion-padding">
         <ion-item>
           <ion-label position="stacked">Relay HTTP URL (optional)</ion-label>
           <ion-input
@@ -80,17 +44,8 @@ import {
       <ion-note class="ion-padding-start">
         Leave blank to use default relay. URL must start with http:// or https://
       </ion-note>
-    </ion-content>
+    </hnch-form-modal-shell>
   `,
-  styles: [
-    `
-      ion-note {
-        display: block;
-        font-size: 0.85rem;
-        margin-top: 1rem;
-      }
-    `,
-  ],
 })
 export class RelayUrlEditorSheetComponent implements OnInit {
   /** Current relay URL override — pre-fills the input. */

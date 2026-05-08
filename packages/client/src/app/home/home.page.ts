@@ -134,12 +134,13 @@ import { SectionCardComponent } from '../shared/ui/section-card.component';
         }
       </div>
 
-      <!-- Password prompt half-sheet -->
+      <!-- Password prompt modal -->
       <ion-modal
         #passwordModal
         [isOpen]="passwordPromptOpen()"
         [breakpoints]="[0, 0.6, 0.95]"
         [initialBreakpoint]="0.6"
+        cssClass="hnch-form-modal"
         (didDismiss)="passwordPromptOpen.set(false)"
       >
         <ng-template>

@@ -211,6 +211,7 @@ import { ScaleEditorSheetComponent } from './scale-editor.sheet';
       [isOpen]="editorOpen()"
       [breakpoints]="[0, 0.6, 0.95]"
       [initialBreakpoint]="0.6"
+      cssClass="hnch-form-modal"
       (didDismiss)="editorOpen.set(false)"
     >
       <ng-template>
@@ -229,6 +230,7 @@ import { ScaleEditorSheetComponent } from './scale-editor.sheet';
       [isOpen]="customEditorOpen()"
       [breakpoints]="[0, 0.6, 1]"
       [initialBreakpoint]="1"
+      cssClass="hnch-form-modal"
       (didDismiss)="customEditorOpen.set(false)"
     >
       <ng-template>
