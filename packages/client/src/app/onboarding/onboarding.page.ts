@@ -2,23 +2,9 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import {
-  IonButton,
-  IonCol,
-  IonContent,
-  IonFooter,
-  IonGrid,
-  IonHeader,
-  IonInput,
-  IonItem,
-  IonList,
-  IonNote,
-  IonRow,
-  IonToolbar,
-} from '@ionic/angular/standalone';
+import { IonButton, IonContent, IonInput } from '@ionic/angular/standalone';
 
 import { DisplayNameService } from '../core/display-name.service';
-import { BrandMarkComponent } from '../shared/brand-mark.component';
 
 /**
  * First-run Onboarding: capture a display name and persist it before
@@ -34,116 +20,119 @@ import { BrandMarkComponent } from '../shared/brand-mark.component';
 @Component({
   selector: 'app-onboarding',
   host: { class: 'ion-page' },
-  imports: [
-    BrandMarkComponent,
-    IonButton,
-    IonCol,
-    IonContent,
-    IonFooter,
-    IonGrid,
-    IonHeader,
-    IonInput,
-    IonItem,
-    IonList,
-    IonNote,
-    IonRow,
-    IonToolbar,
-    ReactiveFormsModule,
-  ],
+  imports: [IonButton, IonContent, IonInput, ReactiveFormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <ion-header [translucent]="true">
-      <ion-toolbar></ion-toolbar>
-    </ion-header>
-    <ion-content>
-      <ion-grid fixed class="page-grid">
-        <ion-row>
-          <ion-col size="12" sizeMd="10" offsetMd="1" sizeLg="8" offsetLg="2">
-            <div class="hero">
-              <app-brand-mark [size]="64" />
-              <h1>Welcome to hnch</h1>
-              <p class="subtitle">Pick a name your team will see next to your votes.</p>
-            </div>
-
-            <ion-list inset="true">
-              <ion-item lines="none">
-                <ion-input
-                  [formControl]="displayName"
-                  label="Display name"
-                  labelPlacement="stacked"
-                  autocapitalize="words"
-                  autocomplete="name"
-                  enterkeyhint="done"
-                  maxlength="40"
-                  placeholder="Your name"
-                  (keydown.enter)="submit()"
-                ></ion-input>
-              </ion-item>
-              <ion-note class="footer-note">You can change this later in Settings.</ion-note>
-            </ion-list>
-          </ion-col>
-        </ion-row>
-      </ion-grid>
+    <ion-content [fullscreen]="true">
+      <div class="frame">
+        <div class="hero">
+          <h1 class="hero-mark">hnch</h1>
+          <p class="hero-tag">Estimate by hunch.</p>
+        </div>
+        <div class="card">
+          <span class="eyebrow">Welcome</span>
+          <h2 class="prompt">What should the team call you?</h2>
+          <ion-input
+            [formControl]="displayName"
+            class="name-input"
+            fill="outline"
+            shape="round"
+            autocapitalize="words"
+            autocomplete="name"
+            enterkeyhint="done"
+            maxlength="40"
+            placeholder="Your name"
+            (keydown.enter)="submit()"
+          ></ion-input>
+          <p class="hint">You can change this later in Settings.</p>
+          <ion-button
+            class="continue-btn"
+            shape="round"
+            size="large"
+            [disabled]="!canContinue() || isSubmitting()"
+            (click)="submit()"
+          >
+            Continue
+          </ion-button>
+        </div>
+      </div>
     </ion-content>
-    <ion-footer>
-      <ion-toolbar>
-        <ion-button
-          expand="block"
-          size="large"
-          [disabled]="!canContinue() || isSubmitting()"
-          (click)="submit()"
-        >
-          Continue
-        </ion-button>
-      </ion-toolbar>
-    </ion-footer>
   `,
   styles: [
     `
-      ion-header ion-toolbar {
-        --background: transparent;
-        --border-width: 0;
-      }
       ion-content {
         --background: var(--ion-background-color);
-        --padding-start: 24px;
-        --padding-end: 24px;
-        --padding-top: 64px;
-        --padding-bottom: 24px;
       }
-      .hero {
+      .frame {
+        max-width: 560px;
+        margin: 0 auto;
+        padding: clamp(48px, 10vw, 120px) 24px clamp(32px, 5vw, 64px);
         display: flex;
         flex-direction: column;
-        gap: 16px;
-        padding-block-end: 32px;
+        gap: clamp(32px, 6vw, 56px);
+        min-height: 100%;
+        box-sizing: border-box;
       }
-      h1 {
-        margin: 0;
-        font-size: 34px;
-        font-weight: 700;
-        letter-spacing: 0.36px;
-        line-height: 1.05;
+      .hero {
+        text-align: center;
+      }
+      .hero-mark {
+        font-family: var(--hnch-font-display);
+        font-weight: 800;
+        font-size: clamp(64px, 12vw, 144px);
+        line-height: 0.9;
+        letter-spacing: -0.04em;
+        margin: 0 0 8px;
+        font-variation-settings: 'opsz' 144;
         color: var(--ion-text-color);
       }
-      .subtitle {
+      .hero-tag {
+        font-family: var(--hnch-font-display);
+        font-style: italic;
+        font-weight: 400;
+        font-size: clamp(15px, 1.4vw, 20px);
+        color: var(--ion-color-step-600);
         margin: 0;
-        font-size: 17px;
-        letter-spacing: -0.4px;
+      }
+      .card {
+        background: var(--ion-background-color-step-50);
+        border-radius: 22px;
+        padding: clamp(28px, 4vw, 40px);
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .eyebrow {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
         color: var(--ion-color-step-600);
       }
-      ion-list {
-        background: transparent;
+      .prompt {
+        font-family: var(--hnch-font-display);
+        font-weight: 700;
+        font-size: clamp(24px, 3vw, 32px);
+        line-height: 1.15;
+        letter-spacing: -0.02em;
+        margin: 0 0 8px;
+        color: var(--ion-text-color);
       }
-      .footer-note {
-        display: block;
-        padding: 8px 16px 0;
+      .name-input {
+        --background: var(--ion-background-color);
+        --border-radius: 12px;
+        --padding-start: 16px;
+        --padding-end: 16px;
+        font-size: 17px;
+      }
+      .hint {
         font-size: 13px;
         color: var(--ion-color-step-600);
+        margin: 4px 0 16px;
       }
-      ion-footer ion-toolbar {
-        --background: transparent;
-        --border-width: 0;
-        padding: 12px 16px 16px;
+      .continue-btn {
+        align-self: stretch;
+        --border-radius: 14px;
       }
     `,
   ],
