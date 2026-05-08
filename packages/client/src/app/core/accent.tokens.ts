@@ -35,7 +35,7 @@ export const ACCENTS: Record<AccentKey, AccentDef> = {
   orange: { base: '#FF9F0A', soft: 'rgba(255,159,10,0.16)', ink: '#000', label: 'Orange' },
   amber: { base: '#FFD60A', soft: 'rgba(255,214,10,0.18)', ink: '#000', label: 'Amber' },
   green: { base: '#30D158', soft: 'rgba(48,209,88,0.14)', ink: '#000', label: 'Green' },
-  teal: { base: '#40C8E0', soft: 'rgba(64,200,224,0.14)', ink: '#000', label: 'Teal' },
+  teal: { base: '#26A69A', soft: 'rgba(38,166,154,0.16)', ink: '#fff', label: 'Teal' },
   graphite: { base: '#1C1C1E', soft: 'rgba(28,28,30,0.10)', ink: '#fff', label: 'Graphite' },
 };
 
@@ -47,6 +47,7 @@ export const ACCENTS_DARK_OVERRIDE: Partial<Record<AccentKey, AccentDef>> = {
     ink: '#fff',
     label: 'Racing Green',
   },
+  teal: { base: '#4DB6AC', soft: 'rgba(77,182,172,0.20)', ink: '#000', label: 'Teal' },
 };
 
-export const DEFAULT_ACCENT: AccentKey = 'racing-green';
+export const DEFAULT_ACCENT: AccentKey = 'teal';

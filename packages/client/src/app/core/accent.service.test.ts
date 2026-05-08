@@ -83,22 +83,22 @@ describe('AccentService', () => {
   // Defaults
   // -------------------------------------------------------------------------
 
-  it('defaults to racing-green when storage is empty', async () => {
+  it('defaults to teal when storage is empty', async () => {
     mockPreferences.get.mockResolvedValue({ value: null });
     const svc = await createService();
     await svc.loadFromStorage();
 
-    expect(svc.accent()).toBe('racing-green');
-    expect(getCssVar('--hnch-accent')).toBe('#0B3D2E');
-    expect(getCssVar('--ion-color-primary')).toBe('#0B3D2E');
+    expect(svc.accent()).toBe('teal');
+    expect(getCssVar('--hnch-accent')).toBe('#26A69A');
+    expect(getCssVar('--ion-color-primary')).toBe('#26A69A');
   });
 
-  it('defaults to racing-green when stored value is invalid', async () => {
+  it('defaults to teal when stored value is invalid', async () => {
     mockPreferences.get.mockResolvedValue({ value: 'totally-fake' });
     const svc = await createService();
     await svc.loadFromStorage();
 
-    expect(svc.accent()).toBe('racing-green');
+    expect(svc.accent()).toBe('teal');
   });
 
   // -------------------------------------------------------------------------
@@ -250,6 +250,6 @@ describe('AccentService', () => {
 
     expect(mockPreferences.get).toHaveBeenCalledWith({ key: 'hnch.accent' });
     expect(svc.accent()).toBe('teal');
-    expect(getCssVar('--hnch-accent')).toBe('#40C8E0');
+    expect(getCssVar('--hnch-accent')).toBe('#26A69A');
   });
 });
