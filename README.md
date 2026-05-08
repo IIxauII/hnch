@@ -32,11 +32,10 @@ hnch/
 │   ├── shared/      # Types, Yjs helpers, auth, room codes
 │   └── e2e/         # Playwright test suite
 ├── adr/             # Architecture Decision Records (immutable)
+├── docs/            # project.md, schema.md, ux.md, roadmap.md, and more
 ├── plans/           # Research and planning docs
-├── project.md       # Product overview
-├── schema.md        # Yjs document schema
 ├── CLAUDE.md        # Agent guidance
-└── [other docs]
+└── [other root files]
 ```
 
 ## Prerequisites
