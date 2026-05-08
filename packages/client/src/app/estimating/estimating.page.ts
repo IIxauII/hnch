@@ -112,7 +112,11 @@ import { ActionMenuService } from '../shared/ui/action-menu.service';
         }
 
         @if (elapsedLabel(); as label) {
-          <p class="elapsed" role="status" aria-live="off">{{ label }}</p>
+          @if (isHost()) {
+            <p class="elapsed elapsed--host" role="status" aria-live="off" aria-label="Elapsed time: {{ label }}">{{ label }}</p>
+          } @else {
+            <p class="elapsed elapsed--voter" role="status" aria-live="off" aria-label="Elapsed time: {{ label }}">{{ label }}</p>
+          }
         }
 
         <app-avatar-vote-row
@@ -187,11 +191,17 @@ import { ActionMenuService } from '../shared/ui/action-menu.service';
         color: var(--hnch-text);
       }
       .elapsed {
-        font: var(--hnch-numeral-lg);
-        letter-spacing: var(--hnch-numeral-tracking);
-        font-variant-numeric: tabular-nums;
         margin: 0 0 var(--hnch-sp-3);
+        font-variant-numeric: tabular-nums;
+        letter-spacing: var(--hnch-numeral-tracking);
         color: var(--ion-color-medium);
+      }
+      /* Host sees large elapsed timer (numeral-xl); voters see compact pill (numeral-lg) */
+      .elapsed--host {
+        font: var(--hnch-numeral-xl);
+      }
+      .elapsed--voter {
+        font: var(--hnch-numeral-lg);
       }
       .cards-eyebrow {
         margin: var(--hnch-sp-4) 0 var(--hnch-sp-2);

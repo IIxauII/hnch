@@ -25,30 +25,38 @@ import type { ParticipantSnapshot } from '@hnch/shared';
     `
       :host {
         display: block;
+        margin-block: var(--hnch-sp-3);
       }
       .row {
         display: flex;
         align-items: center;
-        gap: 0.75rem;
+        gap: var(--hnch-sp-3);
       }
       .dots {
         display: flex;
-        gap: 0.35rem;
+        gap: var(--hnch-sp-1);
+        flex-wrap: wrap;
       }
       .dot {
-        width: 0.75rem;
-        height: 0.75rem;
+        width: 12px;
+        height: 12px;
         border-radius: 50%;
         border: 1.5px solid var(--ion-color-medium);
         background: transparent;
+        transition: background 0.15s ease, border-color 0.15s ease;
       }
       .dot.voted {
         background: var(--ion-color-primary);
         border-color: var(--ion-color-primary);
       }
       .count {
-        color: var(--ion-color-medium);
-        font-size: 0.95rem;
+        color: var(--hnch-muted);
+        font: var(--hnch-body-sm);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .dot {
+          transition: none;
+        }
       }
     `,
   ],
