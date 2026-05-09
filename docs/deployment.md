@@ -84,7 +84,5 @@ Per ADR-0029:
 
 ## Out of scope (future work)
 
-- Static PWA deploy job (`deploy-client.yml`) — straightforward extension once the relay path is proven.
-- CLI deployment (`@hnch/cli` to npm + Homebrew tap) — resumes once a default `wss://hnch.dev` is live so the CLI can ship with a sane fallback.
 - Observability: structured metrics, log shipping, alerting.
 - HA / multi-region.

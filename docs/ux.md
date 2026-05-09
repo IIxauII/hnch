@@ -225,7 +225,7 @@ Native → iOS share sheet (AirDrop, Messages, Mail, Slack, etc.). Web → brows
 
 ### QR scanning
 
-**Scan QR code** on Join Room opens `@capacitor-mlkit/barcode-scanning` full-screen camera. Successful scan (QR containing hnch invite URL) → code extracted, scanner dismisses, code input auto-populates. Non-hnch content → toast ("That doesn't look like an hnch invite"), stay in scanner.
+**Scan QR code** on Join Room opens a camera scanner (native: `@capacitor-mlkit/barcode-scanning`; web: `barcode-detector` polyfill + overlay modal per ADR-0034). Successful scan (QR containing hnch invite URL) → code extracted, scanner dismisses, code input auto-populates. Non-hnch content → scanner closes, toast shown ("That doesn't look like an hnch invite"), user stays on Join page.
 
 ### QR display
 
