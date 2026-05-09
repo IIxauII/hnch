@@ -67,7 +67,7 @@
 @media (min-width: $bp-md) {
   ion-modal.modal-centered::part(content) {
     --width: min(480px, 90vw);
-    --height: auto;
+    --height: 500px;
     --max-height: 80vh;
     --border-radius: 16px;
   }

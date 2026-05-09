@@ -1,4 +1,4 @@
-import { Injectable, inject, signal, type Signal } from '@angular/core';
+import { Injectable, computed, inject, signal, type Signal } from '@angular/core';
 import {
   ActionSheetController,
   ModalController,
@@ -49,6 +49,38 @@ export class SurfaceService {
 
   /** Current surface mode signal — read-only. */
   readonly mode: Signal<SurfaceMode> = this.modeSignal.asReadonly();
+
+  /**
+   * Breakpoints for half-sheet modals. `undefined` on desktop so Ionic
+   * does not engage sheet mode — the `modal-centered` CSS dialog takes over.
+   * Standard variant: [0, 0.6, 0.95].
+   */
+  readonly sheetBreakpoints = computed<[number, number, number] | undefined>(() =>
+    this.modeSignal() === 'desktop' ? undefined : [0, 0.6, 0.95],
+  );
+
+  /**
+   * Initial breakpoint for standard half-sheets. `undefined` on desktop.
+   */
+  readonly initialSheetBreakpoint = computed<number | undefined>(() =>
+    this.modeSignal() === 'desktop' ? undefined : 0.6,
+  );
+
+  /**
+   * Breakpoints variant for full-height sheets ([0, 0.6, 1]).
+   * `undefined` on desktop.
+   */
+  readonly sheetBreakpointsFull = computed<[number, number, number] | undefined>(() =>
+    this.modeSignal() === 'desktop' ? undefined : [0, 0.6, 1],
+  );
+
+  /**
+   * Initial breakpoint for full-height sheets (initialBreakpoint=1).
+   * `undefined` on desktop.
+   */
+  readonly initialSheetBreakpointFull = computed<number | undefined>(() =>
+    this.modeSignal() === 'desktop' ? undefined : 1,
+  );
 
   /**
    * Create and present a modal. On desktop, adds `modal-centered` CSS class

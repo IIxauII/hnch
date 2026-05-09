@@ -142,8 +142,8 @@ import { presentSheet } from '../utils/present-sheet';
         #passwordModal
         cssClass="modal-centered"
         [isOpen]="passwordPromptOpen()"
-        [breakpoints]="[0, 0.6, 0.95]"
-        [initialBreakpoint]="0.6"
+        [breakpoints]="surface.sheetBreakpoints()"
+        [initialBreakpoint]="surface.initialSheetBreakpoint()"
         (didDismiss)="passwordPromptOpen.set(false)"
       >
         <ng-template>
@@ -210,7 +210,7 @@ import { presentSheet } from '../utils/present-sheet';
 })
 export class HomePage {
   private readonly router = inject(Router);
-  private readonly surface = inject(SurfaceService);
+  protected readonly surface = inject(SurfaceService);
   private readonly toastService = inject(ToastService);
   private readonly appPrefs = inject(AppPreferenceService);
   private readonly displayNameService = inject(DisplayNameService);

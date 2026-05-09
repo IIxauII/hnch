@@ -39,6 +39,7 @@ import { DisplayNameService } from '../core/display-name.service';
 import { ParticipantIdService } from '../core/participant-id.service';
 import { ScalePreferenceService } from '../core/scale-preference.service';
 import { ThemeService, type Theme } from '../core/theme.service';
+import { SurfaceService } from '../core/surface.service';
 import { ScalePickerSheetComponent } from '../session-settings/scale-picker.sheet';
 import { RelayUrlEditorSheetComponent } from './relay-url-editor.sheet';
 import { presentSheet } from '../utils/present-sheet';
@@ -210,8 +211,8 @@ import { presentSheet } from '../utils/present-sheet';
         #scalePickerModal
         cssClass="modal-centered"
         [isOpen]="scalePickerOpen()"
-        [breakpoints]="[0, 0.6, 0.95]"
-        [initialBreakpoint]="0.6"
+        [breakpoints]="surface.sheetBreakpoints()"
+        [initialBreakpoint]="surface.initialSheetBreakpoint()"
         (didDismiss)="scalePickerOpen.set(false)"
       >
         <ng-template>
@@ -228,8 +229,8 @@ import { presentSheet } from '../utils/present-sheet';
         #relayUrlModal
         cssClass="modal-centered"
         [isOpen]="relayUrlEditorOpen()"
-        [breakpoints]="[0, 0.6, 0.95]"
-        [initialBreakpoint]="0.6"
+        [breakpoints]="surface.sheetBreakpoints()"
+        [initialBreakpoint]="surface.initialSheetBreakpoint()"
         (didDismiss)="relayUrlEditorOpen.set(false)"
       >
         <ng-template>
@@ -262,6 +263,7 @@ export class SettingsPage {
   protected readonly themeService = inject(ThemeService);
   protected readonly appPrefs = inject(AppPreferenceService);
   protected readonly accentService = inject(AccentService);
+  protected readonly surface = inject(SurfaceService);
 
   protected readonly version = environment.appVersion;
 

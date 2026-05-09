@@ -380,8 +380,8 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       #roundStartModal
       cssClass="modal-centered"
       [isOpen]="roundStartOpen()"
-      [breakpoints]="[0, 0.6, 0.95]"
-      [initialBreakpoint]="0.6"
+      [breakpoints]="surface.sheetBreakpoints()"
+      [initialBreakpoint]="surface.initialSheetBreakpoint()"
       (didDismiss)="roundStartOpen.set(false)"
     >
       <ng-template>
@@ -397,8 +397,8 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       #sessionSettingsModal
       cssClass="modal-centered"
       [isOpen]="sessionSettingsOpen()"
-      [breakpoints]="[0, 0.6, 0.95]"
-      [initialBreakpoint]="0.6"
+      [breakpoints]="surface.sheetBreakpoints()"
+      [initialBreakpoint]="surface.initialSheetBreakpoint()"
       (didDismiss)="sessionSettingsOpen.set(false)"
     >
       <ng-template>
@@ -430,8 +430,8 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
     <ion-modal
       cssClass="modal-centered"
       [isOpen]="roundEditOpen()"
-      [breakpoints]="[0, 0.6, 0.95]"
-      [initialBreakpoint]="0.6"
+      [breakpoints]="surface.sheetBreakpoints()"
+      [initialBreakpoint]="surface.initialSheetBreakpoint()"
       (didDismiss)="onRoundEditDismiss()"
     >
       <ng-template>
@@ -544,7 +544,7 @@ export class LobbyPage {
   private readonly haptic = inject(HapticService);
   private readonly participantIdService = inject(ParticipantIdService);
   private readonly lastSessionService = inject(LastSessionService);
-  private readonly surface = inject(SurfaceService);
+  protected readonly surface = inject(SurfaceService);
   private readonly alertCtrl = inject(AlertController);
   private readonly toastService = inject(ToastService);
   private readonly exportService = inject(ExportService);

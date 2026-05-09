@@ -30,6 +30,7 @@ import { chevronForwardOutline } from 'ionicons/icons';
 import { environment } from '../../environments/environment';
 import { AppPreferenceService } from '../core/app-preference.service';
 import { DocService } from '../core/doc/doc.service';
+import { SurfaceService } from '../core/surface.service';
 import { patchRoomAccess } from '../core/relay/relay-api';
 import { ToastService } from '../services/toast.service';
 import {
@@ -122,8 +123,8 @@ import { formatScaleId } from '@hnch/shared';
     <ion-modal
       #scaleModal
       [isOpen]="scaleOpen()"
-      [breakpoints]="[0, 0.6, 0.95]"
-      [initialBreakpoint]="0.6"
+      [breakpoints]="surface.sheetBreakpoints()"
+      [initialBreakpoint]="surface.initialSheetBreakpoint()"
       (didDismiss)="scaleOpen.set(false)"
     >
       <ng-template>
@@ -138,8 +139,8 @@ import { formatScaleId } from '@hnch/shared';
     <ion-modal
       #accessModal
       [isOpen]="accessOpen()"
-      [breakpoints]="[0, 0.6, 0.95]"
-      [initialBreakpoint]="0.6"
+      [breakpoints]="surface.sheetBreakpoints()"
+      [initialBreakpoint]="surface.initialSheetBreakpoint()"
       (didDismiss)="accessOpen.set(false)"
     >
       <ng-template>
@@ -166,6 +167,7 @@ export class SessionSettingsSheetComponent {
   private readonly appPrefs = inject(AppPreferenceService);
   private readonly docService = inject(DocService);
   private readonly toastService = inject(ToastService);
+  protected readonly surface = inject(SurfaceService);
 
   protected readonly settings = this.docService.settings;
 

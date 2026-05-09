@@ -136,4 +136,59 @@ describe('SurfaceService', () => {
     setup(false);
     expect(mql.addEventListener).toHaveBeenCalledWith('change', expect.any(Function));
   });
+
+  describe('sheetBreakpoints', () => {
+    it('returns [0, 0.6, 0.95] on mobile', () => {
+      const svc = setup(false);
+      expect(svc.sheetBreakpoints()).toEqual([0, 0.6, 0.95]);
+    });
+
+    it('returns undefined on desktop', () => {
+      const svc = setup(true);
+      expect(svc.sheetBreakpoints()).toBeUndefined();
+    });
+
+    it('updates when mode changes to desktop', () => {
+      const svc = setup(false);
+      expect(svc.sheetBreakpoints()).toEqual([0, 0.6, 0.95]);
+      simulateMediaChange(true);
+      expect(svc.sheetBreakpoints()).toBeUndefined();
+    });
+  });
+
+  describe('initialSheetBreakpoint', () => {
+    it('returns 0.6 on mobile', () => {
+      const svc = setup(false);
+      expect(svc.initialSheetBreakpoint()).toBe(0.6);
+    });
+
+    it('returns undefined on desktop', () => {
+      const svc = setup(true);
+      expect(svc.initialSheetBreakpoint()).toBeUndefined();
+    });
+  });
+
+  describe('sheetBreakpointsFull', () => {
+    it('returns [0, 0.6, 1] on mobile', () => {
+      const svc = setup(false);
+      expect(svc.sheetBreakpointsFull()).toEqual([0, 0.6, 1]);
+    });
+
+    it('returns undefined on desktop', () => {
+      const svc = setup(true);
+      expect(svc.sheetBreakpointsFull()).toBeUndefined();
+    });
+  });
+
+  describe('initialSheetBreakpointFull', () => {
+    it('returns 1 on mobile', () => {
+      const svc = setup(false);
+      expect(svc.initialSheetBreakpointFull()).toBe(1);
+    });
+
+    it('returns undefined on desktop', () => {
+      const svc = setup(true);
+      expect(svc.initialSheetBreakpointFull()).toBeUndefined();
+    });
+  });
 });
