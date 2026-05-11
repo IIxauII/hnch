@@ -47,7 +47,7 @@ For quick orientation without reading all 36 ADRs:
 - **Identity:** Capacitor Device plugin for the per-device ID, cached in Preferences; no accounts, no fingerprinting. (ADR-0005)
 - **Sessions:** ephemeral per meeting, with a separate local-only Team concept for "my usual crew" continuity. (ADR-0006, ADR-0007)
 - **Room codes:** 6-char alphanumeric, no look-alikes, retired for snapshot TTL before pool recycling. (ADR-0008)
-- **Access control:** relay-enforced via opaque tokens (password hash, single-use invite tokens). (ADR-0009)
+- **Access control:** relay-enforced via opaque tokens (password hash). (ADR-0009)
 - **Connection handshake:** HTTP `GET /rooms/:code` resolves code → UUID; WebSocket to `/ws/:uuid` carries `JoinCredentials` as query params; rejections use private-use WS close codes 4001–4099. (ADR-0016)
 - **Host authority:** creator is initial host; on drop, 5-second debounce then lowest-peer-ID election. (ADR-0010)
 - **Reveal:** manual (host taps Reveal) + unanimous auto-reveal (fires when all online voters have voted). No countdown timer. `timerStartedAt` written at round creation as stopwatch origin for elapsed time display. (ADR-0018)
