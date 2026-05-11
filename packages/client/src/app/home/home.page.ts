@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, signal, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
-import { hashPassword, type JoinRejectionReason } from '@hnch/shared';
+import { hashPassword } from '@hnch/shared';
 import {
   IonButton,
   IonButtons,
@@ -32,11 +32,7 @@ import { SurfaceService } from '../core/surface.service';
 import { ToastService } from '../services/toast.service';
 import { DisplayNameService } from '../core/display-name.service';
 import { DocService } from '../core/doc/doc.service';
-import {
-  LastSessionService,
-  type LastSessionCache,
-  type LastSessionScreen,
-} from '../core/last-session.service';
+import { LastSessionService } from '../core/last-session.service';
 import { ParticipantIdService } from '../core/participant-id.service';
 import { ScalePreferenceService } from '../core/scale-preference.service';
 import { mintRoom, patchRoomAccess } from '../core/relay/relay-api';
@@ -44,6 +40,7 @@ import { assertRoomCode, RoomJoinService } from '../core/room-join.service';
 import { JumpBackInBannerComponent, type JumpBackInSummary } from './jump-back-in-banner.component';
 import { PasswordPromptSheetComponent } from './password-prompt.sheet';
 import { presentSheet } from '../utils/present-sheet';
+import { rejectionCopy, routeForScreen, summaryFromCache } from './home.helpers';
 
 /**
  * Home launchpad — ux.md §5.2.
@@ -510,50 +507,5 @@ export class HomePage {
       throw new Error('onPasswordPromptClosed: docService.roomCode() is null — no active session');
     }
     await this.router.navigate(['/lobby', code]);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Module-private helpers
-// ---------------------------------------------------------------------------
-
-function summaryFromCache(cache: LastSessionCache): JumpBackInSummary {
-  return {
-    roomCode: cache.roomCode,
-    lastScreen: cache.lastScreen,
-  };
-}
-
-function routeForScreen(screen: LastSessionScreen, code: string): string {
-  switch (screen) {
-    case 'lobby':
-      return `/lobby/${code}`;
-    case 'estimating':
-      return `/estimating/${code}`;
-  }
-}
-
-/**
- * Defensive fallback copy for relay rejections we don't expect in
- * Phase 3 (the only live reason is `unknown-room`, handled inline).
- * Mirrors the Join page's switch so Phase 5's enforcement turns on
- * without another round of copy work.
- */
-function rejectionCopy(reason: JoinRejectionReason): string {
-  switch (reason) {
-    case 'unknown-room':
-      return "That session isn't active anymore.";
-    case 'wrong-password':
-      return 'That password is incorrect.';
-    case 'invalid-invite':
-      return "That invite link isn't valid.";
-    case 'expired-invite':
-      return 'That invite link has expired.';
-    case 'invite-already-redeemed':
-      return 'That invite link has already been used.';
-    case 'room-full':
-      return 'That room is full.';
-    case 'malformed-credentials':
-      return "Couldn't rejoin with the info on file.";
   }
 }

@@ -1,148 +1,37 @@
 /**
- * Unit tests for LobbyPage role-toggle chip logic.
+ * Unit tests for the LobbyPage role predicate. Imports the real exported
+ * helper from lobby-helpers.ts (no inline mirror).
  *
- * No TestBed, no Ionic rendering — pure predicate + method tests.
- * Mirrors the harness pattern in estimating.page.test.ts and
- * lobby-summary.test.ts.
+ * The chip-color and chip-label expressions live inline in the LobbyPage
+ * template (`isParticipantViewer(p) ? 'medium' : 'primary'` etc.) — they
+ * have no exported function to test in isolation. e2e covers the rendered
+ * chip; the contract-level guarantee is the predicate below.
+ *
+ * onToggleRole's behavior (haptic + docService.toggleRole) is covered by
+ * the role-toggle e2e flow; mounting LobbyPage in a unit test would
+ * require stubbing 8 injected services for 4 lines of code.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-vi.mock('@ionic/angular/standalone', () => ({
-  ActionSheetController: {},
-  AlertController: {},
-  IonAccordion: {},
-  IonAccordionGroup: {},
-  IonAvatar: {},
-  IonButton: {},
-  IonButtons: {},
-  IonChip: {},
-  IonContent: {},
-  IonFooter: {},
-  IonHeader: {},
-  IonIcon: {},
-  IonItem: {},
-  IonItemOption: {},
-  IonItemOptions: {},
-  IonItemSliding: {},
-  IonLabel: {},
-  IonList: {},
-  IonModal: {},
-  IonNote: {},
-  IonTitle: {},
-  IonToolbar: {},
-}));
-vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false } }));
-vi.mock('@capacitor/share', () => ({ Share: { share: vi.fn() } }));
-
-import { participantRole } from '@hnch/shared';
 import type { ParticipantSnapshot } from '@hnch/shared';
 
-// ---------------------------------------------------------------------------
-// Inline helpers that mirror LobbyPage.isParticipantViewer / chip predicates
-// ---------------------------------------------------------------------------
-
-function isParticipantViewer(p: { role?: 'voter' | 'viewer' }): boolean {
-  return participantRole(p) === 'viewer';
-}
-
-function chipColor(p: ParticipantSnapshot): 'primary' | 'medium' {
-  return isParticipantViewer(p) ? 'medium' : 'primary';
-}
-
-function chipLabel(p: ParticipantSnapshot): string {
-  return isParticipantViewer(p) ? 'Observing' : 'Voter';
-}
+import { isParticipantViewer } from './lobby-helpers';
 
 function makeParticipant(id: string, role?: 'voter' | 'viewer'): ParticipantSnapshot {
   return { id, displayName: id, joinedAt: 0, role };
 }
 
-// ---------------------------------------------------------------------------
-// Chip color predicate
-// ---------------------------------------------------------------------------
-
-describe('LobbyPage role chip — color', () => {
-  it('primary when self is voter (no role field)', () => {
-    expect(chipColor(makeParticipant('me'))).toBe('primary');
+describe('LobbyPage — isParticipantViewer', () => {
+  it('false when role field is omitted (default voter)', () => {
+    expect(isParticipantViewer(makeParticipant('me'))).toBe(false);
   });
 
-  it('primary when self has explicit voter role', () => {
-    expect(chipColor(makeParticipant('me', 'voter'))).toBe('primary');
+  it('false when role is explicitly voter', () => {
+    expect(isParticipantViewer(makeParticipant('me', 'voter'))).toBe(false);
   });
 
-  it('medium when self is viewer', () => {
-    expect(chipColor(makeParticipant('me', 'viewer'))).toBe('medium');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Chip label predicate
-// ---------------------------------------------------------------------------
-
-describe('LobbyPage role chip — label', () => {
-  it('"Voter" when self has no role (defaults to voter)', () => {
-    expect(chipLabel(makeParticipant('me'))).toBe('Voter');
-  });
-
-  it('"Voter" when self has explicit voter role', () => {
-    expect(chipLabel(makeParticipant('me', 'voter'))).toBe('Voter');
-  });
-
-  it('"Observing" when self is viewer', () => {
-    expect(chipLabel(makeParticipant('me', 'viewer'))).toBe('Observing');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// onToggleRole calls docService.toggleRole(myId) exactly once
-// ---------------------------------------------------------------------------
-
-describe('LobbyPage.onToggleRole', () => {
-  it('calls docService.toggleRole with myId exactly once', () => {
-    const myId = 'participant-abc';
-    const toggleRole = vi.fn();
-    const hapticImpactLight = vi.fn();
-
-    // Minimal stub that mirrors what onToggleRole reads from the class.
-    const page = {
-      myId: () => myId,
-      haptic: { impactLight: hapticImpactLight },
-      docService: { toggleRole },
-      onToggleRole() {
-        const id = this.myId();
-        if (!id) return;
-        this.haptic.impactLight();
-        this.docService.toggleRole(id);
-      },
-    };
-
-    page.onToggleRole();
-
-    expect(toggleRole).toHaveBeenCalledOnce();
-    expect(toggleRole).toHaveBeenCalledWith(myId);
-    expect(hapticImpactLight).toHaveBeenCalledOnce();
-  });
-
-  it('does nothing when myId() is falsy', () => {
-    const toggleRole = vi.fn();
-    const hapticImpactLight = vi.fn();
-
-    const page = {
-      myId: () => null as string | null,
-      haptic: { impactLight: hapticImpactLight },
-      docService: { toggleRole },
-      onToggleRole() {
-        const id = this.myId();
-        if (!id) return;
-        this.haptic.impactLight();
-        this.docService.toggleRole(id);
-      },
-    };
-
-    page.onToggleRole();
-
-    expect(toggleRole).not.toHaveBeenCalled();
-    expect(hapticImpactLight).not.toHaveBeenCalled();
+  it('true when role is viewer', () => {
+    expect(isParticipantViewer(makeParticipant('me', 'viewer'))).toBe(true);
   });
 });
