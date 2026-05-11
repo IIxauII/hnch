@@ -1,85 +1,23 @@
 /**
- * Unit tests for pure helper functions in Lobby.tsx.
- *
- * These functions are module-private; their logic is re-implemented inline
- * here to document the contract and guard against accidental drift.
- * Tests cover: computeStats, formatElapsed, compactRoundSummary.
+ * Unit tests for pure helpers exported from lobby-helpers.ts.
+ * Imports the real implementations (no inline copies).
  */
 
 import { describe, expect, it } from 'vitest';
 
-// ---------------------------------------------------------------------------
-// Inline implementations mirroring Lobby.tsx module-private functions
-// ---------------------------------------------------------------------------
+import type { Round, Scale } from '@hnch/shared';
 
-function computeStats(votes: Record<string, string>): {
-  average: string;
-  median: string;
-  agreement: string;
-} {
-  const values = Object.values(votes)
-    .map((v) => parseFloat(v))
-    .filter((n) => !isNaN(n))
-    .toSorted((a, b) => a - b);
+import { compactRoundSummary, computeStats, formatElapsed } from './lobby-helpers.js';
 
-  if (values.length === 0) {
-    return { average: '-', median: '-', agreement: '-' };
-  }
+const SCALE: Scale = { id: 'fibonacci', cards: ['1', '2', '3', '5', '8', '13'] };
 
-  const sum = values.reduce((a, b) => a + b, 0);
-  const avg = sum / values.length;
-  const mid = Math.floor(values.length / 2);
-  const med = values.length % 2 === 0 ? (values[mid - 1]! + values[mid]!) / 2 : values[mid]!;
-
-  const allVotes = Object.values(votes);
-  const counts = new Map<string, number>();
-  for (const v of allVotes) {
-    counts.set(v, (counts.get(v) ?? 0) + 1);
-  }
-  const maxCount = Math.max(...counts.values());
-  const agr = allVotes.length > 0 ? Math.round((maxCount / allVotes.length) * 100) : 0;
-
+function makeRound(overrides: Partial<Round> = {}): Round {
   return {
-    average: avg.toFixed(1),
-    median: med.toFixed(1),
-    agreement: `${agr}%`,
+    id: 'r1',
+    scale: SCALE,
+    votes: {},
+    ...overrides,
   };
-}
-
-function formatElapsed(startMs: number, endMs: number): string {
-  const secs = Math.floor((endMs - startMs) / 1000);
-  const min = Math.floor(secs / 60);
-  const sec = secs % 60;
-  return `${min}:${sec.toString().padStart(2, '0')}`;
-}
-
-interface Round {
-  id: string;
-  votes: Record<string, string>;
-  title?: string | undefined;
-  ticketId?: string | undefined;
-  timerStartedAt?: number | undefined;
-  revealedAt?: number | undefined;
-}
-
-function compactRoundSummary(round: Round, roundNum: number): string {
-  const counts = new Map<string, number>();
-  for (const v of Object.values(round.votes)) {
-    counts.set(v, (counts.get(v) ?? 0) + 1);
-  }
-  const tally = [...counts.entries()]
-    .toSorted((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([card, count]) => `${card}×${count}`)
-    .join(', ');
-
-  const title = round.title ? ` ${round.title}` : '';
-  const ticket = round.ticketId ? ` [${round.ticketId}]` : '';
-  const elapsed =
-    round.timerStartedAt !== undefined && round.revealedAt !== undefined
-      ? ` — ${formatElapsed(round.timerStartedAt, round.revealedAt)}`
-      : '';
-
-  return `Round ${roundNum}:${title}${ticket} — ${tally || '(no votes)'}${elapsed}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -205,66 +143,62 @@ describe('formatElapsed', () => {
 // ---------------------------------------------------------------------------
 
 describe('compactRoundSummary', () => {
-  const base: Round = { id: 'r1', votes: {} };
-
   it('no votes → (no votes)', () => {
-    expect(compactRoundSummary(base, 1)).toBe('Round 1: — (no votes)');
+    expect(compactRoundSummary(makeRound(), 1)).toBe('Round 1: — (no votes)');
   });
 
   it('single vote → card×1', () => {
-    const round: Round = { ...base, votes: { p1: '5' } };
-    expect(compactRoundSummary(round, 1)).toBe('Round 1: — 5×1');
+    expect(compactRoundSummary(makeRound({ votes: { p1: '5' } }), 1)).toBe('Round 1: — 5×1');
   });
 
   it('tally sorted by count descending', () => {
-    // p1,p2 → '5'; p3 → '8'  ⇒  5×2, 8×1
-    const round: Round = { ...base, votes: { p1: '5', p2: '5', p3: '8' } };
-    expect(compactRoundSummary(round, 2)).toBe('Round 2: — 5×2, 8×1');
+    expect(compactRoundSummary(makeRound({ votes: { p1: '5', p2: '5', p3: '8' } }), 2)).toBe(
+      'Round 2: — 5×2, 8×1',
+    );
   });
 
   it('equal counts sorted lexicographically', () => {
-    // '3'×1 and '8'×1 → alphabetical: 3×1, 8×1
-    const round: Round = { ...base, votes: { p1: '8', p2: '3' } };
-    expect(compactRoundSummary(round, 1)).toBe('Round 1: — 3×1, 8×1');
+    expect(compactRoundSummary(makeRound({ votes: { p1: '8', p2: '3' } }), 1)).toBe(
+      'Round 1: — 3×1, 8×1',
+    );
   });
 
   it('includes title when set', () => {
-    const round: Round = { ...base, votes: { p1: '5' }, title: 'Login redesign' };
-    expect(compactRoundSummary(round, 1)).toBe('Round 1: Login redesign — 5×1');
+    expect(compactRoundSummary(makeRound({ votes: { p1: '5' }, title: 'Login redesign' }), 1)).toBe(
+      'Round 1: Login redesign — 5×1',
+    );
   });
 
   it('includes ticketId when set', () => {
-    const round: Round = { ...base, votes: { p1: '5' }, ticketId: 'PROJ-123' };
-    expect(compactRoundSummary(round, 1)).toBe('Round 1: [PROJ-123] — 5×1');
+    expect(compactRoundSummary(makeRound({ votes: { p1: '5' }, ticketId: 'PROJ-123' }), 1)).toBe(
+      'Round 1: [PROJ-123] — 5×1',
+    );
   });
 
   it('includes both title and ticketId', () => {
-    const round: Round = {
-      ...base,
-      votes: { p1: '5' },
-      title: 'Auth',
-      ticketId: 'AUTH-42',
-    };
-    expect(compactRoundSummary(round, 3)).toBe('Round 3: Auth [AUTH-42] — 5×1');
+    expect(
+      compactRoundSummary(makeRound({ votes: { p1: '5' }, title: 'Auth', ticketId: 'AUTH-42' }), 3),
+    ).toBe('Round 3: Auth [AUTH-42] — 5×1');
   });
 
   it('appends elapsed time when timerStartedAt and revealedAt present', () => {
-    const round: Round = {
-      ...base,
-      votes: { p1: '5' },
-      timerStartedAt: 0,
-      revealedAt: 90_000,
-    };
-    expect(compactRoundSummary(round, 1)).toBe('Round 1: — 5×1 — 1:30');
+    expect(
+      compactRoundSummary(
+        makeRound({ votes: { p1: '5' }, timerStartedAt: 0, revealedAt: 90_000 }),
+        1,
+      ),
+    ).toBe('Round 1: — 5×1 — 1:30');
   });
 
   it('omits elapsed when only timerStartedAt is set (not yet revealed)', () => {
-    const round: Round = { ...base, votes: { p1: '5' }, timerStartedAt: 0 };
-    expect(compactRoundSummary(round, 1)).toBe('Round 1: — 5×1');
+    expect(compactRoundSummary(makeRound({ votes: { p1: '5' }, timerStartedAt: 0 }), 1)).toBe(
+      'Round 1: — 5×1',
+    );
   });
 
   it('omits elapsed when only revealedAt is set (no timer start)', () => {
-    const round: Round = { ...base, votes: { p1: '5' }, revealedAt: 90_000 };
-    expect(compactRoundSummary(round, 1)).toBe('Round 1: — 5×1');
+    expect(compactRoundSummary(makeRound({ votes: { p1: '5' }, revealedAt: 90_000 }), 1)).toBe(
+      'Round 1: — 5×1',
+    );
   });
 });
