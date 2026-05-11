@@ -1,54 +1,67 @@
 /**
- * Unit tests for RelayUrlEditorSheetComponent — the URL validator logic.
+ * Unit tests for RelayUrlEditorSheetComponent.
  *
- * The component exposes a FormControl (`urlCtrl`) whose inline validator
- * enforces two rules:
- *   1. An empty or whitespace-only value is VALID (clears the override).
- *   2. A non-empty value must start with http:// or https://.
- *
- * Tests exercise the validator by calling it with mock AbstractControl
- * objects, which avoids the need for TestBed or Angular's DI stack.
- *
- * The onDone / onClear output emissions are also verified via a minimal
- * component-method stub that mirrors the production code — consistent with
- * the lobby.page.test.ts pattern used elsewhere in this package.
+ * - validator: imports the real `validateRelayUrl` helper.
+ * - onDone / onClear: real component instance via TestBed.createComponent;
+ *   protected methods invoked through a cast.
  */
 
+import { TestBed } from '@angular/core/testing';
 import { describe, expect, it, vi } from 'vitest';
 
-// Mock Ionic standalone imports so the module can be loaded without the
-// full Ionic runtime (same pattern as estimating.page.test.ts).
-vi.mock('@ionic/angular/standalone', () => ({
-  IonButton: {},
-  IonButtons: {},
-  IonContent: {},
-  IonHeader: {},
-  IonInput: {},
-  IonItem: {},
-  IonLabel: {},
-  IonList: {},
-  IonNote: {},
-  IonTitle: {},
-  IonToolbar: {},
-}));
+vi.mock('@ionic/angular/standalone', async () => {
+  const { Component: Comp } = await import('@angular/core');
+  const stubs: Record<string, unknown> = {};
+  for (const tag of [
+    'IonButton',
+    'IonButtons',
+    'IonContent',
+    'IonHeader',
+    'IonInput',
+    'IonItem',
+    'IonLabel',
+    'IonList',
+    'IonNote',
+    'IonTitle',
+    'IonToolbar',
+  ]) {
+    @Comp({
+      selector: tag
+        .replace(/([A-Z])/g, '-$1')
+        .toLowerCase()
+        .slice(1),
+      template: '<ng-content/>',
+      standalone: true,
+    })
+    class Stub {}
+    stubs[tag] = Stub;
+  }
+  return stubs;
+});
 
-// ---------------------------------------------------------------------------
-// Inline validator — mirrors the production validator exactly so any future
-// divergence triggers test failures and forces a review of the contract.
-// ---------------------------------------------------------------------------
+import { validateRelayUrl } from './relay-url-editor.helpers';
 
-type ValidationResult = { invalidUrl: true } | null;
-
-function validateRelayUrl(rawValue: string): ValidationResult {
-  const val = rawValue.trim();
-  if (!val) return null;
-  if (!/^https?:\/\//.test(val)) return { invalidUrl: true };
-  return null;
+interface SheetInternals {
+  urlCtrl: { setValue(v: string): void };
+  onDone(): void;
+  onClear(): void;
 }
 
-// ---------------------------------------------------------------------------
-// Validator tests
-// ---------------------------------------------------------------------------
+async function mount(initial = '') {
+  const { RelayUrlEditorSheetComponent } = await import('./relay-url-editor.sheet');
+  const fixture = TestBed.createComponent(RelayUrlEditorSheetComponent);
+  fixture.componentRef.setInput('currentUrl', initial);
+  // Skip detectChanges: ion-input stub lacks ControlValueAccessor and the
+  // [formControl] binding would throw. Only the protected methods are
+  // exercised here, and they read the FormControl directly.
+  const internals = fixture.componentInstance as unknown as SheetInternals;
+  internals.urlCtrl.setValue(initial);
+  const saved = vi.fn<(v: string | undefined) => void>();
+  const closeRequested = vi.fn();
+  fixture.componentInstance.saved.subscribe(saved);
+  fixture.componentInstance.closeRequested.subscribe(closeRequested);
+  return { fixture, internals, saved, closeRequested };
+}
 
 describe('relay URL validator', () => {
   it('empty string is valid (signals "use default")', () => {
@@ -100,58 +113,32 @@ describe('relay URL validator', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// onDone / onClear emission contract (mirrors RelayUrlEditorSheetComponent)
-// ---------------------------------------------------------------------------
-
-describe('RelayUrlEditorSheetComponent output contract', () => {
-  function makePage(rawValue: string) {
-    const saved = vi.fn<[string | undefined]>();
-    const closeRequested = vi.fn();
-    const page = {
-      urlCtrl: { value: rawValue },
-      saved: { emit: saved },
-      closeRequested: { emit: closeRequested },
-      onDone() {
-        const trimmed = this.urlCtrl.value.trim();
-        this.saved.emit(trimmed || undefined);
-        this.closeRequested.emit();
-      },
-      onClear() {
-        this.saved.emit(undefined);
-        this.closeRequested.emit();
-      },
-    };
-    return { page, saved, closeRequested };
-  }
-
-  describe('onDone', () => {
-    it('emits trimmed URL and requests close', () => {
-      const { page, saved, closeRequested } = makePage('https://relay.example.com');
-      page.onDone();
-      expect(saved).toHaveBeenCalledWith('https://relay.example.com');
-      expect(closeRequested).toHaveBeenCalled();
-    });
-
-    it('emits undefined when value is whitespace-only', () => {
-      const { page, saved } = makePage('   ');
-      page.onDone();
-      expect(saved).toHaveBeenCalledWith(undefined);
-    });
-
-    it('trims the emitted URL', () => {
-      const { page, saved } = makePage('  https://relay.example.com  ');
-      page.onDone();
-      expect(saved).toHaveBeenCalledWith('https://relay.example.com');
-    });
+describe('RelayUrlEditorSheetComponent.onDone()', () => {
+  it('emits trimmed URL and requests close', async () => {
+    const { internals, saved, closeRequested } = await mount('https://relay.example.com');
+    internals.onDone();
+    expect(saved).toHaveBeenCalledWith('https://relay.example.com');
+    expect(closeRequested).toHaveBeenCalled();
   });
 
-  describe('onClear', () => {
-    it('always emits undefined and requests close', () => {
-      const { page, saved, closeRequested } = makePage('https://relay.example.com');
-      page.onClear();
-      expect(saved).toHaveBeenCalledWith(undefined);
-      expect(closeRequested).toHaveBeenCalled();
-    });
+  it('emits undefined when value is whitespace-only', async () => {
+    const { internals, saved } = await mount('   ');
+    internals.onDone();
+    expect(saved).toHaveBeenCalledWith(undefined);
+  });
+
+  it('trims the emitted URL', async () => {
+    const { internals, saved } = await mount('  https://relay.example.com  ');
+    internals.onDone();
+    expect(saved).toHaveBeenCalledWith('https://relay.example.com');
+  });
+});
+
+describe('RelayUrlEditorSheetComponent.onClear()', () => {
+  it('always emits undefined and requests close', async () => {
+    const { internals, saved, closeRequested } = await mount('https://relay.example.com');
+    internals.onClear();
+    expect(saved).toHaveBeenCalledWith(undefined);
+    expect(closeRequested).toHaveBeenCalled();
   });
 });

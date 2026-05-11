@@ -1,79 +1,98 @@
 /**
- * Unit tests for PasswordPromptSheetComponent.onConfirm().
- *
- * onConfirm is a protected method that guards on FormControl validity
- * (Validators.maxLength(120)) and emits the trimmed password value.
- * Tested via a minimal stub following relay-url-editor.sheet.test.ts.
+ * Unit tests for PasswordPromptSheetComponent.onConfirm() — uses real
+ * component via TestBed.createComponent. Sets the password value through
+ * the real FormControl, invokes the real protected onConfirm via cast,
+ * and asserts on real output emissions.
  */
 
+import { TestBed } from '@angular/core/testing';
 import { describe, expect, it, vi } from 'vitest';
 
-// ---------------------------------------------------------------------------
-// Inline validity — mirrors Validators.maxLength(120) from the component
-// ---------------------------------------------------------------------------
+vi.mock('@ionic/angular/standalone', async () => {
+  const { Component: Comp } = await import('@angular/core');
+  const stubs: Record<string, unknown> = {};
+  for (const tag of [
+    'IonButton',
+    'IonButtons',
+    'IonContent',
+    'IonFooter',
+    'IonHeader',
+    'IonInput',
+    'IonItem',
+    'IonLabel',
+    'IonList',
+    'IonTitle',
+    'IonToolbar',
+  ]) {
+    @Comp({
+      selector: tag
+        .replace(/([A-Z])/g, '-$1')
+        .toLowerCase()
+        .slice(1),
+      template: '<ng-content/>',
+      standalone: true,
+    })
+    class Stub {}
+    stubs[tag] = Stub;
+  }
+  return stubs;
+});
 
-function isPasswordInvalid(value: string): boolean {
-  return value.length > 120;
+interface PasswordSheetInternals {
+  passwordControl: { setValue(v: string): void };
+  onConfirm(): void;
 }
 
-// ---------------------------------------------------------------------------
-// Component stub — mirrors PasswordPromptSheetComponent
-// ---------------------------------------------------------------------------
-
-function makeSheet(rawValue: string) {
-  const invalid = isPasswordInvalid(rawValue);
-  const passwordSubmitted = { emit: vi.fn<[string]>() };
-  const sheet = {
-    passwordControl: { value: rawValue, invalid },
-    passwordSubmitted,
-    onConfirm() {
-      if (this.passwordControl.invalid) return;
-      const password = this.passwordControl.value.trim();
-      this.passwordSubmitted.emit(password);
-    },
-  };
-  return { sheet, emit: passwordSubmitted.emit };
+async function mount() {
+  const { PasswordPromptSheetComponent } = await import('./password-prompt.sheet');
+  const fixture = TestBed.createComponent(PasswordPromptSheetComponent);
+  const emit = vi.fn();
+  fixture.componentInstance.passwordSubmitted.subscribe(emit);
+  const internals = fixture.componentInstance as unknown as PasswordSheetInternals;
+  return { fixture, internals, emit };
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe('PasswordPromptSheetComponent.onConfirm()', () => {
-  it('does not emit when password exceeds 120 characters (invalid FormControl)', () => {
-    const { sheet, emit } = makeSheet('x'.repeat(121));
-    sheet.onConfirm();
+  it('does not emit when password exceeds 120 characters (invalid FormControl)', async () => {
+    const { internals, emit } = await mount();
+    internals.passwordControl.setValue('x'.repeat(121));
+    internals.onConfirm();
     expect(emit).not.toHaveBeenCalled();
   });
 
-  it('allows exactly 120 characters (boundary — valid)', () => {
+  it('allows exactly 120 characters (boundary — valid)', async () => {
+    const { internals, emit } = await mount();
     const atLimit = 'a'.repeat(120);
-    const { sheet, emit } = makeSheet(atLimit);
-    sheet.onConfirm();
+    internals.passwordControl.setValue(atLimit);
+    internals.onConfirm();
     expect(emit).toHaveBeenCalledWith(atLimit);
   });
 
-  it('emits empty string for empty input (blank password is allowed)', () => {
-    const { sheet, emit } = makeSheet('');
-    sheet.onConfirm();
+  it('emits empty string for empty input (blank password is allowed)', async () => {
+    const { internals, emit } = await mount();
+    internals.passwordControl.setValue('');
+    internals.onConfirm();
     expect(emit).toHaveBeenCalledWith('');
   });
 
-  it('emits empty string for whitespace-only input (trimmed)', () => {
-    const { sheet, emit } = makeSheet('   ');
-    sheet.onConfirm();
+  it('emits empty string for whitespace-only input (trimmed)', async () => {
+    const { internals, emit } = await mount();
+    internals.passwordControl.setValue('   ');
+    internals.onConfirm();
     expect(emit).toHaveBeenCalledWith('');
   });
 
-  it('emits the password value for a valid non-empty string', () => {
-    const { sheet, emit } = makeSheet('hunter2');
-    sheet.onConfirm();
+  it('emits the password value for a valid non-empty string', async () => {
+    const { internals, emit } = await mount();
+    internals.passwordControl.setValue('hunter2');
+    internals.onConfirm();
     expect(emit).toHaveBeenCalledWith('hunter2');
   });
 
-  it('trims surrounding whitespace from the emitted password', () => {
-    const { sheet, emit } = makeSheet('  secret  ');
-    sheet.onConfirm();
+  it('trims surrounding whitespace from the emitted password', async () => {
+    const { internals, emit } = await mount();
+    internals.passwordControl.setValue('  secret  ');
+    internals.onConfirm();
     expect(emit).toHaveBeenCalledWith('secret');
   });
 });

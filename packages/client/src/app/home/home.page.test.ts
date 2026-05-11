@@ -1,80 +1,11 @@
 /**
- * Unit tests for HomePage private helpers.
- *
- * All three helpers are module-private (not exported) so they are
- * inline-spec'd here, following the lobby.page.test.ts pattern.
- * The inline implementations must be kept in sync with home.page.ts.
+ * Unit tests for HomePage helpers — imports the real exports from
+ * home.helpers.ts (no inline mirrors). Tests fail if source breaks.
  */
 
 import { describe, expect, it } from 'vitest';
 
-// ---------------------------------------------------------------------------
-// rejectionCopy — inline-spec mirroring home.page.ts
-// Note: copy strings here DIFFER from join.page.ts (rejoin context vs join).
-// ---------------------------------------------------------------------------
-
-type JoinRejectionReason =
-  | 'unknown-room'
-  | 'wrong-password'
-  | 'invalid-invite'
-  | 'expired-invite'
-  | 'invite-already-redeemed'
-  | 'room-full'
-  | 'malformed-credentials';
-
-function rejectionCopy(reason: JoinRejectionReason): string {
-  switch (reason) {
-    case 'unknown-room':
-      return "That session isn't active anymore.";
-    case 'wrong-password':
-      return 'That password is incorrect.';
-    case 'invalid-invite':
-      return "That invite link isn't valid.";
-    case 'expired-invite':
-      return 'That invite link has expired.';
-    case 'invite-already-redeemed':
-      return 'That invite link has already been used.';
-    case 'room-full':
-      return 'That room is full.';
-    case 'malformed-credentials':
-      return "Couldn't rejoin with the info on file.";
-  }
-}
-
-// ---------------------------------------------------------------------------
-// routeForScreen — inline-spec mirroring home.page.ts
-// ---------------------------------------------------------------------------
-
-type LastSessionScreen = 'lobby' | 'estimating';
-
-function routeForScreen(screen: LastSessionScreen, code: string): string {
-  switch (screen) {
-    case 'lobby':
-      return `/lobby/${code}`;
-    case 'estimating':
-      return `/estimating/${code}`;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// summaryFromCache — inline-spec mirroring home.page.ts
-// ---------------------------------------------------------------------------
-
-interface MinimalCache {
-  readonly roomCode: string;
-  readonly lastScreen: LastSessionScreen;
-}
-
-function summaryFromCache(cache: MinimalCache) {
-  return {
-    roomCode: cache.roomCode,
-    lastScreen: cache.lastScreen,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
+import { rejectionCopy, routeForScreen, summaryFromCache } from './home.helpers';
 
 describe('HomePage — rejectionCopy', () => {
   it('unknown-room → session expired copy', () => {
@@ -120,12 +51,24 @@ describe('HomePage — routeForScreen', () => {
 
 describe('HomePage — summaryFromCache', () => {
   it('maps roomCode and lastScreen from a lobby cache entry', () => {
-    const cache = { roomCode: 'ABC123', lastScreen: 'lobby' as const };
-    expect(summaryFromCache(cache)).toEqual({ roomCode: 'ABC123', lastScreen: 'lobby' });
+    expect(
+      summaryFromCache({
+        roomCode: 'ABC123',
+        roomUuid: 'uuid-1',
+        lastSeenAt: 0,
+        lastScreen: 'lobby',
+      }),
+    ).toEqual({ roomCode: 'ABC123', lastScreen: 'lobby' });
   });
 
   it('maps roomCode and lastScreen from an estimating cache entry', () => {
-    const cache = { roomCode: 'XYZ789', lastScreen: 'estimating' as const };
-    expect(summaryFromCache(cache)).toEqual({ roomCode: 'XYZ789', lastScreen: 'estimating' });
+    expect(
+      summaryFromCache({
+        roomCode: 'XYZ789',
+        roomUuid: 'uuid-2',
+        lastSeenAt: 0,
+        lastScreen: 'estimating',
+      }),
+    ).toEqual({ roomCode: 'XYZ789', lastScreen: 'estimating' });
   });
 });

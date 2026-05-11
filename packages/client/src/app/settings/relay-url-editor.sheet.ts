@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, input, OnInit, output } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
+
+import { validateRelayUrl } from './relay-url-editor.helpers';
 import {
   IonButton,
   IonButtons,
@@ -104,17 +106,7 @@ export class RelayUrlEditorSheetComponent implements OnInit {
 
   readonly urlCtrl = new FormControl('', {
     nonNullable: true,
-    validators: [
-      (ctrl) => {
-        const val = ctrl.value.trim();
-        if (!val) return null; // empty allowed (means clear)
-        // basic URL validation: must start with http:// or https://
-        if (!/^https?:\/\//.test(val)) {
-          return { invalidUrl: true };
-        }
-        return null;
-      },
-    ],
+    validators: [(ctrl) => validateRelayUrl(ctrl.value)],
   });
 
   ngOnInit(): void {
