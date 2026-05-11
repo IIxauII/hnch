@@ -21,7 +21,7 @@ import { ThemeService } from './app/core/theme.service';
 // platform (iOS on iPhone, Material on Android / PWA). See ux.md §2.
 bootstrapApplication(AppComponent, {
   providers: [
-    provideIonicAngular(),
+    provideIonicAngular({ useSetInputAPI: true }),
     provideRouter(routes, withPreloading(PreloadAllModules), withComponentInputBinding()),
     { provide: RouteReuseStrategy, useClass: IonicRouteStrategy },
     // Pre-warm the participant id so every downstream screen can read

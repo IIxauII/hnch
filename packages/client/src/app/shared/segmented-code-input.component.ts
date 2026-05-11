@@ -76,6 +76,8 @@ const TILE_COUNT = 6;
       display: flex;
       align-items: center;
       gap: 6px;
+      max-width: 360px;
+      margin-inline: auto;
     }
 
     .tile {

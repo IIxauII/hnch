@@ -17,6 +17,43 @@ import {
 } from './helpers';
 
 // ---------------------------------------------------------------------------
+// Surface-agnostic menu helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Open the header ⋯ menu and click a named item.
+ *
+ * On mobile (action-sheet): finds `ion-action-sheet button` with matching text.
+ * On desktop (popover): `ion-item[button]` inside `ion-popover` renders its
+ * interactive surface as a native button in shadow DOM. Playwright's getByRole()
+ * pierces shadow DOM and finds it by accessible name (the item text).
+ * Scoped to `ion-popover` to avoid matching unrelated buttons on the page.
+ *
+ * Ordering invariant: the overlay must already be opening when this is called
+ * (caller clicks the trigger button first).
+ */
+async function clickMenuOption(page: import('@playwright/test').Page, text: string): Promise<void> {
+  const actionSheetBtn = page.locator(`ion-action-sheet button:has-text("${text}")`);
+  // ion-item[button] renders a native <button> in shadow DOM; getByRole() pierces shadow.
+  // Scoped to ion-popover so unrelated page buttons don't match.
+  const popoverContainer = page.locator('ion-popover');
+  const popoverBtn = popoverContainer.getByRole('button', { name: text });
+
+  // Promise.any: resolves as soon as one overlay becomes visible; rejects only if both fail.
+  await Promise.any([
+    actionSheetBtn.waitFor({ state: 'visible', timeout: 5_000 }),
+    popoverBtn.waitFor({ state: 'visible', timeout: 5_000 }),
+  ]);
+
+  const isActionSheet = await actionSheetBtn.isVisible().catch(() => false);
+  if (isActionSheet) {
+    await actionSheetBtn.evaluate((el: HTMLElement) => el.click());
+  } else {
+    await popoverBtn.evaluate((el: HTMLElement) => el.click());
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Scale label normalization
 // ---------------------------------------------------------------------------
 
@@ -255,17 +292,14 @@ export class Participant {
     await this.page.locator('app-session-settings-sheet').waitFor({ state: 'hidden' });
   }
 
-  /** Leave the current session via action sheet → confirm. Navigates to /home. */
+  /** Leave the current session via menu overlay → confirm. Navigates to /home. */
   async leaveSession(): Promise<void> {
-    // Open action sheet by clicking the last button in the header (menu/more button)
+    // Open menu by clicking the last button in the header (menu/more button)
     const actionBtn = this.page.locator('ion-header').locator('ion-button').last();
     await actionBtn.click();
 
-    // Wait for action sheet and tap "Leave session"
-    const actionSheet = this.page.locator('ion-action-sheet');
-    await actionSheet.waitFor({ state: 'visible', timeout: 5_000 });
-    const leaveOption = this.page.locator('ion-action-sheet button:has-text("Leave session")');
-    await leaveOption.click();
+    // Click "Leave session" — works for both action-sheet (mobile) and popover (desktop)
+    await clickMenuOption(this.page, 'Leave session');
 
     // Confirm in alert
     const alert = this.page.locator('ion-alert');

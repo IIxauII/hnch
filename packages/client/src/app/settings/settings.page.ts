@@ -9,7 +9,9 @@ import {
 import {
   IonBackButton,
   IonButtons,
+  IonCol,
   IonContent,
+  IonGrid,
   IonHeader,
   IonInput,
   IonItem,
@@ -18,6 +20,7 @@ import {
   IonListHeader,
   IonModal,
   IonNote,
+  IonRow,
   IonSelect,
   IonSelectOption,
   IonTitle,
@@ -36,6 +39,7 @@ import { DisplayNameService } from '../core/display-name.service';
 import { ParticipantIdService } from '../core/participant-id.service';
 import { ScalePreferenceService } from '../core/scale-preference.service';
 import { ThemeService, type Theme } from '../core/theme.service';
+import { SurfaceService } from '../core/surface.service';
 import { ScalePickerSheetComponent } from '../session-settings/scale-picker.sheet';
 import { RelayUrlEditorSheetComponent } from './relay-url-editor.sheet';
 import { presentSheet } from '../utils/present-sheet';
@@ -56,7 +60,9 @@ import { presentSheet } from '../utils/present-sheet';
     ScalePickerSheetComponent,
     IonBackButton,
     IonButtons,
+    IonCol,
     IonContent,
+    IonGrid,
     IonHeader,
     IonInput,
     IonItem,
@@ -65,6 +71,7 @@ import { presentSheet } from '../utils/present-sheet';
     IonListHeader,
     IonModal,
     IonNote,
+    IonRow,
     IonSelect,
     IonSelectOption,
     IonTitle,
@@ -82,6 +89,8 @@ import { presentSheet } from '../utils/present-sheet';
       </ion-toolbar>
     </ion-header>
     <ion-content>
+      <ion-grid fixed class="page-container">
+        <ion-row><ion-col>
       <!-- Profile -->
       <ion-list-header>
         <ion-label>Profile</ion-label>
@@ -194,12 +203,16 @@ import { presentSheet } from '../utils/present-sheet';
         </ion-item>
       </ion-list>
 
+        </ion-col></ion-row>
+      </ion-grid>
+
       <!-- Scale picker half-sheet -->
       <ion-modal
         #scalePickerModal
+        cssClass="modal-centered"
         [isOpen]="scalePickerOpen()"
-        [breakpoints]="[0, 0.6, 0.95]"
-        [initialBreakpoint]="0.6"
+        [breakpoints]="surface.sheetBreakpoints()"
+        [initialBreakpoint]="surface.initialSheetBreakpoint()"
         (didDismiss)="scalePickerOpen.set(false)"
       >
         <ng-template>
@@ -214,9 +227,10 @@ import { presentSheet } from '../utils/present-sheet';
       <!-- Relay URL editor half-sheet -->
       <ion-modal
         #relayUrlModal
+        cssClass="modal-centered"
         [isOpen]="relayUrlEditorOpen()"
-        [breakpoints]="[0, 0.6, 0.95]"
-        [initialBreakpoint]="0.6"
+        [breakpoints]="surface.sheetBreakpoints()"
+        [initialBreakpoint]="surface.initialSheetBreakpoint()"
         (didDismiss)="relayUrlEditorOpen.set(false)"
       >
         <ng-template>
@@ -229,6 +243,17 @@ import { presentSheet } from '../utils/present-sheet';
       </ion-modal>
     </ion-content>
   `,
+  styles: [
+    `
+      @use '../../theme/breakpoints' as *;
+      @use '../../theme/page-container' as *;
+      @include page-container(720px);
+
+      ion-list-header {
+        padding-inline-start: 16px;
+      }
+    `,
+  ],
 })
 export class SettingsPage {
   private readonly displayNameService = inject(DisplayNameService);
@@ -238,6 +263,7 @@ export class SettingsPage {
   protected readonly themeService = inject(ThemeService);
   protected readonly appPrefs = inject(AppPreferenceService);
   protected readonly accentService = inject(AccentService);
+  protected readonly surface = inject(SurfaceService);
 
   protected readonly version = environment.appVersion;
 

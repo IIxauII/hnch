@@ -1,6 +1,28 @@
 import { test, expect } from './fixtures/app.fixture';
 import { LOBBY } from './fixtures/helpers';
 
+/**
+ * Click a named item in the header ⋯ menu overlay.
+ * Works for both ion-action-sheet (mobile) and ion-popover/app-menu-popover (desktop).
+ */
+async function clickMenuOption(page: import('@playwright/test').Page, text: string): Promise<void> {
+  const actionSheetBtn = page.locator(`ion-action-sheet button:has-text("${text}")`);
+  // ion-item[button] renders a native <button> in shadow DOM; getByRole() pierces shadow.
+  const popoverBtn = page.locator('ion-popover').getByRole('button', { name: text });
+
+  await Promise.any([
+    actionSheetBtn.waitFor({ state: 'visible', timeout: 5_000 }),
+    popoverBtn.waitFor({ state: 'visible', timeout: 5_000 }),
+  ]);
+
+  const isActionSheet = await actionSheetBtn.isVisible().catch(() => false);
+  if (isActionSheet) {
+    await actionSheetBtn.evaluate((el: HTMLElement) => el.click());
+  } else {
+    await popoverBtn.evaluate((el: HTMLElement) => el.click());
+  }
+}
+
 test.describe('Leave session flow', () => {
   test('host leaves session via action sheet → confirm → navigates to Home', async ({ host }) => {
     // Create a session
@@ -45,15 +67,12 @@ test.describe('Leave session flow', () => {
     await host.createSession();
     await host.page.waitForURL(/\/lobby/);
 
-    // Open action sheet
+    // Open menu (action-sheet on mobile, popover on desktop)
     const actionBtn = host.page.locator('ion-header').locator('ion-button').last();
     await actionBtn.evaluate((el: HTMLElement) => el.click());
-    const actionSheet = host.page.locator('ion-action-sheet');
-    await actionSheet.waitFor({ state: 'visible', timeout: 5_000 });
 
-    // Tap "Leave session" with evaluate for stability
-    const leaveOption = host.page.locator('ion-action-sheet button:has-text("Leave session")');
-    await leaveOption.evaluate((el: HTMLElement) => el.click());
+    // Tap "Leave session" — surface-agnostic
+    await clickMenuOption(host.page, 'Leave session');
 
     // Alert appears
     const alert = host.page.locator('ion-alert');

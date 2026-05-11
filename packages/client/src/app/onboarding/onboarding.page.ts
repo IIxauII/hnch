@@ -4,13 +4,16 @@ import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
   IonButton,
+  IonCol,
   IonContent,
   IonFooter,
+  IonGrid,
   IonHeader,
   IonInput,
   IonItem,
   IonList,
   IonNote,
+  IonRow,
   IonToolbar,
 } from '@ionic/angular/standalone';
 
@@ -34,13 +37,16 @@ import { BrandMarkComponent } from '../shared/brand-mark.component';
   imports: [
     BrandMarkComponent,
     IonButton,
+    IonCol,
     IonContent,
     IonFooter,
+    IonGrid,
     IonHeader,
     IonInput,
     IonItem,
     IonList,
     IonNote,
+    IonRow,
     IonToolbar,
     ReactiveFormsModule,
   ],
@@ -50,34 +56,39 @@ import { BrandMarkComponent } from '../shared/brand-mark.component';
       <ion-toolbar></ion-toolbar>
     </ion-header>
     <ion-content>
-      <div class="hero">
-        <app-brand-mark [size]="64" />
-        <h1>Welcome to hnch</h1>
-        <p class="subtitle">Pick a name your team will see next to your votes.</p>
-      </div>
+      <ion-grid fixed class="page-container">
+        <ion-row><ion-col>
+          <div class="hero">
+            <app-brand-mark [size]="64" />
+            <h1>Welcome to hnch</h1>
+            <p class="subtitle">Pick a name your team will see next to your votes.</p>
+          </div>
 
-      <ion-list inset="true">
-        <ion-item lines="none">
-          <ion-input
-            [formControl]="displayName"
-            label="Display name"
-            labelPlacement="stacked"
-            autocapitalize="words"
-            autocomplete="name"
-            enterkeyhint="done"
-            maxlength="40"
-            placeholder="Your name"
-            (keydown.enter)="submit()"
-          ></ion-input>
-        </ion-item>
-        <ion-note class="footer-note">You can change this later in Settings.</ion-note>
-      </ion-list>
+          <ion-list inset="true">
+            <ion-item lines="none">
+              <ion-input
+                [formControl]="displayName"
+                label="Display name"
+                labelPlacement="stacked"
+                autocapitalize="words"
+                autocomplete="name"
+                enterkeyhint="done"
+                maxlength="40"
+                placeholder="Your name"
+                (keydown.enter)="submit()"
+              ></ion-input>
+            </ion-item>
+            <ion-note class="footer-note">You can change this later in Settings.</ion-note>
+          </ion-list>
+        </ion-col></ion-row>
+      </ion-grid>
     </ion-content>
-    <ion-footer>
+    <ion-footer class="cta-bar">
       <ion-toolbar>
         <ion-button
           expand="block"
           size="large"
+          class="continue-btn"
           [disabled]="!canContinue() || isSubmitting()"
           (click)="submit()"
         >
@@ -88,6 +99,10 @@ import { BrandMarkComponent } from '../shared/brand-mark.component';
   `,
   styles: [
     `
+      @use '../../theme/breakpoints' as *;
+      @use '../../theme/page-container' as *;
+      @include page-container(480px);
+
       ion-header ion-toolbar {
         --background: transparent;
         --border-width: 0;
@@ -136,6 +151,10 @@ import { BrandMarkComponent } from '../shared/brand-mark.component';
         --background: transparent;
         --border-width: 0;
         padding: 12px 16px 16px;
+      }
+      ion-button.continue-btn {
+        --background-disabled: var(--hnch-btn-disabled-bg);
+        --color-disabled: var(--hnch-btn-disabled-fg);
       }
     `,
   ],
