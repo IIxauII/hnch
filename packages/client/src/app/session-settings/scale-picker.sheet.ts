@@ -35,6 +35,7 @@ import { addOutline, createOutline, trashOutline } from 'ionicons/icons';
 
 import { HapticService } from '../core/haptic.service';
 import { ScalePreferenceService } from '../core/scale-preference.service';
+import { SurfaceService } from '../core/surface.service';
 import { CustomScaleEditorSheetComponent } from './custom-scale-editor.sheet';
 import { ScaleEditorSheetComponent } from './scale-editor.sheet';
 
@@ -209,8 +210,8 @@ import { ScaleEditorSheetComponent } from './scale-editor.sheet';
     <ion-modal
       #editorModal
       [isOpen]="editorOpen()"
-      [breakpoints]="[0, 0.6, 0.95]"
-      [initialBreakpoint]="0.6"
+      [breakpoints]="surface.sheetBreakpoints()"
+      [initialBreakpoint]="surface.initialSheetBreakpoint()"
       (didDismiss)="editorOpen.set(false)"
     >
       <ng-template>
@@ -227,8 +228,8 @@ import { ScaleEditorSheetComponent } from './scale-editor.sheet';
     <ion-modal
       #customEditorModal
       [isOpen]="customEditorOpen()"
-      [breakpoints]="[0, 0.6, 1]"
-      [initialBreakpoint]="1"
+      [breakpoints]="surface.sheetBreakpointsFull()"
+      [initialBreakpoint]="surface.initialSheetBreakpointFull()"
       (didDismiss)="customEditorOpen.set(false)"
     >
       <ng-template>
@@ -255,6 +256,7 @@ import { ScaleEditorSheetComponent } from './scale-editor.sheet';
 export class ScalePickerSheetComponent {
   protected readonly scalePrefs = inject(ScalePreferenceService);
   private readonly haptics = inject(HapticService);
+  protected readonly surface = inject(SurfaceService);
   private readonly editorModalRef = viewChild<IonModal>('editorModal');
   private readonly customEditorModalRef = viewChild<IonModal>('customEditorModal');
 

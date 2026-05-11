@@ -39,6 +39,11 @@
   --hnch-success:      #30D158;
   --hnch-warning:      #FF9F0A;
   --hnch-danger:       #FF453A;
+
+  // Disabled-button tokens — light mode
+  // PR 3 will apply these to ion-button via --background-disabled/--color-disabled.
+  --hnch-btn-disabled-bg: rgba(0, 0, 0, 0.08);
+  --hnch-btn-disabled-fg: rgba(0, 0, 0, 0.35);
 }
 
 // ---------------------------------------------------------------------------
@@ -78,4 +83,8 @@
   --hnch-success:      #30D158;
   --hnch-warning:      #FF9F0A;
   --hnch-danger:       #FF453A;
+
+  // Disabled-button tokens — dark mode
+  --hnch-btn-disabled-bg: rgba(255, 255, 255, 0.08);
+  --hnch-btn-disabled-fg: rgba(255, 255, 255, 0.4);
 }

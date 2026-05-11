@@ -2,27 +2,36 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@a
 import { Router } from '@angular/router';
 import { formatElapsed, participantRole, type ParticipantSnapshot } from '@hnch/shared';
 import {
-  ActionSheetController,
   AlertController,
   IonButton,
   IonButtons,
   IonCard,
   IonCardContent,
   IonChip,
+  IonCol,
   IonContent,
   IonFooter,
+  IonGrid,
   IonHeader,
   IonIcon,
   IonLabel,
+  IonRow,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { chevronBackOutline, ellipsisHorizontalCircle } from 'ionicons/icons';
+import {
+  chevronBackOutline,
+  closeCircleOutline,
+  ellipsisHorizontalCircle,
+  logOutOutline,
+  settingsOutline,
+} from 'ionicons/icons';
 
 import { ConnectionChipComponent } from '../core/connection-chip.component';
 import { ConnectionStatusBannerComponent } from '../shared/connection-status-banner.component';
 import { DocService } from '../core/doc/doc.service';
+import { SurfaceService } from '../core/surface.service';
 import { HapticService } from '../core/haptic.service';
 import { LastSessionService } from '../core/last-session.service';
 import { assertRoomCode } from '../core/room-join.service';
@@ -58,11 +67,14 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component';
     IonCard,
     IonCardContent,
     IonChip,
+    IonCol,
     IonContent,
     IonFooter,
+    IonGrid,
     IonHeader,
     IonIcon,
     IonLabel,
+    IonRow,
     IonTitle,
     IonToolbar,
   ],
@@ -94,7 +106,7 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component';
           <app-connection-chip></app-connection-chip>
           <ion-button
             aria-label="More options"
-            (click)="openActionSheet()"
+            (click)="openActionSheet($event)"
           >
             <ion-icon slot="icon-only" name="ellipsis-horizontal-circle"></ion-icon>
           </ion-button>
@@ -102,6 +114,8 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component';
       </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding">
+      <ion-grid fixed class="page-container">
+        <ion-row><ion-col>
       <app-connection-status-banner />
       @if (currentRound(); as round) {
         <h1 class="title">Round {{ roundIndex() }}</h1>
@@ -145,10 +159,12 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component';
       } @else {
         <p class="empty">No active round.</p>
       }
+        </ion-col></ion-row>
+      </ion-grid>
     </ion-content>
 
     @if (isHost()) {
-      <ion-footer>
+      <ion-footer class="cta-bar">
         <ion-toolbar>
           <ion-button
             expand="block"
@@ -165,6 +181,10 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component';
   `,
   styles: [
     `
+      @use '../../theme/breakpoints' as *;
+      @use '../../theme/page-container' as *;
+      @include page-container(640px);
+
       .title {
         font-size: 1.75rem;
         font-weight: 700;
@@ -189,8 +209,10 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component';
       }
       .grid {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
         gap: 0.75rem;
+        max-width: 600px;
+        margin-inline: auto;
       }
       .card {
         margin: 0;
@@ -235,7 +257,7 @@ export class EstimatingPage {
   private readonly haptic = inject(HapticService);
   private readonly lastSessionService = inject(LastSessionService);
   private readonly timerTick = inject(TimerTickService);
-  private readonly actionSheetCtrl = inject(ActionSheetController);
+  private readonly surface = inject(SurfaceService);
   private readonly alertCtrl = inject(AlertController);
 
   protected readonly currentRound = this.docService.currentRound;
@@ -250,7 +272,10 @@ export class EstimatingPage {
   constructor() {
     addIcons({
       'chevron-back-outline': chevronBackOutline,
+      'close-circle-outline': closeCircleOutline,
       'ellipsis-horizontal-circle': ellipsisHorizontalCircle,
+      'log-out-outline': logOutOutline,
+      'settings-outline': settingsOutline,
     });
 
     // Bump `hnch.lastSession` so a reopen lands on Estimating rather
@@ -423,10 +448,11 @@ export class EstimatingPage {
     void this.router.navigate(['/lobby', code]);
   }
 
-  protected async openActionSheet(): Promise<void> {
-    const buttons: { text: string; role?: string; handler?: () => void }[] = [
+  protected async openActionSheet(event: Event): Promise<void> {
+    const items: { text: string; icon?: string; role?: string; handler?: () => void }[] = [
       {
         text: 'Session settings',
+        icon: 'settings-outline',
         handler: () => {
           // Navigate to lobby (session settings sheet lives there).
           const code = this.docService.roomCode();
@@ -436,6 +462,7 @@ export class EstimatingPage {
       },
       {
         text: 'Leave session',
+        icon: 'log-out-outline',
         role: 'destructive',
         handler: () => {
           void this.confirmLeave();
@@ -444,8 +471,9 @@ export class EstimatingPage {
     ];
 
     if (this.isHost()) {
-      buttons.splice(1, 0, {
+      items.splice(1, 0, {
         text: 'End session for everyone',
+        icon: 'close-circle-outline',
         role: 'destructive',
         handler: () => {
           void this.confirmEndSession();
@@ -453,13 +481,13 @@ export class EstimatingPage {
       });
     }
 
-    buttons.push({ text: 'Cancel', role: 'cancel' });
+    items.push({ text: 'Cancel', role: 'cancel' });
 
-    const sheet = await this.actionSheetCtrl.create({
+    await this.surface.openSheetOrPopover({
       header: 'Session',
-      buttons,
+      triggerEvent: event,
+      items,
     });
-    await sheet.present();
   }
 
   private async confirmLeave(): Promise<void> {
