@@ -1,3 +1,10 @@
+# [1.16.0](https://github.com/IIxauII/hnch/compare/client-v1.15.0...client-v1.16.0) (2026-05-11)
+
+
+### Features
+
+* **client,e2e:** desktop-responsive client (ADR-0039) ([#151](https://github.com/IIxauII/hnch/issues/151)) ([38d1681](https://github.com/IIxauII/hnch/commit/38d1681b0a580f03a87d5051d3773a5165270f3c))
+
 # [1.15.0](https://github.com/IIxauII/hnch/compare/client-v1.14.0...client-v1.15.0) (2026-05-07)
 
 
