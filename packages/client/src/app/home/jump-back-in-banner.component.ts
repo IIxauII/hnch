@@ -4,6 +4,7 @@ import { addIcons } from 'ionicons';
 import { returnUpBackOutline } from 'ionicons/icons';
 
 import type { LastSessionScreen } from '../core/last-session.service';
+import { screenCopy } from './jump-back-in-banner.helpers';
 
 /**
  * Jump-back-in banner — ux.md §5.2.
@@ -121,14 +122,5 @@ export class JumpBackInBannerComponent {
   protected onTap(): void {
     if (this.resuming() && !this.stale()) return;
     this.resumeRequested.emit();
-  }
-}
-
-function screenCopy(screen: LastSessionScreen): string {
-  switch (screen) {
-    case 'lobby':
-      return 'In the lobby';
-    case 'estimating':
-      return 'Estimating now';
   }
 }

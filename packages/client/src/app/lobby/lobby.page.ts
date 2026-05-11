@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { Router } from '@angular/router';
 import { Share } from '@capacitor/share';
-import { formatRoomCode, participantRole } from '@hnch/shared';
+import { formatRoomCode } from '@hnch/shared';
 import type { Round } from '@hnch/shared';
 import {
   AlertController,
@@ -54,6 +54,7 @@ import {
 } from 'ionicons/icons';
 
 import { ConnectionChipComponent } from '../core/connection-chip.component';
+import { isParticipantViewer } from './lobby-helpers';
 import { ConnectionStatusBannerComponent } from '../shared/connection-status-banner.component';
 import { ExportService } from '../core/export.service';
 import { SurfaceService } from '../core/surface.service';
@@ -581,10 +582,7 @@ export class LobbyPage {
 
   protected readonly hostId = computed(() => this.docService.settings()?.hostParticipantId ?? null);
 
-  /** True when a participant's effective role is `'viewer'`. */
-  protected isParticipantViewer(p: { role?: 'voter' | 'viewer' }): boolean {
-    return participantRole(p) === 'viewer';
-  }
+  protected readonly isParticipantViewer = isParticipantViewer;
 
   /** Toggle own voter↔viewer role. Wired to the self-row chip. */
   protected onToggleRole(): void {
