@@ -17,7 +17,7 @@ Implementation phases are intentionally *vertical slices* — each phase ends at
 3. [Phase 1 — Foundation](#3-phase-1--foundation)
 4. [Phase 2 — Local session loop](#4-phase-2--local-session-loop)
 5. [Phase 3 — Relay + multi-client sync](#5-phase-3--relay--multi-client-sync)
-6. [Phase 4 — Timer + host election](#6-phase-4--timer--host-election)
+6. [Phase 4 — Reveal + host election](#6-phase-4--reveal--host-election)
 7. [Phase 5 — Access control + join paths](#7-phase-5--access-control--join-paths)
 8. [Phase 6a — PWA polish](#8-phase-6a--pwa-polish)
 9. [Phase 6b — Native iOS build](#9-phase-6b--native-ios-build)
