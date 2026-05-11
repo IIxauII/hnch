@@ -1,0 +1,22 @@
+// A11y mixins — keyboard focus rings, hover-only interaction styles.
+
+/// Emit a :focus-visible outline; suppress the plain :focus ring so
+/// keyboard users see a clear indicator without mouse users seeing noise.
+@mixin focus-ring {
+  &:focus {
+    outline: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--ion-color-primary);
+    outline-offset: 2px;
+  }
+}
+
+/// Wrap hover-state declarations so they only apply to devices with a
+/// fine pointer (mouse/trackpad). Touch screens get no sticky-hover.
+@mixin hover-only {
+  @media (hover: hover) and (pointer: fine) {
+    @content;
+  }
+}
