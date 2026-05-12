@@ -100,17 +100,19 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
             <app-segmented-code-input [formControl]="codeControl" />
           </div>
 
-          <ion-list inset="true" class="qr-list">
-            <ion-item button="true" detail="true" [disabled]="isSubmitting()" (click)="onScanQr()">
-              <div class="icon-tile" slot="start" aria-hidden="true">
-                <ion-icon name="qr-code-outline"></ion-icon>
-              </div>
-              <ion-label>
-                <h2>Scan QR code</h2>
-                <p>Point your camera at the host's screen</p>
-              </ion-label>
-            </ion-item>
-          </ion-list>
+          @if (canScanQr()) {
+            <ion-list inset="true" class="qr-list">
+              <ion-item button="true" detail="true" [disabled]="isSubmitting()" (click)="onScanQr()">
+                <div class="icon-tile" slot="start" aria-hidden="true">
+                  <ion-icon name="qr-code-outline"></ion-icon>
+                </div>
+                <ion-label>
+                  <h2>Scan QR code</h2>
+                  <p>Point your camera at the host's screen</p>
+                </ion-label>
+              </ion-item>
+            </ion-list>
+          }
 
           @if (needsPassword()) {
             <ion-list inset="true" class="password-list">
@@ -281,8 +283,18 @@ export class JoinPage {
 
   protected readonly isSubmitting = signal(false);
 
+  /**
+   * `true` when the device can actually scan a QR code (native always;
+   * web requires a `videoinput` device). Probed once at construction —
+   * the QR list is hidden when this stays `false` so users on
+   * camera-less desktops (e.g. a Mac mini) don't see a dead entry.
+   */
+  protected readonly canScanQr = signal(false);
+
   constructor() {
     addIcons({ 'qr-code-outline': qrCodeOutline });
+
+    void this.qrScanner.isScanningAvailable().then((ok) => this.canScanQr.set(ok));
 
     // Live-reformat the field as the user types: normalize to strip
     // dashes + uppercase, then re-insert the dash once we have six
