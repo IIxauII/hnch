@@ -17,6 +17,12 @@
  *   3. Both peers disconnect.
  *   4. Peer C connects after a short delay, observes the accumulated
  *      state via a fresh sync-step-1/2 exchange (snapshot rehydrates).
+ *
+ * Awareness forwarding is also covered:
+ *
+ *   5. Peer A publishes presence; peer B receives it via live forwarding.
+ *   6. Peer C connects after A has presence; relay sends the initial
+ *      awareness push so C sees A without further messages from A.
  */
 
 import type { AddressInfo } from 'node:net';
@@ -207,6 +213,26 @@ describe('relay ws connection', () => {
     await b.close();
   });
 
+  /**
+   * Sends an awareness update from a test peer to the relay.
+   *
+   * `connectPeer` wires up doc updates automatically but not awareness
+   * updates (they are initiated by the application layer, not by the
+   * sync protocol). This helper encodes and sends the peer's current
+   * local awareness state over its raw WebSocket so the relay can
+   * forward it to other connected peers.
+   */
+  function sendAwarenessUpdate(peer: TestPeer): void {
+    const clientId = peer.awareness.clientID;
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, messageAwareness);
+    encoding.writeVarUint8Array(
+      encoder,
+      awarenessProtocol.encodeAwarenessUpdate(peer.awareness, [clientId]),
+    );
+    peer.socket.send(encoding.toUint8Array(encoder));
+  }
+
   it('snapshots state so a later peer rehydrates after everyone left (ADR-0012)', async () => {
     // Mint via the HTTP API to mirror the real client flow end-to-end.
     const createRes = await fetch(`${baseHttpUrl}/rooms`, { method: 'POST' });
@@ -242,5 +268,76 @@ describe('relay ws connection', () => {
     expect(c.doc.getMap('root').get('participant')).toBe('xau');
 
     await c.close();
+  });
+
+  it('forwards awareness updates from one peer to another peer (live)', async () => {
+    const record = roomStore.createRoom();
+    const a = await connectPeer(baseWsUrl, record.uuid);
+    const b = await connectPeer(baseWsUrl, record.uuid);
+    await Promise.all([a.whenSynced, b.whenSynced]);
+
+    // A publishes a presence state and pushes it to the relay.
+    a.awareness.setLocalState({ displayName: 'Alice', status: 'idle' });
+    sendAwarenessUpdate(a);
+
+    // B should receive A's awareness via the relay's forwarding path.
+    await waitFor(() => {
+      const states = b.awareness.getStates();
+      const aState = states.get(a.awareness.clientID) as { displayName: string } | undefined;
+      return aState?.displayName === 'Alice';
+    });
+
+    await a.close();
+    await b.close();
+  });
+
+  it('pushes existing awareness states to a newly connecting peer', async () => {
+    // Mint the room via the HTTP API so we exercise the full create path.
+    const createRes = await fetch(`${baseHttpUrl}/rooms`, { method: 'POST' });
+    const { uuid } = (await createRes.json()) as { uuid: string; code: string };
+
+    // A connects first and publishes presence.
+    const a = await connectPeer(baseWsUrl, uuid);
+    await a.whenSynced;
+    a.awareness.setLocalState({ displayName: 'Alice' });
+    sendAwarenessUpdate(a);
+
+    // Give the relay a tick to store A's awareness in the room state.
+    await new Promise((r) => setTimeout(r, 20));
+
+    // B connects after A has already published. The relay must push A's
+    // current awareness to B in the initial connection burst (the "existing
+    // states" push in setupWSConnection).
+    const b = await connectPeer(baseWsUrl, uuid);
+    await b.whenSynced;
+
+    await waitFor(() => {
+      const states = b.awareness.getStates();
+      const aState = states.get(a.awareness.clientID) as { displayName: string } | undefined;
+      return aState?.displayName === 'Alice';
+    });
+
+    await a.close();
+    await b.close();
+  });
+
+  it('clears a disconnected peer awareness on close', async () => {
+    const record = roomStore.createRoom();
+    const a = await connectPeer(baseWsUrl, record.uuid);
+    const b = await connectPeer(baseWsUrl, record.uuid);
+    await Promise.all([a.whenSynced, b.whenSynced]);
+
+    // A publishes presence.
+    a.awareness.setLocalState({ displayName: 'Alice' });
+    sendAwarenessUpdate(a);
+    await waitFor(() => b.awareness.getStates().has(a.awareness.clientID));
+
+    // A disconnects — the relay should remove A's awareness from the
+    // room and forward the removal to B.
+    await a.close();
+
+    await waitFor(() => !b.awareness.getStates().has(a.awareness.clientID));
+
+    await b.close();
   });
 });
