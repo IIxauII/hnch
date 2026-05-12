@@ -167,7 +167,7 @@ BREAKING CHANGE: clients on <1.4.0 can no longer join.
 
 Each package versions independently — `client`, `cli`, `relay`, and `shared` get their own tags (e.g. `relay-v0.4.1`). `e2e` is test-only and is not released. Scope your PR title (`fix(relay): ...`) so the right package picks it up; multi-package PRs use comma-separated scopes (`fix(relay,shared): ...`) and cut one release per listed releasing scope. See [Multi-scope titles](#multi-scope-titles).
 
-Under the hood, each package's `.releaserc.json` matches its scope via a micromatch extglob — `@(relay|*,relay|relay,*|*,relay,*)` — so the rule fires whether the scope appears alone or anywhere in a comma-separated list. Adding a new releasing scope means adding a new `.releaserc.json` with the same pattern.
+Under the hood, each package's `release.config.mjs` (built from `scripts/release/build-releaserc.mjs`) matches its scope via a micromatch extglob — `@(relay|*,relay|relay,*|*,relay,*)` — so the rule fires whether the scope appears alone or anywhere in a comma-separated list. The same scope filter is applied to `@semantic-release/release-notes-generator` (via a wrapped angular preset transform) so release notes only list commits relevant to the released package. Adding a new releasing scope means adding the package to `PACKAGES` in the builder and dropping a one-line `release.config.mjs` in the package.
 
 ## Parallel git worktrees
 

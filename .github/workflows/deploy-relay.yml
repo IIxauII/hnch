@@ -8,7 +8,7 @@ name: Deploy relay
 
 on:
   # Dispatched explicitly by semantic-release's publishCmd in
-  # packages/relay/.releaserc.json (`gh workflow run deploy-relay.yml --ref
+  # packages/relay/release.config.mjs (`gh workflow run deploy-relay.yml --ref
   # relay-vX.Y.Z`). Tag-push events from PATs are not reliably delivered to
   # other workflows, so dispatch is the canonical path. workflow_dispatch
   # also lets an operator re-deploy a known tag from the Actions UI.

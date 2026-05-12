@@ -10,7 +10,7 @@ name: Deploy client (PWA)
 
 on:
   # Dispatched explicitly by semantic-release's publishCmd in
-  # packages/client/.releaserc.json (`gh workflow run deploy-client.yml --ref
+  # packages/client/release.config.mjs (`gh workflow run deploy-client.yml --ref
   # client-vX.Y.Z`). Tag-push events from PATs are not reliably delivered to
   # other workflows, so dispatch is the canonical path. workflow_dispatch
   # also lets an operator re-deploy a known tag from the Actions UI.

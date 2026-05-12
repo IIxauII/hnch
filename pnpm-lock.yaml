@@ -26,6 +26,9 @@ importers:
       '@semantic-release/npm':
         specifier: ^12.0.0
         version: 12.0.2(semantic-release@25.0.3(typescript@5.9.3))
+      conventional-changelog-angular:
+        specifier: ^8.3.1
+        version: 8.3.1
       lefthook:
         specifier: ^2.1.6
         version: 2.1.6
