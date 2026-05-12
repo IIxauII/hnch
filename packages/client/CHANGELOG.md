@@ -1,3 +1,11 @@
+## [1.17.1](https://github.com/IIxauII/hnch/compare/client-v1.17.0...client-v1.17.1) (2026-05-12)
+
+
+### Bug Fixes
+
+* **client:** hide QR scan entry on devices without a camera ([#171](https://github.com/IIxauII/hnch/issues/171)) ([656dd71](https://github.com/IIxauII/hnch/commit/656dd719ba2a5b761caa94e4ebc58a7329dd60be))
+* **e2e:** wait for ng-serve bundle compile before tests start ([#172](https://github.com/IIxauII/hnch/issues/172)) ([2a25872](https://github.com/IIxauII/hnch/commit/2a2587260d63439de1796c0fc72a3a1ed29d9ab4))
+
 # [1.17.0](https://github.com/IIxauII/hnch/compare/client-v1.16.1...client-v1.17.0) (2026-05-12)
 
 
