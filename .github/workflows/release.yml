@@ -37,7 +37,7 @@ jobs:
           # pushed by semantic-release land on main. PAT also needs actions:write
           # so per-package publishCmd can dispatch deploy-*.yml via `gh workflow
           # run` (tag-push events from PATs are not reliably delivered to other
-          # workflows, so we explicitly dispatch instead — see ../../packages/*/.releaserc.json).
+          # workflows, so we explicitly dispatch instead — see ../../packages/*/release.config.mjs).
           token: ${{ secrets.RELEASE_TOKEN }}
 
       - name: Enable Corepack
@@ -64,7 +64,7 @@ jobs:
           # `gh` inside per-package publishCmd (workflow_dispatch on deploy-*.yml).
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           # npm granular automation token, used by @semantic-release/npm in
-          # cli's releaserc (npmPublish: true). Other packages stay private.
+          # cli's release.config.mjs (npmPublish: true). Other packages stay private.
           # Trusted Publishing (OIDC) was the preferred auth, but npm only
           # exposes the publisher binding UI per-package after the first
           # publish — so we bootstrap with a token, then migrate to OIDC
@@ -75,6 +75,6 @@ jobs:
           set -euo pipefail
           for PKG in shared relay client cli; do
             echo "::group::semantic-release :: $PKG"
-            pnpm exec semantic-release --extends ./packages/$PKG/.releaserc.json
+            pnpm exec semantic-release --extends ./packages/$PKG/release.config.mjs
             echo "::endgroup::"
           done
