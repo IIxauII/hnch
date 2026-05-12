@@ -1,3 +1,10 @@
+## [1.16.1](https://github.com/IIxauII/hnch/compare/client-v1.16.0...client-v1.16.1) (2026-05-12)
+
+
+### Bug Fixes
+
+* **client:** prevent room code tiles from overflowing card ([#169](https://github.com/IIxauII/hnch/issues/169)) ([92d953f](https://github.com/IIxauII/hnch/commit/92d953fec979915bb480645acfb6629471f219b2))
+
 # [1.16.0](https://github.com/IIxauII/hnch/compare/client-v1.15.0...client-v1.16.0) (2026-05-11)
 
 
