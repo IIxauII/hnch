@@ -1,4 +1,0 @@
-{
-  "//": "Shared root config; per-package configs extend this for `branches`. Plugin chain is defined per-package because semantic-release's extends replaces (does not merge) the plugins array.",
-  "branches": ["main"]
-}
