@@ -25,7 +25,7 @@
     "worktree:remove": "node scripts/worktree-remove.mjs",
     "worktree:bootstrap": "bash scripts/worktree-bootstrap.sh",
     "audit:versions": "node scripts/audit-versions.mjs",
-    "release:dry": "for p in shared relay client cli; do pnpm exec semantic-release --extends ./packages/$p/.releaserc.json --dry-run --no-ci || exit 1; done"
+    "release:dry": "for p in shared relay client cli; do pnpm exec semantic-release --extends ./packages/$p/release.config.mjs --dry-run --no-ci || exit 1; done"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.14",
@@ -34,6 +34,7 @@
     "@semantic-release/git": "10.0.1",
     "@semantic-release/github": "12.0.6",
     "@semantic-release/npm": "^12.0.0",
+    "conventional-changelog-angular": "^8.3.1",
     "lefthook": "^2.1.6",
     "oxlint": "^1.63.0",
     "semantic-release": "25.0.3",
