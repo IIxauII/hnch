@@ -38,7 +38,15 @@ export default defineConfig({
     },
     {
       command: 'pnpm --filter @hnch/client dev',
-      port: parseInt(CLIENT_PORT, 10),
+      // `ng serve` opens the TCP port within ~1s but the bundle compile takes
+      // ~15s on cold CI. Using `port:` makes Playwright start tests as soon as
+      // the socket is up — the first worker to navigate then eats the entire
+      // compile inside its 20s per-test budget and times out. `url:` instead
+      // polls HTTP until 2xx, which only happens once webpack-dev-server has
+      // finished its first compile. `timeout` extends the wait so cold CI runs
+      // don't bail before bundles are ready.
+      url: `http://localhost:${CLIENT_PORT}/`,
+      timeout: 180_000,
       reuseExistingServer: !isCI,
       env: { CLIENT_PORT },
     },
