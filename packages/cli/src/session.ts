@@ -15,6 +15,7 @@ import {
   castVote,
   clearVote,
   revealRound as revealRoundMutation,
+  skipRound as skipRoundMutation,
   appendRound,
   patchRoundDescriptor,
   patchSettings,
@@ -72,6 +73,8 @@ export interface SessionHandle {
   unvote(): void;
   /** Reveal the current round (host only). */
   reveal(): void;
+  /** Skip the current round (host only). */
+  skip(): void;
   /** Start a new round. */
   newRound(title?: string): string;
   /** Re-vote: start new round linked to current. */
@@ -302,6 +305,11 @@ export function wireSession(opts: WireOptions): SessionHandle {
     reveal() {
       const round = currentRound(projectDoc(doc));
       if (round) revealRoundMutation(doc, round.id, Date.now());
+    },
+
+    skip() {
+      const round = currentRound(projectDoc(doc));
+      if (round) skipRoundMutation(doc, round.id, Date.now());
     },
 
     newRound(title?: string) {

@@ -51,6 +51,7 @@ For quick orientation without reading all 36 ADRs:
 - **Connection handshake:** HTTP `GET /rooms/:code` resolves code → UUID; WebSocket to `/ws/:uuid` carries `JoinCredentials` as query params; rejections use private-use WS close codes 4001–4099. (ADR-0016)
 - **Host authority:** creator is initial host; on drop, 5-second debounce then lowest-peer-ID election. (ADR-0010)
 - **Reveal:** manual (host taps Reveal) + unanimous auto-reveal (fires when all online voters have voted). No countdown timer. `timerStartedAt` written at round creation as stopwatch origin for elapsed time display. (ADR-0018)
+- **Skip:** host-only terminal action distinct from reveal. Writes optional `skippedAt` on the round; mutually exclusive with `revealedAt` at the writer (both can coexist after CRDT merge — earlier timestamp wins via `terminalState()`). Auto-reveal guards on `!skippedAt`. No re-vote lineage from skip. Votes cast pre-skip stay in doc, suppressed in UI. (ADR-0040)
 - **Snapshots:** 24-hour in-memory TTL on the relay, keyed by room UUID; no disk persistence. (ADR-0012)
 - **Rounds:** flat list with optional `parentRoundId` for re-vote lineage; vote change allowed until reveal. (ADR-0013)
 - **Password protection:** PBKDF2-SHA-256 via Web Crypto (100k iterations, room UUID as salt). Wrong-password rejection surfaces via WS close `4002` (post-upgrade), not pre-upgrade HTTP 403, so browsers can read the reason. Invite-only mode dropped from v1 scope. (ADR-0017, ADR-0035)
