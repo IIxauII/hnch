@@ -6,6 +6,7 @@ import {
   TSHIRT_SCALE,
   isActiveParticipant,
   participantRole,
+  terminalState,
   type Participant,
   type Scale,
 } from './doc.js';
@@ -28,6 +29,7 @@ import {
   projectDoc,
   removeParticipant,
   revealRound,
+  skipRound,
   upsertParticipant,
   type DocProjection,
   type InitDocInit,
@@ -340,6 +342,73 @@ describe('revealRound', () => {
   it('throws on unknown round ids', () => {
     const { doc } = seedDoc();
     expect(() => revealRound(doc, 'nope', 1)).toThrow(/not found/);
+  });
+
+  it('throws when the round is already skipped (ADR-0040)', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    skipRound(doc, 'r1', 1_700_000_300_000);
+    expect(() => revealRound(doc, 'r1', 1_700_000_400_000)).toThrow(/already skipped/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// skipRound (ADR-0040)
+// ---------------------------------------------------------------------------
+
+describe('skipRound', () => {
+  it('stamps skippedAt', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    skipRound(doc, 'r1', 1_700_000_250_000);
+    expect(projectDoc(doc).rounds[0]!.skippedAt).toBe(1_700_000_250_000);
+    expect(projectDoc(doc).rounds[0]!.revealedAt).toBeUndefined();
+  });
+
+  it('throws on unknown round ids', () => {
+    const { doc } = seedDoc();
+    expect(() => skipRound(doc, 'nope', 1)).toThrow(/not found/);
+  });
+
+  it('throws when the round is already revealed', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    revealRound(doc, 'r1', 1_700_000_200_000);
+    expect(() => skipRound(doc, 'r1', 1_700_000_300_000)).toThrow(/already revealed/);
+  });
+
+  it('throws when the round is already skipped', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    skipRound(doc, 'r1', 1_700_000_250_000);
+    expect(() => skipRound(doc, 'r1', 1_700_000_300_000)).toThrow(/already skipped/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// terminalState (ADR-0040)
+// ---------------------------------------------------------------------------
+
+describe('terminalState', () => {
+  it('returns null when neither field is set', () => {
+    expect(terminalState({})).toBeNull();
+  });
+
+  it('returns "revealed" when only revealedAt is set', () => {
+    expect(terminalState({ revealedAt: 100 })).toBe('revealed');
+  });
+
+  it('returns "skipped" when only skippedAt is set', () => {
+    expect(terminalState({ skippedAt: 100 })).toBe('skipped');
+  });
+
+  it('picks the earlier timestamp when both are set (CRDT merge)', () => {
+    expect(terminalState({ revealedAt: 100, skippedAt: 200 })).toBe('revealed');
+    expect(terminalState({ revealedAt: 200, skippedAt: 100 })).toBe('skipped');
+  });
+
+  it('prefers reveal on a literal tie (revealedAt <= skippedAt)', () => {
+    expect(terminalState({ revealedAt: 100, skippedAt: 100 })).toBe('revealed');
   });
 });
 
