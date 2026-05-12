@@ -215,4 +215,65 @@ describe('RoundHistoryComponent.entries', () => {
     const c = await createComponent([r]);
     expect(c.entries()[0]!.title).toBe('Auth migration');
   });
+
+  // ── Skipped rounds ────────────────────────────────────────────────────────
+
+  it('includes a skipped round (skippedAt set, no revealedAt)', async () => {
+    const scale = makeScale(['1', '2', '3']);
+    const r = makeRound({ id: 'r1', scale, votes: { p1: '1' }, skippedAt: 2000 });
+    const c = await createComponent([r]);
+    expect(c.entries()).toHaveLength(1);
+    expect(c.entries()[0]!.roundId).toBe('r1');
+    expect(c.entries()[0]!.skipped).toBe(true);
+  });
+
+  it('skipped entry has no summary text', async () => {
+    const scale = makeScale(['1', '2']);
+    const r = makeRound({ id: 'r1', scale, votes: { p1: '1' }, skippedAt: 2000 });
+    const c = await createComponent([r]);
+    expect(c.entries()[0]!.summary).toBe('');
+  });
+
+  it('skipped entry has null elapsed', async () => {
+    const scale = makeScale(['1', '2']);
+    const r = makeRound({
+      id: 'r1',
+      scale,
+      votes: {},
+      skippedAt: 2000,
+      timerStartedAt: 1000,
+    });
+    const c = await createComponent([r]);
+    expect(c.entries()[0]!.elapsed).toBeNull();
+  });
+
+  it('skipped round interleaves with revealed by array position', async () => {
+    const scale = makeScale(['1', '2']);
+    const r1 = makeRound({ id: 'r1', scale, votes: { p1: '1' }, revealedAt: 1000 });
+    const r2 = makeRound({ id: 'r2', scale, votes: {}, skippedAt: 2000 });
+    const r3 = makeRound({ id: 'r3', scale, votes: { p1: '2' }, revealedAt: 3000 });
+    const c = await createComponent([r1, r2, r3]);
+    const entries = c.entries();
+    expect(entries).toHaveLength(3);
+    // Reverse order: r3 first, r2 second, r1 third
+    expect(entries[0]!.roundId).toBe('r3');
+    expect(entries[0]!.skipped).toBe(false);
+    expect(entries[1]!.roundId).toBe('r2');
+    expect(entries[1]!.skipped).toBe(true);
+    expect(entries[2]!.roundId).toBe('r1');
+    expect(entries[2]!.skipped).toBe(false);
+    // Round numbers by original position
+    expect(entries[0]!.roundNumber).toBe(3);
+    expect(entries[1]!.roundNumber).toBe(2);
+    expect(entries[2]!.roundNumber).toBe(1);
+  });
+
+  it('filters out rounds that are not terminal (no revealedAt, no skippedAt)', async () => {
+    const scale = makeScale(['1', '2']);
+    const active = makeRound({ id: 'r1', scale, votes: {} });
+    const revealed = makeRound({ id: 'r2', scale, votes: {}, revealedAt: 1000 });
+    const c = await createComponent([active, revealed]);
+    expect(c.entries()).toHaveLength(1);
+    expect(c.entries()[0]!.roundId).toBe('r2');
+  });
 });

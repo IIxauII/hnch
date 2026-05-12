@@ -141,6 +141,13 @@ export interface Round {
    * voted (unanimous auto-reveal, ADR-0018). Absent means not yet revealed.
    */
   revealedAt?: number;
+  /**
+   * Unix milliseconds when the host skipped the round (ADR-0040). Mutually
+   * exclusive terminal state with `revealedAt` at the writer; both fields
+   * can coexist after a concurrent CRDT merge, in which case the earlier
+   * timestamp wins (resolve via `terminalState()`). Absent means not skipped.
+   */
+  skippedAt?: number;
   /** `participantId` of whoever created the round. */
   createdBy: string;
   /** Unix milliseconds when the round was created. */
@@ -154,6 +161,26 @@ export interface Round {
    * here is the platform-neutral projection.
    */
   votes: Record<string, string>;
+}
+
+/**
+ * Resolves the terminal state of a round per ADR-0040. Returns `'revealed'`
+ * if only `revealedAt` is set, `'skipped'` if only `skippedAt` is set, the
+ * earlier of the two if both are set after a concurrent CRDT merge, or
+ * `null` if the round is still in progress.
+ *
+ * Every consumer that branches on round end state must funnel through this
+ * helper — otherwise concurrent reveal+skip can render divergently across
+ * clients.
+ */
+export function terminalState(
+  r: Pick<Round, 'revealedAt' | 'skippedAt'>,
+): 'revealed' | 'skipped' | null {
+  const { revealedAt, skippedAt } = r;
+  if (revealedAt === undefined && skippedAt === undefined) return null;
+  if (revealedAt === undefined) return 'skipped';
+  if (skippedAt === undefined) return 'revealed';
+  return revealedAt <= skippedAt ? 'revealed' : 'skipped';
 }
 
 // ---------------------------------------------------------------------------

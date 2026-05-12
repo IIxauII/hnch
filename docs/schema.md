@@ -91,6 +91,7 @@ Each round's `Y.Map`:
 | `scale` | `Scale` | Snapshotted at round creation from `settings.defaultScale` (or chosen per-round by the host). Independent after creation — changing `settings.defaultScale` later does not alter existing rounds. |
 | `timerStartedAt?` | `number` | Unix milliseconds when voting started. Always written at round creation. Used as a stopwatch origin for elapsed voting time display ([ADR-0018](../adr/0018-remove-timer-add-unanimous-reveal.md)). |
 | `revealedAt?` | `number` | Unix milliseconds when the round was revealed. Written by the host (manual reveal) or by any client when all online participants have voted (unanimous auto-reveal, [ADR-0018](../adr/0018-remove-timer-add-unanimous-reveal.md)). Absent means not yet revealed. |
+| `skippedAt?` | `number` | Unix milliseconds when the host skipped the round ([ADR-0040](../adr/0040-skipped-rounds.md)). Mutually exclusive terminal state with `revealedAt` at the writer; both fields can coexist after a concurrent CRDT merge, in which case the earlier timestamp wins via `terminalState()`. Absent means not skipped. |
 | `createdBy` | `string` | `participantId` of whoever created the round. |
 | `createdAt` | `number` | Unix milliseconds when the round was created. |
 | `votes` | `Y.Map<participantId, string>` | Votes keyed by participant. The value is the card face (e.g. `"5"`, `"M"`, `"High"`). Vote-change-before-reveal ([ADR-0013](../adr/0013-round-model-flat-parentroundid.md)) is just overwriting this key. Only the final value is retained. |

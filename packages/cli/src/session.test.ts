@@ -312,6 +312,40 @@ describe('session integration', () => {
     host.disconnect();
     joiner.disconnect();
   });
+
+  it('host skip propagates skippedAt to joiner', async () => {
+    const host = await createSession({
+      participantId: 'host-skip',
+      displayName: 'Alice',
+      relayUrl,
+    });
+
+    await sleep(500);
+
+    const joiner = await joinSession({
+      participantId: 'joiner-skip',
+      displayName: 'Bob',
+      relayUrl,
+      roomCode: host.roomCode,
+    });
+
+    await sleep(500);
+
+    const roundId = host.newRound('Skip me');
+    await sleep(300);
+
+    host.skip();
+    await sleep(500);
+
+    const hostRound = host.projection().rounds.find((r) => r.id === roundId);
+    const joinerRound = joiner.projection().rounds.find((r) => r.id === roundId);
+
+    expect(hostRound!.skippedAt).toBeTypeOf('number');
+    expect(joinerRound!.skippedAt).toBeTypeOf('number');
+
+    host.disconnect();
+    joiner.disconnect();
+  });
 });
 
 function sleep(ms: number): Promise<void> {

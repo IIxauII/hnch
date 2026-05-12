@@ -201,4 +201,22 @@ describe('compactRoundSummary', () => {
       'Round 1: — 5×1',
     );
   });
+
+  it('skipped round returns "Round N — Skipped"', () => {
+    expect(compactRoundSummary(makeRound({ skippedAt: 1_000 }), 3)).toBe('Round 3: — Skipped');
+  });
+
+  it('skipped round includes title and ticketId', () => {
+    expect(
+      compactRoundSummary(makeRound({ skippedAt: 1_000, title: 'Auth', ticketId: 'AUTH-1' }), 2),
+    ).toBe('Round 2: Auth [AUTH-1] — Skipped');
+  });
+
+  it('revealed wins over skipped when revealedAt > skippedAt', () => {
+    // terminalState: revealedAt <= skippedAt → 'revealed'; revealedAt > skippedAt → 'skipped'
+    // revealedAt=2_000 > skippedAt=1_000 → 'skipped'
+    expect(compactRoundSummary(makeRound({ revealedAt: 2_000, skippedAt: 1_000 }), 1)).toBe(
+      'Round 1: — Skipped',
+    );
+  });
 });

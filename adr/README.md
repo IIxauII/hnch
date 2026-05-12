@@ -58,6 +58,7 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0037](0037-self-hosted-runner-pool-covers-all-non-health-jobs.md) | Self-hosted runner pool covers all CI/CD jobs except `runner-health.yml` (extends ADR-0029 + ADR-0032) | Proposed |
 | [0038](0038-biome-oxlint-lefthook-tooling.md) | Code-quality tooling — Biome (format) + Oxlint (lint) + lefthook (pre-commit) + ratcheted TS strictness | Accepted |
 | [0039](0039-desktop-responsive-layout.md) | Desktop-responsive layout — breakpoint-conditional surface modes, capped containers, popover menus, centered modals | Accepted |
+| [0040](0040-skipped-rounds.md) | Skipped rounds — host terminal-state action distinct from reveal | Accepted |
 
 ## When to write an ADR
 

@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { isConsensus } from '@hnch/shared';
+import { isConsensus, terminalState } from '@hnch/shared';
 import { ParticipantList } from './components/ParticipantList.js';
 import { HostActionsMenu } from './components/HostActionsMenu.js';
 import { SharePicker } from './components/SharePicker.js';
@@ -106,9 +106,10 @@ export function Lobby({
         if (input === 's' || input === 'S') onStartRound();
         if (input === 'h' || input === 'H') setHandoffMode('picking');
         if (input === 'm' || input === 'M') setHostMenuOpen(true);
-        if (currentRound?.revealedAt !== undefined) {
+        if (currentRound !== null && terminalState(currentRound) !== null) {
           if (input === 'n' || input === 'N') onNewRound();
-          if (input === 'v' || input === 'V') onRevote();
+          if ((input === 'v' || input === 'V') && terminalState(currentRound) !== 'skipped')
+            onRevote();
           if (input === 't' || input === 'T') onEditDescriptor();
         }
       }
@@ -177,10 +178,10 @@ export function Lobby({
   );
 
   const hasRounds = rounds.length > 0;
-  const revealedRounds = rounds.filter((r) => r.revealedAt !== undefined);
+  const terminalRounds = rounds.filter((r) => terminalState(r) !== null);
 
-  // Past rounds = all revealed rounds except the latest (shown in full)
-  const pastRounds = currentRound !== null ? revealedRounds.slice(0, -1) : revealedRounds;
+  // Past rounds = all terminal rounds except the latest (shown in full)
+  const pastRounds = currentRound !== null ? terminalRounds.slice(0, -1) : terminalRounds;
 
   if (hostMenuOpen) {
     return (
@@ -221,7 +222,7 @@ export function Lobby({
         participantId={participantId}
       />
 
-      {currentRound?.revealedAt !== undefined && (
+      {currentRound !== null && terminalState(currentRound) !== null && (
         <ResultsSection projection={projection} round={currentRound} rounds={rounds} />
       )}
 
@@ -315,9 +316,11 @@ export function Lobby({
           <Box gap={2}>
             {isHost ? (
               <>
-                {currentRound?.revealedAt !== undefined ? (
+                {currentRound !== null && terminalState(currentRound) !== null ? (
                   <>
-                    <Text color="yellow">[v] Revote</Text>
+                    {terminalState(currentRound) !== 'skipped' && (
+                      <Text color="yellow">[v] Revote</Text>
+                    )}
                     <Text color="yellow">[n] Next</Text>
                     <Text color="yellow">[t] Edit title</Text>
                     <Text color="yellow">[h] Handoff</Text>
@@ -361,6 +364,19 @@ function ResultsSection({ projection, round, rounds }: ResultsSectionProps): Rea
   const roundNum = rounds.indexOf(round) + 1;
   const title = round.title ? ` — ${round.title}` : '';
   const ticket = round.ticketId ? ` [${round.ticketId}]` : '';
+
+  if (terminalState(round) === 'skipped') {
+    return (
+      <Box flexDirection="column" gap={1}>
+        <Text bold>
+          Round {roundNum}
+          {title}
+          {ticket} — Skipped
+        </Text>
+      </Box>
+    );
+  }
+
   const stats = computeStats(round.votes);
   const nameMap = new Map(projection.participants.map((p) => [p.id, p.displayName]));
 

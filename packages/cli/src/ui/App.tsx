@@ -3,7 +3,7 @@ import { Box, Text, useApp, useInput } from 'ink';
 import type { SessionHandle } from '../session.js';
 import type { SyncStatus } from '../sync.js';
 import type { DocProjection, Round, Scale, PresetOverrides, CustomScale } from '@hnch/shared';
-import { currentRound, participantRole } from '@hnch/shared';
+import { currentRound, participantRole, terminalState } from '@hnch/shared';
 import clipboard from 'clipboardy';
 import { shareCode, shareUrl, shareNpxCommand } from '../share.js';
 import { StatusBar } from './components/StatusBar.js';
@@ -26,7 +26,7 @@ type Screen = 'lobby' | 'voting';
 function deriveScreen(projection: DocProjection): Screen {
   const round = currentRound(projection);
   if (!round) return 'lobby';
-  if (round.revealedAt !== undefined) return 'lobby';
+  if (terminalState(round) !== null) return 'lobby';
   return 'voting';
 }
 
@@ -191,6 +191,10 @@ export function App({
     session.reveal();
   }, [session]);
 
+  const handleSkip = useCallback(() => {
+    session.skip();
+  }, [session]);
+
   const handleNewRound = useCallback(() => {
     setRoundTitleInput('');
     setRoundTitlePromptActive(true);
@@ -275,10 +279,10 @@ export function App({
     [session.roomCode, shareNotice],
   );
 
-  // The latest revealed round for results display in Lobby
-  const revealedRounds = projection.rounds.filter((r) => r.revealedAt !== undefined);
+  // The latest terminal round (revealed or skipped) for results display in Lobby
+  const terminalRounds = projection.rounds.filter((r) => terminalState(r) !== null);
   const latestRevealedRound: Round | null =
-    revealedRounds.length > 0 ? revealedRounds.at(-1)! : null;
+    terminalRounds.length > 0 ? terminalRounds.at(-1)! : null;
 
   return (
     <Box flexDirection="column">
@@ -364,6 +368,7 @@ export function App({
           onVote={handleVote}
           onClearVote={handleClearVote}
           onReveal={handleReveal}
+          onSkip={handleSkip}
           onToggleRole={handleToggleRole}
           onShare={handleShare}
           onSetShareOpen={setShareOpen}

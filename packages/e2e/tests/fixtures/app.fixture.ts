@@ -190,6 +190,14 @@ export class Participant {
     await this.page.locator(LOBBY.resultsSection).waitFor({ state: 'visible', timeout: 5_000 });
   }
 
+  /** Tap the ⋯ menu, click "Skip round" (host only). Navigates to /lobby with skipped label. */
+  async skipRound(): Promise<void> {
+    const actionBtn = this.page.locator('ion-header').locator('ion-button').last();
+    await actionBtn.click();
+    await clickMenuOption(this.page, 'Skip round');
+    await this.page.waitForURL(/\/lobby/, { timeout: 10_000 });
+  }
+
   // -- Lobby results actions -------------------------------------------------
 
   /** Tap "Next Round N" from the lobby results section and confirm the modal. */
