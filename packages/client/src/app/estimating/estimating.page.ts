@@ -1,6 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { formatElapsed, participantRole, type ParticipantSnapshot } from '@hnch/shared';
+import {
+  formatElapsed,
+  participantRole,
+  terminalState,
+  type ParticipantSnapshot,
+} from '@hnch/shared';
 import {
   AlertController,
   IonButton,
@@ -300,12 +305,12 @@ export class EstimatingPage {
       }
     });
 
-    // Auto-navigate to Lobby when `revealedAt` is written — covers
-    // unanimous auto-reveal and host manual reveal. Scoped to this
-    // component's lifetime.
+    // Auto-navigate to Lobby when round reaches a terminal state (revealed
+    // or skipped) — covers unanimous auto-reveal, host manual reveal, and
+    // host skip. Scoped to this component's lifetime.
     effect(() => {
       const round = this.docService.currentRound();
-      if (round?.revealedAt !== undefined) {
+      if (round !== null && round !== undefined && terminalState(round) !== null) {
         const activeCode = this.docService.roomCode();
         assertRoomCode(activeCode, 'estimating.autoNav');
         void this.router.navigate(['/lobby', activeCode], { replaceUrl: true });
@@ -471,7 +476,18 @@ export class EstimatingPage {
     ];
 
     if (this.isHost()) {
-      items.splice(1, 0, {
+      const round = this.currentRound();
+      if (round && terminalState(round) === null) {
+        items.splice(1, 0, {
+          text: 'Skip round',
+          icon: 'close-circle-outline',
+          role: 'destructive',
+          handler: () => {
+            this.onSkip();
+          },
+        });
+      }
+      items.splice(items.length - 1, 0, {
         text: 'End session for everyone',
         icon: 'close-circle-outline',
         role: 'destructive',
@@ -523,6 +539,13 @@ export class EstimatingPage {
     await this.router.navigate(['/home']);
   }
 
+  private onSkip(): void {
+    const round = this.currentRound();
+    if (!round) return;
+    this.haptic.impactHeavy();
+    this.docService.skipRound(round.id);
+  }
+
   private async confirmEndSession(): Promise<void> {
     const alert = await this.alertCtrl.create({
       header: 'End this session?',
@@ -551,12 +574,17 @@ export class EstimatingPage {
  */
 export function shouldAutoReveal(
   round:
-    | { readonly id: string; readonly revealedAt?: number; readonly votes: Record<string, string> }
+    | {
+        readonly id: string;
+        readonly revealedAt?: number;
+        readonly skippedAt?: number;
+        readonly votes: Record<string, string>;
+      }
     | null
     | undefined,
   onlineVoterIds: ReadonlySet<string>,
 ): boolean {
-  if (!round || round.revealedAt !== undefined) return false;
+  if (!round || round.revealedAt !== undefined || round.skippedAt !== undefined) return false;
   if (onlineVoterIds.size === 0) return false;
   const votedCount = Object.keys(round.votes).filter((id) => onlineVoterIds.has(id)).length;
   return votedCount >= onlineVoterIds.size;

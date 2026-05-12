@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { Router } from '@angular/router';
 import { Share } from '@capacitor/share';
-import { formatRoomCode } from '@hnch/shared';
+import { formatRoomCode, terminalState } from '@hnch/shared';
 import type { Round } from '@hnch/shared';
 import {
   AlertController,
@@ -305,29 +305,33 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       @if (lastRevealedRound(); as round) {
         <section class="results-section" aria-label="Round {{ lastRevealedRoundIndex() }} Results">
           <h2 class="results-heading">Round {{ lastRevealedRoundIndex() }} Results</h2>
-          <div class="results-descriptor-row">
-            @if (round.title) {
-              <p class="results-descriptor">{{ round.title }}</p>
-            } @else if (isHost()) {
-              <p class="results-descriptor placeholder">Add a descriptor</p>
-            }
-            @if (isHost()) {
-              <ion-button
-                fill="clear"
-                size="small"
-                class="edit-btn"
-                aria-label="Edit round descriptor"
-                (click)="openRoundEdit(round)"
-              >
-                <ion-icon name="pencil-outline" slot="icon-only" />
-              </ion-button>
-            }
-          </div>
-          <app-vote-results
-            [round]="round"
-            [participants]="participants()"
-            [myId]="myId()"
-          />
+          @if (lastRoundWasSkipped()) {
+            <p class="round-skipped" role="status">Round skipped</p>
+          } @else {
+            <div class="results-descriptor-row">
+              @if (round.title) {
+                <p class="results-descriptor">{{ round.title }}</p>
+              } @else if (isHost()) {
+                <p class="results-descriptor placeholder">Add a descriptor</p>
+              }
+              @if (isHost()) {
+                <ion-button
+                  fill="clear"
+                  size="small"
+                  class="edit-btn"
+                  aria-label="Edit round descriptor"
+                  (click)="openRoundEdit(round)"
+                >
+                  <ion-icon name="pencil-outline" slot="icon-only" />
+                </ion-button>
+              }
+            </div>
+            <app-vote-results
+              [round]="round"
+              [participants]="participants()"
+              [myId]="myId()"
+            />
+          }
         </section>
       }
 
@@ -347,14 +351,7 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       <ion-footer class="cta-bar">
         <ion-toolbar>
           @if (lastRevealedRound()) {
-            <div class="footer-row">
-              <ion-button
-                expand="block"
-                fill="outline"
-                (click)="onRevote()"
-              >
-                Re-vote
-              </ion-button>
+            @if (lastRoundWasSkipped()) {
               <ion-button
                 expand="block"
                 color="primary"
@@ -362,7 +359,24 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
               >
                 Next Round {{ nextRoundNumber() }}
               </ion-button>
-            </div>
+            } @else {
+              <div class="footer-row">
+                <ion-button
+                  expand="block"
+                  fill="outline"
+                  (click)="onRevote()"
+                >
+                  Re-vote
+                </ion-button>
+                <ion-button
+                  expand="block"
+                  color="primary"
+                  (click)="openRoundStart()"
+                >
+                  Next Round {{ nextRoundNumber() }}
+                </ion-button>
+              </div>
+            }
           } @else {
             <ion-button
               expand="block"
@@ -530,6 +544,11 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
         --padding-start: 0.25rem;
         --padding-end: 0.25rem;
       }
+      .round-skipped {
+        margin: 0.5rem 0;
+        color: var(--ion-color-medium);
+        font-style: italic;
+      }
       .footer-row {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -632,16 +651,24 @@ export class LobbyPage {
   });
 
   /**
-   * The most recently revealed round, or null if no rounds have been
-   * revealed yet. Drives the inline results display.
+   * The most recently terminal round (revealed or skipped), or null if no
+   * rounds have ended yet. Drives the inline results / skipped notice display.
    */
   protected readonly lastRevealedRound = computed(() => {
     const rounds = this.rounds();
     for (let i = rounds.length - 1; i >= 0; i--) {
       const r = rounds[i]!;
-      if (r.revealedAt !== undefined) return r;
+      if (terminalState(r) !== null) return r;
     }
     return null;
+  });
+
+  /**
+   * True when `lastRevealedRound` was skipped rather than revealed.
+   */
+  protected readonly lastRoundWasSkipped = computed(() => {
+    const r = this.lastRevealedRound();
+    return r !== null && terminalState(r) === 'skipped';
   });
 
   /**
@@ -659,12 +686,17 @@ export class LobbyPage {
     this.rounds().some((r) => r.revealedAt != null),
   );
 
+  /** True when at least one round has reached a terminal state (gates accordion collapse). */
+  protected readonly hasTerminalRounds = computed(() =>
+    this.rounds().some((r) => terminalState(r) !== null),
+  );
+
   /**
    * Controls accordion open/closed state. Null collapses when a round
-   * has been revealed so results stay above the fold.
+   * has reached a terminal state so results stay above the fold.
    */
   protected readonly participantsAccordionValue = computed(() =>
-    participantsAccordionValueFor(this.lastRevealedRound() !== null),
+    participantsAccordionValueFor(this.hasTerminalRounds()),
   );
 
   /**
@@ -678,15 +710,15 @@ export class LobbyPage {
   );
 
   /**
-   * All revealed rounds except the most recent. Passed to
-   * RoundHistoryComponent — only shown when there are 2+ revealed rounds
+   * All terminal rounds (revealed or skipped) except the most recent. Passed
+   * to RoundHistoryComponent — only shown when there are 2+ terminal rounds
    * so there is at least one past entry alongside the current results.
    */
   protected readonly pastRevealedRounds = computed(() => {
     const rounds = this.rounds();
     const last = this.lastRevealedRound();
     if (!last) return [];
-    return rounds.filter((r) => r.revealedAt !== undefined && r.id !== last.id);
+    return rounds.filter((r) => terminalState(r) !== null && r.id !== last.id);
   });
 
   /** 1-based round number for the edit modal header. */
@@ -747,10 +779,11 @@ export class LobbyPage {
     // Auto-navigate to Estimating when a round starts. Covers
     // non-host clients who are sitting on the Lobby when the host
     // taps "Start Round" — without this, only the host's click
-    // handler navigates.
+    // handler navigates. Guard: do not nav for terminal rounds (skipped
+    // rounds briefly appear as currentRound before the projection updates).
     effect(() => {
       const round = this.docService.currentRound();
-      if (round && round.revealedAt === undefined) {
+      if (round && terminalState(round) === null) {
         const code = this.docService.roomCode();
         assertRoomCode(code, 'lobby.autoNav');
         void this.router.navigate(['/estimating', code]);

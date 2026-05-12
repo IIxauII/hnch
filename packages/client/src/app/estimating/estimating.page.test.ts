@@ -92,6 +92,15 @@ describe('EstimatingPage', () => {
       };
       expect(shouldAutoReveal(round, new Set(['voter1']))).toBe(true);
     });
+
+    it('returns false when round already skipped', () => {
+      const round = {
+        id: 'r1',
+        skippedAt: 1000,
+        votes: { voter1: 'card1' },
+      };
+      expect(shouldAutoReveal(round, new Set(['voter1']))).toBe(false);
+    });
   });
 
   describe('prefers-reduced-motion', () => {

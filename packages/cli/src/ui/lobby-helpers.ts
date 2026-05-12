@@ -3,6 +3,7 @@
  * directly without rendering the Ink tree.
  */
 
+import { terminalState } from '@hnch/shared';
 import type { Round } from '@hnch/shared';
 
 export function computeStats(votes: Record<string, string>): {
@@ -48,6 +49,12 @@ export function formatElapsed(startMs: number, endMs: number): string {
 }
 
 export function compactRoundSummary(round: Round, roundNum: number): string {
+  if (terminalState(round) === 'skipped') {
+    const title = round.title ? ` ${round.title}` : '';
+    const ticket = round.ticketId ? ` [${round.ticketId}]` : '';
+    return `Round ${roundNum}:${title}${ticket} — Skipped`;
+  }
+
   // Build "card×count, ..." tally
   const counts = new Map<string, number>();
   for (const v of Object.values(round.votes)) {

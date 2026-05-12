@@ -19,6 +19,7 @@ interface Props {
   onVote: (card: string) => void;
   onClearVote: () => void;
   onReveal: () => void;
+  onSkip: () => void;
   onToggleRole: () => void;
   onShare: (kind: 'code' | 'url' | 'npx') => void;
   onSetShareOpen: (open: boolean) => void;
@@ -47,6 +48,7 @@ export function Voting({
   onVote,
   onClearVote,
   onReveal,
+  onSkip,
   onToggleRole,
   onShare,
   onSetShareOpen,
@@ -65,6 +67,9 @@ export function Voting({
       }
       if (isHost && (input === 'r' || input === 'R')) {
         onReveal();
+      }
+      if (isHost && (input === 's' || input === 'S')) {
+        onSkip();
       }
       if (input === 'w' || input === 'W') {
         onToggleRole();
@@ -128,6 +133,7 @@ export function Voting({
 
       <Box gap={2}>
         {isHost && <Text color="yellow">[r] Reveal</Text>}
+        {isHost && <Text color="yellow">[s] Skip</Text>}
         <Text color="yellow">[w] {myRole === 'viewer' ? 'Vote' : 'Observe'}</Text>
         <Text>[e] Settings</Text>
         <Text>[c] Share</Text>
