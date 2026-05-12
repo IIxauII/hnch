@@ -1,3 +1,18 @@
+# [1.3.0](https://github.com/IIxauII/hnch/compare/shared-v1.2.0...shared-v1.3.0) (2026-05-12)
+
+
+### Bug Fixes
+
+* **client:** prevent room code tiles from overflowing card ([#169](https://github.com/IIxauII/hnch/issues/169)) ([92d953f](https://github.com/IIxauII/hnch/commit/92d953fec979915bb480645acfb6629471f219b2))
+
+
+### Features
+
+* **client,e2e:** desktop-responsive client (ADR-0039) ([#151](https://github.com/IIxauII/hnch/issues/151)) ([38d1681](https://github.com/IIxauII/hnch/commit/38d1681b0a580f03a87d5051d3773a5165270f3c))
+* **client,e2e:** settings UX rework, colored accent options ([#107](https://github.com/IIxauII/hnch/issues/107)) ([1ff78ab](https://github.com/IIxauII/hnch/commit/1ff78ab4fb7f047acdb2868638a73e21eb3a30ba))
+* **client:** inline edits and popover pickers for settings ([#105](https://github.com/IIxauII/hnch/issues/105)) ([db5fc47](https://github.com/IIxauII/hnch/commit/db5fc47d2d2448426e5c1b57470eaf55fac0ff02))
+* **shared,client,cli,e2e:** skip-round host action (ADR-0040) ([#170](https://github.com/IIxauII/hnch/issues/170)) ([b55b227](https://github.com/IIxauII/hnch/commit/b55b22751fb28330b84dbc0a6a144dad2b596307))
+
 # [1.2.0](https://github.com/IIxauII/hnch/compare/shared-v1.1.0...shared-v1.2.0) (2026-05-02)
 
 
