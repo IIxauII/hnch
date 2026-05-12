@@ -42,7 +42,7 @@ test.describe('Skip round', () => {
     await expect(player.page.locator(LOBBY.revoteBtn)).not.toBeVisible();
   });
 
-  test('joiner does not see skip story option in action sheet', async ({ host, player }) => {
+  test('joiner does not see skip round option in action sheet', async ({ host, player }) => {
     const code = await host.createSession();
     await player.joinSession(code);
     await host.startRound();
@@ -52,30 +52,24 @@ test.describe('Skip round', () => {
     const playerMenuBtn = player.page.locator('ion-header').locator('ion-button').last();
     await playerMenuBtn.click();
 
-    // "Skip round" should NOT be visible (only for host)
-    const skipBtn = player.page.locator(`ion-action-sheet button:has-text("Skip round")`);
-    const skipBtnPopover = player.page
-      .locator('ion-popover')
-      .getByRole('button', { name: 'Skip round' });
-
-    const isActionSheetVisible = await skipBtn.isVisible().catch(() => false);
-    const isPopoverVisible = await skipBtnPopover.isVisible().catch(() => false);
-
-    if (isActionSheetVisible || isPopoverVisible) {
-      throw new Error('Expected "Skip round" to NOT be visible for non-host player');
-    }
-
-    // Verify "Leave session" IS visible (sanity check that menu opened)
-    const leaveBtn = player.page.locator(`ion-action-sheet button:has-text("Leave session")`);
-    const leaveBtnPopover = player.page
+    // Wait for either overlay (action-sheet on mobile, popover on desktop) to render.
+    // Anchor on "Leave session" — present for every participant — so the test isn't
+    // racing the overlay's open animation.
+    const leaveSheet = player.page.locator(`ion-action-sheet button:has-text("Leave session")`);
+    const leavePopover = player.page
       .locator('ion-popover')
       .getByRole('button', { name: 'Leave session' });
+    await Promise.any([
+      leaveSheet.waitFor({ state: 'visible', timeout: 5_000 }),
+      leavePopover.waitFor({ state: 'visible', timeout: 5_000 }),
+    ]);
 
-    const isLeaveActionSheetVisible = await leaveBtn.isVisible().catch(() => false);
-    const isLeavePopoverVisible = await leaveBtnPopover.isVisible().catch(() => false);
-
-    if (!isLeaveActionSheetVisible && !isLeavePopoverVisible) {
-      throw new Error('Expected "Leave session" to be visible in action sheet');
-    }
+    // Once the menu is open, "Skip round" must NOT be present (host-only).
+    const skipSheet = player.page.locator(`ion-action-sheet button:has-text("Skip round")`);
+    const skipPopover = player.page
+      .locator('ion-popover')
+      .getByRole('button', { name: 'Skip round' });
+    await expect(skipSheet).toHaveCount(0);
+    await expect(skipPopover).toHaveCount(0);
   });
 });
