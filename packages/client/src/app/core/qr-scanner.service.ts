@@ -83,8 +83,38 @@ export interface MinimalModalController {
   }>;
 }
 
+/**
+ * Pre-flight camera availability check.
+ *
+ * Runs before opening the scanner modal so devices without a camera
+ * (e.g. desktops, Mac minis) get an immediate typed error rather than a
+ * black overlay that never resolves.
+ *
+ * - `mediaDevices` missing (insecure context / very old browser) → `'unavailable'`.
+ * - `enumerateDevices` reports zero `videoinput` entries → `'no-camera'`.
+ * - `enumerateDevices` itself throws → `null` (caller falls through to the
+ *   scan path so the plugin can produce its own typed error).
+ *
+ * @internal exported for testing only
+ */
+export async function detectCameraAvailability(): Promise<QrScanErrorReason | null> {
+  const md = (globalThis as { navigator?: { mediaDevices?: MediaDevices } }).navigator
+    ?.mediaDevices;
+  if (!md || typeof md.enumerateDevices !== 'function') return 'unavailable';
+  try {
+    const devices = await md.enumerateDevices();
+    const hasCamera = devices.some((d) => d.kind === 'videoinput');
+    return hasCamera ? null : 'no-camera';
+  } catch {
+    return null;
+  }
+}
+
 /** @internal exported for testing only */
 export async function scanWeb(modalCtrl: MinimalModalController): Promise<QrScanResult> {
+  const preflight = await detectCameraAvailability();
+  if (preflight) return { status: 'error', reason: preflight };
+
   await ensurePolyfill();
 
   const modal = await modalCtrl.create({
@@ -104,6 +134,21 @@ export async function scanWeb(modalCtrl: MinimalModalController): Promise<QrScan
 @Injectable({ providedIn: 'root' })
 export class QrScannerService {
   private readonly modalCtrl = inject(ModalController);
+
+  /**
+   * Returns `true` when this device is capable of scanning a QR code —
+   * native platforms always qualify; on web we require at least one
+   * `videoinput` device to be present (e.g. Mac mini desktops without
+   * a built-in camera return `false`).
+   *
+   * Used by the Join page to hide the "Scan QR code" entry entirely
+   * when there is no camera, rather than opening a black overlay that
+   * cannot resolve.
+   */
+  async isScanningAvailable(): Promise<boolean> {
+    if (Capacitor.isNativePlatform()) return true;
+    return (await detectCameraAvailability()) === null;
+  }
 
   /**
    * Prompt for camera permission (if needed), then open the scanner.

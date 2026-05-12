@@ -50,10 +50,33 @@ import {
   ensurePolyfill,
   resetPolyfillPromise,
   getPolyfillPromise,
+  detectCameraAvailability,
   QrScannerService,
   type MinimalModalController,
   type QrScanErrorReason,
 } from './qr-scanner.service';
+
+// ---------------------------------------------------------------------------
+// Helper: stub navigator.mediaDevices.enumerateDevices for pre-flight camera check
+// ---------------------------------------------------------------------------
+
+function stubMediaDevices(devices: { kind: string }[] | 'missing' | 'throws'): void {
+  if (devices === 'missing') {
+    Object.defineProperty(globalThis.navigator, 'mediaDevices', {
+      value: undefined,
+      configurable: true,
+    });
+    return;
+  }
+  const enumerate =
+    devices === 'throws'
+      ? vi.fn().mockRejectedValue(new Error('boom'))
+      : vi.fn().mockResolvedValue(devices);
+  Object.defineProperty(globalThis.navigator, 'mediaDevices', {
+    value: { enumerateDevices: enumerate },
+    configurable: true,
+  });
+}
 
 import { mapDomErrorToReason } from './web-qr-scanner.overlay';
 import { TestBed } from '@angular/core/testing';
@@ -169,10 +192,33 @@ describe('scanNative()', () => {
   });
 });
 
+describe('detectCameraAvailability()', () => {
+  it('returns null when at least one videoinput device is present', async () => {
+    stubMediaDevices([{ kind: 'videoinput' }, { kind: 'audioinput' }]);
+    expect(await detectCameraAvailability()).toBeNull();
+  });
+
+  it('returns "no-camera" when zero videoinput devices', async () => {
+    stubMediaDevices([{ kind: 'audioinput' }, { kind: 'audiooutput' }]);
+    expect(await detectCameraAvailability()).toBe('no-camera');
+  });
+
+  it('returns "unavailable" when mediaDevices is missing (insecure context)', async () => {
+    stubMediaDevices('missing');
+    expect(await detectCameraAvailability()).toBe('unavailable');
+  });
+
+  it('returns null when enumerateDevices throws (let scanner path try)', async () => {
+    stubMediaDevices('throws');
+    expect(await detectCameraAvailability()).toBeNull();
+  });
+});
+
 describe('scanWeb()', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetPolyfillPromise();
+    stubMediaDevices([{ kind: 'videoinput' }]);
   });
 
   it('creates modal with WebQrScannerOverlayComponent and returns ok on success', async () => {
@@ -260,6 +306,7 @@ describe('QrScannerService.scanForCode() routing', () => {
     vi.clearAllMocks();
     resetPolyfillPromise();
     isNative = false;
+    stubMediaDevices([{ kind: 'videoinput' }]);
 
     mockModalPresent = vi.fn().mockResolvedValue();
     mockModalOnWillDismiss = vi.fn().mockResolvedValue({ data: null });
@@ -306,6 +353,34 @@ describe('QrScannerService.scanForCode() routing', () => {
     expect(mockModalCreate).toHaveBeenCalledOnce();
     expect(mockRequestPermissions).not.toHaveBeenCalled();
     expect(result).toEqual({ status: 'cancelled' });
+  });
+
+  it('isScanningAvailable() returns true on native regardless of mediaDevices', async () => {
+    isNative = true;
+    stubMediaDevices('missing');
+    const service = TestBed.inject(QrScannerService);
+    expect(await service.isScanningAvailable()).toBe(true);
+  });
+
+  it('isScanningAvailable() returns true on web with a videoinput device', async () => {
+    isNative = false;
+    stubMediaDevices([{ kind: 'videoinput' }]);
+    const service = TestBed.inject(QrScannerService);
+    expect(await service.isScanningAvailable()).toBe(true);
+  });
+
+  it('isScanningAvailable() returns false on web with zero videoinput devices', async () => {
+    isNative = false;
+    stubMediaDevices([{ kind: 'audioinput' }]);
+    const service = TestBed.inject(QrScannerService);
+    expect(await service.isScanningAvailable()).toBe(false);
+  });
+
+  it('isScanningAvailable() returns false on web with missing mediaDevices', async () => {
+    isNative = false;
+    stubMediaDevices('missing');
+    const service = TestBed.inject(QrScannerService);
+    expect(await service.isScanningAvailable()).toBe(false);
   });
 
   it('returns error:unknown when scanForCode throws internally', async () => {
