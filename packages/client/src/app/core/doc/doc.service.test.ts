@@ -31,6 +31,7 @@ import {
   projectDoc,
   removeParticipant,
   revealRound,
+  skipRound,
   upsertParticipant,
   type DocProjection,
   type Round,
@@ -175,6 +176,10 @@ class DocServiceHarness {
 
   revealRound(roundId: string, now = Date.now()): void {
     revealRound(this.requireDoc(), roundId, now);
+  }
+
+  skipRound(roundId: string, now = Date.now()): void {
+    skipRound(this.requireDoc(), roundId, now);
   }
 
   leaveSession(selfId: string): void {
@@ -754,6 +759,26 @@ describe('DocService — multi-peer merge via Y.Doc', () => {
 
     const revealedRound = joiner.rounds().find((r: Round) => r.id === roundId);
     expect(revealedRound?.revealedAt).toBe(NOW + 2000);
+  });
+
+  it('skip from host writes skippedAt', () => {
+    const roundId = host.startRound({ now: () => NOW });
+
+    host.skipRound(roundId, NOW + 1000);
+
+    const skippedRound = host.rounds().find((r: Round) => r.id === roundId);
+    expect(skippedRound?.skippedAt).toBe(NOW + 1000);
+  });
+
+  it('skip from host propagates to joiner', () => {
+    const roundId = host.startRound({ now: () => NOW });
+    joiner.mergeFrom(host.getDoc());
+
+    host.skipRound(roundId, NOW + 1500);
+    joiner.mergeFrom(host.getDoc());
+
+    const skippedRound = joiner.rounds().find((r: Round) => r.id === roundId);
+    expect(skippedRound?.skippedAt).toBe(NOW + 1500);
   });
 });
 

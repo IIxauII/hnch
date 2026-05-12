@@ -74,6 +74,7 @@ const ROUND_FIELDS = [
   'scale',
   'timerStartedAt',
   'revealedAt',
+  'skippedAt',
   'createdBy',
   'createdAt',
 ] as const;
@@ -419,12 +420,39 @@ export function clearVote(doc: Y.Doc, roundId: string, participantId: string): v
 /**
  * Mark a round as revealed at the given timestamp. Idempotent — concurrent
  * writes from multiple clients (unanimous auto-reveal) merge harmlessly.
+ *
+ * Throws if `skippedAt` is already set on the round (ADR-0040 writer-side
+ * mutual exclusion). CRDT merges can still produce both fields on the same
+ * round; readers must funnel through `terminalState()` to pick a winner.
  */
 export function revealRound(doc: Y.Doc, roundId: string, revealedAt: number): void {
   const round = findRoundMap(doc, roundId);
   if (!round) throw new Error(`revealRound: round ${roundId} not found`);
+  if (round.get('skippedAt') !== undefined) {
+    throw new Error(`revealRound: round ${roundId} already skipped`);
+  }
   doc.transact(() => {
     round.set('revealedAt', revealedAt);
+  });
+}
+
+/**
+ * Mark a round as skipped at the given timestamp (ADR-0040). Throws if the
+ * round is missing, already revealed, or already skipped. Concurrent merges
+ * can still produce both `revealedAt` and `skippedAt`; readers must funnel
+ * through `terminalState()` to render deterministically.
+ */
+export function skipRound(doc: Y.Doc, roundId: string, skippedAt: number): void {
+  const round = findRoundMap(doc, roundId);
+  if (!round) throw new Error(`skipRound: round ${roundId} not found`);
+  if (round.get('revealedAt') !== undefined) {
+    throw new Error(`skipRound: round ${roundId} already revealed`);
+  }
+  if (round.get('skippedAt') !== undefined) {
+    throw new Error(`skipRound: round ${roundId} already skipped`);
+  }
+  doc.transact(() => {
+    round.set('skippedAt', skippedAt);
   });
 }
 

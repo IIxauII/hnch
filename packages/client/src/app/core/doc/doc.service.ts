@@ -26,6 +26,7 @@ import {
   patchRoundDescriptor as patchRoundDescriptorY,
   removeParticipant as removeParticipantY,
   revealRound as revealRoundY,
+  skipRound as skipRoundY,
   upsertParticipant as upsertParticipantY,
   type DocProjection,
   type InitDocInit,
@@ -558,6 +559,10 @@ export class DocService {
   revealRound(roundId: string, opts: { now?: () => number } = {}): void {
     const now = opts.now ?? (() => Date.now());
     revealRoundY(this.requireDoc('revealRound'), roundId, now());
+  }
+
+  skipRound(roundId: string): void {
+    skipRoundY(this.requireDoc('skipRound'), roundId, Date.now());
   }
 
   /**
