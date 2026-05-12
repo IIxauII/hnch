@@ -20,7 +20,7 @@ Implementation phases are intentionally *vertical slices* — each phase ends at
 6. [Phase 4 — Reveal + host election](#6-phase-4--reveal--host-election)
 7. [Phase 5 — Access control + join paths](#7-phase-5--access-control--join-paths)
 8. [Phase 6a — PWA polish](#8-phase-6a--pwa-polish)
-9. [Phase 6b — Native iOS build](#9-phase-6b--native-ios-build)
+9. [Phase 6b — Native iOS + Android builds](#9-phase-6b--native-ios--android-builds)
 10. [Cross-cutting concerns](#10-cross-cutting-concerns)
 11. [Explicit non-goals for v1](#11-explicit-non-goals-for-v1)
 
@@ -217,27 +217,9 @@ This design work is ~1 hour; resolve it before relay code lands.
 
 ---
 
-## 9. Phase 6b — Native iOS build
+## 9. Phase 6b — Native iOS + Android builds
 
-**Scope.** Capacitor iOS project setup, native-only features, and on-device validation.
-
-**Requires:** Apple Developer account, Xcode, physical iPhone for testing.
-
-**Work.**
-- Native iOS build via Capacitor: `npx cap add ios`, ensure all Capacitor plugins (Preferences, Haptics, Share, Device, MLKit BarcodeScanning) resolve correctly on native.
-- `NSCameraUsageDescription` in Info.plist for the QR scanner.
-- Universal links: Apple App Site Association (AASA) file on `hnch.dev/.well-known/`, Associated Domains entitlement in Xcode, `App.addListener('appUrlOpen')` handler to parse incoming URLs and navigate to `/join?code=`. The client-side `/join?code=` handling already works from Phase 5; this step wires the native OS interception so tapped links open the app directly instead of Safari.
-- Capawesome SQLite persistence ([ADR-0004](../adr/0004-local-persistence-sqlite-indexeddb.md)) on native: Yjs provider's IndexedDB path swapped for SQLite on native. PWA keeps IndexedDB.
-- Verify haptics actually fire on device (wiring landed in Phase 6a).
-- Dev-device smoke test on a real iPhone: install, onboard, create a room, have a second device join, play a full round.
-- Apple HIG review checkpoint (on-device): final pass on a real device for layout, safe area, keyboard behavior, and haptic feel.
-
-**ADRs touched.** None expected; any implementation surprise surfaces as a new ADR.
-
-**Risks.**
-- iOS Capacitor native quirks we don't yet know about (Keyboard, SafeArea, deep links). Time-box troubleshooting and, if blocked, pull the offending item from v1.
-
-**Exit bar.** A fresh install on a physical iPhone runs through the happy path (create / invite / join / vote / reveal / re-vote / next round / leave / jump-back-in) with no crashes and no visible layout regressions. v1 candidate.
+> **Superseded by [`plans/native-deployment.md`](plans/native-deployment.md).** The original iOS-only outline below expanded into a 10-PR rollout covering both platforms, CI signing, TestFlight + Play Internal delivery, Tart-based macOS runner, Universal Links + App Links, and SQLite-backed Yjs persistence. See that plan for the authoritative scope, decisions, and rollout order.
 
 ---
 
@@ -256,7 +238,7 @@ These apply across phases; flagging them once here saves repeating per phase.
 
 **Logging.** Client: `console.debug` gated behind a boot-time flag. Relay: plain `console.log` with a small structured prefix; no log framework in v1.
 
-**Deploy.** Relay and PWA both ship to a single IONOS VPS fronted by Caddy on `hnch.dev` (ADR-0029). Operational details — first-time bootstrap, deploy flow, cache rules, rollback — live in [`infra/README.md`](../infra/README.md). TestFlight distribution for the native iOS build is the remaining open item; that lands with Phase 6b.
+**Deploy.** Relay and PWA both ship to a single IONOS VPS fronted by Caddy on `hnch.dev` (ADR-0029). Operational details — first-time bootstrap, deploy flow, cache rules, rollback — live in [`infra/README.md`](../infra/README.md). TestFlight (iOS) + Play Internal (Android) distribution land with the native rollout in [`plans/native-deployment.md`](plans/native-deployment.md).
 
 **ADR hygiene.** Any phase that discovers the architecture is under-specified writes a new ADR *before* the code that depends on it. The current roadmap flags two likely candidates: the ADR-0009 connection handshake (Phase 3) and the access-control wire details (Phase 5).
 
@@ -267,7 +249,7 @@ These apply across phases; flagging them once here saves repeating per phase.
 These are *not* in this roadmap and will be called out if they drift in:
 
 - iPad-specific or landscape-first layouts.
-- Android-native or desktop-native flavors (PWA is the non-iOS v1 path).
+- Desktop-native flavors (Android-native rolled into Phase 6b per [`plans/native-deployment.md`](plans/native-deployment.md); PWA remains the desktop path).
 - Session history / reporting / analytics surfaces beyond the single Jump-back-in banner.
 - Team UI (the [ADR-0007](../adr/0007-teams-local-only.md) concept stays in architecture, no UI in v1).
 - Integrations with trackers (Jira, Linear, etc.).
