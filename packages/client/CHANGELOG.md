@@ -1,3 +1,10 @@
+# [1.17.0](https://github.com/IIxauII/hnch/compare/client-v1.16.1...client-v1.17.0) (2026-05-12)
+
+
+### Features
+
+* **shared,client,cli,e2e:** skip-round host action (ADR-0040) ([#170](https://github.com/IIxauII/hnch/issues/170)) ([b55b227](https://github.com/IIxauII/hnch/commit/b55b22751fb28330b84dbc0a6a144dad2b596307))
+
 ## [1.16.1](https://github.com/IIxauII/hnch/compare/client-v1.16.0...client-v1.16.1) (2026-05-12)
 
 
