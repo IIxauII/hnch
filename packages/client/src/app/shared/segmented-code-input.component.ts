@@ -81,7 +81,8 @@ const TILE_COUNT = 6;
     }
 
     .tile {
-      flex: 1;
+      flex: 1 1 0;
+      min-width: 0;
       height: 48px;
       border-radius: 10px;
       background: var(--hnch-fill);
