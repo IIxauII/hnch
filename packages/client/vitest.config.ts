@@ -19,5 +19,23 @@ export default defineConfig({
         inline: ['@ionic/core'],
       },
     },
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov', 'json-summary'],
+      reportsDirectory: './coverage',
+      include: ['src/**'],
+      exclude: [
+        '**/*.test.ts',
+        '**/*.spec.ts',
+        '**/*.d.ts',
+        'src/main.ts',
+        'src/polyfills.ts',
+        'src/zone-flags.ts',
+        'src/test-setup.ts',
+        'src/test.ts',
+        'src/vitest.global-setup.ts',
+        'src/environments/version.ts',
+      ],
+    },
   },
 });

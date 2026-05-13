@@ -43,6 +43,7 @@
     "typecheck": "tsc --noEmit",
     "dev": "tsx src/index.ts",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "format:check": "biome format .",
     "lint": "oxlint ."
   },

@@ -10,6 +10,7 @@
     "dev": "tsx watch src/index.ts",
     "start": "node ./dist/index.js",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "format:check": "biome format .",
     "lint": "oxlint ."
   },
