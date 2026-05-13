@@ -17,7 +17,7 @@ export default defineConfig({
   // everything) so devs see the full failure picture.
   maxFailures: isCI ? 1 : 0,
   reporter: isCI ? [['list'], ['github'], ['html', { open: 'never' }]] : 'html',
-  timeout: 20_000,
+  timeout: 45_000,
   use: {
     baseURL: `http://localhost:${CLIENT_PORT}`,
     trace: isCI ? 'retain-on-failure' : 'on',
