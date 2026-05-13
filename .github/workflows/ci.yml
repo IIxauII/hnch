@@ -173,8 +173,26 @@ jobs:
       - name: Lint templates
         run: pnpm --filter ./packages/${{ matrix.package }} run --if-present lint:templates
 
-      - name: Unit tests
-        run: pnpm --filter ./packages/${{ matrix.package }} run --if-present test
+      - name: Unit tests (with coverage)
+        run: pnpm --filter ./packages/${{ matrix.package }} run --if-present test:coverage
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.package }}
+          path: packages/${{ matrix.package }}/coverage/
+          retention-days: 14
+
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: ${{ matrix.package }}
+          files: packages/${{ matrix.package }}/coverage/lcov.info
+          disable_search: true
+          fail_ci_if_error: false
 
       - name: Build
         run: pnpm --filter ./packages/${{ matrix.package }} run --if-present build
