@@ -37,7 +37,13 @@ export function hexToRgbTuple(hex: string): string {
   return `${r},${g},${b}`;
 }
 
-/** Darken a hex color by `pct` percent (0–100). */
+/**
+ * Darken a hex color by `pct` percent (0–100).
+ *
+ * Equivalent to Ionic color-generator math: `mix(#000, base, pct%)` — per channel,
+ * `0 * (pct/100) + channel * (1 - pct/100) = channel * (1 - pct/100)`. Byte-identical
+ * to Ionic's stock output, so accent shades match what the generator would produce.
+ */
 export function shade(hex: string, pct: number): string {
   const clean = hex.replace('#', '');
   const clamp = (n: number) => Math.max(0, Math.min(255, n));
@@ -47,7 +53,13 @@ export function shade(hex: string, pct: number): string {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 
-/** Lighten a hex color by `pct` percent (0–100) toward white. */
+/**
+ * Lighten a hex color by `pct` percent (0–100) toward white.
+ *
+ * Equivalent to Ionic color-generator math: `mix(#fff, base, pct%)` — per channel,
+ * `255 * (pct/100) + channel * (1 - pct/100) = channel + (255 - channel) * (pct/100)`.
+ * Byte-identical to Ionic's stock output.
+ */
 export function tint(hex: string, pct: number): string {
   const clean = hex.replace('#', '');
   const clamp = (n: number) => Math.max(0, Math.min(255, n));

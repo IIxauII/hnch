@@ -7,6 +7,12 @@
 // ---------------------------------------------------------------------------
 
 :root {
+  // Ionic substrate — drives stepped-color derivation + native component bg/text
+  --ion-background-color:      #F2F2F7;
+  --ion-background-color-rgb:  242,242,247;
+  --ion-text-color:            #000000;
+  --ion-text-color-rgb:        0,0,0;
+
   // Background & surfaces
   --hnch-bg:           #F2F2F7;
   --hnch-surface:      #FFFFFF;
@@ -40,6 +46,38 @@
   --hnch-warning:      #FF9F0A;
   --hnch-danger:       #FF453A;
 
+  // Ionic semantic color sets — wired to --hnch-* so toasts, badges, chips match.
+  // shade = mix(#000, base, 12%); tint = mix(#fff, base, 10%) per Ionic color generator.
+  --ion-color-success:               #30D158;
+  --ion-color-success-rgb:           48,209,88;
+  --ion-color-success-contrast:      #000000;
+  --ion-color-success-contrast-rgb:  0,0,0;
+  --ion-color-success-shade:         #2AB84D;
+  --ion-color-success-tint:          #45D669;
+
+  --ion-color-warning:               #FF9F0A;
+  --ion-color-warning-rgb:           255,159,10;
+  --ion-color-warning-contrast:      #000000;
+  --ion-color-warning-contrast-rgb:  0,0,0;
+  --ion-color-warning-shade:         #E08C09;
+  --ion-color-warning-tint:          #FFA923;
+
+  --ion-color-danger:                #FF453A;
+  --ion-color-danger-rgb:            255,69,58;
+  --ion-color-danger-contrast:       #000000;
+  --ion-color-danger-contrast-rgb:   0,0,0;
+  --ion-color-danger-shade:          #E03D33;
+  --ion-color-danger-tint:           #FF584E;
+
+  // Apple system gray — aligns with --hnch-muted intent for native Ionic components
+  // (segment, chip) while solid hex satisfies Ionic's contrast/shade/tint requirement.
+  --ion-color-medium:                #8E8E93;
+  --ion-color-medium-rgb:            142,142,147;
+  --ion-color-medium-contrast:       #000000;
+  --ion-color-medium-contrast-rgb:   0,0,0;
+  --ion-color-medium-shade:          #7D7D81;
+  --ion-color-medium-tint:           #99999E;
+
   // Disabled-button tokens — light mode
   // PR 3 will apply these to ion-button via --background-disabled/--color-disabled.
   --hnch-btn-disabled-bg: rgba(0, 0, 0, 0.08);
@@ -52,6 +90,12 @@
 // ---------------------------------------------------------------------------
 
 :root.ion-palette-dark {
+  // Ionic substrate — dark mode
+  --ion-background-color:      #000000;
+  --ion-background-color-rgb:  0,0,0;
+  --ion-text-color:            #FFFFFF;
+  --ion-text-color-rgb:        255,255,255;
+
   // Background & surfaces
   --hnch-bg:           #000000;
   --hnch-surface:      #1C1C1E;
@@ -83,6 +127,37 @@
   --hnch-success:      #30D158;
   --hnch-warning:      #FF9F0A;
   --hnch-danger:       #FF453A;
+
+  // Ionic semantic color sets — dark mode.
+  // Re-declared to override Ionic dark.class.css defaults; values unchanged from light
+  // since --hnch-* semantic tokens don't shift between modes.
+  --ion-color-success:               #30D158;
+  --ion-color-success-rgb:           48,209,88;
+  --ion-color-success-contrast:      #000000;
+  --ion-color-success-contrast-rgb:  0,0,0;
+  --ion-color-success-shade:         #2AB84D;
+  --ion-color-success-tint:          #45D669;
+
+  --ion-color-warning:               #FF9F0A;
+  --ion-color-warning-rgb:           255,159,10;
+  --ion-color-warning-contrast:      #000000;
+  --ion-color-warning-contrast-rgb:  0,0,0;
+  --ion-color-warning-shade:         #E08C09;
+  --ion-color-warning-tint:          #FFA923;
+
+  --ion-color-danger:                #FF453A;
+  --ion-color-danger-rgb:            255,69,58;
+  --ion-color-danger-contrast:       #000000;
+  --ion-color-danger-contrast-rgb:   0,0,0;
+  --ion-color-danger-shade:          #E03D33;
+  --ion-color-danger-tint:           #FF584E;
+
+  --ion-color-medium:                #8E8E93;
+  --ion-color-medium-rgb:            142,142,147;
+  --ion-color-medium-contrast:       #000000;
+  --ion-color-medium-contrast-rgb:   0,0,0;
+  --ion-color-medium-shade:          #7D7D81;
+  --ion-color-medium-tint:           #99999E;
 
   // Disabled-button tokens — dark mode
   --hnch-btn-disabled-bg: rgba(255, 255, 255, 0.08);
