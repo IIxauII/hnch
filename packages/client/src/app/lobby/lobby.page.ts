@@ -519,7 +519,7 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       .results-section {
         margin-top: 1.5rem;
         padding-top: 1rem;
-        border-top: 2px solid var(--ion-color-step-200, rgba(0, 0, 0, 0.12));
+        border-top: 2px solid var(--hnch-sep);
       }
       .results-heading {
         font-size: 1.25rem;

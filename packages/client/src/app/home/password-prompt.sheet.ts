@@ -93,7 +93,7 @@ import {
         padding: 0.25rem 0.5rem;
       }
       ion-footer {
-        border-top: 1px solid var(--ion-color-step-200, rgba(0, 0, 0, 0.12));
+        border-top: 1px solid var(--hnch-sep);
       }
     `,
   ],
