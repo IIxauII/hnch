@@ -53,7 +53,6 @@ test.describe('Three-client scenarios', () => {
     player,
     createParticipant,
   }) => {
-    test.setTimeout(30_000);
     const player2 = await createParticipant('Player2');
 
     const code = await host.createSession();
@@ -116,7 +115,6 @@ test.describe('Three-client scenarios', () => {
     player,
     createParticipant,
   }) => {
-    test.setTimeout(30_000);
     const player2 = await createParticipant('Player2');
 
     const code = await host.createSession();

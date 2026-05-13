@@ -16,7 +16,6 @@ test.describe('Room full rejection', () => {
     host,
     createParticipant,
   }) => {
-    test.setTimeout(30_000);
     // The relay is configured via HNCH_ROOM_CAP env var (default: 20).
     // For this test, we use a cap of 3, so the 4th joiner will be rejected.
 
