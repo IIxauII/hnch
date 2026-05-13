@@ -25,6 +25,17 @@ async function openSwipeDrawer(
   page: import('@playwright/test').Page,
   participantName: string,
 ): Promise<void> {
+  // Post-reveal, the participants accordion collapses (lobby.page.ts
+  // participantsAccordionValue computed). Force it open before locating the
+  // row — otherwise ion-item-option renders inside a collapsed accordion and
+  // Playwright reports the option as hidden.
+  await page.evaluate(() => {
+    const group = document.querySelector('ion-accordion-group') as
+      | (HTMLElement & { value?: string | null })
+      | null;
+    if (group) group.value = 'open';
+  });
+
   // Wait until the participant's row is in the DOM and contains the name text.
   // Uses ion-label text content rather than aria-label because Ionic web
   // components may not reflect host-element aria-label attributes reliably
