@@ -9,4 +9,13 @@ export default defineConfig({
       '@hnch/shared': path.resolve(import.meta.dirname, '../shared/src/index.ts'),
     },
   },
+  test: {
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov', 'json-summary'],
+      reportsDirectory: './coverage',
+      include: ['src/**'],
+      exclude: ['**/*.test.ts', '**/*.spec.ts', '**/*.d.ts'],
+    },
+  },
 });
