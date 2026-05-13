@@ -1,0 +1,90 @@
+name: pnpm install (snapshot-cached)
+description: |
+  Install workspace deps via `pnpm install --frozen-lockfile`, with a
+  lockfile-hashed `node_modules` tarball cache on /cache/nm-snapshots
+  (self-hosted runners only). On a cache hit, restore via `tar --zstd -xf`
+  in ~3-5s instead of the ~15-22s hardlink phase. On a miss, fall through
+  to a normal install and publish a new snapshot atomically.
+
+  Falls back gracefully on github-hosted runners (no /cache mount): runs
+  setup-node + corepack + plain `pnpm install --frozen-lockfile`.
+
+inputs:
+  ignore-scripts:
+    description: |
+      Pass --ignore-scripts to pnpm install on the cold-miss path. Set to
+      'true' for lanes (verify, version-audit) that don't exercise native
+      postinstalls like msgpackr-extract.
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - name: Enable Corepack (github-hosted only)
+      if: runner.environment == 'github-hosted'
+      shell: bash
+      run: corepack enable
+
+    - name: Setup Node 22 (github-hosted only)
+      if: runner.environment == 'github-hosted'
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: pnpm install (snapshot or cold)
+      shell: bash
+      env:
+        IGNORE_SCRIPTS: ${{ inputs.ignore-scripts }}
+      run: |
+        set -euo pipefail
+
+        SNAP_DIR=/cache/nm-snapshots
+        HASH=$(sha256sum pnpm-lock.yaml | cut -d' ' -f1)
+        SNAP="${SNAP_DIR}/${HASH}.tar.zst"
+
+        if [[ -d "${SNAP_DIR}" && -f "${SNAP}" ]]; then
+          echo "snapshot hit: ${SNAP}"
+          if zstd -dc "${SNAP}" | tar -xf - -C .; then
+            # Refresh mtime so the LRU prune keeps recently-used entries.
+            touch "${SNAP}" || true
+            echo "snapshot restore complete"
+            exit 0
+          fi
+          echo "::warning::snapshot restore failed for ${SNAP} — falling through to cold install"
+        fi
+
+        echo "snapshot miss — cold install"
+        FLAGS=(--frozen-lockfile)
+        if [[ "${IGNORE_SCRIPTS}" == "true" ]]; then
+          FLAGS+=(--ignore-scripts)
+        fi
+        pnpm install "${FLAGS[@]}"
+
+        if [[ -d "${SNAP_DIR}" ]]; then
+          echo "publishing snapshot: ${SNAP}"
+          TMP=$(mktemp -u "${SNAP}.XXXXX")
+          # `packages/*/node_modules` glob expands at the shell, not by tar.
+          # Some packages may not have a local node_modules (hoisted-only deps);
+          # the glob still resolves because pnpm always materializes per-pkg dirs.
+          if tar --zstd -cf "${TMP}" node_modules packages/*/node_modules 2>/dev/null; then
+            mv "${TMP}" "${SNAP}"
+            echo "snapshot published"
+          else
+            rm -f "${TMP}"
+            echo "::warning::snapshot publish failed — install succeeded but cache not updated"
+          fi
+        fi
+
+    - name: Regenerate client version.ts
+      shell: bash
+      # packages/client has a postinstall (generate-version.mjs) that writes
+      # src/environments/version.ts from git metadata. Both the --ignore-scripts
+      # path and the snapshot-restore path bypass that postinstall (the file
+      # lives under src/, not node_modules, so it isn't captured in the tarball).
+      # Re-run it unconditionally — cheap (~0.3s) and keeps the version stamp
+      # honest across snapshot reuse on different commits.
+      run: |
+        if [[ -f packages/client/scripts/generate-version.mjs ]]; then
+          node packages/client/scripts/generate-version.mjs
+        fi

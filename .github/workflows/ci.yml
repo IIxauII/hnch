@@ -145,18 +145,10 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      # setup-node + corepack run unconditionally so the ubuntu-latest fallback
-      # (vars.LINUX_RUNNER unset or rolled back) keeps working. On the self-hosted
-      # image Node 22 + pnpm are already baked in; these steps are idempotent.
-      - name: Enable Corepack
-        run: corepack enable
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
       - name: Install
-        run: pnpm install --frozen-lockfile
+        uses: ./.github/actions/pnpm-install
+        with:
+          ignore-scripts: 'true'
 
       - name: Build @hnch/shared (consumed by other packages)
         run: pnpm --filter @hnch/shared run build
@@ -235,22 +227,10 @@ jobs:
           # against the highest released tag per package.
           fetch-depth: 0
 
-      - name: Enable Corepack
-        run: corepack enable
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          # No `cache: pnpm`: on the self-hosted pool the bind-mounted
-          # /cache/pnpm-store (per-runner shard) is the canonical store
-          # via npm_config_store_dir on the image. The verify matrix
-          # already runs without it; mirror that here. On the
-          # ubuntu-latest fallback this trades a cached restore for a
-          # cold install from the registry — acceptable since the
-          # fallback is an emergency path.
-
       - name: Install
-        run: pnpm install --frozen-lockfile
+        uses: ./.github/actions/pnpm-install
+        with:
+          ignore-scripts: 'true'
 
       - name: Audit per-package versions vs git tags
         run: pnpm audit:versions
@@ -299,18 +279,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # setup-node + corepack run unconditionally so the ubuntu-latest fallback
-      # (vars.LINUX_RUNNER unset or rolled back) keeps working. On the self-hosted
-      # image Node 22 + pnpm are already baked in; these steps are idempotent.
-      - name: Enable Corepack
-        run: corepack enable
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
+      # E2E keeps default ignore-scripts=false: msgpackr-extract's native
+      # binary is exercised by the relay + client at runtime.
       - name: Install
-        run: pnpm install --frozen-lockfile
+        uses: ./.github/actions/pnpm-install
 
       # On self-hosted (rootless container, no sudo) Playwright system deps are
       # baked into the image — plain `install chromium` is enough. On ubuntu-latest
