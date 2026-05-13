@@ -158,8 +158,11 @@ jobs:
         with:
           node-version: 22
 
+      # --ignore-scripts: verify lanes only run typecheck/lint/format/unit-tests/build,
+      # none of which need msgpackr-extract's native binary. Skipping the postinstall
+      # saves ~6s on cold installs.
       - name: Install
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Build @hnch/shared (consumed by other packages)
         run: pnpm --filter @hnch/shared run build
@@ -236,8 +239,10 @@ jobs:
           # cold install from the registry — acceptable since the
           # fallback is an emergency path.
 
+      # --ignore-scripts: audit:versions only reads package.json files, no runtime
+      # deps needed. Skip msgpackr-extract postinstall (~6s saving on cold install).
       - name: Install
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Audit per-package versions vs git tags
         run: pnpm audit:versions
