@@ -31,12 +31,30 @@ cleanup
 
 # Fetch a short-lived (1-hour) registration token via the PAT.
 # Stays on the host — never passed to a container as the PAT itself.
+#
+# Retries absorb transient macOS resolver hiccups (wake-from-sleep network
+# re-attach, DHCP renew, mDNSResponder reloads). Without retry, a single
+# brief DNS blackout fans out across all POOL_SIZE slots within one
+# supervisor loop and trips the crashloop guard, stranding the pool for
+# 5 minutes.
 fetch_registration_token() {
-  curl -fsSL -X POST \
-    -H "Authorization: token ${GH_REGISTRATION_PAT}" \
-    -H "Accept: application/vnd.github+json" \
-    "https://api.github.com/repos/${GH_REPO}/actions/runners/registration-token" \
-    | jq -er .token
+  local attempt token
+  for attempt in 1 2 3 4; do
+    if token=$(curl -fsSL \
+      --connect-timeout 5 --max-time 15 \
+      --retry 2 --retry-connrefused --retry-delay 2 \
+      -X POST \
+      -H "Authorization: token ${GH_REGISTRATION_PAT}" \
+      -H "Accept: application/vnd.github+json" \
+      "https://api.github.com/repos/${GH_REPO}/actions/runners/registration-token" \
+      | jq -er .token 2>/dev/null); then
+      printf '%s\n' "${token}"
+      return 0
+    fi
+    echo "[$(date)] token fetch attempt ${attempt} failed — retrying" >&2
+    sleep $((attempt * 2))
+  done
+  return 1
 }
 
 # mkdir-based advisory lock — portable to macOS (no flock in base install)
