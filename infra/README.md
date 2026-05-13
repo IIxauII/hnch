@@ -212,7 +212,7 @@ brew install podman
 podman machine init --cpus 8 --memory 10240 --disk-size 80 hnch-runner
 podman machine start hnch-runner
 
-mkdir -p ~/runner-cache/{playwright,state}
+mkdir -p ~/runner-cache/{playwright,state,nm-snapshots}
 for i in 1 2 3 4; do
   mkdir -p ~/runner-cache/pnpm-store-$i ~/runner-cache/work-$i
 done

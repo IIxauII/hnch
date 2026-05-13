@@ -73,6 +73,16 @@ for i in 1 2 3 4; do
   fi
 done
 
+# 2b. Prune node_modules snapshots — LRU by mtime, drop >14d.
+# .github/actions/pnpm-install touches mtime on each hit, so cold entries decay
+# naturally. Snapshots are ~200-400 MB each; keeping 2 weeks of churn bounds
+# the dir without invalidating common-lockfile entries between feature waves.
+SNAP_DIR="${CACHE_ROOT}/nm-snapshots"
+if [[ -d "${SNAP_DIR}" ]]; then
+  echo "[$(date)] pruning ${SNAP_DIR} (>14d mtime)"
+  find "${SNAP_DIR}" -type f -name '*.tar.zst' -mtime +14 -print -delete || true
+fi
+
 # 3. Drop podman images unused for the past 7 days.
 podman image prune -f --filter until=168h || true
 

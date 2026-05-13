@@ -16,6 +16,12 @@ LA_DIR="${HOME}/Library/LaunchAgents"
 
 mkdir -p "${BIN_DIR}" "${LA_DIR}"
 
+# Pre-create shared cache dirs the supervisor bind-mounts into runner containers.
+# nm-snapshots stores lockfile-hashed node_modules tarballs (see
+# .github/actions/pnpm-install/). Shared across the 4 runners — atomic mv on
+# write avoids races; reads are read-only.
+mkdir -p "${HOME}/runner-cache/nm-snapshots"
+
 install -m 755 "${SRC_DIR}/supervisor.sh" "${BIN_DIR}/hnch-runner-supervisor.sh"
 install -m 755 "${SRC_DIR}/prune.sh"      "${BIN_DIR}/hnch-runner-prune.sh"
 install -m 644 "${SRC_DIR}/dev.hnch.runner.plist"       "${LA_DIR}/"
