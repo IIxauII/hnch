@@ -120,6 +120,7 @@ spawn_runner() {
     --env "RUNNER_TOKEN=${TOKEN}" \
     -v "${HOME}/runner-cache/pnpm-store-${idx}:/cache/pnpm-store" \
     -v "${HOME}/runner-cache/playwright:/cache/playwright" \
+    -v "${HOME}/runner-cache/nm-snapshots:/cache/nm-snapshots" \
     -v "${HOME}/runner-cache/work-${idx}:/actions-runner/_work" \
     hnch-runner:latest
 }

@@ -25,7 +25,7 @@ ARG RUNNER_SHA256=f44255bd3e80160eb25f71bc83d06ea025f6908748807a584687b3184759f7
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
-      ca-certificates curl gnupg git unzip jq sudo \
+      ca-certificates curl gnupg git unzip jq sudo zstd \
       openssh-client \
       bash libicu72 \
       xvfb \
