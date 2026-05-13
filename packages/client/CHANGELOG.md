@@ -1,3 +1,10 @@
+# [1.18.0](https://github.com/IIxauII/hnch/compare/client-v1.17.1...client-v1.18.0) (2026-05-13)
+
+
+### Features
+
+* **client:** wire Ionic semantic CSS vars to hnch design tokens ([#178](https://github.com/IIxauII/hnch/issues/178)) ([dae0743](https://github.com/IIxauII/hnch/commit/dae07435104947f24fabf3285235dcd343e191e0))
+
 ## [1.17.1](https://github.com/IIxauII/hnch/compare/client-v1.17.0...client-v1.17.1) (2026-05-12)
 
 
