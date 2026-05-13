@@ -20,7 +20,7 @@
     "dev:client": "bash scripts/with-env.sh pnpm --filter @hnch/client dev",
     "dev:relay": "bash scripts/with-env.sh pnpm --filter @hnch/relay dev",
     "dev:cli": "bash scripts/with-env.sh pnpm --filter @xauyxau/hnch dev",
-    "typecheck": "pnpm -r --if-present run typecheck",
+    "typecheck": "pnpm --filter @hnch/shared build && pnpm -r --if-present run typecheck",
     "test:e2e": "bash scripts/with-env.sh pnpm --filter @hnch/e2e test",
     "worktree:add": "node scripts/worktree-add.mjs",
     "worktree:remove": "node scripts/worktree-remove.mjs",
