@@ -75,3 +75,16 @@ runs:
             echo "::warning::snapshot publish failed — install succeeded but cache not updated"
           fi
         fi
+
+    - name: Regenerate client version.ts
+      shell: bash
+      # packages/client has a postinstall (generate-version.mjs) that writes
+      # src/environments/version.ts from git metadata. Both the --ignore-scripts
+      # path and the snapshot-restore path bypass that postinstall (the file
+      # lives under src/, not node_modules, so it isn't captured in the tarball).
+      # Re-run it unconditionally — cheap (~0.3s) and keeps the version stamp
+      # honest across snapshot reuse on different commits.
+      run: |
+        if [[ -f packages/client/scripts/generate-version.mjs ]]; then
+          node packages/client/scripts/generate-version.mjs
+        fi
