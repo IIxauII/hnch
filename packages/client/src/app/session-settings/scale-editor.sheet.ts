@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
-import { BUILTIN_SCALES, formatScaleId } from '@hnch/shared';
+import { formatScaleId } from '@hnch/shared';
 import {
   IonButton,
   IonButtons,
@@ -16,6 +16,7 @@ import {
 
 import { HapticService } from '../core/haptic.service';
 import { ScalePreferenceService } from '../core/scale-preference.service';
+import { computeCardRows } from './scale-editor.helpers';
 
 /**
  * Preset card customization half-sheet.
@@ -98,31 +99,9 @@ export class ScaleEditorSheetComponent {
 
   protected readonly title = computed(() => formatScaleId(this.scaleId()));
 
-  /**
-   * Row view-model computed from the current overrides. Each row carries:
-   * - `index`        — card index in the builtin full list
-   * - `face`         — display string (e.g. "5", "M")
-   * - `enabled`      — true if the card is currently active
-   * - `disableToggle`— true when this is the last enabled card (prevent empty scale)
-   */
-  protected readonly cardRows = computed(() => {
-    const id = this.scaleId();
-    const builtin = BUILTIN_SCALES[id];
-    if (!builtin) return [];
-
-    const disabled = this.scalePrefs.presetOverrides()[id] ?? [];
-    const enabledCount = builtin.cards.length - disabled.length;
-
-    return builtin.cards.map((face, index) => {
-      const enabled = !disabled.includes(index);
-      return {
-        index,
-        face,
-        enabled,
-        disableToggle: enabled && enabledCount === 1,
-      };
-    });
-  });
+  protected readonly cardRows = computed(() =>
+    computeCardRows(this.scaleId(), this.scalePrefs.presetOverrides()[this.scaleId()] ?? []),
+  );
 
   protected onToggle(index: number): void {
     this.haptics.impactLight();
