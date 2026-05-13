@@ -145,24 +145,10 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      # setup-node + corepack only on github-hosted: the self-hosted image bakes
-      # in Node 22 + pnpm 9.15.0 already, so the steps are redundant work (~3s
-      # per job × 3+ jobs per PR). Gating saves wall time without breaking the
-      # ubuntu-latest fallback (vars.LINUX_RUNNER unset or rolled back).
-      - name: Enable Corepack
-        if: runner.environment == 'github-hosted'
-        run: corepack enable
-
-      - uses: actions/setup-node@v4
-        if: runner.environment == 'github-hosted'
-        with:
-          node-version: 22
-
-      # --ignore-scripts: verify lanes only run typecheck/lint/format/unit-tests/build,
-      # none of which need msgpackr-extract's native binary. Skipping the postinstall
-      # saves ~6s on cold installs.
       - name: Install
-        run: pnpm install --frozen-lockfile --ignore-scripts
+        uses: ./.github/actions/pnpm-install
+        with:
+          ignore-scripts: 'true'
 
       - name: Build @hnch/shared (consumed by other packages)
         run: pnpm --filter @hnch/shared run build
@@ -223,26 +209,10 @@ jobs:
           # against the highest released tag per package.
           fetch-depth: 0
 
-      - name: Enable Corepack
-        if: runner.environment == 'github-hosted'
-        run: corepack enable
-
-      - uses: actions/setup-node@v4
-        if: runner.environment == 'github-hosted'
-        with:
-          node-version: 22
-          # No `cache: pnpm`: on the self-hosted pool the bind-mounted
-          # /cache/pnpm-store (per-runner shard) is the canonical store
-          # via npm_config_store_dir on the image. The verify matrix
-          # already runs without it; mirror that here. On the
-          # ubuntu-latest fallback this trades a cached restore for a
-          # cold install from the registry — acceptable since the
-          # fallback is an emergency path.
-
-      # --ignore-scripts: audit:versions only reads package.json files, no runtime
-      # deps needed. Skip msgpackr-extract postinstall (~6s saving on cold install).
       - name: Install
-        run: pnpm install --frozen-lockfile --ignore-scripts
+        uses: ./.github/actions/pnpm-install
+        with:
+          ignore-scripts: 'true'
 
       - name: Audit per-package versions vs git tags
         run: pnpm audit:versions
@@ -284,19 +254,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # setup-node + corepack only on github-hosted: the self-hosted image bakes
-      # in Node 22 + pnpm 9.15.0 already. ubuntu-latest fallback still works.
-      - name: Enable Corepack
-        if: runner.environment == 'github-hosted'
-        run: corepack enable
-
-      - uses: actions/setup-node@v4
-        if: runner.environment == 'github-hosted'
-        with:
-          node-version: 22
-
+      # E2E keeps default ignore-scripts=false: msgpackr-extract's native
+      # binary is exercised by the relay + client at runtime.
       - name: Install
-        run: pnpm install --frozen-lockfile
+        uses: ./.github/actions/pnpm-install
 
       # On self-hosted (rootless container, no sudo) Playwright system deps are
       # baked into the image — plain `install chromium` is enough. On ubuntu-latest
