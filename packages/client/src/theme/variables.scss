@@ -15,8 +15,12 @@
 
   // Background & surfaces
   --hnch-bg:           #F2F2F7;
-  --hnch-surface:      #FFFFFF;
-  --hnch-surface-2:    #FAFAFB;
+  --hnch-elev-1:       #FFFFFF;
+  --hnch-elev-2:       #FAFAFB;
+  --hnch-elev-3:       #F5F5F7;
+  // Legacy aliases — remove next release after consumer migration.
+  --hnch-surface:      var(--hnch-elev-1);
+  --hnch-surface-2:    var(--hnch-elev-2);
 
   // Glass — plan §variables.scss values
   --hnch-glass:        rgba(255, 255, 255, 0.72);
@@ -32,9 +36,9 @@
   --hnch-muted:        rgba(60, 60, 67, 0.60);
   --hnch-muted-2:      rgba(60, 60, 67, 0.30);
 
-  // Separators
-  --hnch-sep:          rgba(60, 60, 67, 0.18);
-  --hnch-sep-strong:   rgba(60, 60, 67, 0.29);
+  // Separators — tighter per web best-practice
+  --hnch-sep:          rgba(0, 0, 0, 0.10);
+  --hnch-sep-strong:   rgba(0, 0, 0, 0.18);
 
   // Fill (input backgrounds, tinted hits)
   --hnch-fill:         rgba(120, 120, 128, 0.16);
@@ -81,7 +85,12 @@
   // Disabled-button tokens — light mode
   // PR 3 will apply these to ion-button via --background-disabled/--color-disabled.
   --hnch-btn-disabled-bg: rgba(0, 0, 0, 0.08);
-  --hnch-btn-disabled-fg: rgba(0, 0, 0, 0.35);
+  --hnch-btn-disabled-fg: rgba(0, 0, 0, 0.40);
+
+  // Elevation shadows — light mode
+  --hnch-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 1px rgba(0, 0, 0, 0.06);
+  --hnch-shadow-2: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --hnch-shadow-3: 0 12px 32px rgba(0, 0, 0, 0.16);
 }
 
 // ---------------------------------------------------------------------------
@@ -90,21 +99,25 @@
 // ---------------------------------------------------------------------------
 
 :root.ion-palette-dark {
-  // Ionic substrate — dark mode
-  --ion-background-color:      #000000;
-  --ion-background-color-rgb:  0,0,0;
+  // Ionic substrate — dark mode (Apple HIG #1C1C1E for perceived depth)
+  --ion-background-color:      #1C1C1E;
+  --ion-background-color-rgb:  28,28,30;
   --ion-text-color:            #FFFFFF;
   --ion-text-color-rgb:        255,255,255;
 
-  // Background & surfaces
-  --hnch-bg:           #000000;
-  --hnch-surface:      #1C1C1E;
-  --hnch-surface-2:    #2C2C2E;
+  // Background & surfaces — direction-aware elevation toward #FFF
+  --hnch-bg:           #1C1C1E;
+  --hnch-elev-1:       #2C2C2E;
+  --hnch-elev-2:       #3A3A3C;
+  --hnch-elev-3:       #48484A;
+  // Legacy aliases — remove next release after consumer migration.
+  --hnch-surface:      var(--hnch-elev-1);
+  --hnch-surface-2:    var(--hnch-elev-2);
 
   // Glass — plan §variables.scss values
   --hnch-glass:        rgba(28, 28, 30, 0.66);
   // --hnch-glass-strong: not in plan spec; used by _glass.scss mixin $strong:true branch (toolbars)
-  --hnch-glass-strong: rgba(28, 28, 30, 0.78);
+  --hnch-glass-strong: rgba(28, 28, 30, 0.82);
   --hnch-glass-edge:   rgba(255, 255, 255, 0.08);
 
   // Text
@@ -115,9 +128,9 @@
   --hnch-muted:        rgba(235, 235, 245, 0.60);
   --hnch-muted-2:      rgba(235, 235, 245, 0.30);
 
-  // Separators
-  --hnch-sep:          rgba(84, 84, 88, 0.45);
-  --hnch-sep-strong:   rgba(84, 84, 88, 0.65);
+  // Separators — tighter per web best-practice
+  --hnch-sep:          rgba(255, 255, 255, 0.10);
+  --hnch-sep-strong:   rgba(255, 255, 255, 0.16);
 
   // Fill
   --hnch-fill:         rgba(120, 120, 128, 0.32);
@@ -159,7 +172,12 @@
   --ion-color-medium-shade:          #7D7D81;
   --ion-color-medium-tint:           #99999E;
 
-  // Disabled-button tokens — dark mode
+  // Disabled-button tokens — dark mode (fg bumped 0.40 → 0.50 for WCAG 4.5:1)
   --hnch-btn-disabled-bg: rgba(255, 255, 255, 0.08);
-  --hnch-btn-disabled-fg: rgba(255, 255, 255, 0.4);
+  --hnch-btn-disabled-fg: rgba(255, 255, 255, 0.50);
+
+  // Elevation shadows — dark mode (subtle; rely on elev-N for depth)
+  --hnch-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --hnch-shadow-2: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --hnch-shadow-3: 0 12px 32px rgba(0, 0, 0, 0.6);
 }
