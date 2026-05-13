@@ -145,13 +145,16 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      # setup-node + corepack run unconditionally so the ubuntu-latest fallback
-      # (vars.LINUX_RUNNER unset or rolled back) keeps working. On the self-hosted
-      # image Node 22 + pnpm are already baked in; these steps are idempotent.
+      # setup-node + corepack only on github-hosted: the self-hosted image bakes
+      # in Node 22 + pnpm 9.15.0 already, so the steps are redundant work (~3s
+      # per job × 3+ jobs per PR). Gating saves wall time without breaking the
+      # ubuntu-latest fallback (vars.LINUX_RUNNER unset or rolled back).
       - name: Enable Corepack
+        if: runner.environment == 'github-hosted'
         run: corepack enable
 
       - uses: actions/setup-node@v4
+        if: runner.environment == 'github-hosted'
         with:
           node-version: 22
 
@@ -218,9 +221,11 @@ jobs:
           fetch-depth: 0
 
       - name: Enable Corepack
+        if: runner.environment == 'github-hosted'
         run: corepack enable
 
       - uses: actions/setup-node@v4
+        if: runner.environment == 'github-hosted'
         with:
           node-version: 22
           # No `cache: pnpm`: on the self-hosted pool the bind-mounted
@@ -274,13 +279,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # setup-node + corepack run unconditionally so the ubuntu-latest fallback
-      # (vars.LINUX_RUNNER unset or rolled back) keeps working. On the self-hosted
-      # image Node 22 + pnpm are already baked in; these steps are idempotent.
+      # setup-node + corepack only on github-hosted: the self-hosted image bakes
+      # in Node 22 + pnpm 9.15.0 already. ubuntu-latest fallback still works.
       - name: Enable Corepack
+        if: runner.environment == 'github-hosted'
         run: corepack enable
 
       - uses: actions/setup-node@v4
+        if: runner.environment == 'github-hosted'
         with:
           node-version: 22
 
