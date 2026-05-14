@@ -19,6 +19,7 @@ import {
 
 import { DisplayNameService } from '../core/display-name.service';
 import { BrandMarkComponent } from '../shared/brand-mark.component';
+import { canContinue } from './onboarding.helpers';
 
 /**
  * First-run Onboarding: capture a display name and persist it before
@@ -169,7 +170,7 @@ export class OnboardingPage {
     initialValue: this.displayName.value,
   });
 
-  protected readonly canContinue = computed(() => this.rawValue().trim().length > 0);
+  protected readonly canContinue = computed(() => canContinue(this.rawValue()));
 
   protected readonly isSubmitting = signal(false);
 

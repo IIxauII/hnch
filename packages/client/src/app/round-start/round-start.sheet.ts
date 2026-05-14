@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
+import { buildRoundStartTitle } from './round-start.helpers';
 import {
   IonButton,
   IonButtons,
@@ -133,9 +134,7 @@ export class RoundStartSheetComponent {
   protected submit(): void {
     if (this.isSubmitting()) return;
     this.isSubmitting.set(true);
-
-    const raw = this.titleControl.value.trim();
-    this.submitted.emit({ title: raw === '' ? null : raw });
+    this.submitted.emit({ title: buildRoundStartTitle(this.titleControl.value) });
     // Leave isSubmitting latched — the modal is about to close and
     // the component will be destroyed; unlatching could race a
     // double-tap that arrives after submit but before dismiss.

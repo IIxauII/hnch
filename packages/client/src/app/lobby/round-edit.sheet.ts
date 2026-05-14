@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, effect, input, output, signal } from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
+import { buildRoundEditSubmission } from './round-edit.helpers';
 import {
   IonButton,
   IonContent,
@@ -127,14 +128,12 @@ export class RoundEditSheetComponent {
 
   protected submit(): void {
     if (this.isSubmitting()) return;
-    if (this.titleControl.value.trim() === '') return;
+    const payload = buildRoundEditSubmission(
+      this.titleControl.value,
+      this.descriptionControl.value,
+    );
+    if (!payload) return;
     this.isSubmitting.set(true);
-
-    const title = this.titleControl.value.trim();
-    const rawDesc = this.descriptionControl.value.trim();
-    this.submitted.emit({
-      title,
-      description: rawDesc === '' ? null : rawDesc,
-    });
+    this.submitted.emit(payload);
   }
 }
