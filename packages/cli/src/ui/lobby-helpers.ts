@@ -3,8 +3,39 @@
  * directly without rendering the Ink tree.
  */
 
-import { resolveRoundLineage, terminalState } from '@hnch/shared';
-import type { Round } from '@hnch/shared';
+import { resolveRoundLineage, roundsToMarkdown, terminalState } from '@hnch/shared';
+import type { DocProjection, Round } from '@hnch/shared';
+
+/**
+ * Build the Markdown export payload for the current session. Mirrors mobile
+ * (ExportService.copyRoundsAsMarkdown in lobby.page.ts): passes the raw
+ * participants list — including those who have left — so departed names still
+ * resolve in historical rounds per ADR-0036.
+ */
+export function buildExportMarkdown(projection: DocProjection): string {
+  const terminalRounds = projection.rounds.filter((r) => terminalState(r) !== null);
+  const participants = Object.fromEntries(projection.participants.map((p) => [p.id, p]));
+  return roundsToMarkdown({ rounds: terminalRounds, participants });
+}
+
+/**
+ * Copy the current session's Markdown export to the clipboard, dispatching a
+ * success/failure notice via the provided callback. Extracted from App.tsx so
+ * the success and failure paths can be unit-tested without rendering Ink.
+ */
+export async function exportResultsToClipboard(
+  projection: DocProjection,
+  clipboardWrite: (text: string) => Promise<void>,
+  showNotice: (message: string) => void,
+): Promise<void> {
+  const md = buildExportMarkdown(projection);
+  try {
+    await clipboardWrite(md);
+    showNotice('Results copied to clipboard');
+  } catch {
+    showNotice('Clipboard write failed');
+  }
+}
 
 /**
  * Format the `Round …` label, surfacing re-vote chain position when

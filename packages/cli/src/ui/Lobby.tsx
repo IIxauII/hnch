@@ -51,6 +51,8 @@ interface Props {
   onDescriptorSubmit: (value: string) => void;
   onDescriptorCancel: () => void;
   onEditDescriptor: () => void;
+  canExport: boolean;
+  onExportResults: () => void;
 }
 
 export function Lobby({
@@ -90,6 +92,8 @@ export function Lobby({
   onDescriptorSubmit,
   onDescriptorCancel,
   onEditDescriptor,
+  canExport,
+  onExportResults,
 }: Props): React.ReactElement {
   const [handoffMode, setHandoffMode] = React.useState<'idle' | 'picking' | 'confirming'>('idle');
   const [handoffTargetId, setHandoffTargetId] = React.useState<string | null>(null);
@@ -114,6 +118,10 @@ export function Lobby({
       }
       if (input === 'w' || input === 'W') {
         onToggleRole();
+        return;
+      }
+      if ((input === 'x' || input === 'X') && canExport) {
+        onExportResults();
         return;
       }
       if (isHost) {
@@ -360,6 +368,7 @@ export function Lobby({
                     <Text color="yellow">[h] Handoff</Text>
                     <Text color="yellow">[e] Settings</Text>
                     <Text color="yellow">[c] Share</Text>
+                    {canExport && <Text color="yellow">[x] Export</Text>}
                     <Text color="yellow">[w] {myRole === 'viewer' ? 'Vote' : 'Observe'}</Text>
                     <Text color="yellow">[m] Menu</Text>
                   </>
@@ -369,6 +378,7 @@ export function Lobby({
                     <Text color="yellow">[h] Handoff</Text>
                     <Text color="yellow">[e] Settings</Text>
                     <Text color="yellow">[c] Share</Text>
+                    {canExport && <Text color="yellow">[x] Export</Text>}
                     <Text color="yellow">[w] {myRole === 'viewer' ? 'Vote' : 'Observe'}</Text>
                     <Text color="yellow">[m] Menu</Text>
                   </>
@@ -378,6 +388,7 @@ export function Lobby({
               <>
                 <Text dimColor>Waiting for host to start a round...</Text>
                 <Text>[c] Share</Text>
+                {canExport && <Text color="yellow">[x] Export</Text>}
                 <Text color="yellow">[w] {myRole === 'viewer' ? 'Vote' : 'Observe'}</Text>
               </>
             )}
