@@ -3,9 +3,27 @@
  * directly without spinning up the full LobbyPage component graph.
  */
 
-import { participantRole } from '@hnch/shared';
+import { participantRole, resolveRoundLineage } from '@hnch/shared';
+import type { Round } from '@hnch/shared';
 
 /** True when a participant's effective role is `'viewer'`. */
 export function isParticipantViewer(p: { role?: 'voter' | 'viewer' }): boolean {
   return participantRole(p) === 'viewer';
+}
+
+/**
+ * Build the results-section heading shown in the Lobby. For re-voted
+ * rounds, surfaces the chain position as `"Round N of M Results"`
+ * (issue #111). First-round / standalone rounds get `"Round N Results"`.
+ * Returns the empty string when no terminal round exists yet.
+ */
+export function buildResultsHeading(
+  round: Round | null,
+  roundIndex: number | null,
+  allRounds: readonly Round[],
+): string {
+  if (round === null || roundIndex === null) return '';
+  const lineage = resolveRoundLineage(round.id, allRounds);
+  if (lineage === null) return `Round ${roundIndex} Results`;
+  return `Round ${lineage.depth} of ${lineage.total} Results`;
 }

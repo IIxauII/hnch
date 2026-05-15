@@ -8,9 +8,9 @@ import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { CustomScale, ParticipantSnapshot, Scale } from '@hnch/shared';
+import type { CustomScale, ParticipantSnapshot, Round, Scale } from '@hnch/shared';
 
-import { isParticipantViewer } from './lobby-helpers';
+import { buildResultsHeading, isParticipantViewer } from './lobby-helpers';
 
 function makeParticipant(id: string, role?: 'voter' | 'viewer'): ParticipantSnapshot {
   return { id, displayName: id, joinedAt: 0, role };
@@ -27,6 +27,68 @@ describe('LobbyPage — isParticipantViewer', () => {
 
   it('true when role is viewer', () => {
     expect(isParticipantViewer(makeParticipant('me', 'viewer'))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildResultsHeading — issue #111 re-vote breadcrumb
+// ---------------------------------------------------------------------------
+
+function makeRound(overrides: Partial<Round> & { id: string }): Round {
+  return {
+    scale: { id: 'fibonacci', cards: ['1', '2'] },
+    votes: {},
+    createdAt: 0,
+    createdBy: 'p1',
+    ...overrides,
+  };
+}
+
+describe('LobbyPage — buildResultsHeading', () => {
+  it('empty string when no round', () => {
+    expect(buildResultsHeading(null, null, [])).toBe('');
+  });
+
+  it('empty string when roundIndex missing', () => {
+    const r1 = makeRound({ id: 'r1' });
+    expect(buildResultsHeading(r1, null, [r1])).toBe('');
+  });
+
+  it('plain "Round N Results" for standalone round (AC#3)', () => {
+    const r1 = makeRound({ id: 'r1' });
+    expect(buildResultsHeading(r1, 1, [r1])).toBe('Round 1 Results');
+  });
+
+  it('chain root keeps plain "Round N Results" (AC#4)', () => {
+    const r1 = makeRound({ id: 'r1' });
+    const r2 = makeRound({ id: 'r2', parentRoundId: 'r1' });
+    expect(buildResultsHeading(r1, 1, [r1, r2])).toBe('Round 1 Results');
+  });
+
+  it('re-voted depth-2 of 2 → "Round 2 of 2 Results" (AC#1)', () => {
+    const r1 = makeRound({ id: 'r1' });
+    const r2 = makeRound({ id: 'r2', parentRoundId: 'r1' });
+    expect(buildResultsHeading(r2, 2, [r1, r2])).toBe('Round 2 of 2 Results');
+  });
+
+  it('3-deep leaf → "Round 3 of 3 Results" (AC#5)', () => {
+    const r1 = makeRound({ id: 'r1' });
+    const r2 = makeRound({ id: 'r2', parentRoundId: 'r1' });
+    const r3 = makeRound({ id: 'r3', parentRoundId: 'r2' });
+    expect(buildResultsHeading(r3, 3, [r1, r2, r3])).toBe('Round 3 of 3 Results');
+  });
+
+  it('AC#2 retroactive: middle round shows updated total when third re-vote added', () => {
+    const r1 = makeRound({ id: 'r1' });
+    const r2 = makeRound({ id: 'r2', parentRoundId: 'r1' });
+    expect(buildResultsHeading(r2, 2, [r1, r2])).toBe('Round 2 of 2 Results');
+    const r3 = makeRound({ id: 'r3', parentRoundId: 'r2' });
+    expect(buildResultsHeading(r2, 2, [r1, r2, r3])).toBe('Round 2 of 3 Results');
+  });
+
+  it('missing parent ref falls back to plain "Round N Results" (AC#6)', () => {
+    const orphan = makeRound({ id: 'r2', parentRoundId: 'missing' });
+    expect(buildResultsHeading(orphan, 1, [orphan])).toBe('Round 1 Results');
   });
 });
 
