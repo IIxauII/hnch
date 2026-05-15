@@ -10,10 +10,12 @@ import type { ParticipantSnapshot } from '@hnch/shared';
     <div class="row" role="group" [attr.aria-label]="ariaLabel()">
       <div class="dots" aria-hidden="true">
         @for (p of participants(); track p.id) {
-          <span
-            class="dot"
-            [class.voted]="votedIds().has(p.id)"
-          ></span>
+          <span class="dot-cell">
+            <span class="dot" [class.voted]="votedIds().has(p.id)">
+              <span class="dot-initial">{{ initialOf(p) }}</span>
+            </span>
+            <span class="dot-label">{{ labelOf(p) }}</span>
+          </span>
         }
       </div>
       <span class="count">
@@ -33,11 +35,22 @@ import type { ParticipantSnapshot } from '@hnch/shared';
       }
       .dots {
         display: flex;
+        flex-wrap: wrap;
         gap: 0.35rem;
+        row-gap: 0.5rem;
+      }
+      .dot-cell {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.15rem;
       }
       .dot {
-        width: 0.75rem;
-        height: 0.75rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.5rem;
+        height: 1.5rem;
         border-radius: 50%;
         border: 1.5px solid var(--ion-color-medium);
         background: transparent;
@@ -45,6 +58,31 @@ import type { ParticipantSnapshot } from '@hnch/shared';
       .dot.voted {
         background: var(--ion-color-primary);
         border-color: var(--ion-color-primary);
+      }
+      .dot-initial {
+        font-size: 0.625rem;
+        font-weight: 600;
+        line-height: 1;
+        color: var(--ion-color-medium);
+      }
+      .dot.voted .dot-initial {
+        color: #fff;
+      }
+      .dot-label {
+        display: none;
+      }
+      /* $bp-md = 768px — see packages/client/src/theme/_breakpoints.scss */
+      @media (min-width: 768px) {
+        .dot-label {
+          display: block;
+          max-width: 5rem;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font-size: 0.6875rem;
+          color: var(--ion-color-medium);
+          text-align: center;
+        }
       }
       .count {
         color: var(--ion-color-medium);
@@ -62,4 +100,12 @@ export class AvatarVoteRowComponent {
   protected readonly ariaLabel = computed(
     () => `${this.votedCount()} of ${this.participants().length} voted`,
   );
+
+  protected initialOf(p: ParticipantSnapshot): string {
+    return (p.displayName?.trim()?.[0] ?? '').toUpperCase();
+  }
+
+  protected labelOf(p: ParticipantSnapshot): string {
+    return (p.displayName ?? '').slice(0, 10);
+  }
 }

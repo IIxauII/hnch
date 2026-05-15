@@ -3,8 +3,8 @@ import { describe, it, expect } from 'vitest';
 import type { ParticipantSnapshot } from '@hnch/shared';
 import { AvatarVoteRowComponent } from './avatar-vote-row.component';
 
-function makeParticipant(id: string): ParticipantSnapshot {
-  return { id, displayName: id, joinedAt: 0, role: 'voter' };
+function makeParticipant(id: string, displayName?: string): ParticipantSnapshot {
+  return { id, displayName: displayName ?? id, joinedAt: 0, role: 'voter' };
 }
 
 function mount(participants: readonly ParticipantSnapshot[], votedIds: ReadonlySet<string>) {
@@ -55,5 +55,41 @@ describe('AvatarVoteRowComponent', () => {
     const fixture = mount([makeParticipant('v1')], new Set());
     const row = fixture.nativeElement.querySelector('[role="group"]');
     expect(row?.getAttribute('aria-label')).toBe('0 of 1 voted');
+  });
+
+  // ── Identity rendering (#196) ─────────────────────────────────────────────
+  it('renders uppercase first-character initial inside each dot', () => {
+    const ps = [makeParticipant('v1', 'alice'), makeParticipant('v2', 'Bob')];
+    const fixture = mount(ps, new Set(['v1']));
+    const initials = Array.from(fixture.nativeElement.querySelectorAll('.dot .dot-initial')).map(
+      (el) => (el as HTMLElement).textContent?.trim(),
+    );
+    expect(initials).toEqual(['A', 'B']);
+  });
+
+  it('renders displayName slice ≤10 chars in dot-label', () => {
+    const fixture = mount([makeParticipant('v1', 'Christopher Long')], new Set());
+    const label = fixture.nativeElement.querySelector('.dot-label');
+    expect(label?.textContent?.trim()).toBe('Christophe');
+  });
+
+  it('empty/whitespace displayName: initial renders empty string, label empty', () => {
+    const fixture = mount([makeParticipant('v1', '   '), makeParticipant('v2', '')], new Set());
+    const initials = Array.from(fixture.nativeElement.querySelectorAll('.dot .dot-initial')).map(
+      (el) => (el as HTMLElement).textContent,
+    );
+    expect(initials).toEqual(['', '']);
+    const labels = Array.from(fixture.nativeElement.querySelectorAll('.dot-label')).map(
+      (el) => (el as HTMLElement).textContent,
+    );
+    expect(labels).toEqual(['   ', '']);
+  });
+
+  it('voted class applied to dot span (not cell) so e2e .dot.voted selector still resolves', () => {
+    const fixture = mount([makeParticipant('v1'), makeParticipant('v2')], new Set(['v1']));
+    const votedDots = fixture.nativeElement.querySelectorAll('.dot.voted');
+    expect(votedDots.length).toBe(1);
+    const allDots = fixture.nativeElement.querySelectorAll('.dot');
+    expect(allDots.length).toBe(2);
   });
 });
