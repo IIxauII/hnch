@@ -58,14 +58,13 @@ export function resolveRoundLineage(
     else list.push(r);
   }
 
-  // BFS descendants from root, guarding cycles via seen set.
+  // BFS descendants from root. Each round has at most one `parentRoundId`,
+  // so descendants form a tree — no revisit-guard needed beyond the
+  // parent-chain cycle check above.
   let total = 0;
-  const seen = new Set<string>();
   const queue: Round[] = [chainRoot];
   while (queue.length > 0) {
     const node = queue.shift() as Round;
-    if (seen.has(node.id)) continue;
-    seen.add(node.id);
     total += 1;
     const children = childrenByParent.get(node.id);
     if (children !== undefined) queue.push(...children);
