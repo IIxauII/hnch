@@ -30,6 +30,11 @@ interface Props {
   onRoundTitleChange: (value: string) => void;
   onRoundTitleSubmit: (value: string) => void;
   onRoundTitleCancel: () => void;
+  roundTicketIdPromptActive: boolean;
+  roundTicketIdInput: string;
+  onRoundTicketIdChange: (value: string) => void;
+  onRoundTicketIdSubmit: (value: string) => void;
+  onRoundTicketIdCancel: () => void;
   onOpenSettings: () => void;
   onHandoffHost: (targetId: string) => void;
   onEndSession: () => void;
@@ -74,6 +79,11 @@ export function Lobby({
   onRoundTitleChange,
   onRoundTitleSubmit,
   onRoundTitleCancel,
+  roundTicketIdPromptActive,
+  roundTicketIdInput,
+  onRoundTicketIdChange,
+  onRoundTicketIdSubmit,
+  onRoundTicketIdCancel,
   descriptorPromptActive,
   descriptorInput,
   onDescriptorChange,
@@ -125,6 +135,7 @@ export function Lobby({
         !confirmingQuit &&
         handoffMode === 'idle' &&
         !roundTitlePromptActive &&
+        !roundTicketIdPromptActive &&
         !hostMenuOpen &&
         !confirmingEndSession &&
         !shareOpen &&
@@ -290,6 +301,23 @@ export function Lobby({
         </Box>
       )}
 
+      {roundTicketIdPromptActive && (
+        <Box flexDirection="column">
+          <Box gap={1}>
+            <Text>Ticket ID (optional, Enter to skip):</Text>
+            <TextInput
+              value={roundTicketIdInput}
+              onChange={onRoundTicketIdChange}
+              onSubmit={onRoundTicketIdSubmit}
+              onCancel={onRoundTicketIdCancel}
+              placeholder="e.g. PROJ-1234"
+              isActive={roundTicketIdPromptActive}
+            />
+          </Box>
+          <Text dimColor>[Esc] Cancel</Text>
+        </Box>
+      )}
+
       {descriptorPromptActive && (
         <Box flexDirection="column">
           <Box gap={1}>
@@ -316,6 +344,7 @@ export function Lobby({
 
       {handoffMode === 'idle' &&
         !roundTitlePromptActive &&
+        !roundTicketIdPromptActive &&
         !descriptorPromptActive &&
         !confirmingEndSession && (
           <Box gap={2}>
