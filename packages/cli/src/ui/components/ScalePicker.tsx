@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import {
-  formatScaleId,
+  getScaleLabel,
   BUILTIN_SCALES,
   type Scale,
   type PresetOverrides,
@@ -153,7 +153,7 @@ export function ScalePicker({
 
   if (state === 'confirming-delete' && deleteConfirmId) {
     const scale = displayScales.find((s) => s.id === deleteConfirmId);
-    const scaleName = scale ? formatScaleId(scale.id) : 'Unknown';
+    const scaleName = scale ? getScaleLabel(scale.id, customScales) : 'Unknown';
     return (
       <Box flexDirection="column" gap={1}>
         <Text>Delete {scaleName}? </Text>
@@ -186,7 +186,7 @@ export function ScalePicker({
             ? '(none)'
             : isCreateAction
               ? '[+ Create custom scale]'
-              : formatScaleId(scale.id);
+              : getScaleLabel(scale.id, customScales);
 
           return (
             <Box key={scale.id || 'none'} flexDirection="column">

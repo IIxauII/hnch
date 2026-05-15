@@ -40,7 +40,8 @@ import {
 } from './access-picker.sheet';
 import { ScalePickerSheetComponent } from './scale-picker.sheet';
 import { presentSheet } from '../utils/present-sheet';
-import { formatScaleId } from '@hnch/shared';
+import { getScaleLabel } from '@hnch/shared';
+import { ScalePreferenceService } from '../core/scale-preference.service';
 
 /**
  * Session settings half-sheet — ux.md §5.8.
@@ -165,6 +166,7 @@ import { formatScaleId } from '@hnch/shared';
 })
 export class SessionSettingsSheetComponent {
   private readonly appPrefs = inject(AppPreferenceService);
+  private readonly scalePrefs = inject(ScalePreferenceService);
   private readonly docService = inject(DocService);
   private readonly toastService = inject(ToastService);
   protected readonly surface = inject(SurfaceService);
@@ -204,7 +206,7 @@ export class SessionSettingsSheetComponent {
   protected readonly scaleLabel = computed(() => {
     const id = this.currentScale()?.id;
     if (!id) return '';
-    return formatScaleId(id);
+    return getScaleLabel(id, this.scalePrefs.customScales());
   });
 
   protected readonly accessLabel = computed(() => formatAccessLabel(this.accessMode()));

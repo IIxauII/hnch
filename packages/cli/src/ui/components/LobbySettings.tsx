@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Box, Text } from 'ink';
 import {
   buildAvailableScales,
-  formatScaleId,
+  getScaleLabel,
   type Scale,
   type PresetOverrides,
   type CustomScale,
@@ -85,7 +85,7 @@ export function LobbySettings({
     {
       label: 'Scale',
       value: 'scale',
-      detail: `[${formatScaleId(currentScale.id)}]`,
+      detail: `[${getScaleLabel(currentScale.id, customScales)}]`,
     },
     {
       label: 'Access',
