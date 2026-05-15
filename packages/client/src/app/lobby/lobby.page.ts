@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { Router } from '@angular/router';
 import { Share } from '@capacitor/share';
-import { formatRoomCode, terminalState } from '@hnch/shared';
+import { formatRoomCode, getScaleLabel, terminalState } from '@hnch/shared';
 import type { Round } from '@hnch/shared';
 import {
   AlertController,
@@ -62,6 +62,7 @@ import { ToastService } from '../services/toast.service';
 import { DocService } from '../core/doc/doc.service';
 import { HapticService } from '../core/haptic.service';
 import { LastSessionService } from '../core/last-session.service';
+import { ScalePreferenceService } from '../core/scale-preference.service';
 import { ParticipantIdService } from '../core/participant-id.service';
 import {
   RoundStartSheetComponent,
@@ -564,6 +565,7 @@ export class LobbyPage {
   private readonly haptic = inject(HapticService);
   private readonly participantIdService = inject(ParticipantIdService);
   private readonly lastSessionService = inject(LastSessionService);
+  private readonly scalePrefs = inject(ScalePreferenceService);
   protected readonly surface = inject(SurfaceService);
   private readonly alertCtrl = inject(AlertController);
   private readonly toastService = inject(ToastService);
@@ -646,7 +648,7 @@ export class LobbyPage {
     const settings = this.docService.settings();
     if (!settings || !settings.defaultScale) return '';
     const round = this.nextRoundNumber();
-    const scaleName = formatScaleId(settings.defaultScale.id);
+    const scaleName = getScaleLabel(settings.defaultScale.id, this.scalePrefs.customScales());
     return `Round ${round} • ${scaleName}`;
   });
 
@@ -1115,20 +1117,4 @@ export class LobbyPage {
     });
     await alert.present();
   }
-}
-
-// ---------------------------------------------------------------------------
-// Module-private formatters
-// ---------------------------------------------------------------------------
-
-/**
- * Format a scale id for display. Capitalizes the first character so
- * `'fibonacci'` reads as "Fibonacci" and `'t-shirt'` reads as
- * "T-shirt". Custom scale ids (`'custom-<uuid>'`) get the same
- * treatment — acceptable per ux.md because custom-scale display is a
- * Phase 6 concern.
- */
-function formatScaleId(id: string): string {
-  if (id.length === 0) return id;
-  return id.charAt(0).toUpperCase() + id.slice(1);
 }

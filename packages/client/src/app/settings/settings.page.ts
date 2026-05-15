@@ -28,7 +28,7 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 
-import { formatScaleId, type Scale } from '@hnch/shared';
+import { getScaleLabel, type Scale } from '@hnch/shared';
 
 import { environment } from '../../environments/environment';
 import { AccentService } from '../core/accent.service';
@@ -279,7 +279,7 @@ export class SettingsPage {
 
   protected readonly scaleLabel = computed(() => {
     const scale = this.scalePrefs.defaultScale();
-    return formatScaleId(scale.id);
+    return getScaleLabel(scale.id, this.scalePrefs.customScales());
   });
 
   protected readonly relayUrlLabel = computed(() =>

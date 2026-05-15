@@ -8,7 +8,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { BUILTIN_SCALES, formatScaleId, type Scale } from '@hnch/shared';
+import { BUILTIN_SCALES, getScaleLabel, type Scale } from '@hnch/shared';
 import { type CustomScale } from '@hnch/shared';
 import {
   IonButton,
@@ -291,7 +291,7 @@ export class ScalePickerSheetComponent {
   protected readonly editingCustomScale = signal<CustomScale | undefined>(undefined);
   protected readonly customEditorOpen = signal(false);
 
-  protected readonly formatId = formatScaleId;
+  protected formatId = (id: string): string => getScaleLabel(id, this.scalePrefs.customScales());
 
   constructor() {
     addIcons({
