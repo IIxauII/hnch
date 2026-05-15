@@ -158,6 +158,38 @@ describe('session integration', () => {
     host.disconnect();
   });
 
+  it('newRound writes ticketId when provided and omits it when undefined', async () => {
+    const host = await createSession({
+      participantId: 'host-new-round-ticket',
+      displayName: 'Alice',
+      relayUrl,
+    });
+
+    await sleep(500);
+
+    // Round with both title and ticketId
+    const r1 = host.newRound('Auth migration', 'PROJ-42');
+    // Round with ticketId only
+    const r2 = host.newRound(undefined, 'PROJ-77');
+    // Round with neither (skip prompts)
+    const r3 = host.newRound();
+    await sleep(300);
+
+    const p = host.projection();
+    const round1 = p.rounds.find((r) => r.id === r1);
+    const round2 = p.rounds.find((r) => r.id === r2);
+    const round3 = p.rounds.find((r) => r.id === r3);
+
+    expect(round1?.title).toBe('Auth migration');
+    expect(round1?.ticketId).toBe('PROJ-42');
+    expect(round2?.title).toBeUndefined();
+    expect(round2?.ticketId).toBe('PROJ-77');
+    expect(round3?.title).toBeUndefined();
+    expect(round3?.ticketId).toBeUndefined();
+
+    host.disconnect();
+  });
+
   it('revote inherits title, description, and ticketId from parent round', async () => {
     const host = await createSession({
       participantId: 'host-revote-inherit',

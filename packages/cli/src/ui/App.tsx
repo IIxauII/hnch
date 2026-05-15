@@ -6,6 +6,7 @@ import type { DocProjection, Round, Scale, PresetOverrides, CustomScale } from '
 import { currentRound, participantRole, terminalState } from '@hnch/shared';
 import clipboard from 'clipboardy';
 import { shareCode, shareUrl, shareNpxCommand } from '../share.js';
+import { buildNewRoundArgs, normalizeRoundPromptValue } from './round-prompt-flow.js';
 import { StatusBar } from './components/StatusBar.js';
 import { LobbySettings } from './components/LobbySettings.js';
 import { Lobby } from './Lobby.js';
@@ -51,6 +52,9 @@ export function App({
   const [confirmingQuit, setConfirmingQuit] = useState(false);
   const [roundTitlePromptActive, setRoundTitlePromptActive] = useState(false);
   const [roundTitleInput, setRoundTitleInput] = useState('');
+  const [roundTicketIdPromptActive, setRoundTicketIdPromptActive] = useState(false);
+  const [roundTicketIdInput, setRoundTicketIdInput] = useState('');
+  const [pendingRoundTitle, setPendingRoundTitle] = useState<string | undefined>();
   const [descriptorPromptActive, setDescriptorPromptActive] = useState(false);
   const [descriptorInput, setDescriptorInput] = useState('');
   const [editingRoundId, setEditingRoundId] = useState<string | null>(null);
@@ -106,6 +110,7 @@ export function App({
         !settingsOpen &&
         !confirmingQuit &&
         !roundTitlePromptActive &&
+        !roundTicketIdPromptActive &&
         !descriptorPromptActive &&
         !shareOpen,
     },
@@ -136,18 +141,35 @@ export function App({
     setRoundTitlePromptActive(true);
   }, []);
 
-  const handleRoundTitleSubmit = useCallback(
-    (title: string) => {
-      setRoundTitlePromptActive(false);
-      setRoundTitleInput('');
-      session.newRound(title.trim() || undefined);
-    },
-    [session],
-  );
+  const handleRoundTitleSubmit = useCallback((title: string) => {
+    setRoundTitlePromptActive(false);
+    setRoundTitleInput('');
+    setPendingRoundTitle(normalizeRoundPromptValue(title));
+    setRoundTicketIdInput('');
+    setRoundTicketIdPromptActive(true);
+  }, []);
 
   const handleRoundTitleCancel = useCallback(() => {
     setRoundTitlePromptActive(false);
     setRoundTitleInput('');
+    setPendingRoundTitle(undefined);
+  }, []);
+
+  const handleRoundTicketIdSubmit = useCallback(
+    (ticketId: string) => {
+      setRoundTicketIdPromptActive(false);
+      setRoundTicketIdInput('');
+      const [title, normalizedTicketId] = buildNewRoundArgs(pendingRoundTitle, ticketId);
+      session.newRound(title, normalizedTicketId);
+      setPendingRoundTitle(undefined);
+    },
+    [session, pendingRoundTitle],
+  );
+
+  const handleRoundTicketIdCancel = useCallback(() => {
+    setRoundTicketIdPromptActive(false);
+    setRoundTicketIdInput('');
+    setPendingRoundTitle(undefined);
   }, []);
 
   const handleEditDescriptor = useCallback(() => {
@@ -338,6 +360,11 @@ export function App({
           onRoundTitleChange={setRoundTitleInput}
           onRoundTitleSubmit={handleRoundTitleSubmit}
           onRoundTitleCancel={handleRoundTitleCancel}
+          roundTicketIdPromptActive={roundTicketIdPromptActive}
+          roundTicketIdInput={roundTicketIdInput}
+          onRoundTicketIdChange={setRoundTicketIdInput}
+          onRoundTicketIdSubmit={handleRoundTicketIdSubmit}
+          onRoundTicketIdCancel={handleRoundTicketIdCancel}
           onRevote={handleRevote}
           onOpenSettings={handleOpenSettings}
           onHandoffHost={handleHandoffHost}
