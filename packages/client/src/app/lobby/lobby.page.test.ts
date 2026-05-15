@@ -248,6 +248,96 @@ async function mountLobby(scale: Scale | undefined, customs: CustomScale[]) {
   return TestBed.createComponent(LobbyPage);
 }
 
+describe('LobbyPage — onRoundStart forwards ticketId', () => {
+  async function mountWithStartRoundSpy() {
+    const { Router } = await import('@angular/router');
+    const { DocService } = await import('../core/doc/doc.service');
+    const { HapticService } = await import('../core/haptic.service');
+    const { ParticipantIdService } = await import('../core/participant-id.service');
+    const { LastSessionService } = await import('../core/last-session.service');
+    const { ScalePreferenceService } = await import('../core/scale-preference.service');
+    const { SurfaceService } = await import('../core/surface.service');
+    const { ToastService } = await import('../services/toast.service');
+    const { ExportService } = await import('../core/export.service');
+    const { AlertController } = await import('@ionic/angular/standalone');
+
+    const startRound = vi.fn();
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: Router, useValue: { navigate: vi.fn().mockResolvedValue(true) } },
+        {
+          provide: DocService,
+          useValue: {
+            settings: signal(undefined).asReadonly(),
+            roomCode: signal('ABC123').asReadonly(),
+            meta: signal(undefined).asReadonly(),
+            syncStatus: signal('disconnected').asReadonly(),
+            currentRound: signal(undefined).asReadonly(),
+            lastRejection: signal(null).asReadonly(),
+            rounds: signal([]).asReadonly(),
+            participants: signal([]).asReadonly(),
+            onlineIds: signal(new Set()).asReadonly(),
+            startRound,
+            endSession: vi.fn(),
+          },
+        },
+        { provide: HapticService, useValue: { impactLight: vi.fn() } },
+        { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
+        { provide: LastSessionService, useValue: { record: vi.fn() } },
+        {
+          provide: ScalePreferenceService,
+          useValue: { customScales: signal([]).asReadonly() },
+        },
+        {
+          provide: SurfaceService,
+          useValue: {
+            mode: signal('mobile').asReadonly(),
+            sheetBreakpoints: () => [0, 0.5, 1],
+            initialSheetBreakpoint: () => 0.5,
+            sheetBreakpointsFull: () => [0, 0.6, 1],
+            initialSheetBreakpointFull: () => 1,
+          },
+        },
+        { provide: ToastService, useValue: { show: vi.fn(), error: vi.fn() } },
+        { provide: ExportService, useValue: { export: vi.fn() } },
+        {
+          provide: AlertController,
+          useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
+        },
+      ],
+    });
+    const { LobbyPage } = await import('./lobby.page');
+    const fixture = TestBed.createComponent(LobbyPage);
+    return { fixture, startRound };
+  }
+
+  type Internals = {
+    onRoundStart(s: { title: string | null; ticketId: string | null }): Promise<void>;
+  };
+
+  it('writes ticketId when submission has one', async () => {
+    const { fixture, startRound } = await mountWithStartRoundSpy();
+    const internals = fixture.componentInstance as unknown as Internals;
+    await internals.onRoundStart({ title: 'Auth', ticketId: 'PROJ-42' }).catch(() => undefined);
+    expect(startRound).toHaveBeenCalledWith({ title: 'Auth', ticketId: 'PROJ-42' });
+  });
+
+  it('omits ticketId when submission.ticketId is null', async () => {
+    const { fixture, startRound } = await mountWithStartRoundSpy();
+    const internals = fixture.componentInstance as unknown as Internals;
+    await internals.onRoundStart({ title: 'Auth', ticketId: null }).catch(() => undefined);
+    expect(startRound).toHaveBeenCalledWith({ title: 'Auth' });
+  });
+
+  it('omits both fields when both are null', async () => {
+    const { fixture, startRound } = await mountWithStartRoundSpy();
+    const internals = fixture.componentInstance as unknown as Internals;
+    await internals.onRoundStart({ title: null, ticketId: null }).catch(() => undefined);
+    expect(startRound).toHaveBeenCalledWith({});
+  });
+});
+
 describe('LobbyPage — subtitle (custom scale label)', () => {
   it('shows the custom label when defaultScale is a known custom scale', async () => {
     const fixture = await mountLobby({ id: 'custom-bananas', cards: ['1', '2'] }, [
