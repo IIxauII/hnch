@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
-import { formatScaleId } from '@hnch/shared';
+import { getScaleLabel } from '@hnch/shared';
 import {
   IonButton,
   IonButtons,
@@ -97,7 +97,9 @@ export class ScaleEditorSheetComponent {
   /** Emits when the user taps Done. */
   readonly closeRequested = output<void>();
 
-  protected readonly title = computed(() => formatScaleId(this.scaleId()));
+  protected readonly title = computed(() =>
+    getScaleLabel(this.scaleId(), this.scalePrefs.customScales()),
+  );
 
   protected readonly cardRows = computed(() =>
     computeCardRows(this.scaleId(), this.scalePrefs.presetOverrides()[this.scaleId()] ?? []),
