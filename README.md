@@ -6,6 +6,10 @@ A pointing poker app for agile teams. The name is a vowel-dropped spelling of "h
 
 Phase 6a shipped (PWA polish, settings, theming, animations, haptics, a11y). Mobile parity closed the remaining CLI-mobile feature gaps. Next up: Phase 6b (native iOS build). See [roadmap.md](docs/roadmap.md) for the phased plan.
 
+## Codecov
+
+[![codecov](https://codecov.io/gh/IIxauII/hnch/branch/main/graph/badge.svg?token=5WZDV0OV3F)](https://codecov.io/gh/IIxauII/hnch)
+
 ## Stack
 
 | Layer | Choice |
