@@ -137,7 +137,7 @@ export class Participant {
   // -- Lobby actions --------------------------------------------------------
 
   /** Tap "Start Round N" and confirm the modal. */
-  async startRound(title?: string): Promise<void> {
+  async startRound(title?: string, ticketId?: string): Promise<void> {
     // Scope to the active Ionic page so a hidden /join in the navigation
     // stack can't intercept the click via pointer-event bubbling.
     const startRoundBtn = this.page
@@ -149,7 +149,10 @@ export class Participant {
     const modal = this.page.locator('app-round-start-sheet');
     await modal.waitFor({ state: 'visible' });
     if (title) {
-      await modal.locator('ion-input').locator('input').fill(title);
+      await modal.locator('ion-input').first().locator('input').fill(title);
+    }
+    if (ticketId) {
+      await modal.locator('ion-input').nth(1).locator('input').fill(ticketId);
     }
     const startBtn = this.page.locator(ROUND_START.startBtn);
     await startBtn.waitFor({ state: 'visible' });
@@ -228,12 +231,15 @@ export class Participant {
   // -- Lobby results actions -------------------------------------------------
 
   /** Tap "Next Round N" from the lobby results section and confirm the modal. */
-  async nextRound(title?: string): Promise<void> {
+  async nextRound(title?: string, ticketId?: string): Promise<void> {
     await this.page.locator('ion-button', { hasText: LOBBY.nextRoundBtn }).click();
     const modal = this.page.locator('app-round-start-sheet');
     await modal.waitFor({ state: 'visible' });
     if (title) {
-      await modal.locator('ion-input').locator('input').fill(title);
+      await modal.locator('ion-input').first().locator('input').fill(title);
+    }
+    if (ticketId) {
+      await modal.locator('ion-input').nth(1).locator('input').fill(ticketId);
     }
     const startBtn = this.page.locator(ROUND_START.startBtn);
     await startBtn.waitFor({ state: 'visible' });

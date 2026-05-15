@@ -1,7 +1,58 @@
-// Exercises: round-start.helpers:buildRoundStartTitle
+// Exercises: round-start.helpers:buildRoundStartTitle, buildRoundStartTicketId
+// and the RoundStartSheetComponent's submit() emission shape.
 
-import { describe, expect, it } from 'vitest';
-import { buildRoundStartTitle } from './round-start.helpers';
+import { TestBed } from '@angular/core/testing';
+import { describe, expect, it, vi } from 'vitest';
+import { buildRoundStartTicketId, buildRoundStartTitle } from './round-start.helpers';
+
+vi.mock('@ionic/angular/standalone', async () => {
+  const { Component: Comp } = await import('@angular/core');
+  const stubs: Record<string, unknown> = {};
+  for (const tag of [
+    'IonButton',
+    'IonButtons',
+    'IonContent',
+    'IonFooter',
+    'IonHeader',
+    'IonInput',
+    'IonItem',
+    'IonLabel',
+    'IonNote',
+    'IonTitle',
+    'IonToolbar',
+  ]) {
+    @Comp({
+      selector: tag
+        .replace(/([A-Z])/g, '-$1')
+        .toLowerCase()
+        .slice(1),
+      template: '<ng-content/>',
+      standalone: true,
+    })
+    class Stub {}
+    stubs[tag] = Stub;
+  }
+  return stubs;
+});
+
+interface SheetInternals {
+  titleControl: { setValue(v: string): void };
+  ticketIdControl: { setValue(v: string): void };
+  isSubmitting: { (): boolean };
+  submit(): void;
+}
+
+async function mount() {
+  const { RoundStartSheetComponent } = await import('./round-start.sheet');
+  const fixture = TestBed.createComponent(RoundStartSheetComponent);
+  fixture.componentRef.setInput('roundNumber', 1);
+  const submitted = vi.fn();
+  const cancelled = vi.fn();
+  fixture.componentInstance.submitted.subscribe(submitted);
+  fixture.componentInstance.cancelled.subscribe(cancelled);
+  const internals = fixture.componentInstance as unknown as SheetInternals;
+  return { fixture, internals, submitted, cancelled };
+}
 
 describe('buildRoundStartTitle — empty / whitespace → null', () => {
   it('empty string returns null (descriptor is optional)', () => {
@@ -30,5 +81,92 @@ describe('buildRoundStartTitle — title trimming', () => {
 describe('buildRoundStartTitle — normal submission', () => {
   it('non-empty title is returned trimmed', () => {
     expect(buildRoundStartTitle('Auth refactor')).toBe('Auth refactor');
+  });
+});
+
+describe('buildRoundStartTicketId — empty / whitespace → null', () => {
+  it('empty string returns null (ticketId is optional)', () => {
+    expect(buildRoundStartTicketId('')).toBeNull();
+  });
+
+  it('whitespace-only returns null', () => {
+    expect(buildRoundStartTicketId('   ')).toBeNull();
+  });
+
+  it('tab-only returns null', () => {
+    expect(buildRoundStartTicketId('\t')).toBeNull();
+  });
+});
+
+describe('buildRoundStartTicketId — trimming', () => {
+  it('trims leading and trailing whitespace', () => {
+    expect(buildRoundStartTicketId('  PROJ-1234  ')).toBe('PROJ-1234');
+  });
+
+  it('preserves internal characters verbatim (URL form)', () => {
+    expect(buildRoundStartTicketId('https://example.com/PROJ-1')).toBe(
+      'https://example.com/PROJ-1',
+    );
+  });
+});
+
+describe('buildRoundStartTicketId — normal submission', () => {
+  it('non-empty ticket ID is returned trimmed', () => {
+    expect(buildRoundStartTicketId('PROJ-42')).toBe('PROJ-42');
+  });
+});
+
+describe('RoundStartSheetComponent.submit()', () => {
+  it('emits both fields when title and ticketId are set', async () => {
+    const { internals, submitted } = await mount();
+    internals.titleControl.setValue('Auth migration');
+    internals.ticketIdControl.setValue('PROJ-42');
+    internals.submit();
+    expect(submitted).toHaveBeenCalledWith({ title: 'Auth migration', ticketId: 'PROJ-42' });
+  });
+
+  it('emits null for both fields when both are blank', async () => {
+    const { internals, submitted } = await mount();
+    internals.submit();
+    expect(submitted).toHaveBeenCalledWith({ title: null, ticketId: null });
+  });
+
+  it('emits null for ticketId when only title is set', async () => {
+    const { internals, submitted } = await mount();
+    internals.titleControl.setValue('Title only');
+    internals.submit();
+    expect(submitted).toHaveBeenCalledWith({ title: 'Title only', ticketId: null });
+  });
+
+  it('emits null for title when only ticketId is set', async () => {
+    const { internals, submitted } = await mount();
+    internals.ticketIdControl.setValue('PROJ-99');
+    internals.submit();
+    expect(submitted).toHaveBeenCalledWith({ title: null, ticketId: 'PROJ-99' });
+  });
+
+  it('trims whitespace from both fields', async () => {
+    const { internals, submitted } = await mount();
+    internals.titleControl.setValue('  trimmed  ');
+    internals.ticketIdControl.setValue('  PROJ-7  ');
+    internals.submit();
+    expect(submitted).toHaveBeenCalledWith({ title: 'trimmed', ticketId: 'PROJ-7' });
+  });
+
+  it('whitespace-only inputs become null', async () => {
+    const { internals, submitted } = await mount();
+    internals.titleControl.setValue('   ');
+    internals.ticketIdControl.setValue('\t');
+    internals.submit();
+    expect(submitted).toHaveBeenCalledWith({ title: null, ticketId: null });
+  });
+
+  it('latches isSubmitting after submit; second submit is a no-op', async () => {
+    const { internals, submitted } = await mount();
+    internals.titleControl.setValue('Once');
+    internals.submit();
+    internals.submit();
+    expect(submitted).toHaveBeenCalledTimes(1);
+    expect(internals.isSubmitting()).toBe(true);
   });
 });

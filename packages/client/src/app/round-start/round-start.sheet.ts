@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
-import { buildRoundStartTitle } from './round-start.helpers';
+import { buildRoundStartTicketId, buildRoundStartTitle } from './round-start.helpers';
 import {
   IonButton,
   IonButtons,
@@ -24,6 +24,8 @@ import {
 export interface RoundStartSubmission {
   /** Optional descriptor; the user may submit with it blank. */
   readonly title: string | null;
+  /** Optional tracker reference (e.g. `PROJ-1234`); blank when the user skips it. */
+  readonly ticketId: string | null;
 }
 
 /**
@@ -67,12 +69,24 @@ export interface RoundStartSubmission {
           [formControl]="titleControl"
           placeholder="e.g., Login redesign"
           autocapitalize="sentences"
+          enterkeyhint="next"
+          (keydown.enter)="submit()"
+        ></ion-input>
+      </ion-item>
+      <ion-item>
+        <ion-label position="stacked">Ticket ID</ion-label>
+        <ion-input
+          [formControl]="ticketIdControl"
+          placeholder="e.g. PROJ-1234"
+          autocapitalize="characters"
+          autocorrect="off"
+          spellcheck="false"
           enterkeyhint="done"
           (keydown.enter)="submit()"
         ></ion-input>
       </ion-item>
       <ion-note class="helper">
-        This will appear on everyone's Estimating screen.
+        Both fields are optional. This will appear on everyone's Estimating screen.
       </ion-note>
     </ion-content>
     <ion-footer>
@@ -129,12 +143,20 @@ export class RoundStartSheetComponent {
     validators: [Validators.maxLength(120)],
   });
 
+  protected readonly ticketIdControl = new FormControl<string>('', {
+    nonNullable: true,
+    validators: [Validators.maxLength(120)],
+  });
+
   protected readonly isSubmitting = signal(false);
 
   protected submit(): void {
     if (this.isSubmitting()) return;
     this.isSubmitting.set(true);
-    this.submitted.emit({ title: buildRoundStartTitle(this.titleControl.value) });
+    this.submitted.emit({
+      title: buildRoundStartTitle(this.titleControl.value),
+      ticketId: buildRoundStartTicketId(this.ticketIdControl.value),
+    });
     // Leave isSubmitting latched — the modal is about to close and
     // the component will be destroyed; unlatching could race a
     // double-tap that arrives after submit but before dismiss.
