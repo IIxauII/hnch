@@ -18,9 +18,6 @@
   --hnch-elev-1:       #FFFFFF;
   --hnch-elev-2:       #FAFAFB;
   --hnch-elev-3:       #F5F5F7;
-  // Legacy aliases — remove next release after consumer migration.
-  --hnch-surface:      var(--hnch-elev-1);
-  --hnch-surface-2:    var(--hnch-elev-2);
 
   // Glass — plan §variables.scss values
   --hnch-glass:        rgba(255, 255, 255, 0.72);
@@ -110,9 +107,6 @@
   --hnch-elev-1:       #2C2C2E;
   --hnch-elev-2:       #3A3A3C;
   --hnch-elev-3:       #48484A;
-  // Legacy aliases — remove next release after consumer migration.
-  --hnch-surface:      var(--hnch-elev-1);
-  --hnch-surface-2:    var(--hnch-elev-2);
 
   // Glass — plan §variables.scss values
   --hnch-glass:        rgba(28, 28, 30, 0.66);

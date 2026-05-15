@@ -1,6 +1,6 @@
 # Theming overhaul — implementation plan
 
-Status: drafted 2026-05-12. Not yet started.
+Status: shipped 2026-05-15. PR-A1 + PR-A2 #185, PR-A3 #199. Legacy `--hnch-surface{,-2}` aliases dropped + `docs/ionic.md` token contract added in cleanup PR. PR-A4 (high-contrast palette) remains deferred.
 
 ## Goal
 
