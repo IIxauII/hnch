@@ -14,8 +14,10 @@ test.describe('Re-vote full cycle', () => {
     await player.waitForEstimating();
     await host.castVote('5');
     await player.castVote('8');
-    await host.reveal();
+    // Unanimous auto-reveal (estimating.page.ts:322) fires when all online voters vote
+    await host.page.waitForURL(/\/lobby/, { timeout: 10_000 });
     await player.page.waitForURL(/\/lobby/, { timeout: 10_000 });
+    await host.page.locator(LOBBY.resultsSection).waitFor({ state: 'visible', timeout: 5_000 });
 
     // Verify Round 1 results are visible
     await expect(host.page.locator(LOBBY.resultsHeading)).toContainText('Round 1 Results');
@@ -28,9 +30,10 @@ test.describe('Re-vote full cycle', () => {
     await host.castVote('3');
     await player.castVote('5');
 
-    // Host reveals
-    await host.reveal();
+    // Unanimous auto-reveal again
+    await host.page.waitForURL(/\/lobby/, { timeout: 10_000 });
     await player.page.waitForURL(/\/lobby/, { timeout: 10_000 });
+    await host.page.locator(LOBBY.resultsSection).waitFor({ state: 'visible', timeout: 5_000 });
 
     // Results should show the new votes (3, 5)
     await host.expectRevealedVotes(['3', '5']);
@@ -51,8 +54,10 @@ test.describe('Re-vote full cycle', () => {
     await player.waitForEstimating();
     await host.castVote('5');
     await player.castVote('8');
-    await host.reveal();
+    // Unanimous auto-reveal (estimating.page.ts:322) fires when all online voters vote
+    await host.page.waitForURL(/\/lobby/, { timeout: 10_000 });
     await player.page.waitForURL(/\/lobby/, { timeout: 10_000 });
+    await host.page.locator(LOBBY.resultsSection).waitFor({ state: 'visible', timeout: 5_000 });
 
     // Record Round 1 results
     await host.expectRevealedVotes(['5', '8']);
@@ -65,9 +70,10 @@ test.describe('Re-vote full cycle', () => {
     await host.castVote('13');
     await player.castVote('13');
 
-    // Reveal re-vote
-    await host.reveal();
+    // Unanimous auto-reveal again
+    await host.page.waitForURL(/\/lobby/, { timeout: 10_000 });
     await player.page.waitForURL(/\/lobby/, { timeout: 10_000 });
+    await host.page.locator(LOBBY.resultsSection).waitFor({ state: 'visible', timeout: 5_000 });
 
     // Round 2 results show new votes (13, 13)
     await host.expectRevealedVotes(['13', '13']);
