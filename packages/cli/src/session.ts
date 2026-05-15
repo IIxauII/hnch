@@ -76,7 +76,7 @@ export interface SessionHandle {
   /** Skip the current round (host only). */
   skip(): void;
   /** Start a new round. */
-  newRound(title?: string): string;
+  newRound(title?: string, ticketId?: string): string;
   /** Re-vote: start new round linked to current. */
   revote(): string;
   /** Update a round's title and/or description. */
@@ -312,13 +312,14 @@ export function wireSession(opts: WireOptions): SessionHandle {
       if (round) skipRoundMutation(doc, round.id, Date.now());
     },
 
-    newRound(title?: string) {
+    newRound(title?: string, ticketId?: string) {
       const id = randomUUID();
       appendRound(doc, {
         id,
         createdAt: Date.now(),
         createdBy: participantId,
         ...(title !== undefined && { title }),
+        ...(ticketId !== undefined && { ticketId }),
       });
       return id;
     },
