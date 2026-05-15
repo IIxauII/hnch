@@ -63,6 +63,11 @@ function baseProps(rounds: readonly Round[], currentRound: Round | null) {
     onRoundTitleChange: noop,
     onRoundTitleSubmit: noop,
     onRoundTitleCancel: noop,
+    roundTicketIdPromptActive: false,
+    roundTicketIdInput: '',
+    onRoundTicketIdChange: noop,
+    onRoundTicketIdSubmit: noop,
+    onRoundTicketIdCancel: noop,
     onOpenSettings: noop,
     onHandoffHost: noop,
     onEndSession: noop,
@@ -104,6 +109,18 @@ describe('Lobby render — issue #111 patch lines', () => {
     const frame = lastFrame() ?? '';
     expect(frame).toContain('Round 1');
     expect(frame).toContain('Skipped');
+  });
+
+  it('renders ticket ID prompt block when roundTicketIdPromptActive is true (issue #109)', () => {
+    const props = {
+      ...baseProps([], null),
+      roundTicketIdPromptActive: true,
+      roundTicketIdInput: 'PROJ-42',
+    };
+    const { lastFrame } = render(<Lobby {...props} />);
+    const frame = lastFrame() ?? '';
+    expect(frame).toContain('Ticket ID');
+    expect(frame).toContain('PROJ-42');
   });
 
   it('history row uses compactRoundSummary with lineage label for re-voted past round', () => {
