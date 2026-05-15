@@ -1,4 +1,4 @@
-import { test as base, type BrowserContext, type Page } from '@playwright/test';
+import { test as base, expect as pwExpect, type BrowserContext, type Page } from '@playwright/test';
 import {
   BASE_URL,
   ONBOARDING,
@@ -154,12 +154,39 @@ export class Participant {
     const startBtn = this.page.locator(ROUND_START.startBtn);
     await startBtn.waitFor({ state: 'visible' });
     await startBtn.evaluate((el: HTMLElement) => el.click());
-    await this.page.waitForURL(/\/estimating/);
+    await this.waitForEstimating();
   }
 
-  /** Wait for auto-navigation to /estimating (non-host clients). */
+  /**
+   * Wait for auto-navigation to /estimating (non-host clients) AND for the
+   * Ionic page transition to complete.
+   *
+   * `waitForURL` resolves on router URL change, which fires before Ionic
+   * finishes the slide-in animation. During the animation the new
+   * `<app-estimating>` carries `.ion-page-invisible` (opacity: 0). Playwright's
+   * `state: 'visible'` check ignores opacity, so subsequent clicks land on
+   * an element that is technically in the DOM but mid-transition — and the
+   * Angular signal-based change detection / Y.doc projection rebuild that
+   * fires alongside the route change can leave handlers reading transient
+   * state. Manifested as a flake in `revote-role-toggle.spec.ts` where the
+   * role-chip click fired but `DocService.toggleRole` silently bailed
+   * because the participant lookup raced the projection rebuild.
+   *
+   * Waiting for `:not(.ion-page-invisible):not(.ion-page-hidden)` ensures
+   * the page is the active, fully-transitioned page before we return.
+   */
   async waitForEstimating(): Promise<void> {
     await this.page.waitForURL(/\/estimating/, { timeout: 10_000 });
+    // After URL change, Ionic keeps the previous page in the router-outlet
+    // stack until the slide-in animation finishes — meanwhile both old and
+    // new `<app-estimating>` are non-hidden and visible. Wait until exactly
+    // one active page remains (Ionic adds `.ion-page-hidden` to the stale
+    // one when the transition completes) AND that page no longer carries
+    // `.ion-page-invisible` (opacity:0 pre-animation state).
+    const active = this.page.locator(
+      'app-estimating:not(.ion-page-hidden):not(.ion-page-invisible)',
+    );
+    await pwExpect(active).toHaveCount(1, { timeout: 10_000 });
   }
 
   // -- Voting ---------------------------------------------------------------
@@ -211,13 +238,13 @@ export class Participant {
     const startBtn = this.page.locator(ROUND_START.startBtn);
     await startBtn.waitFor({ state: 'visible' });
     await startBtn.evaluate((el: HTMLElement) => el.click());
-    await this.page.waitForURL(/\/estimating/);
+    await this.waitForEstimating();
   }
 
   /** Tap "Re-vote" from the lobby results section — navigates to /estimating. */
   async revote(): Promise<void> {
     await this.page.locator(LOBBY.revoteBtn).evaluate((el: HTMLElement) => el.click());
-    await this.page.waitForURL(/\/estimating/, { timeout: 10_000 });
+    await this.waitForEstimating();
   }
 
   // -- Settings (from lobby) ------------------------------------------------
