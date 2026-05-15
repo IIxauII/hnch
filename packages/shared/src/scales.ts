@@ -6,7 +6,7 @@
  * flattened result.
  */
 
-import { BUILTIN_SCALES, type Scale } from './doc.js';
+import { BUILTIN_SCALES, formatScaleId, type Scale } from './doc.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -87,4 +87,22 @@ export function buildAvailableScales(
   const customScales: Scale[] = (customs ?? []).map((c) => ({ id: c.id, cards: c.cards }));
 
   return [...builtins, ...customScales];
+}
+
+// ---------------------------------------------------------------------------
+// Display
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the user-facing label for a scale id. For custom scales (`custom-*`),
+ * returns the stored `label` from `customs` when present and non-empty.
+ * Otherwise (builtin id, missing custom, or blank label) falls back to
+ * {@link formatScaleId}, which derives a readable string from the id alone.
+ */
+export function getScaleLabel(id: string, customs?: CustomScale[]): string {
+  if (id.startsWith('custom-')) {
+    const custom = (customs ?? []).find((c) => c.id === id);
+    if (custom && custom.label.trim().length > 0) return custom.label;
+  }
+  return formatScaleId(id);
 }
