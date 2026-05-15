@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { Router } from '@angular/router';
 import { Share } from '@capacitor/share';
-import { formatRoomCode, getScaleLabel, terminalState } from '@hnch/shared';
+import { formatRoomCode, formatRoundLabel, getScaleLabel, terminalState } from '@hnch/shared';
 import type { Round } from '@hnch/shared';
 import {
   AlertController,
@@ -310,8 +310,8 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
             <p class="round-skipped" role="status">Round skipped</p>
           } @else {
             <div class="results-descriptor-row">
-              @if (round.title) {
-                <p class="results-descriptor">{{ round.title }}</p>
+              @if (formatRoundLabel(round); as label) {
+                <p class="results-descriptor">{{ label }}</p>
               } @else if (isHost()) {
                 <p class="results-descriptor placeholder">Add a descriptor</p>
               }
@@ -642,6 +642,9 @@ export class LobbyPage {
     return code ? formatRoomCode(code) : '';
   });
 
+  /** Re-export of the shared label helper so the template can call it. */
+  protected readonly formatRoundLabel = formatRoundLabel;
+
   /** 1-based index for the "Start Round N" / "Next Round N" label. */
   protected readonly nextRoundNumber = computed(() => this.rounds().length + 1);
 
@@ -826,6 +829,7 @@ export class LobbyPage {
   protected async onRoundStart(submission: RoundStartSubmission): Promise<void> {
     this.docService.startRound({
       ...(submission.title !== null && { title: submission.title }),
+      ...(submission.ticketId !== null && { ticketId: submission.ticketId }),
     });
     await this.modalRef()?.dismiss();
     this.roundStartOpen.set(false);

@@ -203,16 +203,16 @@ describe('RoundHistoryComponent.entries', () => {
     expect(c.entries()).toHaveLength(0);
   });
 
-  // ── Title passthrough ─────────────────────────────────────────────────────
+  // ── Label passthrough (formatRoundLabel: ticketId · title) ────────────────
 
-  it('title is undefined when round has no title', async () => {
+  it('label is null when round has no title and no ticketId', async () => {
     const scale = makeScale(['1']);
     const r = makeRound({ id: 'r1', scale, votes: {}, revealedAt: 500 });
     const c = await createComponent([r]);
-    expect(c.entries()[0]!.title).toBeUndefined();
+    expect(c.entries()[0]!.label).toBeNull();
   });
 
-  it('title is forwarded when round has a title', async () => {
+  it('label is the title alone when only title is set', async () => {
     const scale = makeScale(['1']);
     const r = makeRound({
       id: 'r1',
@@ -222,7 +222,34 @@ describe('RoundHistoryComponent.entries', () => {
       title: 'Auth migration',
     });
     const c = await createComponent([r]);
-    expect(c.entries()[0]!.title).toBe('Auth migration');
+    expect(c.entries()[0]!.label).toBe('Auth migration');
+  });
+
+  it('label is the ticketId alone when only ticketId is set', async () => {
+    const scale = makeScale(['1']);
+    const r = makeRound({
+      id: 'r1',
+      scale,
+      votes: {},
+      revealedAt: 500,
+      ticketId: 'PROJ-42',
+    });
+    const c = await createComponent([r]);
+    expect(c.entries()[0]!.label).toBe('PROJ-42');
+  });
+
+  it('label is "ticketId · title" when both are set', async () => {
+    const scale = makeScale(['1']);
+    const r = makeRound({
+      id: 'r1',
+      scale,
+      votes: {},
+      revealedAt: 500,
+      title: 'Auth migration',
+      ticketId: 'PROJ-42',
+    });
+    const c = await createComponent([r]);
+    expect(c.entries()[0]!.label).toBe('PROJ-42 · Auth migration');
   });
 
   // ── Skipped rounds ────────────────────────────────────────────────────────
