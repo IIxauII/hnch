@@ -38,6 +38,7 @@ import { ScalePreferenceService } from '../core/scale-preference.service';
 import { SurfaceService } from '../core/surface.service';
 import { CustomScaleEditorSheetComponent } from './custom-scale-editor.sheet';
 import { ScaleEditorSheetComponent } from './scale-editor.sheet';
+import { previewBuiltinCards, previewCards } from './scale-picker.helpers';
 
 /**
  * Unified scale picker and management component — ux.md §5.8 & §5.7.
@@ -308,21 +309,15 @@ export class ScalePickerSheetComponent {
   }
 
   protected preview(scale: Scale): string {
-    return scale.cards.join(' · ');
+    return previewCards(scale.cards);
   }
 
   protected previewBuiltin(id: string): string {
-    const overrides = this.scalePrefs.presetOverrides();
-    const builtin = BUILTIN_SCALES[id];
-    if (!builtin) return '';
-    const disabled = overrides[id] ?? [];
-    const cards =
-      disabled.length === 0 ? builtin.cards : builtin.cards.filter((_, i) => !disabled.includes(i));
-    return this.previewCards(cards);
+    return previewBuiltinCards(id, this.scalePrefs.presetOverrides());
   }
 
   protected previewCards(cards: string[]): string {
-    return cards.join(' · ');
+    return previewCards(cards);
   }
 
   private isBuiltin(id: string): boolean {
