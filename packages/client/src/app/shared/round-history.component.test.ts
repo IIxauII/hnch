@@ -61,6 +61,15 @@ async function createComponent(rounds: readonly Round[], isHost = false) {
   return fixture.componentInstance;
 }
 
+async function createComponentWithAllRounds(rounds: readonly Round[], allRounds: readonly Round[]) {
+  const { RoundHistoryComponent } = await import('./round-history.component');
+  const fixture = TestBed.createComponent(RoundHistoryComponent);
+  fixture.componentRef.setInput('rounds', rounds);
+  fixture.componentRef.setInput('allRounds', allRounds);
+  fixture.detectChanges();
+  return fixture.componentInstance;
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -275,5 +284,91 @@ describe('RoundHistoryComponent.entries', () => {
     const c = await createComponent([active, revealed]);
     expect(c.entries()).toHaveLength(1);
     expect(c.entries()[0]!.roundId).toBe('r2');
+  });
+
+  // ── Re-vote lineage (issue #111) ──────────────────────────────────────────
+
+  it('first-round (no parent, no children) has null lineageLabel (AC#3)', async () => {
+    const scale = makeScale(['1', '2']);
+    const r1 = makeRound({ id: 'r1', scale, votes: {}, revealedAt: 1000 });
+    const c = await createComponent([r1]);
+    expect(c.entries()[0]!.lineageLabel).toBeNull();
+  });
+
+  it('chain root with descendants has null lineageLabel (AC#4)', async () => {
+    const scale = makeScale(['1', '2']);
+    const r1 = makeRound({ id: 'r1', scale, votes: {}, revealedAt: 1000 });
+    const r2 = makeRound({
+      id: 'r2',
+      scale,
+      votes: {},
+      revealedAt: 2000,
+      parentRoundId: 'r1',
+    });
+    const c = await createComponent([r1, r2]);
+    const entries = c.entries();
+    // entries[1] is r1 (oldest, root) — no badge
+    expect(entries[1]!.roundId).toBe('r1');
+    expect(entries[1]!.lineageLabel).toBeNull();
+    // entries[0] is r2 — has badge
+    expect(entries[0]!.roundId).toBe('r2');
+    expect(entries[0]!.lineageLabel).toBe('re-vote');
+  });
+
+  it('re-voted round (with parent) has lineageLabel "re-vote" (AC#4)', async () => {
+    const scale = makeScale(['1', '2']);
+    const r1 = makeRound({ id: 'r1', scale, votes: {}, revealedAt: 1000 });
+    const r2 = makeRound({
+      id: 'r2',
+      scale,
+      votes: {},
+      revealedAt: 2000,
+      parentRoundId: 'r1',
+    });
+    const r3 = makeRound({
+      id: 'r3',
+      scale,
+      votes: {},
+      revealedAt: 3000,
+      parentRoundId: 'r2',
+    });
+    const c = await createComponent([r1, r2, r3]);
+    const entries = c.entries();
+    expect(entries[0]!.roundId).toBe('r3');
+    expect(entries[0]!.lineageLabel).toBe('re-vote');
+    expect(entries[1]!.roundId).toBe('r2');
+    expect(entries[1]!.lineageLabel).toBe('re-vote');
+    expect(entries[2]!.roundId).toBe('r1');
+    expect(entries[2]!.lineageLabel).toBeNull();
+  });
+
+  it('missing parent ref falls back to null lineageLabel (AC#6)', async () => {
+    const scale = makeScale(['1']);
+    const orphan = makeRound({
+      id: 'r2',
+      scale,
+      votes: {},
+      revealedAt: 2000,
+      parentRoundId: 'missing-root',
+    });
+    const c = await createComponent([orphan]);
+    expect(c.entries()[0]!.lineageLabel).toBeNull();
+  });
+
+  it('uses allRounds for lineage when rounds is a filtered subset', async () => {
+    // Caller passes pastRevealedRounds (without current), but allRounds is full.
+    // Lineage must walk the full chain even though the parent is not in `rounds`.
+    const scale = makeScale(['1']);
+    const r1 = makeRound({ id: 'r1', scale, votes: {}, revealedAt: 1000 });
+    const r2 = makeRound({
+      id: 'r2',
+      scale,
+      votes: {},
+      revealedAt: 2000,
+      parentRoundId: 'r1',
+    });
+    // rounds = [r1] only; allRounds = [r1, r2]. r1 is chain root → null label.
+    const c = await createComponentWithAllRounds([r1], [r1, r2]);
+    expect(c.entries()[0]!.lineageLabel).toBeNull();
   });
 });

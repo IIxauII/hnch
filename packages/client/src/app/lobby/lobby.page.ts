@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { Router } from '@angular/router';
 import { Share } from '@capacitor/share';
-import { formatRoomCode, getScaleLabel, terminalState } from '@hnch/shared';
+import { formatRoomCode, getScaleLabel, resolveRoundLineage, terminalState } from '@hnch/shared';
 import type { Round } from '@hnch/shared';
 import {
   AlertController,
@@ -304,8 +304,8 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       </ion-accordion-group>
 
       @if (lastRevealedRound(); as round) {
-        <section class="results-section" aria-label="Round {{ lastRevealedRoundIndex() }} Results">
-          <h2 class="results-heading">Round {{ lastRevealedRoundIndex() }} Results</h2>
+        <section class="results-section" [attr.aria-label]="resultsHeading()">
+          <h2 class="results-heading">{{ resultsHeading() }}</h2>
           @if (lastRoundWasSkipped()) {
             <p class="round-skipped" role="status">Round skipped</p>
           } @else {
@@ -339,6 +339,7 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       @if (pastRevealedRounds().length > 0) {
         <app-round-history
           [rounds]="pastRevealedRounds()"
+          [allRounds]="rounds()"
           [participants]="participants()"
           [isHost]="isHost()"
           (editTriggered)="openRoundEditById($event)"
@@ -681,6 +682,20 @@ export class LobbyPage {
     if (!round) return null;
     const idx = this.rounds().findIndex((r) => r.id === round.id);
     return idx >= 0 ? idx + 1 : null;
+  });
+
+  /**
+   * Results-section heading. For re-voted rounds, surfaces the chain
+   * position as `"Round N of M Results"` (issue #111). First-round /
+   * standalone fall back to `"Round N Results"`.
+   */
+  protected readonly resultsHeading = computed(() => {
+    const round = this.lastRevealedRound();
+    const idx = this.lastRevealedRoundIndex();
+    if (round === null || idx === null) return '';
+    const lineage = resolveRoundLineage(round.id, this.rounds());
+    if (lineage === null) return `Round ${idx} Results`;
+    return `Round ${lineage.depth} of ${lineage.total} Results`;
   });
 
   /** True when at least one round has been revealed (gates "Copy results" button). */
