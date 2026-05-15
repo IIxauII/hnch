@@ -22,10 +22,7 @@ vi.mock('ionicons', () => ({ addIcons: () => {} }));
 vi.mock('ionicons/icons', () => ({ cloudOfflineOutline: '', syncOutline: '' }));
 
 // Exercises: connection-chip.component:computeChipDisplay, ChipState, DISCONNECTED_WARNING_DELAY_MS
-import {
-  DISCONNECTED_WARNING_DELAY_MS,
-  computeChipDisplay,
-} from './connection-chip.component';
+import { DISCONNECTED_WARNING_DELAY_MS, computeChipDisplay } from './connection-chip.component';
 
 // ---------------------------------------------------------------------------
 // Part 1 — Source-file structural checks

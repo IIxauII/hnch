@@ -32,9 +32,7 @@ import { ParticipantIdService } from './participant-id.service';
 function makeDocMock() {
   const hasSession = signal(true);
   const settings = signal<{ hostParticipantId: string } | null>({ hostParticipantId: 'host-1' });
-  const onlineParticipantIds = signal<ReadonlySet<string>>(
-    new Set(['host-1', 'peer-a', 'peer-b']),
-  );
+  const onlineParticipantIds = signal<ReadonlySet<string>>(new Set(['host-1', 'peer-a', 'peer-b']));
   const activeParticipants = signal<readonly { id: string }[]>([
     { id: 'host-1' },
     { id: 'peer-a' },
