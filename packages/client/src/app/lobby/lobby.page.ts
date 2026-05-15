@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { Router } from '@angular/router';
 import { Share } from '@capacitor/share';
-import { formatRoomCode, getScaleLabel, resolveRoundLineage, terminalState } from '@hnch/shared';
+import { formatRoomCode, getScaleLabel, terminalState } from '@hnch/shared';
 import type { Round } from '@hnch/shared';
 import {
   AlertController,
@@ -54,7 +54,7 @@ import {
 } from 'ionicons/icons';
 
 import { ConnectionChipComponent } from '../core/connection-chip.component';
-import { isParticipantViewer } from './lobby-helpers';
+import { buildResultsHeading, isParticipantViewer } from './lobby-helpers';
 import { ConnectionStatusBannerComponent } from '../shared/connection-status-banner.component';
 import { ExportService } from '../core/export.service';
 import { SurfaceService } from '../core/surface.service';
@@ -684,19 +684,10 @@ export class LobbyPage {
     return idx >= 0 ? idx + 1 : null;
   });
 
-  /**
-   * Results-section heading. For re-voted rounds, surfaces the chain
-   * position as `"Round N of M Results"` (issue #111). First-round /
-   * standalone fall back to `"Round N Results"`.
-   */
-  protected readonly resultsHeading = computed(() => {
-    const round = this.lastRevealedRound();
-    const idx = this.lastRevealedRoundIndex();
-    if (round === null || idx === null) return '';
-    const lineage = resolveRoundLineage(round.id, this.rounds());
-    if (lineage === null) return `Round ${idx} Results`;
-    return `Round ${lineage.depth} of ${lineage.total} Results`;
-  });
+  /** Results-section heading — pure-helper backed for unit testability (issue #111). */
+  protected readonly resultsHeading = computed(() =>
+    buildResultsHeading(this.lastRevealedRound(), this.lastRevealedRoundIndex(), this.rounds()),
+  );
 
   /** True when at least one round has been revealed (gates "Copy results" button). */
   protected readonly hasRevealedRounds = computed(() =>
