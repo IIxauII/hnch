@@ -54,7 +54,7 @@ import {
 } from 'ionicons/icons';
 
 import { ConnectionChipComponent } from '../core/connection-chip.component';
-import { isParticipantViewer } from './lobby-helpers';
+import { buildResultsHeading, isParticipantViewer } from './lobby-helpers';
 import { ConnectionStatusBannerComponent } from '../shared/connection-status-banner.component';
 import { ExportService } from '../core/export.service';
 import { SurfaceService } from '../core/surface.service';
@@ -304,8 +304,8 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       </ion-accordion-group>
 
       @if (lastRevealedRound(); as round) {
-        <section class="results-section" aria-label="Round {{ lastRevealedRoundIndex() }} Results">
-          <h2 class="results-heading">Round {{ lastRevealedRoundIndex() }} Results</h2>
+        <section class="results-section" [attr.aria-label]="resultsHeading()">
+          <h2 class="results-heading">{{ resultsHeading() }}</h2>
           @if (lastRoundWasSkipped()) {
             <p class="round-skipped" role="status">Round skipped</p>
           } @else {
@@ -339,6 +339,7 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       @if (pastRevealedRounds().length > 0) {
         <app-round-history
           [rounds]="pastRevealedRounds()"
+          [allRounds]="rounds()"
           [participants]="participants()"
           [isHost]="isHost()"
           (editTriggered)="openRoundEditById($event)"
@@ -682,6 +683,11 @@ export class LobbyPage {
     const idx = this.rounds().findIndex((r) => r.id === round.id);
     return idx >= 0 ? idx + 1 : null;
   });
+
+  /** Results-section heading — pure-helper backed for unit testability (issue #111). */
+  protected readonly resultsHeading = computed(() =>
+    buildResultsHeading(this.lastRevealedRound(), this.lastRevealedRoundIndex(), this.rounds()),
+  );
 
   /** True when at least one round has been revealed (gates "Copy results" button). */
   protected readonly hasRevealedRounds = computed(() =>
