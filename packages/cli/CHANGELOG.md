@@ -1,3 +1,10 @@
+# [1.9.0](https://github.com/IIxauII/hnch/compare/cli-v1.8.0...cli-v1.9.0) (2026-05-15)
+
+
+### Features
+
+* **cli:** export session results as Markdown to clipboard ([#210](https://github.com/IIxauII/hnch/issues/210)) ([ca0599a](https://github.com/IIxauII/hnch/commit/ca0599a1c9f09217dc3e6db97e5f1ca1c32116de))
+
 # [1.8.0](https://github.com/IIxauII/hnch/compare/cli-v1.7.0...cli-v1.8.0) (2026-05-15)
 
 
