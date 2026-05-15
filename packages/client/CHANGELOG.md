@@ -1,3 +1,10 @@
+## [1.19.1](https://github.com/IIxauII/hnch/compare/client-v1.19.0...client-v1.19.1) (2026-05-15)
+
+
+### Bug Fixes
+
+* **shared,client,cli,e2e:** show custom scale name instead of id ([#203](https://github.com/IIxauII/hnch/issues/203)) ([ebc7df6](https://github.com/IIxauII/hnch/commit/ebc7df6e3ccedfb7c9669025b5eb7133db634f9e))
+
 # [1.19.0](https://github.com/IIxauII/hnch/compare/client-v1.18.0...client-v1.19.0) (2026-05-15)
 
 
