@@ -4,6 +4,7 @@ export * from './doc-projection.js';
 export * from './format-time.js';
 export * from './is-likely-url.js';
 export * from './last-session.js';
+export * from './lineage.js';
 export * from './password.js';
 export * from './room-code.js';
 export * from './round-export.js';
