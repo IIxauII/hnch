@@ -1,3 +1,10 @@
+# [1.8.0](https://github.com/IIxauII/hnch/compare/cli-v1.7.0...cli-v1.8.0) (2026-05-15)
+
+
+### Features
+
+* **cli:** prompt for optional ticket ID at round start ([#209](https://github.com/IIxauII/hnch/issues/209)) ([7e7f6f4](https://github.com/IIxauII/hnch/commit/7e7f6f48313b3c6766a09d554bd7c6567a0b306a))
+
 # [1.7.0](https://github.com/IIxauII/hnch/compare/cli-v1.6.1...cli-v1.7.0) (2026-05-15)
 
 
