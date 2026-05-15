@@ -6,6 +6,7 @@ import type { DocProjection, Round, Scale, PresetOverrides, CustomScale } from '
 import { currentRound, participantRole, terminalState } from '@hnch/shared';
 import clipboard from 'clipboardy';
 import { shareCode, shareUrl, shareNpxCommand } from '../share.js';
+import { buildNewRoundArgs, normalizeRoundPromptValue } from './round-prompt-flow.js';
 import { StatusBar } from './components/StatusBar.js';
 import { LobbySettings } from './components/LobbySettings.js';
 import { Lobby } from './Lobby.js';
@@ -143,7 +144,7 @@ export function App({
   const handleRoundTitleSubmit = useCallback((title: string) => {
     setRoundTitlePromptActive(false);
     setRoundTitleInput('');
-    setPendingRoundTitle(title.trim() || undefined);
+    setPendingRoundTitle(normalizeRoundPromptValue(title));
     setRoundTicketIdInput('');
     setRoundTicketIdPromptActive(true);
   }, []);
@@ -158,8 +159,8 @@ export function App({
     (ticketId: string) => {
       setRoundTicketIdPromptActive(false);
       setRoundTicketIdInput('');
-      const trimmedTicketId = ticketId.trim() || undefined;
-      session.newRound(pendingRoundTitle, trimmedTicketId);
+      const [title, normalizedTicketId] = buildNewRoundArgs(pendingRoundTitle, ticketId);
+      session.newRound(title, normalizedTicketId);
       setPendingRoundTitle(undefined);
     },
     [session, pendingRoundTitle],
