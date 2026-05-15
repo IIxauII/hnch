@@ -1,10 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
-import {
-  formatElapsed,
-  formatRoundLabel,
-  resolveRoundLineage,
-  terminalState,
-} from '@hnch/shared';
+import { formatElapsed, formatRoundLabel, resolveRoundLineage, terminalState } from '@hnch/shared';
 import type { ParticipantSnapshot, Round } from '@hnch/shared';
 import { IonButton, IonIcon } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
