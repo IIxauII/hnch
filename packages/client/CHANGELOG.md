@@ -1,3 +1,10 @@
+# [1.20.0](https://github.com/IIxauII/hnch/compare/client-v1.19.1...client-v1.20.0) (2026-05-15)
+
+
+### Features
+
+* **client:** show re-vote lineage in results heading and history badge ([#206](https://github.com/IIxauII/hnch/issues/206)) ([82b5090](https://github.com/IIxauII/hnch/commit/82b50903210828f7dba7a778a0a1e9c339397e18))
+
 ## [1.19.1](https://github.com/IIxauII/hnch/compare/client-v1.19.0...client-v1.19.1) (2026-05-15)
 
 
