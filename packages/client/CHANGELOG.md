@@ -1,3 +1,10 @@
+# [1.19.0](https://github.com/IIxauII/hnch/compare/client-v1.18.0...client-v1.19.0) (2026-05-15)
+
+
+### Features
+
+* **client:** introduce elevation tiers + shift dark base bg to [#1](https://github.com/IIxauII/hnch/issues/1)C1C1E ([#185](https://github.com/IIxauII/hnch/issues/185)) ([9e1bf17](https://github.com/IIxauII/hnch/commit/9e1bf17398f18cfda71262043892321ffac2ad25)), closes [#1C1C1E](https://github.com/IIxauII/hnch/issues/1C1C1E)
+
 # [1.18.0](https://github.com/IIxauII/hnch/compare/client-v1.17.1...client-v1.18.0) (2026-05-13)
 
 
