@@ -6,10 +6,10 @@ import { HostActionsMenu } from './components/HostActionsMenu.js';
 import { SharePicker } from './components/SharePicker.js';
 import { TextInput } from './components/TextInput.js';
 import {
+  buildResultsHeader,
   compactRoundSummary,
   computeStats,
   formatElapsed,
-  formatRoundLabel,
 } from './lobby-helpers.js';
 import type { DocProjection, Round } from '@hnch/shared';
 
@@ -367,18 +367,12 @@ interface ResultsSectionProps {
 
 function ResultsSection({ projection, round, rounds }: ResultsSectionProps): React.ReactElement {
   const roundNum = rounds.indexOf(round) + 1;
-  const label = formatRoundLabel(round, roundNum, rounds);
-  const title = round.title ? ` — ${round.title}` : '';
-  const ticket = round.ticketId ? ` [${round.ticketId}]` : '';
+  const header = buildResultsHeader(round, roundNum, rounds);
 
   if (terminalState(round) === 'skipped') {
     return (
       <Box flexDirection="column" gap={1}>
-        <Text bold>
-          {label}
-          {title}
-          {ticket} — Skipped
-        </Text>
+        <Text bold>{header}</Text>
       </Box>
     );
   }
@@ -395,11 +389,7 @@ function ResultsSection({ projection, round, rounds }: ResultsSectionProps): Rea
 
   return (
     <Box flexDirection="column" gap={1}>
-      <Text bold>
-        {label}
-        {title}
-        {ticket} — Results
-      </Text>
+      <Text bold>{header}</Text>
 
       {isConsensus(round) && (
         <Text bold color="green">

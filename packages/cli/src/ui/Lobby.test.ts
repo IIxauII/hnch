@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import type { Round, Scale } from '@hnch/shared';
 
 import {
+  buildResultsHeader,
   compactRoundSummary,
   computeStats,
   formatElapsed,
@@ -283,5 +284,62 @@ describe('formatRoundLabel', () => {
     const r2 = makeRound({ id: 'r2', parentRoundId: 'r1' });
     const r3 = makeRound({ id: 'r3', parentRoundId: 'r2' });
     expect(formatRoundLabel(r2, 2, [r1, r2, r3])).toBe('Round 2/3 [re-vote]');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildResultsHeader
+// ---------------------------------------------------------------------------
+
+describe('buildResultsHeader', () => {
+  it('plain revealed round: "Round 1 — Results"', () => {
+    const r1 = makeRound({ id: 'r1', revealedAt: 1000 });
+    expect(buildResultsHeader(r1, 1, [r1])).toBe('Round 1 — Results');
+  });
+
+  it('includes title and ticketId when set', () => {
+    const r1 = makeRound({
+      id: 'r1',
+      revealedAt: 1000,
+      title: 'Auth',
+      ticketId: 'AUTH-1',
+    });
+    expect(buildResultsHeader(r1, 1, [r1])).toBe('Round 1 — Auth [AUTH-1] — Results');
+  });
+
+  it('skipped round ends with " — Skipped"', () => {
+    const r1 = makeRound({ id: 'r1', skippedAt: 1000 });
+    expect(buildResultsHeader(r1, 1, [r1])).toBe('Round 1 — Skipped');
+  });
+
+  it('re-voted round surfaces lineage label', () => {
+    const r1 = makeRound({ id: 'r1', revealedAt: 1000 });
+    const r2 = makeRound({
+      id: 'r2',
+      revealedAt: 2000,
+      parentRoundId: 'r1',
+      title: 'Auth',
+    });
+    expect(buildResultsHeader(r2, 2, [r1, r2])).toBe('Round 2/2 [re-vote] — Auth — Results');
+  });
+
+  it('re-voted skipped round', () => {
+    const r1 = makeRound({ id: 'r1', revealedAt: 1000 });
+    const r2 = makeRound({
+      id: 'r2',
+      skippedAt: 2000,
+      parentRoundId: 'r1',
+    });
+    expect(buildResultsHeader(r2, 2, [r1, r2])).toBe('Round 2/2 [re-vote] — Skipped');
+  });
+
+  it('title only (no ticket)', () => {
+    const r1 = makeRound({ id: 'r1', revealedAt: 1000, title: 'Foo' });
+    expect(buildResultsHeader(r1, 1, [r1])).toBe('Round 1 — Foo — Results');
+  });
+
+  it('ticket only (no title)', () => {
+    const r1 = makeRound({ id: 'r1', revealedAt: 1000, ticketId: 'BAR-7' });
+    expect(buildResultsHeader(r1, 1, [r1])).toBe('Round 1 [BAR-7] — Results');
   });
 });

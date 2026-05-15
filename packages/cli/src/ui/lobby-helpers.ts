@@ -21,6 +21,24 @@ export function formatRoundLabel(
   return `Round ${lineage.depth}/${lineage.total} [re-vote]`;
 }
 
+/**
+ * Compose the bold header text shown above ResultsSection in the Lobby —
+ * `<label><title?><ticket?> — Results` or `… — Skipped`. Extracted as a
+ * pure helper so the JSX in Lobby.tsx is a single binding and the
+ * composition is unit-testable.
+ */
+export function buildResultsHeader(
+  round: Round,
+  roundNum: number,
+  allRounds: readonly Round[],
+): string {
+  const label = formatRoundLabel(round, roundNum, allRounds);
+  const title = round.title ? ` — ${round.title}` : '';
+  const ticket = round.ticketId ? ` [${round.ticketId}]` : '';
+  const suffix = terminalState(round) === 'skipped' ? ' — Skipped' : ' — Results';
+  return `${label}${title}${ticket}${suffix}`;
+}
+
 export function computeStats(votes: Record<string, string>): {
   average: string;
   median: string;
