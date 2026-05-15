@@ -35,3 +35,34 @@ Use `addIcons()` from `ionicons` in the component constructor to register icons 
 ## Safe areas
 
 Use `ion-header` / `ion-footer` for safe area handling — do not use raw `env(safe-area-inset-*)` CSS.
+
+## Theming tokens
+
+Single source of truth: `packages/client/src/theme/variables.scss`. Three layers:
+
+1. **Ionic substrate** — `--ion-background-color`, `--ion-text-color` (+ `-rgb`), `--ion-color-{primary,success,warning,danger,medium}-*`. Drives stepped-color derivation and native component bg/text.
+2. **hnch semantic tokens** — what components consume.
+3. **Ionic component wiring** — `ion-card` / `ion-item` / `ion-list` / `ion-modal` / `ion-popover` / `ion-action-sheet` `--background` declarations in `variables.scss`. Component SCSS should not redeclare these unless overriding for an intentional effect (transparent toolbars, accent-tinted active rows).
+
+### Surface elevation
+
+Direction-aware: dark mode steps lighter than bg toward `#FFF`; light mode steps lighter than bg toward `#FFF`.
+
+| Token | Light | Dark | Use |
+|---|---|---|---|
+| `--hnch-bg` | `#F2F2F7` | `#1C1C1E` | page background |
+| `--hnch-elev-1` | `#FFFFFF` | `#2C2C2E` | cards, items, lobby panels |
+| `--hnch-elev-2` | `#FAFAFB` | `#3A3A3C` | popovers, action sheets |
+| `--hnch-elev-3` | `#F5F5F7` | `#48484A` | active/pressed, nested modal |
+
+### Shadows
+
+Light mode uses real shadows for elevation; dark mode keeps shadows subtle and relies on `--hnch-elev-N` lift for depth.
+
+| Token | Light | Dark |
+|---|---|---|
+| `--hnch-shadow-1` | `0 1px 2px rgba(0,0,0,0.04), 0 1px 1px rgba(0,0,0,0.06)` | `0 1px 2px rgba(0,0,0,0.4)` |
+| `--hnch-shadow-2` | `0 4px 12px rgba(0,0,0,0.08)` | `0 4px 12px rgba(0,0,0,0.5)` |
+| `--hnch-shadow-3` | `0 12px 32px rgba(0,0,0,0.16)` | `0 12px 32px rgba(0,0,0,0.6)` |
+
+Pair `--hnch-elev-N` with `--hnch-shadow-N` of matching tier.
