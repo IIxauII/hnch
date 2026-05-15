@@ -109,7 +109,6 @@ import { canContinue } from './onboarding.helpers';
         --border-width: 0;
       }
       ion-content {
-        --background: var(--hnch-bg);
         --padding-start: 24px;
         --padding-end: 24px;
         --padding-top: 64px;
@@ -137,10 +136,6 @@ import { canContinue } from './onboarding.helpers';
       }
       ion-list {
         background: transparent;
-      }
-      ion-item {
-        --background: var(--hnch-surface);
-        --border-color: var(--hnch-sep);
       }
       .footer-note {
         display: block;

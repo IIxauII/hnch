@@ -158,15 +158,11 @@ import { rejectionCopy, routeForScreen, summaryFromCache } from './home.helpers'
       @use '../../theme/page-container' as *;
       @include page-container(560px);
 
-      ion-content {
-        --background: var(--hnch-bg);
-      }
       ion-list.actions {
         background: transparent;
         margin-block-start: 8px;
       }
       ion-item {
-        --background: var(--hnch-surface);
         --inner-padding-top: 12px;
         --inner-padding-bottom: 12px;
         --padding-start: 16px;
