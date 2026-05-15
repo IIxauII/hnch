@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/IIxauII/hnch/compare/shared-v1.3.1...shared-v1.4.0) (2026-05-15)
+
+
+### Features
+
+* **shared:** add resolveRoundLineage chain-walking utility ([#205](https://github.com/IIxauII/hnch/issues/205)) ([6e1ccf1](https://github.com/IIxauII/hnch/commit/6e1ccf101311118bd421e847ab26c89669f5646a))
+
 ## [1.3.1](https://github.com/IIxauII/hnch/compare/shared-v1.3.0...shared-v1.3.1) (2026-05-15)
 
 
