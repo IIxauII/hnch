@@ -10,6 +10,7 @@
  */
 
 import { render } from 'ink-testing-library';
+import { act } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CustomScale, Scale } from '@hnch/shared';
 
@@ -98,6 +99,39 @@ describe('ScalePicker — custom scale label rendering', () => {
     );
     expect(lastFrame()).toContain('No Label');
   });
+
+  it('delete-confirm prompt names the custom scale by its label', async () => {
+    const { lastFrame, stdin, rerender } = render(
+      <ScalePicker
+        scales={[CUSTOM_SCALE]}
+        selectedScaleId={CUSTOM.id}
+        customScales={[CUSTOM]}
+        onSelect={noop}
+        onOverrideChange={noop}
+        onCustomScaleDelete={noop}
+        onClose={noop}
+      />,
+    );
+    // Wait one tick so useInput's effect attaches to stdin before writing.
+    await new Promise((r) => setImmediate(r));
+    await act(async () => {
+      stdin.write('d');
+      await new Promise((r) => setImmediate(r));
+    });
+    rerender(
+      <ScalePicker
+        scales={[CUSTOM_SCALE]}
+        selectedScaleId={CUSTOM.id}
+        customScales={[CUSTOM]}
+        onSelect={noop}
+        onOverrideChange={noop}
+        onCustomScaleDelete={noop}
+        onClose={noop}
+      />,
+    );
+    const frame = lastFrame() ?? '';
+    expect(frame).toContain('Delete Team Bananas?');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -128,5 +162,20 @@ describe('ConfigSettings — custom scale label rendering', () => {
     const frame = lastFrame() ?? '';
     expect(frame).toContain('Team Bananas');
     expect(frame).not.toContain('custom-bananas');
+  });
+
+  it('Default scale detail shows (none) when the configured id matches no scale', async () => {
+    // Replace the readConfig mock so currentScaleObj resolves to undefined and
+    // the ternary's `(none)` branch renders. vi.doMock requires re-importing
+    // the module under test inside the same `it` so it picks up the change.
+    vi.doMock('../../config.js', () => ({
+      readConfig: () => ({ defaultScale: 'custom-missing' }),
+      writeConfig: () => {},
+      updateConfig: () => {},
+    }));
+    vi.resetModules();
+    const { ConfigSettings: Fresh } = await import('./ConfigSettings.js');
+    const { lastFrame } = render(<Fresh customScales={[]} />);
+    expect(lastFrame()).toContain('(none)');
   });
 });
