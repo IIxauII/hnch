@@ -1,3 +1,10 @@
+## [1.3.1](https://github.com/IIxauII/hnch/compare/shared-v1.3.0...shared-v1.3.1) (2026-05-15)
+
+
+### Bug Fixes
+
+* **shared,client,cli,e2e:** show custom scale name instead of id ([#203](https://github.com/IIxauII/hnch/issues/203)) ([ebc7df6](https://github.com/IIxauII/hnch/commit/ebc7df6e3ccedfb7c9669025b5eb7133db634f9e))
+
 # [1.3.0](https://github.com/IIxauII/hnch/compare/shared-v1.2.0...shared-v1.3.0) (2026-05-12)
 
 
