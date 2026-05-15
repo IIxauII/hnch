@@ -1,239 +1,165 @@
 /**
- * Host-election logic tests (ADR-0010).
+ * HostElectionService unit tests (ADR-0010).
  *
- * Vitest-on-Node, no Angular TestBed. We replicate the evaluate/tryPromote
- * algorithm from HostElectionService with plain mock dependencies so the
- * five ADR-0010 cases are exercised against the real decision logic.
+ * Uses Angular TestBed + vi.useFakeTimers so the real service (including
+ * its effect() wiring and 5-second debounce) is exercised without any
+ * inline reimplementation of production logic.
+ *
+ * Pattern follows timer-tick.service.test.ts (TestBed + fake timers) and
+ * participant-removal.service.test.ts (signal-based mock deps + flushEffects).
+ *
+ * @vitest-environment jsdom
  */
 
+import { TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock ESM-only packages that cascade in via doc.service.ts imports.
 vi.mock('@ionic/angular/standalone', () => ({}));
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false } }));
 
-import { HOST_ABSENCE_ELECTION_DEBOUNCE_MS } from './host-election.service';
+// Exercises: host-election.service:HostElectionService, HOST_ABSENCE_ELECTION_DEBOUNCE_MS
+import { HostElectionService, HOST_ABSENCE_ELECTION_DEBOUNCE_MS } from './host-election.service';
+import { DocService } from './doc/doc.service';
+import { ParticipantIdService } from './participant-id.service';
 
 // ---------------------------------------------------------------------------
-// Minimal dependency interfaces (mirrors what the service reads)
+// Signal-based mock factories
+// (signals are required so the service's effect() tracks and re-runs on change)
 // ---------------------------------------------------------------------------
 
-interface MockDocService {
-  hasSession: () => boolean;
-  settings: () => { hostParticipantId: string } | null;
-  onlineParticipantIds: () => ReadonlySet<string>;
-  activeParticipants: () => readonly { id: string }[];
-  updateSettings: (patch: { hostParticipantId: string }) => void;
+function makeDocMock() {
+  const hasSession = signal(true);
+  const settings = signal<{ hostParticipantId: string } | null>({ hostParticipantId: 'host-1' });
+  const onlineParticipantIds = signal<ReadonlySet<string>>(new Set(['host-1', 'peer-a', 'peer-b']));
+  const activeParticipants = signal<readonly { id: string }[]>([
+    { id: 'host-1' },
+    { id: 'peer-a' },
+    { id: 'peer-b' },
+  ]);
+  const updateSettings = vi.fn<[{ hostParticipantId: string }], void>();
+
+  return {
+    hasSession: hasSession.asReadonly(),
+    settings: settings.asReadonly(),
+    onlineParticipantIds: onlineParticipantIds.asReadonly(),
+    activeParticipants: activeParticipants.asReadonly(),
+    updateSettings,
+    // Writable handles for test scenarios:
+    _hasSession: hasSession,
+    _settings: settings,
+    _onlineParticipantIds: onlineParticipantIds,
+    _activeParticipants: activeParticipants,
+  };
 }
 
-interface MockParticipantIdService {
-  id: () => string | null;
-}
-
-// ---------------------------------------------------------------------------
-// Standalone harness that mirrors HostElectionService's logic exactly
-// ---------------------------------------------------------------------------
-
-class HostElectionHarness {
-  readonly docService: MockDocService;
-  readonly participantIdService: MockParticipantIdService;
-
-  private missingHostId: string | null = null;
-  private debounceTimeout: ReturnType<typeof setTimeout> | null = null;
-
-  constructor(docService: MockDocService, participantIdService: MockParticipantIdService) {
-    this.docService = docService;
-    this.participantIdService = participantIdService;
-  }
-
-  /** Manually trigger the evaluation (replaces Angular's effect()). */
-  evaluate(): void {
-    if (!this.docService.hasSession()) return;
-
-    const settings = this.docService.settings();
-    if (!settings) return;
-
-    const hostId = settings.hostParticipantId;
-    if (!hostId) return;
-
-    // Mirror the real service: intersect awareness with active participants.
-    const rawOnlineIds = this.docService.onlineParticipantIds();
-    const activeIds = new Set(this.docService.activeParticipants().map((p) => p.id));
-    const onlineIds = new Set([...rawOnlineIds].filter((id) => activeIds.has(id)));
-
-    if (onlineIds.has(hostId)) {
-      this.cancelDebounce();
-      return;
-    }
-
-    if (this.missingHostId !== hostId) {
-      this.cancelDebounce();
-      this.missingHostId = hostId;
-      this.debounceTimeout = setTimeout(() => {
-        this.debounceTimeout = null;
-        this.tryPromote();
-      }, HOST_ABSENCE_ELECTION_DEBOUNCE_MS);
-    }
-  }
-
-  private tryPromote(): void {
-    const settings = this.docService.settings();
-    if (!settings) return;
-
-    const hostId = settings.hostParticipantId;
-    const cachedMissing = this.missingHostId;
-    this.missingHostId = null;
-
-    if (!cachedMissing || hostId !== cachedMissing) return;
-
-    const rawOnlineIds = this.docService.onlineParticipantIds();
-    const activeIds = new Set(this.docService.activeParticipants().map((p) => p.id));
-    const onlineIds = new Set([...rawOnlineIds].filter((id) => activeIds.has(id)));
-    if (onlineIds.has(hostId)) return;
-
-    const sorted = [...onlineIds].toSorted();
-    if (sorted.length === 0) return;
-
-    const winner = sorted[0]!;
-    const myId = this.participantIdService.id();
-
-    if (winner === myId) {
-      this.docService.updateSettings({ hostParticipantId: winner });
-    }
-  }
-
-  private cancelDebounce(): void {
-    if (this.debounceTimeout !== null) {
-      clearTimeout(this.debounceTimeout);
-      this.debounceTimeout = null;
-    }
-    this.missingHostId = null;
-  }
-
-  dispose(): void {
-    this.cancelDebounce();
-  }
+function makeParticipantIdMock(myId: string | null = 'peer-a') {
+  const idSig = signal<string | null>(myId);
+  return { id: idSig.asReadonly(), _id: idSig };
 }
 
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('HostElectionService logic', () => {
-  let docService: MockDocService;
-  let participantIdService: MockParticipantIdService;
-  let harness: HostElectionHarness;
+describe('HostElectionService (ADR-0010)', () => {
+  let docMock: ReturnType<typeof makeDocMock>;
+  let participantIdMock: ReturnType<typeof makeParticipantIdMock>;
 
   beforeEach(() => {
     vi.useFakeTimers();
+    docMock = makeDocMock();
+    participantIdMock = makeParticipantIdMock('peer-a');
 
-    docService = {
-      hasSession: vi.fn(() => true),
-      settings: vi.fn(() => ({ hostParticipantId: 'host-1' })),
-      onlineParticipantIds: vi.fn(() => new Set(['host-1', 'peer-a', 'peer-b'])),
-      // Default: all three peers are active (not kicked/left).
-      activeParticipants: vi.fn(() => [{ id: 'host-1' }, { id: 'peer-a' }, { id: 'peer-b' }]),
-      updateSettings: vi.fn(),
-    };
-
-    participantIdService = {
-      id: vi.fn(() => 'peer-a'),
-    };
-
-    harness = new HostElectionHarness(docService, participantIdService);
+    TestBed.configureTestingModule({
+      providers: [
+        HostElectionService,
+        { provide: DocService, useValue: docMock },
+        { provide: ParticipantIdService, useValue: participantIdMock },
+      ],
+    });
   });
 
   afterEach(() => {
-    harness.dispose();
+    TestBed.resetTestingModule();
     vi.useRealTimers();
+    vi.clearAllMocks();
   });
 
-  it('host is in the online set → no action', () => {
-    // host-1 is online in the default setup
-    harness.evaluate();
+  it('host is in the online set → no election fires after the debounce window', () => {
+    TestBed.inject(HostElectionService);
+    TestBed.flushEffects(); // effect runs: host-1 online → no debounce
 
     vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS + 100);
-    expect(docService.updateSettings).not.toHaveBeenCalled();
+    expect(docMock.updateSettings).not.toHaveBeenCalled();
   });
 
-  it('host is NOT in the online set, no debounce running → start 5s timeout', () => {
-    // Remove host from online set
-    vi.mocked(docService.onlineParticipantIds).mockReturnValue(new Set(['peer-a', 'peer-b']));
+  it('host drops from awareness → debounce starts → lowest-ID peer writes promotion', () => {
+    TestBed.inject(HostElectionService);
+    TestBed.flushEffects();
 
-    harness.evaluate();
-
-    // Timeout should not have fired yet
-    expect(docService.updateSettings).not.toHaveBeenCalled();
-
-    // Advance past the debounce
-    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS);
-
-    // peer-a is the lowest ID → it should write
-    expect(docService.updateSettings).toHaveBeenCalledWith({
-      hostParticipantId: 'peer-a',
-    });
-  });
-
-  it('host rejoins before 5s → cancel timer, no promotion', () => {
     // Host goes offline
-    vi.mocked(docService.onlineParticipantIds).mockReturnValue(new Set(['peer-a', 'peer-b']));
-    harness.evaluate();
+    docMock._onlineParticipantIds.set(new Set(['peer-a', 'peer-b']));
+    TestBed.flushEffects(); // effect re-runs: host offline → setTimeout queued
 
-    // Advance partway
-    vi.advanceTimersByTime(3_000);
-    expect(docService.updateSettings).not.toHaveBeenCalled();
+    expect(docMock.updateSettings).not.toHaveBeenCalled(); // debounce not yet elapsed
 
-    // Host comes back online
-    vi.mocked(docService.onlineParticipantIds).mockReturnValue(
-      new Set(['host-1', 'peer-a', 'peer-b']),
-    );
-    harness.evaluate();
-
-    // Advance past the original debounce window
     vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS);
-    expect(docService.updateSettings).not.toHaveBeenCalled();
+
+    // peer-a is lexicographically first → it wins
+    expect(docMock.updateSettings).toHaveBeenCalledOnce();
+    expect(docMock.updateSettings).toHaveBeenCalledWith({ hostParticipantId: 'peer-a' });
   });
 
-  it('5s elapse, I am the lowest-ID → I write hostParticipantId', () => {
-    vi.mocked(docService.onlineParticipantIds).mockReturnValue(new Set(['peer-a', 'peer-b']));
-    vi.mocked(participantIdService.id).mockReturnValue('peer-a');
+  it('host rejoins before debounce fires → timer cancelled, no promotion', () => {
+    TestBed.inject(HostElectionService);
+    TestBed.flushEffects();
 
-    harness.evaluate();
-    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS);
+    docMock._onlineParticipantIds.set(new Set(['peer-a', 'peer-b']));
+    TestBed.flushEffects(); // debounce starts
 
-    expect(docService.updateSettings).toHaveBeenCalledOnce();
-    expect(docService.updateSettings).toHaveBeenCalledWith({
-      hostParticipantId: 'peer-a',
-    });
+    vi.advanceTimersByTime(3_000); // halfway through debounce
+    expect(docMock.updateSettings).not.toHaveBeenCalled();
+
+    // Host returns
+    docMock._onlineParticipantIds.set(new Set(['host-1', 'peer-a', 'peer-b']));
+    TestBed.flushEffects(); // effect re-runs: host online → debounce cancelled
+
+    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS); // past original window
+    expect(docMock.updateSettings).not.toHaveBeenCalled();
   });
 
-  it('5s elapse, I am NOT the lowest-ID → no-op', () => {
-    vi.mocked(docService.onlineParticipantIds).mockReturnValue(new Set(['peer-a', 'peer-b']));
-    // peer-a is lower than peer-b, so peer-b should not write
-    vi.mocked(participantIdService.id).mockReturnValue('peer-b');
+  it('I am NOT the lowest-ID peer → debounce fires but I do not write', () => {
+    participantIdMock._id.set('peer-b'); // peer-b; peer-a is lower
+    TestBed.inject(HostElectionService);
+    TestBed.flushEffects();
 
-    harness.evaluate();
+    docMock._onlineParticipantIds.set(new Set(['peer-a', 'peer-b']));
+    TestBed.flushEffects();
+
     vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS);
 
-    expect(docService.updateSettings).not.toHaveBeenCalled();
+    expect(docMock.updateSettings).not.toHaveBeenCalled();
   });
 
-  it('kicked peer in awareness is NOT eligible to become host', () => {
-    // peer-b has been kicked (leftAt set) so activeParticipants excludes it.
-    // Awareness still reports peer-b online (stale).
-    vi.mocked(docService.onlineParticipantIds).mockReturnValue(new Set(['peer-a', 'peer-b']));
-    vi.mocked(docService.activeParticipants).mockReturnValue([
-      // peer-b is absent — it was kicked
-      { id: 'peer-a' },
-    ]);
-    // peer-a is the only active-online peer, so it should win.
-    vi.mocked(participantIdService.id).mockReturnValue('peer-a');
+  it('kicked peer in awareness is ineligible — active set excludes them', () => {
+    // peer-b was kicked: absent from activeParticipants but still in awareness (stale)
+    docMock._activeParticipants.set([{ id: 'host-1' }, { id: 'peer-a' }]);
+    TestBed.inject(HostElectionService);
+    TestBed.flushEffects();
 
-    harness.evaluate();
+    // Host offline; peer-b stale in awareness
+    docMock._onlineParticipantIds.set(new Set(['peer-a', 'peer-b']));
+    TestBed.flushEffects();
+
     vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS);
 
-    expect(docService.updateSettings).toHaveBeenCalledWith({
-      hostParticipantId: 'peer-a',
-    });
+    // Only peer-a is active-online → peer-a wins
+    expect(docMock.updateSettings).toHaveBeenCalledWith({ hostParticipantId: 'peer-a' });
+  });
+
+  it('HOST_ABSENCE_ELECTION_DEBOUNCE_MS is 5 000 ms per ADR-0010', () => {
+    expect(HOST_ABSENCE_ELECTION_DEBOUNCE_MS).toBe(5_000);
   });
 });
