@@ -1,5 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
-import { formatElapsed, resolveRoundLineage, terminalState } from '@hnch/shared';
+import {
+  formatElapsed,
+  formatRoundLabel,
+  resolveRoundLineage,
+  terminalState,
+} from '@hnch/shared';
 import type { ParticipantSnapshot, Round } from '@hnch/shared';
 import { IonButton, IonIcon } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -9,7 +14,8 @@ import { pencilOutline } from 'ionicons/icons';
 interface HistoryEntry {
   readonly roundId: string;
   readonly roundNumber: number;
-  readonly title: string | undefined;
+  /** Combined `ticketId · title` label (or one of them, or null). */
+  readonly label: string | null;
   readonly summary: string;
   readonly elapsed: string | null;
   readonly skipped: boolean;
@@ -44,8 +50,8 @@ interface HistoryEntry {
               @if (entry.lineageLabel) {
                 <span class="revote-badge"> ({{ entry.lineageLabel }})</span>
               }
-              @if (entry.title) {
-                <span class="round-title">: {{ entry.title }}</span>
+              @if (entry.label) {
+                <span class="round-title">: {{ entry.label }}</span>
               }
               @if (entry.skipped) {
                 <span class="round-skipped"> — Skipped</span>
@@ -162,11 +168,13 @@ export class RoundHistoryComponent {
       const isSkipped = terminalState(round) === 'skipped';
       const lineageLabel = resolveRoundLineage(round.id, lineageSource) !== null ? 're-vote' : null;
 
+      const label = formatRoundLabel(round);
+
       if (isSkipped) {
         return {
           roundId: round.id,
           roundNumber,
-          title: round.title,
+          label,
           summary: '',
           elapsed: null,
           skipped: true,
@@ -183,7 +191,7 @@ export class RoundHistoryComponent {
       return {
         roundId: round.id,
         roundNumber,
-        title: round.title,
+        label,
         summary,
         elapsed,
         skipped: false,
