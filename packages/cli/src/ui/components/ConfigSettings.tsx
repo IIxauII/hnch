@@ -3,7 +3,7 @@ import { Box, Text, useApp, useInput } from 'ink';
 import { randomUUID } from 'node:crypto';
 import {
   buildAvailableScales,
-  formatScaleId,
+  getScaleLabel,
   type PresetOverrides,
   type CustomScale,
   type Scale,
@@ -70,7 +70,7 @@ export function ConfigSettings({
     {
       label: 'Default scale',
       value: 'default-scale',
-      detail: `[${currentScaleObj ? formatScaleId(currentScaleObj.id) : '(none)'}]`,
+      detail: `[${currentScaleObj ? getScaleLabel(currentScaleObj.id, localCustomScales) : '(none)'}]`,
     },
     {
       label: 'Default session name',
