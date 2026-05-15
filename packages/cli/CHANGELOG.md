@@ -1,3 +1,10 @@
+# [1.7.0](https://github.com/IIxauII/hnch/compare/cli-v1.6.1...cli-v1.7.0) (2026-05-15)
+
+
+### Features
+
+* **cli:** render re-vote lineage in results and history ([#208](https://github.com/IIxauII/hnch/issues/208)) ([28ebb52](https://github.com/IIxauII/hnch/commit/28ebb52d217c87a03be095dd0dac0c5fc6783e7e))
+
 ## [1.6.1](https://github.com/IIxauII/hnch/compare/cli-v1.6.0...cli-v1.6.1) (2026-05-15)
 
 
