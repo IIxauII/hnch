@@ -18,11 +18,44 @@ import { DocService } from './doc/doc.service';
  * branches on a single signal; `color` maps directly to Ionic's chip
  * palette without any intermediate translation at render time.
  */
-interface ChipState {
+export interface ChipState {
   readonly label: string;
   readonly color: 'medium' | 'warning';
   readonly icon: 'cloud-offline-outline' | 'sync-outline';
   readonly ariaLabel: string;
+}
+
+/** The union of status values the chip cares about. */
+export type ChipSyncStatus = 'connected' | 'offline' | 'connecting' | 'disconnected';
+
+/**
+ * Pure display function for the connection chip.
+ * Exported for unit testing — the component's `display` computed delegates here.
+ */
+export function computeChipDisplay(
+  status: ChipSyncStatus,
+  disconnectedLongEnough: boolean,
+): ChipState | null {
+  switch (status) {
+    case 'connected':
+    case 'offline':
+      return null;
+    case 'connecting':
+      return {
+        label: 'Connecting…',
+        color: 'medium',
+        icon: 'sync-outline',
+        ariaLabel: 'Connecting to relay',
+      };
+    case 'disconnected':
+      if (!disconnectedLongEnough) return null;
+      return {
+        label: 'Reconnecting…',
+        color: 'warning',
+        icon: 'cloud-offline-outline',
+        ariaLabel: 'Disconnected from relay, attempting to reconnect',
+      };
+  }
 }
 
 /**
@@ -96,29 +129,9 @@ export class ConnectionChipComponent {
    */
   private readonly disconnectedLongEnough = signal(false);
 
-  protected readonly display = computed<ChipState | null>(() => {
-    const status = this.docService.syncStatus();
-    switch (status) {
-      case 'connected':
-      case 'offline':
-        return null;
-      case 'connecting':
-        return {
-          label: 'Connecting…',
-          color: 'medium',
-          icon: 'sync-outline',
-          ariaLabel: 'Connecting to relay',
-        };
-      case 'disconnected':
-        if (!this.disconnectedLongEnough()) return null;
-        return {
-          label: 'Reconnecting…',
-          color: 'warning',
-          icon: 'cloud-offline-outline',
-          ariaLabel: 'Disconnected from relay, attempting to reconnect',
-        };
-    }
-  });
+  protected readonly display = computed<ChipState | null>(() =>
+    computeChipDisplay(this.docService.syncStatus(), this.disconnectedLongEnough()),
+  );
 
   constructor() {
     addIcons({
