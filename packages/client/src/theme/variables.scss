@@ -181,3 +181,39 @@
   --hnch-shadow-2: 0 4px 12px rgba(0, 0, 0, 0.5);
   --hnch-shadow-3: 0 12px 32px rgba(0, 0, 0, 0.6);
 }
+
+// ---------------------------------------------------------------------------
+// Layer 3 — Ionic component CSS-var wiring
+// Centralized here so per-component .scss can stay focused on layout.
+// Tokens resolve per mode via the :root / :root.ion-palette-dark cascade.
+// Component-scoped overrides (Angular view encapsulation) still win where
+// intentional (e.g. transparent toolbars in onboarding/CTA bar, accent-tinted
+// items in custom-scale-editor).
+// ---------------------------------------------------------------------------
+
+ion-card {
+  --background: var(--hnch-elev-1);
+  --color: var(--hnch-text);
+}
+
+ion-item {
+  --background: var(--hnch-elev-1);
+  --color: var(--hnch-text);
+  --border-color: var(--hnch-sep);
+}
+
+ion-list {
+  background: var(--hnch-bg);
+}
+
+ion-modal {
+  --background: var(--hnch-elev-1);
+}
+
+ion-popover {
+  --background: var(--hnch-elev-2);
+}
+
+ion-action-sheet {
+  --background: var(--hnch-elev-2);
+}
