@@ -9,7 +9,8 @@
  */
 
 import { render } from 'ink-testing-library';
-import { describe, expect, it } from 'vitest';
+import { act } from 'react';
+import { describe, expect, it, vi } from 'vitest';
 import type { DocProjection, Round, Scale } from '@hnch/shared';
 
 import { Lobby } from './Lobby.js';
@@ -84,6 +85,8 @@ function baseProps(rounds: readonly Round[], currentRound: Round | null) {
     onDescriptorSubmit: noop,
     onDescriptorCancel: noop,
     onEditDescriptor: noop,
+    canExport: false,
+    onExportResults: noop,
   };
 }
 
@@ -121,6 +124,36 @@ describe('Lobby render — issue #111 patch lines', () => {
     const frame = lastFrame() ?? '';
     expect(frame).toContain('Ticket ID');
     expect(frame).toContain('PROJ-42');
+  });
+
+  it('legend shows [x] Export when canExport=true and triggers handler on x press', async () => {
+    const r1 = makeRound({ id: 'r1', revealedAt: 1000, votes: { host: '5' } });
+    const onExportResults = vi.fn();
+    const { lastFrame, stdin } = render(
+      <Lobby {...baseProps([r1], r1)} canExport={true} onExportResults={onExportResults} />,
+    );
+    expect(lastFrame() ?? '').toContain('[x] Export');
+    await new Promise((r) => setImmediate(r));
+    await act(async () => {
+      stdin.write('x');
+      await new Promise((r) => setImmediate(r));
+    });
+    expect(onExportResults).toHaveBeenCalledOnce();
+  });
+
+  it('legend omits [x] Export and ignores x press when canExport=false', async () => {
+    const r1 = makeRound({ id: 'r1', revealedAt: 1000, votes: { host: '5' } });
+    const onExportResults = vi.fn();
+    const { lastFrame, stdin } = render(
+      <Lobby {...baseProps([r1], r1)} canExport={false} onExportResults={onExportResults} />,
+    );
+    expect(lastFrame() ?? '').not.toContain('[x] Export');
+    await new Promise((r) => setImmediate(r));
+    await act(async () => {
+      stdin.write('x');
+      await new Promise((r) => setImmediate(r));
+    });
+    expect(onExportResults).not.toHaveBeenCalled();
   });
 
   it('history row uses compactRoundSummary with lineage label for re-voted past round', () => {

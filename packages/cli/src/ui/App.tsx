@@ -10,6 +10,7 @@ import { buildNewRoundArgs, normalizeRoundPromptValue } from './round-prompt-flo
 import { StatusBar } from './components/StatusBar.js';
 import { LobbySettings } from './components/LobbySettings.js';
 import { Lobby } from './Lobby.js';
+import { exportResultsToClipboard } from './lobby-helpers.js';
 import { Voting } from './Voting.js';
 import { useTransientNotice } from './hooks/useTransientNotice.js';
 
@@ -61,6 +62,7 @@ export function App({
   const hostNotice = useTransientNotice(3000);
   const [shareOpen, setShareOpen] = useState(false);
   const shareNotice = useTransientNotice(3000);
+  const exportNotice = useTransientNotice(3000);
 
   useEffect(() => {
     const unsub1 = session.onChange(() => {
@@ -306,6 +308,13 @@ export function App({
   const latestRevealedRound: Round | null =
     terminalRounds.length > 0 ? terminalRounds.at(-1)! : null;
 
+  const canExport = terminalRounds.length > 0;
+
+  const handleExportResults = useCallback(
+    () => exportResultsToClipboard(projection, (s) => clipboard.write(s), exportNotice.show),
+    [projection, exportNotice.show],
+  );
+
   return (
     <Box flexDirection="column">
       <StatusBar
@@ -325,6 +334,14 @@ export function App({
         <Box paddingX={1}>
           <Text color={shareNotice.notice.startsWith('Copy failed') ? 'red' : 'green'}>
             {shareNotice.notice}
+          </Text>
+        </Box>
+      )}
+
+      {exportNotice.notice && (
+        <Box paddingX={1}>
+          <Text color={exportNotice.notice.startsWith('Clipboard write failed') ? 'red' : 'green'}>
+            {exportNotice.notice}
           </Text>
         </Box>
       )}
@@ -382,6 +399,8 @@ export function App({
           onDescriptorSubmit={handleDescriptorSubmit}
           onDescriptorCancel={handleDescriptorCancel}
           onEditDescriptor={handleEditDescriptor}
+          canExport={canExport}
+          onExportResults={handleExportResults}
         />
       ) : screen === 'voting' && round ? (
         <Voting
