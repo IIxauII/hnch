@@ -5,7 +5,12 @@ import { ParticipantList } from './components/ParticipantList.js';
 import { HostActionsMenu } from './components/HostActionsMenu.js';
 import { SharePicker } from './components/SharePicker.js';
 import { TextInput } from './components/TextInput.js';
-import { compactRoundSummary, computeStats, formatElapsed } from './lobby-helpers.js';
+import {
+  buildResultsHeader,
+  compactRoundSummary,
+  computeStats,
+  formatElapsed,
+} from './lobby-helpers.js';
 import type { DocProjection, Round } from '@hnch/shared';
 
 interface Props {
@@ -233,7 +238,7 @@ export function Lobby({
             const roundNum = rounds.indexOf(r) + 1;
             return (
               <Text key={r.id} dimColor>
-                {compactRoundSummary(r, roundNum)}
+                {compactRoundSummary(r, roundNum, rounds)}
               </Text>
             );
           })}
@@ -362,17 +367,12 @@ interface ResultsSectionProps {
 
 function ResultsSection({ projection, round, rounds }: ResultsSectionProps): React.ReactElement {
   const roundNum = rounds.indexOf(round) + 1;
-  const title = round.title ? ` — ${round.title}` : '';
-  const ticket = round.ticketId ? ` [${round.ticketId}]` : '';
+  const header = buildResultsHeader(round, roundNum, rounds);
 
   if (terminalState(round) === 'skipped') {
     return (
       <Box flexDirection="column" gap={1}>
-        <Text bold>
-          Round {roundNum}
-          {title}
-          {ticket} — Skipped
-        </Text>
+        <Text bold>{header}</Text>
       </Box>
     );
   }
@@ -389,11 +389,7 @@ function ResultsSection({ projection, round, rounds }: ResultsSectionProps): Rea
 
   return (
     <Box flexDirection="column" gap={1}>
-      <Text bold>
-        Round {roundNum}
-        {title}
-        {ticket} — Results
-      </Text>
+      <Text bold>{header}</Text>
 
       {isConsensus(round) && (
         <Text bold color="green">
