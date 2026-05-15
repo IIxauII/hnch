@@ -1,7 +1,63 @@
 // Exercises: scale-editor.helpers:computeCardRows
+// Exercises: ScaleEditorSheetComponent:title (custom-scale label resolution)
 
-import { describe, expect, it } from 'vitest';
+import { TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
+import { describe, expect, it, vi } from 'vitest';
+import type { CustomScale } from '@hnch/shared';
+
 import { computeCardRows } from './scale-editor.helpers';
+import { HapticService } from '../core/haptic.service';
+import { ScalePreferenceService } from '../core/scale-preference.service';
+
+vi.mock('@ionic/angular/standalone', async () => {
+  const { Component: Comp, Input } = await import('@angular/core');
+  const stub = (selector: string) =>
+    Comp({ selector, template: '<ng-content/>', standalone: true })(class {});
+
+  @Comp({ selector: 'ion-toggle', template: '', standalone: true })
+  class IonToggle {
+    @Input() checked: boolean | undefined;
+    @Input() disabled: boolean | undefined;
+  }
+
+  return {
+    IonButton: stub('ion-button'),
+    IonButtons: stub('ion-buttons'),
+    IonContent: stub('ion-content'),
+    IonHeader: stub('ion-header'),
+    IonItem: stub('ion-item'),
+    IonLabel: stub('ion-label'),
+    IonList: stub('ion-list'),
+    IonNote: stub('ion-note'),
+    IonTitle: stub('ion-title'),
+    IonToggle,
+    IonToolbar: stub('ion-toolbar'),
+  };
+});
+
+async function mountEditor(scaleId: string, customs: CustomScale[]) {
+  TestBed.resetTestingModule();
+  const customsSignal = signal(customs);
+  TestBed.configureTestingModule({
+    providers: [
+      {
+        provide: ScalePreferenceService,
+        useValue: {
+          customScales: customsSignal.asReadonly(),
+          presetOverrides: signal({}).asReadonly(),
+          togglePresetCard: vi.fn(),
+        },
+      },
+      { provide: HapticService, useValue: { impactLight: vi.fn() } },
+    ],
+  });
+  const { ScaleEditorSheetComponent } = await import('./scale-editor.sheet');
+  const fixture = TestBed.createComponent(ScaleEditorSheetComponent);
+  fixture.componentRef.setInput('scaleId', scaleId);
+  fixture.detectChanges();
+  return fixture;
+}
 
 describe('computeCardRows — unknown scaleId', () => {
   it('returns empty array for an unknown scale ID', () => {
@@ -79,5 +135,29 @@ describe('computeCardRows — two cards remaining', () => {
     const enabledRows = rows.filter((r) => r.enabled);
     expect(enabledRows).toHaveLength(2);
     expect(enabledRows.every((r) => !r.disableToggle)).toBe(true);
+  });
+});
+
+describe('ScaleEditorSheetComponent — title', () => {
+  it('renders the formatted builtin name for a builtin scale id', async () => {
+    const fixture = await mountEditor('fibonacci', []);
+    const title = (fixture.componentInstance as unknown as { title: () => string }).title();
+    expect(title).toBe('Fibonacci');
+  });
+
+  it('renders the custom scale label when one is supplied', async () => {
+    const fixture = await mountEditor('custom-bananas', [
+      { id: 'custom-bananas', label: 'Team Bananas', cards: ['1', '2', '3'] },
+    ]);
+    const title = (fixture.componentInstance as unknown as { title: () => string }).title();
+    expect(title).toBe('Team Bananas');
+  });
+
+  it('falls back to the formatted id when the custom label is blank', async () => {
+    const fixture = await mountEditor('custom-no-label', [
+      { id: 'custom-no-label', label: '', cards: ['1'] },
+    ]);
+    const title = (fixture.componentInstance as unknown as { title: () => string }).title();
+    expect(title).toBe('No Label');
   });
 });
