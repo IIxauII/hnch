@@ -826,6 +826,7 @@ export class LobbyPage {
   protected async onRoundStart(submission: RoundStartSubmission): Promise<void> {
     this.docService.startRound({
       ...(submission.title !== null && { title: submission.title }),
+      ...(submission.ticketId !== null && { ticketId: submission.ticketId }),
     });
     await this.modalRef()?.dismiss();
     this.roundStartOpen.set(false);
