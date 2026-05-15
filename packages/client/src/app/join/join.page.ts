@@ -153,7 +153,6 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
       @include page-container(480px);
 
       ion-content {
-        --background: var(--hnch-bg);
         --padding-start: 16px;
         --padding-end: 16px;
       }
@@ -188,9 +187,6 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
       ion-list.password-list {
         background: transparent;
         margin-block-start: 16px;
-      }
-      ion-item {
-        --background: var(--hnch-surface);
       }
       ion-item h2 {
         font-size: 16px;
