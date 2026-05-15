@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/IIxauII/hnch/compare/shared-v1.4.0...shared-v1.5.0) (2026-05-15)
+
+
+### Features
+
+* **client,shared:** expose ticket ID in round-start modal ([#207](https://github.com/IIxauII/hnch/issues/207)) ([a652dbd](https://github.com/IIxauII/hnch/commit/a652dbd2ea7f2ee6e6d8cb7e6e011284590372cd))
+
 # [1.4.0](https://github.com/IIxauII/hnch/compare/shared-v1.3.1...shared-v1.4.0) (2026-05-15)
 
 
