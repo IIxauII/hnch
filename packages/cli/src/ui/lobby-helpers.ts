@@ -3,8 +3,23 @@
  * directly without rendering the Ink tree.
  */
 
-import { terminalState } from '@hnch/shared';
+import { resolveRoundLineage, terminalState } from '@hnch/shared';
 import type { Round } from '@hnch/shared';
+
+/**
+ * Format the `Round …` label, surfacing re-vote chain position when
+ * the round is a re-vote (issue #111 AC#7). Falls back to a plain
+ * `Round N` for chain roots / standalone rounds.
+ */
+export function formatRoundLabel(
+  round: Round,
+  roundNum: number,
+  allRounds: readonly Round[],
+): string {
+  const lineage = resolveRoundLineage(round.id, allRounds);
+  if (lineage === null) return `Round ${roundNum}`;
+  return `Round ${lineage.depth}/${lineage.total} [re-vote]`;
+}
 
 export function computeStats(votes: Record<string, string>): {
   average: string;
@@ -48,11 +63,17 @@ export function formatElapsed(startMs: number, endMs: number): string {
   return `${min}:${sec.toString().padStart(2, '0')}`;
 }
 
-export function compactRoundSummary(round: Round, roundNum: number): string {
+export function compactRoundSummary(
+  round: Round,
+  roundNum: number,
+  allRounds: readonly Round[] = [],
+): string {
+  const label = formatRoundLabel(round, roundNum, allRounds);
+
   if (terminalState(round) === 'skipped') {
     const title = round.title ? ` ${round.title}` : '';
     const ticket = round.ticketId ? ` [${round.ticketId}]` : '';
-    return `Round ${roundNum}:${title}${ticket} — Skipped`;
+    return `${label}:${title}${ticket} — Skipped`;
   }
 
   // Build "card×count, ..." tally
@@ -72,5 +93,5 @@ export function compactRoundSummary(round: Round, roundNum: number): string {
       ? ` — ${formatElapsed(round.timerStartedAt, round.revealedAt)}`
       : '';
 
-  return `Round ${roundNum}:${title}${ticket} — ${tally || '(no votes)'}${elapsed}`;
+  return `${label}:${title}${ticket} — ${tally || '(no votes)'}${elapsed}`;
 }

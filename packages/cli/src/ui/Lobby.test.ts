@@ -7,7 +7,12 @@ import { describe, expect, it } from 'vitest';
 
 import type { Round, Scale } from '@hnch/shared';
 
-import { compactRoundSummary, computeStats, formatElapsed } from './lobby-helpers.js';
+import {
+  compactRoundSummary,
+  computeStats,
+  formatElapsed,
+  formatRoundLabel,
+} from './lobby-helpers.js';
 
 const SCALE: Scale = { id: 'fibonacci', cards: ['1', '2', '3', '5', '8', '13'] };
 
@@ -218,5 +223,65 @@ describe('compactRoundSummary', () => {
     expect(compactRoundSummary(makeRound({ revealedAt: 2_000, skippedAt: 1_000 }), 1)).toBe(
       'Round 1: — Skipped',
     );
+  });
+
+  // ── Re-vote lineage (issue #111 AC#7) ──────────────────────────────────────
+
+  it('re-voted round gets "Round D/T [re-vote]" label', () => {
+    const r1 = makeRound({ id: 'r1', votes: {} });
+    const r2 = makeRound({ id: 'r2', parentRoundId: 'r1', votes: { p1: '5' } });
+    expect(compactRoundSummary(r2, 2, [r1, r2])).toBe('Round 2/2 [re-vote]: — 5×1');
+  });
+
+  it('chain root keeps plain "Round N" label (AC#4)', () => {
+    const r1 = makeRound({ id: 'r1', votes: { p1: '5' } });
+    const r2 = makeRound({ id: 'r2', parentRoundId: 'r1', votes: {} });
+    expect(compactRoundSummary(r1, 1, [r1, r2])).toBe('Round 1: — 5×1');
+  });
+
+  it('3-deep chain → "Round 3/3 [re-vote]" (AC#5)', () => {
+    const r1 = makeRound({ id: 'r1', votes: {} });
+    const r2 = makeRound({ id: 'r2', parentRoundId: 'r1', votes: {} });
+    const r3 = makeRound({ id: 'r3', parentRoundId: 'r2', votes: { p1: '8' } });
+    expect(compactRoundSummary(r3, 3, [r1, r2, r3])).toBe('Round 3/3 [re-vote]: — 8×1');
+  });
+
+  it('missing parent ref falls back to plain "Round N" (AC#6)', () => {
+    const orphan = makeRound({ id: 'r2', parentRoundId: 'missing-root', votes: { p1: '5' } });
+    expect(compactRoundSummary(orphan, 1, [orphan])).toBe('Round 1: — 5×1');
+  });
+
+  it('omitting allRounds defaults to plain "Round N" (back-compat)', () => {
+    expect(compactRoundSummary(makeRound({ votes: { p1: '5' } }), 1)).toBe('Round 1: — 5×1');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatRoundLabel
+// ---------------------------------------------------------------------------
+
+describe('formatRoundLabel', () => {
+  it('standalone round → plain "Round N"', () => {
+    const r1 = makeRound({ id: 'r1' });
+    expect(formatRoundLabel(r1, 1, [r1])).toBe('Round 1');
+  });
+
+  it('chain root → plain "Round N"', () => {
+    const r1 = makeRound({ id: 'r1' });
+    const r2 = makeRound({ id: 'r2', parentRoundId: 'r1' });
+    expect(formatRoundLabel(r1, 1, [r1, r2])).toBe('Round 1');
+  });
+
+  it('re-vote depth-2 of 2 → "Round 2/2 [re-vote]"', () => {
+    const r1 = makeRound({ id: 'r1' });
+    const r2 = makeRound({ id: 'r2', parentRoundId: 'r1' });
+    expect(formatRoundLabel(r2, 2, [r1, r2])).toBe('Round 2/2 [re-vote]');
+  });
+
+  it('re-vote depth-2 of 3 (middle, AC#2 retroactive update)', () => {
+    const r1 = makeRound({ id: 'r1' });
+    const r2 = makeRound({ id: 'r2', parentRoundId: 'r1' });
+    const r3 = makeRound({ id: 'r3', parentRoundId: 'r2' });
+    expect(formatRoundLabel(r2, 2, [r1, r2, r3])).toBe('Round 2/3 [re-vote]');
   });
 });
