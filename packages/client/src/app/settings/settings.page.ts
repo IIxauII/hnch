@@ -43,6 +43,7 @@ import { SurfaceService } from '../core/surface.service';
 import { ScalePickerSheetComponent } from '../session-settings/scale-picker.sheet';
 import { RelayUrlEditorSheetComponent } from './relay-url-editor.sheet';
 import { presentSheet } from '../utils/present-sheet';
+import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.helpers';
 
 /**
  * App Settings screen — ux.md §5.7.
@@ -281,10 +282,9 @@ export class SettingsPage {
     return formatScaleId(scale.id);
   });
 
-  protected readonly relayUrlLabel = computed(() => {
-    const url = this.appPrefs.relayHttpUrl();
-    return url || 'Default';
-  });
+  protected readonly relayUrlLabel = computed(() =>
+    relayUrlDisplayLabel(this.appPrefs.relayHttpUrl()),
+  );
 
   protected readonly scalePickerOpen = signal(false);
   protected readonly relayUrlEditorOpen = signal(false);
@@ -342,15 +342,15 @@ export class SettingsPage {
   // ---------------------------------------------------------------------------
 
   protected onThemeSelected(value: Theme | null | undefined): void {
-    if (value !== 'system' && value !== 'light' && value !== 'dark') return;
+    if (!isValidTheme(value)) return;
     if (value === this.themeService.theme()) return;
     void this.themeService.setTheme(value);
   }
 
   protected onAccentSelected(value: string | null | undefined): void {
-    if (!value || !(value in ACCENTS)) return;
+    if (!isValidAccent(value)) return;
     if (value === this.accentService.accent()) return;
-    this.accentService.setAccent(value as AccentKey);
+    this.accentService.setAccent(value);
   }
 
   // ---------------------------------------------------------------------------
