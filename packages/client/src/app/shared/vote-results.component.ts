@@ -9,7 +9,13 @@ import {
   input,
   signal,
 } from '@angular/core';
-import { computeRoundStats, formatElapsed, isActiveParticipant, isConsensus } from '@hnch/shared';
+import {
+  computeRoundStats,
+  formatElapsed,
+  isAbstainVote,
+  isActiveParticipant,
+  isConsensus,
+} from '@hnch/shared';
 import type { ParticipantSnapshot, Round, RoundStats, SpreadLabel } from '@hnch/shared';
 import { IonChip, IonItemGroup, IonLabel } from '@ionic/angular/standalone';
 
@@ -64,10 +70,30 @@ interface VoteGroup {
       </ion-item-group>
     }
 
+    @if (abstainedNames().length > 0) {
+      <ion-item-group
+        class="group abstained"
+        [style.--i]="voteGroups().length"
+        aria-label="Participants who abstained"
+      >
+        <div class="group-header">
+          <span class="card">Abstained</span>
+          <span class="count">({{ abstainedNames().length }})</span>
+        </div>
+        <div class="chips">
+          @for (name of abstainedNames(); track name) {
+            <ion-chip color="medium">
+              <ion-label>{{ name }}</ion-label>
+            </ion-chip>
+          }
+        </div>
+      </ion-item-group>
+    }
+
     @if (didntVoteNames().length > 0) {
       <ion-item-group
         class="group didnt-vote"
-        [style.--i]="voteGroups().length"
+        [style.--i]="voteGroups().length + abstainedNames().length"
         aria-label="Participants who did not vote"
       >
         <div class="group-header">
@@ -133,6 +159,14 @@ interface VoteGroup {
       }
       .group:last-of-type {
         border-bottom: none;
+      }
+      .group.abstained .card,
+      .group.abstained .count {
+        color: var(--ion-color-medium);
+        opacity: 0.75;
+      }
+      .group.abstained .card {
+        font-weight: 600;
       }
       .group.didnt-vote .card,
       .group.didnt-vote .count {
@@ -312,8 +346,10 @@ export class VoteResultsComponent {
     // On consensus, show overlay and auto-dismiss after 3s.
     effect(() => {
       const groups = this.voteGroups();
+      const abstained = this.abstainedNames();
       const didntVote = this.didntVoteNames();
-      const totalGroups = groups.length + (didntVote.length > 0 ? 1 : 0);
+      const totalGroups =
+        groups.length + (abstained.length > 0 ? 1 : 0) + (didntVote.length > 0 ? 1 : 0);
       if (totalGroups === 0) return;
       const round = this.round();
       if (this.hapticFiredForRound === round.id) return;
@@ -359,6 +395,8 @@ export class VoteResultsComponent {
 
     const byCard = new Map<string, string[]>();
     for (const [participantId, card] of Object.entries(round.votes)) {
+      // Abstain sentinel renders in its own group — exclude from numeric vote groups.
+      if (isAbstainVote(card)) continue;
       const name = names.get(participantId) ?? participantId;
       const bucket = byCard.get(card);
       if (bucket) {
@@ -385,10 +423,33 @@ export class VoteResultsComponent {
   });
 
   /**
+   * Names of active participants whose vote equals ABSTAIN_SENTINEL.
+   * Rendered in a muted "Abstained" group between numeric vote groups
+   * and "Didn't vote" (ADR-0041 §3).
+   */
+  readonly abstainedNames = computed<readonly string[]>(() => {
+    const round = this.round();
+    const names = this.nameById();
+    const out: string[] = [];
+    for (const [participantId, card] of Object.entries(round.votes)) {
+      if (!isAbstainVote(card)) continue;
+      const p = this.participants().find((x) => x.id === participantId);
+      if (p && isActiveParticipant(p)) {
+        out.push(names.get(participantId) ?? participantId);
+      }
+    }
+    out.sort();
+    return out;
+  });
+
+  /**
    * Names of active participants (not kicked/left) who have no entry in
    * `round.votes`. Uses `isActiveParticipant` so departed participants don't
    * inflate the "didn't vote" count — raw `participants()` is still used for
    * chip name lookup (`nameById`) so kicked voters show their real names.
+   *
+   * Abstainers have an entry in `round.votes` (sentinel string), so they
+   * naturally fall out of this set (ADR-0041 §3).
    */
   readonly didntVoteNames = computed<readonly string[]>(() => {
     const round = this.round();
