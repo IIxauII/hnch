@@ -199,6 +199,11 @@ export class Participant {
     await this.page.locator(ESTIMATING.card(value)).first().click();
   }
 
+  /** Tap the "Abstain this round" button on the Estimating page. */
+  async abstain(): Promise<void> {
+    await this.page.locator(ESTIMATING.abstainBtn).first().click();
+  }
+
   /** Toggle role between voter and viewer on the estimating page. */
   async toggleRole(): Promise<void> {
     // Chip shows either "Voter" or "Observing" text — use evaluate to force click
@@ -484,6 +489,18 @@ export class Participant {
       if (!startVisible && !nextVisible) {
         throw new Error('Expected host controls to be visible on lobby');
       }
+    }
+  }
+
+  /**
+   * Assert the Abstained group is visible in lobby results and contains
+   * each of the given names. Waits for the group to appear (Yjs sync).
+   */
+  async expectAbstained(names: string[]): Promise<void> {
+    const group = this.page.locator(LOBBY.abstainedGroup);
+    await group.waitFor({ state: 'visible', timeout: 10_000 });
+    for (const name of names) {
+      await pwExpect(group.getByText(name, { exact: false })).toBeVisible();
     }
   }
 
