@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { CustomScale, ParticipantSnapshot, Round, Scale } from '@hnch/shared';
 
-import { buildResultsHeading, isParticipantViewer } from './lobby-helpers';
+import { buildCopyRoomCodeToast, buildResultsHeading, isParticipantViewer } from './lobby-helpers';
 
 function makeParticipant(id: string, role?: 'voter' | 'viewer'): ParticipantSnapshot {
   return { id, displayName: id, joinedAt: 0, role };
@@ -27,6 +27,20 @@ describe('LobbyPage — isParticipantViewer', () => {
 
   it('true when role is viewer', () => {
     expect(isParticipantViewer(makeParticipant('me', 'viewer'))).toBe(true);
+  });
+});
+
+describe('LobbyPage — buildCopyRoomCodeToast', () => {
+  it('success path returns fixed copied message', () => {
+    expect(buildCopyRoomCodeToast(true, 'K7P-9MR')).toBe('Room code copied');
+  });
+
+  it('failure path surfaces the dash-formatted code so the user can read it', () => {
+    expect(buildCopyRoomCodeToast(false, 'K7P-9MR')).toBe("Couldn't copy — code is K7P-9MR");
+  });
+
+  it('failure path preserves whatever code string is passed (no reformatting)', () => {
+    expect(buildCopyRoomCodeToast(false, 'ABC-XYZ')).toBe("Couldn't copy — code is ABC-XYZ");
   });
 });
 
