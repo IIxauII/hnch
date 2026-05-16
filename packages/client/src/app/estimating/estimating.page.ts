@@ -270,7 +270,6 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component';
       }
       .grid.abstained {
         opacity: 0.4;
-        pointer-events: none;
       }
       @media (prefers-reduced-motion: reduce) {
         .grid.abstained {

@@ -190,33 +190,32 @@ test.describe('Per-round abstain (ADR-0041)', () => {
   });
 
   /**
-   * Case 4 — Abstain toggle: abstain → grid dims → click abstain button again to
-   * clear abstain → grid un-dims → tap card → numeric vote cast → auto-reveal fires.
+   * Case 4 — Tap card while abstained clears the abstention and casts that vote
+   * (ADR-0041 §5). Grid is dimmed (opacity 0.4) but remains interactive.
    *
-   * Note: while abstained the card grid has `pointer-events: none` (CSS on `.grid.abstained`),
-   * so cards cannot be clicked directly. The abstain button acts as a toggle: clicking it
-   * again writes clearVote(), removing the sentinel. Only after clearing can a card be tapped.
-   *
-   * Ordering invariant: abstain asserted visible → toggle off → grid normal asserted →
-   * both vote numeric → auto-reveal fires. Results: numeric 3 group only.
+   * Ordering invariant: host abstains → grid dimmed asserted → host taps card 3
+   * directly while still in dimmed state → abstain cleared + numeric 3 cast →
+   * grid un-dims → player votes → auto-reveal fires. Results: numeric 3 group only.
    */
-  test('toggling abstain off then tapping card casts numeric vote', async ({ host, player }) => {
+  test('tapping a card while abstained clears abstain and casts the numeric vote', async ({
+    host,
+    player,
+  }) => {
     const code = await host.createSession();
     await player.joinSession(code);
 
     await host.startRound();
     await player.waitForEstimating();
 
-    // Host abstains → grid should become dimmed.
+    // Host abstains → grid should become dimmed but remain interactive.
     await host.abstain();
     await expect(host.page.locator(ESTIMATING.cardGridAbstained)).toBeVisible();
 
-    // Toggle abstain off — grid should return to normal.
-    await host.abstain();
-    await expect(host.page.locator(ESTIMATING.cardGridAbstained)).not.toBeVisible();
-
-    // Now host taps card 3 — no abstain class, card is interactable.
+    // Tap card 3 directly while abstained — overwrites the sentinel with the numeric vote.
     await host.castVote('3');
+
+    // Grid should no longer carry the abstained class.
+    await expect(host.page.locator(ESTIMATING.cardGridAbstained)).not.toBeVisible();
 
     // Player votes → auto-reveal fires (both voters numeric, denominator = 2).
     await player.castVote('3');
