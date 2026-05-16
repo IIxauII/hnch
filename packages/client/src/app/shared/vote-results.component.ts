@@ -125,13 +125,14 @@ interface VoteGroup {
         display: block;
       }
       .group {
-        margin-top: 1rem;
-        padding: 0.75rem 0;
-        border-top: 1px solid var(--ion-color-step-150, rgba(0, 0, 0, 0.08));
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.35rem 0;
+        border-bottom: 1px solid var(--ion-color-step-150, rgba(0, 0, 0, 0.08));
       }
-      .group:first-of-type {
-        border-top: none;
-        margin-top: 0;
+      .group:last-of-type {
+        border-bottom: none;
       }
       .group.didnt-vote .card,
       .group.didnt-vote .count {
@@ -141,22 +142,32 @@ interface VoteGroup {
         font-weight: 600;
       }
       .group-header {
+        flex: 0 0 auto;
+        min-width: 5.5rem;
         display: flex;
         align-items: baseline;
-        gap: 0.5rem;
-        margin-bottom: 0.25rem;
+        gap: 0.35rem;
       }
       .card {
-        font-size: 1.5rem;
+        font-size: 1.15rem;
         font-weight: 700;
       }
       .count {
         color: var(--ion-color-medium);
+        font-size: 0.8rem;
+        white-space: nowrap;
       }
       .chips {
+        flex: 1 1 auto;
         display: flex;
         flex-wrap: wrap;
-        gap: 0.25rem;
+        gap: 0.2rem;
+      }
+      .chips ion-chip {
+        margin: 0;
+        height: auto;
+        min-height: 1.5rem;
+        font-size: 0.8rem;
       }
       .elapsed {
         margin: 0.75rem 0 0;
