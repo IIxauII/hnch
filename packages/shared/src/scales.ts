@@ -7,6 +7,24 @@
  */
 
 import { BUILTIN_SCALES, formatScaleId, type Scale } from './doc.js';
+import { ABSTAIN_SENTINEL } from './abstain.js';
+
+// ---------------------------------------------------------------------------
+// Validation
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns `true` if `label` is a valid card face for a custom scale.
+ *
+ * A label is invalid if it is empty, whitespace-only, or equal to the abstain
+ * sentinel (ADR-0041 §9 — sentinel must not be a user-authored card face so
+ * that abstain votes are unambiguous in the Yjs doc).
+ */
+export function isValidCustomCardLabel(label: string): boolean {
+  if (label.trim().length === 0) return false;
+  if (label === ABSTAIN_SENTINEL) return false;
+  return true;
+}
 
 // ---------------------------------------------------------------------------
 // Types
