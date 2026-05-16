@@ -1,3 +1,10 @@
+## [1.21.1](https://github.com/IIxauII/hnch/compare/client-v1.21.0...client-v1.21.1) (2026-05-16)
+
+
+### Bug Fixes
+
+* **client:** compact single-row vote-results layout ([#212](https://github.com/IIxauII/hnch/issues/212)) ([7b73cd8](https://github.com/IIxauII/hnch/commit/7b73cd829c37575d60b1d706967bddc93c982a11))
+
 # [1.21.0](https://github.com/IIxauII/hnch/compare/client-v1.20.0...client-v1.21.0) (2026-05-15)
 
 
