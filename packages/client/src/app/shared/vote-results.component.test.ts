@@ -36,10 +36,10 @@ describe('VoteResultsComponent', () => {
     it('imports computeRoundStats from @hnch/shared', () => {
       expect(sourceFile).toContain('computeRoundStats');
       expect(sourceFile).toContain('@hnch/shared');
-      // Both on the same import line
-      const importLine = sourceFile.split('\n').find((l) => l.includes('computeRoundStats'));
-      expect(importLine).toBeTruthy();
-      expect(importLine).toContain('@hnch/shared');
+      const importMatch = sourceFile.match(
+        /import\s*\{[^}]*\bcomputeRoundStats\b[^}]*\}\s*from\s*['"]@hnch\/shared['"]/,
+      );
+      expect(importMatch).toBeTruthy();
     });
 
     it('contains @switch (s.kind) block and spreadColor method', () => {
