@@ -3,7 +3,7 @@
  * directly without rendering the Ink tree.
  */
 
-import { resolveRoundLineage, roundsToMarkdown, terminalState } from '@hnch/shared';
+import { isAbstainVote, resolveRoundLineage, roundsToMarkdown, terminalState } from '@hnch/shared';
 import type { DocProjection, Round } from '@hnch/shared';
 
 /**
@@ -76,6 +76,7 @@ export function computeStats(votes: Record<string, string>): {
   agreement: string;
 } {
   const values = Object.values(votes)
+    .filter((v) => !isAbstainVote(v))
     .map((v) => parseFloat(v))
     .filter((n) => !isNaN(n))
     .toSorted((a, b) => a - b);
@@ -89,8 +90,9 @@ export function computeStats(votes: Record<string, string>): {
   const mid = Math.floor(values.length / 2);
   const med = values.length % 2 === 0 ? (values[mid - 1]! + values[mid]!) / 2 : values[mid]!;
 
-  // Agreement = % of voters who picked the most common value
-  const allVotes = Object.values(votes);
+  // Agreement = % of voters who picked the most common value.
+  // Abstainers excluded from denominator — they opted out of numeric voting.
+  const allVotes = Object.values(votes).filter((v) => !isAbstainVote(v));
   const counts = new Map<string, number>();
   for (const v of allVotes) {
     counts.set(v, (counts.get(v) ?? 0) + 1);
@@ -125,15 +127,19 @@ export function compactRoundSummary(
     return `${label}:${title}${ticket} — Skipped`;
   }
 
-  // Build "card×count, ..." tally
+  // Build "card×count, ..." tally — abstain entries excluded
   const counts = new Map<string, number>();
   for (const v of Object.values(round.votes)) {
+    if (isAbstainVote(v)) continue;
     counts.set(v, (counts.get(v) ?? 0) + 1);
   }
   const tally = [...counts.entries()]
     .toSorted((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .map(([card, count]) => `${card}×${count}`)
     .join(', ');
+
+  const abstainCount = Object.values(round.votes).filter(isAbstainVote).length;
+  const abstainSuffix = abstainCount > 0 ? ` (${abstainCount} abstained)` : '';
 
   const title = round.title ? ` ${round.title}` : '';
   const ticket = round.ticketId ? ` [${round.ticketId}]` : '';
@@ -142,5 +148,5 @@ export function compactRoundSummary(
       ? ` — ${formatElapsed(round.timerStartedAt, round.revealedAt)}`
       : '';
 
-  return `${label}:${title}${ticket} — ${tally || '(no votes)'}${elapsed}`;
+  return `${label}:${title}${ticket} — ${tally || '(no votes)'}${abstainSuffix}${elapsed}`;
 }

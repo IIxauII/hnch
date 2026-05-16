@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { isConsensus, terminalState } from '@hnch/shared';
+import { isAbstainVote, isConsensus, terminalState } from '@hnch/shared';
 import { ParticipantList } from './components/ParticipantList.js';
 import { HostActionsMenu } from './components/HostActionsMenu.js';
 import { SharePicker } from './components/SharePicker.js';
@@ -425,13 +425,16 @@ function ResultsSection({ projection, round, rounds }: ResultsSectionProps): Rea
       ? formatElapsed(round.timerStartedAt, round.revealedAt)
       : null;
 
-  const uniqueVote = Object.values(round.votes)[0];
+  const entries = Object.entries(round.votes);
+  const numericVotes = entries.filter(([, v]) => !isAbstainVote(v));
+  const abstainedIds = entries.filter(([, v]) => isAbstainVote(v)).map(([id]) => id);
+  const uniqueVote = numericVotes[0]?.[1];
 
   return (
     <Box flexDirection="column" gap={1}>
       <Text bold>{header}</Text>
 
-      {isConsensus(round) && (
+      {isConsensus(round) && uniqueVote !== undefined && (
         <Text bold color="green">
           Consensus! Everyone voted {uniqueVote}
         </Text>
@@ -446,12 +449,18 @@ function ResultsSection({ projection, round, rounds }: ResultsSectionProps): Rea
             {'Estimate'.padEnd(10)}
           </Text>
         </Box>
-        {Object.entries(round.votes).map(([pid, vote]) => (
+        {numericVotes.map(([pid, vote]) => (
           <Box key={pid} gap={2}>
             <Text>{(nameMap.get(pid) ?? pid).padEnd(20)}</Text>
             <Text color="cyan" bold>
               {vote.padEnd(10)}
             </Text>
+          </Box>
+        ))}
+        {abstainedIds.map((pid) => (
+          <Box key={pid} gap={2}>
+            <Text dimColor>{(nameMap.get(pid) ?? pid).padEnd(20)}</Text>
+            <Text dimColor>{'(abstained)'.padEnd(10)}</Text>
           </Box>
         ))}
         {projection.participants
