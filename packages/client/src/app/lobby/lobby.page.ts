@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { Router } from '@angular/router';
 import { Share } from '@capacitor/share';
-import { formatRoomCode, terminalState } from '@hnch/shared';
+import { formatRoomCode, formatRoundLabel, getScaleLabel, terminalState } from '@hnch/shared';
 import type { Round } from '@hnch/shared';
 import {
   AlertController,
@@ -54,7 +54,7 @@ import {
 } from 'ionicons/icons';
 
 import { ConnectionChipComponent } from '../core/connection-chip.component';
-import { isParticipantViewer } from './lobby-helpers';
+import { buildCopyRoomCodeToast, buildResultsHeading, isParticipantViewer } from './lobby-helpers';
 import { ConnectionStatusBannerComponent } from '../shared/connection-status-banner.component';
 import { ExportService } from '../core/export.service';
 import { SurfaceService } from '../core/surface.service';
@@ -62,6 +62,7 @@ import { ToastService } from '../services/toast.service';
 import { DocService } from '../core/doc/doc.service';
 import { HapticService } from '../core/haptic.service';
 import { LastSessionService } from '../core/last-session.service';
+import { ScalePreferenceService } from '../core/scale-preference.service';
 import { ParticipantIdService } from '../core/participant-id.service';
 import {
   RoundStartSheetComponent,
@@ -174,7 +175,15 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
         <ion-row><ion-col>
       <app-connection-status-banner />
       @if (roomCode()) {
-        <h1 class="room-code">{{ formattedRoomCode() }}</h1>
+        <button
+          type="button"
+          class="room-code"
+          aria-label="Copy room code"
+          (click)="onCopyRoomCode()"
+        >
+          <span>{{ formattedRoomCode() }}</span>
+          <ion-icon name="copy-outline" aria-hidden="true"></ion-icon>
+        </button>
         <button
           type="button"
           class="subtitle"
@@ -303,14 +312,14 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       </ion-accordion-group>
 
       @if (lastRevealedRound(); as round) {
-        <section class="results-section" aria-label="Round {{ lastRevealedRoundIndex() }} Results">
-          <h2 class="results-heading">Round {{ lastRevealedRoundIndex() }} Results</h2>
+        <section class="results-section" [attr.aria-label]="resultsHeading()">
+          <h2 class="results-heading">{{ resultsHeading() }}</h2>
           @if (lastRoundWasSkipped()) {
             <p class="round-skipped" role="status">Round skipped</p>
           } @else {
             <div class="results-descriptor-row">
-              @if (round.title) {
-                <p class="results-descriptor">{{ round.title }}</p>
+              @if (formatRoundLabel(round); as label) {
+                <p class="results-descriptor">{{ label }}</p>
               } @else if (isHost()) {
                 <p class="results-descriptor placeholder">Add a descriptor</p>
               }
@@ -338,6 +347,7 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       @if (pastRevealedRounds().length > 0) {
         <app-round-history
           [rounds]="pastRevealedRounds()"
+          [allRounds]="rounds()"
           [participants]="participants()"
           [isHost]="isHost()"
           (editTriggered)="openRoundEditById($event)"
@@ -469,10 +479,30 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       @include page-container(800px);
 
       .room-code {
+        appearance: none;
+        background: transparent;
+        border: none;
+        padding: 0;
+        color: inherit;
+        font: inherit;
         font-size: 2.5rem;
         font-weight: 700;
         letter-spacing: 0.08em;
         margin: 0.5rem 0 0.25rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        min-height: 44px;
+        cursor: pointer;
+      }
+      .room-code ion-icon {
+        font-size: 1.25rem;
+        color: var(--ion-color-medium);
+      }
+      .room-code:focus-visible {
+        outline: 2px solid var(--ion-color-primary);
+        outline-offset: 2px;
+        border-radius: 4px;
       }
       .subtitle {
         appearance: none;
@@ -564,6 +594,7 @@ export class LobbyPage {
   private readonly haptic = inject(HapticService);
   private readonly participantIdService = inject(ParticipantIdService);
   private readonly lastSessionService = inject(LastSessionService);
+  private readonly scalePrefs = inject(ScalePreferenceService);
   protected readonly surface = inject(SurfaceService);
   private readonly alertCtrl = inject(AlertController);
   private readonly toastService = inject(ToastService);
@@ -639,6 +670,9 @@ export class LobbyPage {
     return code ? formatRoomCode(code) : '';
   });
 
+  /** Re-export of the shared label helper so the template can call it. */
+  protected readonly formatRoundLabel = formatRoundLabel;
+
   /** 1-based index for the "Start Round N" / "Next Round N" label. */
   protected readonly nextRoundNumber = computed(() => this.rounds().length + 1);
 
@@ -646,7 +680,7 @@ export class LobbyPage {
     const settings = this.docService.settings();
     if (!settings || !settings.defaultScale) return '';
     const round = this.nextRoundNumber();
-    const scaleName = formatScaleId(settings.defaultScale.id);
+    const scaleName = getScaleLabel(settings.defaultScale.id, this.scalePrefs.customScales());
     return `Round ${round} • ${scaleName}`;
   });
 
@@ -680,6 +714,11 @@ export class LobbyPage {
     const idx = this.rounds().findIndex((r) => r.id === round.id);
     return idx >= 0 ? idx + 1 : null;
   });
+
+  /** Results-section heading — pure-helper backed for unit testability (issue #111). */
+  protected readonly resultsHeading = computed(() =>
+    buildResultsHeading(this.lastRevealedRound(), this.lastRevealedRoundIndex(), this.rounds()),
+  );
 
   /** True when at least one round has been revealed (gates "Copy results" button). */
   protected readonly hasRevealedRounds = computed(() =>
@@ -818,6 +857,7 @@ export class LobbyPage {
   protected async onRoundStart(submission: RoundStartSubmission): Promise<void> {
     this.docService.startRound({
       ...(submission.title !== null && { title: submission.title }),
+      ...(submission.ticketId !== null && { ticketId: submission.ticketId }),
     });
     await this.modalRef()?.dismiss();
     this.roundStartOpen.set(false);
@@ -970,6 +1010,19 @@ export class LobbyPage {
     }
   }
 
+  protected async onCopyRoomCode(): Promise<void> {
+    const code = this.formattedRoomCode();
+    if (!code) return;
+    let success = false;
+    try {
+      await navigator.clipboard.writeText(code);
+      success = true;
+    } catch {
+      success = false;
+    }
+    await this.toastService.info(buildCopyRoomCodeToast(success, code));
+  }
+
   private async copyToClipboard(url: string, formattedCode: string): Promise<void> {
     try {
       await navigator.clipboard.writeText(url);
@@ -1115,20 +1168,4 @@ export class LobbyPage {
     });
     await alert.present();
   }
-}
-
-// ---------------------------------------------------------------------------
-// Module-private formatters
-// ---------------------------------------------------------------------------
-
-/**
- * Format a scale id for display. Capitalizes the first character so
- * `'fibonacci'` reads as "Fibonacci" and `'t-shirt'` reads as
- * "T-shirt". Custom scale ids (`'custom-<uuid>'`) get the same
- * treatment — acceptable per ux.md because custom-scale display is a
- * Phase 6 concern.
- */
-function formatScaleId(id: string): string {
-  if (id.length === 0) return id;
-  return id.charAt(0).toUpperCase() + id.slice(1);
 }

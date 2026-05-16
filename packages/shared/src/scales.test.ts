@@ -4,6 +4,7 @@ import {
   resolveScale,
   buildAvailableScales,
   isValidCustomCardLabel,
+  getScaleLabel,
   type CustomScale,
   type PresetOverrides,
 } from './scales.js';
@@ -124,5 +125,43 @@ describe('isValidCustomCardLabel', () => {
 
   it('rejects whitespace-only string', () => {
     expect(isValidCustomCardLabel('   ')).toBe(false);
+  });
+});
+
+describe('getScaleLabel', () => {
+  it('returns the stored label for a known custom scale', () => {
+    expect(getScaleLabel('custom-my-scale', [CUSTOM])).toBe('My Scale');
+  });
+
+  it('returns the label even when it contains spaces and punctuation', () => {
+    const fancy: CustomScale = {
+      id: 'custom-7f3a',
+      label: 'Team Bananas (v2)',
+      cards: ['1', '2', '3'],
+    };
+    expect(getScaleLabel('custom-7f3a', [fancy])).toBe('Team Bananas (v2)');
+  });
+
+  it('falls back to formatScaleId when the custom label is empty', () => {
+    const blank: CustomScale = { id: 'custom-blank-scale', label: '', cards: ['1'] };
+    expect(getScaleLabel('custom-blank-scale', [blank])).toBe('Blank Scale');
+  });
+
+  it('falls back to formatScaleId when the custom label is whitespace only', () => {
+    const ws: CustomScale = { id: 'custom-ws-scale', label: '   ', cards: ['1'] };
+    expect(getScaleLabel('custom-ws-scale', [ws])).toBe('Ws Scale');
+  });
+
+  it('falls back to formatScaleId when the custom id is not found in the list', () => {
+    expect(getScaleLabel('custom-missing', [CUSTOM])).toBe('Missing');
+  });
+
+  it('falls back to formatScaleId when customs is undefined', () => {
+    expect(getScaleLabel('custom-untracked')).toBe('Untracked');
+  });
+
+  it('returns the builtin display name for builtin ids regardless of customs', () => {
+    expect(getScaleLabel('fibonacci')).toBe('Fibonacci');
+    expect(getScaleLabel('t-shirt', [CUSTOM])).toBe('T-shirt');
   });
 });

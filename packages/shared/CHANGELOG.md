@@ -1,3 +1,24 @@
+# [1.5.0](https://github.com/IIxauII/hnch/compare/shared-v1.4.0...shared-v1.5.0) (2026-05-15)
+
+
+### Features
+
+* **client,shared:** expose ticket ID in round-start modal ([#207](https://github.com/IIxauII/hnch/issues/207)) ([a652dbd](https://github.com/IIxauII/hnch/commit/a652dbd2ea7f2ee6e6d8cb7e6e011284590372cd))
+
+# [1.4.0](https://github.com/IIxauII/hnch/compare/shared-v1.3.1...shared-v1.4.0) (2026-05-15)
+
+
+### Features
+
+* **shared:** add resolveRoundLineage chain-walking utility ([#205](https://github.com/IIxauII/hnch/issues/205)) ([6e1ccf1](https://github.com/IIxauII/hnch/commit/6e1ccf101311118bd421e847ab26c89669f5646a))
+
+## [1.3.1](https://github.com/IIxauII/hnch/compare/shared-v1.3.0...shared-v1.3.1) (2026-05-15)
+
+
+### Bug Fixes
+
+* **shared,client,cli,e2e:** show custom scale name instead of id ([#203](https://github.com/IIxauII/hnch/issues/203)) ([ebc7df6](https://github.com/IIxauII/hnch/commit/ebc7df6e3ccedfb7c9669025b5eb7133db634f9e))
+
 # [1.3.0](https://github.com/IIxauII/hnch/compare/shared-v1.2.0...shared-v1.3.0) (2026-05-12)
 
 

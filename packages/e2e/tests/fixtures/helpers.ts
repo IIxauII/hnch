@@ -76,7 +76,8 @@ export async function fillRoomCode(page: Page, code: string): Promise<void> {
 // Lobby
 // ---------------------------------------------------------------------------
 export const LOBBY = {
-  roomCode: 'h1.room-code',
+  roomCode: 'button.room-code',
+  roomCodeText: 'button.room-code span',
   subtitle: 'button.subtitle',
   participantList: 'ion-list.participants',
   participantItems: 'ion-list.participants ion-item',
@@ -108,7 +109,10 @@ export const QR_MODAL = {
 // Round-start modal
 // ---------------------------------------------------------------------------
 export const ROUND_START = {
-  titleInput: 'app-round-start-sheet ion-input',
+  /** First ion-input in the modal: "What are you estimating?" (round title). */
+  titleInput: 'app-round-start-sheet ion-input:nth-of-type(1)',
+  /** Second ion-input: "Ticket ID" (optional tracker reference). */
+  ticketIdInput: 'app-round-start-sheet ion-input:nth-of-type(2)',
   startBtn: 'app-round-start-sheet ion-button:has-text("Start")',
 } as const;
 

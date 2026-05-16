@@ -3,8 +3,72 @@
  * directly without rendering the Ink tree.
  */
 
-import { terminalState } from '@hnch/shared';
-import type { Round } from '@hnch/shared';
+import { resolveRoundLineage, roundsToMarkdown, terminalState } from '@hnch/shared';
+import type { DocProjection, Round } from '@hnch/shared';
+
+/**
+ * Build the Markdown export payload for the current session. Mirrors mobile
+ * (ExportService.copyRoundsAsMarkdown in lobby.page.ts): passes the raw
+ * participants list — including those who have left — so departed names still
+ * resolve in historical rounds per ADR-0036.
+ */
+export function buildExportMarkdown(projection: DocProjection): string {
+  const terminalRounds = projection.rounds.filter((r) => terminalState(r) !== null);
+  const participants = Object.fromEntries(projection.participants.map((p) => [p.id, p]));
+  return roundsToMarkdown({ rounds: terminalRounds, participants });
+}
+
+/**
+ * Copy the current session's Markdown export to the clipboard, dispatching a
+ * success/failure notice via the provided callback. Extracted from App.tsx so
+ * the success and failure paths can be unit-tested without rendering Ink.
+ */
+export async function exportResultsToClipboard(
+  projection: DocProjection,
+  clipboardWrite: (text: string) => Promise<void>,
+  showNotice: (message: string) => void,
+): Promise<void> {
+  const md = buildExportMarkdown(projection);
+  try {
+    await clipboardWrite(md);
+    showNotice('Results copied to clipboard');
+  } catch {
+    showNotice('Clipboard write failed');
+  }
+}
+
+/**
+ * Format the `Round …` label, surfacing re-vote chain position when
+ * the round is a re-vote (issue #111 AC#7). Falls back to a plain
+ * `Round N` for chain roots / standalone rounds.
+ */
+export function formatRoundLabel(
+  round: Round,
+  roundNum: number,
+  allRounds: readonly Round[],
+): string {
+  const lineage = resolveRoundLineage(round.id, allRounds);
+  if (lineage === null) return `Round ${roundNum}`;
+  return `Round ${lineage.depth}/${lineage.total} [re-vote]`;
+}
+
+/**
+ * Compose the bold header text shown above ResultsSection in the Lobby —
+ * `<label><title?><ticket?> — Results` or `… — Skipped`. Extracted as a
+ * pure helper so the JSX in Lobby.tsx is a single binding and the
+ * composition is unit-testable.
+ */
+export function buildResultsHeader(
+  round: Round,
+  roundNum: number,
+  allRounds: readonly Round[],
+): string {
+  const label = formatRoundLabel(round, roundNum, allRounds);
+  const title = round.title ? ` — ${round.title}` : '';
+  const ticket = round.ticketId ? ` [${round.ticketId}]` : '';
+  const suffix = terminalState(round) === 'skipped' ? ' — Skipped' : ' — Results';
+  return `${label}${title}${ticket}${suffix}`;
+}
 
 export function computeStats(votes: Record<string, string>): {
   average: string;
@@ -48,11 +112,17 @@ export function formatElapsed(startMs: number, endMs: number): string {
   return `${min}:${sec.toString().padStart(2, '0')}`;
 }
 
-export function compactRoundSummary(round: Round, roundNum: number): string {
+export function compactRoundSummary(
+  round: Round,
+  roundNum: number,
+  allRounds: readonly Round[] = [],
+): string {
+  const label = formatRoundLabel(round, roundNum, allRounds);
+
   if (terminalState(round) === 'skipped') {
     const title = round.title ? ` ${round.title}` : '';
     const ticket = round.ticketId ? ` [${round.ticketId}]` : '';
-    return `Round ${roundNum}:${title}${ticket} — Skipped`;
+    return `${label}:${title}${ticket} — Skipped`;
   }
 
   // Build "card×count, ..." tally
@@ -72,5 +142,5 @@ export function compactRoundSummary(round: Round, roundNum: number): string {
       ? ` — ${formatElapsed(round.timerStartedAt, round.revealedAt)}`
       : '';
 
-  return `Round ${roundNum}:${title}${ticket} — ${tally || '(no votes)'}${elapsed}`;
+  return `${label}:${title}${ticket} — ${tally || '(no votes)'}${elapsed}`;
 }

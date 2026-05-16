@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
-import { formatElapsed, terminalState } from '@hnch/shared';
+import { formatElapsed, formatRoundLabel, resolveRoundLineage, terminalState } from '@hnch/shared';
 import type { ParticipantSnapshot, Round } from '@hnch/shared';
 import { IonButton, IonIcon } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -9,10 +9,13 @@ import { pencilOutline } from 'ionicons/icons';
 interface HistoryEntry {
   readonly roundId: string;
   readonly roundNumber: number;
-  readonly title: string | undefined;
+  /** Combined `ticketId · title` label (or one of them, or null). */
+  readonly label: string | null;
   readonly summary: string;
   readonly elapsed: string | null;
   readonly skipped: boolean;
+  /** `"re-vote"` for non-root chain members; `null` for chain root / standalone (issue #111). */
+  readonly lineageLabel: string | null;
 }
 
 /**
@@ -39,8 +42,11 @@ interface HistoryEntry {
           @for (entry of entries(); track entry.roundNumber) {
             <li class="history-item" [class.skipped]="entry.skipped">
               <span class="round-label">Round {{ entry.roundNumber }}</span>
-              @if (entry.title) {
-                <span class="round-title">: {{ entry.title }}</span>
+              @if (entry.lineageLabel) {
+                <span class="revote-badge"> ({{ entry.lineageLabel }})</span>
+              }
+              @if (entry.label) {
+                <span class="round-title">: {{ entry.label }}</span>
               }
               @if (entry.skipped) {
                 <span class="round-skipped"> — Skipped</span>
@@ -106,6 +112,10 @@ interface HistoryEntry {
       .round-elapsed {
         color: var(--ion-color-medium);
       }
+      .revote-badge {
+        color: var(--ion-color-medium);
+        font-style: italic;
+      }
       .edit-btn {
         --padding-start: 0.25rem;
         --padding-end: 0.25rem;
@@ -124,6 +134,12 @@ interface HistoryEntry {
 })
 export class RoundHistoryComponent {
   readonly rounds = input.required<readonly Round[]>();
+  /**
+   * Full rounds list from the doc, used to resolve `parentRoundId` chains
+   * for the re-vote breadcrumb (issue #111). Defaults to `rounds` when
+   * omitted — callers that already pass the full doc rounds need not set it.
+   */
+  readonly allRounds = input<readonly Round[]>([]);
   /** Reserved for future name-based display; unused in compact summary mode. */
   readonly participants = input<readonly ParticipantSnapshot[]>([]);
   readonly isHost = input<boolean>(false);
@@ -138,20 +154,26 @@ export class RoundHistoryComponent {
     const terminal = this.rounds().filter((r) => terminalState(r) !== null);
     // Reverse chronological — newest rounds first in the history list.
     const reversed = [...terminal].toReversed();
+    // Fall back to local rounds when `allRounds` not provided.
+    const lineageSource = this.allRounds().length > 0 ? this.allRounds() : this.rounds();
 
     return reversed.map((round, revIdx) => {
       const originalIndex = terminal.length - 1 - revIdx;
       const roundNumber = originalIndex + 1;
       const isSkipped = terminalState(round) === 'skipped';
+      const lineageLabel = resolveRoundLineage(round.id, lineageSource) !== null ? 're-vote' : null;
+
+      const label = formatRoundLabel(round);
 
       if (isSkipped) {
         return {
           roundId: round.id,
           roundNumber,
-          title: round.title,
+          label,
           summary: '',
           elapsed: null,
           skipped: true,
+          lineageLabel,
         };
       }
 
@@ -164,10 +186,11 @@ export class RoundHistoryComponent {
       return {
         roundId: round.id,
         roundNumber,
-        title: round.title,
+        label,
         summary,
         elapsed,
         skipped: false,
+        lineageLabel,
       };
     });
   });

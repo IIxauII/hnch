@@ -1,3 +1,31 @@
+# [1.9.0](https://github.com/IIxauII/hnch/compare/cli-v1.8.0...cli-v1.9.0) (2026-05-15)
+
+
+### Features
+
+* **cli:** export session results as Markdown to clipboard ([#210](https://github.com/IIxauII/hnch/issues/210)) ([ca0599a](https://github.com/IIxauII/hnch/commit/ca0599a1c9f09217dc3e6db97e5f1ca1c32116de))
+
+# [1.8.0](https://github.com/IIxauII/hnch/compare/cli-v1.7.0...cli-v1.8.0) (2026-05-15)
+
+
+### Features
+
+* **cli:** prompt for optional ticket ID at round start ([#209](https://github.com/IIxauII/hnch/issues/209)) ([7e7f6f4](https://github.com/IIxauII/hnch/commit/7e7f6f48313b3c6766a09d554bd7c6567a0b306a))
+
+# [1.7.0](https://github.com/IIxauII/hnch/compare/cli-v1.6.1...cli-v1.7.0) (2026-05-15)
+
+
+### Features
+
+* **cli:** render re-vote lineage in results and history ([#208](https://github.com/IIxauII/hnch/issues/208)) ([28ebb52](https://github.com/IIxauII/hnch/commit/28ebb52d217c87a03be095dd0dac0c5fc6783e7e))
+
+## [1.6.1](https://github.com/IIxauII/hnch/compare/cli-v1.6.0...cli-v1.6.1) (2026-05-15)
+
+
+### Bug Fixes
+
+* **shared,client,cli,e2e:** show custom scale name instead of id ([#203](https://github.com/IIxauII/hnch/issues/203)) ([ebc7df6](https://github.com/IIxauII/hnch/commit/ebc7df6e3ccedfb7c9669025b5eb7133db634f9e))
+
 # [1.6.0](https://github.com/IIxauII/hnch/compare/cli-v1.5.0...cli-v1.6.0) (2026-05-12)
 
 

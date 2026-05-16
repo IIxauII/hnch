@@ -168,7 +168,7 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
         letter-spacing: -0.2px;
       }
       .code-card {
-        background: var(--hnch-surface);
+        background: var(--hnch-elev-1);
         border-radius: 16px;
         padding: 20px 18px;
         border: 0.5px solid var(--hnch-sep);

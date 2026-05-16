@@ -1,3 +1,38 @@
+# [1.22.0](https://github.com/IIxauII/hnch/compare/client-v1.21.1...client-v1.22.0) (2026-05-16)
+
+
+### Features
+
+* **client,e2e:** show participant initials on vote-progress dots ([#211](https://github.com/IIxauII/hnch/issues/211)) ([c69ddc3](https://github.com/IIxauII/hnch/commit/c69ddc31e7b234663035f484dc1a842362da54fd))
+
+## [1.21.1](https://github.com/IIxauII/hnch/compare/client-v1.21.0...client-v1.21.1) (2026-05-16)
+
+
+### Bug Fixes
+
+* **client:** compact single-row vote-results layout ([#212](https://github.com/IIxauII/hnch/issues/212)) ([7b73cd8](https://github.com/IIxauII/hnch/commit/7b73cd829c37575d60b1d706967bddc93c982a11))
+
+# [1.21.0](https://github.com/IIxauII/hnch/compare/client-v1.20.0...client-v1.21.0) (2026-05-15)
+
+
+### Features
+
+* **client,shared:** expose ticket ID in round-start modal ([#207](https://github.com/IIxauII/hnch/issues/207)) ([a652dbd](https://github.com/IIxauII/hnch/commit/a652dbd2ea7f2ee6e6d8cb7e6e011284590372cd))
+
+# [1.20.0](https://github.com/IIxauII/hnch/compare/client-v1.19.1...client-v1.20.0) (2026-05-15)
+
+
+### Features
+
+* **client:** show re-vote lineage in results heading and history badge ([#206](https://github.com/IIxauII/hnch/issues/206)) ([82b5090](https://github.com/IIxauII/hnch/commit/82b50903210828f7dba7a778a0a1e9c339397e18))
+
+## [1.19.1](https://github.com/IIxauII/hnch/compare/client-v1.19.0...client-v1.19.1) (2026-05-15)
+
+
+### Bug Fixes
+
+* **shared,client,cli,e2e:** show custom scale name instead of id ([#203](https://github.com/IIxauII/hnch/issues/203)) ([ebc7df6](https://github.com/IIxauII/hnch/commit/ebc7df6e3ccedfb7c9669025b5eb7133db634f9e))
+
 # [1.19.0](https://github.com/IIxauII/hnch/compare/client-v1.18.0...client-v1.19.0) (2026-05-15)
 
 

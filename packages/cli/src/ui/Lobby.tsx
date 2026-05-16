@@ -5,7 +5,12 @@ import { ParticipantList } from './components/ParticipantList.js';
 import { HostActionsMenu } from './components/HostActionsMenu.js';
 import { SharePicker } from './components/SharePicker.js';
 import { TextInput } from './components/TextInput.js';
-import { compactRoundSummary, computeStats, formatElapsed } from './lobby-helpers.js';
+import {
+  buildResultsHeader,
+  compactRoundSummary,
+  computeStats,
+  formatElapsed,
+} from './lobby-helpers.js';
 import type { DocProjection, Round } from '@hnch/shared';
 
 interface Props {
@@ -25,6 +30,11 @@ interface Props {
   onRoundTitleChange: (value: string) => void;
   onRoundTitleSubmit: (value: string) => void;
   onRoundTitleCancel: () => void;
+  roundTicketIdPromptActive: boolean;
+  roundTicketIdInput: string;
+  onRoundTicketIdChange: (value: string) => void;
+  onRoundTicketIdSubmit: (value: string) => void;
+  onRoundTicketIdCancel: () => void;
   onOpenSettings: () => void;
   onHandoffHost: (targetId: string) => void;
   onEndSession: () => void;
@@ -41,6 +51,8 @@ interface Props {
   onDescriptorSubmit: (value: string) => void;
   onDescriptorCancel: () => void;
   onEditDescriptor: () => void;
+  canExport: boolean;
+  onExportResults: () => void;
 }
 
 export function Lobby({
@@ -69,12 +81,19 @@ export function Lobby({
   onRoundTitleChange,
   onRoundTitleSubmit,
   onRoundTitleCancel,
+  roundTicketIdPromptActive,
+  roundTicketIdInput,
+  onRoundTicketIdChange,
+  onRoundTicketIdSubmit,
+  onRoundTicketIdCancel,
   descriptorPromptActive,
   descriptorInput,
   onDescriptorChange,
   onDescriptorSubmit,
   onDescriptorCancel,
   onEditDescriptor,
+  canExport,
+  onExportResults,
 }: Props): React.ReactElement {
   const [handoffMode, setHandoffMode] = React.useState<'idle' | 'picking' | 'confirming'>('idle');
   const [handoffTargetId, setHandoffTargetId] = React.useState<string | null>(null);
@@ -101,6 +120,10 @@ export function Lobby({
         onToggleRole();
         return;
       }
+      if ((input === 'x' || input === 'X') && canExport) {
+        onExportResults();
+        return;
+      }
       if (isHost) {
         if (input === 'e' || input === 'E') onOpenSettings();
         if (input === 's' || input === 'S') onStartRound();
@@ -120,6 +143,7 @@ export function Lobby({
         !confirmingQuit &&
         handoffMode === 'idle' &&
         !roundTitlePromptActive &&
+        !roundTicketIdPromptActive &&
         !hostMenuOpen &&
         !confirmingEndSession &&
         !shareOpen &&
@@ -233,7 +257,7 @@ export function Lobby({
             const roundNum = rounds.indexOf(r) + 1;
             return (
               <Text key={r.id} dimColor>
-                {compactRoundSummary(r, roundNum)}
+                {compactRoundSummary(r, roundNum, rounds)}
               </Text>
             );
           })}
@@ -285,6 +309,23 @@ export function Lobby({
         </Box>
       )}
 
+      {roundTicketIdPromptActive && (
+        <Box flexDirection="column">
+          <Box gap={1}>
+            <Text>Ticket ID (optional, Enter to skip):</Text>
+            <TextInput
+              value={roundTicketIdInput}
+              onChange={onRoundTicketIdChange}
+              onSubmit={onRoundTicketIdSubmit}
+              onCancel={onRoundTicketIdCancel}
+              placeholder="e.g. PROJ-1234"
+              isActive={roundTicketIdPromptActive}
+            />
+          </Box>
+          <Text dimColor>[Esc] Cancel</Text>
+        </Box>
+      )}
+
       {descriptorPromptActive && (
         <Box flexDirection="column">
           <Box gap={1}>
@@ -311,6 +352,7 @@ export function Lobby({
 
       {handoffMode === 'idle' &&
         !roundTitlePromptActive &&
+        !roundTicketIdPromptActive &&
         !descriptorPromptActive &&
         !confirmingEndSession && (
           <Box gap={2}>
@@ -326,6 +368,7 @@ export function Lobby({
                     <Text color="yellow">[h] Handoff</Text>
                     <Text color="yellow">[e] Settings</Text>
                     <Text color="yellow">[c] Share</Text>
+                    {canExport && <Text color="yellow">[x] Export</Text>}
                     <Text color="yellow">[w] {myRole === 'viewer' ? 'Vote' : 'Observe'}</Text>
                     <Text color="yellow">[m] Menu</Text>
                   </>
@@ -335,6 +378,7 @@ export function Lobby({
                     <Text color="yellow">[h] Handoff</Text>
                     <Text color="yellow">[e] Settings</Text>
                     <Text color="yellow">[c] Share</Text>
+                    {canExport && <Text color="yellow">[x] Export</Text>}
                     <Text color="yellow">[w] {myRole === 'viewer' ? 'Vote' : 'Observe'}</Text>
                     <Text color="yellow">[m] Menu</Text>
                   </>
@@ -344,6 +388,7 @@ export function Lobby({
               <>
                 <Text dimColor>Waiting for host to start a round...</Text>
                 <Text>[c] Share</Text>
+                {canExport && <Text color="yellow">[x] Export</Text>}
                 <Text color="yellow">[w] {myRole === 'viewer' ? 'Vote' : 'Observe'}</Text>
               </>
             )}
@@ -362,17 +407,12 @@ interface ResultsSectionProps {
 
 function ResultsSection({ projection, round, rounds }: ResultsSectionProps): React.ReactElement {
   const roundNum = rounds.indexOf(round) + 1;
-  const title = round.title ? ` — ${round.title}` : '';
-  const ticket = round.ticketId ? ` [${round.ticketId}]` : '';
+  const header = buildResultsHeader(round, roundNum, rounds);
 
   if (terminalState(round) === 'skipped') {
     return (
       <Box flexDirection="column" gap={1}>
-        <Text bold>
-          Round {roundNum}
-          {title}
-          {ticket} — Skipped
-        </Text>
+        <Text bold>{header}</Text>
       </Box>
     );
   }
@@ -389,11 +429,7 @@ function ResultsSection({ projection, round, rounds }: ResultsSectionProps): Rea
 
   return (
     <Box flexDirection="column" gap={1}>
-      <Text bold>
-        Round {roundNum}
-        {title}
-        {ticket} — Results
-      </Text>
+      <Text bold>{header}</Text>
 
       {isConsensus(round) && (
         <Text bold color="green">
