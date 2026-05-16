@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { CustomScale, ParticipantSnapshot, Round, Scale } from '@hnch/shared';
 
-import { buildResultsHeading, isParticipantViewer } from './lobby-helpers';
+import { buildCopyRoomCodeToast, buildResultsHeading, isParticipantViewer } from './lobby-helpers';
 
 function makeParticipant(id: string, role?: 'voter' | 'viewer'): ParticipantSnapshot {
   return { id, displayName: id, joinedAt: 0, role };
@@ -27,6 +27,20 @@ describe('LobbyPage — isParticipantViewer', () => {
 
   it('true when role is viewer', () => {
     expect(isParticipantViewer(makeParticipant('me', 'viewer'))).toBe(true);
+  });
+});
+
+describe('LobbyPage — buildCopyRoomCodeToast', () => {
+  it('success path returns fixed copied message', () => {
+    expect(buildCopyRoomCodeToast(true, 'K7P-9MR')).toBe('Room code copied');
+  });
+
+  it('failure path surfaces the dash-formatted code so the user can read it', () => {
+    expect(buildCopyRoomCodeToast(false, 'K7P-9MR')).toBe("Couldn't copy — code is K7P-9MR");
+  });
+
+  it('failure path preserves whatever code string is passed (no reformatting)', () => {
+    expect(buildCopyRoomCodeToast(false, 'ABC-XYZ')).toBe("Couldn't copy — code is ABC-XYZ");
   });
 });
 
@@ -366,5 +380,103 @@ describe('LobbyPage — subtitle (custom scale label)', () => {
       fixture.componentInstance as unknown as { subtitle: () => string }
     ).subtitle();
     expect(subtitle).toContain('Fibonacci');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LobbyPage.onCopyRoomCode — tap-to-copy handler (issue #116)
+// ---------------------------------------------------------------------------
+
+describe('LobbyPage — onCopyRoomCode', () => {
+  type Internals = { onCopyRoomCode(): Promise<void> };
+
+  async function mountWithToast(opts: { roomCode?: string; writeText?: ReturnType<typeof vi.fn> }) {
+    const { Router } = await import('@angular/router');
+    const { DocService } = await import('../core/doc/doc.service');
+    const { HapticService } = await import('../core/haptic.service');
+    const { ParticipantIdService } = await import('../core/participant-id.service');
+    const { LastSessionService } = await import('../core/last-session.service');
+    const { ScalePreferenceService } = await import('../core/scale-preference.service');
+    const { SurfaceService } = await import('../core/surface.service');
+    const { ToastService } = await import('../services/toast.service');
+    const { ExportService } = await import('../core/export.service');
+    const { AlertController } = await import('@ionic/angular/standalone');
+
+    const info = vi.fn().mockResolvedValue(undefined);
+    const writeText = opts.writeText ?? vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('navigator', { ...globalThis.navigator, clipboard: { writeText } });
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: Router, useValue: { navigate: vi.fn().mockResolvedValue(true) } },
+        {
+          provide: DocService,
+          useValue: {
+            settings: signal(undefined).asReadonly(),
+            roomCode: signal(opts.roomCode ?? 'ABC123').asReadonly(),
+            meta: signal(undefined).asReadonly(),
+            syncStatus: signal('disconnected').asReadonly(),
+            currentRound: signal(undefined).asReadonly(),
+            lastRejection: signal(null).asReadonly(),
+            rounds: signal([]).asReadonly(),
+            participants: signal([]).asReadonly(),
+            onlineIds: signal(new Set()).asReadonly(),
+            endSession: vi.fn(),
+          },
+        },
+        { provide: HapticService, useValue: { impactLight: vi.fn() } },
+        { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
+        { provide: LastSessionService, useValue: { record: vi.fn() } },
+        {
+          provide: ScalePreferenceService,
+          useValue: { customScales: signal([]).asReadonly() },
+        },
+        {
+          provide: SurfaceService,
+          useValue: {
+            mode: signal('mobile').asReadonly(),
+            sheetBreakpoints: () => [0, 0.5, 1],
+            initialSheetBreakpoint: () => 0.5,
+            sheetBreakpointsFull: () => [0, 0.6, 1],
+            initialSheetBreakpointFull: () => 1,
+          },
+        },
+        { provide: ToastService, useValue: { info, error: vi.fn() } },
+        { provide: ExportService, useValue: { export: vi.fn() } },
+        {
+          provide: AlertController,
+          useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
+        },
+      ],
+    });
+    const { LobbyPage } = await import('./lobby.page');
+    const fixture = TestBed.createComponent(LobbyPage);
+    return { fixture, info, writeText };
+  }
+
+  it('success path: writes dash-formatted code to clipboard and surfaces copied toast', async () => {
+    const { fixture, info, writeText } = await mountWithToast({ roomCode: 'ABC123' });
+    const internals = fixture.componentInstance as unknown as Internals;
+    await internals.onCopyRoomCode();
+    expect(writeText).toHaveBeenCalledWith('ABC-123');
+    expect(info).toHaveBeenCalledWith('Room code copied');
+  });
+
+  it('failure path: clipboard rejection still fires fallback toast with code inline', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+    const { fixture, info } = await mountWithToast({ roomCode: 'XYZ789', writeText });
+    const internals = fixture.componentInstance as unknown as Internals;
+    await internals.onCopyRoomCode();
+    expect(writeText).toHaveBeenCalledWith('XYZ-789');
+    expect(info).toHaveBeenCalledWith("Couldn't copy — code is XYZ-789");
+  });
+
+  it('empty room code: early-returns without touching clipboard or toast', async () => {
+    const { fixture, info, writeText } = await mountWithToast({ roomCode: '' });
+    const internals = fixture.componentInstance as unknown as Internals;
+    await internals.onCopyRoomCode();
+    expect(writeText).not.toHaveBeenCalled();
+    expect(info).not.toHaveBeenCalled();
   });
 });

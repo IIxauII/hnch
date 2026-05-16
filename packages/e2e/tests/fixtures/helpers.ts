@@ -76,7 +76,8 @@ export async function fillRoomCode(page: Page, code: string): Promise<void> {
 // Lobby
 // ---------------------------------------------------------------------------
 export const LOBBY = {
-  roomCode: 'h1.room-code',
+  roomCode: 'button.room-code',
+  roomCodeText: 'button.room-code span',
   subtitle: 'button.subtitle',
   participantList: 'ion-list.participants',
   participantItems: 'ion-list.participants ion-item',
