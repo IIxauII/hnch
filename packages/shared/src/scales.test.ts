@@ -3,6 +3,7 @@ import { FIBONACCI_SCALE, BUILTIN_SCALES } from './doc.js';
 import {
   resolveScale,
   buildAvailableScales,
+  isValidCustomCardLabel,
   type CustomScale,
   type PresetOverrides,
 } from './scales.js';
@@ -105,5 +106,23 @@ describe('buildAvailableScales', () => {
     const scales = buildAvailableScales({ fibonacci: allIndices });
     expect(scales.find((s) => s.id === 'fibonacci')).toBeUndefined();
     expect(scales).toHaveLength(4);
+  });
+});
+
+describe('isValidCustomCardLabel', () => {
+  it('accepts a normal card label', () => {
+    expect(isValidCustomCardLabel('5')).toBe(true);
+  });
+
+  it('rejects the abstain sentinel (ADR-0041 §9)', () => {
+    expect(isValidCustomCardLabel('hnch_abstain')).toBe(false);
+  });
+
+  it('rejects empty string', () => {
+    expect(isValidCustomCardLabel('')).toBe(false);
+  });
+
+  it('rejects whitespace-only string', () => {
+    expect(isValidCustomCardLabel('   ')).toBe(false);
   });
 });
