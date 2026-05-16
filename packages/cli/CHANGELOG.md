@@ -1,3 +1,10 @@
+# [1.10.0](https://github.com/IIxauII/hnch/compare/cli-v1.9.0...cli-v1.10.0) (2026-05-16)
+
+
+### Features
+
+* **cli:** per-round abstain keybind + results row ([#220](https://github.com/IIxauII/hnch/issues/220)) ([dcadab3](https://github.com/IIxauII/hnch/commit/dcadab354915df90f9d709954531eb8f0c4f65f9))
+
 # [1.9.0](https://github.com/IIxauII/hnch/compare/cli-v1.8.0...cli-v1.9.0) (2026-05-15)
 
 
