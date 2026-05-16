@@ -5,6 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { ABSTAIN_SENTINEL } from '@hnch/shared';
 import type { Round, Scale } from '@hnch/shared';
 
 import {
@@ -103,6 +104,32 @@ describe('computeStats — mixed numeric / non-numeric', () => {
     expect(stats.average).toBe('5.0');
     expect(stats.median).toBe('5.0');
     expect(stats.agreement).toBe('50%');
+  });
+});
+
+describe('computeStats — abstain sentinel', () => {
+  it('pure abstain round → all dashes (no numeric values)', () => {
+    expect(computeStats({ p1: ABSTAIN_SENTINEL, p2: ABSTAIN_SENTINEL })).toEqual({
+      average: '-',
+      median: '-',
+      agreement: '-',
+    });
+  });
+
+  it('abstainer excluded from avg/median and agreement denominator', () => {
+    // p1=5, p2=8 → numeric values [5,8], avg=6.5, median=6.5
+    // agreement: allVotes=['5','8'] (abstainer excluded), maxCount=1, agr=50%
+    const stats = computeStats({ p1: '5', p2: '8', p3: ABSTAIN_SENTINEL });
+    expect(stats.average).toBe('6.5');
+    expect(stats.median).toBe('6.5');
+    expect(stats.agreement).toBe('50%');
+  });
+
+  it('abstainer does not inflate denominator — two same votes + one abstain = 100% agreement', () => {
+    const stats = computeStats({ p1: '5', p2: '5', p3: ABSTAIN_SENTINEL });
+    expect(stats.average).toBe('5.0');
+    expect(stats.median).toBe('5.0');
+    expect(stats.agreement).toBe('100%');
   });
 });
 
@@ -254,6 +281,45 @@ describe('compactRoundSummary', () => {
 
   it('omitting allRounds defaults to plain "Round N" (back-compat)', () => {
     expect(compactRoundSummary(makeRound({ votes: { p1: '5' } }), 1)).toBe('Round 1: — 5×1');
+  });
+});
+
+describe('compactRoundSummary — abstain sentinel', () => {
+  it('single abstainer → (no votes) (1 abstained)', () => {
+    expect(compactRoundSummary(makeRound({ votes: { p1: ABSTAIN_SENTINEL } }), 1)).toBe(
+      'Round 1: — (no votes) (1 abstained)',
+    );
+  });
+
+  it('two abstainers → (no votes) (2 abstained)', () => {
+    expect(
+      compactRoundSummary(makeRound({ votes: { p1: ABSTAIN_SENTINEL, p2: ABSTAIN_SENTINEL } }), 1),
+    ).toBe('Round 1: — (no votes) (2 abstained)');
+  });
+
+  it('mix of numeric and abstain: tally excludes sentinel, suffix appended', () => {
+    expect(
+      compactRoundSummary(makeRound({ votes: { p1: '5', p2: '5', p3: ABSTAIN_SENTINEL } }), 2),
+    ).toBe('Round 2: — 5×2 (1 abstained)');
+  });
+
+  it('abstain with elapsed: suffix before elapsed', () => {
+    expect(
+      compactRoundSummary(
+        makeRound({
+          votes: { p1: '5', p2: ABSTAIN_SENTINEL },
+          timerStartedAt: 0,
+          revealedAt: 60_000,
+        }),
+        1,
+      ),
+    ).toBe('Round 1: — 5×1 (1 abstained) — 1:00');
+  });
+
+  it('no abstainers: no suffix', () => {
+    expect(compactRoundSummary(makeRound({ votes: { p1: '5', p2: '8' } }), 1)).toBe(
+      'Round 1: — 5×1, 8×1',
+    );
   });
 });
 

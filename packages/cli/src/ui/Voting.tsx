@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Text, useInput } from 'ink';
+import { ABSTAIN_SENTINEL, isAbstainVote } from '@hnch/shared';
 import { ParticipantList } from './components/ParticipantList.js';
 import { CardPicker } from './components/CardPicker.js';
 import { SharePicker } from './components/SharePicker.js';
@@ -55,6 +56,9 @@ export function Voting({
   onOpenSettings,
   confirmingQuit,
 }: Props): React.ReactElement {
+  const myVoteRaw = round.votes[myId];
+  const isAbstained = myVoteRaw !== undefined && isAbstainVote(myVoteRaw);
+
   useInput(
     (input) => {
       if (input === 'e' || input === 'E') {
@@ -63,6 +67,14 @@ export function Voting({
       }
       if (input === 'c' || input === 'C') {
         onSetShareOpen(true);
+        return;
+      }
+      if (myRole === 'voter' && (input === 'a' || input === 'A')) {
+        if (isAbstained) {
+          onClearVote();
+        } else {
+          onVote(ABSTAIN_SENTINEL);
+        }
         return;
       }
       if (isHost && (input === 'r' || input === 'R')) {
@@ -91,7 +103,7 @@ export function Voting({
     );
   }
 
-  const myVote = round.votes[myId];
+  const myVote = myVoteRaw;
   const roundNum = projection.rounds.indexOf(round) + 1;
   const title = round.title ? ` — ${round.title}` : '';
   const ticket = round.ticketId ? ` [${round.ticketId}]` : '';
@@ -121,19 +133,23 @@ export function Voting({
             <Text dimColor>You're observing</Text>
           </Box>
         ) : (
-          <CardPicker
-            scale={round.scale}
-            selected={myVote}
-            onSelect={onVote}
-            onClear={onClearVote}
-            disabled={confirmingQuit}
-          />
+          <Box flexDirection="column" gap={1}>
+            {isAbstained && <Text dimColor>(abstaining this round — press [a] to vote)</Text>}
+            <CardPicker
+              scale={round.scale}
+              selected={isAbstained ? undefined : myVote}
+              onSelect={onVote}
+              onClear={onClearVote}
+              disabled={confirmingQuit || isAbstained}
+            />
+          </Box>
         )}
       </Box>
 
       <Box gap={2}>
         {isHost && <Text color="yellow">[r] Reveal</Text>}
         {isHost && <Text color="yellow">[s] Skip</Text>}
+        {myRole === 'voter' && <Text color="yellow">[a] {isAbstained ? 'Vote' : 'Abstain'}</Text>}
         <Text color="yellow">[w] {myRole === 'viewer' ? 'Vote' : 'Observe'}</Text>
         <Text>[e] Settings</Text>
         <Text>[c] Share</Text>
