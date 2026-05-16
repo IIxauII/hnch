@@ -67,29 +67,65 @@ describe('AvatarVoteRowComponent', () => {
     expect(initials).toEqual(['A', 'B']);
   });
 
-  it('renders displayName slice ≤10 chars in dot-label', () => {
-    const fixture = mount([makeParticipant('v1', 'Christopher Long')], new Set());
-    const label = fixture.nativeElement.querySelector('.dot-label');
-    expect(label?.textContent?.trim()).toBe('Christophe');
-  });
-
-  it('empty/whitespace displayName: initial renders empty string, label empty', () => {
+  it('empty/whitespace displayName: initial renders empty string', () => {
     const fixture = mount([makeParticipant('v1', '   '), makeParticipant('v2', '')], new Set());
     const initials = Array.from(fixture.nativeElement.querySelectorAll('.dot .dot-initial')).map(
       (el) => (el as HTMLElement).textContent,
     );
     expect(initials).toEqual(['', '']);
-    const labels = Array.from(fixture.nativeElement.querySelectorAll('.dot-label')).map(
-      (el) => (el as HTMLElement).textContent,
-    );
-    expect(labels).toEqual(['   ', '']);
   });
 
-  it('voted class applied to dot span (not cell) so e2e .dot.voted selector still resolves', () => {
+  it('voted class applied to dot span so e2e .dot.voted selector still resolves', () => {
     const fixture = mount([makeParticipant('v1'), makeParticipant('v2')], new Set(['v1']));
     const votedDots = fixture.nativeElement.querySelectorAll('.dot.voted');
     expect(votedDots.length).toBe(1);
     const allDots = fixture.nativeElement.querySelectorAll('.dot');
     expect(allDots.length).toBe(2);
+  });
+
+  // ── Pending-line (#196 v3) ────────────────────────────────────────────────
+  // The "Waiting on: …" line surfaces names of unvoted participants once at
+  // least 50 % of voters have voted (the decision-time signal for hosts).
+  function pendingLineText(fixture: { nativeElement: HTMLElement }): string | null {
+    return fixture.nativeElement.querySelector('.pending-line')?.textContent?.trim() ?? null;
+  }
+
+  it('pending-line hidden below 50% voted', () => {
+    // 1 of 3 voters voted (33%) — line should not render.
+    const ps = [
+      makeParticipant('v1', 'Alice'),
+      makeParticipant('v2', 'Bob'),
+      makeParticipant('v3', 'Carol'),
+    ];
+    const fixture = mount(ps, new Set(['v1']));
+    expect(pendingLineText(fixture)).toBeNull();
+  });
+
+  it('pending-line shown at >=50% voted with pending names truncated to 10 chars', () => {
+    // 2 of 4 (50%) voted — line lists the 2 pending names.
+    const ps = [
+      makeParticipant('v1', 'Alice'),
+      makeParticipant('v2', 'Bob'),
+      makeParticipant('v3', 'ChristopherLong'),
+      makeParticipant('v4', 'Dana'),
+    ];
+    const fixture = mount(ps, new Set(['v1', 'v2']));
+    expect(pendingLineText(fixture)).toBe('Waiting on: Christophe, Dana');
+  });
+
+  it('pending-line hidden when all participants voted', () => {
+    const ps = [makeParticipant('v1', 'Alice'), makeParticipant('v2', 'Bob')];
+    const fixture = mount(ps, new Set(['v1', 'v2']));
+    expect(pendingLineText(fixture)).toBeNull();
+  });
+
+  it('pending-line hidden for empty room', () => {
+    const fixture = mount([], new Set());
+    expect(pendingLineText(fixture)).toBeNull();
+  });
+
+  it('pending-line hidden for 1 participant with 0 voted (0%)', () => {
+    const fixture = mount([makeParticipant('v1', 'Alice')], new Set());
+    expect(pendingLineText(fixture)).toBeNull();
   });
 });

@@ -8,19 +8,19 @@ import type { ParticipantSnapshot } from '@hnch/shared';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="row" role="group" [attr.aria-label]="ariaLabel()">
-      <div class="dots" aria-hidden="true">
-        @for (p of participants(); track p.id) {
-          <span class="dot-cell">
+      <div class="dots-row">
+        <div class="dots" aria-hidden="true">
+          @for (p of participants(); track p.id) {
             <span class="dot" [class.voted]="votedIds().has(p.id)">
               <span class="dot-initial">{{ initialOf(p) }}</span>
             </span>
-            <span class="dot-label">{{ labelOf(p) }}</span>
-          </span>
-        }
+          }
+        </div>
+        <span class="count">{{ votedCount() }} of {{ participants().length }} voted</span>
       </div>
-      <span class="count">
-        {{ votedCount() }} of {{ participants().length }} voted
-      </span>
+      @if (showPendingLine()) {
+        <p class="pending-line">Waiting on: {{ pendingNames() }}</p>
+      }
     </div>
   `,
   styles: [
@@ -30,6 +30,11 @@ import type { ParticipantSnapshot } from '@hnch/shared';
       }
       .row {
         display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+      }
+      .dots-row {
+        display: flex;
         align-items: center;
         gap: 0.75rem;
       }
@@ -38,14 +43,6 @@ import type { ParticipantSnapshot } from '@hnch/shared';
         flex-wrap: wrap;
         gap: 0.35rem;
         row-gap: 0.5rem;
-      }
-      .dot-cell {
-        display: inline-flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 0.15rem;
-        /* Mobile: cell shrinks to dot width so spacing stays uniform. */
-        width: 1.5rem;
       }
       .dot {
         display: inline-flex;
@@ -70,34 +67,14 @@ import type { ParticipantSnapshot } from '@hnch/shared';
       .dot.voted .dot-initial {
         color: #fff;
       }
-      .dot-label {
-        display: none;
-      }
-      /* $bp-md = 768px — see packages/client/src/theme/_breakpoints.scss */
-      @media (min-width: 768px) {
-        .dots {
-          gap: 0.5rem;
-        }
-        /* Fixed cell width on portal so dot spacing is uniform
-           regardless of label length. Labels overflow-ellipsis
-           inside the cell. */
-        .dot-cell {
-          width: 4rem;
-        }
-        .dot-label {
-          display: block;
-          width: 100%;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          font-size: 0.6875rem;
-          color: var(--ion-color-medium);
-          text-align: center;
-        }
-      }
       .count {
         color: var(--ion-color-medium);
         font-size: 0.95rem;
+      }
+      .pending-line {
+        margin: 0;
+        color: var(--ion-color-medium);
+        font-size: 0.8125rem;
       }
     `,
   ],
@@ -112,11 +89,28 @@ export class AvatarVoteRowComponent {
     () => `${this.votedCount()} of ${this.participants().length} voted`,
   );
 
+  // Pending = participants whose id is NOT in votedIds.
+  protected readonly pendingParticipants = computed(() =>
+    this.participants().filter((p) => !this.votedIds().has(p.id)),
+  );
+
+  // Reveal the "Waiting on:" line once at least half of voters have voted
+  // (decision-time signal for the host) and at least one is still pending.
+  protected readonly showPendingLine = computed(() => {
+    const total = this.participants().length;
+    if (total === 0) return false;
+    const pending = this.pendingParticipants().length;
+    if (pending === 0) return false;
+    return this.votedCount() / total >= 0.5;
+  });
+
+  protected readonly pendingNames = computed(() =>
+    this.pendingParticipants()
+      .map((p) => (p.displayName ?? '').slice(0, 10))
+      .join(', '),
+  );
+
   protected initialOf(p: ParticipantSnapshot): string {
     return (p.displayName?.trim()?.[0] ?? '').toUpperCase();
-  }
-
-  protected labelOf(p: ParticipantSnapshot): string {
-    return (p.displayName ?? '').slice(0, 10);
   }
 }
