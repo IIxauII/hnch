@@ -10,7 +10,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { type CustomScale } from '@hnch/shared';
+import { isValidCustomCardLabel, type CustomScale } from '@hnch/shared';
 import {
   IonButton,
   IonButtons,
@@ -112,7 +112,7 @@ import { ScalePreferenceService } from '../core/scale-preference.service';
             maxlength="12"
             autocapitalize="characters"
             [(ngModel)]="newCard"
-            (ionInput)="newCard = $any($event.detail.value) ?? ''"
+            (ionInput)="newCard = $any($event.detail.value) ?? ''; newCardError.set(null)"
             (keydown.enter)="onAddCard()"
             aria-label="New card face value"
           ></ion-input>
@@ -127,6 +127,12 @@ import { ScalePreferenceService } from '../core/scale-preference.service';
           </ion-button>
         </ion-item>
       </ion-list>
+
+      @if (newCardError()) {
+        <ion-note class="card-error ion-padding-horizontal" color="danger" aria-live="assertive">
+          {{ newCardError() }}
+        </ion-note>
+      }
 
       <!-- Chip list with reorder -->
       @if (cards().length > 0) {
@@ -181,6 +187,11 @@ import { ScalePreferenceService } from '../core/scale-preference.service';
       .card-list {
         margin-top: 0.5rem;
       }
+      .card-error {
+        display: block;
+        margin-top: 0.25rem;
+        font-size: 0.8rem;
+      }
       .empty-hint {
         display: block;
         margin-top: 0.75rem;
@@ -234,6 +245,9 @@ export class CustomScaleEditorSheetComponent implements OnInit, OnDestroy {
     () => this.name().trim().length > 0 && this.cards().length >= 2,
   );
 
+  /** Error message for the card-label input, or null when input is valid/empty. */
+  protected readonly newCardError = signal<string | null>(null);
+
   constructor() {
     addIcons({ 'add-outline': addOutline, 'close-circle': closeCircle });
   }
@@ -267,6 +281,15 @@ export class CustomScaleEditorSheetComponent implements OnInit, OnDestroy {
   protected onAddCard(): void {
     const face = this.newCard.trim();
     if (!face) return;
+    if (!isValidCustomCardLabel(face)) {
+      this.newCardError.set(
+        face === 'hnch_abstain'
+          ? "'hnch_abstain' is reserved and cannot be used as a card label."
+          : 'Card label must not be empty or whitespace.',
+      );
+      return;
+    }
+    this.newCardError.set(null);
     this.haptics.impactLight();
     this.cards.update((prev) => [...prev, face]);
     this.newCard = '';
