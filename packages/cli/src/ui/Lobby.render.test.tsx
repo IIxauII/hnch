@@ -11,6 +11,7 @@
 import { render } from 'ink-testing-library';
 import { act } from 'react';
 import { describe, expect, it, vi } from 'vitest';
+import { ABSTAIN_SENTINEL } from '@hnch/shared';
 import type { DocProjection, Round, Scale } from '@hnch/shared';
 
 import { Lobby } from './Lobby.js';
@@ -139,6 +140,61 @@ describe('Lobby render — issue #111 patch lines', () => {
       await new Promise((r) => setImmediate(r));
     });
     expect(onExportResults).toHaveBeenCalledOnce();
+  });
+
+  it('results table renders (abstained) rows between numeric and (no vote) rows', () => {
+    const voter = { id: 'voter', displayName: 'Voter', joinedAt: 0, role: 'voter' as const };
+    const abstainer = {
+      id: 'abs',
+      displayName: 'Abstainer',
+      joinedAt: 0,
+      role: 'voter' as const,
+    };
+    const noVoter = {
+      id: 'novote',
+      displayName: 'NoVoter',
+      joinedAt: 0,
+      role: 'voter' as const,
+    };
+    const r1 = makeRound({
+      id: 'r1',
+      revealedAt: 1000,
+      votes: { voter: '5', abs: ABSTAIN_SENTINEL },
+    });
+    const projection: DocProjection = {
+      ...PROJECTION,
+      participants: [voter, abstainer, noVoter],
+      rounds: [r1],
+    };
+    const { lastFrame } = render(<Lobby {...baseProps([r1], r1)} projection={projection} />);
+    const frame = lastFrame() ?? '';
+    // numeric vote row present
+    expect(frame).toContain('5');
+    // abstained row present
+    expect(frame).toContain('(abstained)');
+    // no vote row present
+    expect(frame).toContain('NoVoter');
+    expect(frame).toContain('(no vote)');
+    // sentinel raw value must NOT appear
+    expect(frame).not.toContain('hnch_abstain');
+  });
+
+  it('consensus banner absent when only abstain votes exist', () => {
+    const abs1 = { id: 'p1', displayName: 'P1', joinedAt: 0, role: 'voter' as const };
+    const abs2 = { id: 'p2', displayName: 'P2', joinedAt: 0, role: 'voter' as const };
+    const r1 = makeRound({
+      id: 'r1',
+      revealedAt: 1000,
+      votes: { p1: ABSTAIN_SENTINEL, p2: ABSTAIN_SENTINEL },
+    });
+    const projection: DocProjection = {
+      ...PROJECTION,
+      participants: [abs1, abs2],
+      rounds: [r1],
+    };
+    const { lastFrame } = render(<Lobby {...baseProps([r1], r1)} projection={projection} />);
+    const frame = lastFrame() ?? '';
+    expect(frame).not.toContain('Consensus');
   });
 
   it('legend omits [x] Export and ignores x press when canExport=false', async () => {
