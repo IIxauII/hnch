@@ -1,3 +1,10 @@
+# [1.22.0](https://github.com/IIxauII/hnch/compare/client-v1.21.1...client-v1.22.0) (2026-05-16)
+
+
+### Features
+
+* **client,e2e:** show participant initials on vote-progress dots ([#211](https://github.com/IIxauII/hnch/issues/211)) ([c69ddc3](https://github.com/IIxauII/hnch/commit/c69ddc31e7b234663035f484dc1a842362da54fd))
+
 ## [1.21.1](https://github.com/IIxauII/hnch/compare/client-v1.21.0...client-v1.21.1) (2026-05-16)
 
 
