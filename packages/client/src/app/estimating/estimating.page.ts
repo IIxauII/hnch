@@ -1,7 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import {
+  ABSTAIN_SENTINEL,
   formatElapsed,
+  isAbstainVote,
   participantRole,
   terminalState,
   type ParticipantSnapshot,
@@ -26,10 +28,12 @@ import {
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
+  checkmarkCircle,
   chevronBackOutline,
   closeCircleOutline,
   ellipsisHorizontalCircle,
   logOutOutline,
+  removeCircleOutline,
   settingsOutline,
 } from 'ionicons/icons';
 
@@ -144,7 +148,12 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component';
         } @else {
           <h2 class="section">Pick your estimate</h2>
 
-          <div class="grid" role="group" aria-label="Choose your estimate">
+          <div
+            class="grid"
+            [class.abstained]="isAbstained()"
+            role="group"
+            aria-label="Choose your estimate"
+          >
             @for (card of round.scale.cards; track card) {
               <ion-card
                 button
@@ -160,6 +169,24 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component';
               </ion-card>
             }
           </div>
+
+          <ion-button
+            expand="block"
+            [fill]="isAbstained() ? 'solid' : 'outline'"
+            color="medium"
+            class="abstain-btn"
+            [attr.aria-pressed]="isAbstained()"
+            aria-label="Abstain this round"
+            (click)="onAbstain()"
+          >
+            @if (isAbstained()) {
+              <ion-icon slot="start" name="checkmark-circle" aria-hidden="true"></ion-icon>
+              Abstained
+            } @else {
+              <ion-icon slot="start" name="remove-circle-outline" aria-hidden="true"></ion-icon>
+              Abstain this round
+            }
+          </ion-button>
         }
       } @else {
         <p class="empty">No active round.</p>
@@ -241,6 +268,21 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component';
           transition: none;
         }
       }
+      .grid.abstained {
+        opacity: 0.4;
+        pointer-events: none;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .grid.abstained {
+          transition: none;
+        }
+      }
+      .abstain-btn {
+        margin-top: 1rem;
+        max-width: 600px;
+        margin-inline: auto;
+        display: block;
+      }
       .empty {
         color: var(--ion-color-medium);
         margin: 2rem 0;
@@ -276,10 +318,12 @@ export class EstimatingPage {
 
   constructor() {
     addIcons({
+      'checkmark-circle': checkmarkCircle,
       'chevron-back-outline': chevronBackOutline,
       'close-circle-outline': closeCircleOutline,
       'ellipsis-horizontal-circle': ellipsisHorizontalCircle,
       'log-out-outline': logOutOutline,
+      'remove-circle-outline': removeCircleOutline,
       'settings-outline': settingsOutline,
     });
 
@@ -351,6 +395,12 @@ export class EstimatingPage {
     const round = this.currentRound();
     if (!id || !round) return null;
     return round.votes[id] ?? null;
+  });
+
+  /** True when the current user has abstained this round (sentinel vote). */
+  protected readonly isAbstained = computed<boolean>(() => {
+    const vote = this.myVote();
+    return vote !== null && isAbstainVote(vote);
   });
 
   /**
@@ -427,6 +477,19 @@ export class EstimatingPage {
       this.docService.clearVote(round.id, id);
     } else {
       this.docService.castVote(round.id, id, card);
+    }
+    this.haptic.impactLight();
+  }
+
+  protected onAbstain(): void {
+    const id = this.myId();
+    const round = this.currentRound();
+    if (!id || !round) return;
+    // Toggle: if already abstained, clear; otherwise write sentinel.
+    if (this.isAbstained()) {
+      this.docService.clearVote(round.id, id);
+    } else {
+      this.docService.castVote(round.id, id, ABSTAIN_SENTINEL);
     }
     this.haptic.impactLight();
   }
@@ -570,7 +633,10 @@ export class EstimatingPage {
 /**
  * Pure predicate: should the current round auto-reveal?
  * Guards: round must exist + not already revealed, at least 1 online voter,
- * all online voters have voted.
+ * all online non-abstain voters have a numeric vote.
+ *
+ * Abstainers (vote === ABSTAIN_SENTINEL) are excluded from the denominator —
+ * they behave as round-level viewers per ADR-0041.
  */
 export function shouldAutoReveal(
   round:
@@ -586,6 +652,10 @@ export function shouldAutoReveal(
 ): boolean {
   if (!round || round.revealedAt !== undefined || round.skippedAt !== undefined) return false;
   if (onlineVoterIds.size === 0) return false;
-  const votedCount = Object.keys(round.votes).filter((id) => onlineVoterIds.has(id)).length;
-  return votedCount >= onlineVoterIds.size;
+  const onlineEntries = Object.entries(round.votes).filter(([id]) => onlineVoterIds.has(id));
+  const abstainCount = onlineEntries.filter(([, v]) => isAbstainVote(v)).length;
+  const numericCount = onlineEntries.length - abstainCount;
+  const denominator = onlineVoterIds.size - abstainCount;
+  if (denominator <= 0) return false; // all online voters abstained — host must manually reveal
+  return numericCount >= denominator;
 }
