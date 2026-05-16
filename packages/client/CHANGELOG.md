@@ -1,3 +1,10 @@
+# [1.24.0](https://github.com/IIxauII/hnch/compare/client-v1.23.0...client-v1.24.0) (2026-05-16)
+
+
+### Features
+
+* **client:** per-round abstain action + auto-reveal denominator ([#219](https://github.com/IIxauII/hnch/issues/219)) ([c0d27d8](https://github.com/IIxauII/hnch/commit/c0d27d8a74f15367b606fb930cce3153990eb89b))
+
 # [1.23.0](https://github.com/IIxauII/hnch/compare/client-v1.22.0...client-v1.23.0) (2026-05-16)
 
 
