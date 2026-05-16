@@ -91,6 +91,8 @@ export const LOBBY = {
   groupCard: 'section.results-section ion-item-group .card',
   voterChips: 'section.results-section ion-chip ion-label',
   didntVoteGroup: 'section.results-section ion-item-group.didnt-vote',
+  /** Abstained group shown after reveal when at least one participant abstained. */
+  abstainedGroup: 'section.results-section ion-item-group.group.abstained',
   revoteBtn: 'ion-button:has-text("Re-vote")',
   nextRoundBtn: /Next Round \d+/,
 } as const;
@@ -130,6 +132,11 @@ export const ESTIMATING = {
   voteCount: 'app-estimating:not(.ion-page-hidden) app-avatar-vote-row .count',
   revealBtn: 'ion-button:has-text("Reveal Votes")',
   roleChip: 'app-estimating:not(.ion-page-hidden) ion-header ion-chip',
+  /** Abstain button on the estimating page. */
+  abstainBtn:
+    'app-estimating ion-button.abstain-btn, app-estimating ion-button[aria-label="Abstain this round"]',
+  /** Card grid when the current user has abstained (grid gets class="grid abstained"). */
+  cardGridAbstained: 'app-estimating div.grid.abstained',
 } as const;
 
 // ---------------------------------------------------------------------------
