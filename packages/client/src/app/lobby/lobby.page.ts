@@ -54,7 +54,7 @@ import {
 } from 'ionicons/icons';
 
 import { ConnectionChipComponent } from '../core/connection-chip.component';
-import { buildResultsHeading, isParticipantViewer } from './lobby-helpers';
+import { buildCopyRoomCodeToast, buildResultsHeading, isParticipantViewer } from './lobby-helpers';
 import { ConnectionStatusBannerComponent } from '../shared/connection-status-banner.component';
 import { ExportService } from '../core/export.service';
 import { SurfaceService } from '../core/surface.service';
@@ -175,7 +175,15 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
         <ion-row><ion-col>
       <app-connection-status-banner />
       @if (roomCode()) {
-        <h1 class="room-code">{{ formattedRoomCode() }}</h1>
+        <button
+          type="button"
+          class="room-code"
+          aria-label="Copy room code"
+          (click)="onCopyRoomCode()"
+        >
+          <span>{{ formattedRoomCode() }}</span>
+          <ion-icon name="copy-outline" aria-hidden="true"></ion-icon>
+        </button>
         <button
           type="button"
           class="subtitle"
@@ -471,10 +479,30 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       @include page-container(800px);
 
       .room-code {
+        appearance: none;
+        background: transparent;
+        border: none;
+        padding: 0;
+        color: inherit;
+        font: inherit;
         font-size: 2.5rem;
         font-weight: 700;
         letter-spacing: 0.08em;
         margin: 0.5rem 0 0.25rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        min-height: 44px;
+        cursor: pointer;
+      }
+      .room-code ion-icon {
+        font-size: 1.25rem;
+        color: var(--ion-color-medium);
+      }
+      .room-code:focus-visible {
+        outline: 2px solid var(--ion-color-primary);
+        outline-offset: 2px;
+        border-radius: 4px;
       }
       .subtitle {
         appearance: none;
@@ -980,6 +1008,19 @@ export class LobbyPage {
       console.warn('copyResults failed', err);
       await this.toastService.error('Clipboard unavailable');
     }
+  }
+
+  protected async onCopyRoomCode(): Promise<void> {
+    const code = this.formattedRoomCode();
+    if (!code) return;
+    let success = false;
+    try {
+      await navigator.clipboard.writeText(code);
+      success = true;
+    } catch {
+      success = false;
+    }
+    await this.toastService.info(buildCopyRoomCodeToast(success, code));
   }
 
   private async copyToClipboard(url: string, formattedCode: string): Promise<void> {

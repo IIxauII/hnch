@@ -27,3 +27,11 @@ export function buildResultsHeading(
   if (lineage === null) return `Round ${roundIndex} Results`;
   return `Round ${lineage.depth} of ${lineage.total} Results`;
 }
+
+/**
+ * Toast text shown after a room-code copy attempt. On failure the dash-formatted
+ * code is surfaced inline so the user can still read it.
+ */
+export function buildCopyRoomCodeToast(success: boolean, code: string): string {
+  return success ? 'Room code copied' : `Couldn't copy — code is ${code}`;
+}
