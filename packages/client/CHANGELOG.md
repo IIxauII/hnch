@@ -1,3 +1,10 @@
+# [1.23.0](https://github.com/IIxauII/hnch/compare/client-v1.22.0...client-v1.23.0) (2026-05-16)
+
+
+### Features
+
+* **client:** tap room code in Lobby to copy to clipboard ([#216](https://github.com/IIxauII/hnch/issues/216)) ([d36388d](https://github.com/IIxauII/hnch/commit/d36388d482bb27be4492519fe902a60aae56d4ed))
+
 # [1.22.0](https://github.com/IIxauII/hnch/compare/client-v1.21.1...client-v1.22.0) (2026-05-16)
 
 
