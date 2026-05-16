@@ -1,3 +1,10 @@
+# [1.6.0](https://github.com/IIxauII/hnch/compare/shared-v1.5.0...shared-v1.6.0) (2026-05-16)
+
+
+### Features
+
+* **shared:** per-round abstain sentinel + CustomScale guard ([#218](https://github.com/IIxauII/hnch/issues/218)) ([4335334](https://github.com/IIxauII/hnch/commit/433533453852d524a53e65c92e1d3c94585b3cef))
+
 # [1.5.0](https://github.com/IIxauII/hnch/compare/shared-v1.4.0...shared-v1.5.0) (2026-05-15)
 
 
