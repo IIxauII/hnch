@@ -44,6 +44,8 @@ import type { ParticipantSnapshot } from '@hnch/shared';
         flex-direction: column;
         align-items: center;
         gap: 0.15rem;
+        /* Mobile: cell shrinks to dot width so spacing stays uniform. */
+        width: 1.5rem;
       }
       .dot {
         display: inline-flex;
@@ -73,9 +75,18 @@ import type { ParticipantSnapshot } from '@hnch/shared';
       }
       /* $bp-md = 768px — see packages/client/src/theme/_breakpoints.scss */
       @media (min-width: 768px) {
+        .dots {
+          gap: 0.5rem;
+        }
+        /* Fixed cell width on portal so dot spacing is uniform
+           regardless of label length. Labels overflow-ellipsis
+           inside the cell. */
+        .dot-cell {
+          width: 4rem;
+        }
         .dot-label {
           display: block;
-          max-width: 5rem;
+          width: 100%;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
