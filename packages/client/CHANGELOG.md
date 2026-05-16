@@ -1,3 +1,10 @@
+## [1.24.1](https://github.com/IIxauII/hnch/compare/client-v1.24.0...client-v1.24.1) (2026-05-16)
+
+
+### Bug Fixes
+
+* **client,e2e:** per-round abstain — card tap clears + e2e coverage ([#221](https://github.com/IIxauII/hnch/issues/221)) ([95c924a](https://github.com/IIxauII/hnch/commit/95c924ad8b1790e1a725032c81d6b7933ebfc18b))
+
 # [1.24.0](https://github.com/IIxauII/hnch/compare/client-v1.23.0...client-v1.24.0) (2026-05-16)
 
 
