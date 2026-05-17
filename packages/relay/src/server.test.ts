@@ -13,12 +13,22 @@ import { createCodePool } from './code-pool.js';
 import { createRoomStore, type RoomStore } from './room-store.js';
 import WebSocket from 'ws';
 import { hashPassword, MAX_ROOM_PARTICIPANTS, JOIN_REJECTION_CLOSE_CODES } from '@hnch/shared';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   createRelayServer,
   type CreateRoomResponse,
+  type HealthPayload,
   type ResolveRoomRejection,
   type ResolveRoomResponse,
 } from './server.js';
+
+const RELAY_PACKAGE_VERSION: string = (() => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const raw = readFileSync(join(here, '..', 'package.json'), 'utf-8');
+  return (JSON.parse(raw) as { version: string }).version;
+})();
 
 describe('relay server', () => {
   let server: Server;
@@ -47,12 +57,15 @@ describe('relay server', () => {
   });
 
   describe('GET /health', () => {
-    it('returns 200 with { status: "ok" }', async () => {
+    it('returns 200 with status, version, uptime', async () => {
       const res = await fetch(`${baseUrl}/health`);
       expect(res.status).toBe(200);
       expect(res.headers.get('content-type')).toMatch(/application\/json/);
-      const body = (await res.json()) as unknown;
-      expect(body).toEqual({ status: 'ok' });
+      const body = (await res.json()) as HealthPayload;
+      expect(body.status).toBe('ok');
+      expect(body.version).toBe(RELAY_PACKAGE_VERSION);
+      expect(typeof body.uptime).toBe('number');
+      expect(body.uptime).toBeGreaterThanOrEqual(0);
     });
 
     it('POST /health returns 404 (method narrowing)', async () => {
@@ -63,8 +76,8 @@ describe('relay server', () => {
     it('query string is stripped before routing', async () => {
       const res = await fetch(`${baseUrl}/health?probe=1`);
       expect(res.status).toBe(200);
-      const body = (await res.json()) as unknown;
-      expect(body).toEqual({ status: 'ok' });
+      const body = (await res.json()) as HealthPayload;
+      expect(body.status).toBe('ok');
     });
   });
 
