@@ -101,6 +101,83 @@ export function participantRole(p: Pick<Participant, 'role'>): 'voter' | 'viewer
   return p.role ?? 'voter';
 }
 
+// ---------------------------------------------------------------------------
+// agenda — pre-session story queue (ADR-0042)
+// ---------------------------------------------------------------------------
+
+/**
+ * Valid `state` values for an agenda item. Defined as a const tuple so that
+ * the derived union type is exact, but callers must tolerate unknown string
+ * values from future clients (the field is an open enum on the wire).
+ */
+export const AGENDA_ITEM_STATES = ['pending', 'consumed', 'skipped', 'cancelled'] as const;
+
+/**
+ * The state of an agenda item in its lifecycle.
+ *
+ * - `pending`   — waiting to be estimated.
+ * - `consumed`  — a round has been created for this item.
+ * - `skipped`   — host skipped the item without creating a round.
+ * - `cancelled` — soft-deleted; excluded from active agenda views.
+ *
+ * Open enum: the wire format is a plain string; future clients may send
+ * values not in this union. Guards should treat unknown values as `pending`
+ * or handle them explicitly.
+ */
+export type AgendaItemState = (typeof AGENDA_ITEM_STATES)[number];
+
+/**
+ * A single item in the pre-session agenda (ADR-0042).
+ *
+ * In the Yjs doc this lives in `doc.agenda: Y.Array<Y.Map>`. The projected
+ * representation here is a plain-object snapshot — identical shape to what
+ * `projectDoc()` returns under `agenda[]`.
+ */
+export interface AgendaItem {
+  /** `crypto.randomUUID()` — stable per item. */
+  id: string;
+  /** Human-readable story title. At least one of `{title, ticketId}` is required. */
+  title?: string;
+  /** Longer story context; optional. */
+  description?: string;
+  /** Issue tracker reference, e.g. `"PROJ-1234"`. At least one of `{title, ticketId}` required. */
+  ticketId?: string;
+  /**
+   * Item lifecycle state. Open string enum — see `AgendaItemState`.
+   * Consumers must guard against unknown values from future clients.
+   */
+  state: AgendaItemState;
+  /**
+   * Import source. Open string enum: `'manual'` (default), or future values
+   * such as `'jira'`, `'linear'`, `'github'`. Shipped now to avoid a schema
+   * change when importers land.
+   */
+  source: string;
+  /**
+   * External system identifier for future importers (e.g. Jira issue key,
+   * Linear issue ID). Paired with `source`. Not used by the base app.
+   */
+  externalId?: string;
+  /**
+   * Fractional-index sort key (base-62 string). Items are displayed in
+   * ascending lexicographic order of this field. Only `pending` items may
+   * have their `sortKey` changed; all other states are frozen.
+   */
+  sortKey: string;
+  /** Unix milliseconds when the item was created. */
+  createdAt: number;
+  /**
+   * Unix milliseconds when the item was consumed (state → `'consumed'`).
+   * Set atomically alongside `consumedByRoundId`.
+   */
+  consumedAt?: number;
+  /**
+   * ID of the round that consumed this item. Set atomically alongside
+   * `consumedAt`. Use as a backref to the round for history display.
+   */
+  consumedByRoundId?: string;
+}
+
 /**
  * Returns true when the participant is active — i.e. has not voluntarily
  * left or been removed by the host (ADR-0036). Absent `leftAt` ⇒ active.
@@ -161,6 +238,13 @@ export interface Round {
    * here is the platform-neutral projection.
    */
   votes: Record<string, string>;
+  /**
+   * ID of the agenda item this round was started from (ADR-0042). Optional
+   * backref — absent when the round was not created from an agenda item.
+   * On re-vote, the caller passes the parent round's `agendaItemId` unchanged;
+   * the agenda item state is not modified again.
+   */
+  agendaItemId?: string;
 }
 
 /**
