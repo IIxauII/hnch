@@ -157,6 +157,12 @@ export class Participant {
     const startBtn = this.page.locator(ROUND_START.startBtn);
     await startBtn.waitFor({ state: 'visible' });
     await startBtn.evaluate((el: HTMLElement) => el.click());
+    // Wait for the round-start sheet to fully dismiss. Ionic leaves the
+    // ion-modal in the DOM with show-modal + full viewport size during
+    // the closing animation; callers that then dispatch keyboard events
+    // (vs .click() which auto-waits for actionability) would otherwise
+    // race the still-present modal overlay.
+    await modal.waitFor({ state: 'hidden' });
     await this.waitForEstimating();
   }
 
@@ -249,6 +255,12 @@ export class Participant {
     const startBtn = this.page.locator(ROUND_START.startBtn);
     await startBtn.waitFor({ state: 'visible' });
     await startBtn.evaluate((el: HTMLElement) => el.click());
+    // Wait for the round-start sheet to fully dismiss. Ionic leaves the
+    // ion-modal in the DOM with show-modal + full viewport size during
+    // the closing animation; callers that then dispatch keyboard events
+    // (vs .click() which auto-waits for actionability) would otherwise
+    // race the still-present modal overlay.
+    await modal.waitFor({ state: 'hidden' });
     await this.waitForEstimating();
   }
 

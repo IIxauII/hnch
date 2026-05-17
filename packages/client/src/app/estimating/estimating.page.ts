@@ -1,4 +1,15 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  HostListener,
+  QueryList,
+  ViewChildren,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { Router } from '@angular/router';
 import {
   ABSTAIN_SENTINEL,
@@ -48,6 +59,7 @@ import { shouldRecordCache } from '../core/cache-record-guard';
 import { ParticipantIdService } from '../core/participant-id.service';
 import { TimerTickService } from '../core/timer-tick.service';
 import { AvatarVoteRowComponent } from './avatar-vote-row.component';
+import { resolveKeyboardCardAction, shouldHandleKeyEvent } from './estimating.keyboard';
 
 /**
  * Estimating — ux.md §5.5.
@@ -154,13 +166,17 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component';
             role="group"
             aria-label="Choose your estimate"
           >
-            @for (card of round.scale.cards; track card) {
+            @for (card of round.scale.cards; track card; let i = $index) {
               <ion-card
+                #cardEl
                 button
                 class="card"
                 [class.selected]="card === myVote()"
+                [class.focused]="i === focusedIndex()"
                 [attr.aria-pressed]="card === myVote()"
                 [attr.aria-label]="'Card ' + card"
+                [attr.aria-keyshortcuts]="ariaKeyShortcut(i)"
+                [attr.tabindex]="i === rovingTabIndex() ? 0 : -1"
                 (click)="onCardTap(card)"
               >
                 <ion-card-content class="card-face">
@@ -254,6 +270,10 @@ import { AvatarVoteRowComponent } from './avatar-vote-row.component';
       .card.selected {
         border-color: var(--ion-color-primary);
         background: var(--ion-color-primary-tint);
+      }
+      .card.focused:not(.selected) {
+        outline: 2px solid var(--ion-color-primary);
+        outline-offset: 2px;
       }
       .card-face {
         display: flex;
@@ -360,6 +380,21 @@ export class EstimatingPage {
       }
     });
 
+    // Clear the transient keyboard focus cursor when the round changes
+    // (issue #154) — otherwise a stale index from a previous scale leaks
+    // into the new round's grid. Only reacts to id transitions: a bare
+    // `currentRound()` read inside an effect would re-fire on every Yjs
+    // awareness update (new projection ref, same id) and wipe the focus
+    // cursor mid-arrow-nav.
+    let lastRoundId: string | undefined;
+    effect(() => {
+      const roundId = this.docService.currentRound()?.id;
+      if (roundId !== lastRoundId) {
+        lastRoundId = roundId;
+        this.focusedIndex.set(undefined);
+      }
+    });
+
     // Unanimous auto-reveal: when all online voters have voted,
     // write `revealedAt`. Guard: require at least 1 online voter (ADR-0018).
     effect(() => {
@@ -373,6 +408,41 @@ export class EstimatingPage {
   }
 
   private readonly myId = this.participantIdService.id;
+
+  @ViewChildren('cardEl', { read: ElementRef })
+  private readonly cardEls!: QueryList<ElementRef<HTMLElement>>;
+
+  /**
+   * Transient keyboard focus cursor (issue #154). Distinct from `myVote()`
+   * — arrow keys move this without writing to the doc; Enter/Space then
+   * commits the focused card.
+   */
+  protected readonly focusedIndex = signal<number | undefined>(undefined);
+
+  /**
+   * Roving tabindex target. Defaults to the focused card if any, else
+   * the currently-voted card, else the first card. Keeps a single card
+   * in the natural tab order — Tab/Shift+Tab into the grid then arrows
+   * to navigate.
+   */
+  protected readonly rovingTabIndex = computed<number>(() => {
+    const focus = this.focusedIndex();
+    if (focus !== undefined) return focus;
+    const round = this.currentRound();
+    const vote = this.myVote();
+    if (round && vote !== null) {
+      const idx = round.scale.cards.indexOf(vote);
+      if (idx >= 0) return idx;
+    }
+    return 0;
+  });
+
+  /** ARIA hint per card index — digits 1–9 → indices 0–8, digit 0 → index 9. */
+  protected ariaKeyShortcut(index: number): string | null {
+    if (index >= 0 && index <= 8) return `Digit${index + 1}`;
+    if (index === 9) return 'Digit0';
+    return null;
+  }
 
   /**
    * 1-based index of the current round within `rounds()`. Re-votes and
@@ -478,6 +548,81 @@ export class EstimatingPage {
       this.docService.castVote(round.id, id, card);
     }
     this.haptic.impactLight();
+  }
+
+  /**
+   * Keyboard shortcuts for the Estimating card grid (issue #154).
+   *
+   * Bail conditions enforced here (out of the pure resolver):
+   *  - active element is editable (input / textarea / contenteditable);
+   *  - any Ionic overlay (action-sheet, alert, modal, popover, loading)
+   *    is mounted above the page;
+   *  - no current round, round is terminal, or local user is a viewer.
+   */
+  @HostListener('document:keydown', ['$event'])
+  protected onDocumentKeydown(event: KeyboardEvent): void {
+    const round = this.currentRound();
+    const id = this.myId();
+    const gateOk = shouldHandleKeyEvent({
+      defaultPrevented: event.defaultPrevented,
+      activeElement: document.activeElement,
+      overlayPresent: !!document.querySelector(
+        'ion-action-sheet:not(.overlay-hidden), ion-alert:not(.overlay-hidden), ion-modal:not(.overlay-hidden), ion-popover:not(.overlay-hidden), ion-loading:not(.overlay-hidden)',
+      ),
+      roundActive: !!round && round.revealedAt === undefined && round.skippedAt === undefined,
+      isViewer: this.isViewer(),
+    });
+    if (!gateOk || !round || !id) return;
+
+    const active = document.activeElement;
+    const cardRefs = this.cardEls?.toArray() ?? [];
+    const domFocusedIndex = active ? cardRefs.findIndex((ref) => ref.nativeElement === active) : -1;
+    const activeElementIsCard = domFocusedIndex >= 0;
+    // Honour an already-DOM-focused card when the in-component cursor
+    // is undefined — otherwise ArrowRight from a Tab-focused card would
+    // jump back to index 0 instead of moving forward by one.
+    const effectiveFocus =
+      this.focusedIndex() ?? (activeElementIsCard ? domFocusedIndex : undefined);
+
+    const action = resolveKeyboardCardAction(
+      {
+        key: event.key,
+        code: event.code,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        altKey: event.altKey,
+      },
+      round.scale.cards,
+      this.myVote() ?? undefined,
+      effectiveFocus,
+      activeElementIsCard,
+    );
+
+    if (action.kind === 'noop') return;
+    event.preventDefault();
+
+    switch (action.kind) {
+      case 'cast':
+        this.docService.castVote(round.id, id, action.card);
+        this.focusedIndex.set(action.index);
+        this.haptic.impactLight();
+        queueMicrotask(() => this.focusCardAt(action.index));
+        break;
+      case 'clear':
+        this.docService.clearVote(round.id, id);
+        this.haptic.impactLight();
+        break;
+      case 'focus':
+        this.focusedIndex.set(action.index);
+        this.focusCardAt(action.index);
+        break;
+    }
+  }
+
+  private focusCardAt(index: number): void {
+    const refs = this.cardEls?.toArray() ?? [];
+    const el = refs[index]?.nativeElement;
+    if (el && typeof el.focus === 'function') el.focus();
   }
 
   protected onAbstain(): void {
