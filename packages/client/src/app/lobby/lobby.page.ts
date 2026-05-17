@@ -431,6 +431,7 @@ import type { AgendaItem } from '@hnch/shared';
       <ng-template>
         <app-round-start-sheet
           [roundNumber]="nextRoundNumber()"
+          [prefillAgendaItem]="roundStartPrefillItem()"
           (submitted)="onRoundStart($event)"
           (cancelled)="roundStartOpen.set(false)"
         />
@@ -645,6 +646,12 @@ export class LobbyPage {
 
   /** Round-start modal visibility. Two-way bound to `ion-modal`. */
   protected readonly roundStartOpen = signal(false);
+
+  /**
+   * Agenda item to pre-fill into the round-start sheet. Set by
+   * `openRoundStart()` from `nextPendingAgendaItem`. Reset on dismiss.
+   */
+  protected readonly roundStartPrefillItem = signal<AgendaItem | null>(null);
 
   /** Session-settings modal visibility. Two-way bound to `ion-modal`. */
   protected readonly sessionSettingsOpen = signal(false);
@@ -896,17 +903,29 @@ export class LobbyPage {
   }
 
   protected openRoundStart(): void {
+    // Set pre-fill from next pending agenda item (ADR-0042).
+    this.roundStartPrefillItem.set(this.docService.nextPendingAgendaItem());
     const modal = this.modalRef();
     if (modal) void presentSheet({ modal });
   }
 
   protected async onRoundStart(submission: RoundStartSubmission): Promise<void> {
-    this.docService.startRound({
+    const now = Date.now();
+    const roundId = this.docService.startRound({
       ...(submission.title !== null && { title: submission.title }),
       ...(submission.ticketId !== null && { ticketId: submission.ticketId }),
+      ...(submission.description !== null && { description: submission.description }),
+      ...(submission.agendaItemId !== undefined && { agendaItemId: submission.agendaItemId }),
     });
+
+    // Consume the agenda item atomically with round creation (ADR-0042).
+    if (submission.agendaItemId !== undefined) {
+      this.docService.consumeAgendaItem(submission.agendaItemId, roundId, now);
+    }
+
     await this.modalRef()?.dismiss();
     this.roundStartOpen.set(false);
+    this.roundStartPrefillItem.set(null);
     const code = this.docService.roomCode();
     assertRoomCode(code, 'lobby.onRoundStart');
     await this.router.navigate(['/estimating', code]);
@@ -922,11 +941,14 @@ export class LobbyPage {
     const round = this.lastRevealedRound();
     if (!round) return;
 
+    // Inherit agendaItemId from parent round (ADR-0042 re-vote rule).
+    // No agenda item state mutation on re-vote.
     this.docService.startRound({
       parentRoundId: round.id,
       ...(round.title !== undefined && { title: round.title }),
       ...(round.description !== undefined && { description: round.description }),
       ...(round.ticketId !== undefined && { ticketId: round.ticketId }),
+      ...(round.agendaItemId !== undefined && { agendaItemId: round.agendaItemId }),
     });
     const code = this.docService.roomCode();
     assertRoomCode(code, 'lobby.onRevote');
