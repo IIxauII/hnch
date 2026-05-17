@@ -77,6 +77,7 @@ const ROUND_FIELDS = [
   'skippedAt',
   'createdBy',
   'createdAt',
+  'agendaItemId',
 ] as const;
 
 // ---------------------------------------------------------------------------
