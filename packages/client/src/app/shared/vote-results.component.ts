@@ -50,10 +50,12 @@ interface VoteGroup {
   imports: [DecimalPipe, IonChip, IonItemGroup, IonLabel],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @for (group of voteGroups(); track group.card; let i = $index) {
+    @for (group of voteGroups(); track group.card; let i = $index; let first = $first) {
       <ion-item-group
         class="group"
+        [class.plurality]="first"
         [style.--i]="i"
+        [style.--bar-width.%]="widthPct(group.voterNames.length)"
         [attr.aria-label]="voteCountLabel(group.voterNames.length) + ' for ' + group.card"
       >
         <div class="group-header">
@@ -151,10 +153,11 @@ interface VoteGroup {
         display: block;
       }
       .group {
+        position: relative;
         display: flex;
         align-items: center;
         gap: 0.75rem;
-        padding: 0.35rem 0;
+        padding: 0.35rem 0.5rem;
         border-bottom: 1px solid var(--ion-color-step-150, rgba(0, 0, 0, 0.08));
       }
       .group:last-of-type {
@@ -167,6 +170,31 @@ interface VoteGroup {
       }
       .group.abstained .card {
         font-weight: 600;
+      }
+      .group::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: var(--bar-width, 0%);
+        background: var(--ion-color-primary);
+        opacity: 0.06;
+        border-radius: 0.5rem;
+        z-index: 0;
+        pointer-events: none;
+      }
+      .group.plurality::before {
+        opacity: 0.12;
+      }
+      .group.didnt-vote::before,
+      .group.abstained::before {
+        display: none;
+      }
+      .group-header,
+      .chips {
+        position: relative;
+        z-index: 1;
       }
       .group.didnt-vote .card,
       .group.didnt-vote .count {
@@ -485,6 +513,16 @@ export class VoteResultsComponent {
   /** "N votes" / "1 vote" — used inside group headers. */
   voteCountLabel(n: number): string {
     return n === 1 ? '1 vote' : `${n} votes`;
+  }
+
+  /** Denominator for distribution bars: cast non-abstain votes only (AC #3). */
+  private readonly totalVoted = computed(
+    () => Object.values(this.round().votes).filter((v) => !isAbstainVote(v)).length,
+  );
+
+  /** Bar width % for a group. Only called from @for over voteGroups so total >= 1. */
+  widthPct(count: number): number {
+    return (count / this.totalVoted()) * 100;
   }
 
   protected spreadColor(s: SpreadLabel): 'success' | 'warning' | 'danger' {
