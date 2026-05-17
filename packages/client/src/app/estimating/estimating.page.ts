@@ -561,7 +561,7 @@ export class EstimatingPage {
       defaultPrevented: event.defaultPrevented,
       activeElement: document.activeElement,
       overlayPresent: !!document.querySelector(
-        'ion-action-sheet, ion-alert, ion-modal, ion-popover, ion-loading',
+        'ion-action-sheet:not(.overlay-hidden), ion-alert:not(.overlay-hidden), ion-modal:not(.overlay-hidden), ion-popover:not(.overlay-hidden), ion-loading:not(.overlay-hidden)',
       ),
       roundActive: !!round && round.revealedAt === undefined && round.skippedAt === undefined,
       isViewer: this.isViewer(),
