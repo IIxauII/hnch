@@ -74,6 +74,20 @@ hnch config [--name "Alice"] [--relay-url http://...] [--scale <id>] [--session-
 | `--session-name` | Default session name for `create` (empty string clears) |
 | `--password` / `--no-password` | Whether `create` prompts for a password by default |
 
+## Keyboard
+
+The CLI is keyboard-driven end to end via Ink's input handling. Keys on the Voting screen mirror the PWA card-grid shortcuts (issue #154) so muscle memory carries between the two clients:
+
+| Key | Action |
+| --- | --- |
+| `1` – `9` | Select card at index 0 – 8 |
+| `0` | Select card at index 9 (10th card) |
+| `←` / `→` | Move focus between cards (wraps) |
+| `Enter` / `Space` | Cast or clear vote on the focused card |
+| `Esc` / `q` | Back / leave (context-dependent) |
+
+The PWA enforces the same digit-to-index mapping and the same re-press-to-clear toggle on the Estimating screen. Indices > 9 are reachable via arrow keys only — digits cover the first 10 cards across all builtin scales (longest is Linear at 10).
+
 ## Protocol parity
 
 The CLI uses the same `@hnch/shared` Yjs doc schema, the same `hashPassword()` function, and the same relay WebSocket handshake (`GET /rooms/:code` → `WS /ws/:uuid?did=...&pw=...`) as the mobile client. There is no feature delta in core session behavior: rounds (ADR-0013), voting and reveal (ADR-0018, ADR-0020), host election (ADR-0010), and access control (ADR-0009, ADR-0017) all behave identically.
