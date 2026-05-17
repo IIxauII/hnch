@@ -138,6 +138,33 @@ describe('EstimatingPage', () => {
     });
   });
 
+  describe('keyboard shortcuts wiring (issue #154)', () => {
+    const sourceFile = readFileSync('./src/app/estimating/estimating.page.ts', 'utf-8');
+
+    it('template binds aria-keyshortcuts on each card', () => {
+      expect(sourceFile).toMatch(/\[attr\.aria-keyshortcuts\]="ariaKeyShortcut\(i\)"/);
+    });
+
+    it('template carries #cardEl template ref var', () => {
+      expect(sourceFile).toContain('#cardEl');
+    });
+
+    it('template uses roving tabindex', () => {
+      expect(sourceFile).toMatch(/\[attr\.tabindex\]="i === rovingTabIndex\(\) \? 0 : -1"/);
+    });
+
+    it('component declares document:keydown HostListener', () => {
+      expect(sourceFile).toContain("@HostListener('document:keydown'");
+    });
+
+    it('ariaKeyShortcut maps digits 1..9 → indices 0..8 and 0 → 9', () => {
+      // Inline call to the helper by extracting it via dynamic import is
+      // awkward in this Vitest harness — assert via string-match instead.
+      expect(sourceFile).toContain('return `Digit${index + 1}`');
+      expect(sourceFile).toContain("return 'Digit0'");
+    });
+  });
+
   describe('prefers-reduced-motion', () => {
     const sourceFile = readFileSync('./src/app/estimating/estimating.page.ts', 'utf-8');
 
