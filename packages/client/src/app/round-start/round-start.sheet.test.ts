@@ -118,7 +118,7 @@ describe('buildRoundStartTicketId — normal submission', () => {
   });
 });
 
-describe('RoundStartSheetComponent.submit()', () => {
+describe('RoundStartSheetComponent.submit() — field emission', () => {
   it('emits both fields when title and ticketId are set', async () => {
     const { internals, submitted } = await mount();
     internals.titleControl.setValue('Auth migration');
@@ -154,7 +154,9 @@ describe('RoundStartSheetComponent.submit()', () => {
       expect.objectContaining({ title: null, ticketId: 'PROJ-99' }),
     );
   });
+});
 
+describe('RoundStartSheetComponent.submit() — trimming and guard', () => {
   it('trims whitespace from both fields', async () => {
     const { internals, submitted } = await mount();
     internals.titleControl.setValue('  trimmed  ');
@@ -185,7 +187,7 @@ describe('RoundStartSheetComponent.submit()', () => {
   });
 });
 
-describe('RoundStartSheetComponent.ngOnInit() — prefill from agenda item', () => {
+describe('RoundStartSheetComponent.ngOnInit() — prefill present', () => {
   it('pre-fills all fields when prefillAgendaItem is set', async () => {
     const { RoundStartSheetComponent } = await import('./round-start.sheet');
     const fixture = TestBed.createComponent(RoundStartSheetComponent);
@@ -218,7 +220,9 @@ describe('RoundStartSheetComponent.ngOnInit() — prefill from agenda item', () 
     const internals = fixture.componentInstance as unknown as SheetInternals;
     expect(internals.titleControl.value).toBe('');
   });
+});
 
+describe('RoundStartSheetComponent.ngOnInit() — prefill absent fields', () => {
   it('uses empty string when agenda item title is absent', async () => {
     const { RoundStartSheetComponent } = await import('./round-start.sheet');
     const fixture = TestBed.createComponent(RoundStartSheetComponent);
