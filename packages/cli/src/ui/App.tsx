@@ -3,7 +3,7 @@ import { Box, Text, useApp, useInput } from 'ink';
 import type { SessionHandle } from '../session.js';
 import type { SyncStatus } from '../sync.js';
 import type { DocProjection, Round, Scale, PresetOverrides, CustomScale } from '@hnch/shared';
-import { currentRound, participantRole, terminalState } from '@hnch/shared';
+import { appendAgendaItem, currentRound, participantRole, terminalState } from '@hnch/shared';
 import clipboard from 'clipboardy';
 import { shareCode, shareUrl, shareNpxCommand } from '../share.js';
 import { buildNewRoundArgs, normalizeRoundPromptValue } from './round-prompt-flow.js';
@@ -59,6 +59,11 @@ export function App({
   const [descriptorPromptActive, setDescriptorPromptActive] = useState(false);
   const [descriptorInput, setDescriptorInput] = useState('');
   const [editingRoundId, setEditingRoundId] = useState<string | null>(null);
+  const [agendaAddPromptActive, setAgendaAddPromptActive] = useState(false);
+  const [agendaAddTitleInput, setAgendaAddTitleInput] = useState('');
+  const [agendaAddTicketIdPromptActive, setAgendaAddTicketIdPromptActive] = useState(false);
+  const [agendaAddTicketIdInput, setAgendaAddTicketIdInput] = useState('');
+  const [pendingAgendaTitle, setPendingAgendaTitle] = useState<string | undefined>();
   const hostNotice = useTransientNotice(3000);
   const [shareOpen, setShareOpen] = useState(false);
   const shareNotice = useTransientNotice(3000);
@@ -114,7 +119,9 @@ export function App({
         !roundTitlePromptActive &&
         !roundTicketIdPromptActive &&
         !descriptorPromptActive &&
-        !shareOpen,
+        !shareOpen &&
+        !agendaAddPromptActive &&
+        !agendaAddTicketIdPromptActive,
     },
   );
 
@@ -315,6 +322,55 @@ export function App({
     [projection, exportNotice.show],
   );
 
+  // Agenda-add two-step prompt flow (title → ticketId)
+  const handleAgendaAddStart = useCallback(() => {
+    setAgendaAddTitleInput('');
+    setAgendaAddPromptActive(true);
+  }, []);
+
+  const handleAgendaAddTitleSubmit = useCallback((title: string) => {
+    setAgendaAddPromptActive(false);
+    setAgendaAddTitleInput('');
+    const normalized = title.trim() === '' ? undefined : title.trim();
+    setPendingAgendaTitle(normalized);
+    setAgendaAddTicketIdInput('');
+    setAgendaAddTicketIdPromptActive(true);
+  }, []);
+
+  const handleAgendaAddTitleCancel = useCallback(() => {
+    setAgendaAddPromptActive(false);
+    setAgendaAddTitleInput('');
+    setPendingAgendaTitle(undefined);
+  }, []);
+
+  const handleAgendaAddTicketIdSubmit = useCallback(
+    (ticketId: string) => {
+      setAgendaAddTicketIdPromptActive(false);
+      setAgendaAddTicketIdInput('');
+      const normalizedTicket = ticketId.trim() === '' ? undefined : ticketId.trim();
+
+      if (!pendingAgendaTitle && !normalizedTicket) {
+        // Both empty — silently abort
+        setPendingAgendaTitle(undefined);
+        return;
+      }
+
+      appendAgendaItem(session.doc, {
+        ...(pendingAgendaTitle !== undefined && { title: pendingAgendaTitle }),
+        ...(normalizedTicket !== undefined && { ticketId: normalizedTicket }),
+        createdAt: Date.now(),
+      });
+      setPendingAgendaTitle(undefined);
+    },
+    [session.doc, pendingAgendaTitle],
+  );
+
+  const handleAgendaAddTicketIdCancel = useCallback(() => {
+    setAgendaAddTicketIdPromptActive(false);
+    setAgendaAddTicketIdInput('');
+    setPendingAgendaTitle(undefined);
+  }, []);
+
   return (
     <Box flexDirection="column">
       <StatusBar
@@ -401,6 +457,17 @@ export function App({
           onEditDescriptor={handleEditDescriptor}
           canExport={canExport}
           onExportResults={handleExportResults}
+          onAgendaAdd={handleAgendaAddStart}
+          agendaAddPromptActive={agendaAddPromptActive}
+          agendaAddTitleInput={agendaAddTitleInput}
+          onAgendaAddTitleChange={setAgendaAddTitleInput}
+          onAgendaAddTitleSubmit={handleAgendaAddTitleSubmit}
+          onAgendaAddTitleCancel={handleAgendaAddTitleCancel}
+          agendaAddTicketIdPromptActive={agendaAddTicketIdPromptActive}
+          agendaAddTicketIdInput={agendaAddTicketIdInput}
+          onAgendaAddTicketIdChange={setAgendaAddTicketIdInput}
+          onAgendaAddTicketIdSubmit={handleAgendaAddTicketIdSubmit}
+          onAgendaAddTicketIdCancel={handleAgendaAddTicketIdCancel}
         />
       ) : screen === 'voting' && round ? (
         <Voting
