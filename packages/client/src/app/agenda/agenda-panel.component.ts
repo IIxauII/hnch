@@ -29,7 +29,7 @@ import {
   createOutline,
   ellipsisHorizontalOutline,
   pencilOutline,
-  skipForwardOutline,
+  playSkipForwardOutline,
 } from 'ionicons/icons';
 
 import { SurfaceService } from '../core/surface.service';
@@ -152,7 +152,7 @@ import { SurfaceService } from '../core/surface.service';
                       <ion-icon name="checkmark-circle-outline" class="state-icon state-icon--consumed" aria-hidden="true" />
                     }
                     @case ('skipped') {
-                      <ion-icon name="skip-forward-outline" class="state-icon state-icon--skipped" aria-hidden="true" />
+                      <ion-icon name="play-skip-forward-outline" class="state-icon state-icon--skipped" aria-hidden="true" />
                     }
                     @case ('cancelled') {
                       <ion-icon name="ban-outline" class="state-icon state-icon--cancelled" aria-hidden="true" />
@@ -206,7 +206,7 @@ import { SurfaceService } from '../core/surface.service';
                       (click)="skipRequested.emit(item.id)"
                       [attr.aria-label]="'Skip ' + itemDisplayTitle(item)"
                     >
-                      <ion-icon name="skip-forward-outline" slot="icon-only" aria-hidden="true" />
+                      <ion-icon name="play-skip-forward-outline" slot="icon-only" aria-hidden="true" />
                     </ion-button>
                     <ion-button
                       fill="clear"
@@ -456,7 +456,7 @@ export class AgendaPanelComponent {
       'create-outline': createOutline,
       'ellipsis-horizontal-outline': ellipsisHorizontalOutline,
       'pencil-outline': pencilOutline,
-      'skip-forward-outline': skipForwardOutline,
+      'skip-forward-outline': playSkipForwardOutline,
     });
   }
 }
