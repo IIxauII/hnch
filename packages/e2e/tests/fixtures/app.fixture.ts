@@ -449,34 +449,52 @@ export class Participant {
     ticketId?: string;
     description?: string;
   }): Promise<void> {
-    // Find the add button — in expanded panel (aria-label="Add agenda item")
-    const addBtn = this.page.locator('app-agenda-panel ion-button[aria-label="Add agenda item"]');
-    await addBtn.waitFor({ state: 'visible' });
+    // Wait for lobby host status established (isHost() = true required for add button).
+    // Start Round button is the reliable proxy — it only shows for the host.
+    const startBtn = this.page
+      .locator('app-lobby:not(.ion-page-hidden) ion-button')
+      .filter({ hasText: LOBBY.startRoundBtn });
+    await startBtn.waitFor({ state: 'visible', timeout: 10_000 });
+
+    // Find the add button in the expanded agenda panel header.
+    // getByRole pierces Ionic web component shadow DOM; searches by accessible name
+    // derived from aria-label on the ion-button host element.
+    const panel = this.page.locator('app-agenda-panel section.agenda-panel');
+    await panel.waitFor({ state: 'visible' });
+    const addBtn = panel.getByRole('button', { name: 'Add agenda item' });
+    await addBtn.waitFor({ state: 'visible', timeout: 10_000 });
     await addBtn.evaluate((el: HTMLElement) => el.click());
 
-    const sheet = this.page.locator('app-agenda-item-form-sheet');
-    await sheet.waitFor({ state: 'visible' });
+    // Wait for the form sheet dialog to appear (Ionic modal opens asynchronously).
+    // Use the dialog title text as a reliable signal that the sheet is ready.
+    const sheetTitle = this.page.locator('app-agenda-item-form-sheet ion-title');
+    await sheetTitle.waitFor({ state: 'visible', timeout: 10_000 });
 
     if (input.title !== undefined) {
-      await sheet.locator('ion-input[aria-label="Story title"]').locator('input').fill(input.title);
+      const titleInput = this.page.getByRole('textbox', { name: 'Story title' });
+      await titleInput.waitFor({ state: 'visible', timeout: 5_000 });
+      await titleInput.fill(input.title);
     }
     if (input.ticketId !== undefined) {
-      await sheet
-        .locator('ion-input[aria-label="Issue tracker ticket ID"]')
-        .locator('input')
-        .fill(input.ticketId);
+      const ticketInput = this.page.getByRole('textbox', { name: 'Issue tracker ticket ID' });
+      await ticketInput.waitFor({ state: 'visible', timeout: 5_000 });
+      await ticketInput.fill(input.ticketId);
     }
     if (input.description !== undefined) {
-      await sheet
-        .locator('ion-textarea[aria-label="Story description"]')
-        .locator('textarea')
-        .fill(input.description);
+      const descInput = this.page.getByRole('textbox', { name: 'Story description' });
+      await descInput.waitFor({ state: 'visible', timeout: 5_000 });
+      await descInput.fill(input.description);
     }
 
-    const submitBtn = sheet.locator('ion-button[aria-label="Add agenda item"]');
-    await submitBtn.waitFor({ state: 'visible' });
+    // Submit via the "Add" button in the sheet footer.
+    // Aria label: "Add agenda item" (matches mode='add').
+    const submitBtn = this.page.locator('app-agenda-item-form-sheet').getByRole('button', {
+      name: /^(Add|Save) agenda item$/u,
+    });
+    await submitBtn.waitFor({ state: 'visible', timeout: 5_000 });
     await submitBtn.evaluate((el: HTMLElement) => el.click());
-    await sheet.waitFor({ state: 'hidden' });
+    // Wait for sheet to close — the ion-title disappears when modal dismisses.
+    await sheetTitle.waitFor({ state: 'hidden', timeout: 5_000 });
   }
 
   /**
@@ -520,37 +538,35 @@ export class Participant {
   ): Promise<void> {
     const list = this.page.locator('app-agenda-panel ion-list.agenda-list');
     const item = list.locator('ion-item.agenda-item').nth(index);
-    const editBtn = item.locator('ion-button[aria-label*="Edit"]');
+    const editBtn = item.getByRole('button', { name: /^Edit /u });
     await editBtn.waitFor({ state: 'visible' });
     await editBtn.evaluate((el: HTMLElement) => el.click());
 
-    const sheet = this.page.locator('app-agenda-item-form-sheet');
-    await sheet.waitFor({ state: 'visible' });
+    const sheetTitle = this.page.locator('app-agenda-item-form-sheet ion-title');
+    await sheetTitle.waitFor({ state: 'visible', timeout: 10_000 });
 
     if (patch.title !== undefined) {
-      const input = sheet.locator('ion-input[aria-label="Story title"]').locator('input');
+      const input = this.page.getByRole('textbox', { name: 'Story title' });
       await input.clear();
       await input.fill(patch.title);
     }
     if (patch.ticketId !== undefined) {
-      const input = sheet
-        .locator('ion-input[aria-label="Issue tracker ticket ID"]')
-        .locator('input');
+      const input = this.page.getByRole('textbox', { name: 'Issue tracker ticket ID' });
       await input.clear();
       await input.fill(patch.ticketId);
     }
     if (patch.description !== undefined) {
-      const textarea = sheet
-        .locator('ion-textarea[aria-label="Story description"]')
-        .locator('textarea');
+      const textarea = this.page.getByRole('textbox', { name: 'Story description' });
       await textarea.clear();
       await textarea.fill(patch.description);
     }
 
-    const saveBtn = sheet.locator('ion-button[aria-label="Save agenda item"]');
-    await saveBtn.waitFor({ state: 'visible' });
+    const saveBtn = this.page.locator('app-agenda-item-form-sheet').getByRole('button', {
+      name: /^(Add|Save) agenda item$/u,
+    });
+    await saveBtn.waitFor({ state: 'visible', timeout: 5_000 });
     await saveBtn.evaluate((el: HTMLElement) => el.click());
-    await sheet.waitFor({ state: 'hidden' });
+    await sheetTitle.waitFor({ state: 'hidden', timeout: 5_000 });
   }
 
   /**
@@ -561,15 +577,8 @@ export class Participant {
   async cancelAgendaItem(index: number): Promise<void> {
     const list = this.page.locator('app-agenda-panel ion-list.agenda-list');
     const item = list.locator('ion-item.agenda-item').nth(index);
-    const label = await item
-      .locator('span.item-title')
-      .textContent()
-      .catch(() => 'item');
-    const cancelBtn = item.locator(`ion-button[aria-label="Cancel ${label?.trim() ?? 'item'}"]`);
-    // Fallback: any danger ban button in this item
-    const btn = (await cancelBtn.isVisible().catch(() => false))
-      ? cancelBtn
-      : item.locator('ion-button[color="danger"]');
+    // getByRole pierces ion-button shadow DOM; aria-label "Cancel {title}" exposed via host attr.
+    const btn = item.getByRole('button', { name: /^Cancel /u });
     await btn.waitFor({ state: 'visible' });
     await btn.evaluate((el: HTMLElement) => el.click());
   }
@@ -581,14 +590,8 @@ export class Participant {
   async skipAgendaItem(index: number): Promise<void> {
     const list = this.page.locator('app-agenda-panel ion-list.agenda-list');
     const item = list.locator('ion-item.agenda-item').nth(index);
-    const label = await item
-      .locator('span.item-title')
-      .textContent()
-      .catch(() => 'item');
-    const skipBtn = item.locator(`ion-button[aria-label="Skip ${label?.trim() ?? 'item'}"]`);
-    const btn = (await skipBtn.isVisible().catch(() => false))
-      ? skipBtn
-      : item.locator('ion-button[aria-label*="Skip"]');
+    // getByRole pierces ion-button shadow DOM; aria-label "Skip {title}" exposed via host attr.
+    const btn = item.getByRole('button', { name: /^Skip /u });
     await btn.waitFor({ state: 'visible' });
     await btn.evaluate((el: HTMLElement) => el.click());
   }
@@ -600,13 +603,8 @@ export class Participant {
   async reorderAgendaItem(index: number, dir: 'up' | 'down'): Promise<void> {
     const list = this.page.locator('app-agenda-panel ion-list.agenda-list');
     const item = list.locator('ion-item.agenda-item').nth(index);
-    const label = await item
-      .locator('span.item-title')
-      .textContent()
-      .catch(() => 'item');
-    const ariaName =
-      dir === 'up' ? `Move ${label?.trim() ?? 'item'} up` : `Move ${label?.trim() ?? 'item'} down`;
-    const btn = item.locator(`ion-button[aria-label="${ariaName}"]`);
+    const pattern = dir === 'up' ? /^Move .+ up$/u : /^Move .+ down$/u;
+    const btn = item.getByRole('button', { name: pattern });
     await btn.waitFor({ state: 'visible' });
     await btn.evaluate((el: HTMLElement) => el.click());
   }
