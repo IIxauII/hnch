@@ -1,3 +1,10 @@
+# [1.7.0](https://github.com/IIxauII/hnch/compare/shared-v1.6.0...shared-v1.7.0) (2026-05-17)
+
+
+### Features
+
+* **relay,shared:** extend /health with operational metrics ([#233](https://github.com/IIxauII/hnch/issues/233)) ([567f679](https://github.com/IIxauII/hnch/commit/567f67934a0a02f7a906b915a5facd37417e85f6))
+
 # [1.6.0](https://github.com/IIxauII/hnch/compare/shared-v1.5.0...shared-v1.6.0) (2026-05-16)
 
 
