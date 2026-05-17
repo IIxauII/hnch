@@ -193,6 +193,31 @@ import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.he
         </ion-item>
       </ion-list>
 
+      <!-- Keyboard shortcuts (issue #154) -->
+      <ion-list-header>
+        <ion-label>Keyboard shortcuts</ion-label>
+      </ion-list-header>
+      <ion-list lines="inset">
+        <ion-item>
+          <ion-label>
+            <h3>1 – 9, 0</h3>
+            <p>Cards 1 – 10 (digit re-press clears)</p>
+          </ion-label>
+        </ion-item>
+        <ion-item>
+          <ion-label>
+            <h3>← / →</h3>
+            <p>Move focus between cards</p>
+          </ion-label>
+        </ion-item>
+        <ion-item>
+          <ion-label>
+            <h3>Enter / Space</h3>
+            <p>Cast or clear vote on focused card</p>
+          </ion-label>
+        </ion-item>
+      </ion-list>
+
       <!-- About -->
       <ion-list-header>
         <ion-label>About</ion-label>
