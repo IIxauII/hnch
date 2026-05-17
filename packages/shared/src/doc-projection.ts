@@ -23,7 +23,16 @@
 
 import * as Y from 'yjs';
 
-import type { Meta, Participant, Round, Scale, Settings } from './doc.js';
+import type {
+  AgendaItem,
+  AgendaItemState,
+  Meta,
+  Participant,
+  Round,
+  Scale,
+  Settings,
+} from './doc.js';
+import { keyBetween } from './fractional-index.js';
 
 // ---------------------------------------------------------------------------
 // Snapshot shape
@@ -47,6 +56,12 @@ export interface DocProjection {
   readonly settings: Settings;
   readonly participants: readonly ParticipantSnapshot[];
   readonly rounds: readonly Round[];
+  /**
+   * Pre-session agenda items, sorted by `sortKey` (ascending lex order).
+   * All states included — callers filter by state as needed.
+   * See ADR-0042.
+   */
+  readonly agenda: readonly AgendaItem[];
 }
 
 // ---------------------------------------------------------------------------
@@ -61,10 +76,25 @@ export const DOC_META_KEY = 'meta';
 export const DOC_SETTINGS_KEY = 'settings';
 export const DOC_PARTICIPANTS_KEY = 'participants';
 export const DOC_ROUNDS_KEY = 'rounds';
+export const DOC_AGENDA_KEY = 'agenda';
 
 const META_FIELDS = ['roomUuid', 'createdAt', 'createdBy', 'sessionEndedAt'] as const;
 const SETTINGS_FIELDS = ['name', 'defaultScale', 'hostParticipantId'] as const;
 const PARTICIPANT_FIELDS = ['displayName', 'joinedAt', 'role', 'leftAt', 'removedBy'] as const;
+const AGENDA_ITEM_FIELDS = [
+  'id',
+  'title',
+  'description',
+  'ticketId',
+  'state',
+  'source',
+  'externalId',
+  'sortKey',
+  'createdAt',
+  'consumedAt',
+  'consumedByRoundId',
+] as const;
+
 const ROUND_FIELDS = [
   'id',
   'title',
@@ -77,6 +107,7 @@ const ROUND_FIELDS = [
   'skippedAt',
   'createdBy',
   'createdAt',
+  'agendaItemId',
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -105,6 +136,10 @@ function participantsMap(doc: Y.Doc): Y.Map<UnknownMap> {
 
 function roundsArray(doc: Y.Doc): RoundsArray {
   return doc.getArray(DOC_ROUNDS_KEY) as RoundsArray;
+}
+
+export function agendaArray(doc: Y.Doc): RoundsArray {
+  return doc.getArray(DOC_AGENDA_KEY) as RoundsArray;
 }
 
 // ---------------------------------------------------------------------------
@@ -167,6 +202,21 @@ function projectRounds(doc: Y.Doc): readonly Round[] {
   return out;
 }
 
+function projectAgendaItem(itemMap: UnknownMap): AgendaItem {
+  return projectFields<AgendaItem>(itemMap, AGENDA_ITEM_FIELDS);
+}
+
+function projectAgenda(doc: Y.Doc): readonly AgendaItem[] {
+  const arr = agendaArray(doc);
+  const out: AgendaItem[] = [];
+  arr.forEach((itemMap) => {
+    out.push(projectAgendaItem(itemMap));
+  });
+  // Sort by sortKey ascending (lex order).
+  out.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+  return out;
+}
+
 /**
  * Build a plain-JS immutable snapshot of the doc. Cheap enough to call
  * on every Yjs event at Phase 2 scale (<10 participants, <50 rounds);
@@ -178,6 +228,7 @@ export function projectDoc(doc: Y.Doc): DocProjection {
     settings: projectSettings(doc),
     participants: projectParticipants(doc),
     rounds: projectRounds(doc),
+    agenda: projectAgenda(doc),
   };
 }
 
@@ -328,6 +379,11 @@ export interface AppendRoundInit {
   readonly parentRoundId?: string;
   /** Override the inherited scale. Rare; usually omitted. */
   readonly scale?: Scale;
+  /**
+   * ID of the agenda item this round was started from (ADR-0042).
+   * On re-vote, callers pass the parent round's `agendaItemId` unchanged.
+   */
+  readonly agendaItemId?: string;
 }
 
 export function appendRound(doc: Y.Doc, init: AppendRoundInit): string {
@@ -347,6 +403,9 @@ export function appendRound(doc: Y.Doc, init: AppendRoundInit): string {
     if (init.ticketId !== undefined) round.set('ticketId', init.ticketId);
     if (init.parentRoundId !== undefined) {
       round.set('parentRoundId', init.parentRoundId);
+    }
+    if (init.agendaItemId !== undefined) {
+      round.set('agendaItemId', init.agendaItemId);
     }
     round.set('timerStartedAt', init.createdAt);
     round.set('votes', new Y.Map<string>());
@@ -535,4 +594,243 @@ export function isConsensus(round: Round): boolean {
   const values = Object.values(round.votes);
   if (values.length < 2) return false;
   return values.every((v) => v === values[0]);
+}
+
+// ---------------------------------------------------------------------------
+// Agenda mutations (ADR-0042)
+// ---------------------------------------------------------------------------
+
+/**
+ * Find an agenda item's Y.Map by id. Returns undefined when not found.
+ */
+function findAgendaItemMap(doc: Y.Doc, id: string): UnknownMap | undefined {
+  const arr = agendaArray(doc);
+  for (let i = 0; i < arr.length; i++) {
+    const m = arr.get(i);
+    if (m.get('id') === id) return m;
+  }
+  return undefined;
+}
+
+/**
+ * Init options for a new agenda item.
+ */
+export interface AppendAgendaItemInit {
+  /** Story title. At least one of `{title, ticketId}` required. */
+  readonly title?: string;
+  /** Story description. */
+  readonly description?: string;
+  /** Issue tracker reference. At least one of `{title, ticketId}` required. */
+  readonly ticketId?: string;
+  /** Import source. Defaults to `'manual'`. */
+  readonly source?: string;
+  /** External system identifier for future importers. */
+  readonly externalId?: string;
+  /** Unix milliseconds when the item was created. */
+  readonly createdAt: number;
+}
+
+/**
+ * Append a new agenda item to the doc. Validates that at least one of
+ * `{title, ticketId}` is non-empty. Generates a UUID, assigns a `sortKey`
+ * after the last pending item, sets state to `'pending'` and source to
+ * `'manual'` (unless overridden). Returns the new item's id.
+ */
+export function appendAgendaItem(doc: Y.Doc, init: AppendAgendaItemInit): string {
+  if (!init.title?.trim() && !init.ticketId?.trim()) {
+    throw new Error('appendAgendaItem: at least one of {title, ticketId} is required');
+  }
+
+  const id = crypto.randomUUID();
+
+  // Find the sortKey of the last pending item.
+  const arr = agendaArray(doc);
+  let lastPendingSortKey: string | null = null;
+  arr.forEach((m) => {
+    if (m.get('state') === 'pending') {
+      const sk = m.get('sortKey') as string | undefined;
+      if (sk !== undefined) {
+        if (lastPendingSortKey === null || sk > lastPendingSortKey) {
+          lastPendingSortKey = sk;
+        }
+      }
+    }
+  });
+
+  const sortKey = keyBetween(lastPendingSortKey, null);
+
+  doc.transact(() => {
+    const item = new Y.Map<unknown>();
+    item.set('id', id);
+    item.set('state', 'pending');
+    item.set('source', init.source ?? 'manual');
+    item.set('sortKey', sortKey);
+    item.set('createdAt', init.createdAt);
+    if (init.title !== undefined) item.set('title', init.title);
+    if (init.description !== undefined) item.set('description', init.description);
+    if (init.ticketId !== undefined) item.set('ticketId', init.ticketId);
+    if (init.externalId !== undefined) item.set('externalId', init.externalId);
+    agendaArray(doc).push([item]);
+  });
+
+  return id;
+}
+
+/**
+ * Patch fields on an existing agenda item. Only `title`, `ticketId`, and
+ * `description` are mutable. Rejected when:
+ * - Item is not found.
+ * - Item state is `'skipped'` or `'cancelled'` (frozen).
+ * - The patch would leave both `title` and `ticketId` empty.
+ */
+export interface UpdateAgendaItemFieldsInit {
+  readonly title?: string;
+  readonly ticketId?: string;
+  readonly description?: string;
+}
+
+export function updateAgendaItemFields(
+  doc: Y.Doc,
+  id: string,
+  patch: UpdateAgendaItemFieldsInit,
+): void {
+  const item = findAgendaItemMap(doc, id);
+  if (!item) throw new Error(`updateAgendaItemFields: item ${id} not found`);
+
+  const state = item.get('state') as string;
+  if (state === 'skipped' || state === 'cancelled') {
+    throw new Error(`updateAgendaItemFields: item ${id} is ${state} and cannot be edited`);
+  }
+
+  // Compute resulting title/ticketId after patch.
+  const newTitle =
+    patch.title !== undefined ? patch.title : (item.get('title') as string | undefined);
+  const newTicketId =
+    patch.ticketId !== undefined ? patch.ticketId : (item.get('ticketId') as string | undefined);
+
+  if (!newTitle?.trim() && !newTicketId?.trim()) {
+    throw new Error(
+      'updateAgendaItemFields: at least one of {title, ticketId} must remain non-empty',
+    );
+  }
+
+  doc.transact(() => {
+    if (patch.title !== undefined) item.set('title', patch.title);
+    if (patch.ticketId !== undefined) item.set('ticketId', patch.ticketId);
+    if (patch.description !== undefined) item.set('description', patch.description);
+  });
+}
+
+/**
+ * Options for `setAgendaItemState`.
+ */
+export interface SetAgendaItemStateOpts {
+  readonly consumedByRoundId?: string;
+  readonly timestamp?: number;
+}
+
+/**
+ * Transition an agenda item to a new state.
+ *
+ * Valid transitions (at the writer):
+ * - `pending`  → `consumed` | `skipped` | `cancelled`
+ * - `consumed` → `consumed` (idempotent)
+ * - All other transitions are rejected.
+ *
+ * When transitioning to `consumed`, writes `consumedAt` (from `opts.timestamp`
+ * or `Date.now()`) and `consumedByRoundId` (when provided).
+ */
+export function setAgendaItemState(
+  doc: Y.Doc,
+  id: string,
+  state: AgendaItemState,
+  opts: SetAgendaItemStateOpts = {},
+): void {
+  const item = findAgendaItemMap(doc, id);
+  if (!item) throw new Error(`setAgendaItemState: item ${id} not found`);
+
+  const current = item.get('state') as string;
+
+  // Validate transition.
+  if (current === state && state === 'consumed') {
+    // Idempotent — already consumed.
+    return;
+  }
+
+  if (current !== 'pending') {
+    throw new Error(
+      `setAgendaItemState: invalid transition '${current}' → '${state}' for item ${id}`,
+    );
+  }
+
+  doc.transact(() => {
+    item.set('state', state);
+    if (state === 'consumed') {
+      item.set('consumedAt', opts.timestamp ?? Date.now());
+      if (opts.consumedByRoundId !== undefined) {
+        item.set('consumedByRoundId', opts.consumedByRoundId);
+      }
+    }
+  });
+}
+
+/**
+ * Convenience wrapper: mark an agenda item as consumed by a specific round.
+ */
+export function consumeAgendaItem(
+  doc: Y.Doc,
+  id: string,
+  roundId: string,
+  timestamp: number,
+): void {
+  setAgendaItemState(doc, id, 'consumed', { consumedByRoundId: roundId, timestamp });
+}
+
+/**
+ * Reorder a pending agenda item by rewriting its `sortKey`.
+ *
+ * `before` = sortKey of the item that should come before the reordered item
+ * (or `null` / `undefined` if the item should become the first).
+ * `after`  = sortKey of the item that should come after the reordered item
+ * (or `null` / `undefined` if the item should become the last).
+ *
+ * Throws if the item is not found or not in `pending` state.
+ */
+export function reorderAgendaItem(
+  doc: Y.Doc,
+  id: string,
+  before?: string | null,
+  after?: string | null,
+): void {
+  const item = findAgendaItemMap(doc, id);
+  if (!item) throw new Error(`reorderAgendaItem: item ${id} not found`);
+
+  const state = item.get('state') as string;
+  if (state !== 'pending') {
+    throw new Error(
+      `reorderAgendaItem: item ${id} is ${state}; only pending items may be reordered`,
+    );
+  }
+
+  const newSortKey = keyBetween(before ?? null, after ?? null);
+
+  doc.transact(() => {
+    item.set('sortKey', newSortKey);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Agenda selectors (derived state)
+// ---------------------------------------------------------------------------
+
+/**
+ * Return the first `pending` item in the sorted agenda projection, or `null`
+ * if there are no pending items. Used by callers to determine what to pre-fill
+ * in the "Next Round" flow.
+ */
+export function nextPendingAgendaItem(projection: DocProjection): AgendaItem | null {
+  for (const item of projection.agenda) {
+    if (item.state === 'pending') return item;
+  }
+  return null;
 }
