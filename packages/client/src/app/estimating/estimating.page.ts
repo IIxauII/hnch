@@ -382,11 +382,17 @@ export class EstimatingPage {
 
     // Clear the transient keyboard focus cursor when the round changes
     // (issue #154) — otherwise a stale index from a previous scale leaks
-    // into the new round's grid.
+    // into the new round's grid. Only reacts to id transitions: a bare
+    // `currentRound()` read inside an effect would re-fire on every Yjs
+    // awareness update (new projection ref, same id) and wipe the focus
+    // cursor mid-arrow-nav.
+    let lastRoundId: string | undefined;
     effect(() => {
       const roundId = this.docService.currentRound()?.id;
-      void roundId;
-      this.focusedIndex.set(undefined);
+      if (roundId !== lastRoundId) {
+        lastRoundId = roundId;
+        this.focusedIndex.set(undefined);
+      }
     });
 
     // Unanimous auto-reveal: when all online voters have voted,
@@ -569,8 +575,14 @@ export class EstimatingPage {
     if (!gateOk || !round || !id) return;
 
     const active = document.activeElement;
-    const activeElementIsCard =
-      !!active && this.cardEls?.some((ref) => ref.nativeElement === active);
+    const cardRefs = this.cardEls?.toArray() ?? [];
+    const domFocusedIndex = active ? cardRefs.findIndex((ref) => ref.nativeElement === active) : -1;
+    const activeElementIsCard = domFocusedIndex >= 0;
+    // Honour an already-DOM-focused card when the in-component cursor
+    // is undefined — otherwise ArrowRight from a Tab-focused card would
+    // jump back to index 0 instead of moving forward by one.
+    const effectiveFocus =
+      this.focusedIndex() ?? (activeElementIsCard ? domFocusedIndex : undefined);
 
     const action = resolveKeyboardCardAction(
       {
@@ -582,7 +594,7 @@ export class EstimatingPage {
       },
       round.scale.cards,
       this.myVote() ?? undefined,
-      this.focusedIndex(),
+      effectiveFocus,
       activeElementIsCard,
     );
 

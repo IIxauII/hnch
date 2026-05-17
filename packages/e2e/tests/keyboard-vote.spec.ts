@@ -59,7 +59,7 @@ test.describe('Keyboard shortcuts on Estimating', () => {
     await player.waitForEstimating();
     await nonVoter.waitForEstimating();
 
-    // Focus the first card directly to seed the roving tabindex anchor.
+    // Focus the first card to seed the roving tabindex anchor.
     await host.page.locator(ESTIMATING.card('0')).first().focus();
 
     // ArrowRight × 3 → focus index 3 → Fibonacci '3'.
@@ -87,9 +87,11 @@ test.describe('Keyboard shortcuts on Estimating', () => {
     await nonVoter.waitForEstimating();
 
     // Open the ⋯ menu (action-sheet on mobile, popover on desktop).
-    const ellipsis = host.page.locator(
-      'app-estimating:not(.ion-page-hidden) ion-button[aria-label="More options"]',
-    );
+    // The header's trailing button is the ellipsis trigger — locating by
+    // position matches the pattern used by existing flows like leaveSession.
+    const ellipsis = host.page
+      .locator('app-estimating:not(.ion-page-hidden) ion-header ion-button')
+      .last();
     await ellipsis.click();
     const overlay = host.page.locator('ion-action-sheet, ion-popover');
     await overlay.first().waitFor({ state: 'visible', timeout: 5_000 });
