@@ -18,6 +18,7 @@ vi.mock('@ionic/angular/standalone', async () => {
     'IonItem',
     'IonLabel',
     'IonNote',
+    'IonTextarea',
     'IonTitle',
     'IonToolbar',
   ]) {
@@ -122,27 +123,35 @@ describe('RoundStartSheetComponent.submit()', () => {
     internals.titleControl.setValue('Auth migration');
     internals.ticketIdControl.setValue('PROJ-42');
     internals.submit();
-    expect(submitted).toHaveBeenCalledWith({ title: 'Auth migration', ticketId: 'PROJ-42' });
+    expect(submitted).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Auth migration', ticketId: 'PROJ-42' }),
+    );
   });
 
   it('emits null for both fields when both are blank', async () => {
     const { internals, submitted } = await mount();
     internals.submit();
-    expect(submitted).toHaveBeenCalledWith({ title: null, ticketId: null });
+    expect(submitted).toHaveBeenCalledWith(
+      expect.objectContaining({ title: null, ticketId: null }),
+    );
   });
 
   it('emits null for ticketId when only title is set', async () => {
     const { internals, submitted } = await mount();
     internals.titleControl.setValue('Title only');
     internals.submit();
-    expect(submitted).toHaveBeenCalledWith({ title: 'Title only', ticketId: null });
+    expect(submitted).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Title only', ticketId: null }),
+    );
   });
 
   it('emits null for title when only ticketId is set', async () => {
     const { internals, submitted } = await mount();
     internals.ticketIdControl.setValue('PROJ-99');
     internals.submit();
-    expect(submitted).toHaveBeenCalledWith({ title: null, ticketId: 'PROJ-99' });
+    expect(submitted).toHaveBeenCalledWith(
+      expect.objectContaining({ title: null, ticketId: 'PROJ-99' }),
+    );
   });
 
   it('trims whitespace from both fields', async () => {
@@ -150,7 +159,9 @@ describe('RoundStartSheetComponent.submit()', () => {
     internals.titleControl.setValue('  trimmed  ');
     internals.ticketIdControl.setValue('  PROJ-7  ');
     internals.submit();
-    expect(submitted).toHaveBeenCalledWith({ title: 'trimmed', ticketId: 'PROJ-7' });
+    expect(submitted).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'trimmed', ticketId: 'PROJ-7' }),
+    );
   });
 
   it('whitespace-only inputs become null', async () => {
@@ -158,7 +169,9 @@ describe('RoundStartSheetComponent.submit()', () => {
     internals.titleControl.setValue('   ');
     internals.ticketIdControl.setValue('\t');
     internals.submit();
-    expect(submitted).toHaveBeenCalledWith({ title: null, ticketId: null });
+    expect(submitted).toHaveBeenCalledWith(
+      expect.objectContaining({ title: null, ticketId: null }),
+    );
   });
 
   it('latches isSubmitting after submit; second submit is a no-op', async () => {

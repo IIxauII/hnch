@@ -16,7 +16,6 @@ import {
   IonItem,
   IonLabel,
   IonList,
-  IonNote,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -48,7 +47,7 @@ import { SurfaceService } from '../core/surface.service';
  */
 @Component({
   selector: 'app-agenda-panel',
-  imports: [IonBadge, IonButton, IonChip, IonIcon, IonItem, IonLabel, IonList, IonNote],
+  imports: [IonBadge, IonButton, IonChip, IonIcon, IonItem, IonLabel, IonList],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (surface.mode() === 'mobile' && !expanded()) {
