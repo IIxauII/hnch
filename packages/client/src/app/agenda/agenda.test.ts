@@ -208,6 +208,102 @@ describe('AgendaItemFormSheetComponent', () => {
     expect(submitted).toHaveLength(1);
     expect((submitted[0] as { title: string }).title).toBe('My story');
   });
+
+  it('ngOnInit skips prefill when mode=edit and initialItem is null', async () => {
+    const { AgendaItemFormSheetComponent } = await import('./agenda-item-form.sheet');
+    const fixture = TestBed.createComponent(AgendaItemFormSheetComponent);
+    fixture.componentRef.setInput('mode', 'edit');
+    fixture.componentRef.setInput('initialItem', null);
+    fixture.componentInstance.ngOnInit();
+
+    const comp = fixture.componentInstance as unknown as FormAccess;
+    // Form should still be at defaults — no patchValue called
+    const val = comp.form.getRawValue();
+    expect(val.title).toBe('');
+    expect(val.ticketId).toBe('');
+    expect(val.description).toBe('');
+  });
+
+  it('submit emits null title when only ticketId is set', async () => {
+    const { AgendaItemFormSheetComponent } = await import('./agenda-item-form.sheet');
+    const fixture = TestBed.createComponent(AgendaItemFormSheetComponent);
+    fixture.componentRef.setInput('mode', 'add');
+    fixture.componentInstance.ngOnInit();
+
+    const comp = fixture.componentInstance as unknown as FormAccess;
+    const submitted: unknown[] = [];
+    fixture.componentInstance.submitted.subscribe((v) => submitted.push(v));
+
+    // Title empty, ticketId set — form valid because ticketId satisfies atLeastOneRequired
+    comp.form.controls.ticketId.setValue('PROJ-123');
+    fixture.componentInstance['submit']();
+
+    expect(submitted).toHaveLength(1);
+    const val = submitted[0] as { title: string | null; ticketId: string | null };
+    expect(val.title).toBeNull();
+    expect(val.ticketId).toBe('PROJ-123');
+  });
+
+  it('submit emits null for empty ticketId and non-null for non-empty description', async () => {
+    const { AgendaItemFormSheetComponent } = await import('./agenda-item-form.sheet');
+    const fixture = TestBed.createComponent(AgendaItemFormSheetComponent);
+    fixture.componentRef.setInput('mode', 'add');
+    fixture.componentInstance.ngOnInit();
+
+    const comp = fixture.componentInstance as unknown as FormAccess;
+    const submitted: unknown[] = [];
+    fixture.componentInstance.submitted.subscribe((v) => submitted.push(v));
+
+    comp.form.controls.title.setValue('Story');
+    comp.form.controls.description.setValue('  Some context  ');
+    fixture.componentInstance['submit']();
+
+    expect(submitted).toHaveLength(1);
+    const val = submitted[0] as {
+      title: string;
+      ticketId: string | null;
+      description: string | null;
+    };
+    expect(val.ticketId).toBeNull();
+    expect(val.description).toBe('Some context');
+  });
+
+  it('ngOnInit prefills when title/ticketId are absent on item', async () => {
+    const { AgendaItemFormSheetComponent } = await import('./agenda-item-form.sheet');
+    const fixture = TestBed.createComponent(AgendaItemFormSheetComponent);
+    // Item with no title/ticketId/description to hit the ?? '' branches
+    const item = makeAgendaItem({ id: 'item-2' });
+    fixture.componentRef.setInput('mode', 'edit');
+    fixture.componentRef.setInput('initialItem', item);
+    fixture.componentInstance.ngOnInit();
+
+    const comp = fixture.componentInstance as unknown as FormAccess;
+    const val = comp.form.getRawValue();
+    expect(val.title).toBe('');
+    expect(val.ticketId).toBe('');
+    expect(val.description).toBe('');
+  });
+
+  it('submit does nothing when isSubmitting is already true', async () => {
+    const { AgendaItemFormSheetComponent } = await import('./agenda-item-form.sheet');
+    const fixture = TestBed.createComponent(AgendaItemFormSheetComponent);
+    fixture.componentRef.setInput('mode', 'add');
+    fixture.componentInstance.ngOnInit();
+
+    const comp = fixture.componentInstance as unknown as FormAccess;
+    comp.form.controls.title.setValue('Story');
+
+    const submitted: unknown[] = [];
+    fixture.componentInstance.submitted.subscribe((v) => submitted.push(v));
+
+    // Latch submitting flag directly
+    (
+      fixture.componentInstance as unknown as { isSubmitting: { set: (v: boolean) => void } }
+    ).isSubmitting.set(true);
+    fixture.componentInstance['submit']();
+
+    expect(submitted).toHaveLength(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -217,9 +313,12 @@ describe('AgendaItemFormSheetComponent', () => {
 type PanelAccess = {
   visibleItems: () => AgendaItem[];
   nextItem: () => AgendaItem | null;
+  nextItemLabel: () => string;
   hasCancelled: () => boolean;
   showCancelled: { set: (v: boolean) => void };
   pendingCount: () => number;
+  pendingStartIndex: () => number;
+  pendingEndIndex: () => number;
 };
 
 async function mountPanel(items: AgendaItem[], isHost = false) {
@@ -308,6 +407,113 @@ describe('AgendaPanelComponent', () => {
     ];
     const comp = await mountPanel(items);
     expect(comp.pendingCount()).toBe(2);
+  });
+
+  it('pendingStartIndex returns -1 when no pending items are visible', async () => {
+    const items: AgendaItem[] = [
+      makeAgendaItem({ id: 'c1', sortKey: 'a0', title: 'Consumed', state: 'consumed' }),
+    ];
+    const comp = await mountPanel(items);
+    expect(comp.pendingStartIndex()).toBe(-1);
+  });
+
+  it('pendingEndIndex returns -1 when no pending items are visible', async () => {
+    const items: AgendaItem[] = [
+      makeAgendaItem({ id: 's1', sortKey: 'a0', title: 'Skipped', state: 'skipped' }),
+    ];
+    const comp = await mountPanel(items);
+    expect(comp.pendingEndIndex()).toBe(-1);
+  });
+
+  it('pendingStartIndex returns correct first-pending index', async () => {
+    const items: AgendaItem[] = [
+      makeAgendaItem({ id: 'c1', sortKey: 'a0', title: 'Consumed', state: 'consumed' }),
+      makeAgendaItem({ id: 'p1', sortKey: 'b0', title: 'Pending 1' }),
+      makeAgendaItem({ id: 'p2', sortKey: 'c0', title: 'Pending 2' }),
+    ];
+    const comp = await mountPanel(items);
+    expect(comp.pendingStartIndex()).toBe(1);
+  });
+
+  it('pendingEndIndex returns correct last-pending index', async () => {
+    const items: AgendaItem[] = [
+      makeAgendaItem({ id: 'p1', sortKey: 'a0', title: 'Pending 1' }),
+      makeAgendaItem({ id: 'p2', sortKey: 'b0', title: 'Pending 2' }),
+      makeAgendaItem({ id: 'c1', sortKey: 'c0', title: 'Consumed', state: 'consumed' }),
+    ];
+    const comp = await mountPanel(items);
+    expect(comp.pendingEndIndex()).toBe(1);
+  });
+
+  it('nextItemLabel returns empty string when no pending items', async () => {
+    const items: AgendaItem[] = [
+      makeAgendaItem({ id: 'c1', sortKey: 'a0', title: 'Consumed', state: 'consumed' }),
+    ];
+    const comp = await mountPanel(items);
+    expect(comp.nextItemLabel()).toBe('');
+  });
+
+  it('nextItemLabel falls back to ticketId when title is absent', async () => {
+    const items: AgendaItem[] = [makeAgendaItem({ id: 'p1', sortKey: 'a0', ticketId: 'PROJ-42' })];
+    const comp = await mountPanel(items);
+    expect(comp.nextItemLabel()).toBe('PROJ-42');
+  });
+
+  it('nextItemLabel returns empty string when item has no title or ticketId', async () => {
+    const items: AgendaItem[] = [makeAgendaItem({ id: 'p1', sortKey: 'a0' })];
+    const comp = await mountPanel(items);
+    expect(comp.nextItemLabel()).toBe('');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AgendaPanelComponent — itemDisplayTitle and itemAriaLabel branches
+// ---------------------------------------------------------------------------
+
+type PanelMethodAccess = {
+  itemDisplayTitle: (item: AgendaItem) => string;
+  itemAriaLabel: (item: AgendaItem) => string;
+};
+
+describe('AgendaPanelComponent — display helpers', () => {
+  async function mountPanelRaw(items: AgendaItem[]) {
+    const { AgendaPanelComponent } = await import('./agenda-panel.component');
+    const { SurfaceService } = await import('../core/surface.service');
+    TestBed.configureTestingModule({
+      providers: [{ provide: SurfaceService, useValue: new MockSurfaceService() }],
+    });
+    const fixture = TestBed.createComponent(AgendaPanelComponent);
+    fixture.componentRef.setInput('items', items);
+    fixture.componentRef.setInput('isHost', false);
+    fixture.detectChanges();
+    return fixture.componentInstance as unknown as PanelMethodAccess;
+  }
+
+  it('itemDisplayTitle returns ticketId when title absent', async () => {
+    const item = makeAgendaItem({ id: 'p1', sortKey: 'a0', ticketId: 'PROJ-1' });
+    const comp = await mountPanelRaw([item]);
+    expect(comp.itemDisplayTitle(item)).toBe('PROJ-1');
+  });
+
+  it('itemDisplayTitle returns (untitled) when both absent', async () => {
+    const item = makeAgendaItem({ id: 'p1', sortKey: 'a0' });
+    const comp = await mountPanelRaw([item]);
+    expect(comp.itemDisplayTitle(item)).toBe('(untitled)');
+  });
+
+  it('itemAriaLabel includes ticketId when both title and ticketId present', async () => {
+    const item = makeAgendaItem({ id: 'p1', sortKey: 'a0', title: 'Story', ticketId: 'PROJ-2' });
+    const comp = await mountPanelRaw([item]);
+    const label = comp.itemAriaLabel(item);
+    expect(label).toContain('PROJ-2');
+    expect(label).toContain('Story');
+  });
+
+  it('itemAriaLabel appends state for non-pending items', async () => {
+    const item = makeAgendaItem({ id: 'c1', sortKey: 'a0', title: 'Done', state: 'consumed' });
+    const comp = await mountPanelRaw([item]);
+    const label = comp.itemAriaLabel(item);
+    expect(label).toContain('consumed');
   });
 });
 
