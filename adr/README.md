@@ -59,7 +59,7 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0038](0038-biome-oxlint-lefthook-tooling.md) | Code-quality tooling — Biome (format) + Oxlint (lint) + lefthook (pre-commit) + ratcheted TS strictness | Accepted |
 | [0039](0039-desktop-responsive-layout.md) | Desktop-responsive layout — breakpoint-conditional surface modes, capped containers, popover menus, centered modals | Accepted |
 | [0040](0040-skipped-rounds.md) | Skipped rounds — host terminal-state action distinct from reveal | Accepted |
-| [0041](0041-per-round-abstain-sentinel.md) | Per-round abstain action for voters — `hnch_abstain` sentinel, auto-reveal amendment | Proposed |
+| [0041](0041-per-round-abstain-sentinel.md) | Per-round abstain action for voters — `hnch_abstain` sentinel, auto-reveal amendment | Accepted |
 
 ## When to write an ADR
 
