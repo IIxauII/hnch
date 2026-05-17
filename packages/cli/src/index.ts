@@ -25,6 +25,13 @@ import { observeSessionEnd } from './session-end-observer.js';
 import { App } from './ui/App.js';
 import { ConfigSettings } from './ui/components/ConfigSettings.js';
 import { createInterface } from 'node:readline';
+import {
+  handleAgendaAdd,
+  handleAgendaList,
+  handleAgendaSkip,
+  handleAgendaCancel,
+  handleAgendaMv,
+} from './commands/agenda.js';
 
 async function promptPassword(): Promise<string> {
   return new Promise((resolve) => {
@@ -488,7 +495,127 @@ const cli = yargs(hideBin(process.argv))
       });
     },
   )
-  .demandCommand(1, 'Specify a command: create, join, resume, or config')
+  .command(
+    'agenda',
+    'Manage the pre-session story agenda',
+    (y) =>
+      y
+        .command(
+          'add',
+          'Add an agenda item',
+          (yy) =>
+            yy
+              .option('title', {
+                type: 'string',
+                describe: 'Story title',
+              })
+              .option('ticket', {
+                type: 'string',
+                describe: 'Issue tracker reference (e.g. PROJ-123)',
+              })
+              .option('description', {
+                type: 'string',
+                describe: 'Story description',
+              })
+              .check((args) => {
+                if (!args.title?.trim() && !args.ticket?.trim()) {
+                  throw new Error('At least one of --title or --ticket is required');
+                }
+                return true;
+              }),
+          (argv) => {
+            handleAgendaAdd(
+              argv as { title?: string; ticket?: string; description?: string },
+            ).catch((err) => {
+              console.error(err instanceof Error ? err.message : err);
+              process.exit(1);
+            });
+          },
+        )
+        .command(
+          'list',
+          'List agenda items in order',
+          (yy) => yy,
+          () => {
+            handleAgendaList().catch((err) => {
+              console.error(err instanceof Error ? err.message : err);
+              process.exit(1);
+            });
+          },
+        )
+        .command(
+          'skip <id>',
+          'Mark an agenda item as skipped',
+          (yy) =>
+            yy.positional('id', {
+              type: 'string',
+              demandOption: true,
+              describe: 'Agenda item ID',
+            }),
+          (argv) => {
+            handleAgendaSkip(argv as { id: string }).catch((err) => {
+              console.error(err instanceof Error ? err.message : err);
+              process.exit(1);
+            });
+          },
+        )
+        .command(
+          'cancel <id>',
+          'Soft-delete (cancel) an agenda item',
+          (yy) =>
+            yy.positional('id', {
+              type: 'string',
+              demandOption: true,
+              describe: 'Agenda item ID',
+            }),
+          (argv) => {
+            handleAgendaCancel(argv as { id: string }).catch((err) => {
+              console.error(err instanceof Error ? err.message : err);
+              process.exit(1);
+            });
+          },
+        )
+        .command(
+          'mv <id>',
+          'Reorder an agenda item (--before <id> | --after <id>)',
+          (yy) =>
+            yy
+              .positional('id', {
+                type: 'string',
+                demandOption: true,
+                describe: 'Agenda item ID to move',
+              })
+              .option('before', {
+                type: 'string',
+                describe: 'sortKey of item that should come before the moved item',
+              })
+              .option('after', {
+                type: 'string',
+                describe: 'sortKey of item that should come after the moved item',
+              })
+              .check((args) => {
+                if (args.before !== undefined && args.after !== undefined) {
+                  throw new Error('--before and --after are mutually exclusive');
+                }
+                if (args.before === undefined && args.after === undefined) {
+                  throw new Error('Specify either --before <id> or --after <id>');
+                }
+                return true;
+              }),
+          (argv) => {
+            handleAgendaMv(argv as { id: string; before?: string; after?: string }).catch((err) => {
+              console.error(err instanceof Error ? err.message : err);
+              process.exit(1);
+            });
+          },
+        )
+        .demandCommand(1, 'Specify an agenda subcommand: add, list, skip, cancel, mv')
+        .strict()
+        .help(),
+    // Void handler — subcommand is required
+    () => {},
+  )
+  .demandCommand(1, 'Specify a command: create, join, resume, config, or agenda')
   .strict()
   .help();
 
