@@ -1,3 +1,10 @@
+# [1.26.0](https://github.com/IIxauII/hnch/compare/client-v1.25.1...client-v1.26.0) (2026-05-17)
+
+
+### Features
+
+* **client,e2e,docs:** keyboard shortcuts for card selection on Estimating screen ([#235](https://github.com/IIxauII/hnch/issues/235)) ([c06041b](https://github.com/IIxauII/hnch/commit/c06041b964a6f5740a6f94873d9b23b120bd7ffd))
+
 ## [1.25.1](https://github.com/IIxauII/hnch/compare/client-v1.25.0...client-v1.25.1) (2026-05-17)
 
 
