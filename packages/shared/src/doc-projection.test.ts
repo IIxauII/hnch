@@ -325,6 +325,38 @@ describe('castVote / clearVote', () => {
     expect(() => castVote(doc, 'nope', 'p-host', '5')).toThrow(/not found/);
     expect(() => clearVote(doc, 'nope', 'p-host')).toThrow(/not found/);
   });
+
+  // ADR-0040: only revealedAt blocks mutations — skippedAt does not.
+  // Pre-skip votes stay in the doc (suppressed in UI); post-skip votes are
+  // also written (castVote guards on revealedAt only). This test pins that
+  // contract so an accidental skippedAt guard would be caught.
+  it('castVote succeeds on a skipped round (only revealedAt blocks, not skippedAt)', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    skipRound(doc, 'r1', 100);
+    castVote(doc, 'r1', 'p-host', '5');
+    expect(projectDoc(doc).rounds[0]!.votes).toEqual({ 'p-host': '5' });
+  });
+
+  it('clearVote succeeds on a skipped round (only revealedAt blocks, not skippedAt)', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    castVote(doc, 'r1', 'p-host', '5');
+    skipRound(doc, 'r1', 100);
+    clearVote(doc, 'r1', 'p-host');
+    expect(projectDoc(doc).rounds[0]!.votes).toEqual({});
+  });
+
+  it('pre-skip votes persist in the doc projection after skipRound', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    castVote(doc, 'r1', 'p-host', '8');
+    castVote(doc, 'r1', 'p-bob', '13');
+    skipRound(doc, 'r1', 200);
+    const snap = projectDoc(doc);
+    expect(snap.rounds[0]!.votes).toEqual({ 'p-host': '8', 'p-bob': '13' });
+    expect(snap.rounds[0]!.skippedAt).toBe(200);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1101,5 +1133,16 @@ describe('patchRoundDescriptor', () => {
     const round = snap.rounds.find((r) => r.id === id)!;
     expect(round.title).toBe('after reveal');
     expect(round.revealedAt).toBe(1_700_000_002_000);
+  });
+
+  it('patches a skipped round — editorial corrections are not phase-gated (ADR-0040)', () => {
+    const { doc, id } = makeDocWithRound({ title: 'before skip' });
+    skipRound(doc, id, 1_700_000_003_000);
+    patchRoundDescriptor(doc, id, { title: 'after skip', description: 'added retrospectively' });
+    const snap = projectDoc(doc);
+    const round = snap.rounds.find((r) => r.id === id)!;
+    expect(round.title).toBe('after skip');
+    expect(round.description).toBe('added retrospectively');
+    expect(round.skippedAt).toBe(1_700_000_003_000);
   });
 });
