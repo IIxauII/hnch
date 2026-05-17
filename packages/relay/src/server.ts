@@ -62,11 +62,7 @@ export type HealthPayload = HealthResponse;
 const RELAY_VERSION: string = (() => {
   const here = dirname(fileURLToPath(import.meta.url));
   const raw = readFileSync(join(here, '..', 'package.json'), 'utf-8');
-  const parsed = JSON.parse(raw) as { version?: unknown };
-  if (typeof parsed.version !== 'string') {
-    throw new Error('relay package.json missing version');
-  }
-  return parsed.version;
+  return (JSON.parse(raw) as { version: string }).version;
 })();
 
 /** Payload of a successful `POST /rooms` response. */
