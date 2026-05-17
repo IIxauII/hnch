@@ -37,22 +37,20 @@ import {
   normalizeRoomCode,
   MAX_ROOM_PARTICIPANTS,
   JOIN_REJECTION_CLOSE_CODES,
+  type HealthResponse,
   type JoinRejectionReason,
 } from '@hnch/shared';
 import { accessModeOf, type AccessMode, type RoomRecord, type RoomStore } from './room-store.js';
 import { setupWSConnection, type WsRoom } from './ws-connection.js';
 
 /**
- * Payload of a successful `GET /health` response.
+ * Payload of a successful `GET /health` response. Re-exported from
+ * `@hnch/shared` so consumers and tests share one source of truth.
  *
  * Aggregate operator-facing fields only — no room UUIDs, codes, participant
  * IDs, or session content (ADR-0001, ADR-0028).
  */
-export interface HealthPayload {
-  readonly status: 'ok';
-  readonly version: string;
-  readonly uptime: number;
-}
+export type HealthPayload = HealthResponse;
 
 /**
  * Relay version read from `packages/relay/package.json` at module load.
@@ -214,10 +212,23 @@ async function handleHttpRequest(
   const path = url.split('?', 1)[0] ?? url;
 
   if (req.method === 'GET' && path === '/health') {
+    let active = 0;
+    let snapshotted = 0;
+    let peers = 0;
+    for (const record of deps.roomStore.listRooms()) {
+      if (record.connections > 0) {
+        active++;
+        peers += record.connections;
+      } else {
+        snapshotted++;
+      }
+    }
     const payload: HealthPayload = {
       status: 'ok',
       version: RELAY_VERSION,
       uptime: Math.floor(process.uptime()),
+      rooms: { active, snapshotted, cap: ROOM_CAP },
+      peers: { connected: peers },
     };
     sendJson(res, 200, payload);
     return;
