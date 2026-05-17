@@ -1,3 +1,10 @@
+## [1.25.1](https://github.com/IIxauII/hnch/compare/client-v1.25.0...client-v1.25.1) (2026-05-17)
+
+
+### Bug Fixes
+
+* **client:** drop JS slice in pending-line, use CSS ellipsis ([#229](https://github.com/IIxauII/hnch/issues/229)) ([#234](https://github.com/IIxauII/hnch/issues/234)) ([a246a72](https://github.com/IIxauII/hnch/commit/a246a72534f06b34cb6db5115825f5394b9a258f))
+
 # [1.25.0](https://github.com/IIxauII/hnch/compare/client-v1.24.1...client-v1.25.0) (2026-05-17)
 
 
