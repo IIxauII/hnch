@@ -3,6 +3,7 @@ export * from './auth.js';
 export * from './doc.js';
 export * from './doc-projection.js';
 export * from './format-round-label.js';
+export * from './fractional-index.js';
 export * from './format-time.js';
 export * from './is-likely-url.js';
 export * from './last-session.js';
