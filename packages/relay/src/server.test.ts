@@ -84,6 +84,24 @@ describe('relay server', () => {
       expect(body.status).toBe('ok');
     });
 
+    it('response keys are exactly the documented operational shape (AC #8)', async () => {
+      // Guard against accidentally leaking room UUIDs, codes, participant IDs,
+      // or session content into /health. The key set is fixed by HealthResponse.
+      const createRes = await fetch(`${baseUrl}/rooms`, { method: 'POST' });
+      const created = (await createRes.json()) as CreateRoomResponse;
+      const body = (await (await fetch(`${baseUrl}/health`)).json()) as Record<string, unknown>;
+      expect(Object.keys(body).toSorted()).toEqual(
+        ['peers', 'rooms', 'status', 'uptime', 'version'].toSorted(),
+      );
+      expect(Object.keys(body['rooms'] as object).toSorted()).toEqual(
+        ['active', 'cap', 'snapshotted'].toSorted(),
+      );
+      expect(Object.keys(body['peers'] as object).toSorted()).toEqual(['connected']);
+      const serialised = JSON.stringify(body);
+      expect(serialised).not.toContain(created.uuid);
+      expect(serialised).not.toContain(created.code);
+    });
+
     it('rooms.active and peers.connected reflect live WS connections', async () => {
       const createRes = await fetch(`${baseUrl}/rooms`, { method: 'POST' });
       const { uuid } = (await createRes.json()) as CreateRoomResponse;
