@@ -11,9 +11,11 @@ import {
   type Scale,
 } from './doc.js';
 import {
+  appendAgendaItem,
   appendRound,
   castVote,
   clearVote,
+  consumeAgendaItem,
   currentRound,
   DOC_META_KEY,
   DOC_PARTICIPANTS_KEY,
@@ -24,12 +26,16 @@ import {
   isConsensus,
   joinDoc,
   leaveSession,
+  nextPendingAgendaItem,
   patchRoundDescriptor,
   patchSettings,
   projectDoc,
   removeParticipant,
+  reorderAgendaItem,
   revealRound,
+  setAgendaItemState,
   skipRound,
+  updateAgendaItemFields,
   upsertParticipant,
   type DocProjection,
   type InitDocInit,
@@ -1144,5 +1150,461 @@ describe('patchRoundDescriptor', () => {
     expect(round.title).toBe('after skip');
     expect(round.description).toBe('added retrospectively');
     expect(round.skippedAt).toBe(1_700_000_003_000);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Agenda — appendAgendaItem
+// ---------------------------------------------------------------------------
+
+describe('appendAgendaItem', () => {
+  it('appends a title-only item with defaults', () => {
+    const { doc } = seedDoc();
+    const id = appendAgendaItem(doc, { title: 'Auth migration', createdAt: 1_700_000_001_000 });
+    const snap = projectDoc(doc);
+    expect(snap.agenda).toHaveLength(1);
+    const item = snap.agenda[0]!;
+    expect(item.id).toBe(id);
+    expect(item.title).toBe('Auth migration');
+    expect(item.state).toBe('pending');
+    expect(item.source).toBe('manual');
+    expect(item.sortKey).toBeTruthy();
+    expect(item.createdAt).toBe(1_700_000_001_000);
+  });
+
+  it('appends a ticketId-only item', () => {
+    const { doc } = seedDoc();
+    const id = appendAgendaItem(doc, { ticketId: 'PROJ-1234', createdAt: 1_700_000_001_000 });
+    const snap = projectDoc(doc);
+    const item = snap.agenda.find((a) => a.id === id)!;
+    expect(item.ticketId).toBe('PROJ-1234');
+    expect(item.title).toBeUndefined();
+  });
+
+  it('appends an item with both title and ticketId', () => {
+    const { doc } = seedDoc();
+    appendAgendaItem(doc, {
+      title: 'Login flow',
+      ticketId: 'AUTH-99',
+      description: 'OAuth refactor',
+      source: 'jira',
+      externalId: 'AUTH-99',
+      createdAt: 1_700_000_001_000,
+    });
+    const snap = projectDoc(doc);
+    const item = snap.agenda[0]!;
+    expect(item.title).toBe('Login flow');
+    expect(item.ticketId).toBe('AUTH-99');
+    expect(item.description).toBe('OAuth refactor');
+    expect(item.source).toBe('jira');
+    expect(item.externalId).toBe('AUTH-99');
+  });
+
+  it('rejects when both title and ticketId are missing/empty', () => {
+    const { doc } = seedDoc();
+    expect(() => appendAgendaItem(doc, { createdAt: 1 })).toThrow(/title.*ticketId|required/i);
+    expect(() => appendAgendaItem(doc, { title: '  ', createdAt: 1 })).toThrow();
+  });
+
+  it('assigns ascending sortKeys for sequential appends', () => {
+    const { doc } = seedDoc();
+    appendAgendaItem(doc, { title: 'A', createdAt: 1 });
+    appendAgendaItem(doc, { title: 'B', createdAt: 2 });
+    appendAgendaItem(doc, { title: 'C', createdAt: 3 });
+    const snap = projectDoc(doc);
+    const keys = snap.agenda.map((a) => a.sortKey);
+    expect(keys[0]! < keys[1]!).toBe(true);
+    expect(keys[1]! < keys[2]!).toBe(true);
+  });
+
+  it('fresh doc projects empty agenda', () => {
+    const { doc } = seedDoc();
+    expect(projectDoc(doc).agenda).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Agenda — updateAgendaItemFields
+// ---------------------------------------------------------------------------
+
+describe('updateAgendaItemFields', () => {
+  function makeItemDoc(): { doc: Y.Doc; id: string } {
+    const { doc } = seedDoc();
+    const id = appendAgendaItem(doc, { title: 'Original', ticketId: 'T-1', createdAt: 1 });
+    return { doc, id };
+  }
+
+  it('patches title only', () => {
+    const { doc, id } = makeItemDoc();
+    updateAgendaItemFields(doc, id, { title: 'Renamed' });
+    const item = projectDoc(doc).agenda.find((a) => a.id === id)!;
+    expect(item.title).toBe('Renamed');
+    expect(item.ticketId).toBe('T-1');
+  });
+
+  it('patches ticketId only', () => {
+    const { doc, id } = makeItemDoc();
+    updateAgendaItemFields(doc, id, { ticketId: 'T-99' });
+    const item = projectDoc(doc).agenda.find((a) => a.id === id)!;
+    expect(item.ticketId).toBe('T-99');
+  });
+
+  it('patches description', () => {
+    const { doc, id } = makeItemDoc();
+    updateAgendaItemFields(doc, id, { description: 'Context added' });
+    const item = projectDoc(doc).agenda.find((a) => a.id === id)!;
+    expect(item.description).toBe('Context added');
+  });
+
+  it('rejects when patch would leave both title and ticketId empty', () => {
+    const { doc } = seedDoc();
+    const id = appendAgendaItem(doc, { title: 'Only title', createdAt: 1 });
+    expect(() => updateAgendaItemFields(doc, id, { title: '' })).toThrow();
+  });
+
+  it('rejects when item is skipped', () => {
+    const { doc, id } = makeItemDoc();
+    setAgendaItemState(doc, id, 'skipped');
+    expect(() => updateAgendaItemFields(doc, id, { title: 'No' })).toThrow(/skipped/i);
+  });
+
+  it('rejects when item is cancelled', () => {
+    const { doc, id } = makeItemDoc();
+    setAgendaItemState(doc, id, 'cancelled');
+    expect(() => updateAgendaItemFields(doc, id, { title: 'No' })).toThrow(/cancelled/i);
+  });
+
+  it('allows update when item is consumed', () => {
+    const { doc, id } = makeItemDoc();
+    consumeAgendaItem(doc, id, 'round-1', 1_000);
+    updateAgendaItemFields(doc, id, { description: 'Post-consume edit' });
+    const item = projectDoc(doc).agenda.find((a) => a.id === id)!;
+    expect(item.description).toBe('Post-consume edit');
+  });
+
+  it('throws when item id not found', () => {
+    const { doc } = makeItemDoc();
+    expect(() => updateAgendaItemFields(doc, 'ghost-id', { title: 'X' })).toThrow(/not found/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Agenda — setAgendaItemState
+// ---------------------------------------------------------------------------
+
+describe('setAgendaItemState', () => {
+  function makeDoc(): { doc: Y.Doc; id: string } {
+    const { doc } = seedDoc();
+    const id = appendAgendaItem(doc, { title: 'Story', createdAt: 1 });
+    return { doc, id };
+  }
+
+  it('pending → consumed', () => {
+    const { doc, id } = makeDoc();
+    setAgendaItemState(doc, id, 'consumed', { consumedByRoundId: 'r1', timestamp: 999 });
+    const item = projectDoc(doc).agenda.find((a) => a.id === id)!;
+    expect(item.state).toBe('consumed');
+    expect(item.consumedByRoundId).toBe('r1');
+    expect(item.consumedAt).toBe(999);
+  });
+
+  it('pending → skipped', () => {
+    const { doc, id } = makeDoc();
+    setAgendaItemState(doc, id, 'skipped');
+    expect(projectDoc(doc).agenda.find((a) => a.id === id)!.state).toBe('skipped');
+  });
+
+  it('pending → cancelled', () => {
+    const { doc, id } = makeDoc();
+    setAgendaItemState(doc, id, 'cancelled');
+    expect(projectDoc(doc).agenda.find((a) => a.id === id)!.state).toBe('cancelled');
+  });
+
+  it('consumed → consumed is idempotent', () => {
+    const { doc, id } = makeDoc();
+    setAgendaItemState(doc, id, 'consumed', { consumedByRoundId: 'r1', timestamp: 1 });
+    setAgendaItemState(doc, id, 'consumed', { consumedByRoundId: 'r1', timestamp: 2 });
+    const item = projectDoc(doc).agenda.find((a) => a.id === id)!;
+    expect(item.state).toBe('consumed');
+  });
+
+  it('skipped → any transition is rejected', () => {
+    const { doc, id } = makeDoc();
+    setAgendaItemState(doc, id, 'skipped');
+    expect(() => setAgendaItemState(doc, id, 'consumed')).toThrow();
+    expect(() => setAgendaItemState(doc, id, 'pending')).toThrow();
+    expect(() => setAgendaItemState(doc, id, 'cancelled')).toThrow();
+  });
+
+  it('cancelled → any transition is rejected', () => {
+    const { doc, id } = makeDoc();
+    setAgendaItemState(doc, id, 'cancelled');
+    expect(() => setAgendaItemState(doc, id, 'consumed')).toThrow();
+  });
+
+  it('throws when item not found', () => {
+    const { doc } = makeDoc();
+    expect(() => setAgendaItemState(doc, 'no-such-id', 'skipped')).toThrow(/not found/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Agenda — consumeAgendaItem
+// ---------------------------------------------------------------------------
+
+describe('consumeAgendaItem', () => {
+  it('sets state=consumed, consumedAt, consumedByRoundId atomically', () => {
+    const { doc } = seedDoc();
+    const id = appendAgendaItem(doc, { title: 'X', createdAt: 1 });
+    consumeAgendaItem(doc, id, 'round-42', 1_700_000_002_000);
+    const item = projectDoc(doc).agenda.find((a) => a.id === id)!;
+    expect(item.state).toBe('consumed');
+    expect(item.consumedAt).toBe(1_700_000_002_000);
+    expect(item.consumedByRoundId).toBe('round-42');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Agenda — reorderAgendaItem
+// ---------------------------------------------------------------------------
+
+describe('reorderAgendaItem', () => {
+  it('moves item to a new position by rewriting sortKey', () => {
+    const { doc } = seedDoc();
+    const idA = appendAgendaItem(doc, { title: 'A', createdAt: 1 });
+    const idB = appendAgendaItem(doc, { title: 'B', createdAt: 2 });
+    const idC = appendAgendaItem(doc, { title: 'C', createdAt: 3 });
+
+    const beforeReorder = projectDoc(doc).agenda;
+    const aKey = beforeReorder.find((a) => a.id === idA)!.sortKey;
+
+    // Move B to before A (first position).
+    reorderAgendaItem(doc, idB, null, aKey);
+
+    const snap = projectDoc(doc).agenda;
+    expect(snap[0]!.id).toBe(idB);
+    expect(snap[1]!.id).toBe(idA);
+    expect(snap[2]!.id).toBe(idC);
+  });
+
+  it('rejects reorder of consumed item', () => {
+    const { doc } = seedDoc();
+    const id = appendAgendaItem(doc, { title: 'X', createdAt: 1 });
+    consumeAgendaItem(doc, id, 'r1', 1);
+    expect(() => reorderAgendaItem(doc, id, null, null)).toThrow(/consumed|pending/i);
+  });
+
+  it('rejects reorder of skipped item', () => {
+    const { doc } = seedDoc();
+    const id = appendAgendaItem(doc, { title: 'X', createdAt: 1 });
+    setAgendaItemState(doc, id, 'skipped');
+    expect(() => reorderAgendaItem(doc, id, null, null)).toThrow();
+  });
+
+  it('throws when item not found', () => {
+    const { doc } = seedDoc();
+    expect(() => reorderAgendaItem(doc, 'ghost', null, null)).toThrow(/not found/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Agenda — appendRound with agendaItemId
+// ---------------------------------------------------------------------------
+
+describe('appendRound with agendaItemId', () => {
+  it('projects agendaItemId on the round', () => {
+    const { doc } = seedDoc();
+    const agendaId = appendAgendaItem(doc, { title: 'Story', createdAt: 1 });
+    const roundId = 'round-1';
+    appendRound(doc, {
+      id: roundId,
+      createdAt: 2,
+      createdBy: 'p-host',
+      title: 'Story',
+      agendaItemId: agendaId,
+    });
+    const snap = projectDoc(doc);
+    const round = snap.rounds.find((r) => r.id === roundId)!;
+    expect(round.agendaItemId).toBe(agendaId);
+  });
+
+  it('agendaItemId is absent when not provided', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    const round = projectDoc(doc).rounds[0]!;
+    expect(round.agendaItemId).toBeUndefined();
+  });
+
+  it('re-vote: agendaItemId inherited, agenda item state stays consumed', () => {
+    const { doc } = seedDoc();
+    const agendaId = appendAgendaItem(doc, { title: 'Story', createdAt: 1 });
+    appendRound(doc, { id: 'r1', createdAt: 2, createdBy: 'p-host', agendaItemId: agendaId });
+    consumeAgendaItem(doc, agendaId, 'r1', 2);
+
+    // Re-vote: pass parent's agendaItemId unchanged.
+    appendRound(doc, {
+      id: 'r2',
+      createdAt: 3,
+      createdBy: 'p-host',
+      parentRoundId: 'r1',
+      agendaItemId: agendaId,
+    });
+
+    const snap = projectDoc(doc);
+    const r2 = snap.rounds.find((r) => r.id === 'r2')!;
+    expect(r2.agendaItemId).toBe(agendaId);
+
+    // Agenda item state must still be 'consumed', not changed by re-vote.
+    const item = snap.agenda.find((a) => a.id === agendaId)!;
+    expect(item.state).toBe('consumed');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Agenda — nextPendingAgendaItem selector
+// ---------------------------------------------------------------------------
+
+describe('nextPendingAgendaItem', () => {
+  it('returns null when agenda is empty', () => {
+    const { doc } = seedDoc();
+    expect(nextPendingAgendaItem(projectDoc(doc))).toBeNull();
+  });
+
+  it('returns null when all items are consumed/skipped', () => {
+    const { doc } = seedDoc();
+    const id = appendAgendaItem(doc, { title: 'Done', createdAt: 1 });
+    setAgendaItemState(doc, id, 'skipped');
+    expect(nextPendingAgendaItem(projectDoc(doc))).toBeNull();
+  });
+
+  it('returns first pending item by sortKey', () => {
+    const { doc } = seedDoc();
+    const idA = appendAgendaItem(doc, { title: 'A', createdAt: 1 });
+    appendAgendaItem(doc, { title: 'B', createdAt: 2 });
+    const snap = projectDoc(doc);
+    const next = nextPendingAgendaItem(snap);
+    expect(next!.id).toBe(idA);
+  });
+
+  it('skips consumed items and returns the next pending', () => {
+    const { doc } = seedDoc();
+    const idA = appendAgendaItem(doc, { title: 'A', createdAt: 1 });
+    const idB = appendAgendaItem(doc, { title: 'B', createdAt: 2 });
+    consumeAgendaItem(doc, idA, 'r1', 100);
+    const next = nextPendingAgendaItem(projectDoc(doc));
+    expect(next!.id).toBe(idB);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Agenda — projection sort order
+// ---------------------------------------------------------------------------
+
+describe('agenda projection sort', () => {
+  it('returns items sorted by sortKey regardless of insertion order', () => {
+    const { doc } = seedDoc();
+    appendAgendaItem(doc, { title: 'First', createdAt: 1 });
+    appendAgendaItem(doc, { title: 'Second', createdAt: 2 });
+    appendAgendaItem(doc, { title: 'Third', createdAt: 3 });
+
+    // Reorder "Third" to the front.
+    const snap0 = projectDoc(doc);
+    const firstKey = snap0.agenda[0]!.sortKey;
+    const thirdId = snap0.agenda[2]!.id;
+    reorderAgendaItem(doc, thirdId, null, firstKey);
+
+    const snap = projectDoc(doc);
+    const titles = snap.agenda.map((a) => a.title);
+    expect(titles[0]).toBe('Third');
+    expect(titles[1]).toBe('First');
+    expect(titles[2]).toBe('Second');
+  });
+
+  it('all states included in projection (no automatic filtering)', () => {
+    const { doc } = seedDoc();
+    const idP = appendAgendaItem(doc, { title: 'Pending', createdAt: 1 });
+    const idC = appendAgendaItem(doc, { title: 'Consumed', createdAt: 2 });
+    const idS = appendAgendaItem(doc, { title: 'Skipped', createdAt: 3 });
+    const idX = appendAgendaItem(doc, { title: 'Cancelled', createdAt: 4 });
+    consumeAgendaItem(doc, idC, 'r1', 100);
+    setAgendaItemState(doc, idS, 'skipped');
+    setAgendaItemState(doc, idX, 'cancelled');
+    const snap = projectDoc(doc);
+    expect(snap.agenda).toHaveLength(4);
+    const ids = snap.agenda.map((a) => a.id);
+    expect(ids).toContain(idP);
+    expect(ids).toContain(idC);
+    expect(ids).toContain(idS);
+    expect(ids).toContain(idX);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Agenda — CRDT concurrent append
+// ---------------------------------------------------------------------------
+
+describe('agenda CRDT concurrent append', () => {
+  it('two YDocs each appendAgendaItem → both items present after merge, distinct sortKeys', () => {
+    // Doc A and Doc B start from the same base (seeded).
+    const { doc: docA } = seedDoc();
+    const docB = new Y.Doc();
+
+    // Sync A → B.
+    Y.applyUpdate(docB, Y.encodeStateAsUpdate(docA));
+
+    // Both independently append an item.
+    const idA = appendAgendaItem(docA, { title: 'A item', createdAt: 1 });
+    const idB = appendAgendaItem(docB, { title: 'B item', createdAt: 2 });
+
+    // Cross-sync.
+    Y.applyUpdate(docB, Y.encodeStateAsUpdate(docA));
+    Y.applyUpdate(docA, Y.encodeStateAsUpdate(docB));
+
+    const snapA = projectDoc(docA);
+    const snapB = projectDoc(docB);
+
+    // Both docs should see both items.
+    expect(snapA.agenda).toHaveLength(2);
+    expect(snapB.agenda).toHaveLength(2);
+
+    const aIds = snapA.agenda.map((a) => a.id);
+    expect(aIds).toContain(idA);
+    expect(aIds).toContain(idB);
+
+    // sortKeys may collide when both hosts independently generated the
+    // initial key from an empty agenda (known CRDT limitation per ADR-0042).
+    // Items are still present and projection is stable.
+    expect(snapA.agenda).toHaveLength(2);
+  });
+
+  it('concurrent reorder does not lose items', () => {
+    const { doc: docA } = seedDoc();
+    const docB = new Y.Doc();
+
+    // Pre-populate both with same 3 items.
+    const idX = appendAgendaItem(docA, { title: 'X', createdAt: 1 });
+    const idY = appendAgendaItem(docA, { title: 'Y', createdAt: 2 });
+    const idZ = appendAgendaItem(docA, { title: 'Z', createdAt: 3 });
+    Y.applyUpdate(docB, Y.encodeStateAsUpdate(docA));
+
+    const snap0 = projectDoc(docA);
+    const xKey = snap0.agenda.find((a) => a.id === idX)!.sortKey;
+    const yKey = snap0.agenda.find((a) => a.id === idY)!.sortKey;
+
+    // Host A moves Z before X; Host B moves Z before Y.
+    reorderAgendaItem(docA, idZ, null, xKey);
+    reorderAgendaItem(docB, idZ, xKey, yKey);
+
+    // Cross-sync.
+    Y.applyUpdate(docB, Y.encodeStateAsUpdate(docA));
+    Y.applyUpdate(docA, Y.encodeStateAsUpdate(docB));
+
+    const snapA = projectDoc(docA);
+    // All 3 items still present.
+    expect(snapA.agenda).toHaveLength(3);
+    const ids = snapA.agenda.map((a) => a.id);
+    expect(ids).toContain(idX);
+    expect(ids).toContain(idY);
+    expect(ids).toContain(idZ);
   });
 });

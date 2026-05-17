@@ -114,8 +114,15 @@ function _before(b: string): string {
       return prefix + DIGITS[MID]!;
     }
   }
-  // All digits are '0'. Prepend a MID digit.
-  return DIGITS[MID]! + b;
+  // All digits are '0'. Strip the last character — a shorter key is
+  // always less than its prefix extension in lex order ("0" < "00" < "000").
+  if (b.length > 1) {
+    return b.slice(0, -1);
+  }
+  // b === "0" — no character in [0-9A-Za-z] sorts before '0'.
+  throw new Error(
+    `keyBetween: cannot generate key before '${b}' — use keyBetween(null, null) for the initial key`,
+  );
 }
 
 /** Return a key strictly between `a` and `b` (both non-null, `a < b`). */
@@ -144,47 +151,33 @@ function _between(a: string, b: string): string {
 
 /**
  * Find a key between `a` and `b` when the arithmetic midpoint is not
- * strictly between them. Recurses by appending one digit to `a` at a time.
+ * strictly between them (i.e. the pair is numerically adjacent with
+ * integer difference = 1). Walks the shared digit prefix until the
+ * single diverging position, then appends a MID digit to produce a
+ * sub-key.
+ *
+ * Invariant on entry: `a < b` AND `_between(a, b)` returned a midpoint
+ * equal to `a` (integer difference of 1 at the last digit position).
+ * Under this invariant, every shared prefix digit is equal and the only
+ * divergence is `b[i] === a[i] + 1` (adjacent) — no other case arises.
  */
 function _deepBetween(a: string, b: string): string {
-  // Walk the shared prefix.
   for (let i = 0; i < b.length; i++) {
-    // -1 means a is exhausted at this position
-    const av = i < a.length ? dv(a[i]!) : -1;
+    const av = i < a.length ? dv(a[i]!) : 0;
     const bv = dv(b[i]!);
-
-    if (av === -1) {
-      // `a` exhausted here; b[i] is the first extra char of b past a.
-      // Need a string x with a < x < b.
-      if (bv > 1) {
-        // Gap: pick c = DIGITS[floor(bv / 2)] as the appended char.
-        return a + DIGITS[Math.floor(bv / 2)]!;
-      }
-      if (bv === 1) {
-        // b[i] = DIGITS[1]. c must be < DIGITS[1] and > DIGITS[0] — impossible.
-        // Go deeper: between a+'0' and b.
-        return _between(a + '0', b);
-      }
-      // bv === 0: b = a + '0' + rest. a + '0' <= b. Recurse deeper.
-      return _between(a + '0', b);
-    }
-
-    if (bv > av + 1) {
-      // Gap of 2+: mid digit in (av, bv).
-      return a.slice(0, i) + DIGITS[Math.floor((av + bv) / 2)]!;
-    }
 
     if (bv === av + 1) {
       // Adjacent digits at position i.
-      // Keep a[0..i] (ends with DIGITS[av]) and append a MID digit.
-      // Result is > a (extra chars) and < b (a[i] = DIGITS[av] < DIGITS[bv] = b[i]).
-      const prefix = a.slice(0, i + 1);
+      // Return a[0..i] + MID — strictly > a and < b.
+      const prefix = i < a.length ? a.slice(0, i + 1) : a + DIGITS[0]!;
       return prefix + DIGITS[MID]!;
     }
 
-    // av === bv — same digit, continue.
+    // Digits are equal — continue walking the shared prefix.
   }
 
-  // Should not reach here (a < b guarantees divergence).
-  throw new Error(`keyBetween: cannot find key between '${a}' and '${b}' — keys are adjacent`);
+  // Unreachable: a < b guarantees at least one diverging position.
+  // Satisfies TypeScript's exhaustive-return check.
+  /* c8 ignore next 2 */
+  throw new Error(`keyBetween: space exhausted between '${a}' and '${b}'`);
 }

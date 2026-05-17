@@ -204,4 +204,65 @@ describe('edge cases', () => {
     const next = keyBetween(k, null);
     expect(next > k).toBe(true);
   });
+
+  it('covers _keyBefore all-zeros path (keyBetween(null, "00"))', () => {
+    // "00" has all-zero digits; decrement walks the whole string without
+    // finding a non-zero digit, triggering the strip-last-char fallback.
+    const k = keyBetween(null, '00');
+    expect(k < '00').toBe(true);
+  });
+
+  it('throws when keyBetween(null, "0") — minimum possible key', () => {
+    // "0" is the minimum character in our alphabet, so no key is smaller.
+    expect(() => keyBetween(null, '0')).toThrow();
+  });
+
+  it('throws when keyBetween(a, b) with a >= b', () => {
+    expect(() => keyBetween('b', 'a')).toThrow();
+    expect(() => keyBetween('z', 'z')).toThrow();
+  });
+
+  it('covers _deepBetween for adjacent single-char keys (a="A", b="B")', () => {
+    // 'A'=10, 'B'=11 — adjacent digits. Arithmetic midpoint = 'A' (same as lower bound).
+    // Should trigger _deepBetween and produce something between them.
+    const mid = keyBetween('A', 'B');
+    expect(mid > 'A').toBe(true);
+    expect(mid < 'B').toBe(true);
+  });
+
+  it('covers _deepBetween for longer adjacent keys', () => {
+    // "a0" and "a1" — adjacent at position 1.
+    const mid = keyBetween('a0', 'a1');
+    expect(mid > 'a0').toBe(true);
+    expect(mid < 'a1').toBe(true);
+  });
+
+  it('covers _deepBetween gap > 1 path', () => {
+    // "a0" and "a3" — gap of 3 at position 1, divisible to midpoint.
+    const mid = keyBetween('a0', 'a3');
+    expect(mid > 'a0').toBe(true);
+    expect(mid < 'a3').toBe(true);
+  });
+
+  it('covers _deepBetween when a is exhausted with bv > 1', () => {
+    // "a" and "aB" — a is exhausted at i=1, bv = dv("B") = 11 > 1.
+    const mid = keyBetween('a', 'aB');
+    expect(mid > 'a').toBe(true);
+    expect(mid < 'aB').toBe(true);
+  });
+
+  it('covers _deepBetween when a is exhausted with bv == 1', () => {
+    // "a" and "a1" — a is exhausted at i=1, bv = dv("1") = 1.
+    const mid = keyBetween('a', 'a1');
+    expect(mid > 'a').toBe(true);
+    expect(mid < 'a1').toBe(true);
+  });
+
+  it('covers _between trimmed path returning canonical form', () => {
+    // Wide gap: arithmetic midpoint has trailing zeros that can be trimmed.
+    // "0" and "z": midpoint should be something around the middle with no trailing zeros.
+    const mid = keyBetween('0', 'z');
+    expect(mid > '0').toBe(true);
+    expect(mid < 'z').toBe(true);
+  });
 });
