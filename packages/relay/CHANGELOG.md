@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/IIxauII/hnch/compare/relay-v1.1.1...relay-v1.2.0) (2026-05-17)
+
+
+### Features
+
+* **relay,shared:** extend /health with operational metrics ([#233](https://github.com/IIxauII/hnch/issues/233)) ([567f679](https://github.com/IIxauII/hnch/commit/567f67934a0a02f7a906b915a5facd37417e85f6))
+
 ## [1.1.1](https://github.com/IIxauII/hnch/compare/relay-v1.1.0...relay-v1.1.1) (2026-05-01)
 
 
