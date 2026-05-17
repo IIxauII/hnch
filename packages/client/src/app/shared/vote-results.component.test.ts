@@ -315,4 +315,129 @@ describe('VoteResultsComponent — TestBed rendering', () => {
     expect(abstained).toContain('Bob');
     expect(abstained).not.toContain('Carol');
   });
+
+  it('plurality group has .plurality class; others do not (issue #123)', async () => {
+    const round = makeRound({ votes: { p1: '3', p2: '5', p3: '5', p4: '5', p5: '8' } });
+    const participants = [
+      makeParticipant('p1', 'Alice'),
+      makeParticipant('p2', 'Bob'),
+      makeParticipant('p3', 'Carol'),
+      makeParticipant('p4', 'Dave'),
+      makeParticipant('p5', 'Eve'),
+    ];
+    const fixture = await mountVoteResults(round, participants);
+    const el = fixture.nativeElement as HTMLElement;
+    const groups = Array.from(el.querySelectorAll('.group:not(.abstained):not(.didnt-vote)'));
+    expect(groups.length).toBe(3);
+    expect(groups[0]!.classList.contains('plurality')).toBe(true);
+    expect(groups[1]!.classList.contains('plurality')).toBe(false);
+    expect(groups[2]!.classList.contains('plurality')).toBe(false);
+  });
+
+  it('--bar-width inline style is proportional to group share (issue #123)', async () => {
+    const round = makeRound({ votes: { p1: '3', p2: '5', p3: '5', p4: '5', p5: '8' } });
+    const participants = [
+      makeParticipant('p1', 'Alice'),
+      makeParticipant('p2', 'Bob'),
+      makeParticipant('p3', 'Carol'),
+      makeParticipant('p4', 'Dave'),
+      makeParticipant('p5', 'Eve'),
+    ];
+    const fixture = await mountVoteResults(round, participants);
+    const el = fixture.nativeElement as HTMLElement;
+    const groups = Array.from(
+      el.querySelectorAll<HTMLElement>('.group:not(.abstained):not(.didnt-vote)'),
+    );
+    // Plurality (5, 3/5 voters) → 60%
+    expect(groups[0]!.style.getPropertyValue('--bar-width')).toBe('60%');
+    // Tied 1/5 groups → 20% each
+    expect(groups[1]!.style.getPropertyValue('--bar-width')).toBe('20%');
+    expect(groups[2]!.style.getPropertyValue('--bar-width')).toBe('20%');
+  });
+
+  it('unanimous round → single 100%-width plurality bar (issue #123 AC #5)', async () => {
+    const round = makeRound({ votes: { p1: '5', p2: '5', p3: '5' } });
+    const participants = [
+      makeParticipant('p1', 'Alice'),
+      makeParticipant('p2', 'Bob'),
+      makeParticipant('p3', 'Carol'),
+    ];
+    const fixture = await mountVoteResults(round, participants);
+    const el = fixture.nativeElement as HTMLElement;
+    const groups = Array.from(
+      el.querySelectorAll<HTMLElement>('.group:not(.abstained):not(.didnt-vote)'),
+    );
+    expect(groups.length).toBe(1);
+    expect(groups[0]!.style.getPropertyValue('--bar-width')).toBe('100%');
+    expect(groups[0]!.classList.contains('plurality')).toBe(true);
+  });
+
+  it('abstain entries excluded from bar denominator (issue #123 AC #3)', async () => {
+    // 2 numeric voters (both '5') + 1 abstain → bar = 100% on plurality, not 66%.
+    const round = makeRound({ votes: { p1: '5', p2: '5', p3: ABSTAIN_SENTINEL } });
+    const participants = [
+      makeParticipant('p1', 'Alice'),
+      makeParticipant('p2', 'Bob'),
+      makeParticipant('p3', 'Carol'),
+    ];
+    const fixture = await mountVoteResults(round, participants);
+    const el = fixture.nativeElement as HTMLElement;
+    const numericGroups = Array.from(
+      el.querySelectorAll<HTMLElement>('.group:not(.abstained):not(.didnt-vote)'),
+    );
+    expect(numericGroups.length).toBe(1);
+    expect(numericGroups[0]!.style.getPropertyValue('--bar-width')).toBe('100%');
+  });
+});
+
+describe('vote distribution bars (issue #123)', () => {
+  const sourceFile = readFileSync('./src/app/shared/vote-results.component.ts', 'utf-8');
+
+  it('binds --bar-width inline style to widthPct(group.voterNames.length)', () => {
+    expect(sourceFile).toContain('[style.--bar-width.%]="widthPct(group.voterNames.length)"');
+  });
+
+  it('marks the first (plurality) group with the plurality class', () => {
+    expect(sourceFile).toContain('[class.plurality]="first"');
+    expect(sourceFile).toMatch(/let first = \$first/);
+  });
+
+  it('renders a ::before bar pseudo-element on .group using --ion-color-primary', () => {
+    const beforeBlock = sourceFile.match(
+      /\.group::before\s*{[\s\S]*?width:\s*var\(--bar-width[\s\S]*?background:\s*var\(--ion-color-primary\)/,
+    );
+    expect(beforeBlock).toBeTruthy();
+  });
+
+  it('plurality group uses higher opacity than non-plurality', () => {
+    expect(sourceFile).toMatch(/\.group::before\s*{[\s\S]*?opacity:\s*0\.06/);
+    expect(sourceFile).toMatch(/\.group\.plurality::before\s*{[\s\S]*?opacity:\s*0\.12/);
+  });
+
+  it('suppresses bar on .didnt-vote and .abstained groups', () => {
+    expect(sourceFile).toMatch(/\.group\.didnt-vote::before[\s\S]*?display:\s*none/);
+    expect(sourceFile).toMatch(/\.group\.abstained::before[\s\S]*?display:\s*none/);
+  });
+
+  it('bar pseudo-element does not declare a width transition (reduced-motion safe)', () => {
+    const beforeBlock = sourceFile.match(/\.group::before\s*{[\s\S]*?}/);
+    expect(beforeBlock).toBeTruthy();
+    expect(beforeBlock?.[0]).not.toMatch(/transition\s*:/);
+  });
+
+  it('widthPct denominator excludes abstain via isAbstainVote', () => {
+    expect(sourceFile).toMatch(
+      /totalVoted\s*=\s*computed\([\s\S]*?Object\.values\(this\.round\(\)\.votes\)\.filter\([\s\S]*?isAbstainVote/,
+    );
+    expect(sourceFile).toMatch(/widthPct\(count: number\): number/);
+    // No defensive zero-guard — widthPct only called when voteGroups is non-empty.
+    expect(sourceFile).not.toMatch(/total\s*===\s*0\s*\?\s*0\s*:/);
+  });
+
+  it('header and chips sit above the bar via z-index: 1', () => {
+    const stacking = sourceFile.match(
+      /\.group-header,\s*\.chips\s*{[\s\S]*?position:\s*relative;[\s\S]*?z-index:\s*1/,
+    );
+    expect(stacking).toBeTruthy();
+  });
 });
