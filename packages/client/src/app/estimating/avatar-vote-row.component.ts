@@ -110,7 +110,7 @@ export class AvatarVoteRowComponent {
 
   protected readonly pendingNames = computed(() =>
     this.pendingParticipants()
-      .map((p) => p.displayName ?? '')
+      .map((p) => p.displayName)
       .join(', '),
   );
 
