@@ -418,6 +418,210 @@ export class Participant {
     await this.page.locator('app-scale-picker-sheet').waitFor({ state: 'hidden' });
   }
 
+  // -- Agenda ---------------------------------------------------------------
+
+  /**
+   * On mobile viewport the panel is collapsed. Tap the "Next up" chip to expand.
+   * On desktop the panel is always visible — no-op.
+   *
+   * Ordering invariant: call this before interacting with any agenda panel
+   * content on a mobile-sized page. Idempotent if already expanded.
+   */
+  async openAgendaPanelIfCollapsed(): Promise<void> {
+    // The collapsed chip is only rendered when surface.mode() === 'mobile'.
+    const chip = this.page.locator('app-agenda-panel ion-chip.next-up-chip');
+    const isCollapsed = await chip.isVisible().catch(() => false);
+    if (isCollapsed) {
+      await chip.evaluate((el: HTMLElement) => el.click());
+      // Wait for the expanded panel to appear
+      await this.page
+        .locator('app-agenda-panel section.agenda-panel')
+        .waitFor({ state: 'visible' });
+    }
+  }
+
+  /**
+   * Add an agenda item via the host-only "Add" button and form sheet.
+   * At least one of `title` or `ticketId` is required by the validator.
+   */
+  async addAgendaItem(input: {
+    title?: string;
+    ticketId?: string;
+    description?: string;
+  }): Promise<void> {
+    // Find the add button — in expanded panel (aria-label="Add agenda item")
+    const addBtn = this.page.locator('app-agenda-panel ion-button[aria-label="Add agenda item"]');
+    await addBtn.waitFor({ state: 'visible' });
+    await addBtn.evaluate((el: HTMLElement) => el.click());
+
+    const sheet = this.page.locator('app-agenda-item-form-sheet');
+    await sheet.waitFor({ state: 'visible' });
+
+    if (input.title !== undefined) {
+      await sheet.locator('ion-input[aria-label="Story title"]').locator('input').fill(input.title);
+    }
+    if (input.ticketId !== undefined) {
+      await sheet
+        .locator('ion-input[aria-label="Issue tracker ticket ID"]')
+        .locator('input')
+        .fill(input.ticketId);
+    }
+    if (input.description !== undefined) {
+      await sheet
+        .locator('ion-textarea[aria-label="Story description"]')
+        .locator('textarea')
+        .fill(input.description);
+    }
+
+    const submitBtn = sheet.locator('ion-button[aria-label="Add agenda item"]');
+    await submitBtn.waitFor({ state: 'visible' });
+    await submitBtn.evaluate((el: HTMLElement) => el.click());
+    await sheet.waitFor({ state: 'hidden' });
+  }
+
+  /**
+   * Assert visible agenda items match expected list (in order).
+   * Each entry can specify `title` (text content), `ticketId` (badge text),
+   * or `state` (`pending` | `consumed` | `skipped` | `cancelled`).
+   *
+   * Cancelled items are hidden by default; pass `state:'cancelled'` only
+   * after toggling "Show cancelled".
+   */
+  async expectAgendaItems(
+    expected: Array<{ title?: string; ticketId?: string; state?: string }>,
+  ): Promise<void> {
+    const { expect } = await import('@playwright/test');
+    const list = this.page.locator('app-agenda-panel ion-list.agenda-list');
+    await list.waitFor({ state: 'visible' });
+    const items = list.locator('ion-item.agenda-item');
+    await expect(items).toHaveCount(expected.length);
+    for (let i = 0; i < expected.length; i++) {
+      const exp = expected[i]!;
+      const item = items.nth(i);
+      if (exp.title !== undefined) {
+        await expect(item.locator('span.item-title')).toContainText(exp.title);
+      }
+      if (exp.ticketId !== undefined) {
+        await expect(item.locator('ion-badge.ticket-badge')).toContainText(exp.ticketId);
+      }
+      if (exp.state !== undefined) {
+        await expect(item).toHaveClass(new RegExp(`agenda-item--${exp.state}`));
+      }
+    }
+  }
+
+  /**
+   * Open the edit form for the nth agenda item (0-based) and apply a patch.
+   * Clears each field before typing the new value.
+   */
+  async editAgendaItem(
+    index: number,
+    patch: { title?: string; ticketId?: string; description?: string },
+  ): Promise<void> {
+    const list = this.page.locator('app-agenda-panel ion-list.agenda-list');
+    const item = list.locator('ion-item.agenda-item').nth(index);
+    const editBtn = item.locator('ion-button[aria-label*="Edit"]');
+    await editBtn.waitFor({ state: 'visible' });
+    await editBtn.evaluate((el: HTMLElement) => el.click());
+
+    const sheet = this.page.locator('app-agenda-item-form-sheet');
+    await sheet.waitFor({ state: 'visible' });
+
+    if (patch.title !== undefined) {
+      const input = sheet.locator('ion-input[aria-label="Story title"]').locator('input');
+      await input.clear();
+      await input.fill(patch.title);
+    }
+    if (patch.ticketId !== undefined) {
+      const input = sheet
+        .locator('ion-input[aria-label="Issue tracker ticket ID"]')
+        .locator('input');
+      await input.clear();
+      await input.fill(patch.ticketId);
+    }
+    if (patch.description !== undefined) {
+      const textarea = sheet
+        .locator('ion-textarea[aria-label="Story description"]')
+        .locator('textarea');
+      await textarea.clear();
+      await textarea.fill(patch.description);
+    }
+
+    const saveBtn = sheet.locator('ion-button[aria-label="Save agenda item"]');
+    await saveBtn.waitFor({ state: 'visible' });
+    await saveBtn.evaluate((el: HTMLElement) => el.click());
+    await sheet.waitFor({ state: 'hidden' });
+  }
+
+  /**
+   * Cancel the nth agenda item (0-based) via the host-only ban button.
+   * The item will be soft-deleted (state='cancelled') and hidden from
+   * the default view.
+   */
+  async cancelAgendaItem(index: number): Promise<void> {
+    const list = this.page.locator('app-agenda-panel ion-list.agenda-list');
+    const item = list.locator('ion-item.agenda-item').nth(index);
+    const label = await item
+      .locator('span.item-title')
+      .textContent()
+      .catch(() => 'item');
+    const cancelBtn = item.locator(`ion-button[aria-label="Cancel ${label?.trim() ?? 'item'}"]`);
+    // Fallback: any danger ban button in this item
+    const btn = (await cancelBtn.isVisible().catch(() => false))
+      ? cancelBtn
+      : item.locator('ion-button[color="danger"]');
+    await btn.waitFor({ state: 'visible' });
+    await btn.evaluate((el: HTMLElement) => el.click());
+  }
+
+  /**
+   * Skip the nth agenda item (0-based) via the host-only skip button.
+   * Sets state='skipped' without creating a round.
+   */
+  async skipAgendaItem(index: number): Promise<void> {
+    const list = this.page.locator('app-agenda-panel ion-list.agenda-list');
+    const item = list.locator('ion-item.agenda-item').nth(index);
+    const label = await item
+      .locator('span.item-title')
+      .textContent()
+      .catch(() => 'item');
+    const skipBtn = item.locator(`ion-button[aria-label="Skip ${label?.trim() ?? 'item'}"]`);
+    const btn = (await skipBtn.isVisible().catch(() => false))
+      ? skipBtn
+      : item.locator('ion-button[aria-label*="Skip"]');
+    await btn.waitFor({ state: 'visible' });
+    await btn.evaluate((el: HTMLElement) => el.click());
+  }
+
+  /**
+   * Reorder the nth agenda item (0-based) by one position in the given direction.
+   * Uses the host-only arrow buttons.
+   */
+  async reorderAgendaItem(index: number, dir: 'up' | 'down'): Promise<void> {
+    const list = this.page.locator('app-agenda-panel ion-list.agenda-list');
+    const item = list.locator('ion-item.agenda-item').nth(index);
+    const label = await item
+      .locator('span.item-title')
+      .textContent()
+      .catch(() => 'item');
+    const ariaName =
+      dir === 'up' ? `Move ${label?.trim() ?? 'item'} up` : `Move ${label?.trim() ?? 'item'} down`;
+    const btn = item.locator(`ion-button[aria-label="${ariaName}"]`);
+    await btn.waitFor({ state: 'visible' });
+    await btn.evaluate((el: HTMLElement) => el.click());
+  }
+
+  /**
+   * Assert the "Next up" chip text on a mobile-sized viewport.
+   * Chip text format: "Next up: {title}".
+   */
+  async expectNextUpChip(expectedTitle: string): Promise<void> {
+    const { expect } = await import('@playwright/test');
+    const chip = this.page.locator('app-agenda-panel ion-chip.next-up-chip');
+    await chip.waitFor({ state: 'visible' });
+    await expect(chip).toContainText(expectedTitle);
+  }
+
   // -- Disconnect / reconnect -----------------------------------------------
 
   /** Simulate disconnect by closing the page (abrupt; awareness clears via WS close). */
