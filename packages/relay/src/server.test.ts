@@ -8,17 +8,27 @@
 
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createCodePool } from './code-pool.js';
 import { createRoomStore, type RoomStore } from './room-store.js';
 import WebSocket from 'ws';
 import { hashPassword, MAX_ROOM_PARTICIPANTS, JOIN_REJECTION_CLOSE_CODES } from '@hnch/shared';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   createRelayServer,
   type CreateRoomResponse,
+  type HealthPayload,
   type ResolveRoomRejection,
   type ResolveRoomResponse,
 } from './server.js';
+
+const RELAY_PACKAGE_VERSION: string = (() => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const raw = readFileSync(join(here, '..', 'package.json'), 'utf-8');
+  return (JSON.parse(raw) as { version: string }).version;
+})();
 
 describe('relay server', () => {
   let server: Server;
@@ -47,12 +57,19 @@ describe('relay server', () => {
   });
 
   describe('GET /health', () => {
-    it('returns 200 with { status: "ok" }', async () => {
+    it('returns 200 with full operational shape', async () => {
       const res = await fetch(`${baseUrl}/health`);
       expect(res.status).toBe(200);
       expect(res.headers.get('content-type')).toMatch(/application\/json/);
-      const body = (await res.json()) as unknown;
-      expect(body).toEqual({ status: 'ok' });
+      const body = (await res.json()) as HealthPayload;
+      expect(body.status).toBe('ok');
+      expect(body.version).toBe(RELAY_PACKAGE_VERSION);
+      expect(typeof body.uptime).toBe('number');
+      expect(body.uptime).toBeGreaterThanOrEqual(0);
+      expect(body.rooms.active).toBe(0);
+      expect(body.rooms.snapshotted).toBe(0);
+      expect(body.rooms.cap).toBe(MAX_ROOM_PARTICIPANTS);
+      expect(body.peers.connected).toBe(0);
     });
 
     it('POST /health returns 404 (method narrowing)', async () => {
@@ -63,8 +80,54 @@ describe('relay server', () => {
     it('query string is stripped before routing', async () => {
       const res = await fetch(`${baseUrl}/health?probe=1`);
       expect(res.status).toBe(200);
-      const body = (await res.json()) as unknown;
-      expect(body).toEqual({ status: 'ok' });
+      const body = (await res.json()) as HealthPayload;
+      expect(body.status).toBe('ok');
+    });
+
+    it('response keys are exactly the documented operational shape (AC #8)', async () => {
+      // Guard against accidentally leaking room UUIDs, codes, participant IDs,
+      // or session content into /health. The key set is fixed by HealthResponse.
+      const createRes = await fetch(`${baseUrl}/rooms`, { method: 'POST' });
+      const created = (await createRes.json()) as CreateRoomResponse;
+      const body = (await (await fetch(`${baseUrl}/health`)).json()) as Record<string, unknown>;
+      expect(Object.keys(body).toSorted()).toEqual(
+        ['peers', 'rooms', 'status', 'uptime', 'version'].toSorted(),
+      );
+      expect(Object.keys(body['rooms'] as object).toSorted()).toEqual(
+        ['active', 'cap', 'snapshotted'].toSorted(),
+      );
+      expect(Object.keys(body['peers'] as object).toSorted()).toEqual(['connected']);
+      const serialised = JSON.stringify(body);
+      expect(serialised).not.toContain(created.uuid);
+      expect(serialised).not.toContain(created.code);
+    });
+
+    it('rooms.active and peers.connected reflect live WS connections', async () => {
+      const createRes = await fetch(`${baseUrl}/rooms`, { method: 'POST' });
+      const { uuid } = (await createRes.json()) as CreateRoomResponse;
+      const wsUrl = `ws://127.0.0.1:${(server.address() as AddressInfo).port}/ws/${uuid}?id=peer-a&seq=0`;
+      const ws = new WebSocket(wsUrl);
+      await new Promise<void>((resolve, reject) => {
+        ws.once('open', () => resolve());
+        ws.once('error', reject);
+      });
+
+      const connected = (await (await fetch(`${baseUrl}/health`)).json()) as HealthPayload;
+      expect(connected.rooms.active).toBe(1);
+      expect(connected.rooms.snapshotted).toBe(0);
+      expect(connected.peers.connected).toBe(1);
+
+      await new Promise<void>((resolve) => {
+        ws.once('close', () => resolve());
+        ws.close();
+      });
+      // Allow the relay's close handler to mutate connection counters.
+      await new Promise<void>((resolve) => setTimeout(resolve, 10));
+
+      const disconnected = (await (await fetch(`${baseUrl}/health`)).json()) as HealthPayload;
+      expect(disconnected.rooms.active).toBe(0);
+      expect(disconnected.rooms.snapshotted).toBe(1);
+      expect(disconnected.peers.connected).toBe(0);
     });
   });
 
@@ -343,5 +406,33 @@ describe('relay server', () => {
         ws.close();
       }
     });
+  });
+});
+
+describe('GET /health with HNCH_ROOM_CAP override', () => {
+  // ROOM_CAP is frozen at module import (ADR-0027 §2). Re-import with the env
+  // var set to assert the cap propagates into the health payload (AC #7).
+  it('rooms.cap reflects HNCH_ROOM_CAP when set', async () => {
+    const prev = process.env['HNCH_ROOM_CAP'];
+    process.env['HNCH_ROOM_CAP'] = '5';
+    vi.resetModules();
+    try {
+      const { createRelayServer: createWithCap } = await import('./server.js');
+      const { createCodePool: cp } = await import('./code-pool.js');
+      const { createRoomStore: rs } = await import('./room-store.js');
+      const store = rs(cp());
+      const srv = createWithCap({ roomStore: store });
+      await new Promise<void>((resolve) => srv.listen(0, '127.0.0.1', resolve));
+      const port = (srv.address() as AddressInfo).port;
+      const body = (await (await fetch(`http://127.0.0.1:${port}/health`)).json()) as HealthPayload;
+      expect(body.rooms.cap).toBe(5);
+      await new Promise<void>((resolve, reject) =>
+        srv.close((err) => (err ? reject(err) : resolve())),
+      );
+    } finally {
+      if (prev === undefined) delete process.env['HNCH_ROOM_CAP'];
+      else process.env['HNCH_ROOM_CAP'] = prev;
+      vi.resetModules();
+    }
   });
 });

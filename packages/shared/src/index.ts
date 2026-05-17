@@ -4,6 +4,7 @@ export * from './doc.js';
 export * from './doc-projection.js';
 export * from './format-round-label.js';
 export * from './format-time.js';
+export * from './health.js';
 export * from './is-likely-url.js';
 export * from './last-session.js';
 export * from './lineage.js';
