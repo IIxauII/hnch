@@ -379,6 +379,11 @@ export interface AppendRoundInit {
   readonly parentRoundId?: string;
   /** Override the inherited scale. Rare; usually omitted. */
   readonly scale?: Scale;
+  /**
+   * ID of the agenda item this round was started from (ADR-0042).
+   * On re-vote, callers pass the parent round's `agendaItemId` unchanged.
+   */
+  readonly agendaItemId?: string;
 }
 
 export function appendRound(doc: Y.Doc, init: AppendRoundInit): string {
@@ -398,6 +403,9 @@ export function appendRound(doc: Y.Doc, init: AppendRoundInit): string {
     if (init.ticketId !== undefined) round.set('ticketId', init.ticketId);
     if (init.parentRoundId !== undefined) {
       round.set('parentRoundId', init.parentRoundId);
+    }
+    if (init.agendaItemId !== undefined) {
+      round.set('agendaItemId', init.agendaItemId);
     }
     round.set('timerStartedAt', init.createdAt);
     round.set('votes', new Y.Map<string>());
