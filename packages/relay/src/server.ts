@@ -28,21 +28,42 @@
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import type { Duplex } from 'node:stream';
+import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 import {
   normalizeRoomCode,
   MAX_ROOM_PARTICIPANTS,
   JOIN_REJECTION_CLOSE_CODES,
+  type HealthResponse,
   type JoinRejectionReason,
 } from '@hnch/shared';
 import { accessModeOf, type AccessMode, type RoomRecord, type RoomStore } from './room-store.js';
 import { setupWSConnection, type WsRoom } from './ws-connection.js';
 
-/** Payload of a successful `GET /health` response. */
-export interface HealthPayload {
-  readonly status: 'ok';
-}
+/**
+ * Payload of a successful `GET /health` response. Re-exported from
+ * `@hnch/shared` so consumers and tests share one source of truth.
+ *
+ * Aggregate operator-facing fields only — no room UUIDs, codes, participant
+ * IDs, or session content (ADR-0001, ADR-0028).
+ */
+export type HealthPayload = HealthResponse;
+
+/**
+ * Relay version read from `packages/relay/package.json` at module load.
+ *
+ * Path is resolved relative to this file's URL so it works in both the source
+ * layout (`src/server.ts` → `../package.json`) and the built layout
+ * (`dist/server.js` → `../package.json`).
+ */
+const RELAY_VERSION: string = (() => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const raw = readFileSync(join(here, '..', 'package.json'), 'utf-8');
+  return (JSON.parse(raw) as { version: string }).version;
+})();
 
 /** Payload of a successful `POST /rooms` response. */
 export interface CreateRoomResponse {
@@ -187,7 +208,24 @@ async function handleHttpRequest(
   const path = url.split('?', 1)[0] ?? url;
 
   if (req.method === 'GET' && path === '/health') {
-    const payload: HealthPayload = { status: 'ok' };
+    let active = 0;
+    let snapshotted = 0;
+    let peers = 0;
+    for (const record of deps.roomStore.listRooms()) {
+      if (record.connections > 0) {
+        active++;
+        peers += record.connections;
+      } else {
+        snapshotted++;
+      }
+    }
+    const payload: HealthPayload = {
+      status: 'ok',
+      version: RELAY_VERSION,
+      uptime: Math.floor(process.uptime()),
+      rooms: { active, snapshotted, cap: ROOM_CAP },
+      peers: { connected: peers },
+    };
     sendJson(res, 200, payload);
     return;
   }
