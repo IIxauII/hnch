@@ -75,6 +75,10 @@ import type { ParticipantSnapshot } from '@hnch/shared';
         margin: 0;
         color: var(--ion-color-medium);
         font-size: 0.8125rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 100%;
       }
     `,
   ],
@@ -106,7 +110,7 @@ export class AvatarVoteRowComponent {
 
   protected readonly pendingNames = computed(() =>
     this.pendingParticipants()
-      .map((p) => (p.displayName ?? '').slice(0, 10))
+      .map((p) => p.displayName ?? '')
       .join(', '),
   );
 
