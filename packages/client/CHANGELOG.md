@@ -1,3 +1,10 @@
+# [1.25.0](https://github.com/IIxauII/hnch/compare/client-v1.24.1...client-v1.25.0) (2026-05-17)
+
+
+### Features
+
+* **client,e2e:** proportional vote-distribution bars ([#232](https://github.com/IIxauII/hnch/issues/232)) ([659fc6f](https://github.com/IIxauII/hnch/commit/659fc6fa0ab9ae240a11c97eb8245b4ba2415206))
+
 ## [1.24.1](https://github.com/IIxauII/hnch/compare/client-v1.24.0...client-v1.24.1) (2026-05-16)
 
 
