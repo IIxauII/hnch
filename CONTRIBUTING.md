@@ -52,7 +52,7 @@ Types in use (match existing history — see `git log`):
 | `shared` | `packages/shared/**` | Yes — `shared-v*` |
 | `e2e` | `packages/e2e/**` | No |
 | `ci` | `.github/workflows/**`, `infra/runner/**` | No |
-| `docs` | Root `*.md`, `docs/**`, `adr/**` | No |
+| `docs` | Root `*.md`, `docs/**`, `adr/**`, `plans/**` | No |
 | `infra` | `infra/**` (Caddyfile, systemd, deploy scripts) | No |
 | `deps` | Dependency bumps (Dependabot et al.) | No |
 | `repo` | Root configs (`package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`, `.gitignore`, etc.) | No |

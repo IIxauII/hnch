@@ -209,6 +209,18 @@ Tapping estimate card on Estimating:
 3. Vote written to Yjs doc. Presence (avatar fills on everyone's screen) immediate; *value* hidden until reveal.
 4. Re-tap same card = deselect (vote cleared). Tap different card = replace vote. Both allowed before reveal — see [ADR-0013](../adr/0013-round-model-flat-parentroundid.md).
 
+### Abstain
+
+Available to `voter`-role participants only. A full-width muted **Abstain this round** button appears below the card grid on the Estimating screen ([ADR-0041](../adr/0041-per-round-abstain-sentinel.md)).
+
+1. Tap **Abstain this round** — writes the `hnch_abstain` sentinel to Yjs doc immediately (no confirmation). `Haptics.impact({ style: 'Light' })` fires. Card grid dims to ~40% opacity; no card selected; abstain button shows active/filled state.
+2. Tapping any card clears abstention and casts that vote normally (same haptic and presence behaviour as a fresh vote).
+3. Tapping **Abstain this round** again while already abstained clears the abstention (toggle — no vote held).
+4. Avatar row: abstaining voters appear filled (voted) — indistinguishable from numeric voters pre-reveal. Preserves anonymity; avoids social pressure to revoke.
+5. Auto-reveal: abstaining voters are excluded from the "all must have voted" denominator. If every online voter abstains, unanimous auto-reveal does not fire; the host must reveal manually.
+6. Post-reveal: results show three mutually exclusive groups — vote groups (by card value), **Abstained**, and **Didn't vote**.
+7. Re-vote: abstain does not inherit to child rounds — each re-vote starts as a fresh slate.
+
 ### Reveal animation
 
 When the results section appears in Lobby after reveal: cards enter with 80ms staggered fade-in-and-up (`opacity 0 → 1, translateY 8px → 0`, duration 200ms). Groups render top-down. After last group settles, `Haptics.notification({ type: 'Success' })` fires once — "results final."
@@ -272,6 +284,7 @@ Common toasts: host handoff ("Alice is now hosting"), link copied ("Invite link 
 | Event | Haptic |
 |-------|--------|
 | Vote cast / changed | `impact`, `Light` |
+| Abstain tapped (cast or clear) | `impact`, `Light` |
 | Host taps Reveal Votes | `impact`, `Medium` |
 | Reveal animation completes | `notification`, `Success` |
 | Destructive confirm (Leave / End) | `impact`, `Heavy` on confirm tap |

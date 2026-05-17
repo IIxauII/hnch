@@ -254,6 +254,6 @@ These are *not* in this roadmap and will be called out if they drift in:
 - Team UI (the [ADR-0007](../adr/0007-teams-local-only.md) concept stays in architecture, no UI in v1).
 - Integrations with trackers (Jira, Linear, etc.).
 - Account sign-in or cross-device identity.
-- Export formats beyond a future clipboard markdown dump ([ADR-0013](../adr/0013-round-model-flat-parentroundid.md) action item, not v1).
-- Consensus indicator in Lobby results ([`ux.md` §8](ux.md#8-open-ux-questions)).
-- Liquid Glass / iOS 26 theme ([`ux.md` §7](ux.md#7-theming)).
+- Export formats beyond clipboard markdown (clipboard copy of revealed rounds shipped via the lobby Copy button; formats beyond markdown — CSV, JSON, PDF — remain out of scope).
+- Consensus indicator in Lobby results.
+- Liquid Glass / iOS 26 theme.

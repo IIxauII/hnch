@@ -14,6 +14,8 @@ This document describes the shape of the Yjs doc that represents a single hnch s
 - [ADR-0018](../adr/0018-remove-timer-add-unanimous-reveal.md) — removed countdown timer; added unanimous auto-reveal; `timerStartedAt` repurposed as stopwatch origin
 - [ADR-0019](../adr/0019-scale-customization.md) — scale customization: 5 builtin presets, sentinel removal, device-local overrides and custom scales
 - [ADR-0036](../adr/0036-participant-removal-lifecycle.md) — participant removal lifecycle (`leftAt` / `removedBy` soft-delete fields)
+- [ADR-0040](../adr/0040-skipped-rounds.md) — skipped rounds: host terminal action, `skippedAt` field
+- [ADR-0041](../adr/0041-per-round-abstain-sentinel.md) — per-round abstain sentinel: `hnch_abstain` vote value, auto-reveal denominator amendment
 
 **Not covered here.** Teams are local-only and never enter the Yjs doc (see [ADR-0007](../adr/0007-teams-local-only.md)). Access control tokens (password hash, invite tokens) are managed by the relay and not stored in the doc ([ADR-0009](../adr/0009-access-control-relay-tokens.md)). Room codes are a relay-side lookup to `roomUuid` and do not appear in the doc ([ADR-0008](../adr/0008-room-code-format.md), [ADR-0012](../adr/0012-snapshot-policy.md)).
 
@@ -94,7 +96,7 @@ Each round's `Y.Map`:
 | `skippedAt?` | `number` | Unix milliseconds when the host skipped the round ([ADR-0040](../adr/0040-skipped-rounds.md)). Mutually exclusive terminal state with `revealedAt` at the writer; both fields can coexist after a concurrent CRDT merge, in which case the earlier timestamp wins via `terminalState()`. Absent means not skipped. |
 | `createdBy` | `string` | `participantId` of whoever created the round. |
 | `createdAt` | `number` | Unix milliseconds when the round was created. |
-| `votes` | `Y.Map<participantId, string>` | Votes keyed by participant. The value is the card face (e.g. `"5"`, `"M"`, `"High"`). Vote-change-before-reveal ([ADR-0013](../adr/0013-round-model-flat-parentroundid.md)) is just overwriting this key. Only the final value is retained. |
+| `votes` | `Y.Map<participantId, string>` | Votes keyed by participant. The value is the card face (e.g. `"5"`, `"M"`, `"High"`) or the sentinel `hnch_abstain` when the voter abstains for this round ([ADR-0041](../adr/0041-per-round-abstain-sentinel.md)). Vote-change-before-reveal ([ADR-0013](../adr/0013-round-model-flat-parentroundid.md)) is just overwriting this key. Only the final value is retained. |
 
 Note: `revealMode` and `timerDurationMs` were removed in [ADR-0018](../adr/0018-remove-timer-add-unanimous-reveal.md). Reveal is always manual + unanimous auto-reveal. `timerStartedAt` is retained as a stopwatch origin.
 
@@ -134,7 +136,7 @@ These are computed on the client from the doc; they are not persisted:
 - **Round status:** `revealedAt ? 'revealed' : (timerStartedAt ? 'voting' : 'pending')`.
 - **Current round:** the last round in `rounds` whose `revealedAt` is unset; if all are revealed, the last round overall.
 - **Elapsed voting time:** `Date.now() - round.timerStartedAt` (counting up, displayed as a stopwatch).
-- **All voted:** every online *active* voter (awareness set ∩ `!leftAt` ∩ `role !== 'viewer'`) has a key in `round.votes`. When true, any client writes `revealedAt` (unanimous auto-reveal, ADR-0018; left-participant exclusion per ADR-0036).
+- **All voted:** every online *active* voter (awareness set ∩ `!leftAt` ∩ `role !== 'viewer'`) has a key in `round.votes` with a value other than `hnch_abstain`. Abstaining voters are excluded from the denominator (ADR-0041) — they behave like viewers for auto-reveal purposes. If every online voter has abstained, unanimous auto-reveal does not fire and the host must reveal manually. When the check passes, any client writes `revealedAt` (ADR-0018; left-participant exclusion per ADR-0036).
 - **Lineage chain:** walk `parentRoundId` backwards from a round to collect the full re-vote history for that item (useful for UI display and exports).
 - **Host liveness:** awareness has an entry for `settings.hostParticipantId`. Absence for longer than the 5-second debounce triggers election (ADR-0010).
 

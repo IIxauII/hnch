@@ -12,6 +12,26 @@ Toggle dark mode by adding/removing the `.ion-palette-dark` class on `<html>`. D
 
 When overriding dark-palette CSS custom properties, scope to `:root.ios` or `:root.md` — bare `.ios` / `.md` selectors are added per-component and would outrank global variables.
 
+## Desktop-responsive surfaces (ADR-0039)
+
+The client adapts at the `(min-width: 768px) and (pointer: fine)` breakpoint. Touch-screen laptops at any width keep the mobile UX; fine-pointer devices at 768px+ get the desktop variant. All overlay branching routes through **`SurfaceService`** — never call `ModalController`, `ActionSheetController`, or `PopoverController` directly in pages.
+
+**Page layout.** Wrap each page's content in `<ion-grid fixed>` to apply capped max-widths:
+
+| Page | Max-width |
+|---|---|
+| Onboarding, Join | 480px |
+| Home | 560px |
+| Estimating | 640px |
+| Settings | 720px |
+| Lobby | 800px |
+
+**Modals.** Call `SurfaceService.openModal(options)` instead of `ModalController.create`. On mobile it passes `breakpoints: [0, 0.6, 0.95]`; on desktop it omits breakpoints and adds the `.modal-centered` global CSS class (centered dialog, ≤480px width, ≤80vh height, no drag handle).
+
+**Menus (action sheets / popovers).** Call `SurfaceService.openSheetOrPopover(options)` and pass the trigger DOM `Event` (e.g., `(click)="openMenu($event)"`). On mobile renders an `ActionSheet`; on desktop renders a `MenuPopoverComponent` `Popover` anchored to the trigger element.
+
+**CTA bars.** Mobile: `ion-footer` sticky. Desktop: a pure-CSS `position: static` swap — no JS, the footer element reflows into the document as an inline CTA row.
+
 ## Half-sheet modals
 
 All half-sheet modals follow this pattern:
@@ -23,6 +43,8 @@ All half-sheet modals follow this pattern:
 - Child communicates via `input()` / `output()` — no direct service calls for dismissal
 
 Full-screen modals (e.g., QR display) omit `[breakpoints]` and `[initialBreakpoint]`.
+
+On desktop, pass modals through `SurfaceService.openModal()` (see above) — it applies the correct breakpoints or centered-dialog mode automatically.
 
 ## Standalone component imports
 

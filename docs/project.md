@@ -51,6 +51,14 @@ Re-votes are always allowed. A re-vote creates a *new* round with `parentRoundId
 
 Before a round's reveal, a user may change their vote any number of times by tapping a different card — only the selection at reveal time counts. This matches physical planning poker (you can flip your card back over before everyone shows).
 
+### Skip
+
+The host can skip a round (e.g. if the item is withdrawn mid-vote) without revealing votes. Skip is a terminal action distinct from reveal — skipped rounds appear in history but votes are suppressed. A skipped round cannot be re-voted directly; the host starts a fresh round instead. (ADR-0040)
+
+### Abstain
+
+A voter can abstain from a single round without falsely voting or appearing in the "Didn't vote" bucket after reveal. Tapping **Abstain this round** writes a sentinel to the vote record. The voter appears voted in the avatar row pre-reveal (no social pressure to change), is excluded from the unanimous auto-reveal denominator, and appears in a separate "Abstained" group in results. Abstain is per-round only and does not carry into re-votes. (ADR-0041)
+
 ### Timer
 
 `timerStartedAt` is written at round creation and serves as a stopwatch origin. The estimating screen displays elapsed time counting up from this value. There is no countdown or auto-reveal-on-expiry (ADR-0018).
@@ -145,7 +153,7 @@ The session *creator* is the initial host. If the host disconnects, election pro
 
 Peer ID is the device identifier from *Identity*. Election happens in the shared Yjs doc; the relay is not involved.
 
-Host responsibilities — manual-reveal trigger, access-mode and password management — are scoped to the current elected host. A subtle crown icon in the participant list surfaces who holds the role.
+Host responsibilities — manual-reveal trigger, round skip, access-mode and password management — are scoped to the current elected host. A subtle crown icon in the participant list surfaces who holds the role.
 
 ## UX
 
