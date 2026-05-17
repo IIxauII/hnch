@@ -101,8 +101,9 @@ describe('AvatarVoteRowComponent', () => {
     expect(pendingLineText(fixture)).toBeNull();
   });
 
-  it('pending-line shown at >=50% voted with pending names truncated to 10 chars', () => {
-    // 2 of 4 (50%) voted — line lists the 2 pending names.
+  it('pending-line shown at >=50% voted with full display names (no JS truncation)', () => {
+    // 2 of 4 (50%) voted — line lists pending names in full;
+    // overflow handling is delegated to CSS (text-overflow: ellipsis).
     const ps = [
       makeParticipant('v1', 'Alice'),
       makeParticipant('v2', 'Bob'),
@@ -110,7 +111,13 @@ describe('AvatarVoteRowComponent', () => {
       makeParticipant('v4', 'Dana'),
     ];
     const fixture = mount(ps, new Set(['v1', 'v2']));
-    expect(pendingLineText(fixture)).toBe('Waiting on: Christophe, Dana');
+    expect(pendingLineText(fixture)).toBe('Waiting on: ChristopherLong, Dana');
+  });
+
+  it('pending-line preserves names longer than 10 chars intact (#229)', () => {
+    const ps = [makeParticipant('v1', 'Alice'), makeParticipant('v2', 'AlexandrinaXYZ')];
+    const fixture = mount(ps, new Set(['v1']));
+    expect(pendingLineText(fixture)).toBe('Waiting on: AlexandrinaXYZ');
   });
 
   it('pending-line hidden when all participants voted', () => {
