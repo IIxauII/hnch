@@ -27,6 +27,7 @@ function makeProjection(rounds: readonly Round[] = []): DocProjection {
       accessMode: 'open',
     },
     rounds: [...rounds],
+    agenda: [],
     meta: { sessionEndedAt: undefined },
   };
 }
@@ -107,7 +108,8 @@ describe('App — round-start two-step prompt (issue #109)', () => {
       await flush();
     });
 
-    expect(newRound).toHaveBeenCalledWith('Auth', 'PROJ-42');
+    // No agenda item pending → agendaItemId is undefined (third arg)
+    expect(newRound).toHaveBeenCalledWith('Auth', 'PROJ-42', undefined);
   });
 
   it('skipping both prompts (Enter, Enter) calls newRound(undefined, undefined)', async () => {
@@ -129,7 +131,7 @@ describe('App — round-start two-step prompt (issue #109)', () => {
       await flush();
     });
 
-    expect(newRound).toHaveBeenCalledWith(undefined, undefined);
+    expect(newRound).toHaveBeenCalledWith(undefined, undefined, undefined);
   });
 
   it('Esc on ticketId prompt cancels the flow without calling newRound', async () => {
