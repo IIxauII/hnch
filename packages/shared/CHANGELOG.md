@@ -1,3 +1,10 @@
+# [1.8.0](https://github.com/IIxauII/hnch/compare/shared-v1.7.0...shared-v1.8.0) (2026-05-17)
+
+
+### Features
+
+* **shared:** agenda schema + ADR-0042 ([#236](https://github.com/IIxauII/hnch/issues/236)) ([95a3c3d](https://github.com/IIxauII/hnch/commit/95a3c3dcf00b802666026d995930d84000852921))
+
 # [1.7.0](https://github.com/IIxauII/hnch/compare/shared-v1.6.0...shared-v1.7.0) (2026-05-17)
 
 
