@@ -14,6 +14,7 @@ This document describes the shape of the Yjs doc that represents a single hnch s
 - [ADR-0018](../adr/0018-remove-timer-add-unanimous-reveal.md) — removed countdown timer; added unanimous auto-reveal; `timerStartedAt` repurposed as stopwatch origin
 - [ADR-0019](../adr/0019-scale-customization.md) — scale customization: 5 builtin presets, sentinel removal, device-local overrides and custom scales
 - [ADR-0036](../adr/0036-participant-removal-lifecycle.md) — participant removal lifecycle (`leftAt` / `removedBy` soft-delete fields)
+- [ADR-0042](../adr/0042-pre-session-agenda.md) — pre-session story agenda (`agenda: Y.Array<Y.Map>` + `round.agendaItemId` backref)
 
 **Not covered here.** Teams are local-only and never enter the Yjs doc (see [ADR-0007](../adr/0007-teams-local-only.md)). Access control tokens (password hash, invite tokens) are managed by the relay and not stored in the doc ([ADR-0009](../adr/0009-access-control-relay-tokens.md)). Room codes are a relay-side lookup to `roomUuid` and do not appear in the doc ([ADR-0008](../adr/0008-room-code-format.md), [ADR-0012](../adr/0012-snapshot-policy.md)).
 
@@ -24,7 +25,8 @@ Y.Doc
 ├── meta: Y.Map             // set once at creation, immutable
 ├── settings: Y.Map         // host-editable session config
 ├── participants: Y.Map     // keyed by participantId
-└── rounds: Y.Array         // flat list of round records
+├── rounds: Y.Array         // flat list of round records
+└── agenda: Y.Array         // pre-session story queue (ADR-0042)
 ```
 
 Ephemeral presence data (online status, typing indicators, cursors if we ever add them) lives in **Yjs awareness**, not in the doc. Awareness carries the `participantId` so that peers can map an awareness entry back to a participant record in the doc.
@@ -95,6 +97,7 @@ Each round's `Y.Map`:
 | `createdBy` | `string` | `participantId` of whoever created the round. |
 | `createdAt` | `number` | Unix milliseconds when the round was created. |
 | `votes` | `Y.Map<participantId, string>` | Votes keyed by participant. The value is the card face (e.g. `"5"`, `"M"`, `"High"`). Vote-change-before-reveal ([ADR-0013](../adr/0013-round-model-flat-parentroundid.md)) is just overwriting this key. Only the final value is retained. |
+| `agendaItemId?` | `string` | Optional. ID of the agenda item this round was started from ([ADR-0042](../adr/0042-pre-session-agenda.md)). Absent when the round was not created from an agenda item. On re-vote, callers pass the parent round's `agendaItemId` unchanged — the agenda item state is not modified again. |
 
 Note: `revealMode` and `timerDurationMs` were removed in [ADR-0018](../adr/0018-remove-timer-add-unanimous-reveal.md). Reveal is always manual + unanimous auto-reveal. `timerStartedAt` is retained as a stopwatch origin.
 
@@ -126,6 +129,58 @@ Card values are arbitrary strings — numbers, t-shirt sizes, risk labels, or an
 The `?` (unsure) and `☕` (coffee break) sentinel cards have been removed from all builtin scales (ADR-0019). They were not estimates.
 
 **Device-local customization** (ADR-0019): users can toggle individual cards on/off per preset (`PresetOverrides`) and define fully custom scales (`CustomScale`, ID prefixed `custom-`). Customization is resolved client-side before writing to the doc — the wire format is always a flat `{ id, cards }` with all enabled cards present. `PresetOverrides` and `CustomScale` are defined in `packages/shared/src/scales.ts` and are not part of the Yjs doc schema.
+
+## `agenda` — pre-session story queue
+
+`Y.Array<Y.Map>`. Ordered list of stories the host queues up before or during the session ([ADR-0042](../adr/0042-pre-session-agenda.md)). Items are displayed in ascending lexicographic order of their `sortKey` field. All participants can see the full list; only the host may mutate it.
+
+Each item's `Y.Map`:
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `string` | UUID (`crypto.randomUUID()`). Stable for the item's lifetime. |
+| `title?` | `string` | Human-readable story title. At least one of `{title, ticketId}` is required. |
+| `description?` | `string` | Longer story context. Optional. |
+| `ticketId?` | `string` | Issue tracker reference, e.g. `"PROJ-1234"`. At least one of `{title, ticketId}` is required. |
+| `state` | `string` | Item lifecycle state. Open string enum — see "State enum" below. |
+| `source` | `string` | Import source. Open string enum: `'manual'` (default) or future values `'jira'`, `'linear'`, `'github'`. Present now to avoid a schema change when importers land. |
+| `externalId?` | `string` | External system identifier for future importers (e.g. Jira issue key). Paired with `source`. |
+| `sortKey` | `string` | Fractional-index sort key (base-62 string). Items displayed in ascending lex order. Only `pending` items may have their `sortKey` changed; all other states are frozen. |
+| `createdAt` | `number` | Unix milliseconds when the item was created. |
+| `consumedAt?` | `number` | Unix milliseconds when the item was consumed (state → `consumed`). Written atomically with `consumedByRoundId`. |
+| `consumedByRoundId?` | `string` | ID of the round that consumed this item. Backref to `rounds[].id`. Written atomically with `consumedAt`. |
+
+### State enum
+
+`state` is an open string — clients must tolerate unknown values from future versions.
+
+| Value | Meaning |
+|---|---|
+| `pending` | Waiting to be estimated. Default on creation. |
+| `consumed` | A round has been created for this item (`consumedByRoundId` set). |
+| `skipped` | Host chose to skip the item without creating a round. Terminal. |
+| `cancelled` | Soft-deleted. Excluded from active agenda views. Terminal. |
+
+Valid transitions (at the writer — CRDT merge may produce concurrent writes):
+- `pending` → `consumed` | `skipped` | `cancelled`
+- `consumed` → `consumed` (idempotent)
+- All other transitions rejected at the writer.
+
+### Fractional indexing (`sortKey`)
+
+`sortKey` uses the `keyBetween(a, b)` utility in `packages/shared/src/fractional-index.ts`. One key rewrite per reorder; no neighbor renumbering. Yjs LWW semantics on a `Y.Map` key means concurrent reorders converge deterministically. The display sort is always lexicographic on `sortKey`.
+
+### Re-vote inheritance
+
+On re-vote ([ADR-0013](../adr/0013-round-model-flat-parentroundid.md)), the caller passes the parent round's `agendaItemId` to the new round unchanged. The agenda item state is **not** changed again — only one `consumed` write occurs per item.
+
+### Extensibility
+
+`source` and `externalId` are shipped with the base schema so that future importers (Jira, Linear, GitHub) can be added without a schema change. No importer logic exists in v1; the fields default to `source='manual'`, `externalId=undefined`.
+
+### Lifetime
+
+Agenda items share the doc's 24h relay snapshot TTL ([ADR-0012](../adr/0012-snapshot-policy.md)). Items are not persisted beyond the session's snapshot lifetime.
 
 ## Derived state (not stored)
 
