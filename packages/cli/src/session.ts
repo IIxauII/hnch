@@ -17,6 +17,7 @@ import {
   revealRound as revealRoundMutation,
   skipRound as skipRoundMutation,
   appendRound,
+  consumeAgendaItem,
   patchRoundDescriptor,
   patchSettings,
   hashPassword,
@@ -75,8 +76,8 @@ export interface SessionHandle {
   reveal(): void;
   /** Skip the current round (host only). */
   skip(): void;
-  /** Start a new round. */
-  newRound(title?: string, ticketId?: string): string;
+  /** Start a new round. Optionally linked to an agenda item. */
+  newRound(title?: string, ticketId?: string, agendaItemId?: string): string;
   /** Re-vote: start new round linked to current. */
   revote(): string;
   /** Update a round's title and/or description. */
@@ -312,14 +313,21 @@ export function wireSession(opts: WireOptions): SessionHandle {
       if (round) skipRoundMutation(doc, round.id, Date.now());
     },
 
-    newRound(title?: string, ticketId?: string) {
+    newRound(title?: string, ticketId?: string, agendaItemId?: string) {
       const id = randomUUID();
-      appendRound(doc, {
-        id,
-        createdAt: Date.now(),
-        createdBy: participantId,
-        ...(title !== undefined && { title }),
-        ...(ticketId !== undefined && { ticketId }),
+      const now = Date.now();
+      doc.transact(() => {
+        appendRound(doc, {
+          id,
+          createdAt: now,
+          createdBy: participantId,
+          ...(title !== undefined && { title }),
+          ...(ticketId !== undefined && { ticketId }),
+          ...(agendaItemId !== undefined && { agendaItemId }),
+        });
+        if (agendaItemId !== undefined) {
+          consumeAgendaItem(doc, agendaItemId, id, now);
+        }
       });
       return id;
     },
@@ -335,6 +343,8 @@ export function wireSession(opts: WireOptions): SessionHandle {
         ...(round?.title !== undefined && { title: round.title }),
         ...(round?.description !== undefined && { description: round.description }),
         ...(round?.ticketId !== undefined && { ticketId: round.ticketId }),
+        // Re-vote inherits agendaItemId from parent (ADR-0042: no new consumption)
+        ...(round?.agendaItemId !== undefined && { agendaItemId: round.agendaItemId }),
       });
       return id;
     },
