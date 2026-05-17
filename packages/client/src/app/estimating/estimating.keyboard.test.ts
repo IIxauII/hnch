@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveKeyboardCardAction, type KeyEventLike } from './estimating.keyboard';
+import {
+  isEditableElement,
+  resolveKeyboardCardAction,
+  shouldHandleKeyEvent,
+  type KeyEventLike,
+} from './estimating.keyboard';
 
 const FIB = ['0', '1', '2', '3', '5', '8', '13', '21'] as const;
 const LINEAR = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'] as const;
@@ -225,5 +230,94 @@ describe('resolveKeyboardCardAction', () => {
       );
       expect(r).toEqual({ kind: 'noop' });
     });
+
+    it('Arrow on empty cards → noop', () => {
+      const r = resolveKeyboardCardAction(
+        ev({ key: 'ArrowRight' }),
+        [],
+        undefined,
+        undefined,
+        false,
+      );
+      expect(r).toEqual({ kind: 'noop' });
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isEditableElement
+// ---------------------------------------------------------------------------
+
+function makeEl(tag: string, opts: { isContentEditable?: boolean } = {}): Element {
+  return {
+    tagName: tag.toUpperCase(),
+    isContentEditable: opts.isContentEditable ?? false,
+  } as unknown as Element;
+}
+
+describe('isEditableElement', () => {
+  it('returns false for null', () => {
+    expect(isEditableElement(null)).toBe(false);
+  });
+
+  it('returns true for INPUT, TEXTAREA, SELECT', () => {
+    expect(isEditableElement(makeEl('input'))).toBe(true);
+    expect(isEditableElement(makeEl('textarea'))).toBe(true);
+    expect(isEditableElement(makeEl('select'))).toBe(true);
+  });
+
+  it('returns true for Ionic input variants', () => {
+    expect(isEditableElement(makeEl('ion-input'))).toBe(true);
+    expect(isEditableElement(makeEl('ion-textarea'))).toBe(true);
+    expect(isEditableElement(makeEl('ion-searchbar'))).toBe(true);
+  });
+
+  it('returns true for contentEditable elements', () => {
+    expect(isEditableElement(makeEl('div', { isContentEditable: true }))).toBe(true);
+  });
+
+  it('returns false for ordinary non-editable elements', () => {
+    expect(isEditableElement(makeEl('div'))).toBe(false);
+    expect(isEditableElement(makeEl('ion-card'))).toBe(false);
+    expect(isEditableElement(makeEl('button'))).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// shouldHandleKeyEvent
+// ---------------------------------------------------------------------------
+
+describe('shouldHandleKeyEvent', () => {
+  const baseCtx = {
+    defaultPrevented: false,
+    activeElement: null as Element | null,
+    overlayPresent: false,
+    roundActive: true,
+    isViewer: false,
+  };
+
+  it('returns true under the happy path', () => {
+    expect(shouldHandleKeyEvent(baseCtx)).toBe(true);
+  });
+
+  it('returns false when event.defaultPrevented', () => {
+    expect(shouldHandleKeyEvent({ ...baseCtx, defaultPrevented: true })).toBe(false);
+  });
+
+  it('returns false when activeElement is editable', () => {
+    expect(shouldHandleKeyEvent({ ...baseCtx, activeElement: makeEl('input') })).toBe(false);
+    expect(shouldHandleKeyEvent({ ...baseCtx, activeElement: makeEl('ion-input') })).toBe(false);
+  });
+
+  it('returns false when an Ionic overlay is open', () => {
+    expect(shouldHandleKeyEvent({ ...baseCtx, overlayPresent: true })).toBe(false);
+  });
+
+  it('returns false when no round is active', () => {
+    expect(shouldHandleKeyEvent({ ...baseCtx, roundActive: false })).toBe(false);
+  });
+
+  it('returns false when the local user is a viewer', () => {
+    expect(shouldHandleKeyEvent({ ...baseCtx, isViewer: true })).toBe(false);
   });
 });

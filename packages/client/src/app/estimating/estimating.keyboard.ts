@@ -98,3 +98,40 @@ function indexOfVote(cards: readonly string[], vote: string | undefined): number
   const i = cards.indexOf(vote);
   return i >= 0 ? i : undefined;
 }
+
+/**
+ * True when the given DOM element is one in which the user is typing
+ * (input, textarea, contenteditable, Ionic input variants). The
+ * Estimating keyboard handler must yield to typing on those elements
+ * so digits don't double as both card-vote and text input.
+ */
+export function isEditableElement(el: Element | null): boolean {
+  if (!el) return false;
+  const tag = el.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  if (tag === 'ION-INPUT' || tag === 'ION-TEXTAREA' || tag === 'ION-SEARCHBAR') return true;
+  return (el as HTMLElement).isContentEditable === true;
+}
+
+export interface KeyboardGateContext {
+  readonly defaultPrevented: boolean;
+  readonly activeElement: Element | null;
+  readonly overlayPresent: boolean;
+  readonly roundActive: boolean;
+  readonly isViewer: boolean;
+}
+
+/**
+ * Returns true iff the Estimating page's keydown handler should process
+ * this event. Bails on: already-handled events, focus inside an editable
+ * element, any Ionic overlay above the page, no active votable round, or
+ * the local user being a viewer.
+ */
+export function shouldHandleKeyEvent(ctx: KeyboardGateContext): boolean {
+  if (ctx.defaultPrevented) return false;
+  if (isEditableElement(ctx.activeElement)) return false;
+  if (ctx.overlayPresent) return false;
+  if (!ctx.roundActive) return false;
+  if (ctx.isViewer) return false;
+  return true;
+}

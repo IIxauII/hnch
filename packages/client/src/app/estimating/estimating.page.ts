@@ -59,7 +59,7 @@ import { shouldRecordCache } from '../core/cache-record-guard';
 import { ParticipantIdService } from '../core/participant-id.service';
 import { TimerTickService } from '../core/timer-tick.service';
 import { AvatarVoteRowComponent } from './avatar-vote-row.component';
-import { resolveKeyboardCardAction } from './estimating.keyboard';
+import { resolveKeyboardCardAction, shouldHandleKeyEvent } from './estimating.keyboard';
 
 /**
  * Estimating — ux.md §5.5.
@@ -555,17 +555,19 @@ export class EstimatingPage {
    */
   @HostListener('document:keydown', ['$event'])
   protected onDocumentKeydown(event: KeyboardEvent): void {
-    if (this.shouldSkipKeyEvent(event)) return;
-
     const round = this.currentRound();
     const id = this.myId();
-    if (!round || !id) return;
-    if (round.revealedAt !== undefined || round.skippedAt !== undefined) return;
-    if (this.isViewer()) return;
+    const gateOk = shouldHandleKeyEvent({
+      defaultPrevented: event.defaultPrevented,
+      activeElement: document.activeElement,
+      overlayPresent: !!document.querySelector(
+        'ion-action-sheet, ion-alert, ion-modal, ion-popover, ion-loading',
+      ),
+      roundActive: !!round && round.revealedAt === undefined && round.skippedAt === undefined,
+      isViewer: this.isViewer(),
+    });
+    if (!gateOk || !round || !id) return;
 
-    const cards = round.scale.cards;
-    const myVote = this.myVote() ?? undefined;
-    const focusedIndex = this.focusedIndex();
     const active = document.activeElement;
     const activeElementIsCard =
       !!active && this.cardEls?.some((ref) => ref.nativeElement === active);
@@ -578,9 +580,9 @@ export class EstimatingPage {
         metaKey: event.metaKey,
         altKey: event.altKey,
       },
-      cards,
-      myVote,
-      focusedIndex,
+      round.scale.cards,
+      this.myVote() ?? undefined,
+      this.focusedIndex(),
       activeElementIsCard,
     );
 
@@ -592,8 +594,6 @@ export class EstimatingPage {
         this.docService.castVote(round.id, id, action.card);
         this.focusedIndex.set(action.index);
         this.haptic.impactLight();
-        // Move DOM focus to the newly-cast card so the roving tabindex
-        // stays anchored where the user is acting.
         queueMicrotask(() => this.focusCardAt(action.index));
         break;
       case 'clear':
@@ -605,24 +605,6 @@ export class EstimatingPage {
         this.focusCardAt(action.index);
         break;
     }
-  }
-
-  private shouldSkipKeyEvent(event: KeyboardEvent): boolean {
-    if (event.defaultPrevented) return true;
-    const active = document.activeElement as HTMLElement | null;
-    if (active) {
-      const tag = active.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
-      if (tag === 'ION-INPUT' || tag === 'ION-TEXTAREA' || tag === 'ION-SEARCHBAR') return true;
-      if (active.isContentEditable) return true;
-    }
-    // Any Ionic overlay open above the page swallows key events.
-    if (
-      document.querySelector('ion-action-sheet, ion-alert, ion-modal, ion-popover, ion-loading')
-    ) {
-      return true;
-    }
-    return false;
   }
 
   private focusCardAt(index: number): void {
