@@ -127,7 +127,11 @@ vi.mock('@ionic/angular/standalone', async () => {
   };
 });
 vi.mock('ionicons', () => ({ addIcons: vi.fn() }));
-vi.mock('ionicons/icons', () => ({}));
+vi.mock('ionicons/icons', () => ({
+  contrastOutline: 'contrast-outline',
+  moonOutline: 'moon-outline',
+  sunnyOutline: 'sunny-outline',
+}));
 vi.mock('../session-settings/scale-picker.sheet', async () => {
   const { Component } = await import('@angular/core');
   @Component({ selector: 'app-scale-picker-sheet', template: '', standalone: true })
@@ -343,6 +347,86 @@ describe('SettingsPage — avatar color picker (ADR-0043)', () => {
     avatarApi(fixture).onAvatarSelectChanged(null);
     avatarApi(fixture).onAvatarSelectChanged(undefined);
     expect(avatar.setValue).not.toHaveBeenCalled();
+  });
+});
+
+describe('SettingsPage — themeIconName (issue #251)', () => {
+  async function mountWithTheme(theme: 'system' | 'light' | 'dark') {
+    const { AccentService } = await import('../core/accent.service');
+    const { AppPreferenceService } = await import('../core/app-preference.service');
+    const { AvatarColorService } = await import('../core/avatar-color.service');
+    const { DocService } = await import('../core/doc/doc.service');
+    const { DisplayNameService } = await import('../core/display-name.service');
+    const { ParticipantIdService } = await import('../core/participant-id.service');
+    const { ScalePreferenceService } = await import('../core/scale-preference.service');
+    const { ThemeService } = await import('../core/theme.service');
+    const { SurfaceService } = await import('../core/surface.service');
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        {
+          provide: AccentService,
+          useValue: { accent: signal('blue').asReadonly(), setAccent: vi.fn() },
+        },
+        { provide: AppPreferenceService, useValue: { relayHttpUrl: signal(null).asReadonly() } },
+        {
+          provide: AvatarColorService,
+          useValue: {
+            value: signal<string | null>(null).asReadonly(),
+            setValue: vi.fn().mockResolvedValue(undefined),
+          },
+        },
+        { provide: DocService, useValue: { hasSession: signal(false), setAvatarColor: vi.fn() } },
+        {
+          provide: DisplayNameService,
+          useValue: {
+            getDisplayName: vi.fn().mockResolvedValue('Host'),
+            setDisplayName: vi.fn().mockResolvedValue(undefined),
+          },
+        },
+        { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
+        {
+          provide: ScalePreferenceService,
+          useValue: {
+            defaultScale: signal({ id: 'fibonacci', cards: ['1'] }).asReadonly(),
+            defaultScaleId: signal('fibonacci').asReadonly(),
+            customScales: signal<CustomScale[]>([]).asReadonly(),
+          },
+        },
+        { provide: ThemeService, useValue: { theme: signal(theme).asReadonly() } },
+        {
+          provide: SurfaceService,
+          useValue: {
+            mode: signal('mobile').asReadonly(),
+            sheetBreakpoints: () => [0, 0.5, 1],
+            initialSheetBreakpoint: () => 0.5,
+            sheetBreakpointsFull: () => [0, 0.6, 1],
+            initialSheetBreakpointFull: () => 1,
+          },
+        },
+      ],
+    });
+    const { SettingsPage } = await import('./settings.page');
+    return TestBed.createComponent(SettingsPage);
+  }
+
+  it('returns sunny-outline for light theme', async () => {
+    const fixture = await mountWithTheme('light');
+    const cmp = fixture.componentInstance as unknown as { themeIconName: () => string };
+    expect(cmp.themeIconName()).toBe('sunny-outline');
+  });
+
+  it('returns moon-outline for dark theme', async () => {
+    const fixture = await mountWithTheme('dark');
+    const cmp = fixture.componentInstance as unknown as { themeIconName: () => string };
+    expect(cmp.themeIconName()).toBe('moon-outline');
+  });
+
+  it('returns contrast-outline for system theme', async () => {
+    const fixture = await mountWithTheme('system');
+    const cmp = fixture.componentInstance as unknown as { themeIconName: () => string };
+    expect(cmp.themeIconName()).toBe('contrast-outline');
   });
 });
 
