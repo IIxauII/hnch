@@ -42,6 +42,8 @@ export interface CreateSessionOptions {
   readonly sessionName?: string | undefined;
   readonly password?: string | undefined;
   readonly defaultScale?: Scale | undefined;
+  /** Avatar color wire value (ADR-0043). Pre-validated by caller. */
+  readonly avatarColor?: string | undefined;
 }
 
 export interface JoinSessionOptions {
@@ -51,6 +53,8 @@ export interface JoinSessionOptions {
   readonly roomCode: string;
   readonly password?: string | undefined;
   readonly onRejection?: ((reason: JoinRejectionReason) => void) | undefined;
+  /** Avatar color wire value (ADR-0043). Pre-validated by caller. */
+  readonly avatarColor?: string | undefined;
 }
 
 export interface SessionHandle {
@@ -130,6 +134,7 @@ export async function createSession(opts: CreateSessionOptions): Promise<Session
     displayName: opts.displayName,
     defaultScale: opts.defaultScale ?? FIBONACCI_SCALE,
     ...(opts.sessionName !== undefined && { sessionName: opts.sessionName }),
+    ...(opts.avatarColor !== undefined && { avatarColor: opts.avatarColor }),
   });
 
   awareness.setLocalStateField('participantId', opts.participantId);
@@ -162,6 +167,7 @@ export async function joinSession(opts: JoinSessionOptions): Promise<SessionHand
   joinDoc(doc, {
     participantId: opts.participantId,
     displayName: opts.displayName,
+    ...(opts.avatarColor !== undefined && { avatarColor: opts.avatarColor }),
   });
 
   awareness.setLocalStateField('participantId', opts.participantId);

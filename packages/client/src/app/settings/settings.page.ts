@@ -28,12 +28,19 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 
-import { getScaleLabel, type Scale } from '@hnch/shared';
+import {
+  AVATAR_PALETTE_KEYS,
+  getScaleLabel,
+  parseAvatarColor,
+  resolveAvatarColor,
+  type Scale,
+} from '@hnch/shared';
 
 import { environment } from '../../environments/environment';
 import { AccentService } from '../core/accent.service';
 import { type AccentKey, ACCENTS } from '../core/accent.tokens';
 import { AppPreferenceService } from '../core/app-preference.service';
+import { AvatarColorService } from '../core/avatar-color.service';
 import { DocService } from '../core/doc/doc.service';
 import { DisplayNameService } from '../core/display-name.service';
 import { ParticipantIdService } from '../core/participant-id.service';
@@ -107,6 +114,46 @@ import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.he
             aria-label="Display name"
             (ionBlur)="onDisplayNameBlur()"
           ></ion-input>
+        </ion-item>
+        <ion-item lines="none" class="avatar-color-item">
+          <ion-label class="ion-text-wrap">
+            <h3>Avatar color</h3>
+            <p>Pick a swatch or enter a custom #rrggbb.</p>
+            <div
+              class="swatches"
+              role="radiogroup"
+              aria-label="Avatar color"
+            >
+              @for (key of paletteKeys; track key) {
+                <button
+                  type="button"
+                  class="swatch"
+                  role="radio"
+                  [attr.aria-label]="paletteLabel(key)"
+                  [attr.aria-checked]="avatarValue() === key"
+                  [class.selected]="avatarValue() === key"
+                  [style.background]="paletteHex(key)"
+                  (click)="onPaletteSelect(key)"
+                ></button>
+              }
+            </div>
+            <ion-input
+              #avatarHexInput
+              label="Custom hex"
+              labelPlacement="stacked"
+              placeholder="#rrggbb"
+              [value]="customHexInputValue()"
+              maxlength="7"
+              aria-label="Custom avatar color (hex)"
+              (ionBlur)="onAvatarHexBlur()"
+            ></ion-input>
+          </ion-label>
+          <span
+            class="avatar-preview"
+            aria-hidden="true"
+            slot="end"
+            [style.background]="avatarResolvedColor()"
+          ></span>
         </ion-item>
       </ion-list>
 
@@ -278,6 +325,46 @@ import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.he
       ion-list-header {
         padding-inline-start: 16px;
       }
+      .avatar-color-item ion-label h3 {
+        font-size: 0.95rem;
+        margin: 0 0 0.25rem;
+      }
+      .avatar-color-item ion-label p {
+        font-size: 0.8125rem;
+        color: var(--ion-color-medium);
+        margin: 0 0 0.5rem;
+      }
+      .swatches {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin: 0.25rem 0 0.75rem;
+      }
+      .swatch {
+        appearance: none;
+        border: 2px solid transparent;
+        outline: none;
+        width: 1.75rem;
+        height: 1.75rem;
+        border-radius: 50%;
+        padding: 0;
+        cursor: pointer;
+      }
+      .swatch.selected {
+        border-color: var(--ion-color-medium);
+        box-shadow: 0 0 0 2px var(--ion-background-color), 0 0 0 4px var(--ion-color-primary);
+      }
+      .swatch:focus-visible {
+        outline: 2px solid var(--ion-color-primary);
+        outline-offset: 2px;
+      }
+      .avatar-preview {
+        display: inline-block;
+        width: 1.5rem;
+        height: 1.5rem;
+        border-radius: 50%;
+        border: 1px solid var(--ion-color-step-300, #ccc);
+      }
     `,
   ],
 })
@@ -289,6 +376,7 @@ export class SettingsPage {
   protected readonly themeService = inject(ThemeService);
   protected readonly appPrefs = inject(AppPreferenceService);
   protected readonly accentService = inject(AccentService);
+  protected readonly avatarColorService = inject(AvatarColorService);
   protected readonly surface = inject(SurfaceService);
 
   protected readonly version = environment.appVersion;
@@ -301,6 +389,26 @@ export class SettingsPage {
   ).map(([key, def]) => ({ key, label: def.label }));
 
   protected readonly accentPopoverOptions = { cssClass: 'accent-select-popover' };
+
+  /** Ordered palette keys for the swatch grid (ADR-0043). */
+  protected readonly paletteKeys: readonly AccentKey[] =
+    AVATAR_PALETTE_KEYS as readonly AccentKey[];
+
+  /** Current wire value from the AvatarColorService signal. May be null pre-bootstrap. */
+  protected readonly avatarValue = this.avatarColorService.value;
+
+  /** Resolved hex for the preview chip. Falls back to deterministic id if unset. */
+  protected readonly avatarResolvedColor = computed(() => {
+    const id = this.participantIdService.id() ?? 'unknown';
+    return resolveAvatarColor(this.avatarValue() ?? undefined, id);
+  });
+
+  /** Value shown in the hex input — populated only when the user picked custom hex. */
+  protected readonly customHexInputValue = computed(() => {
+    const v = this.avatarValue();
+    if (!v) return '';
+    return v.startsWith('#') ? v : '';
+  });
 
   protected readonly scaleLabel = computed(() => {
     const scale = this.scalePrefs.defaultScale();
@@ -315,6 +423,7 @@ export class SettingsPage {
   protected readonly relayUrlEditorOpen = signal(false);
 
   private readonly displayNameInput = viewChild<IonInput>('displayNameInput');
+  private readonly avatarHexInput = viewChild<IonInput>('avatarHexInput');
   private readonly defaultSessionNameInput = viewChild<IonInput>('defaultSessionNameInput');
   private readonly scalePickerModalRef = viewChild<IonModal>('scalePickerModal');
   private readonly relayUrlModalRef = viewChild<IonModal>('relayUrlModal');
@@ -376,6 +485,49 @@ export class SettingsPage {
     if (!isValidAccent(value)) return;
     if (value === this.accentService.accent()) return;
     this.accentService.setAccent(value);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Avatar color picker (ADR-0043)
+  // ---------------------------------------------------------------------------
+
+  /** Palette swatch label for `aria-label`. Read by screen readers. */
+  protected paletteLabel(key: AccentKey): string {
+    return ACCENTS[key].label;
+  }
+
+  /** Solid hex used to paint a swatch's background. */
+  protected paletteHex(key: AccentKey): string {
+    return ACCENTS[key].base;
+  }
+
+  protected onPaletteSelect(key: AccentKey): void {
+    if (this.avatarValue() === key) return;
+    void this.persistAvatarColor(key);
+  }
+
+  protected onAvatarHexBlur(): void {
+    const input = this.avatarHexInput();
+    if (!input) return;
+    const raw = ((input.value as string | null | undefined) ?? '').trim();
+    if (!raw) return; // Empty input = no change; user must explicitly clear via palette pick.
+    const normalized = raw.startsWith('#') ? raw : `#${raw}`;
+    if (parseAvatarColor(normalized) === null) {
+      // Reject malformed: snap back to current value.
+      input.value = this.customHexInputValue();
+      return;
+    }
+    if (normalized.toLowerCase() === this.avatarValue()) return;
+    void this.persistAvatarColor(normalized.toLowerCase());
+  }
+
+  private async persistAvatarColor(wire: string): Promise<void> {
+    await this.avatarColorService.setValue(wire);
+    // Mid-session: publish into the participant record so peers see the change live.
+    const myId = this.participantIdService.id();
+    if (myId && this.docService.hasSession()) {
+      this.docService.setAvatarColor(myId, wire);
+    }
   }
 
   // ---------------------------------------------------------------------------

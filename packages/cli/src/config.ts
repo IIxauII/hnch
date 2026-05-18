@@ -14,7 +14,12 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
-import type { PresetOverrides, CustomScale } from '@hnch/shared';
+import {
+  deterministicAvatarColor,
+  parseAvatarColor,
+  type CustomScale,
+  type PresetOverrides,
+} from '@hnch/shared';
 
 export interface CliConfig {
   participantId: string;
@@ -25,6 +30,12 @@ export interface CliConfig {
   defaultPassword?: boolean | undefined;
   presetOverrides?: PresetOverrides | undefined;
   customScales?: CustomScale[] | undefined;
+  /**
+   * Avatar color wire value (ADR-0043). `AccentKey` palette key or
+   * `#rrggbb` hex literal. Auto-assigned deterministically from
+   * `participantId` on first run; user-editable via `hnch config`.
+   */
+  avatarColor?: string | undefined;
 }
 
 // Production relay (http scheme for Node.js fetch; ws scheme derived in sync.ts).
@@ -110,6 +121,13 @@ export async function loadConfig(): Promise<CliConfig> {
     changed = true;
   }
 
+  // Avatar color (ADR-0043): if absent or malformed, seed deterministically
+  // from the participantId so the color is stable from first launch onward.
+  if (!stored.avatarColor || parseAvatarColor(stored.avatarColor) === null) {
+    stored.avatarColor = deterministicAvatarColor(stored.participantId!);
+    changed = true;
+  }
+
   if (changed) {
     writeConfig(stored);
   }
@@ -127,6 +145,7 @@ export async function loadConfig(): Promise<CliConfig> {
     defaultPassword: stored.defaultPassword,
     presetOverrides: stored.presetOverrides,
     customScales: stored.customScales,
+    avatarColor: stored.avatarColor,
   };
 }
 
