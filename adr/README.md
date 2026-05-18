@@ -61,6 +61,7 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0040](0040-skipped-rounds.md) | Skipped rounds — host terminal-state action distinct from reveal | Accepted |
 | [0041](0041-per-round-abstain-sentinel.md) | Per-round abstain action for voters — `hnch_abstain` sentinel, auto-reveal amendment | Accepted |
 | [0042](0042-pre-session-agenda.md) | Pre-session story agenda — `agenda: Y.Array<Y.Map>` + `round.agendaItemId` backref | Accepted |
+| [0043](0043-per-participant-avatar-color.md) | Per-participant avatar color — user-selectable palette or hex, stored on participant record | Accepted |
 
 ## When to write an ADR
 

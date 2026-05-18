@@ -9,7 +9,13 @@ import {
 } from '@angular/core';
 import { Router } from '@angular/router';
 import { Share } from '@capacitor/share';
-import { formatRoomCode, formatRoundLabel, getScaleLabel, terminalState } from '@hnch/shared';
+import {
+  formatRoomCode,
+  formatRoundLabel,
+  getScaleLabel,
+  resolveAvatarColor,
+  terminalState,
+} from '@hnch/shared';
 import type { Round } from '@hnch/shared';
 import {
   AlertController,
@@ -253,7 +259,11 @@ import type { AgendaItem } from '@hnch/shared';
                       [class.offline]="!onlineIds().has(p.id)"
                       [attr.aria-label]="p.displayName"
                     >
-                      <ion-avatar slot="start" aria-hidden="true">
+                      <ion-avatar
+                        slot="start"
+                        aria-hidden="true"
+                        [style.--avatar-color]="colorOf(p)"
+                      >
                         <ion-icon name="person-circle-outline"></ion-icon>
                       </ion-avatar>
                       <ion-label>
@@ -294,7 +304,11 @@ import type { AgendaItem } from '@hnch/shared';
                     [class.offline]="!onlineIds().has(p.id)"
                     [attr.aria-label]="p.id === myId() ? 'You (' + p.displayName + ')' : p.displayName"
                   >
-                    <ion-avatar slot="start" aria-hidden="true">
+                    <ion-avatar
+                      slot="start"
+                      aria-hidden="true"
+                      [style.--avatar-color]="colorOf(p)"
+                    >
                       <ion-icon name="person-circle-outline"></ion-icon>
                     </ion-avatar>
                     <ion-label>
@@ -578,7 +592,7 @@ import type { AgendaItem } from '@hnch/shared';
       }
       ion-avatar ion-icon {
         font-size: 2rem;
-        color: var(--ion-color-medium);
+        color: var(--avatar-color, var(--ion-color-medium));
       }
       ion-item.offline ion-label {
         color: var(--ion-color-medium);
@@ -692,6 +706,11 @@ export class LobbyPage {
   protected readonly hostId = computed(() => this.docService.settings()?.hostParticipantId ?? null);
 
   protected readonly isParticipantViewer = isParticipantViewer;
+
+  /** Resolved avatar color (ADR-0043). Falls back to deterministic hash of `p.id`. */
+  protected colorOf(p: { id: string; avatarColor?: string }): string {
+    return resolveAvatarColor(p.avatarColor, p.id);
+  }
 
   /** Toggle own voter↔viewer role. Wired to the self-row chip. */
   protected onToggleRole(): void {

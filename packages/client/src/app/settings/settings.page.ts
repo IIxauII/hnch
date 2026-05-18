@@ -28,12 +28,19 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 
-import { getScaleLabel, type Scale } from '@hnch/shared';
+import {
+  AVATAR_PALETTE_KEYS,
+  getScaleLabel,
+  parseAvatarColor,
+  resolveAvatarColor,
+  type Scale,
+} from '@hnch/shared';
 
 import { environment } from '../../environments/environment';
 import { AccentService } from '../core/accent.service';
 import { type AccentKey, ACCENTS } from '../core/accent.tokens';
 import { AppPreferenceService } from '../core/app-preference.service';
+import { AvatarColorService } from '../core/avatar-color.service';
 import { DocService } from '../core/doc/doc.service';
 import { DisplayNameService } from '../core/display-name.service';
 import { ParticipantIdService } from '../core/participant-id.service';
@@ -108,6 +115,40 @@ import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.he
             (ionBlur)="onDisplayNameBlur()"
           ></ion-input>
         </ion-item>
+        <ion-item>
+          <ion-select
+            label="Avatar color"
+            interface="popover"
+            [interfaceOptions]="accentPopoverOptions"
+            [value]="avatarSelectValue()"
+            (ionChange)="onAvatarSelectChanged($event.detail.value)"
+          >
+            @for (entry of paletteEntries; track entry.key) {
+              <ion-select-option [value]="entry.key">{{ entry.label }}</ion-select-option>
+            }
+            <ion-select-option value="custom">Custom…</ion-select-option>
+          </ion-select>
+          <span
+            class="avatar-preview"
+            aria-hidden="true"
+            slot="end"
+            [style.background]="avatarResolvedColor()"
+          ></span>
+        </ion-item>
+        @if (avatarSelectValue() === 'custom') {
+          <ion-item>
+            <ion-input
+              #avatarHexInput
+              label="Custom hex"
+              labelPlacement="stacked"
+              placeholder="#rrggbb"
+              [value]="customHexInputValue()"
+              maxlength="7"
+              aria-label="Custom avatar color (hex)"
+              (ionBlur)="onAvatarHexBlur()"
+            ></ion-input>
+          </ion-item>
+        }
       </ion-list>
 
       <!-- Appearance -->
@@ -278,6 +319,13 @@ import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.he
       ion-list-header {
         padding-inline-start: 16px;
       }
+      .avatar-preview {
+        display: inline-block;
+        width: 1.5rem;
+        height: 1.5rem;
+        border-radius: 50%;
+        border: 1px solid var(--ion-color-step-300, #ccc);
+      }
     `,
   ],
 })
@@ -289,6 +337,7 @@ export class SettingsPage {
   protected readonly themeService = inject(ThemeService);
   protected readonly appPrefs = inject(AppPreferenceService);
   protected readonly accentService = inject(AccentService);
+  protected readonly avatarColorService = inject(AvatarColorService);
   protected readonly surface = inject(SurfaceService);
 
   protected readonly version = environment.appVersion;
@@ -301,6 +350,39 @@ export class SettingsPage {
   ).map(([key, def]) => ({ key, label: def.label }));
 
   protected readonly accentPopoverOptions = { cssClass: 'accent-select-popover' };
+
+  /** Ordered palette entries for the avatar-color dropdown (ADR-0043). */
+  protected readonly paletteEntries = (AVATAR_PALETTE_KEYS as readonly AccentKey[]).map((key) => ({
+    key,
+    label: ACCENTS[key].label,
+  }));
+
+  /** Current wire value from the AvatarColorService signal. May be null pre-bootstrap. */
+  protected readonly avatarValue = this.avatarColorService.value;
+
+  /**
+   * Value bound to the avatar-color ion-select. Maps a custom `#rrggbb`
+   * wire value onto the literal `'custom'` so the dropdown can carry a
+   * "Custom…" option without enumerating every possible hex.
+   */
+  protected readonly avatarSelectValue = computed(() => {
+    const v = this.avatarValue();
+    if (!v) return null;
+    return v.startsWith('#') ? 'custom' : v;
+  });
+
+  /** Resolved hex for the preview chip. Falls back to deterministic id if unset. */
+  protected readonly avatarResolvedColor = computed(() => {
+    const id = this.participantIdService.id() ?? 'unknown';
+    return resolveAvatarColor(this.avatarValue() ?? undefined, id);
+  });
+
+  /** Value shown in the hex input — populated only when the user picked custom hex. */
+  protected readonly customHexInputValue = computed(() => {
+    const v = this.avatarValue();
+    if (!v) return '';
+    return v.startsWith('#') ? v : '';
+  });
 
   protected readonly scaleLabel = computed(() => {
     const scale = this.scalePrefs.defaultScale();
@@ -315,6 +397,7 @@ export class SettingsPage {
   protected readonly relayUrlEditorOpen = signal(false);
 
   private readonly displayNameInput = viewChild<IonInput>('displayNameInput');
+  private readonly avatarHexInput = viewChild<IonInput>('avatarHexInput');
   private readonly defaultSessionNameInput = viewChild<IonInput>('defaultSessionNameInput');
   private readonly scalePickerModalRef = viewChild<IonModal>('scalePickerModal');
   private readonly relayUrlModalRef = viewChild<IonModal>('relayUrlModal');
@@ -376,6 +459,53 @@ export class SettingsPage {
     if (!isValidAccent(value)) return;
     if (value === this.accentService.accent()) return;
     this.accentService.setAccent(value);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Avatar color picker (ADR-0043)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Dropdown change handler. Palette key → persist directly.
+   * `'custom'` → reveal the hex input but keep any prior hex value;
+   * if there is no prior hex, seed it with the current resolved color.
+   */
+  protected onAvatarSelectChanged(value: string | null | undefined): void {
+    if (!value) return;
+    if (value === this.avatarSelectValue()) return;
+    if (value === 'custom') {
+      const current = this.avatarValue();
+      if (current && current.startsWith('#')) return; // already custom — no-op
+      const seed = this.avatarResolvedColor().toLowerCase();
+      void this.persistAvatarColor(seed);
+      return;
+    }
+    if (parseAvatarColor(value) === null) return;
+    void this.persistAvatarColor(value);
+  }
+
+  protected onAvatarHexBlur(): void {
+    const input = this.avatarHexInput();
+    if (!input) return;
+    const raw = ((input.value as string | null | undefined) ?? '').trim();
+    if (!raw) return; // Empty input = no change; user must explicitly clear via palette pick.
+    const normalized = raw.startsWith('#') ? raw : `#${raw}`;
+    if (parseAvatarColor(normalized) === null) {
+      // Reject malformed: snap back to current value.
+      input.value = this.customHexInputValue();
+      return;
+    }
+    if (normalized.toLowerCase() === this.avatarValue()) return;
+    void this.persistAvatarColor(normalized.toLowerCase());
+  }
+
+  private async persistAvatarColor(wire: string): Promise<void> {
+    await this.avatarColorService.setValue(wire);
+    // Mid-session: publish into the participant record so peers see the change live.
+    const myId = this.participantIdService.id();
+    if (myId && this.docService.hasSession()) {
+      this.docService.setAvatarColor(myId, wire);
+    }
   }
 
   // ---------------------------------------------------------------------------
