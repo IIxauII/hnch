@@ -74,7 +74,12 @@ acquire_lock() {
 }
 release_lock() { rm -rf "${SPAWN_LOG}.lock"; }
 
-log_spawn_attempt() {
+# Logs a *failed* spawn attempt. Successful spawns are intentionally not
+# logged: ephemeral runners exit after one job by design, so a healthy pool
+# of size N draining a burst of N jobs in <60s would otherwise look identical
+# to a crashloop. Only true failures (token fetch, `podman run`) count toward
+# the backoff threshold.
+log_spawn_failure() {
   local name=$1
   acquire_lock
   echo "$(date +%s) ${name}" >> "${SPAWN_LOG}"
@@ -82,6 +87,9 @@ log_spawn_attempt() {
 }
 
 # Returns 0 if pool is healthy enough to spawn; 1 if we are crashlooping.
+# "Crashloop" = repeated *failed* spawns. Successful spawns that exit
+# naturally (ephemeral runner finished a job) are not counted — see
+# log_spawn_failure above.
 backoff_check() {
   local now recent
   now=$(date +%s)
@@ -122,12 +130,11 @@ spawn_runner() {
   local idx=$1
   local NAME="hnch-runner-${idx}-$(date +%s)"
   local TOKEN
-  TOKEN=$(fetch_registration_token) || { log_spawn_attempt "${NAME}-FAILED-TOKEN"; return 1; }
-  log_spawn_attempt "${NAME}"
+  TOKEN=$(fetch_registration_token) || { log_spawn_failure "${NAME}-FAILED-TOKEN"; return 1; }
   # Bump nofile from Podman's macOS default (~1024). Verify matrix + version-audit
   # under PR concurrency hit EMFILE during `pnpm install` (copy mode across split
   # bind mounts of /cache/pnpm-store and /actions-runner/_work).
-  podman run --rm -d \
+  if ! podman run --rm -d \
     --name "${NAME}" \
     --platform linux/arm64 \
     --userns=keep-id \
@@ -140,7 +147,10 @@ spawn_runner() {
     -v "${HOME}/runner-cache/playwright:/cache/playwright" \
     -v "${HOME}/runner-cache/nm-snapshots:/cache/nm-snapshots" \
     -v "${HOME}/runner-cache/work-${idx}:/actions-runner/_work" \
-    hnch-runner:latest
+    hnch-runner:latest >/dev/null; then
+    log_spawn_failure "${NAME}-FAILED-PODMAN-RUN"
+    return 1
+  fi
 }
 
 while true; do
