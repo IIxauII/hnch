@@ -23,7 +23,10 @@ import { test, expect, devices } from '@playwright/test';
 import { Participant } from './fixtures/app.fixture';
 import { LOBBY } from './fixtures/helpers';
 
-test.use({ ...devices['iPhone 13'] });
+// Strip defaultBrowserType — Playwright otherwise tries to launch webkit even
+// when the project is chromium, breaking CI runners that only install one browser.
+const { defaultBrowserType: _iphoneDefaultBrowserType, ...IPHONE_13 } = devices['iPhone 13'];
+test.use(IPHONE_13);
 
 // ---------------------------------------------------------------------------
 // Minimal two-context fixture (mirrors app.fixture.ts host+player pattern)
@@ -86,12 +89,12 @@ async function openSwipeDrawer(
 
 test.describe('Mobile host-actions swipe path (iPhone 13)', () => {
   test('overflow button absent; swipe-hint visible; Remove via swipe', async ({ browser }) => {
-    const hostCtx = await browser.newContext({ ...devices['iPhone 13'] });
+    const hostCtx = await browser.newContext(IPHONE_13);
     await clearStorage(hostCtx);
     const hostPage = await hostCtx.newPage();
     const host = new Participant(hostCtx, hostPage, 'Host');
 
-    const playerCtx = await browser.newContext({ ...devices['iPhone 13'] });
+    const playerCtx = await browser.newContext(IPHONE_13);
     await clearStorage(playerCtx);
     const playerPage = await playerCtx.newPage();
     const player = new Participant(playerCtx, playerPage, 'Player');
@@ -144,12 +147,12 @@ test.describe('Mobile host-actions swipe path (iPhone 13)', () => {
   });
 
   test('Make Host via swipe: host badge transfers to other participant', async ({ browser }) => {
-    const hostCtx = await browser.newContext({ ...devices['iPhone 13'] });
+    const hostCtx = await browser.newContext(IPHONE_13);
     await clearStorage(hostCtx);
     const hostPage = await hostCtx.newPage();
     const host = new Participant(hostCtx, hostPage, 'Host');
 
-    const playerCtx = await browser.newContext({ ...devices['iPhone 13'] });
+    const playerCtx = await browser.newContext(IPHONE_13);
     await clearStorage(playerCtx);
     const playerPage = await playerCtx.newPage();
     const player = new Participant(playerCtx, playerPage, 'Player');
