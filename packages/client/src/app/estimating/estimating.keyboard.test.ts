@@ -21,6 +21,7 @@ function ev(partial: Partial<KeyEventLike> & { key?: string; code?: string }): K
   };
 }
 
+// Exercises: estimating.keyboard:resolveKeyboardCardAction
 describe('resolveKeyboardCardAction', () => {
   describe('digits', () => {
     it('Digit1 → cast index 0 when nothing voted', () => {
@@ -255,6 +256,7 @@ function makeEl(tag: string, opts: { isContentEditable?: boolean } = {}): Elemen
   } as unknown as Element;
 }
 
+// Exercises: estimating.keyboard:isEditableElement
 describe('isEditableElement', () => {
   it('returns false for null', () => {
     expect(isEditableElement(null)).toBe(false);
@@ -287,6 +289,7 @@ describe('isEditableElement', () => {
 // shouldHandleKeyEvent
 // ---------------------------------------------------------------------------
 
+// Exercises: estimating.keyboard:shouldHandleKeyEvent
 describe('shouldHandleKeyEvent', () => {
   const baseCtx = {
     defaultPrevented: false,

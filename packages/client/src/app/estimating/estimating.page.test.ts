@@ -1,8 +1,12 @@
 /**
- * Tests for EstimatingPage accessibility and auto-reveal logic.
+ * Tests for EstimatingPage — shouldAutoReveal logic (ADR-0018, ADR-0041).
+ *
+ * Intentionally absent:
+ *  - CSS prefers-reduced-motion check — JSDOM does not evaluate CSS; blocked gap.
+ *  - Keyboard-wiring source scans — source-scanning provides no regression signal;
+ *    behavioral coverage is in estimating.page.keyboard.test.ts.
  */
 
-import { readFileSync } from 'fs';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@ionic/angular/standalone', () => ({
@@ -129,58 +133,11 @@ describe('EstimatingPage', () => {
     });
 
     it('fires when only non-abstain voters have voted (zero abstainers)', () => {
-      // existing behaviour unchanged with 0 abstainers
       const round = {
         id: 'r1',
         votes: { voter1: 'card1', voter2: 'card2', voter3: 'card3' },
       };
       expect(shouldAutoReveal(round, new Set(['voter1', 'voter2', 'voter3']))).toBe(true);
-    });
-  });
-
-  describe('keyboard shortcuts wiring (issue #154)', () => {
-    const sourceFile = readFileSync('./src/app/estimating/estimating.page.ts', 'utf-8');
-
-    it('template binds aria-keyshortcuts on each card', () => {
-      expect(sourceFile).toMatch(/\[attr\.aria-keyshortcuts\]="ariaKeyShortcut\(i\)"/);
-    });
-
-    it('template carries #cardEl template ref var', () => {
-      expect(sourceFile).toContain('#cardEl');
-    });
-
-    it('template uses roving tabindex', () => {
-      expect(sourceFile).toMatch(/\[attr\.tabindex\]="i === rovingTabIndex\(\) \? 0 : -1"/);
-    });
-
-    it('component declares document:keydown HostListener', () => {
-      expect(sourceFile).toContain("@HostListener('document:keydown'");
-    });
-
-    it('ariaKeyShortcut maps digits 1..9 → indices 0..8 and 0 → 9', () => {
-      // Inline call to the helper by extracting it via dynamic import is
-      // awkward in this Vitest harness — assert via string-match instead.
-      expect(sourceFile).toContain('return `Digit${index + 1}`');
-      expect(sourceFile).toContain("return 'Digit0'");
-    });
-  });
-
-  describe('prefers-reduced-motion', () => {
-    const sourceFile = readFileSync('./src/app/estimating/estimating.page.ts', 'utf-8');
-
-    it('contains @media (prefers-reduced-motion: reduce) block for card transition', () => {
-      // The page's styles should include a media query that disables
-      // the card press transition when reduced motion is preferred.
-      expect(sourceFile).toContain('@media (prefers-reduced-motion: reduce)');
-      expect(sourceFile).toContain('transition: none;');
-    });
-
-    it('card press transition disabled under reduced motion', () => {
-      // The .card element's transition is disabled when prefers-reduced-motion.
-      const mediaBlock = sourceFile.match(
-        /@media \(prefers-reduced-motion: reduce\)\s*{[\s\S]*?\.card\s*{[\s\S]*?transition:\s*none/,
-      );
-      expect(mediaBlock).toBeTruthy();
     });
   });
 });
