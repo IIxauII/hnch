@@ -230,6 +230,47 @@ describe('loadConfig', () => {
     expect(cfg.displayName).toBe('user-abcdef');
   });
 
+  it('auto-seeds avatarColor deterministically from participantId on first load (ADR-0043)', async () => {
+    const dir = join(tmpBase, 'hnch');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, 'config.json'),
+      JSON.stringify(
+        { participantId: 'pid-stable', displayName: 'Alice', relayUrl: 'https://hnch.dev' },
+        null,
+        2,
+      ) + '\n',
+      'utf-8',
+    );
+    const cfg = await loadConfig();
+    expect(cfg.avatarColor).toBeDefined();
+    // Persisted so the next launch is stable.
+    expect(readConfig().avatarColor).toBe(cfg.avatarColor);
+
+    // Cold-launch again → same key.
+    const cfg2 = await loadConfig();
+    expect(cfg2.avatarColor).toBe(cfg.avatarColor);
+  });
+
+  it('keeps a stored valid avatarColor (palette key) unchanged', async () => {
+    writeFullConfig({ avatarColor: 'teal' });
+    const cfg = await loadConfig();
+    expect(cfg.avatarColor).toBe('teal');
+  });
+
+  it('keeps a stored valid avatarColor (#rrggbb) unchanged', async () => {
+    writeFullConfig({ avatarColor: '#abcdef' });
+    const cfg = await loadConfig();
+    expect(cfg.avatarColor).toBe('#abcdef');
+  });
+
+  it('reseeds avatarColor when stored value is malformed', async () => {
+    writeFullConfig({ avatarColor: 'garbage-value' });
+    const cfg = await loadConfig();
+    expect(cfg.avatarColor).not.toBe('garbage-value');
+    expect(cfg.avatarColor).toBeDefined();
+  });
+
   it('uses the display name returned by promptLine', async () => {
     const dir = join(tmpBase, 'hnch');
     mkdirSync(dir, { recursive: true });

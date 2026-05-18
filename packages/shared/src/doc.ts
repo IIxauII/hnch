@@ -91,6 +91,17 @@ export interface Participant {
    * Always set alongside `leftAt`; absent when `leftAt` is absent.
    */
   removedBy?: string;
+  /**
+   * User-chosen avatar color (ADR-0043). Wire value is one of:
+   * - `AccentKey` from `avatar-palette.ts` (one of 12 palette keys), or
+   * - `#rrggbb` hex literal for a custom user color.
+   *
+   * Absent → readers fall back to `deterministicAvatarColor(participantId)`
+   * so pre-feature peers and brand-new joiners still render with a stable hue.
+   * Readers must funnel through `parseAvatarColor` / `resolveAvatarColor`
+   * to tolerate unknown / malformed values from old or future clients.
+   */
+  avatarColor?: string;
 }
 
 /**

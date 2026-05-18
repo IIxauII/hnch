@@ -4,6 +4,7 @@ import { normalizeRoomCode } from '@hnch/shared';
 
 import { environment } from '../../environments/environment';
 import { AppPreferenceService } from './app-preference.service';
+import { AvatarColorService } from './avatar-color.service';
 import { DisplayNameService } from './display-name.service';
 import { DocService } from './doc/doc.service';
 import { ParticipantIdService } from './participant-id.service';
@@ -34,6 +35,8 @@ export interface RejoinDeps {
   relayHttpUrl: string | null | undefined;
   getDisplayName: () => Promise<string | null>;
   getParticipantId: () => Promise<string>;
+  /** Avatar color wire value (ADR-0043). Null = "no value set yet". */
+  getAvatarColor: () => string | null;
   docService: Pick<DocService, 'endSession' | 'joinSession' | 'connect'>;
   waitForJoinOutcome: (opts?: { timeoutMs?: number }) => Promise<JoinOutcome>;
 }
@@ -79,11 +82,13 @@ export async function rejoinRoom(
     deps.getParticipantId(),
   ]);
 
+  const avatarColor = deps.getAvatarColor();
   deps.docService.endSession();
   deps.docService.joinSession({
     participantId,
     displayName: displayName ?? '',
     roomCode: code,
+    ...(avatarColor && { avatarColor }),
   });
   deps.docService.connect({ roomCode: code, deviceId: participantId }, { roomUuid: resolved.uuid });
 
@@ -127,6 +132,7 @@ export async function rejoinRoom(
 @Injectable({ providedIn: 'root' })
 export class RoomJoinService {
   private readonly appPrefs = inject(AppPreferenceService);
+  private readonly avatarColorService = inject(AvatarColorService);
   private readonly displayNameService = inject(DisplayNameService);
   private readonly participantIdService = inject(ParticipantIdService);
   private readonly docService = inject(DocService);
@@ -166,6 +172,7 @@ export class RoomJoinService {
       relayHttpUrl: this.appPrefs.relayHttpUrl(),
       getDisplayName: () => this.displayNameService.getDisplayName(),
       getParticipantId: () => this.participantIdService.getOrCreateId(),
+      getAvatarColor: () => this.avatarColorService.value(),
       docService: {
         endSession: () => this.docService.endSession(),
         joinSession: (init) => this.docService.joinSession(init),

@@ -31,6 +31,7 @@ import {
   reorderAgendaItem as reorderAgendaItemY,
   removeParticipant as removeParticipantY,
   revealRound as revealRoundY,
+  setAvatarColor as setAvatarColorY,
   setAgendaItemState as setAgendaItemStateY,
   skipRound as skipRoundY,
   updateAgendaItemFields as updateAgendaItemFieldsY,
@@ -78,6 +79,12 @@ export interface CreateSessionInit {
   readonly displayName: string;
   readonly defaultScale: Scale;
   readonly sessionName?: string;
+  /**
+   * Optional avatar color wire value (ADR-0043). Caller should pass the
+   * pre-validated value from `AvatarColorService` so the creator's color
+   * is visible to peers from the first relay snapshot.
+   */
+  readonly avatarColor?: string;
   /**
    * The room's UUID, minted by the relay's `POST /rooms` response
    * (ADR-0016). Tests may pass a stable value; production always
@@ -355,6 +362,7 @@ export class DocService {
       displayName: init.displayName,
       defaultScale: init.defaultScale,
       ...(init.sessionName !== undefined && { sessionName: init.sessionName }),
+      ...(init.avatarColor !== undefined && { avatarColor: init.avatarColor }),
     };
     initDoc(doc, seed);
 
@@ -370,7 +378,13 @@ export class DocService {
    * `hostParticipantId` are received from the relay via Yjs sync,
    * avoiding CRDT-merge conflicts with the creator's initial writes.
    */
-  joinSession(init: { participantId: string; displayName: string; roomCode?: string }): void {
+  joinSession(init: {
+    participantId: string;
+    displayName: string;
+    roomCode?: string;
+    /** Avatar color wire value (ADR-0043), pre-validated by `AvatarColorService`. */
+    avatarColor?: string;
+  }): void {
     if (this.doc !== null) {
       throw new Error('DocService.joinSession: a session is already active');
     }
@@ -379,6 +393,7 @@ export class DocService {
     joinDoc(doc, {
       participantId: init.participantId,
       displayName: init.displayName,
+      ...(init.avatarColor !== undefined && { avatarColor: init.avatarColor }),
     });
 
     this.attach(doc);
@@ -527,6 +542,19 @@ export class DocService {
 
   upsertParticipant(id: string, value: Participant): void {
     upsertParticipantY(this.requireDoc('upsertParticipant'), id, value);
+  }
+
+  /**
+   * Write the caller's chosen avatar color to their participant record
+   * (ADR-0043). Caller is responsible for sanitizing via
+   * `parseAvatarColor` first — bad input is the writer's bug, not the
+   * reader's problem.
+   *
+   * No-op when no session is active.
+   */
+  setAvatarColor(participantId: string, color: string): void {
+    if (this.doc === null) return;
+    setAvatarColorY(this.doc, participantId, color);
   }
 
   /**

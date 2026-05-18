@@ -28,6 +28,7 @@ import {
 
 import { environment } from '../../environments/environment';
 import { AppPreferenceService } from '../core/app-preference.service';
+import { AvatarColorService } from '../core/avatar-color.service';
 import { SurfaceService } from '../core/surface.service';
 import { ToastService } from '../services/toast.service';
 import { DisplayNameService } from '../core/display-name.service';
@@ -206,6 +207,7 @@ export class HomePage {
   protected readonly surface = inject(SurfaceService);
   private readonly toastService = inject(ToastService);
   private readonly appPrefs = inject(AppPreferenceService);
+  private readonly avatarColorService = inject(AvatarColorService);
   private readonly displayNameService = inject(DisplayNameService);
   private readonly participantIdService = inject(ParticipantIdService);
   private readonly scalePrefs = inject(ScalePreferenceService);
@@ -295,11 +297,13 @@ export class HomePage {
       // invariant holds.
       this.docService.endSession();
       const defaultSessionName = this.appPrefs.defaultSessionName();
+      const avatarColor = this.avatarColorService.value();
       this.docService.createSession({
         participantId,
         displayName: displayName ?? '',
         defaultScale: this.scalePrefs.defaultScale(),
         ...(defaultSessionName && { sessionName: defaultSessionName }),
+        ...(avatarColor && { avatarColor }),
         roomUuid: minted.uuid,
         roomCode: minted.code,
       });

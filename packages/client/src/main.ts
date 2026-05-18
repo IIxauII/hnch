@@ -13,6 +13,7 @@ import { AppComponent } from './app/app.component';
 import { routes } from './app/app.routes';
 import { AccentService } from './app/core/accent.service';
 import { AppPreferenceService } from './app/core/app-preference.service';
+import { AvatarColorService } from './app/core/avatar-color.service';
 import { ParticipantIdService } from './app/core/participant-id.service';
 import { ScalePreferenceService } from './app/core/scale-preference.service';
 import { ThemeService } from './app/core/theme.service';
@@ -42,6 +43,10 @@ bootstrapApplication(AppComponent, {
     }),
     provideAppInitializer(() => inject(ScalePreferenceService).ensureLoaded()),
     provideAppInitializer(() => inject(AppPreferenceService).ensureLoaded()),
+    // Avatar color depends on ParticipantIdService (deterministic first-launch
+    // uses the device id as seed). The id initializer above resolves first so
+    // this one always sees a cached id.
+    provideAppInitializer(() => inject(AvatarColorService).ensureLoaded()),
   ],
 }).catch((err: unknown) => {
   // eslint-disable-next-line no-console

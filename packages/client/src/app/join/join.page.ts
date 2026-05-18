@@ -33,6 +33,7 @@ import { qrCodeOutline } from 'ionicons/icons';
 
 import { environment } from '../../environments/environment';
 import { AppPreferenceService } from '../core/app-preference.service';
+import { AvatarColorService } from '../core/avatar-color.service';
 import { DisplayNameService } from '../core/display-name.service';
 import { DocService } from '../core/doc/doc.service';
 import { ParticipantIdService } from '../core/participant-id.service';
@@ -229,6 +230,7 @@ import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.comp
 })
 export class JoinPage {
   private readonly appPrefs = inject(AppPreferenceService);
+  private readonly avatarColorService = inject(AvatarColorService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly docService = inject(DocService);
@@ -384,11 +386,13 @@ export class JoinPage {
         ? await hashPassword(this.passwordControl.value, uuid)
         : undefined;
 
+      const avatarColor = this.avatarColorService.value();
       this.docService.endSession();
       this.docService.joinSession({
         participantId,
         displayName: displayName ?? '',
         roomCode: code,
+        ...(avatarColor && { avatarColor }),
       });
 
       this.docService.connect(

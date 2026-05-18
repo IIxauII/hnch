@@ -17,7 +17,13 @@ import { Awareness } from 'y-protocols/awareness';
 import { loadConfig, readConfig, updateConfig } from './config.js';
 import { createSession, joinSession, wireSession } from './session.js';
 import { resolveRoom } from './relay-api.js';
-import { resolveScale, BUILTIN_SCALES, hashPassword, joinDoc } from '@hnch/shared';
+import {
+  BUILTIN_SCALES,
+  hashPassword,
+  joinDoc,
+  parseAvatarColor,
+  resolveScale,
+} from '@hnch/shared';
 import { normalizeAndValidateRoomCode } from './room-code-input.js';
 import { writeLastSession, clearLastSession, readLastSession } from './last-session.js';
 import { onSessionExpired } from './session-expired.js';
@@ -76,6 +82,7 @@ async function handleCreate(argv: {
     sessionName: resolvedName,
     password,
     defaultScale: scale,
+    ...(config.avatarColor !== undefined && { avatarColor: config.avatarColor }),
   });
 
   let passwordHash: string | undefined;
@@ -160,6 +167,7 @@ async function handleJoin(argv: { code: string; password?: boolean }): Promise<v
     relayUrl: config.relayUrl,
     roomCode: code,
     password: passwordInput,
+    ...(config.avatarColor !== undefined && { avatarColor: config.avatarColor }),
     onRejection(reason) {
       if (reason === 'unknown-room') {
         void onSessionExpired({ clearLastSession, logger: console, exit: process.exit });
@@ -267,6 +275,7 @@ async function handleResume(): Promise<void> {
   joinDoc(doc, {
     participantId: config.participantId,
     displayName: config.displayName,
+    ...(config.avatarColor !== undefined && { avatarColor: config.avatarColor }),
   });
 
   awareness.setLocalStateField('participantId', config.participantId);
@@ -361,13 +370,15 @@ async function handleConfig(argv: {
   scale?: string;
   sessionName?: string;
   password?: boolean;
+  color?: string;
 }): Promise<void> {
   const hasFlags =
     argv.name !== undefined ||
     argv.relayUrl !== undefined ||
     argv.scale !== undefined ||
     argv.sessionName !== undefined ||
-    argv.password !== undefined;
+    argv.password !== undefined ||
+    argv.color !== undefined;
 
   if (!hasFlags) {
     const config = await loadConfig();
@@ -398,6 +409,15 @@ async function handleConfig(argv: {
   }
   if (argv.sessionName !== undefined) patch.defaultSessionName = argv.sessionName;
   if (argv.password !== undefined) patch.defaultPassword = argv.password;
+  if (argv.color !== undefined) {
+    const normalized =
+      argv.color.startsWith('#') || argv.color === '' ? argv.color : argv.color.toLowerCase();
+    if (normalized !== '' && parseAvatarColor(normalized) === null) {
+      console.error(`Invalid color: "${argv.color}". Pass a palette key or #rrggbb hex literal.`);
+      process.exit(1);
+    }
+    patch.avatarColor = normalized;
+  }
   updateConfig(patch);
   console.log('Config updated.');
 }
@@ -487,6 +507,11 @@ const cli = yargs(hideBin(process.argv))
         .option('password', {
           type: 'boolean',
           describe: 'Set default password prompt on (--password) or off (--no-password)',
+        })
+        .option('color', {
+          type: 'string',
+          describe:
+            'Set avatar color: a palette key (e.g. "blue", "racing-green") or a #rrggbb hex literal',
         }),
     (argv) => {
       handleConfig(argv as Parameters<typeof handleConfig>[0]).catch((err) => {
