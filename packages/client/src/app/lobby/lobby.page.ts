@@ -78,6 +78,12 @@ import { QrDisplaySheetComponent } from './qr-display.sheet';
 import { presentSheet } from '../utils/present-sheet';
 import { rejectionCopy } from '../join/join.page';
 import { participantsAccordionValueFor, summarizeParticipants } from './lobby-summary';
+import { AgendaPanelComponent } from '../agenda/agenda-panel.component';
+import {
+  AgendaItemFormSheetComponent,
+  type AgendaItemFormSubmission,
+} from '../agenda/agenda-item-form.sheet';
+import type { AgendaItem } from '@hnch/shared';
 
 /**
  * Lobby — ux.md §5.4 host variant.
@@ -108,6 +114,8 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
   selector: 'app-lobby',
   host: { class: 'ion-page' },
   imports: [
+    AgendaItemFormSheetComponent,
+    AgendaPanelComponent,
     ConnectionChipComponent,
     ConnectionStatusBannerComponent,
     IonAccordion,
@@ -211,6 +219,17 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
           <ion-label>Show QR code</ion-label>
         </ion-item>
       </ion-list>
+
+      <app-agenda-panel
+        [items]="agenda()"
+        [isHost]="isHost()"
+        (addRequested)="openAddAgendaItem()"
+        (editRequested)="openEditAgendaItem($event)"
+        (skipRequested)="onAgendaSkip($event)"
+        (cancelRequested)="onAgendaCancel($event)"
+        (reorderUpRequested)="onAgendaReorderUp($event)"
+        (reorderDownRequested)="onAgendaReorderDown($event)"
+      />
 
       <ion-accordion-group [value]="participantsAccordionValue()" expand="inset">
         <ion-accordion value="open">
@@ -412,6 +431,7 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
       <ng-template>
         <app-round-start-sheet
           [roundNumber]="nextRoundNumber()"
+          [prefillAgendaItem]="roundStartPrefillItem()"
           (submitted)="onRoundStart($event)"
           (cancelled)="roundStartOpen.set(false)"
         />
@@ -468,6 +488,23 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
             (submitted)="onRoundEditSave($event)"
           />
         }
+      </ng-template>
+    </ion-modal>
+
+    <ion-modal
+      cssClass="modal-centered"
+      [isOpen]="agendaFormOpen()"
+      [breakpoints]="surface.sheetBreakpoints()"
+      [initialBreakpoint]="surface.initialSheetBreakpoint()"
+      (didDismiss)="onAgendaFormDismiss()"
+    >
+      <ng-template>
+        <app-agenda-item-form-sheet
+          [mode]="agendaFormMode()"
+          [initialItem]="editingAgendaItem()"
+          (submitted)="onAgendaFormSubmit($event)"
+          (closeRequested)="agendaFormOpen.set(false)"
+        />
       </ng-template>
     </ion-modal>
 
@@ -605,9 +642,16 @@ export class LobbyPage {
   protected readonly activeParticipants = this.docService.activeParticipants;
   protected readonly onlineIds = this.docService.onlineParticipantIds;
   protected readonly rounds = this.docService.rounds;
+  protected readonly agenda = this.docService.agenda;
 
   /** Round-start modal visibility. Two-way bound to `ion-modal`. */
   protected readonly roundStartOpen = signal(false);
+
+  /**
+   * Agenda item to pre-fill into the round-start sheet. Set by
+   * `openRoundStart()` from `nextPendingAgendaItem`. Reset on dismiss.
+   */
+  protected readonly roundStartPrefillItem = signal<AgendaItem | null>(null);
 
   /** Session-settings modal visibility. Two-way bound to `ion-modal`. */
   protected readonly sessionSettingsOpen = signal(false);
@@ -620,6 +664,15 @@ export class LobbyPage {
 
   /** Round currently being edited, or null when no edit is open. */
   protected readonly editingRound = signal<Round | null>(null);
+
+  /** Agenda item form modal visibility. */
+  protected readonly agendaFormOpen = signal(false);
+
+  /** 'add' or 'edit' mode for the agenda item form. */
+  protected readonly agendaFormMode = signal<'add' | 'edit'>('add');
+
+  /** Agenda item being edited, or null when adding. */
+  protected readonly editingAgendaItem = signal<AgendaItem | null>(null);
 
   /**
    * Access state lives here (not in SessionSettingsSheetComponent) so
@@ -850,17 +903,29 @@ export class LobbyPage {
   }
 
   protected openRoundStart(): void {
+    // Set pre-fill from next pending agenda item (ADR-0042).
+    this.roundStartPrefillItem.set(this.docService.nextPendingAgendaItem());
     const modal = this.modalRef();
     if (modal) void presentSheet({ modal });
   }
 
   protected async onRoundStart(submission: RoundStartSubmission): Promise<void> {
-    this.docService.startRound({
+    const now = Date.now();
+    const roundId = this.docService.startRound({
       ...(submission.title !== null && { title: submission.title }),
       ...(submission.ticketId !== null && { ticketId: submission.ticketId }),
+      ...(submission.description !== null && { description: submission.description }),
+      ...(submission.agendaItemId !== undefined && { agendaItemId: submission.agendaItemId }),
     });
+
+    // Consume the agenda item atomically with round creation (ADR-0042).
+    if (submission.agendaItemId !== undefined) {
+      this.docService.consumeAgendaItem(submission.agendaItemId, roundId, now);
+    }
+
     await this.modalRef()?.dismiss();
     this.roundStartOpen.set(false);
+    this.roundStartPrefillItem.set(null);
     const code = this.docService.roomCode();
     assertRoomCode(code, 'lobby.onRoundStart');
     await this.router.navigate(['/estimating', code]);
@@ -876,15 +941,89 @@ export class LobbyPage {
     const round = this.lastRevealedRound();
     if (!round) return;
 
+    // Inherit agendaItemId from parent round (ADR-0042 re-vote rule).
+    // No agenda item state mutation on re-vote.
     this.docService.startRound({
       parentRoundId: round.id,
       ...(round.title !== undefined && { title: round.title }),
       ...(round.description !== undefined && { description: round.description }),
       ...(round.ticketId !== undefined && { ticketId: round.ticketId }),
+      ...(round.agendaItemId !== undefined && { agendaItemId: round.agendaItemId }),
     });
     const code = this.docService.roomCode();
     assertRoomCode(code, 'lobby.onRevote');
     await this.router.navigate(['/estimating', code]);
+  }
+
+  protected openAddAgendaItem(): void {
+    this.agendaFormMode.set('add');
+    this.editingAgendaItem.set(null);
+    this.agendaFormOpen.set(true);
+  }
+
+  protected openEditAgendaItem(item: AgendaItem): void {
+    this.agendaFormMode.set('edit');
+    this.editingAgendaItem.set(item);
+    this.agendaFormOpen.set(true);
+  }
+
+  protected onAgendaFormDismiss(): void {
+    this.agendaFormOpen.set(false);
+    this.editingAgendaItem.set(null);
+  }
+
+  protected onAgendaFormSubmit(submission: AgendaItemFormSubmission): void {
+    const mode = this.agendaFormMode();
+    if (mode === 'add') {
+      this.docService.appendAgendaItem({
+        ...(submission.title !== null && { title: submission.title }),
+        ...(submission.ticketId !== null && { ticketId: submission.ticketId }),
+        ...(submission.description !== null && { description: submission.description }),
+      });
+    } else {
+      const item = this.editingAgendaItem();
+      if (!item) return;
+      this.docService.updateAgendaItemFields(item.id, {
+        ...(submission.title !== null ? { title: submission.title } : { title: '' }),
+        ...(submission.ticketId !== null ? { ticketId: submission.ticketId } : { ticketId: '' }),
+        ...(submission.description !== null
+          ? { description: submission.description }
+          : { description: '' }),
+      });
+    }
+    this.agendaFormOpen.set(false);
+    this.editingAgendaItem.set(null);
+    this.haptic.impactLight();
+  }
+
+  protected onAgendaSkip(id: string): void {
+    this.haptic.impactMedium();
+    this.docService.skipAgendaItem(id);
+  }
+
+  protected onAgendaCancel(id: string): void {
+    this.haptic.impactMedium();
+    this.docService.cancelAgendaItem(id);
+  }
+
+  protected onAgendaReorderUp(id: string): void {
+    const items = this.docService.pendingAgenda();
+    const idx = items.findIndex((i) => i.id === id);
+    if (idx <= 0) return;
+    const before = idx >= 2 ? items[idx - 2]!.sortKey : null;
+    const after = items[idx - 1]!.sortKey;
+    this.docService.reorderAgendaItem(id, before, after);
+    this.haptic.impactLight();
+  }
+
+  protected onAgendaReorderDown(id: string): void {
+    const items = this.docService.pendingAgenda();
+    const idx = items.findIndex((i) => i.id === id);
+    if (idx < 0 || idx >= items.length - 1) return;
+    const before = items[idx + 1]!.sortKey;
+    const after = idx + 2 < items.length ? items[idx + 2]!.sortKey : null;
+    this.docService.reorderAgendaItem(id, before, after);
+    this.haptic.impactLight();
   }
 
   protected async openActionSheet(event: Event): Promise<void> {
