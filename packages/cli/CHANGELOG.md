@@ -1,3 +1,10 @@
+# [1.11.0](https://github.com/IIxauII/hnch/compare/cli-v1.10.0...cli-v1.11.0) (2026-05-18)
+
+
+### Features
+
+* **cli:** agenda subcommands + pre-fill ([#238](https://github.com/IIxauII/hnch/issues/238)) ([a091cc5](https://github.com/IIxauII/hnch/commit/a091cc5077f3880d1c6b60093ae6a9777cfcefbf))
+
 # [1.10.0](https://github.com/IIxauII/hnch/compare/cli-v1.9.0...cli-v1.10.0) (2026-05-16)
 
 
