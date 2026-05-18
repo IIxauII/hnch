@@ -275,6 +275,10 @@ import { resolveKeyboardCardAction, shouldHandleKeyEvent } from './estimating.ke
         outline: 2px solid var(--ion-color-primary);
         outline-offset: 2px;
       }
+      .card:focus-visible {
+        outline: 2px solid var(--ion-color-primary);
+        outline-offset: 2px;
+      }
       .card-face {
         display: flex;
         align-items: center;
