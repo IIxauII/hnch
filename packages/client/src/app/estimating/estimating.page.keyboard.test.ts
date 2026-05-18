@@ -189,6 +189,7 @@ function dispatchKey(init: Partial<KeyboardEventInit> & { code?: string; key?: s
   return event;
 }
 
+// Exercises: estimating.page:EstimatingPage (document:keydown HostListener via real component)
 describe('EstimatingPage — keyboard handler (issue #154)', () => {
   beforeEach(() => {
     // Reset focus and ensure no editable element holds focus between tests.

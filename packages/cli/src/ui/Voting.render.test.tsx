@@ -65,6 +65,7 @@ async function flush(): Promise<void> {
   await new Promise((r) => setImmediate(r));
 }
 
+// Exercises: ui/Voting:Voting
 describe('Voting — [a] abstain keybind', () => {
   it('pressing a as voter calls onVote with ABSTAIN_SENTINEL', async () => {
     const onVote = vi.fn();

@@ -30,6 +30,7 @@ describe('LobbyPage — isParticipantViewer', () => {
   });
 });
 
+// Exercises: lobby/lobby-helpers:buildCopyRoomCodeToast
 describe('LobbyPage — buildCopyRoomCodeToast', () => {
   it('success path returns fixed copied message', () => {
     expect(buildCopyRoomCodeToast(true, 'K7P-9MR')).toBe('Room code copied');
@@ -387,6 +388,7 @@ describe('LobbyPage — subtitle (custom scale label)', () => {
 // LobbyPage.onCopyRoomCode — tap-to-copy handler (issue #116)
 // ---------------------------------------------------------------------------
 
+// Exercises: lobby/lobby.page:LobbyPage (onCopyRoomCode via TestBed)
 describe('LobbyPage — onCopyRoomCode', () => {
   type Internals = { onCopyRoomCode(): Promise<void> };
 
