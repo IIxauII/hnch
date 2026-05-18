@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { isAbstainVote, isConsensus, terminalState } from '@hnch/shared';
+import { isAbstainVote, isConsensus, nextPendingAgendaItem, terminalState } from '@hnch/shared';
 import { ParticipantList } from './components/ParticipantList.js';
 import { HostActionsMenu } from './components/HostActionsMenu.js';
 import { SharePicker } from './components/SharePicker.js';
@@ -11,7 +11,7 @@ import {
   computeStats,
   formatElapsed,
 } from './lobby-helpers.js';
-import type { DocProjection, Round } from '@hnch/shared';
+import type { AgendaItem, DocProjection, Round } from '@hnch/shared';
 
 interface Props {
   projection: DocProjection;
@@ -53,6 +53,18 @@ interface Props {
   onEditDescriptor: () => void;
   canExport: boolean;
   onExportResults: () => void;
+  /** Host-only: opens the inline add-agenda-item prompt. */
+  onAgendaAdd: () => void;
+  agendaAddPromptActive: boolean;
+  agendaAddTitleInput: string;
+  onAgendaAddTitleChange: (value: string) => void;
+  onAgendaAddTitleSubmit: (value: string) => void;
+  onAgendaAddTitleCancel: () => void;
+  agendaAddTicketIdPromptActive: boolean;
+  agendaAddTicketIdInput: string;
+  onAgendaAddTicketIdChange: (value: string) => void;
+  onAgendaAddTicketIdSubmit: (value: string) => void;
+  onAgendaAddTicketIdCancel: () => void;
 }
 
 export function Lobby({
@@ -94,6 +106,17 @@ export function Lobby({
   onEditDescriptor,
   canExport,
   onExportResults,
+  onAgendaAdd,
+  agendaAddPromptActive,
+  agendaAddTitleInput,
+  onAgendaAddTitleChange,
+  onAgendaAddTitleSubmit,
+  onAgendaAddTitleCancel,
+  agendaAddTicketIdPromptActive,
+  agendaAddTicketIdInput,
+  onAgendaAddTicketIdChange,
+  onAgendaAddTicketIdSubmit,
+  onAgendaAddTicketIdCancel,
 }: Props): React.ReactElement {
   const [handoffMode, setHandoffMode] = React.useState<'idle' | 'picking' | 'confirming'>('idle');
   const [handoffTargetId, setHandoffTargetId] = React.useState<string | null>(null);
@@ -125,6 +148,10 @@ export function Lobby({
         return;
       }
       if (isHost) {
+        if (input === 'a' || input === 'A') {
+          onAgendaAdd();
+          return;
+        }
         if (input === 'e' || input === 'E') onOpenSettings();
         if (input === 's' || input === 'S') onStartRound();
         if (input === 'h' || input === 'H') setHandoffMode('picking');
@@ -147,7 +174,9 @@ export function Lobby({
         !hostMenuOpen &&
         !confirmingEndSession &&
         !shareOpen &&
-        !descriptorPromptActive,
+        !descriptorPromptActive &&
+        !agendaAddPromptActive &&
+        !agendaAddTicketIdPromptActive,
     },
   );
 
@@ -245,6 +274,10 @@ export function Lobby({
         revealed={false}
         participantId={participantId}
       />
+
+      {projection.agenda.length > 0 && (
+        <AgendaPanel items={projection.agenda} nextPending={nextPendingAgendaItem(projection)} />
+      )}
 
       {currentRound !== null && terminalState(currentRound) !== null && (
         <ResultsSection projection={projection} round={currentRound} rounds={rounds} />
@@ -350,11 +383,47 @@ export function Lobby({
         </Box>
       )}
 
+      {agendaAddPromptActive && (
+        <Box flexDirection="column">
+          <Box gap={1}>
+            <Text>Agenda title (optional, Enter to skip):</Text>
+            <TextInput
+              value={agendaAddTitleInput}
+              onChange={onAgendaAddTitleChange}
+              onSubmit={onAgendaAddTitleSubmit}
+              onCancel={onAgendaAddTitleCancel}
+              placeholder="Enter to skip"
+              isActive={agendaAddPromptActive}
+            />
+          </Box>
+          <Text dimColor>[Esc] Cancel</Text>
+        </Box>
+      )}
+
+      {agendaAddTicketIdPromptActive && (
+        <Box flexDirection="column">
+          <Box gap={1}>
+            <Text>Agenda ticket ID (optional, Enter to skip):</Text>
+            <TextInput
+              value={agendaAddTicketIdInput}
+              onChange={onAgendaAddTicketIdChange}
+              onSubmit={onAgendaAddTicketIdSubmit}
+              onCancel={onAgendaAddTicketIdCancel}
+              placeholder="e.g. PROJ-1234"
+              isActive={agendaAddTicketIdPromptActive}
+            />
+          </Box>
+          <Text dimColor>[Esc] Cancel</Text>
+        </Box>
+      )}
+
       {handoffMode === 'idle' &&
         !roundTitlePromptActive &&
         !roundTicketIdPromptActive &&
         !descriptorPromptActive &&
-        !confirmingEndSession && (
+        !confirmingEndSession &&
+        !agendaAddPromptActive &&
+        !agendaAddTicketIdPromptActive && (
           <Box gap={2}>
             {isHost ? (
               <>
@@ -375,6 +444,7 @@ export function Lobby({
                 ) : (
                   <>
                     <Text color="yellow">[s] Start round</Text>
+                    <Text color="yellow">[a] Agenda</Text>
                     <Text color="yellow">[h] Handoff</Text>
                     <Text color="yellow">[e] Settings</Text>
                     <Text color="yellow">[c] Share</Text>
@@ -485,6 +555,55 @@ function ResultsSection({ projection, round, rounds }: ResultsSectionProps): Rea
         </Text>
         {elapsed !== null && <Text dimColor>⏱ {elapsed}</Text>}
       </Box>
+    </Box>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AgendaPanel
+// ---------------------------------------------------------------------------
+
+const AGENDA_STATE_MARKER: Record<string, string> = {
+  pending: '•',
+  consumed: '✓',
+  skipped: '~',
+  cancelled: '✗',
+};
+
+const AGENDA_STATE_COLOR: Record<string, string> = {
+  consumed: 'green',
+  skipped: 'yellow',
+  cancelled: 'red',
+};
+
+interface AgendaPanelProps {
+  items: readonly AgendaItem[];
+  nextPending: AgendaItem | null;
+}
+
+function AgendaPanel({ items, nextPending }: AgendaPanelProps): React.ReactElement {
+  const visible = items.filter((i) => i.state !== 'cancelled');
+  return (
+    <Box flexDirection="column">
+      <Text dimColor>── Agenda ──</Text>
+      {visible.map((item) => {
+        const marker = AGENDA_STATE_MARKER[item.state] ?? '?';
+        const color = AGENDA_STATE_COLOR[item.state];
+        const isNext = nextPending !== null && item.id === nextPending.id;
+        const label =
+          [item.ticketId ? `[${item.ticketId}]` : '', item.title ?? '']
+            .filter(Boolean)
+            .join(' ')
+            .trim() || item.id;
+        return (
+          <Box key={item.id} gap={1}>
+            {color !== undefined ? <Text color={color}>{marker}</Text> : <Text>{marker}</Text>}
+            {color !== undefined ? <Text color={color}>{label}</Text> : <Text>{label}</Text>}
+            {isNext && <Text color="cyan">(next)</Text>}
+          </Box>
+        );
+      })}
+      {visible.length === 0 && <Text dimColor>No pending items.</Text>}
     </Box>
   );
 }
