@@ -13,6 +13,7 @@ import {
   IonContent,
   IonGrid,
   IonHeader,
+  IonIcon,
   IonInput,
   IonItem,
   IonLabel,
@@ -27,6 +28,8 @@ import {
   IonToggle,
   IonToolbar,
 } from '@ionic/angular/standalone';
+import { addIcons } from 'ionicons';
+import { contrastOutline, moonOutline, sunnyOutline } from 'ionicons/icons';
 
 import {
   AVATAR_PALETTE_KEYS,
@@ -72,6 +75,7 @@ import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.he
     IonContent,
     IonGrid,
     IonHeader,
+    IonIcon,
     IonInput,
     IonItem,
     IonLabel,
@@ -129,7 +133,7 @@ import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.he
             <ion-select-option value="custom">Custom…</ion-select-option>
           </ion-select>
           <span
-            class="avatar-preview"
+            class="appearance-preview"
             aria-hidden="true"
             slot="end"
             [style.background]="avatarResolvedColor()"
@@ -167,6 +171,12 @@ import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.he
             <ion-select-option value="light">Light</ion-select-option>
             <ion-select-option value="dark">Dark</ion-select-option>
           </ion-select>
+          <ion-icon
+            slot="end"
+            aria-hidden="true"
+            class="appearance-preview-icon"
+            [name]="themeIconName()"
+          ></ion-icon>
         </ion-item>
 
         <ion-item>
@@ -181,6 +191,11 @@ import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.he
               <ion-select-option [value]="entry.key">{{ entry.label }}</ion-select-option>
             }
           </ion-select>
+          <span
+            class="appearance-preview"
+            aria-hidden="true"
+            slot="end"
+          ></span>
         </ion-item>
       </ion-list>
 
@@ -319,12 +334,17 @@ import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.he
       ion-list-header {
         padding-inline-start: 16px;
       }
-      .avatar-preview {
+      .appearance-preview {
         display: inline-block;
         width: 1.5rem;
         height: 1.5rem;
         border-radius: 50%;
         border: 1px solid var(--ion-color-step-300, #ccc);
+        background: var(--hnch-accent);
+      }
+      .appearance-preview-icon {
+        font-size: 1.25rem;
+        color: var(--ion-color-medium);
       }
     `,
   ],
@@ -393,6 +413,17 @@ export class SettingsPage {
     relayUrlDisplayLabel(this.appPrefs.relayHttpUrl()),
   );
 
+  protected readonly themeIconName = computed(() => {
+    switch (this.themeService.theme()) {
+      case 'light':
+        return 'sunny-outline';
+      case 'dark':
+        return 'moon-outline';
+      default:
+        return 'contrast-outline';
+    }
+  });
+
   protected readonly scalePickerOpen = signal(false);
   protected readonly relayUrlEditorOpen = signal(false);
 
@@ -403,6 +434,11 @@ export class SettingsPage {
   private readonly relayUrlModalRef = viewChild<IonModal>('relayUrlModal');
 
   constructor() {
+    addIcons({
+      'contrast-outline': contrastOutline,
+      'moon-outline': moonOutline,
+      'sunny-outline': sunnyOutline,
+    });
     void this.loadDisplayName();
   }
 
