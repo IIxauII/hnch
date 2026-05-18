@@ -1,3 +1,10 @@
+## [1.27.1](https://github.com/IIxauII/hnch/compare/client-v1.27.0...client-v1.27.1) (2026-05-18)
+
+
+### Bug Fixes
+
+* **client:** RoundStartSheet Cancel dismisses modal ([#244](https://github.com/IIxauII/hnch/issues/244)) ([c759129](https://github.com/IIxauII/hnch/commit/c7591291b998e7919d6f2c1f7bc5a44ed470dbdb))
+
 # [1.27.0](https://github.com/IIxauII/hnch/compare/client-v1.26.0...client-v1.27.0) (2026-05-18)
 
 
