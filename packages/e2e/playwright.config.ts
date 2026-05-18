@@ -1,4 +1,27 @@
+import path from 'node:path';
+import fs from 'node:fs';
 import { defineConfig, devices } from '@playwright/test';
+
+// Load .env.local from the monorepo root when present (worktree port isolation).
+// Each worktree has a unique CLIENT_PORT / RELAY_PORT set by worktree:bootstrap.
+// pnpm exec doesn't auto-load .env files, so we do it here so tests and
+// webServer commands use the worktree-specific ports rather than the defaults.
+const envLocalPath = path.resolve(__dirname, '../../.env.local');
+if (fs.existsSync(envLocalPath)) {
+  const raw = fs.readFileSync(envLocalPath, 'utf8');
+  for (const line of raw.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx < 0) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    const val = trimmed.slice(eqIdx + 1).trim();
+    // Only set if not already set (explicit env overrides .env.local)
+    if (!(key in process.env)) {
+      process.env[key] = val;
+    }
+  }
+}
 
 const isCI = !!process.env['CI'];
 const CLIENT_PORT = process.env['CLIENT_PORT'] ?? '4200';
