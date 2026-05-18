@@ -121,8 +121,15 @@ vi.mock('@ionic/angular/standalone', async () => {
     create = vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() });
   }
 
+  @Injectable()
+  class PopoverController {
+    create = vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() });
+    dismiss = vi.fn().mockResolvedValue(true);
+  }
+
   return {
     AlertController,
+    PopoverController,
     IonAccordion: stub('ion-accordion'),
     IonAccordionGroup: stub('ion-accordion-group'),
     IonAvatar: stub('ion-avatar'),
@@ -158,6 +165,7 @@ vi.mock('ionicons/icons', () => ({
   closeCircleOutline: '',
   copyOutline: '',
   ellipsisHorizontalCircle: '',
+  ellipsisVertical: '',
   logOutOutline: '',
   pencilOutline: '',
   personCircleOutline: '',
@@ -217,7 +225,7 @@ async function mountLobby(scale: Scale | undefined, customs: CustomScale[]) {
   const { SurfaceService } = await import('../core/surface.service');
   const { ToastService } = await import('../services/toast.service');
   const { ExportService } = await import('../core/export.service');
-  const { AlertController } = await import('@ionic/angular/standalone');
+  const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
@@ -265,6 +273,13 @@ async function mountLobby(scale: Scale | undefined, customs: CustomScale[]) {
         provide: AlertController,
         useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
       },
+      {
+        provide: PopoverController,
+        useValue: {
+          create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }),
+          dismiss: vi.fn().mockResolvedValue(true),
+        },
+      },
     ],
   });
 
@@ -286,7 +301,7 @@ describe('LobbyPage — onRoundStart forwards ticketId', () => {
     const { SurfaceService } = await import('../core/surface.service');
     const { ToastService } = await import('../services/toast.service');
     const { ExportService } = await import('../core/export.service');
-    const { AlertController } = await import('@ionic/angular/standalone');
+    const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     const startRound = vi.fn();
     TestBed.resetTestingModule();
@@ -335,6 +350,13 @@ describe('LobbyPage — onRoundStart forwards ticketId', () => {
         {
           provide: AlertController,
           useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
+        },
+        {
+          provide: PopoverController,
+          useValue: {
+            create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }),
+            dismiss: vi.fn().mockResolvedValue(true),
+          },
         },
       ],
     });
@@ -436,7 +458,7 @@ describe('LobbyPage — onCopyRoomCode', () => {
     const { SurfaceService } = await import('../core/surface.service');
     const { ToastService } = await import('../services/toast.service');
     const { ExportService } = await import('../core/export.service');
-    const { AlertController } = await import('@ionic/angular/standalone');
+    const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     const info = vi.fn().mockResolvedValue(undefined);
     const writeText = opts.writeText ?? vi.fn().mockResolvedValue(undefined);
@@ -487,6 +509,13 @@ describe('LobbyPage — onCopyRoomCode', () => {
         {
           provide: AlertController,
           useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
+        },
+        {
+          provide: PopoverController,
+          useValue: {
+            create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }),
+            dismiss: vi.fn().mockResolvedValue(true),
+          },
         },
       ],
     });
@@ -542,7 +571,7 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
     const { SurfaceService } = await import('../core/surface.service');
     const { ToastService } = await import('../services/toast.service');
     const { ExportService } = await import('../core/export.service');
-    const { AlertController } = await import('@ionic/angular/standalone');
+    const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
@@ -585,6 +614,13 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
         {
           provide: AlertController,
           useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
+        },
+        {
+          provide: PopoverController,
+          useValue: {
+            create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }),
+            dismiss: vi.fn().mockResolvedValue(true),
+          },
         },
       ],
     });
@@ -624,7 +660,7 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
     const { SurfaceService } = await import('../core/surface.service');
     const { ToastService } = await import('../services/toast.service');
     const { ExportService } = await import('../core/export.service');
-    const { AlertController } = await import('@ionic/angular/standalone');
+    const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
@@ -667,6 +703,13 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
         {
           provide: AlertController,
           useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
+        },
+        {
+          provide: PopoverController,
+          useValue: {
+            create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }),
+            dismiss: vi.fn().mockResolvedValue(true),
+          },
         },
       ],
     });
