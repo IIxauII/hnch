@@ -1,3 +1,17 @@
+# [1.29.0](https://github.com/IIxauII/hnch/compare/client-v1.28.0...client-v1.29.0) (2026-05-18)
+
+
+### Bug Fixes
+
+* **client,e2e:** demote elapsed timer and polish Estimating hierarchy ([#247](https://github.com/IIxauII/hnch/issues/247)) ([3ac898e](https://github.com/IIxauII/hnch/commit/3ac898eac97668f41a33c8f9df0625580bbfa1f4))
+* **client:** add hover affordance to Lobby subtitle on pointer-fine devices ([#250](https://github.com/IIxauII/hnch/issues/250)) ([54f9c47](https://github.com/IIxauII/hnch/commit/54f9c47a24561745e712da79a6f13d2d36ec9a1a))
+* **client:** tier round history text colors for scannability ([#249](https://github.com/IIxauII/hnch/issues/249)) ([e1194fa](https://github.com/IIxauII/hnch/commit/e1194fa6fabd83600b9e7c04c311806475d66d2c))
+
+
+### Features
+
+* **client,cli,shared:** per-participant avatar color picker ([#159](https://github.com/IIxauII/hnch/issues/159)) ([#246](https://github.com/IIxauII/hnch/issues/246)) ([969083a](https://github.com/IIxauII/hnch/commit/969083a6af2c702163c109c9771b8236aa9f89dc))
+
 # [1.28.0](https://github.com/IIxauII/hnch/compare/client-v1.27.1...client-v1.28.0) (2026-05-18)
 
 
