@@ -18,6 +18,7 @@ vi.mock('@ionic/angular/standalone', async () => {
     'IonItem',
     'IonLabel',
     'IonNote',
+    'IonTextarea',
     'IonTitle',
     'IonToolbar',
   ]) {
@@ -36,8 +37,9 @@ vi.mock('@ionic/angular/standalone', async () => {
 });
 
 interface SheetInternals {
-  titleControl: { setValue(v: string): void };
-  ticketIdControl: { setValue(v: string): void };
+  titleControl: { value: string; setValue(v: string): void };
+  ticketIdControl: { value: string; setValue(v: string): void };
+  descriptionControl: { value: string; setValue(v: string): void };
   isSubmitting: { (): boolean };
   submit(): void;
 }
@@ -116,41 +118,53 @@ describe('buildRoundStartTicketId — normal submission', () => {
   });
 });
 
-describe('RoundStartSheetComponent.submit()', () => {
+describe('RoundStartSheetComponent.submit() — field emission', () => {
   it('emits both fields when title and ticketId are set', async () => {
     const { internals, submitted } = await mount();
     internals.titleControl.setValue('Auth migration');
     internals.ticketIdControl.setValue('PROJ-42');
     internals.submit();
-    expect(submitted).toHaveBeenCalledWith({ title: 'Auth migration', ticketId: 'PROJ-42' });
+    expect(submitted).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Auth migration', ticketId: 'PROJ-42' }),
+    );
   });
 
   it('emits null for both fields when both are blank', async () => {
     const { internals, submitted } = await mount();
     internals.submit();
-    expect(submitted).toHaveBeenCalledWith({ title: null, ticketId: null });
+    expect(submitted).toHaveBeenCalledWith(
+      expect.objectContaining({ title: null, ticketId: null }),
+    );
   });
 
   it('emits null for ticketId when only title is set', async () => {
     const { internals, submitted } = await mount();
     internals.titleControl.setValue('Title only');
     internals.submit();
-    expect(submitted).toHaveBeenCalledWith({ title: 'Title only', ticketId: null });
+    expect(submitted).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Title only', ticketId: null }),
+    );
   });
 
   it('emits null for title when only ticketId is set', async () => {
     const { internals, submitted } = await mount();
     internals.ticketIdControl.setValue('PROJ-99');
     internals.submit();
-    expect(submitted).toHaveBeenCalledWith({ title: null, ticketId: 'PROJ-99' });
+    expect(submitted).toHaveBeenCalledWith(
+      expect.objectContaining({ title: null, ticketId: 'PROJ-99' }),
+    );
   });
+});
 
+describe('RoundStartSheetComponent.submit() — trimming and guard', () => {
   it('trims whitespace from both fields', async () => {
     const { internals, submitted } = await mount();
     internals.titleControl.setValue('  trimmed  ');
     internals.ticketIdControl.setValue('  PROJ-7  ');
     internals.submit();
-    expect(submitted).toHaveBeenCalledWith({ title: 'trimmed', ticketId: 'PROJ-7' });
+    expect(submitted).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'trimmed', ticketId: 'PROJ-7' }),
+    );
   });
 
   it('whitespace-only inputs become null', async () => {
@@ -158,7 +172,9 @@ describe('RoundStartSheetComponent.submit()', () => {
     internals.titleControl.setValue('   ');
     internals.ticketIdControl.setValue('\t');
     internals.submit();
-    expect(submitted).toHaveBeenCalledWith({ title: null, ticketId: null });
+    expect(submitted).toHaveBeenCalledWith(
+      expect.objectContaining({ title: null, ticketId: null }),
+    );
   });
 
   it('latches isSubmitting after submit; second submit is a no-op', async () => {
@@ -168,5 +184,84 @@ describe('RoundStartSheetComponent.submit()', () => {
     internals.submit();
     expect(submitted).toHaveBeenCalledTimes(1);
     expect(internals.isSubmitting()).toBe(true);
+  });
+});
+
+describe('RoundStartSheetComponent.ngOnInit() — prefill present', () => {
+  it('pre-fills all fields when prefillAgendaItem is set', async () => {
+    const { RoundStartSheetComponent } = await import('./round-start.sheet');
+    const fixture = TestBed.createComponent(RoundStartSheetComponent);
+    fixture.componentRef.setInput('roundNumber', 2);
+    fixture.componentRef.setInput('prefillAgendaItem', {
+      id: 'item-1',
+      state: 'pending',
+      source: 'manual',
+      sortKey: 'a0',
+      createdAt: Date.now(),
+      title: 'Auth redesign',
+      ticketId: 'PROJ-42',
+      description: 'Some context',
+    });
+    fixture.componentInstance.ngOnInit();
+
+    const internals = fixture.componentInstance as unknown as SheetInternals;
+    expect(internals.titleControl.value).toBe('Auth redesign');
+    expect(internals.ticketIdControl.value).toBe('PROJ-42');
+    expect(internals.descriptionControl.value).toBe('Some context');
+  });
+
+  it('does not throw when prefillAgendaItem is null', async () => {
+    const { RoundStartSheetComponent } = await import('./round-start.sheet');
+    const fixture = TestBed.createComponent(RoundStartSheetComponent);
+    fixture.componentRef.setInput('roundNumber', 1);
+    fixture.componentRef.setInput('prefillAgendaItem', null);
+    expect(() => fixture.componentInstance.ngOnInit()).not.toThrow();
+
+    const internals = fixture.componentInstance as unknown as SheetInternals;
+    expect(internals.titleControl.value).toBe('');
+  });
+});
+
+describe('RoundStartSheetComponent.ngOnInit() — prefill absent fields', () => {
+  it('uses empty string when agenda item title is absent', async () => {
+    const { RoundStartSheetComponent } = await import('./round-start.sheet');
+    const fixture = TestBed.createComponent(RoundStartSheetComponent);
+    fixture.componentRef.setInput('roundNumber', 1);
+    fixture.componentRef.setInput('prefillAgendaItem', {
+      id: 'item-2',
+      state: 'pending',
+      source: 'manual',
+      sortKey: 'a0',
+      createdAt: Date.now(),
+      ticketId: 'PROJ-99',
+    });
+    fixture.componentInstance.ngOnInit();
+
+    const internals = fixture.componentInstance as unknown as SheetInternals;
+    expect(internals.titleControl.value).toBe('');
+    expect(internals.ticketIdControl.value).toBe('PROJ-99');
+    expect(internals.descriptionControl.value).toBe('');
+  });
+
+  it('emit includes agendaItemId when prefillAgendaItem is set', async () => {
+    const { RoundStartSheetComponent } = await import('./round-start.sheet');
+    const fixture = TestBed.createComponent(RoundStartSheetComponent);
+    fixture.componentRef.setInput('roundNumber', 1);
+    fixture.componentRef.setInput('prefillAgendaItem', {
+      id: 'item-3',
+      state: 'pending',
+      source: 'manual',
+      sortKey: 'a0',
+      createdAt: Date.now(),
+      title: 'Story',
+    });
+    fixture.componentInstance.ngOnInit();
+
+    const submitted = vi.fn();
+    fixture.componentInstance.submitted.subscribe(submitted);
+    const internals = fixture.componentInstance as unknown as SheetInternals;
+    internals.submit();
+
+    expect(submitted).toHaveBeenCalledWith(expect.objectContaining({ agendaItemId: 'item-3' }));
   });
 });

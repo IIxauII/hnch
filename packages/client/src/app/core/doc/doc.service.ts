@@ -7,10 +7,13 @@ import {
   type WritableSignal,
 } from '@angular/core';
 import {
+  appendAgendaItem as appendAgendaItemY,
   appendRound as appendRoundY,
   castVote as castVoteY,
   clearVote as clearVoteY,
+  consumeAgendaItem as consumeAgendaItemY,
   currentRound as currentRoundFromProjection,
+  DOC_AGENDA_KEY,
   DOC_META_KEY,
   DOC_PARTICIPANTS_KEY,
   DOC_ROUNDS_KEY,
@@ -20,14 +23,20 @@ import {
   isActiveParticipant,
   joinDoc,
   leaveSession as leaveSessionY,
+  nextPendingAgendaItem as nextPendingAgendaItemFromProjection,
   participantRole,
   patchSettings,
   projectDoc,
   patchRoundDescriptor as patchRoundDescriptorY,
+  reorderAgendaItem as reorderAgendaItemY,
   removeParticipant as removeParticipantY,
   revealRound as revealRoundY,
+  setAgendaItemState as setAgendaItemStateY,
   skipRound as skipRoundY,
+  updateAgendaItemFields as updateAgendaItemFieldsY,
   upsertParticipant as upsertParticipantY,
+  type AgendaItem,
+  type AppendAgendaItemInit,
   type DocProjection,
   type InitDocInit,
   type JoinCredentials,
@@ -38,6 +47,7 @@ import {
   type Round,
   type Scale,
   type Settings,
+  type UpdateAgendaItemFieldsInit,
 } from '@hnch/shared';
 import { Capacitor } from '@capacitor/core';
 import { Awareness } from 'y-protocols/awareness';
@@ -90,13 +100,15 @@ export interface CreateSessionInit {
 
 /**
  * Shape of `startRound()`'s input. `parentRoundId` is set on re-votes
- * (ADR-0013); everything else is straight from the round-start modal.
+ * (ADR-0013); `agendaItemId` is set when started from an agenda item (ADR-0042).
  */
 export interface StartRoundInit {
   readonly title?: string;
   readonly description?: string;
   readonly ticketId?: string;
   readonly parentRoundId?: string;
+  /** ID of the agenda item this round was started from (ADR-0042). */
+  readonly agendaItemId?: string;
 }
 
 /**
@@ -207,6 +219,28 @@ export class DocService {
   );
 
   readonly rounds: Signal<readonly Round[]> = computed(() => this.projection()?.rounds ?? []);
+
+  /**
+   * Full agenda list sorted by sortKey (ADR-0042). All states included —
+   * consumers filter by state as needed.
+   */
+  readonly agenda: Signal<readonly AgendaItem[]> = computed(() => this.projection()?.agenda ?? []);
+
+  /**
+   * Pending agenda items only — convenience filter for the agenda panel.
+   */
+  readonly pendingAgenda: Signal<readonly AgendaItem[]> = computed(() =>
+    this.agenda().filter((item) => item.state === 'pending'),
+  );
+
+  /**
+   * First pending agenda item, or null when queue is empty.
+   * Used by LobbyPage to pre-fill the round-start sheet (ADR-0042).
+   */
+  readonly nextPendingAgendaItem: Signal<AgendaItem | null> = computed(() => {
+    const snap = this.projection();
+    return snap ? nextPendingAgendaItemFromProjection(snap) : null;
+  });
 
   readonly currentRound: Signal<Round | null> = computed(() => {
     const snap = this.projection();
@@ -540,6 +574,9 @@ export class DocService {
       ...(descriptor.parentRoundId !== undefined && {
         parentRoundId: descriptor.parentRoundId,
       }),
+      ...(descriptor.agendaItemId !== undefined && {
+        agendaItemId: descriptor.agendaItemId,
+      }),
     });
     return id;
   }
@@ -592,6 +629,60 @@ export class DocService {
     removeParticipantY(this.requireDoc('removeParticipant'), hostId, targetId);
   }
 
+  // ---------------------------------------------------------------------------
+  // Agenda mutations (ADR-0042)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Append a new agenda item. Validates that at least one of `{title, ticketId}`
+   * is non-empty. Returns the new item's id.
+   * UI should gate on `isHost()` — service calls through unconditionally.
+   */
+  appendAgendaItem(init: Omit<AppendAgendaItemInit, 'createdAt'>): string {
+    return appendAgendaItemY(this.requireDoc('appendAgendaItem'), {
+      ...init,
+      createdAt: Date.now(),
+    });
+  }
+
+  /**
+   * Patch editable fields (title, ticketId, description) on a pending agenda item.
+   * Throws when item is not found or state is skipped/cancelled.
+   */
+  updateAgendaItemFields(id: string, patch: UpdateAgendaItemFieldsInit): void {
+    updateAgendaItemFieldsY(this.requireDoc('updateAgendaItemFields'), id, patch);
+  }
+
+  /**
+   * Soft-delete an agenda item (state → 'cancelled').
+   */
+  cancelAgendaItem(id: string): void {
+    setAgendaItemStateY(this.requireDoc('cancelAgendaItem'), id, 'cancelled');
+  }
+
+  /**
+   * Skip an agenda item without creating a round (state → 'skipped').
+   */
+  skipAgendaItem(id: string): void {
+    setAgendaItemStateY(this.requireDoc('skipAgendaItem'), id, 'skipped');
+  }
+
+  /**
+   * Reorder a pending agenda item. `before` / `after` are the sortKeys of the
+   * adjacent items; pass null/undefined for the list boundaries.
+   */
+  reorderAgendaItem(id: string, before?: string | null, after?: string | null): void {
+    reorderAgendaItemY(this.requireDoc('reorderAgendaItem'), id, before, after);
+  }
+
+  /**
+   * Mark an agenda item as consumed by the given round (state → 'consumed').
+   * Writes `consumedAt` and `consumedByRoundId`.
+   */
+  consumeAgendaItem(id: string, roundId: string, timestamp: number): void {
+    consumeAgendaItemY(this.requireDoc('consumeAgendaItem'), id, roundId, timestamp);
+  }
+
   /**
    * Clear `leftAt` and `removedBy` on the local participant's record after
    * the relay snapshot has synced (ADR-0036 §6 LWW fix).
@@ -634,17 +725,20 @@ export class DocService {
     const settings = doc.getMap(DOC_SETTINGS_KEY);
     const participants = doc.getMap(DOC_PARTICIPANTS_KEY);
     const rounds = doc.getArray(DOC_ROUNDS_KEY);
+    const agenda = doc.getArray(DOC_AGENDA_KEY);
 
     meta.observeDeep(rebuild);
     settings.observeDeep(rebuild);
     participants.observeDeep(rebuild);
     rounds.observeDeep(rebuild);
+    agenda.observeDeep(rebuild);
 
     this.observers = [
       () => meta.unobserveDeep(rebuild),
       () => settings.unobserveDeep(rebuild),
       () => participants.unobserveDeep(rebuild),
       () => rounds.unobserveDeep(rebuild),
+      () => agenda.unobserveDeep(rebuild),
     ];
   }
 

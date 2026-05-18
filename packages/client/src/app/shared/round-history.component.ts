@@ -1,9 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 import { formatElapsed, formatRoundLabel, resolveRoundLineage, terminalState } from '@hnch/shared';
-import type { ParticipantSnapshot, Round } from '@hnch/shared';
+import type { AgendaItem, ParticipantSnapshot, Round } from '@hnch/shared';
 import { IonButton, IonIcon } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { pencilOutline } from 'ionicons/icons';
+
+import { DocService } from '../core/doc/doc.service';
 
 /** One entry in the compact history list. */
 interface HistoryEntry {
@@ -133,6 +135,8 @@ interface HistoryEntry {
   ],
 })
 export class RoundHistoryComponent {
+  private readonly docService = inject(DocService);
+
   readonly rounds = input.required<readonly Round[]>();
   /**
    * Full rounds list from the doc, used to resolve `parentRoundId` chains
@@ -144,6 +148,15 @@ export class RoundHistoryComponent {
   readonly participants = input<readonly ParticipantSnapshot[]>([]);
   readonly isHost = input<boolean>(false);
   readonly editTriggered = output<string>();
+
+  /** Agenda item map for backref fallback (ADR-0042). */
+  private readonly agendaMap = computed<ReadonlyMap<string, AgendaItem>>(() => {
+    const map = new Map<string, AgendaItem>();
+    for (const item of this.docService.agenda()) {
+      map.set(item.id, item);
+    }
+    return map;
+  });
 
   constructor() {
     addIcons({ 'pencil-outline': pencilOutline });
@@ -163,7 +176,18 @@ export class RoundHistoryComponent {
       const isSkipped = terminalState(round) === 'skipped';
       const lineageLabel = resolveRoundLineage(round.id, lineageSource) !== null ? 're-vote' : null;
 
-      const label = formatRoundLabel(round);
+      // Fallback: when round has no title/ticketId but has an agendaItemId,
+      // resolve the agenda item for the display label (ADR-0042).
+      let label = formatRoundLabel(round);
+      if (label === null && round.agendaItemId !== undefined) {
+        const agendaItem = this.agendaMap().get(round.agendaItemId);
+        if (agendaItem !== undefined) {
+          label = formatRoundLabel({
+            title: agendaItem.title,
+            ticketId: agendaItem.ticketId,
+          } as Round);
+        }
+      }
 
       if (isSkipped) {
         return {
