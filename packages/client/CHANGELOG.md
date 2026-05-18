@@ -1,3 +1,10 @@
+## [1.29.2](https://github.com/IIxauII/hnch/compare/client-v1.29.1...client-v1.29.2) (2026-05-18)
+
+
+### Bug Fixes
+
+* **client:** add :focus-visible ring on estimating cards for keyboard nav ([#254](https://github.com/IIxauII/hnch/issues/254)) ([a1e4e89](https://github.com/IIxauII/hnch/commit/a1e4e89ae3b245df7f4a41fe824036316f96642e))
+
 ## [1.29.1](https://github.com/IIxauII/hnch/compare/client-v1.29.0...client-v1.29.1) (2026-05-18)
 
 
