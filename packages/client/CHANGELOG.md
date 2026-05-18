@@ -1,3 +1,10 @@
+## [1.29.1](https://github.com/IIxauII/hnch/compare/client-v1.29.0...client-v1.29.1) (2026-05-18)
+
+
+### Bug Fixes
+
+* **client:** theme + accent preview chips in settings ([#251](https://github.com/IIxauII/hnch/issues/251)) ([#252](https://github.com/IIxauII/hnch/issues/252)) ([142b047](https://github.com/IIxauII/hnch/commit/142b0473494c9bdb6cb7b87b2caa9e8ef7290b39))
+
 # [1.29.0](https://github.com/IIxauII/hnch/compare/client-v1.28.0...client-v1.29.0) (2026-05-18)
 
 
