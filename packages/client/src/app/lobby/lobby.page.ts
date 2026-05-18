@@ -550,11 +550,17 @@ import type { AgendaItem } from '@hnch/shared';
         font: inherit;
         cursor: pointer;
         text-align: left;
+        transition: color 120ms ease;
       }
       .subtitle:focus-visible {
         outline: 2px solid var(--ion-color-primary);
         outline-offset: 2px;
         border-radius: 4px;
+      }
+      @media (pointer: fine) {
+        .subtitle:hover {
+          color: var(--hnch-text);
+        }
       }
       .actions,
       .participants {
