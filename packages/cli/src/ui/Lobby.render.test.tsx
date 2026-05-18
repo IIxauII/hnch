@@ -12,7 +12,7 @@ import { render } from 'ink-testing-library';
 import { act } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { ABSTAIN_SENTINEL } from '@hnch/shared';
-import type { DocProjection, Round, Scale } from '@hnch/shared';
+import type { AgendaItem, DocProjection, Round, Scale } from '@hnch/shared';
 
 import { Lobby } from './Lobby.js';
 
@@ -43,6 +43,7 @@ const PROJECTION: DocProjection = {
     accessMode: 'open',
   },
   rounds: [],
+  agenda: [],
   meta: { sessionEndedAt: undefined },
 };
 
@@ -88,6 +89,17 @@ function baseProps(rounds: readonly Round[], currentRound: Round | null) {
     onEditDescriptor: noop,
     canExport: false,
     onExportResults: noop,
+    onAgendaAdd: noop,
+    agendaAddPromptActive: false,
+    agendaAddTitleInput: '',
+    onAgendaAddTitleChange: noop,
+    onAgendaAddTitleSubmit: noop,
+    onAgendaAddTitleCancel: noop,
+    agendaAddTicketIdPromptActive: false,
+    agendaAddTicketIdInput: '',
+    onAgendaAddTicketIdChange: noop,
+    onAgendaAddTicketIdSubmit: noop,
+    onAgendaAddTicketIdCancel: noop,
   };
 }
 
@@ -227,5 +239,110 @@ describe('Lobby render — issue #111 patch lines', () => {
     // r2 falls into history; its row shows `Round 2/2 [re-vote]` from compactRoundSummary.
     expect(frame).toContain('Round 2/2 [re-vote]');
     expect(frame).toContain('History');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Agenda panel render tests (issue #153)
+// ---------------------------------------------------------------------------
+
+function makeAgendaItem(overrides: Partial<AgendaItem> & { id: string }): AgendaItem {
+  return {
+    state: 'pending',
+    source: 'manual',
+    sortKey: 'a0',
+    createdAt: 0,
+    ...overrides,
+  };
+}
+
+describe('Lobby agenda panel', () => {
+  it('renders nothing when agenda is empty', () => {
+    const { lastFrame } = render(<Lobby {...baseProps([], null)} />);
+    const frame = lastFrame() ?? '';
+    expect(frame).not.toContain('── Agenda ──');
+  });
+
+  it('renders agenda section when items exist', () => {
+    const item = makeAgendaItem({ id: 'i1', title: 'Story One', state: 'pending' });
+    const projection: DocProjection = { ...PROJECTION, agenda: [item] };
+    const { lastFrame } = render(<Lobby {...baseProps([], null)} projection={projection} />);
+    const frame = lastFrame() ?? '';
+    expect(frame).toContain('── Agenda ──');
+    expect(frame).toContain('Story One');
+  });
+
+  it('labels pending items with • marker', () => {
+    const item = makeAgendaItem({ id: 'i1', title: 'Pending Item', state: 'pending' });
+    const projection: DocProjection = { ...PROJECTION, agenda: [item] };
+    const { lastFrame } = render(<Lobby {...baseProps([], null)} projection={projection} />);
+    expect(lastFrame() ?? '').toContain('•');
+  });
+
+  it('labels consumed items with ✓ marker', () => {
+    const item = makeAgendaItem({ id: 'i1', title: 'Done', state: 'consumed' });
+    const projection: DocProjection = { ...PROJECTION, agenda: [item] };
+    const { lastFrame } = render(<Lobby {...baseProps([], null)} projection={projection} />);
+    expect(lastFrame() ?? '').toContain('✓');
+  });
+
+  it('labels skipped items with ~ marker', () => {
+    const item = makeAgendaItem({ id: 'i1', title: 'Skipped', state: 'skipped' });
+    const projection: DocProjection = { ...PROJECTION, agenda: [item] };
+    const { lastFrame } = render(<Lobby {...baseProps([], null)} projection={projection} />);
+    expect(lastFrame() ?? '').toContain('~');
+  });
+
+  it('hides cancelled items (not rendered)', () => {
+    const item = makeAgendaItem({ id: 'i1', title: 'Hidden', state: 'cancelled' });
+    const projection: DocProjection = { ...PROJECTION, agenda: [item] };
+    const { lastFrame } = render(<Lobby {...baseProps([], null)} projection={projection} />);
+    // cancelled items filtered from visible list; no "Hidden" label
+    expect(lastFrame() ?? '').not.toContain('Hidden');
+  });
+
+  it('shows (next) tag next to first pending item', () => {
+    const item = makeAgendaItem({ id: 'i1', title: 'Next Story', state: 'pending' });
+    const projection: DocProjection = { ...PROJECTION, agenda: [item] };
+    const { lastFrame } = render(<Lobby {...baseProps([], null)} projection={projection} />);
+    const frame = lastFrame() ?? '';
+    expect(frame).toContain('Next Story');
+    expect(frame).toContain('(next)');
+  });
+
+  it('shows [a] Agenda hint in host footer when no rounds started', () => {
+    const { lastFrame } = render(<Lobby {...baseProps([], null)} />);
+    expect(lastFrame() ?? '').toContain('[a] Agenda');
+  });
+
+  it('renders agenda add title prompt when agendaAddPromptActive=true', () => {
+    const props = {
+      ...baseProps([], null),
+      agendaAddPromptActive: true,
+      agendaAddTitleInput: 'My feature',
+    };
+    const { lastFrame } = render(<Lobby {...props} />);
+    const frame = lastFrame() ?? '';
+    expect(frame).toContain('Agenda title');
+    expect(frame).toContain('My feature');
+  });
+
+  it('renders agenda add ticket prompt when agendaAddTicketIdPromptActive=true', () => {
+    const props = {
+      ...baseProps([], null),
+      agendaAddTicketIdPromptActive: true,
+      agendaAddTicketIdInput: 'PROJ-77',
+    };
+    const { lastFrame } = render(<Lobby {...props} />);
+    const frame = lastFrame() ?? '';
+    expect(frame).toContain('ticket ID');
+    expect(frame).toContain('PROJ-77');
+  });
+
+  it('displays ticket ID in item label', () => {
+    const item = makeAgendaItem({ id: 'i2', ticketId: 'ISSUE-5', state: 'pending' });
+    const projection: DocProjection = { ...PROJECTION, agenda: [item] };
+    const { lastFrame } = render(<Lobby {...baseProps([], null)} projection={projection} />);
+    expect(lastFrame() ?? '').toContain('[ISSUE-5]');
   });
 });
