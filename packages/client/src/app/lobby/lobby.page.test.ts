@@ -480,3 +480,170 @@ describe('LobbyPage — onCopyRoomCode', () => {
     expect(info).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// LobbyPage.closeRoundStart — Cancel button dismisses modal (regression for
+// presentSheet vs [isOpen] mismatch — reported by Phase 4 e2e agent)
+// ---------------------------------------------------------------------------
+
+describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
+  type Internals = {
+    roundStartOpen: { set(v: boolean): void; (): boolean };
+    closeRoundStart(): Promise<void>;
+  };
+
+  async function mountWithModalSpy() {
+    const { Router } = await import('@angular/router');
+    const { DocService } = await import('../core/doc/doc.service');
+    const { HapticService } = await import('../core/haptic.service');
+    const { ParticipantIdService } = await import('../core/participant-id.service');
+    const { LastSessionService } = await import('../core/last-session.service');
+    const { ScalePreferenceService } = await import('../core/scale-preference.service');
+    const { SurfaceService } = await import('../core/surface.service');
+    const { ToastService } = await import('../services/toast.service');
+    const { ExportService } = await import('../core/export.service');
+    const { AlertController } = await import('@ionic/angular/standalone');
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: Router, useValue: { navigate: vi.fn().mockResolvedValue(true) } },
+        {
+          provide: DocService,
+          useValue: {
+            settings: signal(undefined).asReadonly(),
+            roomCode: signal('ABC123').asReadonly(),
+            meta: signal(undefined).asReadonly(),
+            syncStatus: signal('disconnected').asReadonly(),
+            currentRound: signal(undefined).asReadonly(),
+            lastRejection: signal(null).asReadonly(),
+            rounds: signal([]).asReadonly(),
+            participants: signal([]).asReadonly(),
+            onlineIds: signal(new Set()).asReadonly(),
+            endSession: vi.fn(),
+          },
+        },
+        { provide: HapticService, useValue: { impactLight: vi.fn() } },
+        { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
+        { provide: LastSessionService, useValue: { record: vi.fn() } },
+        {
+          provide: ScalePreferenceService,
+          useValue: { customScales: signal([]).asReadonly() },
+        },
+        {
+          provide: SurfaceService,
+          useValue: {
+            mode: signal('mobile').asReadonly(),
+            sheetBreakpoints: () => [0, 0.5, 1],
+            initialSheetBreakpoint: () => 0.5,
+            sheetBreakpointsFull: () => [0, 0.6, 1],
+            initialSheetBreakpointFull: () => 1,
+          },
+        },
+        { provide: ToastService, useValue: { info: vi.fn(), error: vi.fn() } },
+        { provide: ExportService, useValue: { export: vi.fn() } },
+        {
+          provide: AlertController,
+          useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
+        },
+      ],
+    });
+
+    const { LobbyPage } = await import('./lobby.page');
+    const fixture = TestBed.createComponent(LobbyPage);
+
+    // Inject a spy for the modal's dismiss method into the viewChild slot.
+    const dismiss = vi.fn().mockResolvedValue(undefined);
+    // Access the private modalRef viewChild via the component instance.
+    // We override it via Object.defineProperty so the test controls the ref.
+    const comp = fixture.componentInstance as unknown as Record<string, unknown>;
+    Object.defineProperty(comp, 'modalRef', {
+      value: () => ({ dismiss }),
+      configurable: true,
+    });
+
+    return { fixture, dismiss };
+  }
+
+  it('calls modal.dismiss() and resets roundStartOpen when Cancel is tapped', async () => {
+    const { fixture, dismiss } = await mountWithModalSpy();
+    const internals = fixture.componentInstance as unknown as Internals;
+    internals.roundStartOpen.set(true);
+    await internals.closeRoundStart();
+    expect(dismiss).toHaveBeenCalledTimes(1);
+    expect(internals.roundStartOpen()).toBe(false);
+  });
+
+  it('resets roundStartOpen even when modalRef is absent (no modal in DOM)', async () => {
+    const { Router } = await import('@angular/router');
+    const { DocService } = await import('../core/doc/doc.service');
+    const { HapticService } = await import('../core/haptic.service');
+    const { ParticipantIdService } = await import('../core/participant-id.service');
+    const { LastSessionService } = await import('../core/last-session.service');
+    const { ScalePreferenceService } = await import('../core/scale-preference.service');
+    const { SurfaceService } = await import('../core/surface.service');
+    const { ToastService } = await import('../services/toast.service');
+    const { ExportService } = await import('../core/export.service');
+    const { AlertController } = await import('@ionic/angular/standalone');
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: Router, useValue: { navigate: vi.fn().mockResolvedValue(true) } },
+        {
+          provide: DocService,
+          useValue: {
+            settings: signal(undefined).asReadonly(),
+            roomCode: signal('ABC123').asReadonly(),
+            meta: signal(undefined).asReadonly(),
+            syncStatus: signal('disconnected').asReadonly(),
+            currentRound: signal(undefined).asReadonly(),
+            lastRejection: signal(null).asReadonly(),
+            rounds: signal([]).asReadonly(),
+            participants: signal([]).asReadonly(),
+            onlineIds: signal(new Set()).asReadonly(),
+            endSession: vi.fn(),
+          },
+        },
+        { provide: HapticService, useValue: { impactLight: vi.fn() } },
+        { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
+        { provide: LastSessionService, useValue: { record: vi.fn() } },
+        {
+          provide: ScalePreferenceService,
+          useValue: { customScales: signal([]).asReadonly() },
+        },
+        {
+          provide: SurfaceService,
+          useValue: {
+            mode: signal('mobile').asReadonly(),
+            sheetBreakpoints: () => [0, 0.5, 1],
+            initialSheetBreakpoint: () => 0.5,
+            sheetBreakpointsFull: () => [0, 0.6, 1],
+            initialSheetBreakpointFull: () => 1,
+          },
+        },
+        { provide: ToastService, useValue: { info: vi.fn(), error: vi.fn() } },
+        { provide: ExportService, useValue: { export: vi.fn() } },
+        {
+          provide: AlertController,
+          useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
+        },
+      ],
+    });
+
+    const { LobbyPage } = await import('./lobby.page');
+    const fixture = TestBed.createComponent(LobbyPage);
+
+    // Override modalRef to return undefined (no modal in DOM).
+    const comp = fixture.componentInstance as unknown as Record<string, unknown>;
+    Object.defineProperty(comp, 'modalRef', {
+      value: () => undefined,
+      configurable: true,
+    });
+
+    const internals = fixture.componentInstance as unknown as Internals;
+    internals.roundStartOpen.set(true);
+    await internals.closeRoundStart();
+    expect(internals.roundStartOpen()).toBe(false);
+  });
+});

@@ -413,7 +413,7 @@ import { participantsAccordionValueFor, summarizeParticipants } from './lobby-su
         <app-round-start-sheet
           [roundNumber]="nextRoundNumber()"
           (submitted)="onRoundStart($event)"
-          (cancelled)="roundStartOpen.set(false)"
+          (cancelled)="closeRoundStart()"
         />
       </ng-template>
     </ion-modal>
@@ -852,6 +852,11 @@ export class LobbyPage {
   protected openRoundStart(): void {
     const modal = this.modalRef();
     if (modal) void presentSheet({ modal });
+  }
+
+  protected async closeRoundStart(): Promise<void> {
+    await this.modalRef()?.dismiss();
+    this.roundStartOpen.set(false);
   }
 
   protected async onRoundStart(submission: RoundStartSubmission): Promise<void> {
