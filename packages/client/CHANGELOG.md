@@ -1,3 +1,10 @@
+# [1.27.0](https://github.com/IIxauII/hnch/compare/client-v1.26.0...client-v1.27.0) (2026-05-18)
+
+
+### Features
+
+* **client:** agenda panel + Next Round pre-fill ([#237](https://github.com/IIxauII/hnch/issues/237)) ([742a448](https://github.com/IIxauII/hnch/commit/742a448816396cf3c643631bdb797623b0855938))
+
 # [1.26.0](https://github.com/IIxauII/hnch/compare/client-v1.25.1...client-v1.26.0) (2026-05-17)
 
 
