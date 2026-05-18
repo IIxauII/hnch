@@ -107,6 +107,7 @@ describe('computeStats — mixed numeric / non-numeric', () => {
   });
 });
 
+// Exercises: ui/lobby-helpers:computeStats
 describe('computeStats — abstain sentinel', () => {
   it('pure abstain round → all dashes (no numeric values)', () => {
     expect(computeStats({ p1: ABSTAIN_SENTINEL, p2: ABSTAIN_SENTINEL })).toEqual({
@@ -284,6 +285,7 @@ describe('compactRoundSummary', () => {
   });
 });
 
+// Exercises: ui/lobby-helpers:compactRoundSummary
 describe('compactRoundSummary — abstain sentinel', () => {
   it('single abstainer → (no votes) (1 abstained)', () => {
     expect(compactRoundSummary(makeRound({ votes: { p1: ABSTAIN_SENTINEL } }), 1)).toBe(

@@ -1,18 +1,22 @@
 /**
- * Tests for VoteResultsComponent accessibility and structure.
+ * Tests for VoteResultsComponent — TestBed rendering.
  *
- * Because JSDOM doesn't evaluate CSS media queries or Angular templates at
- * build time, we test by reading the source file and asserting on substrings.
- * Logic tests use direct signal/computed helpers extracted from the component.
+ * Exercises the abstain sentinel (ADR-0041) and proportional vote-distribution
+ * bar (issue #123) code paths at runtime via TestBed + JSDOM.
  *
- * Real TestBed rendering is provided in the second describe block below,
- * covering the abstain additions (ADR-0041) and the voteGroups/abstainedNames
- * computeds that were previously at 0% coverage.
+ * Intentionally absent:
+ *  - CSS media-query properties (prefers-reduced-motion, ::before bar) — JSDOM
+ *    does not evaluate CSS; recording as blocked gaps.
+ *  - Source-code structure checks (computeRoundStats import, template syntax) —
+ *    source-scanning provides no regression signal and is forbidden per the
+ *    No-Simulation rule; coverage is provided by the TestBed rendering tests.
  */
 
-import { readFileSync } from 'fs';
 import { describe, expect, it, vi } from 'vitest';
-import { isAbstainVote, ABSTAIN_SENTINEL } from '@hnch/shared';
+import { ABSTAIN_SENTINEL } from '@hnch/shared';
+import { TestBed } from '@angular/core/testing';
+import type { ParticipantSnapshot, Round } from '@hnch/shared';
+import { HapticService } from '../core/haptic.service';
 
 // ---------------------------------------------------------------------------
 // Ionic stubs — must be hoisted before the component import.
@@ -36,165 +40,9 @@ vi.mock('@ionic/angular/standalone', async () => {
 
 vi.mock('ionicons', () => ({ addIcons: vi.fn() }));
 
-describe('VoteResultsComponent', () => {
-  const sourceFile = readFileSync('./src/app/shared/vote-results.component.ts', 'utf-8');
-
-  describe('prefers-reduced-motion', () => {
-    it('contains @media (prefers-reduced-motion: reduce) block for reveal stagger', () => {
-      expect(sourceFile).toContain('@media (prefers-reduced-motion: reduce)');
-      const mediaBlock = sourceFile.match(
-        /@media \(prefers-reduced-motion: reduce\)\s*{[\s\S]*?\.group\s*{[\s\S]*?animation:\s*none/,
-      );
-      expect(mediaBlock).toBeTruthy();
-    });
-
-    it('consensus overlay animation respects prefers-reduced-motion', () => {
-      expect(sourceFile).toContain('@keyframes consensusScaleIn');
-      expect(sourceFile).toContain('@keyframes consensusPulse');
-      const mediaBlock = sourceFile.match(
-        /@media \(prefers-reduced-motion: reduce\)\s*{[\s\S]*?\.consensus-text\s*{[\s\S]*?animation:\s*none/,
-      );
-      expect(mediaBlock).toBeTruthy();
-    });
-  });
-
-  describe('computeRoundStats migration', () => {
-    it('imports computeRoundStats from @hnch/shared', () => {
-      expect(sourceFile).toContain('computeRoundStats');
-      expect(sourceFile).toContain('@hnch/shared');
-      const importMatch = sourceFile.match(
-        /import\s*\{[^}]*\bcomputeRoundStats\b[^}]*\}\s*from\s*['"]@hnch\/shared['"]/,
-      );
-      expect(importMatch).toBeTruthy();
-    });
-
-    it('contains @switch (s.kind) block and spreadColor method', () => {
-      expect(sourceFile).toContain('@switch (s.kind)');
-      expect(sourceFile).toContain('spreadColor(');
-      expect(sourceFile).toContain('spreadDisplay(');
-    });
-
-    it('contains categorical Most common branch', () => {
-      expect(sourceFile).toContain('Most common:');
-      expect(sourceFile).toContain("@case ('categorical')");
-    });
-
-    it('stats block appears before elapsed block in template', () => {
-      const statsIdx = sourceFile.indexOf('<div class="stats"');
-      const elapsedIdx = sourceFile.indexOf('<p class="elapsed"');
-      expect(statsIdx).toBeGreaterThan(-1);
-      expect(elapsedIdx).toBeGreaterThan(-1);
-      expect(statsIdx).toBeLessThan(elapsedIdx);
-    });
-  });
-
-  describe('abstain group (ADR-0041)', () => {
-    it('template renders an Abstained group', () => {
-      expect(sourceFile).toContain('abstainedNames()');
-      expect(sourceFile).toContain('Abstained');
-    });
-
-    it("Abstained group appears before Didn't vote group in template", () => {
-      const abstainedIdx = sourceFile.indexOf('class="group abstained"');
-      const didntVoteIdx = sourceFile.indexOf('class="group didnt-vote"');
-      expect(abstainedIdx).toBeGreaterThan(-1);
-      expect(didntVoteIdx).toBeGreaterThan(-1);
-      expect(abstainedIdx).toBeLessThan(didntVoteIdx);
-    });
-
-    it('voteGroups filters sentinel via isAbstainVote', () => {
-      expect(sourceFile).toContain('isAbstainVote(card)');
-      // The filter must have a `continue` so sentinel skips numeric group
-      expect(sourceFile).toContain('if (isAbstainVote(card)) continue;');
-    });
-
-    it('abstainedNames computed is present and checks isAbstainVote', () => {
-      expect(sourceFile).toContain('abstainedNames');
-      expect(sourceFile).toContain('isAbstainVote');
-    });
-  });
-
-  describe('abstain sentinel logic', () => {
-    it('ABSTAIN_SENTINEL is the string hnch_abstain', () => {
-      expect(ABSTAIN_SENTINEL).toBe('hnch_abstain');
-    });
-
-    it('isAbstainVote returns true for sentinel', () => {
-      expect(isAbstainVote('hnch_abstain')).toBe(true);
-    });
-
-    it('isAbstainVote returns false for normal card values', () => {
-      expect(isAbstainVote('5')).toBe(false);
-      expect(isAbstainVote('13')).toBe(false);
-      expect(isAbstainVote('')).toBe(false);
-    });
-
-    it("abstained participants are NOT in Didn't vote (they have a votes entry)", () => {
-      // Simulate the didntVoteNames filter: "no entry in round.votes"
-      const votes: Record<string, string> = {
-        voter1: '5',
-        voter2: ABSTAIN_SENTINEL,
-      };
-      const voted = new Set(Object.keys(votes));
-      // voter2 has an entry (the sentinel), so NOT in didn't-vote
-      expect(voted.has('voter2')).toBe(true);
-      // voter3 has no entry — should appear in didn't-vote
-      expect(voted.has('voter3')).toBe(false);
-    });
-
-    it('sentinel values do not appear in numeric vote groups', () => {
-      // Simulate voteGroups skip: filter out sentinel before grouping
-      const votes = { voter1: '5', voter2: ABSTAIN_SENTINEL, voter3: '8' };
-      const byCard = new Map<string, string[]>();
-      for (const [, card] of Object.entries(votes)) {
-        if (isAbstainVote(card)) continue;
-        byCard.set(card, [...(byCard.get(card) ?? [])]);
-      }
-      expect(byCard.has(ABSTAIN_SENTINEL)).toBe(false);
-      expect(byCard.has('5')).toBe(true);
-      expect(byCard.has('8')).toBe(true);
-    });
-  });
-});
-
-describe('CustomScaleEditorSheet — abstain sentinel validation', () => {
-  const editorSource = readFileSync(
-    './src/app/session-settings/custom-scale-editor.sheet.ts',
-    'utf-8',
-  );
-
-  it('imports isValidCustomCardLabel from @hnch/shared', () => {
-    expect(editorSource).toContain('isValidCustomCardLabel');
-    expect(editorSource).toContain('@hnch/shared');
-  });
-
-  it('rejects hnch_abstain sentinel in onAddCard', () => {
-    expect(editorSource).toContain("'hnch_abstain' is reserved");
-  });
-
-  it('shows error via newCardError signal', () => {
-    expect(editorSource).toContain('newCardError');
-    expect(editorSource).toContain('newCardError.set(');
-  });
-
-  it('isValidCustomCardLabel rejects sentinel literal', async () => {
-    // isValidCustomCardLabel is tested directly in @hnch/shared; verify the
-    // exported function behaves correctly for sentinel and common values.
-    const { isValidCustomCardLabel: fn } = await import('@hnch/shared');
-    expect(fn('hnch_abstain')).toBe(false);
-    expect(fn('5')).toBe(true);
-    expect(fn('')).toBe(false);
-    expect(fn('   ')).toBe(false);
-  });
-});
-
 // ---------------------------------------------------------------------------
-// TestBed rendering — exercises the abstain code paths at runtime.
+// Helpers
 // ---------------------------------------------------------------------------
-
-import { TestBed } from '@angular/core/testing';
-import type { ParticipantSnapshot, Round } from '@hnch/shared';
-import { HapticService } from '../core/haptic.service';
 
 const SCALE = { id: 'fibonacci', cards: ['1', '2', '3', '5', '8'] };
 
@@ -240,6 +88,11 @@ async function mountVoteResults(
   return fixture;
 }
 
+// ---------------------------------------------------------------------------
+// TestBed rendering
+// ---------------------------------------------------------------------------
+
+// Exercises: vote-results.component:VoteResultsComponent
 describe('VoteResultsComponent — TestBed rendering', () => {
   it("2 numeric voters → 2 numeric groups, no Abstained, no Didn't-vote group", async () => {
     const round = makeRound({ votes: { p1: '3', p2: '5' } });
@@ -247,7 +100,6 @@ describe('VoteResultsComponent — TestBed rendering', () => {
     const fixture = await mountVoteResults(round, participants);
     const el = fixture.nativeElement as HTMLElement;
     const groups = Array.from(el.querySelectorAll('.group'));
-    // Two numeric groups, no abstained or didnt-vote
     expect(groups.length).toBe(2);
     expect(el.querySelector('.abstained')).toBeNull();
     expect(el.querySelector('.didnt-vote')).toBeNull();
@@ -261,7 +113,6 @@ describe('VoteResultsComponent — TestBed rendering', () => {
     expect(el.querySelector('.abstained')).not.toBeNull();
     expect(el.querySelector('.didnt-vote')).toBeNull();
     expect(el.querySelector('.abstained')!.textContent).toContain('Bob');
-    // Abstained chip must NOT be in any numeric group
     const numericGroups = Array.from(
       el.querySelectorAll('.group:not(.abstained):not(.didnt-vote)'),
     );
@@ -285,7 +136,6 @@ describe('VoteResultsComponent — TestBed rendering', () => {
     expect(abstainedIdx).toBeGreaterThan(-1);
     expect(didntVoteIdx).toBeGreaterThan(-1);
     expect(abstainedIdx).toBeLessThan(didntVoteIdx);
-    // Carol (no vote) appears in didn't-vote
     expect(el.querySelector('.didnt-vote')!.textContent).toContain('Carol');
   });
 
@@ -297,7 +147,6 @@ describe('VoteResultsComponent — TestBed rendering', () => {
     const numericGroups = Array.from(
       el.querySelectorAll('.group:not(.abstained):not(.didnt-vote)'),
     );
-    // No numeric groups — only the abstained group
     expect(numericGroups.length).toBe(0);
     expect(el.querySelector('.abstained')).not.toBeNull();
   });
@@ -306,8 +155,8 @@ describe('VoteResultsComponent — TestBed rendering', () => {
     const round = makeRound({ votes: { p1: '5', p2: ABSTAIN_SENTINEL, p3: ABSTAIN_SENTINEL } });
     const participants = [
       makeParticipant('p1', 'Alice'),
-      makeParticipant('p2', 'Bob'), // active abstainer
-      makeParticipant('p3', 'Carol', 9999), // departed — should be excluded
+      makeParticipant('p2', 'Bob'),
+      makeParticipant('p3', 'Carol', 9999),
     ];
     const fixture = await mountVoteResults(round, participants);
     const component = fixture.componentInstance;
@@ -348,9 +197,7 @@ describe('VoteResultsComponent — TestBed rendering', () => {
     const groups = Array.from(
       el.querySelectorAll<HTMLElement>('.group:not(.abstained):not(.didnt-vote)'),
     );
-    // Plurality (5, 3/5 voters) → 60%
     expect(groups[0]!.style.getPropertyValue('--bar-width')).toBe('60%');
-    // Tied 1/5 groups → 20% each
     expect(groups[1]!.style.getPropertyValue('--bar-width')).toBe('20%');
     expect(groups[2]!.style.getPropertyValue('--bar-width')).toBe('20%');
   });
@@ -373,7 +220,6 @@ describe('VoteResultsComponent — TestBed rendering', () => {
   });
 
   it('abstain entries excluded from bar denominator (issue #123 AC #3)', async () => {
-    // 2 numeric voters (both '5') + 1 abstain → bar = 100% on plurality, not 66%.
     const round = makeRound({ votes: { p1: '5', p2: '5', p3: ABSTAIN_SENTINEL } });
     const participants = [
       makeParticipant('p1', 'Alice'),
@@ -387,57 +233,5 @@ describe('VoteResultsComponent — TestBed rendering', () => {
     );
     expect(numericGroups.length).toBe(1);
     expect(numericGroups[0]!.style.getPropertyValue('--bar-width')).toBe('100%');
-  });
-});
-
-describe('vote distribution bars (issue #123)', () => {
-  const sourceFile = readFileSync('./src/app/shared/vote-results.component.ts', 'utf-8');
-
-  it('binds --bar-width inline style to widthPct(group.voterNames.length)', () => {
-    expect(sourceFile).toContain('[style.--bar-width.%]="widthPct(group.voterNames.length)"');
-  });
-
-  it('marks the first (plurality) group with the plurality class', () => {
-    expect(sourceFile).toContain('[class.plurality]="first"');
-    expect(sourceFile).toMatch(/let first = \$first/);
-  });
-
-  it('renders a ::before bar pseudo-element on .group using --ion-color-primary', () => {
-    const beforeBlock = sourceFile.match(
-      /\.group::before\s*{[\s\S]*?width:\s*var\(--bar-width[\s\S]*?background:\s*var\(--ion-color-primary\)/,
-    );
-    expect(beforeBlock).toBeTruthy();
-  });
-
-  it('plurality group uses higher opacity than non-plurality', () => {
-    expect(sourceFile).toMatch(/\.group::before\s*{[\s\S]*?opacity:\s*0\.06/);
-    expect(sourceFile).toMatch(/\.group\.plurality::before\s*{[\s\S]*?opacity:\s*0\.12/);
-  });
-
-  it('suppresses bar on .didnt-vote and .abstained groups', () => {
-    expect(sourceFile).toMatch(/\.group\.didnt-vote::before[\s\S]*?display:\s*none/);
-    expect(sourceFile).toMatch(/\.group\.abstained::before[\s\S]*?display:\s*none/);
-  });
-
-  it('bar pseudo-element does not declare a width transition (reduced-motion safe)', () => {
-    const beforeBlock = sourceFile.match(/\.group::before\s*{[\s\S]*?}/);
-    expect(beforeBlock).toBeTruthy();
-    expect(beforeBlock?.[0]).not.toMatch(/transition\s*:/);
-  });
-
-  it('widthPct denominator excludes abstain via isAbstainVote', () => {
-    expect(sourceFile).toMatch(
-      /totalVoted\s*=\s*computed\([\s\S]*?Object\.values\(this\.round\(\)\.votes\)\.filter\([\s\S]*?isAbstainVote/,
-    );
-    expect(sourceFile).toMatch(/widthPct\(count: number\): number/);
-    // No defensive zero-guard — widthPct only called when voteGroups is non-empty.
-    expect(sourceFile).not.toMatch(/total\s*===\s*0\s*\?\s*0\s*:/);
-  });
-
-  it('header and chips sit above the bar via z-index: 1', () => {
-    const stacking = sourceFile.match(
-      /\.group-header,\s*\.chips\s*{[\s\S]*?position:\s*relative;[\s\S]*?z-index:\s*1/,
-    );
-    expect(stacking).toBeTruthy();
   });
 });
