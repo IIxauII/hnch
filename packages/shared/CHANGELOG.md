@@ -1,3 +1,10 @@
+# [1.10.0](https://github.com/IIxauII/hnch/compare/shared-v1.9.0...shared-v1.10.0) (2026-05-18)
+
+
+### Features
+
+* **client,cli,shared:** per-participant avatar color picker ([#159](https://github.com/IIxauII/hnch/issues/159)) ([#246](https://github.com/IIxauII/hnch/issues/246)) ([969083a](https://github.com/IIxauII/hnch/commit/969083a6af2c702163c109c9771b8236aa9f89dc))
+
 # [1.9.0](https://github.com/IIxauII/hnch/compare/shared-v1.8.0...shared-v1.9.0) (2026-05-18)
 
 
