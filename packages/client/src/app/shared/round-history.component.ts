@@ -107,9 +107,11 @@ interface HistoryEntry {
       }
       .round-label {
         font-weight: 600;
-        color: var(--ion-color-medium);
+        color: var(--hnch-text);
       }
-      .round-title,
+      .round-title {
+        color: var(--hnch-text);
+      }
       .round-summary,
       .round-elapsed {
         color: var(--ion-color-medium);
