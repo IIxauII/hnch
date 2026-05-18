@@ -115,28 +115,28 @@ import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.he
             (ionBlur)="onDisplayNameBlur()"
           ></ion-input>
         </ion-item>
-        <ion-item lines="none" class="avatar-color-item">
-          <ion-label class="ion-text-wrap">
-            <h3>Avatar color</h3>
-            <p>Pick a swatch or enter a custom #rrggbb.</p>
-            <div
-              class="swatches"
-              role="radiogroup"
-              aria-label="Avatar color"
-            >
-              @for (key of paletteKeys; track key) {
-                <button
-                  type="button"
-                  class="swatch"
-                  role="radio"
-                  [attr.aria-label]="paletteLabel(key)"
-                  [attr.aria-checked]="avatarValue() === key"
-                  [class.selected]="avatarValue() === key"
-                  [style.background]="paletteHex(key)"
-                  (click)="onPaletteSelect(key)"
-                ></button>
-              }
-            </div>
+        <ion-item>
+          <ion-select
+            label="Avatar color"
+            interface="popover"
+            [interfaceOptions]="accentPopoverOptions"
+            [value]="avatarSelectValue()"
+            (ionChange)="onAvatarSelectChanged($event.detail.value)"
+          >
+            @for (entry of paletteEntries; track entry.key) {
+              <ion-select-option [value]="entry.key">{{ entry.label }}</ion-select-option>
+            }
+            <ion-select-option value="custom">Custom…</ion-select-option>
+          </ion-select>
+          <span
+            class="avatar-preview"
+            aria-hidden="true"
+            slot="end"
+            [style.background]="avatarResolvedColor()"
+          ></span>
+        </ion-item>
+        @if (avatarSelectValue() === 'custom') {
+          <ion-item>
             <ion-input
               #avatarHexInput
               label="Custom hex"
@@ -147,14 +147,8 @@ import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.he
               aria-label="Custom avatar color (hex)"
               (ionBlur)="onAvatarHexBlur()"
             ></ion-input>
-          </ion-label>
-          <span
-            class="avatar-preview"
-            aria-hidden="true"
-            slot="end"
-            [style.background]="avatarResolvedColor()"
-          ></span>
-        </ion-item>
+          </ion-item>
+        }
       </ion-list>
 
       <!-- Appearance -->
@@ -325,39 +319,6 @@ import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.he
       ion-list-header {
         padding-inline-start: 16px;
       }
-      .avatar-color-item ion-label h3 {
-        font-size: 0.95rem;
-        margin: 0 0 0.25rem;
-      }
-      .avatar-color-item ion-label p {
-        font-size: 0.8125rem;
-        color: var(--ion-color-medium);
-        margin: 0 0 0.5rem;
-      }
-      .swatches {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-        margin: 0.25rem 0 0.75rem;
-      }
-      .swatch {
-        appearance: none;
-        border: 2px solid transparent;
-        outline: none;
-        width: 1.75rem;
-        height: 1.75rem;
-        border-radius: 50%;
-        padding: 0;
-        cursor: pointer;
-      }
-      .swatch.selected {
-        border-color: var(--ion-color-medium);
-        box-shadow: 0 0 0 2px var(--ion-background-color), 0 0 0 4px var(--ion-color-primary);
-      }
-      .swatch:focus-visible {
-        outline: 2px solid var(--ion-color-primary);
-        outline-offset: 2px;
-      }
       .avatar-preview {
         display: inline-block;
         width: 1.5rem;
@@ -390,12 +351,25 @@ export class SettingsPage {
 
   protected readonly accentPopoverOptions = { cssClass: 'accent-select-popover' };
 
-  /** Ordered palette keys for the swatch grid (ADR-0043). */
-  protected readonly paletteKeys: readonly AccentKey[] =
-    AVATAR_PALETTE_KEYS as readonly AccentKey[];
+  /** Ordered palette entries for the avatar-color dropdown (ADR-0043). */
+  protected readonly paletteEntries = (AVATAR_PALETTE_KEYS as readonly AccentKey[]).map((key) => ({
+    key,
+    label: ACCENTS[key].label,
+  }));
 
   /** Current wire value from the AvatarColorService signal. May be null pre-bootstrap. */
   protected readonly avatarValue = this.avatarColorService.value;
+
+  /**
+   * Value bound to the avatar-color ion-select. Maps a custom `#rrggbb`
+   * wire value onto the literal `'custom'` so the dropdown can carry a
+   * "Custom…" option without enumerating every possible hex.
+   */
+  protected readonly avatarSelectValue = computed(() => {
+    const v = this.avatarValue();
+    if (!v) return null;
+    return v.startsWith('#') ? 'custom' : v;
+  });
 
   /** Resolved hex for the preview chip. Falls back to deterministic id if unset. */
   protected readonly avatarResolvedColor = computed(() => {
@@ -491,19 +465,23 @@ export class SettingsPage {
   // Avatar color picker (ADR-0043)
   // ---------------------------------------------------------------------------
 
-  /** Palette swatch label for `aria-label`. Read by screen readers. */
-  protected paletteLabel(key: AccentKey): string {
-    return ACCENTS[key].label;
-  }
-
-  /** Solid hex used to paint a swatch's background. */
-  protected paletteHex(key: AccentKey): string {
-    return ACCENTS[key].base;
-  }
-
-  protected onPaletteSelect(key: AccentKey): void {
-    if (this.avatarValue() === key) return;
-    void this.persistAvatarColor(key);
+  /**
+   * Dropdown change handler. Palette key → persist directly.
+   * `'custom'` → reveal the hex input but keep any prior hex value;
+   * if there is no prior hex, seed it with the current resolved color.
+   */
+  protected onAvatarSelectChanged(value: string | null | undefined): void {
+    if (!value) return;
+    if (value === this.avatarSelectValue()) return;
+    if (value === 'custom') {
+      const current = this.avatarValue();
+      if (current && current.startsWith('#')) return; // already custom — no-op
+      const seed = this.avatarResolvedColor().toLowerCase();
+      void this.persistAvatarColor(seed);
+      return;
+    }
+    if (parseAvatarColor(value) === null) return;
+    void this.persistAvatarColor(value);
   }
 
   protected onAvatarHexBlur(): void {

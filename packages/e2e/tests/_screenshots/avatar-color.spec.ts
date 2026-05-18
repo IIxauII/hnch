@@ -45,13 +45,14 @@ async function gotoSettings(page: Page): Promise<void> {
   await page.goto(`${BASE_URL}/settings`);
   await page.waitForURL(/\/settings/);
   await page.locator('app-settings').waitFor({ state: 'visible' });
-  // Wait for swatch grid render.
-  await page.locator('.avatar-color-item .swatches .swatch').first().waitFor({ state: 'visible' });
+  await page.locator('ion-select[label="Avatar color"]').waitFor({ state: 'visible' });
 }
 
-async function pickPaletteSwatch(page: Page, ariaLabel: string): Promise<void> {
-  await page.locator(`.avatar-color-item .swatch[aria-label="${ariaLabel}"]`).click();
-  await page.waitForTimeout(150);
+async function pickPaletteOption(page: Page, label: string): Promise<void> {
+  const select = page.locator('ion-select[label="Avatar color"]');
+  await select.click();
+  await page.locator('ion-popover ion-radio', { hasText: label }).first().click();
+  await page.waitForTimeout(200);
 }
 
 async function createSession(page: Page): Promise<void> {
@@ -76,7 +77,7 @@ async function captureSet(
     await shot(page, `01-settings-default-${tag}`);
 
     // 2 — settings after picking "Pink".
-    await pickPaletteSwatch(page, 'Pink');
+    await pickPaletteOption(page, 'Pink');
     await shot(page, `02-settings-pink-${tag}`);
 
     // 3 — lobby with the chosen color on the host avatar.
