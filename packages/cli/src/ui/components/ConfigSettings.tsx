@@ -2,10 +2,14 @@ import React, { useState, useMemo } from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
 import { randomUUID } from 'node:crypto';
 import {
+  ACCENTS,
+  AVATAR_PALETTE_KEYS,
   buildAvailableScales,
   getScaleLabel,
-  type PresetOverrides,
+  parseAvatarColor,
+  type AccentKey,
   type CustomScale,
+  type PresetOverrides,
   type Scale,
 } from '@hnch/shared';
 import { readConfig, writeConfig, updateConfig, type CliConfig } from '../../config.js';
@@ -24,7 +28,9 @@ type SettingsState =
   | 'editing-relay-url'
   | 'editing-session-name'
   | 'picking-scale'
-  | 'picking-default-password';
+  | 'picking-default-password'
+  | 'picking-avatar-color'
+  | 'editing-avatar-hex';
 
 export function ConfigSettings({
   presetOverrides,
@@ -36,6 +42,9 @@ export function ConfigSettings({
   const [displayNameInput, setDisplayNameInput] = useState(config.displayName ?? '');
   const [relayUrlInput, setRelayUrlInput] = useState(config.relayUrl ?? '');
   const [sessionNameInput, setSessionNameInput] = useState(config.defaultSessionName ?? '');
+  const [avatarHexInput, setAvatarHexInput] = useState(
+    config.avatarColor?.startsWith('#') ? config.avatarColor : '',
+  );
   const [localCustomScales, setLocalCustomScales] = useState<CustomScale[]>(customScales ?? []);
   const [localOverrides, setLocalOverrides] = useState<PresetOverrides>(presetOverrides ?? {});
 
@@ -82,6 +91,11 @@ export function ConfigSettings({
       value: 'default-password',
       detail: `[${config.defaultPassword ? 'on' : 'off'}]`,
     },
+    {
+      label: 'Avatar color',
+      value: 'avatar-color',
+      detail: `[${avatarColorLabel(config.avatarColor)}]`,
+    },
   ];
 
   function handleMenuSelect(value: string) {
@@ -98,7 +112,42 @@ export function ConfigSettings({
       setState('editing-session-name');
     } else if (value === 'default-password') {
       setState('picking-default-password');
+    } else if (value === 'avatar-color') {
+      setState('picking-avatar-color');
     }
+  }
+
+  function handleAvatarColorSelect(value: string) {
+    if (value === 'custom-hex') {
+      setAvatarHexInput(config.avatarColor?.startsWith('#') ? config.avatarColor : '');
+      setState('editing-avatar-hex');
+      return;
+    }
+    if (parseAvatarColor(value) === null) {
+      setState('main-menu');
+      return;
+    }
+    setConfig({ ...config, avatarColor: value });
+    writeConfig({ avatarColor: value });
+    setState('main-menu');
+  }
+
+  function handleAvatarHexSubmit(val: string) {
+    const trimmed = val.trim();
+    if (trimmed.length === 0) {
+      setState('picking-avatar-color');
+      return;
+    }
+    const normalized = trimmed.startsWith('#')
+      ? trimmed.toLowerCase()
+      : `#${trimmed.toLowerCase()}`;
+    if (parseAvatarColor(normalized) === null) {
+      // Stay in editor; user will retry or cancel.
+      return;
+    }
+    setConfig({ ...config, avatarColor: normalized });
+    writeConfig({ avatarColor: normalized });
+    setState('main-menu');
   }
 
   function handleDisplayNameSubmit(val: string) {
@@ -284,6 +333,48 @@ export function ConfigSettings({
     );
   }
 
+  if (state === 'picking-avatar-color') {
+    const paletteItems: MenuItem[] = (AVATAR_PALETTE_KEYS as readonly AccentKey[]).map((key) => ({
+      label: ACCENTS[key].label,
+      value: key,
+      detail: config.avatarColor === key ? '[current]' : ACCENTS[key].base,
+    }));
+    paletteItems.push({
+      label: 'Custom hex…',
+      value: 'custom-hex',
+      detail: config.avatarColor?.startsWith('#') ? `[${config.avatarColor}]` : undefined,
+    });
+    return (
+      <Box flexDirection="column" gap={1}>
+        <Text bold>── Config Settings ──</Text>
+        <MenuList
+          title="Avatar color:"
+          items={paletteItems}
+          onSelect={handleAvatarColorSelect}
+          onClose={() => setState('main-menu')}
+        />
+      </Box>
+    );
+  }
+
+  if (state === 'editing-avatar-hex') {
+    return (
+      <Box flexDirection="column" gap={1}>
+        <Text bold>── Config Settings ──</Text>
+        <Text>Custom hex color: </Text>
+        <TextInput
+          value={avatarHexInput}
+          onChange={setAvatarHexInput}
+          onSubmit={handleAvatarHexSubmit}
+          onCancel={() => setState('picking-avatar-color')}
+          placeholder="#rrggbb"
+          isActive
+        />
+        <Text dimColor>⏎ confirm esc back</Text>
+      </Box>
+    );
+  }
+
   if (state === 'picking-default-password') {
     const passwordItems = [
       { label: 'On', value: 'on', detail: config.defaultPassword ? '[current]' : undefined },
@@ -304,4 +395,11 @@ export function ConfigSettings({
   }
 
   return <Box />;
+}
+
+function avatarColorLabel(value: string | undefined): string {
+  if (!value) return '(auto)';
+  if (value.startsWith('#')) return value;
+  const known = (AVATAR_PALETTE_KEYS as readonly string[]).includes(value);
+  return known ? ACCENTS[value as AccentKey].label : value;
 }

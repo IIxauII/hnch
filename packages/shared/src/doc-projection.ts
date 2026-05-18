@@ -80,7 +80,14 @@ export const DOC_AGENDA_KEY = 'agenda';
 
 const META_FIELDS = ['roomUuid', 'createdAt', 'createdBy', 'sessionEndedAt'] as const;
 const SETTINGS_FIELDS = ['name', 'defaultScale', 'hostParticipantId'] as const;
-const PARTICIPANT_FIELDS = ['displayName', 'joinedAt', 'role', 'leftAt', 'removedBy'] as const;
+const PARTICIPANT_FIELDS = [
+  'displayName',
+  'joinedAt',
+  'role',
+  'leftAt',
+  'removedBy',
+  'avatarColor',
+] as const;
 const AGENDA_ITEM_FIELDS = [
   'id',
   'title',
@@ -249,6 +256,13 @@ export interface InitDocInit {
   readonly displayName: string;
   readonly defaultScale: Scale;
   readonly sessionName?: string;
+  /**
+   * Optional avatar color wire value (ADR-0043). Pre-validated by the
+   * caller via `parseAvatarColor`; written verbatim to the seeded
+   * participant record so the room creator's color is visible from
+   * the first relay snapshot onward.
+   */
+  readonly avatarColor?: string;
 }
 
 /**
@@ -278,6 +292,9 @@ export function initDoc(doc: Y.Doc, init: InitDocInit): void {
     const pMap = new Y.Map<unknown>();
     pMap.set('displayName', init.displayName);
     pMap.set('joinedAt', init.createdAt);
+    if (init.avatarColor !== undefined) {
+      pMap.set('avatarColor', init.avatarColor);
+    }
     participantsMap(doc).set(init.participantId, pMap);
   });
 }
@@ -291,6 +308,12 @@ export function initDoc(doc: Y.Doc, init: InitDocInit): void {
 export interface JoinDocInit {
   readonly participantId: string;
   readonly displayName: string;
+  /**
+   * Optional avatar color wire value (ADR-0043). When provided, written
+   * on join so peers see this user's color immediately. Pre-validated
+   * by the caller via `parseAvatarColor`.
+   */
+  readonly avatarColor?: string;
 }
 
 /**
@@ -311,6 +334,9 @@ export function joinDoc(doc: Y.Doc, init: JoinDocInit): void {
     target.set('displayName', init.displayName);
     if (existing === undefined) {
       target.set('joinedAt', Date.now());
+    }
+    if (init.avatarColor !== undefined) {
+      target.set('avatarColor', init.avatarColor);
     }
     // Clear removal state so a re-joining participant becomes active again.
     target.delete('leftAt');
@@ -358,9 +384,32 @@ export function upsertParticipant(doc: Y.Doc, id: string, value: Participant): v
     if (value.role !== undefined) {
       target.set('role', value.role);
     }
+    // avatarColor is a partial-update field (same semantics as role):
+    // omitting it preserves the existing value so callers that only
+    // update displayName / role don't silently wipe color.
+    if (value.avatarColor !== undefined) {
+      target.set('avatarColor', value.avatarColor);
+    }
     if (existing === undefined) {
       map.set(id, target);
     }
+  });
+}
+
+/**
+ * Set the caller's `avatarColor` on their participant record (ADR-0043).
+ * Writes the validated wire value (`AccentKey` or `#rrggbb`) directly;
+ * caller is responsible for sanitization via `parseAvatarColor` first.
+ *
+ * Idempotent: writing the same value is a no-op for observers
+ * (Yjs only fires when the underlying value changes).
+ */
+export function setAvatarColor(doc: Y.Doc, participantId: string, color: string): void {
+  doc.transact(() => {
+    const map = participantsMap(doc);
+    const record = map.get(participantId);
+    if (!record) return;
+    record.set('avatarColor', color);
   });
 }
 

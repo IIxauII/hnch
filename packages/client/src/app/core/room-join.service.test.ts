@@ -112,6 +112,7 @@ describe('rejoinRoom', () => {
       relayHttpUrl: 'http://relay.test',
       getDisplayName: async () => 'Test User',
       getParticipantId: async () => 'pid-test',
+      getAvatarColor: () => null,
       docService,
       waitForJoinOutcome,
     };
