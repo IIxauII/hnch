@@ -66,24 +66,6 @@ test.describe('Screenshots: lobby host actions', () => {
     });
   }
 
-  async function openSwipeDrawer(
-    page: import('@playwright/test').Page,
-    participantName: string,
-  ): Promise<void> {
-    await ensureAccordionOpen(page);
-    const rowLocator = page.locator(
-      `ion-list.participants ion-item-sliding:has(ion-label:text-is("${participantName}"))`,
-    );
-    await rowLocator.waitFor({ state: 'visible', timeout: 5_000 });
-    // Open the sliding drawer via the Playwright-matched element reference.
-    // Uses native IonItemSliding.open() — no manual style.transform override.
-    await rowLocator.evaluate(async (el: Element) => {
-      await (el as unknown as { open(side: string): Promise<void> }).open('end');
-    });
-    // Allow the native slide animation to complete before capturing.
-    await page.waitForTimeout(600);
-  }
-
   // ---------------------------------------------------------------------------
   // 1. Desktop popover — light
   // ---------------------------------------------------------------------------
@@ -167,7 +149,13 @@ test.describe('Screenshots: lobby host actions', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // 3. Mobile swipe — light (iPhone 13)
+  // 3. Mobile closed-state — light (iPhone 13)
+  //
+  // Captures the accordion open with swipe-hint visible and both participant
+  // rows shown. Demonstrates: (a) no overflow button on mobile, (b) swipe-hint
+  // text present. Mid-swipe screenshots are unreliable in emulation because
+  // IonItemSliding.open() slides the row content fully off-frame rather than
+  // partially revealing the options as a real touch gesture would.
   // ---------------------------------------------------------------------------
 
   test('mobile swipe light', async ({ browser }) => {
@@ -187,7 +175,16 @@ test.describe('Screenshots: lobby host actions', () => {
       await player.joinSession(code);
       await host.expectParticipantCount(2);
 
-      await openSwipeDrawer(hostPage, 'Player');
+      // Open accordion so swipe-hint and both participant rows are visible.
+      await ensureAccordionOpen(hostPage);
+      // Wait for Player row to appear.
+      await hostPage
+        .locator('ion-list.participants ion-item-sliding')
+        .filter({ hasText: 'Player' })
+        .waitFor({ state: 'visible', timeout: 5_000 });
+      // Confirm swipe-hint is present (success criterion: mobile shows hint, no overflow btn).
+      await expect(hostPage.getByText('Swipe a row for host actions')).toBeVisible();
+      await hostPage.waitForTimeout(300);
 
       await hostPage.screenshot({
         path: `${SCREENSHOT_DIR}/mobile-swipe-light.png`,
@@ -200,7 +197,9 @@ test.describe('Screenshots: lobby host actions', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // 4. Mobile swipe — dark (iPhone 13)
+  // 4. Mobile closed-state — dark (iPhone 13)
+  //
+  // Same approach as test 3 — closed accordion with swipe-hint visible.
   // ---------------------------------------------------------------------------
 
   test('mobile swipe dark', async ({ browser }) => {
@@ -220,7 +219,16 @@ test.describe('Screenshots: lobby host actions', () => {
       await player.joinSession(code);
       await host.expectParticipantCount(2);
 
-      await openSwipeDrawer(hostPage, 'Player');
+      // Open accordion so swipe-hint and both participant rows are visible.
+      await ensureAccordionOpen(hostPage);
+      // Wait for Player row to appear.
+      await hostPage
+        .locator('ion-list.participants ion-item-sliding')
+        .filter({ hasText: 'Player' })
+        .waitFor({ state: 'visible', timeout: 5_000 });
+      // Confirm swipe-hint is present (success criterion: mobile shows hint, no overflow btn).
+      await expect(hostPage.getByText('Swipe a row for host actions')).toBeVisible();
+      await hostPage.waitForTimeout(300);
 
       await hostPage.screenshot({
         path: `${SCREENSHOT_DIR}/mobile-swipe-dark.png`,
