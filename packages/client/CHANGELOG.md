@@ -1,3 +1,10 @@
+# [1.28.0](https://github.com/IIxauII/hnch/compare/client-v1.27.1...client-v1.28.0) (2026-05-18)
+
+
+### Features
+
+* **client,shared:** consensus chip on categorical round results ([#157](https://github.com/IIxauII/hnch/issues/157)) ([#245](https://github.com/IIxauII/hnch/issues/245)) ([00fb77f](https://github.com/IIxauII/hnch/commit/00fb77fdcf158fe95083725c6454e7f5474ec8ea))
+
 ## [1.27.1](https://github.com/IIxauII/hnch/compare/client-v1.27.0...client-v1.27.1) (2026-05-18)
 
 
