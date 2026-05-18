@@ -36,6 +36,9 @@ vi.mock('@ionic/angular/standalone', async () => {
 vi.mock('ionicons', () => ({ addIcons: vi.fn() }));
 vi.mock('ionicons/icons', () => ({ pencilOutline: '' }));
 
+// Import signal here (not inside vi.mock factory) — hoisting is not needed.
+import { signal } from '@angular/core';
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -52,8 +55,17 @@ function makeRound(overrides: Partial<Round> & Pick<Round, 'id' | 'scale' | 'vot
   };
 }
 
+/** Stub DocService for tests that don't need agenda data. */
+class StubDocService {
+  readonly agenda = signal<readonly import('@hnch/shared').AgendaItem[]>([]).asReadonly();
+}
+
 async function createComponent(rounds: readonly Round[], isHost = false) {
   const { RoundHistoryComponent } = await import('./round-history.component');
+  const { DocService } = await import('../core/doc/doc.service');
+  TestBed.configureTestingModule({
+    providers: [{ provide: DocService, useClass: StubDocService }],
+  });
   const fixture = TestBed.createComponent(RoundHistoryComponent);
   fixture.componentRef.setInput('rounds', rounds);
   fixture.componentRef.setInput('isHost', isHost);
@@ -63,6 +75,10 @@ async function createComponent(rounds: readonly Round[], isHost = false) {
 
 async function createComponentWithAllRounds(rounds: readonly Round[], allRounds: readonly Round[]) {
   const { RoundHistoryComponent } = await import('./round-history.component');
+  const { DocService } = await import('../core/doc/doc.service');
+  TestBed.configureTestingModule({
+    providers: [{ provide: DocService, useClass: StubDocService }],
+  });
   const fixture = TestBed.createComponent(RoundHistoryComponent);
   fixture.componentRef.setInput('rounds', rounds);
   fixture.componentRef.setInput('allRounds', allRounds);

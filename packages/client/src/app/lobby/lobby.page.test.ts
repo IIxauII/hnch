@@ -140,11 +140,13 @@ vi.mock('@ionic/angular/standalone', async () => {
     IonItemOptions: stub('ion-item-options'),
     IonItemSliding: stub('ion-item-sliding'),
     IonLabel: stub('ion-label'),
+    IonBadge: stub('ion-badge'),
     IonList: stub('ion-list'),
     IonListHeader: stub('ion-list-header'),
     IonModal: stub('ion-modal'),
     IonNote: stub('ion-note'),
     IonRow: stub('ion-row'),
+    IonTextarea: stub('ion-textarea'),
     IonTitle: stub('ion-title'),
     IonToolbar: stub('ion-toolbar'),
   };
@@ -197,6 +199,12 @@ vi.mock('./qr-display.sheet', () =>
   stubStandalone('app-qr-display-sheet', 'QrDisplaySheetComponent'),
 );
 vi.mock('../join/join.page', () => ({ rejectionCopy: () => 'rejected' }));
+vi.mock('../agenda/agenda-panel.component', () =>
+  stubStandalone('app-agenda-panel', 'AgendaPanelComponent'),
+);
+vi.mock('../agenda/agenda-item-form.sheet', () =>
+  stubStandalone('app-agenda-item-form-sheet', 'AgendaItemFormSheetComponent'),
+);
 
 async function mountLobby(scale: Scale | undefined, customs: CustomScale[]) {
   const { Router } = await import('@angular/router');
@@ -225,7 +233,11 @@ async function mountLobby(scale: Scale | undefined, customs: CustomScale[]) {
           lastRejection: signal(null).asReadonly(),
           rounds: signal([]).asReadonly(),
           participants: signal([]).asReadonly(),
-          onlineIds: signal(new Set()).asReadonly(),
+          activeParticipants: signal([]).asReadonly(),
+          onlineParticipantIds: signal(new Set()).asReadonly(),
+          agenda: signal([]).asReadonly(),
+          pendingAgenda: signal([]).asReadonly(),
+          nextPendingAgendaItem: signal(null).asReadonly(),
           endSession: vi.fn(),
         },
       },
@@ -291,7 +303,11 @@ describe('LobbyPage — onRoundStart forwards ticketId', () => {
             lastRejection: signal(null).asReadonly(),
             rounds: signal([]).asReadonly(),
             participants: signal([]).asReadonly(),
-            onlineIds: signal(new Set()).asReadonly(),
+            activeParticipants: signal([]).asReadonly(),
+            onlineParticipantIds: signal(new Set()).asReadonly(),
+            agenda: signal([]).asReadonly(),
+            pendingAgenda: signal([]).asReadonly(),
+            nextPendingAgendaItem: signal(null).asReadonly(),
             startRound,
             endSession: vi.fn(),
           },
@@ -327,28 +343,46 @@ describe('LobbyPage — onRoundStart forwards ticketId', () => {
   }
 
   type Internals = {
-    onRoundStart(s: { title: string | null; ticketId: string | null }): Promise<void>;
+    onRoundStart(s: {
+      title: string | null;
+      ticketId: string | null;
+      description?: string | null;
+      agendaItemId?: string;
+    }): Promise<void>;
   };
 
   it('writes ticketId when submission has one', async () => {
     const { fixture, startRound } = await mountWithStartRoundSpy();
     const internals = fixture.componentInstance as unknown as Internals;
-    await internals.onRoundStart({ title: 'Auth', ticketId: 'PROJ-42' }).catch(() => undefined);
-    expect(startRound).toHaveBeenCalledWith({ title: 'Auth', ticketId: 'PROJ-42' });
+    await internals
+      .onRoundStart({ title: 'Auth', ticketId: 'PROJ-42', description: null })
+      .catch(() => undefined);
+    expect(startRound).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Auth', ticketId: 'PROJ-42' }),
+    );
   });
 
   it('omits ticketId when submission.ticketId is null', async () => {
     const { fixture, startRound } = await mountWithStartRoundSpy();
     const internals = fixture.componentInstance as unknown as Internals;
-    await internals.onRoundStart({ title: 'Auth', ticketId: null }).catch(() => undefined);
-    expect(startRound).toHaveBeenCalledWith({ title: 'Auth' });
+    await internals
+      .onRoundStart({ title: 'Auth', ticketId: null, description: null })
+      .catch(() => undefined);
+    expect(startRound).toHaveBeenCalledWith(expect.objectContaining({ title: 'Auth' }));
+    expect(startRound).not.toHaveBeenCalledWith(
+      expect.objectContaining({ ticketId: expect.anything() }),
+    );
   });
 
   it('omits both fields when both are null', async () => {
     const { fixture, startRound } = await mountWithStartRoundSpy();
     const internals = fixture.componentInstance as unknown as Internals;
-    await internals.onRoundStart({ title: null, ticketId: null }).catch(() => undefined);
-    expect(startRound).toHaveBeenCalledWith({});
+    await internals
+      .onRoundStart({ title: null, ticketId: null, description: null })
+      .catch(() => undefined);
+    expect(startRound).toHaveBeenCalledWith(
+      expect.not.objectContaining({ title: expect.anything() }),
+    );
   });
 });
 
@@ -421,7 +455,11 @@ describe('LobbyPage — onCopyRoomCode', () => {
             lastRejection: signal(null).asReadonly(),
             rounds: signal([]).asReadonly(),
             participants: signal([]).asReadonly(),
-            onlineIds: signal(new Set()).asReadonly(),
+            activeParticipants: signal([]).asReadonly(),
+            onlineParticipantIds: signal(new Set()).asReadonly(),
+            agenda: signal([]).asReadonly(),
+            pendingAgenda: signal([]).asReadonly(),
+            nextPendingAgendaItem: signal(null).asReadonly(),
             endSession: vi.fn(),
           },
         },

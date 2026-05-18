@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, OnInit, output, signal } from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
-import { buildRoundStartTicketId, buildRoundStartTitle } from './round-start.helpers';
+import type { AgendaItem } from '@hnch/shared';
 import {
   IonButton,
   IonButtons,
@@ -11,9 +11,11 @@ import {
   IonItem,
   IonLabel,
   IonNote,
+  IonTextarea,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
+import { buildRoundStartTicketId, buildRoundStartTitle } from './round-start.helpers';
 
 /**
  * Payload emitted by {@link RoundStartSheetComponent} when the host
@@ -26,6 +28,14 @@ export interface RoundStartSubmission {
   readonly title: string | null;
   /** Optional tracker reference (e.g. `PROJ-1234`); blank when the user skips it. */
   readonly ticketId: string | null;
+  /** Optional description (max 500 chars). */
+  readonly description: string | null;
+  /**
+   * ID of the agenda item this round was started from (ADR-0042).
+   * Passed through unchanged from the pre-fill input; absent when not
+   * started from an agenda item.
+   */
+  readonly agendaItemId?: string;
 }
 
 /**
@@ -35,8 +45,9 @@ export interface RoundStartSubmission {
  * owns only the internal chrome (title, descriptor input, footer
  * button). Descriptor is optional, Start is always enabled.
  *
- * Kept as a distinct component so the upcoming Revealed → Next Round
- * affordance (Phase 2 commit 6) can reuse it verbatim.
+ * When `prefillAgendaItem` is set on modal open, the form is pre-filled
+ * from the agenda item's title/ticketId/description. Mid-edit state is
+ * preserved — pre-fill only happens in `ngOnInit` (once on open).
  */
 @Component({
   selector: 'app-round-start-sheet',
@@ -51,6 +62,7 @@ export interface RoundStartSubmission {
     IonItem,
     IonLabel,
     IonNote,
+    IonTextarea,
     IonTitle,
     IonToolbar,
     ReactiveFormsModule,
@@ -70,6 +82,7 @@ export interface RoundStartSubmission {
           placeholder="e.g., Login redesign"
           autocapitalize="sentences"
           enterkeyhint="next"
+          aria-label="Round title"
           (keydown.enter)="submit()"
         ></ion-input>
       </ion-item>
@@ -81,12 +94,23 @@ export interface RoundStartSubmission {
           autocapitalize="characters"
           autocorrect="off"
           spellcheck="false"
-          enterkeyhint="done"
+          enterkeyhint="next"
+          aria-label="Ticket ID"
           (keydown.enter)="submit()"
         ></ion-input>
       </ion-item>
+      <ion-item>
+        <ion-label position="stacked">Description</ion-label>
+        <ion-textarea
+          [formControl]="descriptionControl"
+          placeholder="Optional story context"
+          autocapitalize="sentences"
+          aria-label="Round description"
+          [rows]="2"
+        ></ion-textarea>
+      </ion-item>
       <ion-note class="helper">
-        Both fields are optional. This will appear on everyone's Estimating screen.
+        All fields are optional. This will appear on everyone's Estimating screen.
       </ion-note>
     </ion-content>
     <ion-footer>
@@ -119,12 +143,18 @@ export interface RoundStartSubmission {
     `,
   ],
 })
-export class RoundStartSheetComponent {
+export class RoundStartSheetComponent implements OnInit {
   /**
    * 1-based index for the "Start Round N" title. Callers pass the
    * index the next round will occupy (rounds.length + 1).
    */
   readonly roundNumber = input.required<number>();
+
+  /**
+   * When provided, pre-fills the form on modal open (ngOnInit).
+   * Pre-fill is one-shot — mid-edit state is never overwritten (ADR-0042).
+   */
+  readonly prefillAgendaItem = input<AgendaItem | null>(null);
 
   /**
    * Fires once the host confirms. The modal host is responsible for
@@ -148,14 +178,31 @@ export class RoundStartSheetComponent {
     validators: [Validators.maxLength(120)],
   });
 
+  protected readonly descriptionControl = new FormControl<string>('', {
+    nonNullable: true,
+    validators: [Validators.maxLength(500)],
+  });
+
   protected readonly isSubmitting = signal(false);
+
+  ngOnInit(): void {
+    const item = this.prefillAgendaItem();
+    if (item !== null) {
+      this.titleControl.setValue(item.title ?? '');
+      this.ticketIdControl.setValue(item.ticketId ?? '');
+      this.descriptionControl.setValue(item.description ?? '');
+    }
+  }
 
   protected submit(): void {
     if (this.isSubmitting()) return;
     this.isSubmitting.set(true);
+    const item = this.prefillAgendaItem();
     this.submitted.emit({
       title: buildRoundStartTitle(this.titleControl.value),
       ticketId: buildRoundStartTicketId(this.ticketIdControl.value),
+      description: this.descriptionControl.value.trim() || null,
+      ...(item !== null && { agendaItemId: item.id }),
     });
     // Leave isSubmitting latched — the modal is about to close and
     // the component will be destroyed; unlatching could race a
