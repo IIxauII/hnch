@@ -243,33 +243,33 @@ import { resolveKeyboardCardAction, shouldHandleKeyEvent } from './estimating.ke
         color: var(--ion-color-medium);
       }
       .elapsed {
-        font-size: 2rem;
-        font-weight: 600;
+        font-size: 1.25rem;
+        font-weight: 400;
         font-variant-numeric: tabular-nums;
         margin: 0.5rem 0 1rem;
         color: var(--ion-color-medium);
       }
       .section {
         margin: 1.5rem 0 0.5rem;
-        font-size: 1rem;
+        font-size: 1.0625rem;
         font-weight: 600;
-        color: var(--ion-color-medium);
       }
       .grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
         gap: 0.75rem;
-        max-width: 600px;
-        margin-inline: auto;
       }
       .card {
         margin: 0;
         border: 2px solid transparent;
-        transition: border-color 0.15s ease, background 0.15s ease;
+        transition: border-color 0.15s ease, background 0.15s ease,
+          transform 0.15s ease, box-shadow 0.15s ease;
       }
       .card.selected {
         border-color: var(--ion-color-primary);
         background: var(--ion-color-primary-tint);
+        transform: scale(1.02);
+        box-shadow: 0 2px 8px rgba(var(--ion-color-primary-rgb), 0.3);
       }
       .card.focused:not(.selected) {
         outline: 2px solid var(--ion-color-primary);
@@ -298,9 +298,6 @@ import { resolveKeyboardCardAction, shouldHandleKeyEvent } from './estimating.ke
       }
       .abstain-btn {
         margin-top: 1rem;
-        max-width: 600px;
-        margin-inline: auto;
-        display: block;
       }
       .empty {
         color: var(--ion-color-medium);
