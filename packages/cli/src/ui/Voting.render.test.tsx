@@ -66,7 +66,7 @@ async function flush(): Promise<void> {
 }
 
 // Exercises: ui/Voting:Voting
-describe('Voting — [a] abstain keybind', () => {
+describe('Voting — [a] abstain keybind interaction', () => {
   it('pressing a as voter calls onVote with ABSTAIN_SENTINEL', async () => {
     const onVote = vi.fn();
     const { stdin } = render(<Voting {...baseProps({ onVote })} />);
@@ -100,7 +100,10 @@ describe('Voting — [a] abstain keybind', () => {
     });
     expect(onVote).not.toHaveBeenCalled();
   });
+});
 
+// Exercises: ui/Voting:Voting
+describe('Voting — [a] abstain rendering', () => {
   it('renders [a] Abstain hint for voter', () => {
     const { lastFrame } = render(<Voting {...baseProps({})} />);
     expect(lastFrame() ?? '').toContain('[a] Abstain');
