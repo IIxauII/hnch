@@ -219,6 +219,63 @@ describe('VoteResultsComponent — TestBed rendering', () => {
     expect(groups[0]!.classList.contains('plurality')).toBe(true);
   });
 
+  it('categorical scale → consensus chip rendered with aria-label (issue #157)', async () => {
+    const TSHIRT = { id: 't-shirt', cards: ['XS', 'S', 'M', 'L', 'XL'] };
+    const round = makeRound({
+      scale: TSHIRT,
+      votes: { p1: 'M', p2: 'L' },
+    });
+    const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
+    const fixture = await mountVoteResults(round, participants);
+    const el = fixture.nativeElement as HTMLElement;
+    const chip = el.querySelector('ion-chip.spread-chip');
+    expect(chip).not.toBeNull();
+    expect(chip!.getAttribute('aria-label')).toBe('Consensus level: Close');
+    expect(chip!.textContent).toContain('Close');
+  });
+
+  it('categorical unanimous → consensus chip "Unanimous" (issue #157)', async () => {
+    const TSHIRT = { id: 't-shirt', cards: ['XS', 'S', 'M', 'L', 'XL'] };
+    const round = makeRound({ scale: TSHIRT, votes: { p1: 'M', p2: 'M' } });
+    const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
+    const fixture = await mountVoteResults(round, participants);
+    const el = fixture.nativeElement as HTMLElement;
+    const chip = el.querySelector('ion-chip.spread-chip');
+    expect(chip!.getAttribute('aria-label')).toBe('Consensus level: Unanimous');
+  });
+
+  it('categorical 3-distinct → consensus chip "Spread" (issue #157 AC #4)', async () => {
+    const TSHIRT = { id: 't-shirt', cards: ['XS', 'S', 'M', 'L', 'XL'] };
+    const round = makeRound({ scale: TSHIRT, votes: { p1: 'S', p2: 'M', p3: 'L' } });
+    const participants = [
+      makeParticipant('p1', 'Alice'),
+      makeParticipant('p2', 'Bob'),
+      makeParticipant('p3', 'Carol'),
+    ];
+    const fixture = await mountVoteResults(round, participants);
+    const el = fixture.nativeElement as HTMLElement;
+    const chip = el.querySelector('ion-chip.spread-chip');
+    expect(chip!.getAttribute('aria-label')).toBe('Consensus level: Spread');
+  });
+
+  it('zero votes → no consensus chip (issue #157 AC #5)', async () => {
+    const TSHIRT = { id: 't-shirt', cards: ['XS', 'S', 'M', 'L', 'XL'] };
+    const round = makeRound({ scale: TSHIRT, votes: {} });
+    const participants = [makeParticipant('p1', 'Alice')];
+    const fixture = await mountVoteResults(round, participants);
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('ion-chip.spread-chip')).toBeNull();
+  });
+
+  it('numeric chip carries aria-label too (issue #157 AC #7)', async () => {
+    const round = makeRound({ votes: { p1: '5', p2: '5' } });
+    const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
+    const fixture = await mountVoteResults(round, participants);
+    const el = fixture.nativeElement as HTMLElement;
+    const chip = el.querySelector('ion-chip.spread-chip');
+    expect(chip!.getAttribute('aria-label')).toBe('Consensus level: Unanimous');
+  });
+
   it('abstain entries excluded from bar denominator (issue #123 AC #3)', async () => {
     const round = makeRound({ votes: { p1: '5', p2: '5', p3: ABSTAIN_SENTINEL } });
     const participants = [
