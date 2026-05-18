@@ -7,8 +7,16 @@ export type SpreadLabel = 'unanimous' | 'close' | 'spread';
  */
 export type RoundStats =
   | { kind: 'numeric'; mean: number; median: number; mode: string; spread: SpreadLabel }
-  | { kind: 'categorical'; mode: string }
+  | { kind: 'categorical'; mode: string; spread: SpreadLabel }
   | null;
+
+// Spread thresholds:
+//   numeric    — card-order step distance: 0 → unanimous, ≤1 → close, >1 → spread
+//   categorical — distinct value count:    1 → unanimous,  2 → close, ≥3 → spread
+function categoricalSpread(values: string[]): SpreadLabel {
+  const distinct = new Set(values).size;
+  return distinct === 1 ? 'unanimous' : distinct === 2 ? 'close' : 'spread';
+}
 
 /**
  * Build stable card-order lookup tables for known and unknown cards.
@@ -62,7 +70,7 @@ export function computeRoundStats(votes: Record<string, string>, scale: Scale): 
     if (numericValues.length === 0) {
       // All votes were non-numeric strings on a numeric scale — degrade gracefully.
       const mode = computeMode(values, cardOrder);
-      return { kind: 'categorical', mode };
+      return { kind: 'categorical', mode, spread: categoricalSpread(values) };
     }
 
     const mean = numericValues.reduce((s, n) => s + n, 0) / numericValues.length;
@@ -90,5 +98,5 @@ export function computeRoundStats(votes: Record<string, string>, scale: Scale): 
 
   // Categorical path
   const mode = computeMode(values, cardOrder);
-  return { kind: 'categorical', mode };
+  return { kind: 'categorical', mode, spread: categoricalSpread(values) };
 }
