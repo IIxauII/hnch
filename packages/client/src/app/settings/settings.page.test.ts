@@ -144,6 +144,7 @@ vi.mock('./relay-url-editor.sheet', async () => {
 async function mountSettings(scale: Scale, customs: CustomScale[]) {
   const { AccentService } = await import('../core/accent.service');
   const { AppPreferenceService } = await import('../core/app-preference.service');
+  const { AvatarColorService } = await import('../core/avatar-color.service');
   const { DocService } = await import('../core/doc/doc.service');
   const { DisplayNameService } = await import('../core/display-name.service');
   const { ParticipantIdService } = await import('../core/participant-id.service');
@@ -156,7 +157,14 @@ async function mountSettings(scale: Scale, customs: CustomScale[]) {
     providers: [
       { provide: AccentService, useValue: { current: signal('blue').asReadonly(), set: vi.fn() } },
       { provide: AppPreferenceService, useValue: { relayHttpUrl: signal(null).asReadonly() } },
-      { provide: DocService, useValue: {} },
+      {
+        provide: AvatarColorService,
+        useValue: {
+          value: signal<string | null>(null).asReadonly(),
+          setValue: vi.fn().mockResolvedValue(undefined),
+        },
+      },
+      { provide: DocService, useValue: { hasSession: signal(false), setAvatarColor: vi.fn() } },
       {
         provide: DisplayNameService,
         useValue: {
@@ -191,6 +199,152 @@ async function mountSettings(scale: Scale, customs: CustomScale[]) {
   const { SettingsPage } = await import('./settings.page');
   return TestBed.createComponent(SettingsPage);
 }
+
+interface AvatarHarness {
+  setValue: ReturnType<typeof vi.fn>;
+  valueSig: ReturnType<typeof signal<string | null>>;
+}
+
+async function mountSettingsWithAvatar(initial: string | null = null): Promise<{
+  fixture: ReturnType<typeof TestBed.createComponent>;
+  avatar: AvatarHarness;
+  setAvatarColor: ReturnType<typeof vi.fn>;
+  hasSession: ReturnType<typeof signal<boolean>>;
+}> {
+  const { AccentService } = await import('../core/accent.service');
+  const { AppPreferenceService } = await import('../core/app-preference.service');
+  const { AvatarColorService } = await import('../core/avatar-color.service');
+  const { DocService } = await import('../core/doc/doc.service');
+  const { DisplayNameService } = await import('../core/display-name.service');
+  const { ParticipantIdService } = await import('../core/participant-id.service');
+  const { ScalePreferenceService } = await import('../core/scale-preference.service');
+  const { ThemeService } = await import('../core/theme.service');
+  const { SurfaceService } = await import('../core/surface.service');
+
+  const valueSig = signal<string | null>(initial);
+  const setAvatarColorMock = vi.fn();
+  const avatar: AvatarHarness = {
+    setValue: vi.fn().mockImplementation(async (wire: string) => {
+      valueSig.set(wire);
+      return wire;
+    }),
+    valueSig,
+  };
+  const hasSessionSig = signal(false);
+
+  TestBed.resetTestingModule();
+  TestBed.configureTestingModule({
+    providers: [
+      { provide: AccentService, useValue: { current: signal('blue').asReadonly(), set: vi.fn() } },
+      { provide: AppPreferenceService, useValue: { relayHttpUrl: signal(null).asReadonly() } },
+      {
+        provide: AvatarColorService,
+        useValue: { value: valueSig.asReadonly(), setValue: avatar.setValue },
+      },
+      {
+        provide: DocService,
+        useValue: { hasSession: hasSessionSig.asReadonly(), setAvatarColor: setAvatarColorMock },
+      },
+      {
+        provide: DisplayNameService,
+        useValue: {
+          getDisplayName: vi.fn().mockResolvedValue('Host'),
+          setDisplayName: vi.fn().mockResolvedValue(undefined),
+        },
+      },
+      { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
+      {
+        provide: ScalePreferenceService,
+        useValue: {
+          defaultScale: signal({ id: 'fibonacci', cards: ['1'] }).asReadonly(),
+          defaultScaleId: signal('fibonacci').asReadonly(),
+          customScales: signal<CustomScale[]>([]).asReadonly(),
+        },
+      },
+      { provide: ThemeService, useValue: { current: signal('system').asReadonly() } },
+      {
+        provide: SurfaceService,
+        useValue: {
+          mode: signal('mobile').asReadonly(),
+          sheetBreakpoints: () => [0, 0.5, 1],
+          initialSheetBreakpoint: () => 0.5,
+          sheetBreakpointsFull: () => [0, 0.6, 1],
+          initialSheetBreakpointFull: () => 1,
+        },
+      },
+    ],
+  });
+
+  const { SettingsPage } = await import('./settings.page');
+  const fixture = TestBed.createComponent(SettingsPage);
+  return { fixture, avatar, setAvatarColor: setAvatarColorMock, hasSession: hasSessionSig };
+}
+
+interface AvatarMethods {
+  onAvatarSelectChanged: (v: string | null | undefined) => void;
+  avatarSelectValue: () => string | null;
+  avatarResolvedColor: () => string;
+}
+
+function avatarApi(fixture: { componentInstance: unknown }): AvatarMethods {
+  return fixture.componentInstance as unknown as AvatarMethods;
+}
+
+describe('SettingsPage — avatar color picker (ADR-0043)', () => {
+  it('selecting a palette key persists via AvatarColorService', async () => {
+    const { fixture, avatar } = await mountSettingsWithAvatar(null);
+    avatarApi(fixture).onAvatarSelectChanged('blue');
+    await Promise.resolve();
+    expect(avatar.setValue).toHaveBeenCalledWith('blue');
+    expect(avatar.valueSig()).toBe('blue');
+  });
+
+  it('selecting "custom" seeds the current resolved color as a hex literal', async () => {
+    const { fixture, avatar } = await mountSettingsWithAvatar('blue');
+    avatarApi(fixture).onAvatarSelectChanged('custom');
+    await Promise.resolve();
+    expect(avatar.setValue).toHaveBeenCalledTimes(1);
+    const seed = avatar.setValue.mock.calls[0]![0] as string;
+    expect(seed).toMatch(/^#[0-9a-f]{6}$/);
+  });
+
+  it('selecting "custom" when already custom is a no-op', async () => {
+    const { fixture, avatar } = await mountSettingsWithAvatar('#abcdef');
+    avatarApi(fixture).onAvatarSelectChanged('custom');
+    await Promise.resolve();
+    expect(avatar.setValue).not.toHaveBeenCalled();
+  });
+
+  it('selecting the current value is a no-op (no extra setValue)', async () => {
+    const { fixture, avatar } = await mountSettingsWithAvatar('teal');
+    avatarApi(fixture).onAvatarSelectChanged('teal');
+    await Promise.resolve();
+    expect(avatar.setValue).not.toHaveBeenCalled();
+  });
+
+  it('avatarSelectValue maps a #rrggbb wire value onto "custom"', async () => {
+    const { fixture } = await mountSettingsWithAvatar('#123456');
+    expect(avatarApi(fixture).avatarSelectValue()).toBe('custom');
+  });
+
+  it('publishes into the doc when a session is active', async () => {
+    const { fixture, avatar, setAvatarColor, hasSession } = await mountSettingsWithAvatar('blue');
+    hasSession.set(true);
+    avatarApi(fixture).onAvatarSelectChanged('red');
+    // Allow the chained `then` inside persistAvatarColor to settle.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(avatar.setValue).toHaveBeenCalledWith('red');
+    expect(setAvatarColor).toHaveBeenCalledWith('me', 'red');
+  });
+
+  it('ignores invalid select values', async () => {
+    const { fixture, avatar } = await mountSettingsWithAvatar(null);
+    avatarApi(fixture).onAvatarSelectChanged('garbage');
+    avatarApi(fixture).onAvatarSelectChanged(null);
+    avatarApi(fixture).onAvatarSelectChanged(undefined);
+    expect(avatar.setValue).not.toHaveBeenCalled();
+  });
+});
 
 describe('SettingsPage — scaleLabel (default scale)', () => {
   it('returns the custom label when default scale is a known custom scale', async () => {

@@ -34,6 +34,7 @@ import {
   reorderAgendaItem,
   revealRound,
   setAgendaItemState,
+  setAvatarColor,
   skipRound,
   updateAgendaItemFields,
   upsertParticipant,
@@ -194,6 +195,35 @@ describe('upsertParticipant', () => {
     expect(snap.participants[0]!.displayName).toBe('Alice (edited)');
   });
 
+  it('writes avatarColor when provided, preserves prior value when omitted (ADR-0043)', () => {
+    const { doc } = seedDoc();
+    upsertParticipant(doc, 'p-host', {
+      displayName: 'Alice',
+      joinedAt: 1_700_000_000_000,
+      avatarColor: 'blue',
+    });
+    let snap = projectDoc(doc);
+    expect(snap.participants[0]!.avatarColor).toBe('blue');
+
+    // Subsequent update without avatarColor must NOT clear the prior value.
+    upsertParticipant(doc, 'p-host', {
+      displayName: 'Alice (edited)',
+      joinedAt: 1_700_000_000_000,
+    });
+    snap = projectDoc(doc);
+    expect(snap.participants[0]!.displayName).toBe('Alice (edited)');
+    expect(snap.participants[0]!.avatarColor).toBe('blue');
+
+    // Subsequent update with a new avatarColor overwrites.
+    upsertParticipant(doc, 'p-host', {
+      displayName: 'Alice (edited)',
+      joinedAt: 1_700_000_000_000,
+      avatarColor: '#abcdef',
+    });
+    snap = projectDoc(doc);
+    expect(snap.participants[0]!.avatarColor).toBe('#abcdef');
+  });
+
   it('orders participants by joinedAt, then id, independently of insert order', () => {
     const { doc } = seedDoc({
       participantId: 'p-middle',
@@ -214,6 +244,82 @@ describe('upsertParticipant', () => {
       'p-middle',
       'p-last',
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// setAvatarColor + initDoc/joinDoc avatarColor plumbing (ADR-0043)
+// ---------------------------------------------------------------------------
+
+describe('setAvatarColor', () => {
+  it('writes avatarColor on the caller participant', () => {
+    const { doc } = seedDoc();
+    setAvatarColor(doc, 'p-host', 'pink');
+    expect(projectDoc(doc).participants[0]!.avatarColor).toBe('pink');
+  });
+
+  it('accepts #rrggbb hex literals verbatim (caller pre-validates)', () => {
+    const { doc } = seedDoc();
+    setAvatarColor(doc, 'p-host', '#abcdef');
+    expect(projectDoc(doc).participants[0]!.avatarColor).toBe('#abcdef');
+  });
+
+  it('no-op when participant record is missing', () => {
+    const { doc } = seedDoc();
+    setAvatarColor(doc, 'ghost-id', 'blue');
+    const snap = projectDoc(doc);
+    expect(snap.participants.find((p) => p.id === 'ghost-id')).toBeUndefined();
+    // Existing host is untouched.
+    expect(snap.participants[0]!.avatarColor).toBeUndefined();
+  });
+
+  it('overwrites prior avatarColor without touching other fields', () => {
+    const { doc } = seedDoc();
+    setAvatarColor(doc, 'p-host', 'blue');
+    setAvatarColor(doc, 'p-host', 'red');
+    const host = projectDoc(doc).participants[0]!;
+    expect(host.avatarColor).toBe('red');
+    expect(host.displayName).toBe('Alice');
+  });
+});
+
+describe('initDoc avatarColor plumbing (ADR-0043)', () => {
+  it('writes avatarColor on the seeded host when provided', () => {
+    const doc = new Y.Doc();
+    initDoc(doc, {
+      roomUuid: 'r1',
+      createdAt: 1000,
+      participantId: 'p-host',
+      displayName: 'A',
+      defaultScale: FIBONACCI_SCALE,
+      avatarColor: 'teal',
+    });
+    expect(projectDoc(doc).participants[0]!.avatarColor).toBe('teal');
+  });
+
+  it('omits avatarColor when not provided (backward compat)', () => {
+    const { doc } = seedDoc();
+    expect(projectDoc(doc).participants[0]!.avatarColor).toBeUndefined();
+  });
+});
+
+describe('joinDoc avatarColor plumbing (ADR-0043)', () => {
+  it('writes avatarColor on the joining participant when provided', () => {
+    const doc = new Y.Doc();
+    joinDoc(doc, { participantId: 'p-joiner', displayName: 'B', avatarColor: 'green' });
+    const snap = projectDoc(doc);
+    const joiner = snap.participants.find((p) => p.id === 'p-joiner');
+    expect(joiner?.avatarColor).toBe('green');
+  });
+
+  it('preserves prior avatarColor on rejoin when init omits the field', () => {
+    const doc = new Y.Doc();
+    joinDoc(doc, { participantId: 'p-joiner', displayName: 'B', avatarColor: 'green' });
+    // Re-join (e.g. after leave) with no color in init.
+    joinDoc(doc, { participantId: 'p-joiner', displayName: 'B (again)' });
+    const joiner = projectDoc(doc).participants.find((p) => p.id === 'p-joiner');
+    expect(joiner?.avatarColor).toBe('green');
+    expect(joiner?.displayName).toBe('B (again)');
   });
 });
 
