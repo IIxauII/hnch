@@ -61,14 +61,34 @@ describe('computeRoundStats', () => {
     expect(r).toMatchObject({ kind: 'numeric', spread: 'spread' });
   });
 
-  it('t-shirt M,L,M → categorical, mode "M"', () => {
+  it('t-shirt M,L,M → categorical, mode "M", spread close (2 distinct)', () => {
     const r = computeRoundStats({ a: 'M', b: 'L', c: 'M' }, TSHIRT_SCALE);
-    expect(r).toMatchObject({ kind: 'categorical', mode: 'M' });
+    expect(r).toMatchObject({ kind: 'categorical', mode: 'M', spread: 'close' });
   });
 
-  it('risk Low,High (tie) → mode "Low" (first in scale)', () => {
+  it('t-shirt all M → categorical, spread unanimous (1 distinct)', () => {
+    const r = computeRoundStats({ a: 'M', b: 'M', c: 'M' }, TSHIRT_SCALE);
+    expect(r).toMatchObject({ kind: 'categorical', spread: 'unanimous' });
+  });
+
+  it('t-shirt S,M,L → categorical, spread spread (3 distinct)', () => {
+    const r = computeRoundStats({ a: 'S', b: 'M', c: 'L' }, TSHIRT_SCALE);
+    expect(r).toMatchObject({ kind: 'categorical', spread: 'spread' });
+  });
+
+  it('risk Low,High → categorical, spread close (2 distinct)', () => {
     const r = computeRoundStats({ a: 'Low', b: 'High' }, RISK_SCALE);
-    expect(r).toMatchObject({ kind: 'categorical', mode: 'Low' });
+    expect(r).toMatchObject({ kind: 'categorical', spread: 'close' });
+  });
+
+  it('risk Low,Medium,High,Critical → categorical, spread spread (4 distinct)', () => {
+    const r = computeRoundStats({ a: 'Low', b: 'Medium', c: 'High', d: 'Critical' }, RISK_SCALE);
+    expect(r).toMatchObject({ kind: 'categorical', spread: 'spread' });
+  });
+
+  it('risk Low,High (tie) → mode "Low" (first in scale), spread close', () => {
+    const r = computeRoundStats({ a: 'Low', b: 'High' }, RISK_SCALE);
+    expect(r).toMatchObject({ kind: 'categorical', mode: 'Low', spread: 'close' });
   });
 
   it('custom numeric scale 10,30 → kind:numeric, spread:spread (indices 0 vs 2)', () => {
@@ -136,9 +156,9 @@ describe('computeRoundStats', () => {
     expect(r2).toMatchObject({ kind: 'categorical' });
   });
 
-  it('single-card categorical: t-shirt all L → kind:categorical, mode:"L"', () => {
+  it('single-card categorical: t-shirt all L → kind:categorical, mode:"L", unanimous', () => {
     const r = computeRoundStats({ a: 'L', b: 'L', c: 'L' }, TSHIRT_SCALE);
-    expect(r).toMatchObject({ kind: 'categorical', mode: 'L' });
+    expect(r).toMatchObject({ kind: 'categorical', mode: 'L', spread: 'unanimous' });
   });
 
   it('mode is always a string for numeric results (regression guard)', () => {

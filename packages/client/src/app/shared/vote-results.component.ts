@@ -118,12 +118,23 @@ interface VoteGroup {
           @case ('numeric') {
             <span class="stat">Avg {{ s.mean | number:'1.1-1' }}</span>
             <span class="stat">Med {{ s.median | number:'1.0-0' }}</span>
-            <ion-chip [color]="spreadColor(s.spread)" class="spread-chip">
+            <ion-chip
+              [color]="spreadColor(s.spread)"
+              class="spread-chip"
+              [attr.aria-label]="'Consensus level: ' + spreadDisplay(s.spread)"
+            >
               <ion-label>{{ spreadDisplay(s.spread) }}</ion-label>
             </ion-chip>
           }
           @case ('categorical') {
             <span class="stat">Most common: <strong>{{ s.mode }}</strong></span>
+            <ion-chip
+              [color]="spreadColor(s.spread)"
+              class="spread-chip"
+              [attr.aria-label]="'Consensus level: ' + spreadDisplay(s.spread)"
+            >
+              <ion-label>{{ spreadDisplay(s.spread) }}</ion-label>
+            </ion-chip>
           }
         }
       </div>
