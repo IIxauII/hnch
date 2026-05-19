@@ -1,3 +1,10 @@
+## [1.30.2](https://github.com/IIxauII/hnch/compare/client-v1.30.1...client-v1.30.2) (2026-05-19)
+
+
+### Bug Fixes
+
+* **client:** align lobby host footer two-button row inset with single-CTA states ([#263](https://github.com/IIxauII/hnch/issues/263)) ([eee2358](https://github.com/IIxauII/hnch/commit/eee23586eadab5620392d21a74eb00c41413c1df))
+
 ## [1.30.1](https://github.com/IIxauII/hnch/compare/client-v1.30.0...client-v1.30.1) (2026-05-19)
 
 
