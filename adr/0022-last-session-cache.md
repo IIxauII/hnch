@@ -1,6 +1,6 @@
 # ADR-0022: Last-session cache — TTL aligned to relay snapshot
 
-**Status:** Accepted
+**Status:** Superseded by ADR-0044
 **Date:** 2026-04-26
 
 ## Context

@@ -57,7 +57,7 @@ export interface RejoinDeps {
 export async function rejoinRoom(
   rawCode: string,
   deps: RejoinDeps,
-  opts: { timeoutMs?: number } = {},
+  opts: { timeoutMs?: number; passwordHash?: string } = {},
 ): Promise<RejoinOutcome> {
   const code = normalizeRoomCode(rawCode);
 
@@ -73,7 +73,9 @@ export async function rejoinRoom(
     return { type: 'network-error' };
   }
 
-  if (resolved.accessMode === 'password') {
+  // If room is password-protected and we have no cached hash, prompt the user.
+  // If we have a cached hash, proceed and let the relay reject with 4002 if wrong.
+  if (resolved.accessMode === 'password' && !opts.passwordHash) {
     return { type: 'password-required', roomCode: code };
   }
 
@@ -90,7 +92,14 @@ export async function rejoinRoom(
     roomCode: code,
     ...(avatarColor && { avatarColor }),
   });
-  deps.docService.connect({ roomCode: code, deviceId: participantId }, { roomUuid: resolved.uuid });
+  deps.docService.connect(
+    {
+      roomCode: code,
+      deviceId: participantId,
+      ...(opts.passwordHash ? { passwordHash: opts.passwordHash } : {}),
+    },
+    { roomUuid: resolved.uuid },
+  );
 
   const outcome = await deps.waitForJoinOutcome(opts);
 
@@ -162,7 +171,10 @@ export class RoomJoinService {
    * while the first is still in flight returns the existing promise
    * rather than racing a parallel rejoin.
    */
-  async rejoin(rawCode: string, opts: { timeoutMs?: number } = {}): Promise<RejoinOutcome> {
+  async rejoin(
+    rawCode: string,
+    opts: { timeoutMs?: number; passwordHash?: string } = {},
+  ): Promise<RejoinOutcome> {
     const key = normalizeRoomCode(rawCode);
     return dedupRejoin(this.inFlightRejoins, key, () => rejoinRoom(rawCode, this.makeDeps(), opts));
   }

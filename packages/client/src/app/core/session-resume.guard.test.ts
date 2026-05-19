@@ -47,15 +47,34 @@ function makeDocService(hasSession = false, roomCode: string | null = null) {
   };
 }
 
-function makeLastSessionService() {
+/**
+ * Returns a stub lastSessionService matching SessionResumeGuardDeps.
+ * `entries` controls what `list()` returns (default empty — no cached hash).
+ */
+function makeLastSessionService(
+  entries: Array<{
+    roomUuid: string;
+    roomCode: string;
+    passwordHash?: string;
+    lastScreen?: string;
+  }> = [],
+) {
   return {
-    clear: vi.fn().mockResolvedValue(),
+    list: vi.fn().mockResolvedValue(entries),
+    clearPasswordHash: vi.fn().mockResolvedValue(undefined),
+    removeByUuid: vi.fn().mockResolvedValue(undefined),
+    setPendingPasswordHash: vi.fn(),
+    clearAll: vi.fn().mockResolvedValue(undefined),
+    // back-compat — not called by new guard, kept for type compat
+    clear: vi.fn().mockResolvedValue(undefined),
   };
 }
 
 function makeRoomJoinService(outcome: unknown) {
   return {
-    rejoin: vi.fn<[string], Promise<unknown>>().mockResolvedValue(outcome),
+    rejoin: vi
+      .fn<[string, { passwordHash?: string }?], Promise<unknown>>()
+      .mockResolvedValue(outcome),
   };
 }
 
@@ -107,7 +126,7 @@ describe('sessionResumeGuardLogic', () => {
     expect(result).toEqual({ path: ['/home'], opts: undefined });
   });
 
-  it('returns true on connected rejoin', async () => {
+  it('returns true on connected rejoin (no cached hash)', async () => {
     const { sessionResumeGuardLogic } = await import('./session-resume.guard');
 
     const router = makeRouter();
@@ -126,7 +145,32 @@ describe('sessionResumeGuardLogic', () => {
     );
 
     expect(result).toBe(true);
-    expect(roomJoinService.rejoin).toHaveBeenCalledWith('ABCDEF');
+    expect(roomJoinService.rejoin).toHaveBeenCalledWith('ABCDEF', {});
+  });
+
+  it('returns true on connected rejoin and sets pending hash when cached hash exists', async () => {
+    const { sessionResumeGuardLogic } = await import('./session-resume.guard');
+
+    const router = makeRouter();
+    const docService = makeDocService(false, null);
+    const lastSessionService = makeLastSessionService([
+      { roomUuid: 'u1', roomCode: 'ABCDEF', passwordHash: 'stored-hash' },
+    ]);
+    const roomJoinService = makeRoomJoinService({
+      type: 'connected',
+      roomCode: 'ABCDEF',
+      roomUuid: 'u1',
+      accessMode: 'open',
+    });
+
+    const result = await sessionResumeGuardLogic(
+      { router, docService, lastSessionService, roomJoinService },
+      makeSegments('lobby', 'ABCDEF'),
+    );
+
+    expect(result).toBe(true);
+    expect(roomJoinService.rejoin).toHaveBeenCalledWith('ABCDEF', { passwordHash: 'stored-hash' });
+    expect(lastSessionService.setPendingPasswordHash).toHaveBeenCalledWith('u1', 'stored-hash');
   });
 
   it('returns true on timeout (benefit of doubt)', async () => {
@@ -145,7 +189,7 @@ describe('sessionResumeGuardLogic', () => {
     expect(result).toBe(true);
   });
 
-  it('redirects to /join?code= on password-required', async () => {
+  it('redirects to /join?code= on password-required (no cached hash)', async () => {
     const { sessionResumeGuardLogic } = await import('./session-resume.guard');
 
     const router = makeRouter();
@@ -164,12 +208,12 @@ describe('sessionResumeGuardLogic', () => {
     expect(result).toEqual(expect.objectContaining({ path: ['/join'] }));
   });
 
-  it('clears cache and redirects to /home on unknown-room', async () => {
+  it('removeByUuid and redirects to /home on unknown-room with known entry', async () => {
     const { sessionResumeGuardLogic } = await import('./session-resume.guard');
 
     const router = makeRouter();
     const docService = makeDocService(false, null);
-    const lastSessionService = makeLastSessionService();
+    const lastSessionService = makeLastSessionService([{ roomUuid: 'u1', roomCode: 'XYZ999' }]);
     const roomJoinService = makeRoomJoinService({ type: 'unknown-room' });
 
     const result = await sessionResumeGuardLogic(
@@ -177,17 +221,36 @@ describe('sessionResumeGuardLogic', () => {
       makeSegments('lobby', 'XYZ999'),
     );
 
-    expect(lastSessionService.clear).toHaveBeenCalled();
+    expect(lastSessionService.removeByUuid).toHaveBeenCalledWith('u1');
     expect(router.createUrlTree).toHaveBeenCalledWith(['/home']);
     expect(result).toEqual(expect.objectContaining({ path: ['/home'] }));
   });
 
-  it('clears cache and redirects to /home on rejected', async () => {
+  it('clearAll and redirects to /home on unknown-room with no matching entry', async () => {
     const { sessionResumeGuardLogic } = await import('./session-resume.guard');
 
     const router = makeRouter();
     const docService = makeDocService(false, null);
-    const lastSessionService = makeLastSessionService();
+    const lastSessionService = makeLastSessionService(); // no entries
+    const roomJoinService = makeRoomJoinService({ type: 'unknown-room' });
+
+    await sessionResumeGuardLogic(
+      { router, docService, lastSessionService, roomJoinService },
+      makeSegments('lobby', 'XYZ999'),
+    );
+
+    expect(lastSessionService.clearAll).toHaveBeenCalled();
+    expect(router.createUrlTree).toHaveBeenCalledWith(['/home']);
+  });
+
+  it('wrong-password (4002): clearPasswordHash and redirect to /join?code=', async () => {
+    const { sessionResumeGuardLogic } = await import('./session-resume.guard');
+
+    const router = makeRouter();
+    const docService = makeDocService(false, null);
+    const lastSessionService = makeLastSessionService([
+      { roomUuid: 'u1', roomCode: 'ABCDEF', passwordHash: 'wrong' },
+    ]);
     const roomJoinService = makeRoomJoinService({ type: 'rejected', reason: 'wrong-password' });
 
     await sessionResumeGuardLogic(
@@ -195,11 +258,30 @@ describe('sessionResumeGuardLogic', () => {
       makeSegments('lobby', 'ABCDEF'),
     );
 
-    expect(lastSessionService.clear).toHaveBeenCalled();
+    expect(lastSessionService.clearPasswordHash).toHaveBeenCalledWith('u1');
+    expect(router.createUrlTree).toHaveBeenCalledWith(['/join'], {
+      queryParams: { code: 'ABCDEF' },
+    });
+  });
+
+  it('other rejection: removeByUuid and redirect to /home', async () => {
+    const { sessionResumeGuardLogic } = await import('./session-resume.guard');
+
+    const router = makeRouter();
+    const docService = makeDocService(false, null);
+    const lastSessionService = makeLastSessionService([{ roomUuid: 'u1', roomCode: 'ABCDEF' }]);
+    const roomJoinService = makeRoomJoinService({ type: 'rejected', reason: 'room-full' });
+
+    await sessionResumeGuardLogic(
+      { router, docService, lastSessionService, roomJoinService },
+      makeSegments('lobby', 'ABCDEF'),
+    );
+
+    expect(lastSessionService.removeByUuid).toHaveBeenCalledWith('u1');
     expect(router.createUrlTree).toHaveBeenCalledWith(['/home']);
   });
 
-  it('redirects to /home on network-error without clearing cache', async () => {
+  it('redirects to /home on network-error without removing cache', async () => {
     const { sessionResumeGuardLogic } = await import('./session-resume.guard');
 
     const router = makeRouter();
@@ -213,7 +295,8 @@ describe('sessionResumeGuardLogic', () => {
     );
 
     // network-error does NOT clear the cache so user can retry via banner
-    expect(lastSessionService.clear).not.toHaveBeenCalled();
+    expect(lastSessionService.clearAll).not.toHaveBeenCalled();
+    expect(lastSessionService.removeByUuid).not.toHaveBeenCalled();
     expect(router.createUrlTree).toHaveBeenCalledWith(['/home']);
   });
 
@@ -235,7 +318,7 @@ describe('sessionResumeGuardLogic', () => {
       makeSegments('estimating', 'ABCDEF'),
     );
 
-    expect(roomJoinService.rejoin).toHaveBeenCalledWith('ABCDEF');
+    expect(roomJoinService.rejoin).toHaveBeenCalledWith('ABCDEF', {});
   });
 
   it('redirects to /home without clearing cache when code is invalid', async () => {
@@ -253,7 +336,7 @@ describe('sessionResumeGuardLogic', () => {
     );
 
     expect(roomJoinService.rejoin).not.toHaveBeenCalled();
-    expect(lastSessionService.clear).not.toHaveBeenCalled();
+    expect(lastSessionService.clearAll).not.toHaveBeenCalled();
     expect(router.createUrlTree).toHaveBeenCalledWith(['/home']);
     expect(result).toEqual(expect.objectContaining({ path: ['/home'] }));
   });

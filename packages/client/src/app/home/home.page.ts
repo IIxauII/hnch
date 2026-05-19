@@ -33,12 +33,14 @@ import { SurfaceService } from '../core/surface.service';
 import { ToastService } from '../services/toast.service';
 import { DisplayNameService } from '../core/display-name.service';
 import { DocService } from '../core/doc/doc.service';
+import type { ClientLastSessionEntry } from '../core/last-session.service';
 import { LastSessionService } from '../core/last-session.service';
 import { ParticipantIdService } from '../core/participant-id.service';
 import { ScalePreferenceService } from '../core/scale-preference.service';
 import { mintRoom, patchRoomAccess } from '../core/relay/relay-api';
 import { assertRoomCode, RoomJoinService } from '../core/room-join.service';
 import { JumpBackInBannerComponent, type JumpBackInSummary } from './jump-back-in-banner.component';
+import { RecentRoomsListComponent } from './recent-rooms-list.component';
 import { PasswordPromptSheetComponent } from './password-prompt.sheet';
 import { presentSheet } from '../utils/present-sheet';
 import { rejectionCopy, routeForScreen, summaryFromCache } from './home.helpers';
@@ -47,10 +49,8 @@ import { rejectionCopy, routeForScreen, summaryFromCache } from './home.helpers'
  * Home launchpad — ux.md §5.2.
  *
  * Two primary entry points (Create, Join), an optional Jump-back-in
- * banner above them, and a ⋯ action sheet that currently only
- * exposes Settings. The banner renders iff `lastSessionService.get()`
- * resolves a non-expired cache entry; tapping it fast-path-rejoins
- * using the cached `roomUuid` so we skip `GET /rooms/:code`.
+ * banner (1 cached room) or RecentRoomsList (2–5 cached rooms) above
+ * them, and a ⋯ action sheet that exposes Settings.
  *
  * Rejoin outcome handling (plan §3.8): we open the socket while still
  * mounted on Home, then race a `syncStatus === 'connected'` transition
@@ -81,6 +81,7 @@ import { rejectionCopy, routeForScreen, summaryFromCache } from './home.helpers'
     IonTitle,
     IonToolbar,
     JumpBackInBannerComponent,
+    RecentRoomsListComponent,
     PasswordPromptSheetComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -104,14 +105,23 @@ import { rejectionCopy, routeForScreen, summaryFromCache } from './home.helpers'
     <ion-content [fullscreen]="true">
       <ion-grid fixed class="page-container">
         <ion-row><ion-col>
+          @if (recentEntries().length >= 2) {
+            <app-recent-rooms-list
+              [entries]="recentEntries()"
+              (joinRequested)="onJoinEntry($event)"
+              (removeRequested)="onRemoveEntry($event)"
+            />
+          }
           <ion-list inset="true" class="actions">
-            @if (jumpBackInSummary(); as summary) {
-              <app-jump-back-in-banner
-                [summary]="summary"
-                [stale]="jumpBackInStale()"
-                [resuming]="resuming()"
-                (resumeRequested)="onResumeJumpBack()"
-              />
+            @if (recentEntries().length === 1) {
+              @if (jumpBackInSummary(); as summary) {
+                <app-jump-back-in-banner
+                  [summary]="summary"
+                  [stale]="jumpBackInStale()"
+                  [resuming]="resuming()"
+                  (resumeRequested)="onResumeJumpBack()"
+                />
+              }
             }
             <ion-item button="true" detail="true" (click)="onCreateRoom()">
               <div class="icon-tile icon-tile--accent" slot="start" aria-hidden="true">
@@ -216,10 +226,14 @@ export class HomePage {
   private readonly roomJoinService = inject(RoomJoinService);
 
   /**
-   * Summary passed into the banner. `null` means "no banner" — either
-   * no cache entry, entry past TTL, or we just cleared after an
-   * `unknown-room` bounce. Populated once async from
-   * `lastSessionService.get()` in the constructor.
+   * All recent room entries (up to 5, sorted by lastSeenAt desc).
+   * Drives both the banner (length === 1) and the list (length >= 2).
+   */
+  protected readonly recentEntries = signal<ClientLastSessionEntry[]>([]);
+
+  /**
+   * Summary passed into the banner (single-entry case). `null` means "no
+   * banner". Derived from `recentEntries[0]` after load.
    */
   protected readonly jumpBackInSummary = signal<JumpBackInSummary | null>(null);
 
@@ -266,11 +280,11 @@ export class HomePage {
       'return-up-back-outline': returnUpBackOutline,
       'settings-outline': settingsOutline,
     });
-    void this.loadBannerFromCache();
+    void this.loadEntriesFromCache();
   }
 
   ionViewWillEnter(): void {
-    void this.loadBannerFromCache();
+    void this.loadEntriesFromCache();
   }
 
   protected async onCreateRoom(): Promise<void> {
@@ -336,7 +350,28 @@ export class HomePage {
   }
 
   /**
-   * Fast-path rejoin per plan §3.8.
+   * Fast-path rejoin for the recent rooms list — tap a row to rejoin.
+   */
+  protected async onJoinEntry(entry: ClientLastSessionEntry): Promise<void> {
+    if (this.resuming()) return;
+    this.resuming.set(true);
+    try {
+      await this.doRejoin(entry);
+    } finally {
+      this.resuming.set(false);
+    }
+  }
+
+  /**
+   * Remove a room from the history list.
+   */
+  protected async onRemoveEntry(roomUuid: string): Promise<void> {
+    await this.lastSessionService.removeByUuid(roomUuid);
+    await this.loadEntriesFromCache();
+  }
+
+  /**
+   * Fast-path rejoin per plan §3.8 — single-entry banner variant.
    *
    * Prechecks via `GET /rooms/:code` to detect `unknown-room` (relay
    * denies pre-upgrade with HTTP 404, not a WS close code), then opens
@@ -350,7 +385,11 @@ export class HomePage {
     // the second tap reliably clear the banner even if resuming() is still
     // true from the first tap's finally block not having run yet.
     if (this.jumpBackInStale()) {
-      await this.lastSessionService.clear();
+      const entries = this.recentEntries();
+      if (entries[0]) {
+        await this.lastSessionService.removeByUuid(entries[0].roomUuid);
+      }
+      this.recentEntries.set([]);
       this.jumpBackInSummary.set(null);
       this.jumpBackInStale.set(false);
       return;
@@ -360,60 +399,73 @@ export class HomePage {
     try {
       // Re-read the cache at tap time rather than trusting the signal:
       // the entry may have aged past TTL since the banner first
-      // rendered (cold-start banners that idle for 24 h), and re-reading
-      // sweeps stale entries in one place.
-      const cache = await this.lastSessionService.get();
+      // rendered.
+      const entries = await this.lastSessionService.list();
+      const cache = entries[0];
       if (!cache) {
+        this.recentEntries.set([]);
         this.jumpBackInSummary.set(null);
         this.jumpBackInStale.set(false);
         return;
       }
 
-      const outcome = await this.roomJoinService.rejoin(cache.roomCode);
-
-      if (outcome.type === 'unknown-room') {
-        // Relay has forgotten this room (ADR-0012's TTL lapsed or the
-        // server restarted). Mark banner as stale instead of immediately
-        // clearing — it renders dimmed and a second tap clears it.
-        this.docService.endSession();
-        this.jumpBackInStale.set(true);
-        await this.toast(
-          "That session isn't active anymore. Start a new one or join a fresh code.",
-        );
-        return;
-      }
-
-      if (outcome.type === 'password-required') {
-        // Cache entry exists but room was later password-protected; redirect
-        // to Join page which auto-fills the code and shows the password field.
-        await this.router.navigate(['/join'], {
-          queryParams: { code: cache.roomCode },
-        });
-        return;
-      }
-
-      if (outcome.type === 'rejected') {
-        // Phase-5 rejection reasons land here once enforcement is on.
-        this.docService.endSession();
-        await this.toast(rejectionCopy(outcome.reason));
-        return;
-      }
-
-      if (outcome.type === 'network-error') {
-        // Network down — let user retry; don't clear the banner.
-        await this.toast("Couldn't reach the relay. Check your connection and try again.");
-        return;
-      }
-
-      // 'connected' or 'timeout' — navigate into the session
-      const code = this.docService.roomCode();
-      assertRoomCode(code, 'home.onResumeJumpBack');
-      await this.router.navigate([routeForScreen(cache.lastScreen, code)], {
-        replaceUrl: true,
-      });
+      await this.doRejoin(cache);
     } finally {
       this.resuming.set(false);
     }
+  }
+
+  /**
+   * Core rejoin logic shared by banner tap and list row tap.
+   */
+  private async doRejoin(cache: ClientLastSessionEntry): Promise<void> {
+    const outcome = await this.roomJoinService.rejoin(cache.roomCode);
+
+    if (outcome.type === 'unknown-room') {
+      // Relay has forgotten this room (ADR-0012's TTL lapsed or the
+      // server restarted). Mark banner as stale instead of immediately
+      // clearing — it renders dimmed and a second tap clears it.
+      this.docService.endSession();
+      if (this.recentEntries().length === 1) {
+        this.jumpBackInStale.set(true);
+      } else {
+        // For list mode, remove the stale entry immediately
+        await this.lastSessionService.removeByUuid(cache.roomUuid);
+        await this.loadEntriesFromCache();
+      }
+      await this.toast("That session isn't active anymore. Start a new one or join a fresh code.");
+      return;
+    }
+
+    if (outcome.type === 'password-required') {
+      // Cache entry exists but room was later password-protected; redirect
+      // to Join page which auto-fills the code and shows the password field.
+      await this.router.navigate(['/join'], {
+        queryParams: { code: cache.roomCode },
+      });
+      return;
+    }
+
+    if (outcome.type === 'rejected') {
+      // Phase-5 rejection reasons land here once enforcement is on.
+      this.docService.endSession();
+      await this.toast(rejectionCopy(outcome.reason));
+      return;
+    }
+
+    if (outcome.type === 'network-error') {
+      // Network down — let user retry; don't clear the banner.
+      await this.toast("Couldn't reach the relay. Check your connection and try again.");
+      return;
+    }
+
+    // 'connected' or 'timeout' — navigate into the session
+    const code = this.docService.roomCode();
+    assertRoomCode(code, 'home.doRejoin');
+    const screen = cache.lastScreen ?? 'lobby';
+    await this.router.navigate([routeForScreen(screen, code)], {
+      replaceUrl: true,
+    });
   }
 
   protected async openActionSheet(event: Event): Promise<void> {
@@ -436,18 +488,16 @@ export class HomePage {
     });
   }
 
-  private async loadBannerFromCache(): Promise<void> {
-    const cache = await this.lastSessionService.get();
-    if (!cache) {
-      this.jumpBackInSummary.set(null);
-      this.jumpBackInStale.set(false);
-      return;
-    }
-    // Reset stale flag so returning from another screen doesn't keep a stale
-    // banner sticky — the next tap will re-test via resolveRoom and re-set
-    // stale if the room is still gone.
+  private async loadEntriesFromCache(): Promise<void> {
+    const entries = await this.lastSessionService.list();
+    this.recentEntries.set(entries);
+    // Reset stale flag on refresh
     this.jumpBackInStale.set(false);
-    this.jumpBackInSummary.set(summaryFromCache(cache));
+    if (entries.length === 1) {
+      this.jumpBackInSummary.set(summaryFromCache(entries[0]!));
+    } else {
+      this.jumpBackInSummary.set(null);
+    }
   }
 
   private async toast(message: string): Promise<void> {

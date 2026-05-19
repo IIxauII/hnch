@@ -35,6 +35,11 @@ vi.mock('@hnch/shared', () => ({
   isValidRoomCode: (s: string) => s.length === 6,
   normalizeRoomCode: (s: string) => s.toUpperCase().replaceAll(/-/g, ''),
   parseInviteContent: vi.fn(),
+  // last-session service imports
+  LAST_SESSION_TTL_MS: 24 * 60 * 60 * 1000,
+  LAST_SESSION_MAX_ENTRIES: 5,
+  migrateLastSessionCache: (_input: unknown) => ({ version: 2, entries: {} }),
+  pruneLastSessionEntries: (cache: unknown) => cache,
 }));
 
 import { rejectionCopy, shouldAutoSubmitDeepLink } from './join.page';

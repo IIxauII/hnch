@@ -65,10 +65,15 @@ export class SessionEndService {
       message = `Session ended by ${hostName}`;
     }
 
+    const uuid = this.docService.meta()?.roomUuid;
     this.docService.endSession();
 
     try {
-      await this.lastSession.clear();
+      if (uuid) {
+        await this.lastSession.removeByUuid(uuid);
+      } else {
+        await this.lastSession.clearAll();
+      }
     } catch (err) {
       console.warn('Failed to clear lastSession cache:', err);
     }
