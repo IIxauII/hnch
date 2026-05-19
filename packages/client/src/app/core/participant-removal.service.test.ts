@@ -129,6 +129,22 @@ describe('ParticipantRemovalService', () => {
     expect(routerMock.navigate).toHaveBeenCalledWith(['/home']);
   });
 
+  it('kick: calls clearAll when meta returns no roomUuid', async () => {
+    // Override meta to return no roomUuid
+    docMock.meta = vi.fn(() => ({ roomUuid: undefined as unknown as string }));
+    setup();
+
+    docMock._participantsSignal.set([
+      { id: SELF_ID, displayName: 'Me', joinedAt: NOW, leftAt: NOW + 1, removedBy: 'host-1' },
+    ]);
+
+    await flushAll();
+
+    expect(docMock.endSession).toHaveBeenCalledOnce();
+    expect(lastSessionMock.clearAll).toHaveBeenCalledOnce();
+    expect(lastSessionMock.removeByUuid).not.toHaveBeenCalled();
+  });
+
   it('voluntary leave (removedBy === self) does NOT trigger kick handler', async () => {
     setup();
 

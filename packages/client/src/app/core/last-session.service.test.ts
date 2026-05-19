@@ -113,6 +113,21 @@ describe('LastSessionService v2', () => {
       expect(result[1]!.roomUuid).toBe('u1');
     });
 
+    it('writes back cache when some (not all) entries expire', async () => {
+      const now = 1_000_000;
+      store[KEY] = makeV2({
+        u1: { roomCode: 'EXPIRED', roomUuid: 'u1', lastSeenAt: now - TTL - 1 },
+        u2: { roomCode: 'FRESH', roomUuid: 'u2', lastSeenAt: now - 1000 },
+      });
+      const svc = await createService();
+      const result = await svc.list({ now: () => now });
+      // Only fresh entry survives
+      expect(result).toHaveLength(1);
+      expect(result[0]!.roomUuid).toBe('u2');
+      // Written back (not removed — remaining entries exist)
+      expect(mockPreferences.set).toHaveBeenCalled();
+    });
+
     it('clamps future-dated lastSeenAt to now', async () => {
       const now = 1_000_000;
       const future = now + 999_999;
@@ -189,6 +204,35 @@ describe('LastSessionService v2', () => {
       );
       const result = await svc.list({ now: () => now + 2000 });
       expect(result[0]!.passwordHash).toBe('hash-abc');
+    });
+
+    it('consumes pending hash set by setPendingPasswordHash', async () => {
+      const svc = await createService();
+      const now = 1_000_000;
+      svc.setPendingPasswordHash('u1', 'pending-hash');
+      await svc.recordJoin(
+        { roomCode: 'A', roomUuid: 'u1', lastScreen: 'lobby' },
+        { now: () => now },
+      );
+      const result = await svc.list({ now: () => now });
+      expect(result[0]!.passwordHash).toBe('pending-hash');
+    });
+
+    it('pending hash consumed (deleted) after first recordJoin', async () => {
+      const svc = await createService();
+      const now = 1_000_000;
+      svc.setPendingPasswordHash('u1', 'one-time-hash');
+      await svc.recordJoin(
+        { roomCode: 'A', roomUuid: 'u1', lastScreen: 'lobby' },
+        { now: () => now },
+      );
+      // Second recordJoin without explicit hash — pending already consumed, existing hash preserved
+      await svc.recordJoin(
+        { roomCode: 'A', roomUuid: 'u1', lastScreen: 'estimating' },
+        { now: () => now + 1000 },
+      );
+      const result = await svc.list({ now: () => now + 2000 });
+      expect(result[0]!.passwordHash).toBe('one-time-hash');
     });
 
     it('replaces passwordHash when new payload provides one', async () => {

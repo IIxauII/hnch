@@ -150,6 +150,22 @@ describe('SessionEndService', () => {
     warnSpy.mockRestore();
   });
 
+  it('calls removeByUuid when meta has roomUuid', async () => {
+    TestBed.inject(SessionEndService);
+
+    // Set roomUuid on meta before sessionEndedAt fires
+    docMock._metaSignal.set({
+      sessionEndedAt: Date.now(),
+      createdBy: 'host-1',
+      roomUuid: 'room-uuid-42',
+    });
+
+    await flushAll();
+
+    expect(lastSessionMock.removeByUuid).toHaveBeenCalledWith('room-uuid-42');
+    expect(lastSessionMock.clearAll).not.toHaveBeenCalled();
+  });
+
   it('no-op when no active session: clear/toast/navigate never called', async () => {
     docMock.hasSession.mockReturnValue(false);
 

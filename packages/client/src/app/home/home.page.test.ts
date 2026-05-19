@@ -71,4 +71,15 @@ describe('HomePage — summaryFromCache', () => {
       }),
     ).toEqual({ roomCode: 'XYZ789', lastScreen: 'estimating' });
   });
+
+  it('defaults lastScreen to lobby when entry has no lastScreen (v1 migration path)', () => {
+    expect(
+      summaryFromCache({
+        roomCode: 'ABC123',
+        roomUuid: 'uuid-3',
+        lastSeenAt: 0,
+        // lastScreen intentionally omitted — ClientLastSessionEntry has it optional
+      }),
+    ).toEqual({ roomCode: 'ABC123', lastScreen: 'lobby' });
+  });
 });
