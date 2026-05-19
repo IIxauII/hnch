@@ -1,3 +1,10 @@
+# [1.30.0](https://github.com/IIxauII/hnch/compare/client-v1.29.2...client-v1.30.0) (2026-05-19)
+
+
+### Features
+
+* **client,e2e:** portal host actions via overflow popover ([#240](https://github.com/IIxauII/hnch/issues/240)) ([#255](https://github.com/IIxauII/hnch/issues/255)) ([4a4d89e](https://github.com/IIxauII/hnch/commit/4a4d89eeee9ea4a3727e7cbf19f04cdc3c90bd92))
+
 ## [1.29.2](https://github.com/IIxauII/hnch/compare/client-v1.29.1...client-v1.29.2) (2026-05-18)
 
 
