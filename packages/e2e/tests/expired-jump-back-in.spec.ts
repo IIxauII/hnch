@@ -52,7 +52,7 @@ test.describe('Expired Jump-back-in banner', () => {
     await expect(row).not.toHaveClass(/stale/);
 
     // Step 6: tap banner → relay returns unknown-room → jumpBackInStale flips true.
-    await row.evaluate((el: HTMLElement) => el.click());
+    await row.click();
 
     // Toast "That session isn't active anymore." fires.
     await expectToast(host.page, "That session isn't active anymore", { timeout: 8_000 });
@@ -61,7 +61,7 @@ test.describe('Expired Jump-back-in banner', () => {
     await expect(row).toHaveClass(/stale/, { timeout: 5_000 });
 
     // Step 7: second tap → cache cleared → banner removed from DOM.
-    await row.evaluate((el: HTMLElement) => el.click());
+    await row.click();
     await banner.waitFor({ state: 'hidden', timeout: 5_000 });
 
     // Create Room and Join Room cards remain.

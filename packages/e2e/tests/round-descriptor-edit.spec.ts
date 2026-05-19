@@ -28,7 +28,7 @@ const ROUND_EDIT = {
 async function openCurrentRoundEdit(page: import('@playwright/test').Page) {
   const pencil = page.locator(ROUND_EDIT.currentRoundPencil);
   await pencil.waitFor({ state: 'visible', timeout: 5_000 });
-  await pencil.evaluate((el: HTMLElement) => el.click());
+  await pencil.click();
   const modal = page.locator(ROUND_EDIT.modal);
   await modal.waitFor({ state: 'visible', timeout: 5_000 });
   return modal;
@@ -39,7 +39,7 @@ async function saveTitleInModal(page: import('@playwright/test').Page, newTitle:
   await titleInput.fill(newTitle);
   const saveBtn = page.locator(ROUND_EDIT.saveBtn);
   await saveBtn.waitFor({ state: 'visible' });
-  await saveBtn.evaluate((el: HTMLElement) => el.click());
+  await saveBtn.click();
   // Modal should dismiss
   await page.locator(ROUND_EDIT.modal).waitFor({ state: 'hidden', timeout: 5_000 });
 }
@@ -146,7 +146,7 @@ test.describe('Round descriptor edit (post-reveal)', () => {
     // Round 1 is now in history — click its pencil
     const historyPencil = host.page.locator(ROUND_EDIT.historyPencil(1));
     await historyPencil.waitFor({ state: 'visible', timeout: 5_000 });
-    await historyPencil.evaluate((el: HTMLElement) => el.click());
+    await historyPencil.click();
     const modal = host.page.locator(ROUND_EDIT.modal);
     await modal.waitFor({ state: 'visible', timeout: 5_000 });
 
