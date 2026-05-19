@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  OnDestroy,
   computed,
   effect,
   inject,
@@ -19,6 +20,7 @@ import {
 import type { Round } from '@hnch/shared';
 import {
   AlertController,
+  PopoverController,
   IonAccordion,
   IonAccordionGroup,
   IonAvatar,
@@ -49,6 +51,7 @@ import {
   closeCircleOutline,
   copyOutline,
   ellipsisHorizontalCircle,
+  ellipsisVertical,
   logOutOutline,
   pencilOutline,
   personCircleOutline,
@@ -61,6 +64,7 @@ import {
 
 import { ConnectionChipComponent } from '../core/connection-chip.component';
 import { buildCopyRoomCodeToast, buildResultsHeading, isParticipantViewer } from './lobby-helpers';
+import type { MenuItem } from '../shared/menu-popover/menu-popover.component';
 import { ConnectionStatusBannerComponent } from '../shared/connection-status-banner.component';
 import { ExportService } from '../core/export.service';
 import { SurfaceService } from '../core/surface.service';
@@ -248,7 +252,7 @@ import type { AgendaItem } from '@hnch/shared';
             </ion-label>
           </ion-item>
           <div slot="content">
-            @if (isHost()) {
+            @if (isHost() && surface.mode() === 'mobile') {
               <p class="swipe-hint">Swipe a row for host actions.</p>
             }
             <ion-list lines="inset" class="participants">
@@ -280,6 +284,16 @@ import type { AgendaItem } from '@hnch/shared';
                         <ion-note slot="end" aria-label="Observer">observer</ion-note>
                       } @else if (!onlineIds().has(p.id)) {
                         <ion-note slot="end">Offline</ion-note>
+                      }
+                      @if (surface.mode() === 'desktop') {
+                        <ion-button
+                          fill="clear"
+                          slot="end"
+                          [attr.aria-label]="'Host actions for ' + p.displayName"
+                          (click)="openParticipantActions(p, $event)"
+                        >
+                          <ion-icon name="ellipsis-vertical" aria-hidden="true"></ion-icon>
+                        </ion-button>
                       }
                     </ion-item>
                     <ion-item-options side="end">
@@ -645,7 +659,7 @@ import type { AgendaItem } from '@hnch/shared';
     `,
   ],
 })
-export class LobbyPage {
+export class LobbyPage implements OnDestroy {
   private readonly router = inject(Router);
   private readonly docService = inject(DocService);
   private readonly haptic = inject(HapticService);
@@ -654,6 +668,7 @@ export class LobbyPage {
   private readonly scalePrefs = inject(ScalePreferenceService);
   protected readonly surface = inject(SurfaceService);
   private readonly alertCtrl = inject(AlertController);
+  private readonly popoverCtrl = inject(PopoverController);
   private readonly toastService = inject(ToastService);
   private readonly exportService = inject(ExportService);
 
@@ -862,6 +877,7 @@ export class LobbyPage {
       'close-circle-outline': closeCircleOutline,
       'copy-outline': copyOutline,
       'ellipsis-horizontal-circle': ellipsisHorizontalCircle,
+      'ellipsis-vertical': ellipsisVertical,
       'log-out-outline': logOutOutline,
       'pencil-outline': pencilOutline,
       'person-circle-outline': personCircleOutline,
@@ -1314,6 +1330,35 @@ export class LobbyPage {
       ],
     });
     await alert.present();
+  }
+
+  /**
+   * Desktop host-actions popover. Opened by the ellipsis button on each
+   * participant row when surface mode is 'desktop'. Mirrors the swipe
+   * actions available on mobile.
+   */
+  protected async openParticipantActions(
+    p: { id: string; displayName: string },
+    event: Event,
+  ): Promise<void> {
+    const items: MenuItem[] = [
+      {
+        text: 'Make host',
+        icon: 'star-outline',
+        handler: () => this.onHandoffTap(p.id, p.displayName),
+      },
+      {
+        text: 'Remove',
+        role: 'destructive',
+        icon: 'person-remove-outline',
+        handler: () => this.onRemoveTap(p.id, p.displayName),
+      },
+    ];
+    await this.surface.openSheetOrPopover({ items, triggerEvent: event });
+  }
+
+  ngOnDestroy(): void {
+    this.popoverCtrl.dismiss().catch(() => {});
   }
 
   /**
