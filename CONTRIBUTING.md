@@ -162,6 +162,15 @@ SCREENSHOT_CAPTURE=1 SCREENSHOT_SHA=local \
 
 Output lands under `docs/screenshots/local/`. This directory is **not** gitignored — keep it out of commits by hand or rm before staging.
 
+### Troubleshooting
+
+- **Hook ran but no comment appeared.** Check that `gh auth status` shows you logged in. The hook bails (exit 0) if `gh` is missing — install via `brew install gh && gh auth login`.
+- **Push rejected after capture succeeded.** The retry loop fetches+resets `origin/screenshots` and re-pushes up to 5 times. If all 5 attempts fail, the hook exits 0 (push proceeds); re-run `pnpm screenshots:publish` once the contention clears.
+- **Capture took too long, push timed out.** Narrow scope via a `.screenshot-tags` file at the repo root (single line, Playwright `--grep` regex, e.g. `@theming|@layout`). See `packages/e2e/README.md` for the tag catalog.
+- **`@{push}` not configured.** First push of a branch falls back to comparing vs `origin/main`. After `git push -u origin <branch>` lands, subsequent pushes use `@{push}` directly.
+- **Need to re-publish without pushing code.** `pnpm screenshots:publish` — always runs full capture against `HEAD`, regardless of diff state.
+- **Manual escape.** `git push --no-verify` skips the hook completely. The next non-bypassed push that touches a relevant file will republish.
+
 ## Merge strategy
 
 All PRs land via **squash merge**. Merge commits and rebase merging are disabled in repo settings (GitHub → Settings → General → Pull Requests). The squash default commit message is set to **"Pull request title"** so the PR title becomes the single commit on `main`.
