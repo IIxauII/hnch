@@ -40,11 +40,10 @@ const PROJECTION: DocProjection = {
   settings: {
     hostParticipantId: 'host',
     defaultScale: SCALE,
-    accessMode: 'open',
   },
   rounds: [],
   agenda: [],
-  meta: { sessionEndedAt: undefined },
+  meta: { roomUuid: '', createdAt: 0, createdBy: 'host' },
 };
 
 const noop = (): void => {};
