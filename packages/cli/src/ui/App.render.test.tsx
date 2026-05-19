@@ -24,11 +24,10 @@ function makeProjection(rounds: readonly Round[] = []): DocProjection {
     settings: {
       hostParticipantId: 'host',
       defaultScale: SCALE,
-      accessMode: 'open',
     },
     rounds: [...rounds],
     agenda: [],
-    meta: { sessionEndedAt: undefined },
+    meta: { roomUuid: '', createdAt: 0, createdBy: 'host' },
   };
 }
 
