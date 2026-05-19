@@ -35,3 +35,15 @@ export function summarizeParticipants(
 export function participantsAccordionValueFor(hasRevealedRound: boolean): 'open' | null {
   return hasRevealedRound ? null : 'open';
 }
+
+/**
+ * Maps the ion-accordion-group `(ionChange)` detail value to the
+ * "is the participants section actually expanded" boolean used to gate
+ * the redundant header summary. `'open'` → true; everything else
+ * (null, undefined, any other value) → false. Pure helper exported
+ * for unit testing — the binding from intent (`participantsAccordionValueFor`)
+ * to DOM state is one-way, so the component reconciles via this predicate.
+ */
+export function participantsAccordionOpenFromValue(value: string | null | undefined): boolean {
+  return value === 'open';
+}
