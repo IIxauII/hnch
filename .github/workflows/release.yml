@@ -3,6 +3,12 @@ name: Release
 on:
   push:
     branches: [main]
+    # Screenshot refresh commits (chore(screenshots): … [skip ci]) only touch
+    # docs/screenshots/** and carry no releasable change. Ignore the path so
+    # semantic-release doesn't even spin up a runner for them. Belt to the
+    # [skip ci] suspenders.
+    paths-ignore:
+      - 'docs/screenshots/**'
 
 # Releases must run to completion: a partial release leaves package.json,
 # CHANGELOG.md, the git tag, and the GitHub Release out of sync. Never cancel.

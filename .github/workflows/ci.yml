@@ -3,8 +3,19 @@ name: CI
 on:
   push:
     branches: [main]
+    # Bot-authored screenshot refresh commits (see screenshots-main.yml) touch
+    # only docs/screenshots/** and have no effect on any package lane. Skip
+    # CI entirely on those pushes — saves a runner slot. Belt to the
+    # GITHUB_TOKEN-push platform rule + [skip ci] trailer.
+    paths-ignore:
+      - 'docs/screenshots/**'
   pull_request:
     branches: [main]
+    # Symmetric: a PR that only edits docs/screenshots/** can't affect any
+    # package lane either. If you genuinely need a CI run for a screenshot-
+    # only PR, touch any other path or run the workflow manually.
+    paths-ignore:
+      - 'docs/screenshots/**'
 
 concurrency:
   group: ci-${{ github.ref }}
