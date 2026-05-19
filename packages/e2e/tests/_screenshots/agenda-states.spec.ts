@@ -77,7 +77,7 @@ async function addItem(page: Page, input: { title?: string; ticketId?: string })
   await panel.waitFor({ state: 'visible' });
   const addBtn = panel.getByRole('button', { name: 'Add agenda item' });
   await addBtn.waitFor({ state: 'visible', timeout: 10_000 });
-  await addBtn.evaluate((el: HTMLElement) => el.click());
+  await addBtn.click();
 
   const sheetTitle = page.locator('app-agenda-item-form-sheet ion-title');
   await sheetTitle.waitFor({ state: 'visible', timeout: 10_000 });
@@ -99,7 +99,7 @@ async function addItem(page: Page, input: { title?: string; ticketId?: string })
   await submitBtn.waitFor({ state: 'visible', timeout: 5_000 });
   // Brief settle before submit to let Angular reactivity stabilize between rapid calls.
   await page.waitForTimeout(200);
-  await submitBtn.evaluate((el: HTMLElement) => el.click());
+  await submitBtn.click();
   await sheetTitle.waitFor({ state: 'hidden', timeout: 15_000 });
 }
 
@@ -119,7 +119,7 @@ test.describe('agenda state screenshots', () => {
       const panel = page.locator('app-agenda-panel section.agenda-panel');
       const addBtn = panel.getByRole('button', { name: 'Add agenda item' });
       await addBtn.waitFor({ state: 'visible' });
-      await addBtn.evaluate((el: HTMLElement) => el.click());
+      await addBtn.click();
       const sheetTitle = page.locator('app-agenda-item-form-sheet ion-title');
       await sheetTitle.waitFor({ state: 'visible', timeout: 10_000 });
       await shot(page, '02-agenda-add-sheet-open');
@@ -133,7 +133,7 @@ test.describe('agenda state screenshots', () => {
       const submitBtn = page
         .locator('app-agenda-item-form-sheet')
         .getByRole('button', { name: /^Add agenda item$/u });
-      await submitBtn.evaluate((el: HTMLElement) => el.click());
+      await submitBtn.click();
       await sheetTitle.waitFor({ state: 'hidden', timeout: 5_000 });
 
       // Add 2 more items
@@ -148,7 +148,7 @@ test.describe('agenda state screenshots', () => {
       const firstItem = list.locator('ion-item.agenda-item').first();
       const editBtn = firstItem.getByRole('button', { name: /^Edit /u });
       await editBtn.waitFor({ state: 'visible' });
-      await editBtn.evaluate((el: HTMLElement) => el.click());
+      await editBtn.click();
       const editSheetTitle = page.locator('app-agenda-item-form-sheet ion-title');
       await editSheetTitle.waitFor({ state: 'visible', timeout: 10_000 });
       await shot(page, '05-agenda-edit-sheet-open');
@@ -160,7 +160,7 @@ test.describe('agenda state screenshots', () => {
         .locator('app-lobby:not(.ion-page-hidden) ion-button')
         .filter({ hasText: LOBBY.startRoundBtn });
       await startRoundBtn.waitFor({ state: 'visible' });
-      await startRoundBtn.evaluate((el: HTMLElement) => el.click());
+      await startRoundBtn.click();
       const modal = page.locator('app-round-start-sheet');
       await modal.waitFor({ state: 'visible' });
       await shot(page, '06-round-start-modal-prefilled');
@@ -168,7 +168,7 @@ test.describe('agenda state screenshots', () => {
       // Start round, vote, and return to lobby
       const startBtn = page.locator(ROUND_START.startBtn);
       await startBtn.waitFor({ state: 'visible' });
-      await startBtn.evaluate((el: HTMLElement) => el.click());
+      await startBtn.click();
       await page.waitForURL(/\/estimating/, { timeout: 15_000 });
       await page.locator('app-estimating:not(.ion-page-hidden)').waitFor({ state: 'visible' });
       await page
@@ -185,7 +185,7 @@ test.describe('agenda state screenshots', () => {
       const skipItem = list.locator('ion-item.agenda-item').nth(2);
       const skipBtn = skipItem.getByRole('button', { name: /^Skip /u });
       await skipBtn.waitFor({ state: 'visible' });
-      await skipBtn.evaluate((el: HTMLElement) => el.click());
+      await skipBtn.click();
       await page.waitForTimeout(300);
 
       // 08 — skipped badge
@@ -195,7 +195,7 @@ test.describe('agenda state screenshots', () => {
       const cancelItem = list.locator('ion-item.agenda-item').nth(1);
       const cancelItemBtn = cancelItem.getByRole('button', { name: /^Cancel /u });
       await cancelItemBtn.waitFor({ state: 'visible' });
-      await cancelItemBtn.evaluate((el: HTMLElement) => el.click());
+      await cancelItemBtn.click();
       await page.waitForTimeout(300);
 
       // 09 — cancelled item hidden
@@ -247,7 +247,7 @@ test.describe('agenda state screenshots', () => {
       await shot(joinerPage, '10-agenda-joiner-mobile-collapsed');
 
       // 11 — joiner mobile expanded
-      await chip.evaluate((el: HTMLElement) => el.click());
+      await chip.click();
       await joinerPage
         .locator('app-agenda-panel section.agenda-panel')
         .waitFor({ state: 'visible' });
