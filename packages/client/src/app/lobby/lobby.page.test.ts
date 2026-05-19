@@ -121,8 +121,15 @@ vi.mock('@ionic/angular/standalone', async () => {
     create = vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() });
   }
 
+  @Injectable()
+  class PopoverController {
+    create = vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() });
+    dismiss = vi.fn().mockResolvedValue(true);
+  }
+
   return {
     AlertController,
+    PopoverController,
     IonAccordion: stub('ion-accordion'),
     IonAccordionGroup: stub('ion-accordion-group'),
     IonAvatar: stub('ion-avatar'),
@@ -158,6 +165,7 @@ vi.mock('ionicons/icons', () => ({
   closeCircleOutline: '',
   copyOutline: '',
   ellipsisHorizontalCircle: '',
+  ellipsisVertical: '',
   logOutOutline: '',
   pencilOutline: '',
   personCircleOutline: '',
@@ -217,7 +225,7 @@ async function mountLobby(scale: Scale | undefined, customs: CustomScale[]) {
   const { SurfaceService } = await import('../core/surface.service');
   const { ToastService } = await import('../services/toast.service');
   const { ExportService } = await import('../core/export.service');
-  const { AlertController } = await import('@ionic/angular/standalone');
+  const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
@@ -265,6 +273,13 @@ async function mountLobby(scale: Scale | undefined, customs: CustomScale[]) {
         provide: AlertController,
         useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
       },
+      {
+        provide: PopoverController,
+        useValue: {
+          create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }),
+          dismiss: vi.fn().mockResolvedValue(true),
+        },
+      },
     ],
   });
 
@@ -286,7 +301,7 @@ describe('LobbyPage — onRoundStart forwards ticketId', () => {
     const { SurfaceService } = await import('../core/surface.service');
     const { ToastService } = await import('../services/toast.service');
     const { ExportService } = await import('../core/export.service');
-    const { AlertController } = await import('@ionic/angular/standalone');
+    const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     const startRound = vi.fn();
     TestBed.resetTestingModule();
@@ -335,6 +350,13 @@ describe('LobbyPage — onRoundStart forwards ticketId', () => {
         {
           provide: AlertController,
           useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
+        },
+        {
+          provide: PopoverController,
+          useValue: {
+            create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }),
+            dismiss: vi.fn().mockResolvedValue(true),
+          },
         },
       ],
     });
@@ -436,7 +458,7 @@ describe('LobbyPage — onCopyRoomCode', () => {
     const { SurfaceService } = await import('../core/surface.service');
     const { ToastService } = await import('../services/toast.service');
     const { ExportService } = await import('../core/export.service');
-    const { AlertController } = await import('@ionic/angular/standalone');
+    const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     const info = vi.fn().mockResolvedValue(undefined);
     const writeText = opts.writeText ?? vi.fn().mockResolvedValue(undefined);
@@ -488,6 +510,13 @@ describe('LobbyPage — onCopyRoomCode', () => {
           provide: AlertController,
           useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
         },
+        {
+          provide: PopoverController,
+          useValue: {
+            create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }),
+            dismiss: vi.fn().mockResolvedValue(true),
+          },
+        },
       ],
     });
     const { LobbyPage } = await import('./lobby.page');
@@ -522,6 +551,239 @@ describe('LobbyPage — onCopyRoomCode', () => {
 });
 
 // ---------------------------------------------------------------------------
+// LobbyPage.openParticipantActions — desktop host-actions popover
+// ---------------------------------------------------------------------------
+
+describe('LobbyPage — openParticipantActions', () => {
+  type Internals = {
+    openParticipantActions(p: { id: string; displayName: string }, event: Event): Promise<void>;
+    onHandoffTap(id: string, name: string): Promise<void>;
+    onRemoveTap(id: string, name: string): Promise<void>;
+  };
+
+  async function mountWithSurface() {
+    const { Router } = await import('@angular/router');
+    const { DocService } = await import('../core/doc/doc.service');
+    const { HapticService } = await import('../core/haptic.service');
+    const { ParticipantIdService } = await import('../core/participant-id.service');
+    const { LastSessionService } = await import('../core/last-session.service');
+    const { ScalePreferenceService } = await import('../core/scale-preference.service');
+    const { SurfaceService } = await import('../core/surface.service');
+    const { ToastService } = await import('../services/toast.service');
+    const { ExportService } = await import('../core/export.service');
+    const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
+
+    const openSheetOrPopover = vi.fn().mockResolvedValue(undefined);
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: Router, useValue: { navigate: vi.fn().mockResolvedValue(true) } },
+        {
+          provide: DocService,
+          useValue: {
+            settings: signal(undefined).asReadonly(),
+            roomCode: signal('ABC123').asReadonly(),
+            meta: signal(undefined).asReadonly(),
+            syncStatus: signal('disconnected').asReadonly(),
+            currentRound: signal(undefined).asReadonly(),
+            lastRejection: signal(null).asReadonly(),
+            rounds: signal([]).asReadonly(),
+            participants: signal([]).asReadonly(),
+            activeParticipants: signal([]).asReadonly(),
+            onlineParticipantIds: signal(new Set()).asReadonly(),
+            agenda: signal([]).asReadonly(),
+            pendingAgenda: signal([]).asReadonly(),
+            nextPendingAgendaItem: signal(null).asReadonly(),
+            endSession: vi.fn(),
+          },
+        },
+        { provide: HapticService, useValue: { impactLight: vi.fn() } },
+        { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
+        { provide: LastSessionService, useValue: { record: vi.fn() } },
+        {
+          provide: ScalePreferenceService,
+          useValue: { customScales: signal([]).asReadonly() },
+        },
+        {
+          provide: SurfaceService,
+          useValue: {
+            mode: signal('desktop').asReadonly(),
+            openSheetOrPopover,
+            sheetBreakpoints: () => [0, 0.5, 1],
+            initialSheetBreakpoint: () => 0.5,
+            sheetBreakpointsFull: () => [0, 0.6, 1],
+            initialSheetBreakpointFull: () => 1,
+          },
+        },
+        { provide: ToastService, useValue: { show: vi.fn(), info: vi.fn(), error: vi.fn() } },
+        { provide: ExportService, useValue: { export: vi.fn() } },
+        {
+          provide: AlertController,
+          useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
+        },
+        {
+          provide: PopoverController,
+          useValue: {
+            create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }),
+            dismiss: vi.fn().mockResolvedValue(true),
+          },
+        },
+      ],
+    });
+    const { LobbyPage } = await import('./lobby.page');
+    const fixture = TestBed.createComponent(LobbyPage);
+    return { fixture, openSheetOrPopover };
+  }
+
+  it('calls openSheetOrPopover with 2 items, correct labels, destructive role, and triggerEvent', async () => {
+    const { fixture, openSheetOrPopover } = await mountWithSurface();
+    const internals = fixture.componentInstance as unknown as Internals;
+    const fakeEvent = new Event('click');
+    const p = { id: 'p1', displayName: 'Alice' };
+
+    await internals.openParticipantActions(p, fakeEvent);
+
+    expect(openSheetOrPopover).toHaveBeenCalledTimes(1);
+    const [opts] = openSheetOrPopover.mock.calls[0] as [
+      { items: { text: string; role?: string }[]; triggerEvent: Event },
+    ];
+    expect(opts.items).toHaveLength(2);
+    expect(opts.items[0]!.text).toBe('Make host');
+    expect(opts.items[1]!.text).toBe('Remove');
+    expect(opts.items[1]!.role).toBe('destructive');
+    expect(opts.triggerEvent).toBe(fakeEvent);
+  });
+
+  it('Make-host item handler calls onHandoffTap with participant id and displayName', async () => {
+    const { fixture, openSheetOrPopover } = await mountWithSurface();
+    const internals = fixture.componentInstance as unknown as Internals;
+    const onHandoffTap = vi.spyOn(internals, 'onHandoffTap').mockResolvedValue(undefined);
+
+    const fakeEvent = new Event('click');
+    const p = { id: 'p2', displayName: 'Bob' };
+    await internals.openParticipantActions(p, fakeEvent);
+
+    const [opts] = openSheetOrPopover.mock.calls[0] as [{ items: { handler?: () => void }[] }];
+    opts.items[0]!.handler?.();
+    expect(onHandoffTap).toHaveBeenCalledWith('p2', 'Bob');
+  });
+
+  it('Remove item handler calls onRemoveTap with participant id and displayName', async () => {
+    const { fixture, openSheetOrPopover } = await mountWithSurface();
+    const internals = fixture.componentInstance as unknown as Internals;
+    const onRemoveTap = vi.spyOn(internals, 'onRemoveTap').mockResolvedValue(undefined);
+
+    const fakeEvent = new Event('click');
+    const p = { id: 'p3', displayName: 'Carol' };
+    await internals.openParticipantActions(p, fakeEvent);
+
+    const [opts] = openSheetOrPopover.mock.calls[0] as [{ items: { handler?: () => void }[] }];
+    opts.items[1]!.handler?.();
+    expect(onRemoveTap).toHaveBeenCalledWith('p3', 'Carol');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LobbyPage.ngOnDestroy — dismisses popover and swallows rejections
+// ---------------------------------------------------------------------------
+
+describe('LobbyPage — ngOnDestroy', () => {
+  async function mountForDestroy(dismissImpl: () => Promise<unknown>) {
+    const { Router } = await import('@angular/router');
+    const { DocService } = await import('../core/doc/doc.service');
+    const { HapticService } = await import('../core/haptic.service');
+    const { ParticipantIdService } = await import('../core/participant-id.service');
+    const { LastSessionService } = await import('../core/last-session.service');
+    const { ScalePreferenceService } = await import('../core/scale-preference.service');
+    const { SurfaceService } = await import('../core/surface.service');
+    const { ToastService } = await import('../services/toast.service');
+    const { ExportService } = await import('../core/export.service');
+    const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
+
+    const dismiss = vi.fn().mockImplementation(dismissImpl);
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: Router, useValue: { navigate: vi.fn().mockResolvedValue(true) } },
+        {
+          provide: DocService,
+          useValue: {
+            settings: signal(undefined).asReadonly(),
+            roomCode: signal('ABC123').asReadonly(),
+            meta: signal(undefined).asReadonly(),
+            syncStatus: signal('disconnected').asReadonly(),
+            currentRound: signal(undefined).asReadonly(),
+            lastRejection: signal(null).asReadonly(),
+            rounds: signal([]).asReadonly(),
+            participants: signal([]).asReadonly(),
+            activeParticipants: signal([]).asReadonly(),
+            onlineParticipantIds: signal(new Set()).asReadonly(),
+            agenda: signal([]).asReadonly(),
+            pendingAgenda: signal([]).asReadonly(),
+            nextPendingAgendaItem: signal(null).asReadonly(),
+            endSession: vi.fn(),
+          },
+        },
+        { provide: HapticService, useValue: { impactLight: vi.fn() } },
+        { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
+        { provide: LastSessionService, useValue: { record: vi.fn() } },
+        {
+          provide: ScalePreferenceService,
+          useValue: { customScales: signal([]).asReadonly() },
+        },
+        {
+          provide: SurfaceService,
+          useValue: {
+            mode: signal('desktop').asReadonly(),
+            openSheetOrPopover: vi.fn().mockResolvedValue(undefined),
+            sheetBreakpoints: () => [0, 0.5, 1],
+            initialSheetBreakpoint: () => 0.5,
+            sheetBreakpointsFull: () => [0, 0.6, 1],
+            initialSheetBreakpointFull: () => 1,
+          },
+        },
+        { provide: ToastService, useValue: { show: vi.fn(), info: vi.fn(), error: vi.fn() } },
+        { provide: ExportService, useValue: { export: vi.fn() } },
+        {
+          provide: AlertController,
+          useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
+        },
+        {
+          provide: PopoverController,
+          useValue: {
+            create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }),
+            dismiss,
+          },
+        },
+      ],
+    });
+    const { LobbyPage } = await import('./lobby.page');
+    const fixture = TestBed.createComponent(LobbyPage);
+    return { fixture, dismiss };
+  }
+
+  it('calls popoverCtrl.dismiss() on destroy', async () => {
+    const { fixture, dismiss } = await mountForDestroy(() => Promise.resolve(true));
+    fixture.componentInstance.ngOnDestroy();
+    expect(dismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('swallows rejection from popoverCtrl.dismiss() — no unhandled rejection', async () => {
+    const { fixture, dismiss } = await mountForDestroy(() =>
+      Promise.reject(new Error('no overlay')),
+    );
+    // Must not throw synchronously or leave an unhandled promise rejection.
+    expect(() => fixture.componentInstance.ngOnDestroy()).not.toThrow();
+    // Allow microtask queue to flush; no assertion needed — test fails if
+    // Vitest catches an unhandled rejection.
+    await Promise.resolve();
+    expect(dismiss).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // LobbyPage.closeRoundStart — Cancel button dismisses modal (regression for
 // presentSheet vs [isOpen] mismatch — reported by Phase 4 e2e agent)
 // ---------------------------------------------------------------------------
@@ -542,7 +804,7 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
     const { SurfaceService } = await import('../core/surface.service');
     const { ToastService } = await import('../services/toast.service');
     const { ExportService } = await import('../core/export.service');
-    const { AlertController } = await import('@ionic/angular/standalone');
+    const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
@@ -585,6 +847,13 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
         {
           provide: AlertController,
           useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
+        },
+        {
+          provide: PopoverController,
+          useValue: {
+            create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }),
+            dismiss: vi.fn().mockResolvedValue(true),
+          },
         },
       ],
     });
@@ -624,7 +893,7 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
     const { SurfaceService } = await import('../core/surface.service');
     const { ToastService } = await import('../services/toast.service');
     const { ExportService } = await import('../core/export.service');
-    const { AlertController } = await import('@ionic/angular/standalone');
+    const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
@@ -667,6 +936,13 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
         {
           provide: AlertController,
           useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
+        },
+        {
+          provide: PopoverController,
+          useValue: {
+            create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }),
+            dismiss: vi.fn().mockResolvedValue(true),
+          },
         },
       ],
     });
