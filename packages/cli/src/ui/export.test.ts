@@ -16,14 +16,15 @@ function makeProjection(overrides: {
   rounds?: Round[];
 }): DocProjection {
   return {
-    meta: { schemaVersion: 1, createdAt: 0 },
+    meta: { roomUuid: '', createdAt: 0, createdBy: '' },
     settings: {
       name: 'session',
-      hostParticipantId: null,
+      hostParticipantId: '',
       defaultScale: SCALE,
     },
     participants: overrides.participants ?? [],
     rounds: overrides.rounds ?? [],
+    agenda: [],
   };
 }
 

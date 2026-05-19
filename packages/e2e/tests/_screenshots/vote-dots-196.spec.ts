@@ -71,11 +71,11 @@ async function startRound(page: Page, title: string): Promise<void> {
     .locator('app-lobby:not(.ion-page-hidden) ion-button')
     .filter({ hasText: LOBBY.startRoundBtn });
   await startBtn.waitFor({ state: 'visible' });
-  await startBtn.evaluate((el: HTMLElement) => el.click());
+  await startBtn.click();
   const modal = page.locator('app-round-start-sheet');
   await modal.waitFor({ state: 'visible' });
   await page.locator(ROUND_START.titleInput).locator('input').fill(title);
-  await page.locator(ROUND_START.startBtn).evaluate((el: HTMLElement) => el.click());
+  await page.locator(ROUND_START.startBtn).click();
   await page.waitForURL(/\/estimating/);
 }
 

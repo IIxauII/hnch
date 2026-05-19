@@ -45,6 +45,7 @@ function makeDocMock(_selfId: string) {
     hasFirstSyncCompleted: hasFirstSyncCompletedSignal.asReadonly(),
     _hasFirstSyncCompletedSignal: hasFirstSyncCompletedSignal,
     endSession: vi.fn(),
+    meta: vi.fn(() => ({ roomUuid: 'test-uuid' })),
   };
 }
 
@@ -65,7 +66,11 @@ const NOW = 1_700_000_000_000;
 
 describe('ParticipantRemovalService', () => {
   let docMock: ReturnType<typeof makeDocMock>;
-  let lastSessionMock: { clear: ReturnType<typeof vi.fn> };
+  let lastSessionMock: {
+    clear: ReturnType<typeof vi.fn>;
+    removeByUuid: ReturnType<typeof vi.fn>;
+    clearAll: ReturnType<typeof vi.fn>;
+  };
   let toastMock: { info: ReturnType<typeof vi.fn> };
   let routerMock: { navigate: ReturnType<typeof vi.fn> };
 
@@ -78,7 +83,11 @@ describe('ParticipantRemovalService', () => {
 
   beforeEach(() => {
     docMock = makeDocMock(SELF_ID);
-    lastSessionMock = { clear: vi.fn(async () => {}) };
+    lastSessionMock = {
+      clear: vi.fn(async () => {}),
+      removeByUuid: vi.fn(async () => {}),
+      clearAll: vi.fn(async () => {}),
+    };
     toastMock = { info: vi.fn(async () => {}) };
     routerMock = { navigate: vi.fn(async () => true) };
 
@@ -113,11 +122,27 @@ describe('ParticipantRemovalService', () => {
     await flushAll();
 
     expect(docMock.endSession).toHaveBeenCalledOnce();
-    expect(lastSessionMock.clear).toHaveBeenCalledOnce();
+    expect(lastSessionMock.removeByUuid).toHaveBeenCalledWith('test-uuid');
     expect(toastMock.info).toHaveBeenCalledOnce();
     expect(toastMock.info).toHaveBeenCalledWith('Removed by host');
     expect(routerMock.navigate).toHaveBeenCalledOnce();
     expect(routerMock.navigate).toHaveBeenCalledWith(['/home']);
+  });
+
+  it('kick: calls clearAll when meta returns no roomUuid', async () => {
+    // Override meta to return no roomUuid
+    docMock.meta = vi.fn(() => ({ roomUuid: undefined as unknown as string }));
+    setup();
+
+    docMock._participantsSignal.set([
+      { id: SELF_ID, displayName: 'Me', joinedAt: NOW, leftAt: NOW + 1, removedBy: 'host-1' },
+    ]);
+
+    await flushAll();
+
+    expect(docMock.endSession).toHaveBeenCalledOnce();
+    expect(lastSessionMock.clearAll).toHaveBeenCalledOnce();
+    expect(lastSessionMock.removeByUuid).not.toHaveBeenCalled();
   });
 
   it('voluntary leave (removedBy === self) does NOT trigger kick handler', async () => {

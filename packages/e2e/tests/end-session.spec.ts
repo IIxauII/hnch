@@ -17,9 +17,9 @@ async function clickMenuOption(page: import('@playwright/test').Page, text: stri
 
   const isActionSheet = await actionSheetBtn.isVisible().catch(() => false);
   if (isActionSheet) {
-    await actionSheetBtn.evaluate((el: HTMLElement) => el.click());
+    await actionSheetBtn.click();
   } else {
-    await popoverBtn.evaluate((el: HTMLElement) => el.click());
+    await popoverBtn.click();
   }
 }
 
@@ -39,7 +39,7 @@ async function dismissMenu(page: import('@playwright/test').Page): Promise<void>
   const isActionSheet = await actionSheet.isVisible().catch(() => false);
   if (isActionSheet) {
     const cancelBtn = page.locator('ion-action-sheet button:has-text("Cancel")');
-    await cancelBtn.evaluate((el: HTMLElement) => el.click());
+    await cancelBtn.click();
     await actionSheet.waitFor({ state: 'hidden', timeout: 5_000 });
   } else {
     await page.keyboard.press('Escape');
@@ -53,7 +53,7 @@ async function dismissMenu(page: import('@playwright/test').Page): Promise<void>
  */
 async function endSessionForEveryone(page: import('@playwright/test').Page): Promise<void> {
   const actionBtn = page.locator('ion-header').locator('ion-button').last();
-  await actionBtn.evaluate((el: HTMLElement) => el.click());
+  await actionBtn.click();
 
   await clickMenuOption(page, 'End session for everyone');
 
@@ -61,7 +61,7 @@ async function endSessionForEveryone(page: import('@playwright/test').Page): Pro
   await alert.waitFor({ state: 'visible', timeout: 5_000 });
 
   const confirmBtn = page.locator('ion-alert button:has-text("End session")');
-  await confirmBtn.evaluate((el: HTMLElement) => el.click());
+  await confirmBtn.click();
 }
 
 test.describe('End session for everyone', () => {
@@ -143,7 +143,7 @@ test.describe('End session for everyone', () => {
 
     // Open menu on joiner
     const actionBtn = player.page.locator('ion-header').locator('ion-button').last();
-    await actionBtn.evaluate((el: HTMLElement) => el.click());
+    await actionBtn.click();
 
     // Wait for whichever overlay appears
     const actionSheet = player.page.locator('ion-action-sheet');
@@ -173,7 +173,7 @@ test.describe('End session for everyone', () => {
     await host.page.waitForURL(/\/lobby/);
 
     const actionBtn = host.page.locator('ion-header').locator('ion-button').last();
-    await actionBtn.evaluate((el: HTMLElement) => el.click());
+    await actionBtn.click();
 
     await clickMenuOption(host.page, 'End session for everyone');
 
@@ -181,7 +181,7 @@ test.describe('End session for everyone', () => {
     await alert.waitFor({ state: 'visible', timeout: 5_000 });
 
     const cancelBtn = host.page.locator('ion-alert button:has-text("Cancel")');
-    await cancelBtn.evaluate((el: HTMLElement) => el.click());
+    await cancelBtn.click();
 
     await alert.waitFor({ state: 'hidden', timeout: 5_000 });
 

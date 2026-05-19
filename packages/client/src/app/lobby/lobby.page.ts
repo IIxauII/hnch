@@ -87,7 +87,11 @@ import { shouldRecordCache } from '../core/cache-record-guard';
 import { QrDisplaySheetComponent } from './qr-display.sheet';
 import { presentSheet } from '../utils/present-sheet';
 import { rejectionCopy } from '../join/join.page';
-import { participantsAccordionValueFor, summarizeParticipants } from './lobby-summary';
+import {
+  participantsAccordionOpenFromValue,
+  participantsAccordionValueFor,
+  summarizeParticipants,
+} from './lobby-summary';
 import { AgendaPanelComponent } from '../agenda/agenda-panel.component';
 import {
   AgendaItemFormSheetComponent,
@@ -241,12 +245,16 @@ import type { AgendaItem } from '@hnch/shared';
         (reorderDownRequested)="onAgendaReorderDown($event)"
       />
 
-      <ion-accordion-group [value]="participantsAccordionValue()" expand="inset">
+      <ion-accordion-group
+        [value]="participantsAccordionValue()"
+        expand="inset"
+        (ionChange)="onParticipantsAccordionChange($event)"
+      >
         <ion-accordion value="open">
           <ion-item slot="header" lines="inset">
             <ion-label>
               Participants ({{ activeParticipants().length }})
-              @if (participantsSummary()) {
+              @if (participantsSummary() && !participantsAccordionOpen()) {
                 <p class="participants-summary">{{ participantsSummary() }}</p>
               }
             </ion-label>
@@ -654,7 +662,7 @@ import type { AgendaItem } from '@hnch/shared';
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 0.5rem;
-        padding: 0.25rem 0.5rem;
+        padding-inline: var(--ion-margin, 16px);
       }
     `,
   ],
@@ -733,6 +741,15 @@ export class LobbyPage implements OnDestroy {
     if (!id) return;
     this.haptic.impactLight();
     this.docService.toggleRole(id);
+  }
+
+  /**
+   * Syncs the participants-accordion expanded state from the DOM after a user
+   * toggle. The (ionChange) detail.value is `'open'` when the section is
+   * expanded and `null` (or absent) when collapsed.
+   */
+  protected onParticipantsAccordionChange(event: CustomEvent<{ value?: string | null }>): void {
+    this.participantsAccordionOpen.set(participantsAccordionOpenFromValue(event.detail?.value));
   }
 
   protected readonly isHost = computed(() => {
@@ -832,6 +849,15 @@ export class LobbyPage implements OnDestroy {
   );
 
   /**
+   * Tracks the participants accordion's actual expanded state. Seeded from
+   * `participantsAccordionValue()` via an effect in the constructor; updated
+   * on `(ionChange)` when the user manually toggles. Gates the header summary
+   * so it only renders while the section is collapsed (avoids duplicating the
+   * per-row status info shown in the expanded list).
+   */
+  protected readonly participantsAccordionOpen = signal(true);
+
+  /**
    * Short summary line shown in the accordion header when collapsed —
    * e.g. "3 online · 1 offline · 1 viewer". Uses active participants only.
    */
@@ -886,6 +912,16 @@ export class LobbyPage implements OnDestroy {
       'settings-outline': settingsOutline,
       'share-outline': shareOutline,
       'star-outline': starOutline,
+    });
+
+    // Mirror the auto-collapse intent into the actual-expanded signal so the
+    // header summary tracks whichever state the section is really in. The
+    // user can still tap to override after a terminal round; the (ionChange)
+    // handler keeps the signal in sync with the DOM from that point on.
+    effect(() => {
+      this.participantsAccordionOpen.set(
+        participantsAccordionOpenFromValue(this.participantsAccordionValue()),
+      );
     });
 
     // Refresh the jump-back-in cache only once per (uuid, screen)
@@ -1299,9 +1335,14 @@ export class LobbyPage implements OnDestroy {
       // Flush the Yjs update through the WebSocket before closing (best-effort, 500 ms cap).
       await this.docService.flushUpdates();
     }
+    const uuid = this.docService.meta()?.roomUuid;
     this.docService.endSession();
-    // Destructive leave — clear cache so Jump-back-in banner does not reappear (ADR-0022).
-    await this.lastSessionService.clear();
+    // Destructive leave — remove entry so Jump-back-in banner does not reappear (ADR-0044).
+    if (uuid) {
+      await this.lastSessionService.removeByUuid(uuid);
+    } else {
+      await this.lastSessionService.clearAll();
+    }
     await this.router.navigate(['/home']);
   }
 

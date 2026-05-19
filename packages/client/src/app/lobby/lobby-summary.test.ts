@@ -9,7 +9,11 @@
 
 import { describe, expect, it } from 'vitest';
 import type { ParticipantSnapshot } from '@hnch/shared';
-import { participantsAccordionValueFor, summarizeParticipants } from './lobby-summary';
+import {
+  participantsAccordionOpenFromValue,
+  participantsAccordionValueFor,
+  summarizeParticipants,
+} from './lobby-summary';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -105,5 +109,28 @@ describe('participantsAccordionValueFor', () => {
 
   it('returns null when a round has been revealed (true)', () => {
     expect(participantsAccordionValueFor(true)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// participantsAccordionOpenFromValue
+// ---------------------------------------------------------------------------
+
+describe('participantsAccordionOpenFromValue', () => {
+  it('returns true for "open" (DOM expanded)', () => {
+    expect(participantsAccordionOpenFromValue('open')).toBe(true);
+  });
+
+  it('returns false for null (DOM collapsed)', () => {
+    expect(participantsAccordionOpenFromValue(null)).toBe(false);
+  });
+
+  it('returns false for undefined (event with no detail)', () => {
+    expect(participantsAccordionOpenFromValue(undefined)).toBe(false);
+  });
+
+  it('returns false for any other string value', () => {
+    expect(participantsAccordionOpenFromValue('')).toBe(false);
+    expect(participantsAccordionOpenFromValue('closed')).toBe(false);
   });
 });

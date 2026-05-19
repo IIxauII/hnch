@@ -41,7 +41,7 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0019](0019-scale-customization.md) | Scale customization — builtin presets, sentinel removal, device-local overrides | Accepted |
 | [0020](0020-participant-viewer-voter-role.md) | Participant Viewer/Voter Role | Accepted |
 | [0021](0021-cli-package.md) | CLI package — fourth deliverable with parity contract and platform-appropriate divergences | Accepted |
-| [0022](0022-last-session-cache.md) | Last-session cache — TTL aligned to relay snapshot | Accepted |
+| [0022](0022-last-session-cache.md) | Last-session cache — TTL aligned to relay snapshot | Superseded by ADR-0044 |
 | [0023](0023-session-end-broadcast.md) | Session-end-for-everyone — host-written doc broadcast | Accepted |
 | [0024](0024-participant-cap.md) | Participant cap — 20-peer hard limit, relay-enforced | Accepted |
 | [0025](0025-reconnect-backoff.md) | Reconnect / backoff posture — y-websocket defaults plus `online` reset | Accepted |
@@ -62,6 +62,7 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0041](0041-per-round-abstain-sentinel.md) | Per-round abstain action for voters — `hnch_abstain` sentinel, auto-reveal amendment | Accepted |
 | [0042](0042-pre-session-agenda.md) | Pre-session story agenda — `agenda: Y.Array<Y.Map>` + `round.agendaItemId` backref | Accepted |
 | [0043](0043-per-participant-avatar-color.md) | Per-participant avatar color — user-selectable palette or hex, stored on participant record | Accepted |
+| [0044](0044-local-room-history-cache.md) | Local room history cache — v2 multi-entry shape, mobile passwordHash reversal | Accepted |
 
 ## When to write an ADR
 

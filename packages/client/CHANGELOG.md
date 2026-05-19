@@ -1,3 +1,31 @@
+## [1.30.3](https://github.com/IIxauII/hnch/compare/client-v1.30.2...client-v1.30.3) (2026-05-19)
+
+
+### Bug Fixes
+
+* **client:** hide lobby participants summary when accordion is expanded ([#267](https://github.com/IIxauII/hnch/issues/267)) ([6b58f36](https://github.com/IIxauII/hnch/commit/6b58f36d7129b01092ddda14717c63edc58368d5))
+
+## [1.30.2](https://github.com/IIxauII/hnch/compare/client-v1.30.1...client-v1.30.2) (2026-05-19)
+
+
+### Bug Fixes
+
+* **client:** align lobby host footer two-button row inset with single-CTA states ([#263](https://github.com/IIxauII/hnch/issues/263)) ([eee2358](https://github.com/IIxauII/hnch/commit/eee23586eadab5620392d21a74eb00c41413c1df))
+
+## [1.30.1](https://github.com/IIxauII/hnch/compare/client-v1.30.0...client-v1.30.1) (2026-05-19)
+
+
+### Bug Fixes
+
+* **client:** scope consensus overlay to vote-results component ([#262](https://github.com/IIxauII/hnch/issues/262)) ([30d19cc](https://github.com/IIxauII/hnch/commit/30d19ccb8a5bfa3c7f09f1e774b067c096cb0a7c))
+
+# [1.30.0](https://github.com/IIxauII/hnch/compare/client-v1.29.2...client-v1.30.0) (2026-05-19)
+
+
+### Features
+
+* **client,e2e:** portal host actions via overflow popover ([#240](https://github.com/IIxauII/hnch/issues/240)) ([#255](https://github.com/IIxauII/hnch/issues/255)) ([4a4d89e](https://github.com/IIxauII/hnch/commit/4a4d89eeee9ea4a3727e7cbf19f04cdc3c90bd92))
+
 ## [1.29.2](https://github.com/IIxauII/hnch/compare/client-v1.29.1...client-v1.29.2) (2026-05-18)
 
 

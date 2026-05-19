@@ -6,13 +6,13 @@
 
 import type { JoinRejectionReason } from '@hnch/shared';
 
-import type { LastSessionCache, LastSessionScreen } from '../core/last-session.service';
+import type { ClientLastSessionEntry, LastSessionScreen } from '../core/last-session.service';
 import type { JumpBackInSummary } from './jump-back-in-banner.component';
 
-export function summaryFromCache(cache: LastSessionCache): JumpBackInSummary {
+export function summaryFromCache(cache: ClientLastSessionEntry): JumpBackInSummary {
   return {
     roomCode: cache.roomCode,
-    lastScreen: cache.lastScreen,
+    lastScreen: cache.lastScreen ?? 'lobby',
   };
 }
 

@@ -108,10 +108,15 @@ export class ParticipantRemovalService {
   private async handleKick(): Promise<void> {
     if (!this.docService.hasSession()) return;
 
+    const uuid = this.docService.meta()?.roomUuid;
     this.docService.endSession();
 
     try {
-      await this.lastSession.clear();
+      if (uuid) {
+        await this.lastSession.removeByUuid(uuid);
+      } else {
+        await this.lastSession.clearAll();
+      }
     } catch (err) {
       console.warn('Failed to clear lastSession cache:', err);
     }

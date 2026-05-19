@@ -36,6 +36,7 @@ import { AppPreferenceService } from '../core/app-preference.service';
 import { AvatarColorService } from '../core/avatar-color.service';
 import { DisplayNameService } from '../core/display-name.service';
 import { DocService } from '../core/doc/doc.service';
+import { LastSessionService } from '../core/last-session.service';
 import { ParticipantIdService } from '../core/participant-id.service';
 import { type QrScanErrorReason, QrScannerService } from '../core/qr-scanner.service';
 import { RelayRejectionError, resolveRoom } from '../core/relay/relay-api';
@@ -234,6 +235,7 @@ export class JoinPage {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly docService = inject(DocService);
+  private readonly lastSessionService = inject(LastSessionService);
   private readonly displayNameService = inject(DisplayNameService);
   private readonly participantIdService = inject(ParticipantIdService);
   private readonly qrScanner = inject(QrScannerService);
@@ -403,6 +405,11 @@ export class JoinPage {
         },
         { roomUuid: uuid },
       );
+
+      // Store hash so lobby/estimating record() picks it up (ADR-0044)
+      if (passwordHash !== undefined) {
+        this.lastSessionService.setPendingPasswordHash(uuid, passwordHash);
+      }
 
       const roomCode = this.docService.roomCode();
       if (!roomCode) {
