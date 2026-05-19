@@ -1283,9 +1283,14 @@ export class LobbyPage {
       // Flush the Yjs update through the WebSocket before closing (best-effort, 500 ms cap).
       await this.docService.flushUpdates();
     }
+    const uuid = this.docService.meta()?.roomUuid;
     this.docService.endSession();
-    // Destructive leave — clear cache so Jump-back-in banner does not reappear (ADR-0022).
-    await this.lastSessionService.clear();
+    // Destructive leave — remove entry so Jump-back-in banner does not reappear (ADR-0044).
+    if (uuid) {
+      await this.lastSessionService.removeByUuid(uuid);
+    } else {
+      await this.lastSessionService.clearAll();
+    }
     await this.router.navigate(['/home']);
   }
 

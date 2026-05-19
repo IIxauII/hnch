@@ -24,7 +24,7 @@ import { ToastService } from '../services/toast.service';
 // Helpers
 // ---------------------------------------------------------------------------
 
-type MetaLike = { sessionEndedAt?: number | null; createdBy?: string } | null;
+type MetaLike = { sessionEndedAt?: number | null; createdBy?: string; roomUuid?: string } | null;
 
 function makeDocMock() {
   const metaSignal = signal<MetaLike>(null);
@@ -55,13 +55,21 @@ async function flushAll(): Promise<void> {
 
 describe('SessionEndService', () => {
   let docMock: ReturnType<typeof makeDocMock>;
-  let lastSessionMock: { clear: ReturnType<typeof vi.fn> };
+  let lastSessionMock: {
+    clear: ReturnType<typeof vi.fn>;
+    removeByUuid: ReturnType<typeof vi.fn>;
+    clearAll: ReturnType<typeof vi.fn>;
+  };
   let toastMock: { info: ReturnType<typeof vi.fn> };
   let routerMock: { navigate: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     docMock = makeDocMock();
-    lastSessionMock = { clear: vi.fn(async () => {}) };
+    lastSessionMock = {
+      clear: vi.fn(async () => {}),
+      removeByUuid: vi.fn(async () => {}),
+      clearAll: vi.fn(async () => {}),
+    };
     toastMock = { info: vi.fn(async () => {}) };
     routerMock = { navigate: vi.fn(async () => true) };
 
@@ -80,12 +88,12 @@ describe('SessionEndService', () => {
     TestBed.resetTestingModule();
   });
 
-  it('happy path: endSession → clear → toast → navigate in order', async () => {
+  it('happy path: endSession → clearAll → toast → navigate in order', async () => {
     const callOrder: string[] = [];
     docMock.endSession.mockImplementation(() => {
       callOrder.push('endSession');
     });
-    lastSessionMock.clear.mockImplementation(async () => {
+    lastSessionMock.clearAll.mockImplementation(async () => {
       callOrder.push('clear');
     });
     toastMock.info.mockImplementation(async () => {
@@ -100,6 +108,7 @@ describe('SessionEndService', () => {
     TestBed.inject(SessionEndService);
 
     // Drive a remote session-end: write sessionEndedAt into meta signal.
+    // No roomUuid → service calls clearAll().
     docMock._metaSignal.set({ sessionEndedAt: Date.now(), createdBy: 'host-1' });
 
     await flushAll();
@@ -107,7 +116,7 @@ describe('SessionEndService', () => {
     expect(callOrder).toEqual(['endSession', 'clear', 'toast', 'navigate']);
   });
 
-  it('failure path: clear() rejects → warn logged, toast + navigate still called', async () => {
+  it('failure path: clearAll() rejects → warn logged, toast + navigate still called', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const clearError = new Error('Storage failed');
     const callOrder: string[] = [];
@@ -115,7 +124,7 @@ describe('SessionEndService', () => {
     docMock.endSession.mockImplementation(() => {
       callOrder.push('endSession');
     });
-    lastSessionMock.clear.mockImplementation(async () => {
+    lastSessionMock.clearAll.mockImplementation(async () => {
       callOrder.push('clear-attempt');
       throw clearError;
     });
@@ -150,7 +159,8 @@ describe('SessionEndService', () => {
 
     await flushAll();
 
-    expect(lastSessionMock.clear).not.toHaveBeenCalled();
+    expect(lastSessionMock.clearAll).not.toHaveBeenCalled();
+    expect(lastSessionMock.removeByUuid).not.toHaveBeenCalled();
     expect(toastMock.info).not.toHaveBeenCalled();
     expect(routerMock.navigate).not.toHaveBeenCalled();
   });
