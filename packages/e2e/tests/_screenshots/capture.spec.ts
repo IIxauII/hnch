@@ -238,10 +238,10 @@ test.describe('screenshot capture', () => {
       const startBtn = page
         .locator('app-lobby:not(.ion-page-hidden) ion-button')
         .filter({ hasText: LOBBY.startRoundBtn });
-      await startBtn.evaluate((el: HTMLElement) => el.click());
+      await startBtn.click();
       await page.locator('app-round-start-sheet').waitFor({ state: 'visible' });
       await page.locator('app-round-start-sheet ion-input').locator('input').fill(ROUND_TITLE);
-      await page.locator(ROUND_START.startBtn).evaluate((el: HTMLElement) => el.click());
+      await page.locator(ROUND_START.startBtn).click();
       await page.waitForURL(/\/estimating/);
       await page.locator(ESTIMATING.cardGrid).waitFor({ state: 'visible' });
       await page.waitForTimeout(600);
@@ -258,7 +258,7 @@ test.describe('screenshot capture', () => {
 
       // 21 — round-start modal for Round 2
       const nextBtn = page.locator('ion-button').filter({ hasText: LOBBY.nextRoundBtn });
-      await nextBtn.evaluate((el: HTMLElement) => el.click());
+      await nextBtn.click();
       await page.locator('app-round-start-sheet').waitFor({ state: 'visible' });
       await page.waitForTimeout(400);
       await shot(page, '21-round-start-390');

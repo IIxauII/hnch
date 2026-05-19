@@ -130,13 +130,13 @@ test.describe('Mobile host-actions swipe path (iPhone 13)', () => {
       await expect(removeOption).toBeVisible();
 
       // Tap Remove
-      await removeOption.evaluate((el: HTMLElement) => el.click());
+      await removeOption.click();
 
       // Ordering invariant: wait for alert before confirm
       const alert = hostPage.locator('ion-alert');
       await alert.waitFor({ state: 'visible', timeout: 5_000 });
       const confirmBtn = hostPage.locator('ion-alert button:has-text("Remove")');
-      await confirmBtn.evaluate((el: HTMLElement) => el.click());
+      await confirmBtn.click();
 
       await host.expectParticipantCount(1);
       await expect(hostPage.locator(LOBBY.participantList)).not.toContainText('Player');
@@ -166,13 +166,13 @@ test.describe('Mobile host-actions swipe path (iPhone 13)', () => {
 
       const makeHostOption = hostPage.locator('ion-item-option[aria-label="Make Player host"]');
       await makeHostOption.waitFor({ state: 'visible', timeout: 5_000 });
-      await makeHostOption.evaluate((el: HTMLElement) => el.click());
+      await makeHostOption.click();
 
       // Ordering invariant (C7): alert present before confirm
       const alert = hostPage.locator('ion-alert');
       await alert.waitFor({ state: 'visible', timeout: 5_000 });
       const confirmBtn = hostPage.locator('ion-alert button:has-text("Confirm")');
-      await confirmBtn.evaluate((el: HTMLElement) => el.click());
+      await confirmBtn.click();
 
       // Player now has the host icon in host's participant list
       const participantList = hostPage.locator(LOBBY.participantList);

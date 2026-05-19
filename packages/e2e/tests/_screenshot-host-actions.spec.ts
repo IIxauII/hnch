@@ -90,7 +90,7 @@ test.describe('Screenshots: lobby host actions', () => {
       await ensureAccordionOpen(hostPage);
       const overflowBtn = hostPage.getByRole('button', { name: 'Host actions for Player' });
       await overflowBtn.waitFor({ state: 'visible', timeout: 5_000 });
-      await overflowBtn.evaluate((el: HTMLElement) => el.click());
+      await overflowBtn.click();
 
       const popover = hostPage.locator('ion-popover');
       await popover.waitFor({ state: 'visible', timeout: 5_000 });
@@ -131,7 +131,7 @@ test.describe('Screenshots: lobby host actions', () => {
       await ensureAccordionOpen(hostPage);
       const overflowBtn = hostPage.getByRole('button', { name: 'Host actions for Player' });
       await overflowBtn.waitFor({ state: 'visible', timeout: 5_000 });
-      await overflowBtn.evaluate((el: HTMLElement) => el.click());
+      await overflowBtn.click();
 
       const popover = hostPage.locator('ion-popover');
       await popover.waitFor({ state: 'visible', timeout: 5_000 });
