@@ -1,3 +1,10 @@
+## [1.30.1](https://github.com/IIxauII/hnch/compare/client-v1.30.0...client-v1.30.1) (2026-05-19)
+
+
+### Bug Fixes
+
+* **client:** scope consensus overlay to vote-results component ([#262](https://github.com/IIxauII/hnch/issues/262)) ([30d19cc](https://github.com/IIxauII/hnch/commit/30d19ccb8a5bfa3c7f09f1e774b067c096cb0a7c))
+
 # [1.30.0](https://github.com/IIxauII/hnch/compare/client-v1.29.2...client-v1.30.0) (2026-05-19)
 
 
