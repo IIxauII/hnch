@@ -111,10 +111,10 @@ export const QR_MODAL = {
 // Round-start modal
 // ---------------------------------------------------------------------------
 export const ROUND_START = {
-  /** First ion-input in the modal: "What are you estimating?" (round title). */
-  titleInput: 'app-round-start-sheet ion-input:nth-of-type(1)',
-  /** Second ion-input: "Ticket ID" (optional tracker reference). */
-  ticketIdInput: 'app-round-start-sheet ion-input:nth-of-type(2)',
+  /** Round title input. Ionic projects the wrapper's aria-label to the inner native input, so we address it there. */
+  titleInput: 'app-round-start-sheet ion-input:has(input[aria-label="Round title"])',
+  /** Ticket ID input (optional tracker reference). */
+  ticketIdInput: 'app-round-start-sheet ion-input:has(input[aria-label="Ticket ID"])',
   startBtn: 'app-round-start-sheet ion-button:has-text("Start")',
 } as const;
 

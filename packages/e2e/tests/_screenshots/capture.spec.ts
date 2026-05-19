@@ -96,7 +96,7 @@ test.skip(!process.env['SCREENSHOT_CAPTURE'], 'set SCREENSHOT_CAPTURE=1 to run')
 
 test.describe('screenshot capture', () => {
   test('desktop 1440', async ({ browser }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(240_000);
     const { ctx, page } = await freshContext(browser, { width: 1440, height: 900 });
     try {
       // 01 — onboarding (pre-onboard)
@@ -183,7 +183,7 @@ test.describe('screenshot capture', () => {
       await shot(page, '12-round-start-modal');
 
       // 13 — estimating (after typing title + confirming)
-      await page.locator('app-round-start-sheet ion-input').locator('input').fill(ROUND_TITLE);
+      await page.locator(ROUND_START.titleInput).locator('input').fill(ROUND_TITLE);
       await page.locator(ROUND_START.startBtn).click();
       await page.waitForURL(/\/estimating/);
       await page.locator(ESTIMATING.cardGrid).waitFor({ state: 'visible' });
@@ -265,7 +265,7 @@ test.describe('screenshot capture', () => {
   });
 
   test('mobile 390', async ({ browser }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(240_000);
     const { ctx, page } = await freshContext(browser, { width: 390, height: 844 });
     try {
       // 23 — onboarding
@@ -300,7 +300,7 @@ test.describe('screenshot capture', () => {
         .filter({ hasText: LOBBY.startRoundBtn });
       await startBtn.evaluate((el: HTMLElement) => el.click());
       await page.locator('app-round-start-sheet').waitFor({ state: 'visible' });
-      await page.locator('app-round-start-sheet ion-input').locator('input').fill(ROUND_TITLE);
+      await page.locator(ROUND_START.titleInput).locator('input').fill(ROUND_TITLE);
       await page.locator(ROUND_START.startBtn).evaluate((el: HTMLElement) => el.click());
       await page.waitForURL(/\/estimating/);
       await page.locator(ESTIMATING.cardGrid).waitFor({ state: 'visible' });

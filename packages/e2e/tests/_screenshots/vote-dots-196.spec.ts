@@ -74,7 +74,7 @@ async function startRound(page: Page, title: string): Promise<void> {
   await startBtn.evaluate((el: HTMLElement) => el.click());
   const modal = page.locator('app-round-start-sheet');
   await modal.waitFor({ state: 'visible' });
-  await modal.locator('ion-input').locator('input').fill(title);
+  await page.locator(ROUND_START.titleInput).locator('input').fill(title);
   await page.locator(ROUND_START.startBtn).evaluate((el: HTMLElement) => el.click());
   await page.waitForURL(/\/estimating/);
 }
