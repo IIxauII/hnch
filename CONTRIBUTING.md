@@ -126,6 +126,42 @@ If the change shifts user-visible behavior or product scope, update the relevant
 - [ ] ADR added/updated if structural.
 - [ ] Related docs updated.
 
+## Screenshots
+
+Two surfaces, both automated:
+
+### PR pre-push hook (per-author, scoped)
+
+A `lefthook` pre-push hook (`pre-push.commands.screenshots`) runs whenever a push includes changes under `packages/{client,shared,e2e/tests/_screenshots,e2e/tests/fixtures}/**`. It:
+
+1. Runs `packages/e2e/tests/_screenshots/` (full suite by default; `.screenshot-tags` regex narrows scope — see Phase 4 of the plan).
+2. Publishes PNGs to the `screenshots` branch under `sha-<short>/` via `git fetch + reset + push` with retry on rejection (non-force).
+3. Updates a sticky PR comment marked `<!-- hnch-screenshots -->` with inline `blob/<branch>/...?raw=true` embeds — the only embed pattern that renders on both mobile and desktop GitHub.
+
+If you push before opening a PR, the hook prints a stderr advisory and exits 0. After `gh pr create`, run `pnpm screenshots:publish` to upload + post the sticky comment manually.
+
+**Bypass:** `git push --no-verify` skips the hook entirely. Use sparingly — the next push that includes a relevant file will re-publish.
+
+**Branch retention:** the `screenshots` branch is **uncapped** (PR-scoped, transient). Do not hand-edit it. See its `README.md`.
+
+### Main CI workflow (canonical reference)
+
+`.github/workflows/screenshots-main.yml` runs on every push to `main` touching the same glob. It runs the full suite and commits PNGs to `main` under `docs/screenshots/<sha>/`, updates the `docs/screenshots/latest` symlink, and prunes to the newest 10 sha dirs. Skills (`/triage`, `/plan`, `/spec`, `/critique`) consult `docs/screenshots/latest/` on `main` as the canonical "what the app looks like now" reference.
+
+### Scope (ADR-0028)
+
+Both surfaces are developer tooling + repo CI; **no outbound channel is added to shipped client/relay/CLI binaries**. The `gh` CLI uses the contributor's own credentials. This stays within the ADR-0028 (no telemetry) boundary.
+
+### Local manual run
+
+```sh
+SCREENSHOT_CAPTURE=1 SCREENSHOT_SHA=local \
+  pnpm --filter @hnch/e2e exec playwright test _screenshots \
+  --project=chromium --workers=1
+```
+
+Output lands under `docs/screenshots/local/`. This directory is **not** gitignored — keep it out of commits by hand or rm before staging.
+
 ## Merge strategy
 
 All PRs land via **squash merge**. Merge commits and rebase merging are disabled in repo settings (GitHub → Settings → General → Pull Requests). The squash default commit message is set to **"Pull request title"** so the PR title becomes the single commit on `main`.

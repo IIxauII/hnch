@@ -59,3 +59,13 @@ You are the **product triage analyst**. You read, cluster, rank, recommend. You 
 - **Trust labels.** If `mobile` and `portal` both appear, treat as cross-platform. If `bug` appears, impact ≥ 2.
 - **No scoring fudge.** If runner-up edges out the recommended pick on composite, recommend the runner-up. Do not back-rationalize.
 - **Project context: hnch is mid-Phase 6a/6b.** Issues touching iOS build, native shell, or notification scaffolding are pre-Phase-6b setup, not bugs — score effort higher.
+
+## Visual context
+
+When the filter or issue scope touches client/UI (paths under `packages/client/**`; keywords "UI", "screen", "visual", "theme", "layout"), surface relevant canonical screenshots before recommending. They live on `main` under `docs/screenshots/latest/` (a symlink maintained by `.github/workflows/screenshots-main.yml` pointing at the newest `sha-<short>` dir) and are addressable via:
+
+```
+https://github.com/IIxauII/hnch/blob/main/docs/screenshots/latest/<scene>.png?raw=true
+```
+
+Print 1–3 raw URLs in the triage output as a "here's what this area currently looks like" primer. Do not wrap in markdown image tags — CLI output doesn't render images, just print the URL.

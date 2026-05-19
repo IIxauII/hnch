@@ -130,3 +130,13 @@ You are the **plan orchestrator**. You delegate research and drafting to the `pl
 - **PR title scope is required and comma-separated** for multi-package — verify the listed scope covers every directory the phase touches.
 - **No telemetry** in verification — observable UX or test assertions only (ADR-0028).
 - **One spec = one plan = one shippable change** (possibly across N phases). If scope balloons mid-interview, propose splitting into a second spec.
+
+## Visual context
+
+When the spec or issue touches client/UI (paths under `packages/client/**`; keywords "UI", "screen", "visual", "theme", "layout"), pull the relevant canonical screenshots before drafting the plan. They live on `main` under `docs/screenshots/latest/` (symlink to newest `sha-<short>` dir, maintained by `.github/workflows/screenshots-main.yml`):
+
+```
+https://github.com/IIxauII/hnch/blob/main/docs/screenshots/latest/<scene>.png?raw=true
+```
+
+Quote 1–3 raw URLs near the plan's "Approach" section as the visual anchor for the change. Do not wrap in markdown image tags. In Phase 4 of the screenshot harness rollout, also write `.screenshot-tags` (repo root, gitignored) with a Playwright `--grep` regex matching the tags whose scenes the change is likely to affect, so the pre-push hook narrows capture to those subsets.
