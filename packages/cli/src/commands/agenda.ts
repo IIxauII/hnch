@@ -21,7 +21,7 @@ import {
   type AgendaItem,
 } from '@hnch/shared';
 import { loadConfig } from '../config.js';
-import { readLastSession } from '../last-session.js';
+import { readEntries } from '../last-session.js';
 import { resolveRoom } from '../relay-api.js';
 import { wireSession } from '../session.js';
 
@@ -101,11 +101,14 @@ async function resolveLastSessionOrDie(): Promise<{
   roomUuid: string;
   passwordHash?: string;
 }> {
-  const cache = readLastSession();
-  if (!cache) {
+  const entries = readEntries();
+  if (entries.length === 0) {
     console.error('No active session. Join a room first with: hnch join <code>');
     process.exit(1);
   }
+  // Most-recent entry (already sorted desc by lastSeenAt)
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const cache = entries[0]!;
   // exactOptionalPropertyTypes: only include passwordHash when present
   return {
     roomCode: cache.roomCode,
