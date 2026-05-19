@@ -1,3 +1,10 @@
+## [1.30.3](https://github.com/IIxauII/hnch/compare/client-v1.30.2...client-v1.30.3) (2026-05-19)
+
+
+### Bug Fixes
+
+* **client:** hide lobby participants summary when accordion is expanded ([#267](https://github.com/IIxauII/hnch/issues/267)) ([6b58f36](https://github.com/IIxauII/hnch/commit/6b58f36d7129b01092ddda14717c63edc58368d5))
+
 ## [1.30.2](https://github.com/IIxauII/hnch/compare/client-v1.30.1...client-v1.30.2) (2026-05-19)
 
 
