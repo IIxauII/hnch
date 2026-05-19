@@ -654,7 +654,7 @@ import type { AgendaItem } from '@hnch/shared';
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 0.5rem;
-        padding: 0.25rem 0.5rem;
+        padding-inline: var(--ion-margin, 16px);
       }
     `,
   ],
