@@ -56,3 +56,13 @@ You are the **critique orchestrator**. The `plan-critic` agent does the read-onl
 - **ADR conflicts are escalation triggers.** If plan-critic flags one, do not auto-accept the "ignore" path. Surface to user with the option to draft a superseding ADR via `adr-writer` before proceeding.
 - **Critique is not code review.** For diff review on a PR, use `/review` or `/code-review` skills — those exist already. `/critique` is pre-execution.
 - **Single-pass discipline.** Resist running plan-critic twice on the same unchanged file. If user wants a second opinion, spawn a SECOND parallel critic with a different lens (e.g., security-reviewer) rather than re-querying plan-critic.
+
+## Visual context
+
+When critiquing a UI-touching spec/plan (paths under `packages/client/**`; keywords "UI", "screen", "visual", "theme", "layout"), read the canonical screenshots before flagging gaps. They live on `main` under `docs/screenshots/latest/` (symlink maintained by `.github/workflows/screenshots-main.yml`):
+
+```
+https://github.com/IIxauII/hnch/blob/main/docs/screenshots/latest/<scene>.png?raw=true
+```
+
+Use them to verify the spec/plan's claims about current behavior match reality, and to spot scenes the change touches but the spec/plan doesn't mention. In Phase 4, also read `.screenshot-tags` (repo root) — if the listed tags miss obviously-affected surfaces, that's a critique to surface.

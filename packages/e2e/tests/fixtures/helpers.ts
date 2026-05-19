@@ -205,6 +205,84 @@ export const PRESET_CARD_EDITOR = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// Password sheet (join page — password prompt + error display)
+// ---------------------------------------------------------------------------
+export const PASSWORD_SHEET = {
+  /** Password input on the join page (appears after first join submit on a pwd-protected room). */
+  passwordInput: 'ion-input[type="password"]',
+  /** Error text shown after wrong-password rejection (WS close 4002). */
+  errorText: 'p.error-text, ion-note.error, .join-error',
+} as const;
+
+// ---------------------------------------------------------------------------
+// Viewer role toggle
+// ---------------------------------------------------------------------------
+export const VIEWER_ROLE = {
+  /**
+   * Role chip on the estimating page. Text is "Voter" or "Observing".
+   * Use `.filter({ hasText: ... })` to assert specific state.
+   */
+  chip: ESTIMATING.roleChip,
+} as const;
+
+// ---------------------------------------------------------------------------
+// Kick affordance (swipe-left → Remove on participant row)
+// ---------------------------------------------------------------------------
+export const KICK_AFFORDANCE = {
+  /** IonItemSliding wrapping a participant row — call `.open('end')` via evaluate(). */
+  slidingItem: (name: string) =>
+    `ion-item-sliding:has(ion-label:text-is("${name}"), ion-label:has-text("${name}"))`,
+  /** Remove option button revealed after swipe. */
+  removeBtn: 'ion-item-option:has-text("Remove")',
+} as const;
+
+// ---------------------------------------------------------------------------
+// Custom scale editor (scale-editor-sheet)
+// ---------------------------------------------------------------------------
+// Entry path: App Settings → Default scale row → Edit button next to a preset.
+// Selector for the sheet itself; card toggles use PRESET_CARD_EDITOR.
+export const CUSTOM_SCALE_EDITOR = {
+  sheet: 'app-scale-editor-sheet',
+  cardList: PRESET_CARD_EDITOR.cardList,
+  cardToggle: PRESET_CARD_EDITOR.cardToggle,
+  doneBtn: PRESET_CARD_EDITOR.doneBtn,
+} as const;
+
+// ---------------------------------------------------------------------------
+// Session-ended toast
+// ---------------------------------------------------------------------------
+// Use expectToast(page, /session ended/i) from helpers.ts for assertions.
+// Selector for the visible ion-toast element (if direct DOM access is needed).
+export const SESSION_ENDED_TOAST = {
+  toast: 'ion-toast:not(.overlay-hidden)',
+} as const;
+
+// ---------------------------------------------------------------------------
+// Connection chip
+// ---------------------------------------------------------------------------
+// app-connection-chip renders an ion-chip.connection-chip only when non-connected.
+// States: "Connecting…" (medium, sync-outline) | "Reconnecting…" (warning, cloud-offline).
+// Connected state: chip not rendered (null from computeChipDisplay).
+export const CONNECTION_CHIP = {
+  host: 'app-connection-chip',
+  chip: 'app-connection-chip ion-chip.connection-chip',
+  reconnecting: 'app-connection-chip ion-chip.connection-chip[color="warning"]',
+  connecting: 'app-connection-chip ion-chip.connection-chip[color="medium"]',
+} as const;
+
+// ---------------------------------------------------------------------------
+// Round history
+// ---------------------------------------------------------------------------
+// app-round-history renders <section class="history"> only when entries.length > 0.
+// No empty-state placeholder rendered — component is absent when no rounds.
+// TODO Phase 1 verification: confirm no empty-state element exists in template.
+export const ROUND_HISTORY = {
+  section: 'app-round-history section.history',
+  items: 'app-round-history ul.history-list li.history-item',
+  skippedItem: 'app-round-history li.history-item.skipped',
+} as const;
+
+// ---------------------------------------------------------------------------
 // Shared constants
 // ---------------------------------------------------------------------------
 export const BASE_URL =
