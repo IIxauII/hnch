@@ -73,13 +73,13 @@ test.describe('Host kick participant (ADR-0036)', () => {
 
     // Tap "Remove Player from session" option
     const removeBtn = host.page.locator('ion-item-option[aria-label="Remove Player from session"]');
-    await removeBtn.evaluate((el: HTMLElement) => el.click());
+    await removeBtn.click();
 
     // Confirm in alert
     const alert = host.page.locator('ion-alert');
     await alert.waitFor({ state: 'visible', timeout: 5_000 });
     const confirmBtn = host.page.locator('ion-alert button:has-text("Remove")');
-    await confirmBtn.evaluate((el: HTMLElement) => el.click());
+    await confirmBtn.click();
 
     // Host sees count decrement and Player gone from list
     await host.expectParticipantCount(1);
@@ -111,11 +111,11 @@ test.describe('Host kick participant (ADR-0036)', () => {
     // Now kick player
     await openSwipeDrawer(host.page, 'Player');
     const removeBtn = host.page.locator('ion-item-option[aria-label="Remove Player from session"]');
-    await removeBtn.evaluate((el: HTMLElement) => el.click());
+    await removeBtn.click();
     const alert = host.page.locator('ion-alert');
     await alert.waitFor({ state: 'visible', timeout: 5_000 });
     const confirmBtn = host.page.locator('ion-alert button:has-text("Remove")');
-    await confirmBtn.evaluate((el: HTMLElement) => el.click());
+    await confirmBtn.click();
 
     // Wait for host to see the active list update
     await host.expectParticipantCount(1);
@@ -139,11 +139,11 @@ test.describe('Host kick participant (ADR-0036)', () => {
     // Kick player
     await openSwipeDrawer(host.page, 'Player');
     const removeBtn = host.page.locator('ion-item-option[aria-label="Remove Player from session"]');
-    await removeBtn.evaluate((el: HTMLElement) => el.click());
+    await removeBtn.click();
     const alert = host.page.locator('ion-alert');
     await alert.waitFor({ state: 'visible', timeout: 5_000 });
     const confirmBtn = host.page.locator('ion-alert button:has-text("Remove")');
-    await confirmBtn.evaluate((el: HTMLElement) => el.click());
+    await confirmBtn.click();
 
     await player.page.waitForURL(/\/home/, { timeout: 8_000 });
     // Give Angular time to render
@@ -174,11 +174,11 @@ test.describe('Host kick participant (ADR-0036)', () => {
     // Kick player
     await openSwipeDrawer(host.page, 'Player');
     const removeBtn = host.page.locator('ion-item-option[aria-label="Remove Player from session"]');
-    await removeBtn.evaluate((el: HTMLElement) => el.click());
+    await removeBtn.click();
     const alert = host.page.locator('ion-alert');
     await alert.waitFor({ state: 'visible', timeout: 5_000 });
     const confirmBtn = host.page.locator('ion-alert button:has-text("Remove")');
-    await confirmBtn.evaluate((el: HTMLElement) => el.click());
+    await confirmBtn.click();
 
     await player.page.waitForURL(/\/home/, { timeout: 8_000 });
 

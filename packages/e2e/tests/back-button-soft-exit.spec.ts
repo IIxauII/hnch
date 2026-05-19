@@ -37,7 +37,7 @@ test.describe('Back-chevron soft exit', () => {
       .locator('app-lobby:not(.ion-page-hidden) ion-header ion-button')
       .first();
     await backBtn.waitFor({ state: 'visible' });
-    await backBtn.evaluate((el: HTMLElement) => el.click());
+    await backBtn.click();
 
     // Soft exit → /home, cache preserved
     await host.page.waitForURL(/\/home/);
@@ -51,7 +51,7 @@ test.describe('Back-chevron soft exit', () => {
     await expect(row).toContainText(code);
 
     // Tap banner → navigate back to /lobby/:code
-    await row.evaluate((el: HTMLElement) => el.click());
+    await row.click();
     await host.page.waitForURL(/\/lobby\//, { timeout: 15_000 });
 
     // Lands on same URL
@@ -79,7 +79,7 @@ test.describe('Back-chevron soft exit', () => {
       .locator('app-estimating:not(.ion-page-hidden) ion-header ion-button')
       .first();
     await backBtn.waitFor({ state: 'visible' });
-    await backBtn.evaluate((el: HTMLElement) => el.click());
+    await backBtn.click();
 
     // Soft exit → /lobby/:code (same code, NOT /home)
     await host.page.waitForURL(/\/lobby\//, { timeout: 10_000 });

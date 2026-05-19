@@ -47,7 +47,7 @@ async function clickOverflow(
   await ensureAccordionOpen(page);
   const btn = page.getByRole('button', { name: `Host actions for ${participantName}` });
   await btn.waitFor({ state: 'visible', timeout: 5_000 });
-  await btn.evaluate((el: HTMLElement) => el.click());
+  await btn.click();
 }
 
 // ---------------------------------------------------------------------------
@@ -62,7 +62,7 @@ async function clickPopoverItem(
   await popover.waitFor({ state: 'visible', timeout: 5_000 });
   const item = popover.getByRole('button', { name: itemText });
   await item.waitFor({ state: 'visible', timeout: 5_000 });
-  await item.evaluate((el: HTMLElement) => el.click());
+  await item.click();
 }
 
 // ---------------------------------------------------------------------------
@@ -82,7 +82,7 @@ test.describe('Desktop host-actions popover', () => {
     await expect(overflowBtn).toHaveAttribute('aria-label', 'Host actions for Player');
 
     // Open popover
-    await overflowBtn.evaluate((el: HTMLElement) => el.click());
+    await overflowBtn.click();
 
     // Click Remove
     await clickPopoverItem(host.page, 'Remove');
@@ -91,7 +91,7 @@ test.describe('Desktop host-actions popover', () => {
     const alert = host.page.locator('ion-alert');
     await alert.waitFor({ state: 'visible', timeout: 5_000 });
     const confirmBtn = host.page.locator('ion-alert button:has-text("Remove")');
-    await confirmBtn.evaluate((el: HTMLElement) => el.click());
+    await confirmBtn.click();
 
     // Player row gone
     await host.expectParticipantCount(1);
@@ -123,7 +123,7 @@ test.describe('Desktop host-actions popover', () => {
     // Confirm exactly once (guard against double-fire from popover→alert race)
     const confirmBtn = host.page.locator('ion-alert button:has-text("Confirm")');
     await expect(confirmBtn).toHaveCount(1);
-    await confirmBtn.evaluate((el: HTMLElement) => el.click());
+    await confirmBtn.click();
 
     // Host badge (star icon) should now appear on Player's row in host's view.
     // The former host (Host) is still present, no longer host.
@@ -156,7 +156,7 @@ test.describe('Desktop host-actions popover', () => {
     // shadow roots). Scope to the specific popover overlay to get exactly one.
     const backdrop = popover.locator('ion-backdrop');
     await backdrop.waitFor({ state: 'visible', timeout: 3_000 });
-    await backdrop.evaluate((el: HTMLElement) => el.click());
+    await backdrop.click();
 
     await popover.waitFor({ state: 'hidden', timeout: 5_000 });
   });

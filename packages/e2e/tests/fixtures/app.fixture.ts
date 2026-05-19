@@ -47,9 +47,9 @@ async function clickMenuOption(page: import('@playwright/test').Page, text: stri
 
   const isActionSheet = await actionSheetBtn.isVisible().catch(() => false);
   if (isActionSheet) {
-    await actionSheetBtn.evaluate((el: HTMLElement) => el.click());
+    await actionSheetBtn.click();
   } else {
-    await popoverBtn.evaluate((el: HTMLElement) => el.click());
+    await popoverBtn.click();
   }
 }
 
@@ -144,7 +144,7 @@ export class Participant {
       .locator('app-lobby:not(.ion-page-hidden) ion-button')
       .filter({ hasText: LOBBY.startRoundBtn });
     await startRoundBtn.waitFor({ state: 'visible' });
-    await startRoundBtn.evaluate((el: HTMLElement) => el.click());
+    await startRoundBtn.click();
     // Wait for the round-start modal to appear
     const modal = this.page.locator('app-round-start-sheet');
     await modal.waitFor({ state: 'visible' });
@@ -156,7 +156,7 @@ export class Participant {
     }
     const startBtn = this.page.locator(ROUND_START.startBtn);
     await startBtn.waitFor({ state: 'visible' });
-    await startBtn.evaluate((el: HTMLElement) => el.click());
+    await startBtn.click();
     // Wait for the round-start sheet to fully dismiss. Ionic leaves the
     // ion-modal in the DOM with show-modal + full viewport size during
     // the closing animation; callers that then dispatch keyboard events
@@ -219,15 +219,23 @@ export class Participant {
       .filter({ hasText: /Voter|Observing/ })
       .first();
     await chip.waitFor({ state: 'visible' });
-    await chip.evaluate((el: HTMLElement) => el.click());
+    await chip.click();
   }
 
-  /** Tap the Reveal Votes button (host only). Navigates to /lobby with results. */
+  /** Tap the Reveal Votes button (host only). Navigates to /lobby with results.
+   * Idempotent: if unanimous auto-reveal (ADR-0018) already navigated to /lobby
+   * before this is called, just waits for the results section.
+   */
   async reveal(): Promise<void> {
-    await this.page.locator(ESTIMATING.revealBtn).evaluate((el: HTMLElement) => el.click());
-    await this.page.waitForURL(/\/lobby/);
-    // Wait for results section to render (ensures lastRevealedRound() signal is computed)
-    // so Re-vote button is present before reveal() returns
+    if (!/\/lobby/.test(this.page.url())) {
+      const revealBtn = this.page.locator(ESTIMATING.revealBtn);
+      try {
+        await revealBtn.click({ timeout: 2_000 });
+      } catch {
+        // Auto-reveal raced us — navigation already in flight, button detached.
+      }
+      await this.page.waitForURL(/\/lobby/, { timeout: 10_000 });
+    }
     await this.page.locator(LOBBY.resultsSection).waitFor({ state: 'visible', timeout: 5_000 });
   }
 
@@ -254,7 +262,7 @@ export class Participant {
     }
     const startBtn = this.page.locator(ROUND_START.startBtn);
     await startBtn.waitFor({ state: 'visible' });
-    await startBtn.evaluate((el: HTMLElement) => el.click());
+    await startBtn.click();
     // Wait for the round-start sheet to fully dismiss. Ionic leaves the
     // ion-modal in the DOM with show-modal + full viewport size during
     // the closing animation; callers that then dispatch keyboard events
@@ -266,7 +274,7 @@ export class Participant {
 
   /** Tap "Re-vote" from the lobby results section — navigates to /estimating. */
   async revote(): Promise<void> {
-    await this.page.locator(LOBBY.revoteBtn).evaluate((el: HTMLElement) => el.click());
+    await this.page.locator(LOBBY.revoteBtn).click();
     await this.waitForEstimating();
   }
 
@@ -284,7 +292,7 @@ export class Participant {
     await this.page.locator(SCALE_PICKER.option(scaleLabel)).click();
     const doneBtn = this.page.locator(SCALE_PICKER.doneBtn);
     await doneBtn.waitFor({ state: 'visible' });
-    await doneBtn.evaluate((el: HTMLElement) => el.click());
+    await doneBtn.click();
   }
 
   /** Change the access mode. Assumes settings sheet is open. */
@@ -299,7 +307,7 @@ export class Participant {
     }
     const doneBtn = this.page.locator(ACCESS_PICKER.doneBtn);
     await doneBtn.waitFor({ state: 'visible' });
-    await doneBtn.evaluate((el: HTMLElement) => el.click());
+    await doneBtn.click();
   }
 
   /** Join with a password — enters code, waits for password field, fills it. */
@@ -345,7 +353,7 @@ export class Participant {
   async closeSettings(): Promise<void> {
     const doneBtn = this.page.locator(SETTINGS_SHEET.doneBtn);
     await doneBtn.waitFor({ state: 'visible' });
-    await doneBtn.evaluate((el: HTMLElement) => el.click());
+    await doneBtn.click();
     // Wait for modal dismiss animation
     await this.page.locator('app-session-settings-sheet').waitFor({ state: 'hidden' });
   }
@@ -384,7 +392,7 @@ export class Participant {
     await this.page.locator(APP_SETTINGS_SCALE_PICKER.scaleRadio(displayLabel)).click();
     const doneBtn = this.page.locator(APP_SETTINGS_SCALE_PICKER.doneBtn);
     await doneBtn.waitFor({ state: 'visible' });
-    await doneBtn.evaluate((el: HTMLElement) => el.click());
+    await doneBtn.click();
     // Wait for modal dismiss animation
     await this.page.locator('app-scale-picker-sheet').waitFor({ state: 'hidden' });
   }
@@ -408,13 +416,13 @@ export class Participant {
     // Close the editor
     const doneBtn = this.page.locator(PRESET_CARD_EDITOR.doneBtn);
     await doneBtn.waitFor({ state: 'visible' });
-    await doneBtn.evaluate((el: HTMLElement) => el.click());
+    await doneBtn.click();
     await this.page.locator('app-scale-editor-sheet').waitFor({ state: 'hidden' });
 
     // Close the scale picker
     const pickerDoneBtn = this.page.locator(APP_SETTINGS_SCALE_PICKER.doneBtn);
     await pickerDoneBtn.waitFor({ state: 'visible' });
-    await pickerDoneBtn.evaluate((el: HTMLElement) => el.click());
+    await pickerDoneBtn.click();
     await this.page.locator('app-scale-picker-sheet').waitFor({ state: 'hidden' });
   }
 
@@ -432,7 +440,7 @@ export class Participant {
     const chip = this.page.locator('app-agenda-panel ion-chip.next-up-chip');
     const isCollapsed = await chip.isVisible().catch(() => false);
     if (isCollapsed) {
-      await chip.evaluate((el: HTMLElement) => el.click());
+      await chip.click();
       // Wait for the expanded panel to appear
       await this.page
         .locator('app-agenda-panel section.agenda-panel')
@@ -463,7 +471,7 @@ export class Participant {
     await panel.waitFor({ state: 'visible' });
     const addBtn = panel.getByRole('button', { name: 'Add agenda item' });
     await addBtn.waitFor({ state: 'visible', timeout: 10_000 });
-    await addBtn.evaluate((el: HTMLElement) => el.click());
+    await addBtn.click();
 
     // Wait for the form sheet dialog to appear (Ionic modal opens asynchronously).
     // Use the dialog title text as a reliable signal that the sheet is ready.
@@ -492,7 +500,7 @@ export class Participant {
       name: /^(Add|Save) agenda item$/u,
     });
     await submitBtn.waitFor({ state: 'visible', timeout: 5_000 });
-    await submitBtn.evaluate((el: HTMLElement) => el.click());
+    await submitBtn.click();
     // Wait for sheet to close — the ion-title disappears when modal dismisses.
     await sheetTitle.waitFor({ state: 'hidden', timeout: 5_000 });
   }
@@ -540,7 +548,7 @@ export class Participant {
     const item = list.locator('ion-item.agenda-item').nth(index);
     const editBtn = item.getByRole('button', { name: /^Edit /u });
     await editBtn.waitFor({ state: 'visible' });
-    await editBtn.evaluate((el: HTMLElement) => el.click());
+    await editBtn.click();
 
     const sheetTitle = this.page.locator('app-agenda-item-form-sheet ion-title');
     await sheetTitle.waitFor({ state: 'visible', timeout: 10_000 });
@@ -565,7 +573,7 @@ export class Participant {
       name: /^(Add|Save) agenda item$/u,
     });
     await saveBtn.waitFor({ state: 'visible', timeout: 5_000 });
-    await saveBtn.evaluate((el: HTMLElement) => el.click());
+    await saveBtn.click();
     await sheetTitle.waitFor({ state: 'hidden', timeout: 5_000 });
   }
 
@@ -580,7 +588,7 @@ export class Participant {
     // getByRole pierces ion-button shadow DOM; aria-label "Cancel {title}" exposed via host attr.
     const btn = item.getByRole('button', { name: /^Cancel /u });
     await btn.waitFor({ state: 'visible' });
-    await btn.evaluate((el: HTMLElement) => el.click());
+    await btn.click();
   }
 
   /**
@@ -593,7 +601,7 @@ export class Participant {
     // getByRole pierces ion-button shadow DOM; aria-label "Skip {title}" exposed via host attr.
     const btn = item.getByRole('button', { name: /^Skip /u });
     await btn.waitFor({ state: 'visible' });
-    await btn.evaluate((el: HTMLElement) => el.click());
+    await btn.click();
   }
 
   /**
@@ -606,7 +614,7 @@ export class Participant {
     const pattern = dir === 'up' ? /^Move .+ up$/u : /^Move .+ down$/u;
     const btn = item.getByRole('button', { name: pattern });
     await btn.waitFor({ state: 'visible' });
-    await btn.evaluate((el: HTMLElement) => el.click());
+    await btn.click();
   }
 
   /**

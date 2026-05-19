@@ -39,7 +39,7 @@ test.describe('Agenda single-host flow', () => {
       .locator('app-lobby:not(.ion-page-hidden) ion-button')
       .filter({ hasText: LOBBY.startRoundBtn });
     await startRoundBtn.waitFor({ state: 'visible' });
-    await startRoundBtn.evaluate((el: HTMLElement) => el.click());
+    await startRoundBtn.click();
 
     const modal = host.page.locator('app-round-start-sheet');
     await modal.waitFor({ state: 'visible' });
@@ -57,7 +57,7 @@ test.describe('Agenda single-host flow', () => {
 
     // Re-open — still pre-fills from item 1
     await startRoundBtn.waitFor({ state: 'visible' });
-    await startRoundBtn.evaluate((el: HTMLElement) => el.click());
+    await startRoundBtn.click();
     await modal.waitFor({ state: 'visible' });
     await expect(titleInput).toHaveValue('Login redesign');
 
@@ -66,7 +66,7 @@ test.describe('Agenda single-host flow', () => {
     // ion-button[aria-label] CSS selectors don't match Ionic web component hosts reliably.
     const startBtn = host.page.locator(ROUND_START.startBtn);
     await startBtn.waitFor({ state: 'visible' });
-    await startBtn.evaluate((el: HTMLElement) => el.click());
+    await startBtn.click();
     await host.waitForEstimating();
 
     // Vote and reveal
@@ -84,7 +84,7 @@ test.describe('Agenda single-host flow', () => {
 
     // Start Next Round — pre-fills from item 2 (ticketId-only)
     const nextRoundBtn = host.page.locator('ion-button').filter({ hasText: LOBBY.nextRoundBtn });
-    await nextRoundBtn.evaluate((el: HTMLElement) => el.click());
+    await nextRoundBtn.click();
     const modal2 = host.page.locator('app-round-start-sheet');
     await modal2.waitFor({ state: 'visible' });
     const ticketInput = host.page.getByRole('textbox', { name: 'Ticket ID' });
@@ -93,7 +93,7 @@ test.describe('Agenda single-host flow', () => {
     // Confirm round 2 — same :has-text() pattern as round 1
     const startBtn2 = host.page.locator(ROUND_START.startBtn);
     await startBtn2.waitFor({ state: 'visible' });
-    await startBtn2.evaluate((el: HTMLElement) => el.click());
+    await startBtn2.click();
     await host.waitForEstimating();
 
     // Vote and auto-reveal
@@ -170,7 +170,7 @@ test.describe('Agenda multi-client visibility', () => {
       await expect(chip).toContainText('Story Alpha');
 
       // Tap chip to expand — full list visible
-      await chip.evaluate((el: HTMLElement) => el.click());
+      await chip.click();
       await joinerPage
         .locator('app-agenda-panel section.agenda-panel')
         .waitFor({ state: 'visible' });
@@ -224,7 +224,7 @@ test.describe('Agenda re-vote linkage', () => {
       .locator('app-lobby:not(.ion-page-hidden) ion-button')
       .filter({ hasText: LOBBY.startRoundBtn });
     await startRoundBtn.waitFor({ state: 'visible' });
-    await startRoundBtn.evaluate((el: HTMLElement) => el.click());
+    await startRoundBtn.click();
     const modal = host.page.locator('app-round-start-sheet');
     await modal.waitFor({ state: 'visible' });
     // Verify pre-fill before submitting — round must carry title for re-vote inheritance.
@@ -232,7 +232,7 @@ test.describe('Agenda re-vote linkage', () => {
     await expect(titleField).toHaveValue('Auth service');
     const startBtn = host.page.locator(ROUND_START.startBtn);
     await startBtn.waitFor({ state: 'visible' });
-    await startBtn.evaluate((el: HTMLElement) => el.click());
+    await startBtn.click();
     await host.waitForEstimating();
 
     // Vote and reveal manually (host only, so auto-reveal)

@@ -56,7 +56,7 @@ test.describe('Password-room reload', () => {
     await pwInput.fill('secret99');
 
     // Submit — evaluate to bypass Ionic pointer-event interception
-    await host.page.locator(JOIN.joinBtn).evaluate((el: HTMLElement) => el.click());
+    await host.page.locator(JOIN.joinBtn).click();
     await host.page.waitForURL(/\/lobby\//, { timeout: 15_000 });
 
     // Lands on the same lobby

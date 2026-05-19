@@ -90,10 +90,10 @@ async function captureSet(
     const startBtn = page
       .locator('app-lobby:not(.ion-page-hidden) ion-button')
       .filter({ hasText: LOBBY.startRoundBtn });
-    await startBtn.evaluate((el: HTMLElement) => el.click());
+    await startBtn.click();
     await page.locator('app-round-start-sheet').waitFor({ state: 'visible' });
     await page.getByRole('textbox', { name: 'Round title' }).fill('Auth flow');
-    await page.locator(ROUND_START.startBtn).evaluate((el: HTMLElement) => el.click());
+    await page.locator(ROUND_START.startBtn).click();
     await page.waitForURL(/\/estimating/);
     await page.locator(ESTIMATING.cardGrid).waitFor({ state: 'visible' });
     await page.waitForTimeout(400);

@@ -17,9 +17,9 @@ async function clickMenuOption(page: import('@playwright/test').Page, text: stri
 
   const isActionSheet = await actionSheetBtn.isVisible().catch(() => false);
   if (isActionSheet) {
-    await actionSheetBtn.evaluate((el: HTMLElement) => el.click());
+    await actionSheetBtn.click();
   } else {
-    await popoverBtn.evaluate((el: HTMLElement) => el.click());
+    await popoverBtn.click();
   }
 }
 
@@ -69,7 +69,7 @@ test.describe('Leave session flow', () => {
 
     // Open menu (action-sheet on mobile, popover on desktop)
     const actionBtn = host.page.locator('ion-header').locator('ion-button').last();
-    await actionBtn.evaluate((el: HTMLElement) => el.click());
+    await actionBtn.click();
 
     // Tap "Leave session" — surface-agnostic
     await clickMenuOption(host.page, 'Leave session');
@@ -80,7 +80,7 @@ test.describe('Leave session flow', () => {
 
     // Cancel the alert
     const cancelBtn = host.page.locator('ion-alert button:has-text("Cancel")');
-    await cancelBtn.evaluate((el: HTMLElement) => el.click());
+    await cancelBtn.click();
 
     // Alert should dismiss
     await alert.waitFor({ state: 'hidden', timeout: 5_000 });
