@@ -162,6 +162,7 @@ interface VoteGroup {
     `
       :host {
         display: block;
+        position: relative;
       }
       .group {
         position: relative;
@@ -308,7 +309,7 @@ interface VoteGroup {
         }
       }
       .consensus-overlay {
-        position: fixed;
+        position: absolute;
         inset: 0;
         display: flex;
         align-items: center;
