@@ -204,6 +204,21 @@ describe('rejoinRoom', () => {
     }
   });
 
+  it('bypasses password-required when passwordHash opt provided and passes it to connect', async () => {
+    const { rejoinRoom, deps, docService } = await buildDeps({
+      resolveResult: { uuid: 'uuid-pw', accessMode: 'password' },
+      waitOutcome: 'connected',
+    });
+
+    const result = await rejoinRoom('ABC123', deps, { passwordHash: 'cached-hash' });
+
+    expect(result.type).toBe('connected');
+    expect(docService.connect).toHaveBeenCalledWith(
+      expect.objectContaining({ passwordHash: 'cached-hash' }),
+      expect.objectContaining({ roomUuid: 'uuid-pw' }),
+    );
+  });
+
   it('normalizes room code before resolve call', async () => {
     const { rejoinRoom, deps } = await buildDeps({
       resolveResult: { uuid: 'uuid-open', accessMode: 'open' },

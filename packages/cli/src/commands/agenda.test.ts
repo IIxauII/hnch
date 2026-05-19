@@ -107,12 +107,11 @@ vi.mock('../config.js', () => ({
   readConfig: () => MOCK_CONFIG,
 }));
 
-const mockReadLastSession = vi.fn(
-  () => MOCK_CACHE as typeof MOCK_CACHE | typeof MOCK_CACHE_WITH_PASSWORD | null,
-);
+type MockEntry = typeof MOCK_CACHE | typeof MOCK_CACHE_WITH_PASSWORD;
+const mockReadEntries = vi.fn(() => [MOCK_CACHE] as MockEntry[]);
 
 vi.mock('../last-session.js', () => ({
-  readLastSession: () => mockReadLastSession(),
+  readEntries: () => mockReadEntries(),
 }));
 
 vi.mock('../relay-api.js', () => ({
@@ -187,7 +186,7 @@ vi.mock('../session.js', async () => {
 beforeEach(() => {
   _lastSeenDoc = new Y.Doc();
   preSeedItemId = null;
-  mockReadLastSession.mockReturnValue(MOCK_CACHE);
+  mockReadEntries.mockReturnValue([MOCK_CACHE]);
 });
 
 afterEach(() => {
@@ -212,7 +211,7 @@ describe('handleAgendaAdd', () => {
   });
 
   it('exits 1 when no session cache (no last session)', async () => {
-    mockReadLastSession.mockReturnValue(null);
+    mockReadEntries.mockReturnValue([]);
     const { handleAgendaAdd } = await import('./agenda.js');
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
       throw new Error('process.exit called');
@@ -245,7 +244,7 @@ describe('handleAgendaAdd', () => {
   });
 
   it('works with passwordHash in session cache (hits the passwordHash branch)', async () => {
-    mockReadLastSession.mockReturnValue(MOCK_CACHE_WITH_PASSWORD);
+    mockReadEntries.mockReturnValue([MOCK_CACHE_WITH_PASSWORD]);
     const { handleAgendaAdd } = await import('./agenda.js');
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 

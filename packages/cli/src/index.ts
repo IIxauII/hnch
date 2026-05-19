@@ -25,7 +25,16 @@ import {
   resolveScale,
 } from '@hnch/shared';
 import { normalizeAndValidateRoomCode } from './room-code-input.js';
-import { writeLastSession, clearLastSession, readLastSession } from './last-session.js';
+import {
+  recordEntry,
+  readEntries,
+  removeEntry,
+  clearPasswordHash,
+  // legacy shims — used in create/join below
+  writeLastSession,
+  clearLastSession,
+  type LastSessionEntry,
+} from './last-session.js';
 import { onSessionExpired } from './session-expired.js';
 import { observeSessionEnd } from './session-end-observer.js';
 import { App } from './ui/App.js';
@@ -93,8 +102,8 @@ async function handleCreate(argv: {
   writeLastSession({
     roomCode: session.roomCode,
     roomUuid: session.roomUuid,
-    passwordHash,
     lastSeenAt: Date.now(),
+    ...(passwordHash !== undefined && { passwordHash }),
   });
 
   console.error(`Room created: ${session.roomCode}`);
@@ -188,8 +197,8 @@ async function handleJoin(argv: { code: string; password?: boolean }): Promise<v
   writeLastSession({
     roomCode: session.roomCode,
     roomUuid: session.roomUuid,
-    passwordHash,
     lastSeenAt: Date.now(),
+    ...(passwordHash !== undefined && { passwordHash }),
   });
 
   console.error(`Joined room: ${session.roomCode}`);
@@ -239,34 +248,60 @@ async function handleJoin(argv: { code: string; password?: boolean }): Promise<v
   process.exit(0);
 }
 
-async function handleResume(): Promise<void> {
-  const config = await loadConfig();
-  const cache = readLastSession();
+/** Tiny relative-time helper — keeps moment/dayjs out of CLI. */
+function relativeTime(lastSeenAt: number, now: number = Date.now()): string {
+  const diffMs = now - lastSeenAt;
+  const diffMin = Math.floor(diffMs / 60_000);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  return `${diffHr}h ago`;
+}
 
-  if (!cache) {
-    console.error('No recent session to resume.');
-    process.exit(0);
-  }
+async function promptSelection(max: number): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const rl = createInterface({ input: process.stdin, output: process.stderr });
+    const ask = (): void => {
+      process.stderr.write(`Select [1-${max}]: `);
+      rl.question('', (answer) => {
+        const n = parseInt(answer.trim(), 10);
+        if (Number.isInteger(n) && n >= 1 && n <= max) {
+          rl.close();
+          resolve(n);
+        } else {
+          process.stderr.write(`Invalid choice — enter a number between 1 and ${max}.\n`);
+          ask();
+        }
+      });
+    };
+    rl.on('close', () => reject(new Error('stdin closed')));
+    ask();
+  });
+}
 
+async function resumeEntry(
+  config: Awaited<ReturnType<typeof loadConfig>>,
+  entry: LastSessionEntry,
+): Promise<void> {
   let resolved: Awaited<ReturnType<typeof resolveRoom>>;
   try {
-    resolved = await resolveRoom(config.relayUrl, cache.roomCode);
+    resolved = await resolveRoom(config.relayUrl, entry.roomCode);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (message.includes('Room not found')) {
+      removeEntry(entry.roomUuid);
       return await onSessionExpired({ clearLastSession, logger: console, exit: process.exit });
     }
     console.error('Could not reach relay — try again later.');
     process.exit(0);
   }
 
-  if (resolved.accessMode === 'password' && !cache.passwordHash) {
-    console.error(`Password changed — rejoin with: hnch join ${cache.roomCode} --password`);
-    clearLastSession();
+  if (resolved.accessMode === 'password' && !entry.passwordHash) {
+    console.error(`Password changed — rejoin with: hnch join ${entry.roomCode} --password`);
+    clearPasswordHash(entry.roomUuid);
     process.exit(0);
   }
 
-  console.error(`Rejoining room ${cache.roomCode}…`);
+  console.error(`Rejoining room ${entry.roomCode}…`);
   console.error('');
 
   const doc = new Y.Doc();
@@ -287,13 +322,14 @@ async function handleResume(): Promise<void> {
   const session = wireSession({
     doc,
     awareness,
-    roomCode: cache.roomCode,
-    roomUuid: cache.roomUuid,
+    roomCode: entry.roomCode,
+    roomUuid: entry.roomUuid,
     participantId: config.participantId,
     relayUrl: config.relayUrl,
-    passwordHash: cache.passwordHash,
+    passwordHash: entry.passwordHash,
     onRejection(reason) {
       if (reason === 'unknown-room') {
+        removeEntry(entry.roomUuid);
         void onSessionExpired({ clearLastSession, logger: console, exit: process.exit });
         return;
       }
@@ -308,11 +344,11 @@ async function handleResume(): Promise<void> {
     },
   });
 
-  writeLastSession({
+  recordEntry({
     roomCode: session.roomCode,
     roomUuid: session.roomUuid,
-    passwordHash: cache.passwordHash,
     lastSeenAt: Date.now(),
+    ...(entry.passwordHash !== undefined && { passwordHash: entry.passwordHash }),
   });
 
   const inkInstanceResume = render(
@@ -334,7 +370,7 @@ async function handleResume(): Promise<void> {
       console.error(info.isLocal ? 'Session ended.' : `Session ended by ${info.hostName}.`);
       unmountInkResume?.();
       try {
-        await clearLastSession();
+        removeEntry(entry.roomUuid);
       } catch (err) {
         console.error(
           `Failed to clear cached session: ${err instanceof Error ? err.message : String(err)}`,
@@ -349,19 +385,55 @@ async function handleResume(): Promise<void> {
 
   if (hadRoomFull) {
     console.error('This room is full (max 20 participants).');
-    clearLastSession();
+    session.disconnect();
     process.exit(1);
   }
 
   if (hadWrongPassword) {
-    console.error(`Password changed — rejoin with: hnch join ${cache.roomCode} --password`);
-    clearLastSession();
+    clearPasswordHash(entry.roomUuid);
+    console.error(`Password changed — rejoin with: hnch join ${entry.roomCode} --password`);
+    session.disconnect();
     process.exit(0);
   }
 
   session.disconnect();
-  clearLastSession();
+  removeEntry(entry.roomUuid);
   process.exit(0);
+}
+
+async function handleResume(): Promise<void> {
+  const config = await loadConfig();
+  const entries = readEntries();
+
+  if (entries.length === 0) {
+    console.error('No recent session to resume.');
+    process.exit(0);
+  }
+
+  if (entries.length === 1) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    return resumeEntry(config, entries[0]!);
+  }
+
+  // 2+ entries — print numbered list, prompt
+  const now = Date.now();
+  process.stderr.write('Recent rooms:\n');
+  for (const [i, e] of entries.entries()) {
+    const rel = relativeTime(e.lastSeenAt, now);
+    process.stderr.write(`  ${i + 1}. ${e.roomCode}  (${rel})\n`);
+  }
+  process.stderr.write('\n');
+
+  let choice: number;
+  try {
+    choice = await promptSelection(entries.length);
+  } catch {
+    console.error('No selection made.');
+    process.exit(1);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  return resumeEntry(config, entries[choice - 1]!);
 }
 
 async function handleConfig(argv: {
