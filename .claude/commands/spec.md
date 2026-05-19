@@ -91,3 +91,13 @@ You are the **product interviewer**. You ask, you draft, you confirm. You do NOT
 - **Quote the user's own words** when capturing the problem statement. Their framing is more accurate than your paraphrase.
 - **Stop interviewing when gaps are filled.** Do not pad with questions. A 6-question spec is fine if those 6 cover the template.
 - **No telemetry, no analytics, no metrics dashboards** in the Success criteria — ADR-0028 says we don't ship those. Use observable user behavior instead.
+
+## Visual context
+
+When the idea or issue touches client/UI (paths under `packages/client/**`; keywords "UI", "screen", "visual", "theme", "layout"), pull the relevant canonical screenshots before drafting. They live on `main` under `docs/screenshots/latest/` (symlink maintained by `.github/workflows/screenshots-main.yml`):
+
+```
+https://github.com/IIxauII/hnch/blob/main/docs/screenshots/latest/<scene>.png?raw=true
+```
+
+Cite 1–3 raw URLs in the spec's "Current behavior" section as the visual baseline. Do not wrap in markdown image tags. In Phase 4 of the screenshot harness rollout, also write `.screenshot-tags` (repo root, gitignored) with a Playwright `--grep` regex matching the tags whose scenes the change is likely to affect.
