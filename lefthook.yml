@@ -24,3 +24,16 @@ commit-msg:
   commands:
     scope-check:
       run: bash scripts/check-commit-scope.sh {1}
+
+# Screenshot pre-push: when the local diff vs the push target touches client /
+# shared / e2e screenshot specs / fixtures, capture the suite, publish to the
+# `screenshots` orphan branch, and (re)post a sticky PR comment with inline
+# image embeds. Skipped on merge/rebase pushes. Bypass with `git push --no-verify`.
+# See docs/plans/e2e-screenshot-coverage-expansion.md (Phase 3).
+pre-push:
+  commands:
+    screenshots:
+      run: node scripts/screenshot-publish.mjs --mode=hook
+      skip:
+        - merge
+        - rebase
