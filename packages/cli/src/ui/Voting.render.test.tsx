@@ -25,9 +25,10 @@ function makeRound(overrides: Partial<Round> = {}): Round {
 
 const PROJECTION: DocProjection = {
   participants: [{ id: 'host', displayName: 'Host', joinedAt: 0, role: 'voter' }],
-  settings: { hostParticipantId: 'host', defaultScale: SCALE, accessMode: 'open' },
+  settings: { hostParticipantId: 'host', defaultScale: SCALE },
   rounds: [],
-  meta: { sessionEndedAt: undefined },
+  agenda: [],
+  meta: { roomUuid: '', createdAt: 0, createdBy: 'host' },
 };
 
 const noop = (): void => {};
