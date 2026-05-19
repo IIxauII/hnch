@@ -26,12 +26,12 @@ import {
 const OUT_DIR = path.resolve(__dirname, '../../../../.claude/screens/vote-bars');
 
 const ROUND_TITLE = 'Implement OAuth flow';
+// Capped at 3 voters: playwright runs against the relay with HNCH_ROOM_CAP=3
+// (set by global-setup for test-route mode), so a 4th joiner gets 4006-rejected.
 const VOTERS: Array<{ name: string; vote: string }> = [
   { name: 'Alex', vote: '3' }, // host
   { name: 'Bob', vote: '5' },
-  { name: 'Carol', vote: '5' },
-  { name: 'Dave', vote: '5' },
-  { name: 'Eve', vote: '8' },
+  { name: 'Carol', vote: '8' },
 ];
 
 test.use({ trace: 'off', video: 'off', screenshot: 'off' });
@@ -109,11 +109,7 @@ async function runScenario(
       .filter({ hasText: LOBBY.startRoundBtn });
     await startBtn.click();
     await hostPage.locator('app-round-start-sheet').waitFor({ state: 'visible' });
-    await hostPage
-      .locator('app-round-start-sheet ion-input')
-      .first()
-      .locator('input')
-      .fill(ROUND_TITLE);
+    await hostPage.locator(ROUND_START.titleInput).locator('input').fill(ROUND_TITLE);
     await hostPage.locator(ROUND_START.startBtn).click();
     await hostPage.waitForURL(/\/estimating/);
 
