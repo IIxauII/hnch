@@ -59,7 +59,7 @@ async function joinAs(browser: Browser, name: string, code: string): Promise<Pag
   return page;
 }
 
-test('capture keyboard-shortcuts screenshots', async ({ browser }) => {
+test('capture keyboard-shortcuts screenshots @layout @onboarding', async ({ browser }) => {
   const ctx = await browser.newContext({
     viewport: { width: 1440, height: 900 },
     deviceScaleFactor: 2,

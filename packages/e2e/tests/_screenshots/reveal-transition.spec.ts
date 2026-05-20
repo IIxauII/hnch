@@ -82,7 +82,7 @@ async function castVote(page: Page, value: string): Promise<void> {
 }
 
 test.describe('reveal transition screenshots', () => {
-  test('pre-reveal (all voted) + post-reveal lobby', async ({ browser }) => {
+  test('pre-reveal (all voted) + post-reveal lobby @reveal', async ({ browser }) => {
     test.setTimeout(180_000);
     const viewport = { width: 1440, height: 900 };
     const contexts: BrowserContext[] = [];

@@ -134,22 +134,22 @@ async function runScenario(
 }
 
 test.describe('Vote distribution bars — screenshots', () => {
-  test('desktop 1440 dark', async ({ browser }) => {
+  test('desktop 1440 dark @reveal @layout @theming', async ({ browser }) => {
     test.setTimeout(180_000);
     await runScenario(browser, { width: 1440, height: 900 }, 'dark', 'spread-1440-dark');
   });
 
-  test('desktop 1440 light', async ({ browser }) => {
+  test('desktop 1440 light @reveal @layout @theming', async ({ browser }) => {
     test.setTimeout(180_000);
     await runScenario(browser, { width: 1440, height: 900 }, 'light', 'spread-1440-light');
   });
 
-  test('mobile 390 dark', async ({ browser }) => {
+  test('mobile 390 dark @reveal @layout @theming', async ({ browser }) => {
     test.setTimeout(180_000);
     await runScenario(browser, { width: 390, height: 844 }, 'dark', 'spread-390-dark');
   });
 
-  test('mobile 390 light', async ({ browser }) => {
+  test('mobile 390 light @reveal @layout @theming', async ({ browser }) => {
     test.setTimeout(180_000);
     await runScenario(browser, { width: 390, height: 844 }, 'light', 'spread-390-light');
   });
