@@ -10,8 +10,9 @@
  *     --project=chromium --workers=1 --reporter=list \
  *     tests/_screenshots/vote-dots-196.spec.ts
  *
- * Output: .tmp-screens-196/<name>.png at repo root.
+ * Output: docs/screenshots/<sha>/vote-dots/<name>.png.
  */
+import fs from 'node:fs';
 import path from 'node:path';
 import { test, type BrowserContext, type Page } from '@playwright/test';
 import {
@@ -23,9 +24,12 @@ import {
   ROUND_START,
   ESTIMATING,
   fillRoomCode,
+  expandRoundStartSheet,
+  clickRoundStartSubmit,
 } from '../fixtures/helpers';
 
-const OUT_DIR = path.resolve(__dirname, '../../../../.tmp-screens-196');
+const SHA = process.env['SCREENSHOT_SHA'] ?? 'local';
+const OUT_DIR = path.resolve(__dirname, '../../../../docs/screenshots', SHA, 'vote-dots');
 
 test.use({ trace: 'off', video: 'off', screenshot: 'off' });
 test.describe.configure({ mode: 'serial' });
@@ -72,11 +76,10 @@ async function startRound(page: Page, title: string): Promise<void> {
     .filter({ hasText: LOBBY.startRoundBtn });
   await startBtn.waitFor({ state: 'visible' });
   await startBtn.click();
-  const modal = page.locator('app-round-start-sheet');
-  await modal.waitFor({ state: 'visible' });
+  await expandRoundStartSheet(page);
   await page.locator(ROUND_START.titleInput).locator('input').fill(title);
-  await page.locator(ROUND_START.startBtn).click();
-  await page.waitForURL(/\/estimating/);
+  await page.locator(ROUND_START.titleInput).locator('input').blur();
+  await clickRoundStartSubmit(page);
 }
 
 async function castVote(page: Page, value: string): Promise<void> {
@@ -85,6 +88,7 @@ async function castVote(page: Page, value: string): Promise<void> {
 }
 
 async function shotRow(page: Page, name: string): Promise<void> {
+  fs.mkdirSync(OUT_DIR, { recursive: true });
   await page.waitForTimeout(300);
   const row = page.locator('app-avatar-vote-row').first();
   await row.screenshot({ path: path.join(OUT_DIR, `${name}.png`) });

@@ -2,7 +2,7 @@
 /**
  * Screenshot capture for issue #154 (PWA keyboard shortcuts).
  *
- * Produces PNGs under .claude/screens/kbd-<sha>/:
+ * Produces PNGs under docs/screenshots/<sha>/kbd/:
  *   - estimating-empty.png       Estimating screen, no vote
  *   - estimating-keyboard-cast.png   After pressing Digit1
  *   - estimating-arrow-focus.png Focus moved via ArrowRight
@@ -13,8 +13,8 @@
  *     --project=chromium --workers=1 --reporter=list \
  *     tests/_screenshots/keyboard-shortcuts.spec.ts
  */
+import fs from 'node:fs';
 import path from 'node:path';
-import { execSync } from 'node:child_process';
 import { test, type Browser, type Page } from '@playwright/test';
 import {
   BASE_URL,
@@ -25,17 +25,18 @@ import {
   ROUND_START,
   ESTIMATING,
   fillRoomCode,
+  expandRoundStartSheet,
+  clickRoundStartSubmit,
 } from '../fixtures/helpers';
 
-const SHA =
-  process.env['SCREENSHOT_SHA'] ??
-  execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
+const SHA = process.env['SCREENSHOT_SHA'] ?? 'local';
 
-const OUT_DIR = path.resolve(__dirname, '../../../../.claude/screens', `kbd-${SHA}`);
+const OUT_DIR = path.resolve(__dirname, '../../../../docs/screenshots', SHA, 'kbd');
 
 test.use({ trace: 'off', video: 'off', screenshot: 'off' });
 
 async function shot(page: Page, name: string): Promise<void> {
+  fs.mkdirSync(OUT_DIR, { recursive: true });
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(OUT_DIR, `${name}.png`), fullPage: false });
 }
@@ -81,9 +82,10 @@ test('capture keyboard-shortcuts screenshots @layout @onboarding', async ({ brow
 
   // Start a round.
   await page.getByRole('button', { name: LOBBY.startRoundBtn }).click();
+  await expandRoundStartSheet(page);
   await page.locator(ROUND_START.titleInput).locator('input').first().fill('Implement OAuth flow');
-  await page.locator(ROUND_START.startBtn).click();
-  await page.waitForURL(/\/estimating/);
+  await page.locator(ROUND_START.titleInput).locator('input').first().blur();
+  await clickRoundStartSubmit(page);
   await page.locator('app-estimating:not(.ion-page-invisible):not(.ion-page-hidden)').waitFor();
   await peer.waitForURL(/\/estimating/);
 

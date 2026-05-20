@@ -12,7 +12,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test, type BrowserContext, type Page } from '@playwright/test';
 
-import { BASE_URL, ONBOARDING, HOME, LOBBY, ROUND_START, ESTIMATING } from '../fixtures/helpers';
+import {
+  BASE_URL,
+  ONBOARDING,
+  HOME,
+  LOBBY,
+  ROUND_START,
+  ESTIMATING,
+  expandRoundStartSheet,
+  clickRoundStartSubmit,
+} from '../fixtures/helpers';
 
 const SHA = process.env['SCREENSHOT_SHA'] ?? 'local';
 const OUT_DIR = path.resolve(__dirname, '../../../../docs/screenshots', SHA);
@@ -93,36 +102,10 @@ async function captureSet(
       .locator('app-lobby:not(.ion-page-hidden) ion-button')
       .filter({ hasText: LOBBY.startRoundBtn });
     await startBtn.click();
-    await page.locator('app-round-start-sheet').waitFor({ state: 'visible' });
-    // Settle wait: matches capture.spec.ts. Mobile bottom-sheet animates ~300ms;
-    // clicking before settle lands on the backdrop, which silently dismisses
-    // the sheet without navigating → 2-min timeout. Pattern from capture.spec.ts.
-    await page.waitForTimeout(400);
+    await expandRoundStartSheet(page);
     await page.locator(ROUND_START.titleInput).locator('input').fill('Auth flow');
-    // Blur the input before clicking the footer button. On mobile viewports
-    // the focused input shifts/scrolls the sheet enough that the next click
-    // can land on the backdrop instead of the button — silently dismisses
-    // the sheet without navigating, then waitForURL hangs for the full
-    // test timeout.
     await page.locator(ROUND_START.titleInput).locator('input').blur();
-    // Drag-up the sheet handle to full breakpoint before clicking the footer
-    // button. The half-sheet's `initialBreakpoint=0.6` leaves the Start
-    // button just inside the viewport — but on small viewports Playwright's
-    // click can land on the sheet's drag handle or backdrop instead of the
-    // button itself. Expanding the sheet first eliminates the layer race.
-    const handle = page.locator('app-round-start-sheet').locator('xpath=ancestor::ion-modal');
-    await handle.evaluate(
-      (modal: HTMLElement & { setCurrentBreakpoint?: (b: number) => Promise<void> }) => {
-        if (typeof modal.setCurrentBreakpoint === 'function') {
-          return modal.setCurrentBreakpoint(0.95);
-        }
-        return undefined;
-      },
-    );
-    await page.waitForTimeout(400);
-    await page.locator(ROUND_START.startBtn).scrollIntoViewIfNeeded();
-    await page.locator(ROUND_START.startBtn).click();
-    await page.waitForURL(/\/estimating/);
+    await clickRoundStartSubmit(page);
     await page.locator(ESTIMATING.cardGrid).waitFor({ state: 'visible' });
     await page.waitForTimeout(400);
     await page.locator(ESTIMATING.card('5')).first().click();

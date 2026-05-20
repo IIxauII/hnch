@@ -26,9 +26,10 @@ import {
   ONBOARDING,
   HOME,
   LOBBY,
-  ROUND_START,
   ESTIMATING,
   fillRoomCode,
+  expandRoundStartSheet,
+  clickRoundStartSubmit,
 } from '../fixtures/helpers';
 
 const SHA = process.env['SCREENSHOT_SHA'] ?? 'local';
@@ -116,15 +117,15 @@ test.describe('reveal transition screenshots', () => {
       const startBtn = hostPage
         .locator('app-lobby:not(.ion-page-hidden) ion-button')
         .filter({ hasText: LOBBY.startRoundBtn });
-      await startBtn.evaluate((el: HTMLElement) => el.click());
-      await hostPage.locator('app-round-start-sheet').waitFor({ state: 'visible' });
+      await startBtn.click();
+      await expandRoundStartSheet(hostPage);
       await hostPage
         .locator('app-round-start-sheet ion-input')
         .first()
         .locator('input')
         .fill('Auth flow redesign');
-      await hostPage.locator(ROUND_START.startBtn).evaluate((el: HTMLElement) => el.click());
-      await hostPage.waitForURL(/\/estimating/);
+      await hostPage.locator('app-round-start-sheet ion-input').first().locator('input').blur();
+      await clickRoundStartSubmit(hostPage);
       await hostPage.locator(ESTIMATING.cardGrid).waitFor({ state: 'visible' });
 
       // Joiners vote first — host votes last to stay pre-auto-reveal for screenshot

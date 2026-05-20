@@ -10,7 +10,6 @@
  *
  * Run:
  *   SCREENSHOT_CAPTURE=1 \
- *   SCREEN_OUT_DIR=.claude/screens/estimating-191/before \
  *     pnpm --filter @hnch/e2e exec playwright test \
  *     --project=chromium --workers=1 --reporter=list \
  *     tests/_screenshots/estimating-shot.spec.ts
@@ -22,15 +21,14 @@ import {
   ONBOARDING,
   HOME,
   LOBBY,
-  ROUND_START,
   ESTIMATING,
   fillRoomCode,
+  expandRoundStartSheet,
+  clickRoundStartSubmit,
 } from '../fixtures/helpers';
 
-const DEFAULT_OUT_DIR = path.resolve(__dirname, '../../../../.claude/screens/estimating-191');
-const OUT_DIR = process.env['SCREEN_OUT_DIR']
-  ? path.resolve(process.cwd(), process.env['SCREEN_OUT_DIR'])
-  : DEFAULT_OUT_DIR;
+const SHA = process.env['SCREENSHOT_SHA'] ?? 'local';
+const OUT_DIR = path.resolve(__dirname, '../../../../docs/screenshots', SHA);
 
 const ROUND_TITLE = 'Implement OAuth flow';
 // Host votes 3, joiner #1 votes 5, joiner #2 stays unvoted so auto-reveal
@@ -115,14 +113,14 @@ async function runScenario(
       .locator('app-lobby:not(.ion-page-hidden) ion-button')
       .filter({ hasText: LOBBY.startRoundBtn });
     await startBtn.click();
-    await hostPage.locator('app-round-start-sheet').waitFor({ state: 'visible' });
+    await expandRoundStartSheet(hostPage);
     await hostPage
       .locator('app-round-start-sheet ion-input')
       .first()
       .locator('input')
       .fill(ROUND_TITLE);
-    await hostPage.locator(ROUND_START.startBtn).click();
-    await hostPage.waitForURL(/\/estimating/);
+    await hostPage.locator('app-round-start-sheet ion-input').first().locator('input').blur();
+    await clickRoundStartSubmit(hostPage);
 
     // Host votes, one joiner votes, third stays pending
     await castVote(hostPage, HOST.vote);
