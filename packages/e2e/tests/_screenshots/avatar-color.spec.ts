@@ -107,22 +107,22 @@ async function captureSet(
 }
 
 test.describe('avatar color screenshots', () => {
-  test('desktop 1440 light', async ({ browser }) => {
+  test('desktop 1440 light @theming @participants', async ({ browser }) => {
     test.setTimeout(120_000);
     await captureSet(browser, { width: 1440, height: 900 }, 'light', 'desktop-1440-light');
   });
 
-  test('desktop 1440 dark', async ({ browser }) => {
+  test('desktop 1440 dark @theming @participants', async ({ browser }) => {
     test.setTimeout(120_000);
     await captureSet(browser, { width: 1440, height: 900 }, 'dark', 'desktop-1440-dark');
   });
 
-  test('mobile 390 light', async ({ browser }) => {
+  test('mobile 390 light @theming @participants', async ({ browser }) => {
     test.setTimeout(120_000);
     await captureSet(browser, { width: 390, height: 844 }, 'light', 'mobile-390-light');
   });
 
-  test('mobile 390 dark', async ({ browser }) => {
+  test('mobile 390 dark @theming @participants', async ({ browser }) => {
     test.setTimeout(120_000);
     await captureSet(browser, { width: 390, height: 844 }, 'dark', 'mobile-390-dark');
   });

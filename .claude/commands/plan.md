@@ -139,4 +139,6 @@ When the spec or issue touches client/UI (paths under `packages/client/**`; keyw
 https://github.com/IIxauII/hnch/blob/main/docs/screenshots/latest/<scene>.png?raw=true
 ```
 
-Quote 1–3 raw URLs near the plan's "Approach" section as the visual anchor for the change. Do not wrap in markdown image tags. In Phase 4 of the screenshot harness rollout, also write `.screenshot-tags` (repo root, gitignored) with a Playwright `--grep` regex matching the tags whose scenes the change is likely to affect, so the pre-push hook narrows capture to those subsets.
+Quote 1–3 raw URLs near the plan's "Approach" section as the visual anchor for the change. Do not wrap in markdown image tags.
+
+**Also write `.screenshot-tags`** (repo root, gitignored) with a Playwright `--grep` regex matching the tags whose scenes the change is likely to affect. The pre-push hook reads this and narrows capture to the listed subset. Tag catalog + per-tag file map: `packages/e2e/README.md → Tag catalog`. Tags: `@all`, `@theming`, `@layout`, `@participants`, `@viewer`, `@host`, `@password`, `@reveal`, `@skip`, `@history`, `@scale`, `@connection`, `@session-end`, `@home`, `@onboarding`. Example viewer-role change: `@viewer|@participants`. Include `@all` if the change affects the home/lobby/estimating baseline tour. Leave the file absent (do NOT create) if the plan has no UI impact — absence = full suite, correct for non-UI work.

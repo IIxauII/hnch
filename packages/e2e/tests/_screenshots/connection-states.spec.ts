@@ -56,7 +56,7 @@ test.describe('connection chip — disconnected state', () => {
    * (5,000 ms) elapses and the chip flips to visible. Shorter durations stay
    * invisible (design intent — prevents flap on network jitter).
    */
-  test('disconnected chip visible after 5.5 s offline', async ({ browser }) => {
+  test('disconnected chip visible after 5.5 s offline @connection', async ({ browser }) => {
     test.setTimeout(60_000);
     const viewport = { width: 1440, height: 900 };
     const { ctx, page } = await freshCtx(browser, viewport);

@@ -57,7 +57,7 @@ async function onboard(page: Page, name: string): Promise<void> {
 }
 
 test.describe('participant cap screenshots', () => {
-  test('lobby at cap + rejection UI on overflow joiner', async ({ browser }) => {
+  test('lobby at cap + rejection UI on overflow joiner @participants', async ({ browser }) => {
     test.setTimeout(120_000);
     const viewport = { width: 1440, height: 900 };
     const contexts: BrowserContext[] = [];
