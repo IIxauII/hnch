@@ -20,6 +20,7 @@ import { ToastService } from './services/toast.service';
  * are injected here so Angular instantiates them at app start. Each
  * service no-ops internally when no session is active.
  */
+// hnch-smoke-test: screenshot harness end-to-end verification (revert me)
 @Component({
   selector: 'app-root',
   imports: [IonApp, IonRouterOutlet],
