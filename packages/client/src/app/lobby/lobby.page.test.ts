@@ -441,6 +441,123 @@ describe('LobbyPage — subtitle (custom scale label)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// LobbyPage subtitle affordance — host vs viewer rendering
+// ---------------------------------------------------------------------------
+
+async function mountLobbySubtitleAffordance(opts: { isHost: boolean; subtitle: string }) {
+  const { Router } = await import('@angular/router');
+  const { DocService } = await import('../core/doc/doc.service');
+  const { HapticService } = await import('../core/haptic.service');
+  const { ParticipantIdService } = await import('../core/participant-id.service');
+  const { LastSessionService } = await import('../core/last-session.service');
+  const { ScalePreferenceService } = await import('../core/scale-preference.service');
+  const { SurfaceService } = await import('../core/surface.service');
+  const { ToastService } = await import('../services/toast.service');
+  const { ExportService } = await import('../core/export.service');
+  const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
+
+  // isHost = (myId === hostParticipantId). myId = 'me' (from ParticipantIdService stub).
+  const hostParticipantId = opts.isHost ? 'me' : 'other';
+  // subtitle is driven by defaultScale; supply a fibonacci-id scale so subtitle() = 'Fibonacci …'
+  // but we only need non-empty; use a builtin scale whose label contains text.
+  // Use a custom scale so we can set the exact label text.
+  const customScaleId = 'custom-test';
+  const scale = opts.subtitle ? { id: customScaleId, cards: ['1'] } : undefined;
+  const customs = opts.subtitle ? [{ id: customScaleId, label: opts.subtitle, cards: ['1'] }] : [];
+
+  TestBed.resetTestingModule();
+  TestBed.configureTestingModule({
+    providers: [
+      { provide: Router, useValue: { navigate: vi.fn().mockResolvedValue(true) } },
+      {
+        provide: DocService,
+        useValue: {
+          settings: signal(
+            scale ? { defaultScale: scale, hostParticipantId } : { hostParticipantId },
+          ).asReadonly(),
+          roomCode: signal('ABC123').asReadonly(),
+          meta: signal(undefined).asReadonly(),
+          syncStatus: signal('disconnected').asReadonly(),
+          currentRound: signal(undefined).asReadonly(),
+          lastRejection: signal(null).asReadonly(),
+          rounds: signal([]).asReadonly(),
+          participants: signal([]).asReadonly(),
+          activeParticipants: signal([]).asReadonly(),
+          onlineParticipantIds: signal(new Set()).asReadonly(),
+          agenda: signal([]).asReadonly(),
+          pendingAgenda: signal([]).asReadonly(),
+          nextPendingAgendaItem: signal(null).asReadonly(),
+          endSession: vi.fn(),
+          hasSession: signal(false).asReadonly(),
+        },
+      },
+      { provide: HapticService, useValue: { impactLight: vi.fn() } },
+      { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
+      { provide: LastSessionService, useValue: { record: vi.fn() } },
+      {
+        provide: ScalePreferenceService,
+        useValue: { customScales: signal(customs).asReadonly() },
+      },
+      {
+        provide: SurfaceService,
+        useValue: {
+          mode: signal('mobile').asReadonly(),
+          sheetBreakpoints: () => [0, 0.5, 1],
+          initialSheetBreakpoint: () => 0.5,
+          sheetBreakpointsFull: () => [0, 0.6, 1],
+          initialSheetBreakpointFull: () => 1,
+        },
+      },
+      { provide: ToastService, useValue: { show: vi.fn(), info: vi.fn(), error: vi.fn() } },
+      { provide: ExportService, useValue: { export: vi.fn() } },
+      {
+        provide: AlertController,
+        useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
+      },
+      {
+        provide: PopoverController,
+        useValue: {
+          create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }),
+          dismiss: vi.fn().mockResolvedValue(true),
+        },
+      },
+    ],
+  });
+
+  const { LobbyPage } = await import('./lobby.page');
+  const fixture = TestBed.createComponent(LobbyPage);
+  fixture.detectChanges();
+  return fixture;
+}
+
+describe('LobbyPage — subtitle affordance', () => {
+  it('host with non-empty subtitle renders button.subtitle with pencil icon and aria-label', async () => {
+    const fixture = await mountLobbySubtitleAffordance({ isHost: true, subtitle: 'My Scale' });
+    const el: HTMLElement = fixture.nativeElement;
+    const btn = el.querySelector('button.subtitle');
+    expect(btn).not.toBeNull();
+    const icon = btn!.querySelector('ion-icon[name="pencil-outline"]');
+    expect(icon).not.toBeNull();
+    expect(btn!.getAttribute('aria-label')).toContain('Edit session settings:');
+    expect(btn!.getAttribute('aria-label')).toContain('My Scale');
+  });
+
+  it('non-host with non-empty subtitle renders ion-chip.subtitle-chip, no button.subtitle', async () => {
+    const fixture = await mountLobbySubtitleAffordance({ isHost: false, subtitle: 'My Scale' });
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('button.subtitle')).toBeNull();
+    expect(el.querySelector('ion-chip.subtitle-chip')).not.toBeNull();
+  });
+
+  it('empty subtitle renders neither button.subtitle nor ion-chip.subtitle-chip', async () => {
+    const fixture = await mountLobbySubtitleAffordance({ isHost: true, subtitle: '' });
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('button.subtitle')).toBeNull();
+    expect(el.querySelector('ion-chip.subtitle-chip')).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // LobbyPage.onCopyRoomCode — tap-to-copy handler (issue #116)
 // ---------------------------------------------------------------------------
 

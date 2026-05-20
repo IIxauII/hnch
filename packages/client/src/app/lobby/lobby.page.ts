@@ -206,13 +206,23 @@ import type { AgendaItem } from '@hnch/shared';
           <span>{{ formattedRoomCode() }}</span>
           <ion-icon name="copy-outline" aria-hidden="true"></ion-icon>
         </button>
-        <button
-          type="button"
-          class="subtitle"
-          (click)="openSessionSettings()"
-        >
-          {{ subtitle() }}
-        </button>
+        @if (subtitle()) {
+          @if (isHost()) {
+            <button
+              type="button"
+              class="subtitle"
+              [attr.aria-label]="'Edit session settings: ' + subtitle()"
+              (click)="openSessionSettings()"
+            >
+              <span>{{ subtitle() }}</span>
+              <ion-icon name="pencil-outline" aria-hidden="true"></ion-icon>
+            </button>
+          } @else {
+            <ion-chip outline class="subtitle-chip">
+              {{ subtitle() }}
+            </ion-chip>
+          }
+        }
       }
 
       <ion-list lines="inset" class="actions">
@@ -586,6 +596,18 @@ import type { AgendaItem } from '@hnch/shared';
         font: inherit;
         cursor: pointer;
         text-align: left;
+        transition: color 120ms ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+      }
+      .subtitle > span {
+        min-width: 0;
+      }
+      .subtitle ion-icon {
+        font-size: 1rem;
+        color: inherit;
         transition: color 120ms ease;
       }
       .subtitle:focus-visible {
