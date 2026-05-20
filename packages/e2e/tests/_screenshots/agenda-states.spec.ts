@@ -104,7 +104,7 @@ async function addItem(page: Page, input: { title?: string; ticketId?: string })
 }
 
 test.describe('agenda state screenshots', () => {
-  test('desktop — all agenda states', async ({ browser }) => {
+  test('desktop — all agenda states @host @layout', async ({ browser }) => {
     test.setTimeout(180_000);
     const { ctx, page } = await freshCtx(browser, { width: 1440, height: 900 });
 
@@ -205,7 +205,9 @@ test.describe('agenda state screenshots', () => {
     }
   });
 
-  test('mobile — joiner chip collapsed + expanded', async ({ browser }) => {
+  test('mobile — joiner chip collapsed + expanded @host @layout @participants', async ({
+    browser,
+  }) => {
     test.setTimeout(90_000);
 
     // Host session with items

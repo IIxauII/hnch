@@ -56,3 +56,7 @@ Thumbs.db
 
 # Node.js compile cache (runtime artefact, not source)
 node-compile-cache/
+
+# Screenshot scope hint — per-author, per-feature; read by
+# scripts/screenshot-publish.mjs as a Playwright --grep regex.
+.screenshot-tags

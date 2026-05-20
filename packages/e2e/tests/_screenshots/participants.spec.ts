@@ -62,7 +62,7 @@ async function onboard(page: Page, name: string): Promise<void> {
 }
 
 test.describe('participant management screenshots', () => {
-  test('viewer role chip on estimating', async ({ browser }) => {
+  test('viewer role chip on estimating @participants @viewer', async ({ browser }) => {
     test.setTimeout(90_000);
     const viewport = { width: 1440, height: 900 };
     const contexts: BrowserContext[] = [];
@@ -124,7 +124,7 @@ test.describe('participant management screenshots', () => {
     }
   });
 
-  test('swipe-kick affordance (mobile)', async ({ browser }) => {
+  test('swipe-kick affordance (mobile) @participants @host', async ({ browser }) => {
     test.setTimeout(90_000);
     // iPhone 13 viewport: pointer:coarse → swipe drawer visible
     const mobileVp = { width: 390, height: 844 };
@@ -171,7 +171,7 @@ test.describe('participant management screenshots', () => {
     }
   });
 
-  test('leave-session confirm alert', async ({ browser }) => {
+  test('leave-session confirm alert @participants', async ({ browser }) => {
     test.setTimeout(60_000);
     const viewport = { width: 1440, height: 900 };
     const contexts: BrowserContext[] = [];

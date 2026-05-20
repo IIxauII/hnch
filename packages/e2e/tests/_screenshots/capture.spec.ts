@@ -95,7 +95,7 @@ test.describe.configure({ mode: 'serial' });
 test.skip(!process.env['SCREENSHOT_CAPTURE'], 'set SCREENSHOT_CAPTURE=1 to run');
 
 test.describe('screenshot capture', () => {
-  test('desktop 1440', async ({ browser }) => {
+  test('desktop 1440 @all @layout @theming @home', async ({ browser }) => {
     test.setTimeout(240_000);
     const { ctx, page } = await freshContext(browser, { width: 1440, height: 900 });
     try {
@@ -264,7 +264,7 @@ test.describe('screenshot capture', () => {
     }
   });
 
-  test('mobile 390', async ({ browser }) => {
+  test('mobile 390 @all @layout @theming @home', async ({ browser }) => {
     test.setTimeout(240_000);
     const { ctx, page } = await freshContext(browser, { width: 390, height: 844 });
     try {
@@ -338,7 +338,7 @@ test.describe('screenshot capture', () => {
    * TODO Phase 1 verification: confirm app-connection-chip appears in lobby header
    * and that ion-chip.connection-chip selector matches after 5.5 s offline.
    */
-  test('connection chip — offline + reconnected', async ({ browser }) => {
+  test('connection chip — offline + reconnected @connection', async ({ browser }) => {
     test.setTimeout(60_000);
     const { ctx, page } = await freshContext(browser, { width: 1440, height: 900 });
     try {
