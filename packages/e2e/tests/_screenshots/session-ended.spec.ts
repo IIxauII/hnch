@@ -64,7 +64,9 @@ async function clickMenuOption(page: Page, text: string): Promise<void> {
 }
 
 test.describe('session ended screenshots', () => {
-  test('end session confirm alert + joiner toast on home', async ({ browser }) => {
+  test('end session confirm alert + joiner toast on home @session-end @host', async ({
+    browser,
+  }) => {
     test.setTimeout(90_000);
     const viewport = { width: 1440, height: 900 };
     const contexts: BrowserContext[] = [];

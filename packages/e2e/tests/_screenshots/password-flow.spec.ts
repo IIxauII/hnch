@@ -60,7 +60,7 @@ async function onboard(page: Page, name: string): Promise<void> {
 }
 
 test.describe('password flow screenshots', () => {
-  test('password sheet + wrong-password error', async ({ browser }) => {
+  test('password sheet + wrong-password error @password', async ({ browser }) => {
     test.setTimeout(120_000);
     const { ctx: hostCtx, page: hostPage } = await freshCtx(browser, {
       width: 1440,

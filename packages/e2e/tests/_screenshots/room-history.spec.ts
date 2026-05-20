@@ -105,32 +105,32 @@ for (const theme of ['light', 'dark'] as const) {
     ['portal', VP_PORTAL],
     ['mobile', VP_MOBILE],
   ] as const) {
-    test(`${vpName}-${theme}-empty`, async ({ browser }) => {
+    test(`${vpName}-${theme}-empty @home @history`, async ({ browser }) => {
       const { page, close } = await newPage(browser, vp, theme, []);
       await shot(page, `home-empty-${vpName}-${theme}`);
       await close();
     });
 
-    test(`${vpName}-${theme}-one-entry`, async ({ browser }) => {
+    test(`${vpName}-${theme}-one-entry @home @history`, async ({ browser }) => {
       const { page, close } = await newPage(browser, vp, theme, [FIVE_ROOMS[0]!]);
       await shot(page, `home-one-${vpName}-${theme}`);
       await close();
     });
 
-    test(`${vpName}-${theme}-two-entries`, async ({ browser }) => {
+    test(`${vpName}-${theme}-two-entries @home @history`, async ({ browser }) => {
       const { page, close } = await newPage(browser, vp, theme, FIVE_ROOMS.slice(0, 2));
       await shot(page, `home-two-${vpName}-${theme}`);
       await close();
     });
 
-    test(`${vpName}-${theme}-five-entries`, async ({ browser }) => {
+    test(`${vpName}-${theme}-five-entries @home @history`, async ({ browser }) => {
       const { page, close } = await newPage(browser, vp, theme, FIVE_ROOMS);
       await shot(page, `home-five-${vpName}-${theme}`);
       await close();
     });
   }
 
-  test(`portal-${theme}-hover-x`, async ({ browser }) => {
+  test(`portal-${theme}-hover-x @home @history`, async ({ browser }) => {
     const { page, close } = await newPage(browser, VP_PORTAL, theme, FIVE_ROOMS.slice(0, 3));
     // Hover the first recent-rooms row so the × button reveals.
     const firstRow = page.locator('app-recent-rooms-list ion-item-sliding').first();
@@ -139,7 +139,7 @@ for (const theme of ['light', 'dark'] as const) {
     await close();
   });
 
-  test(`mobile-${theme}-swipe-remove`, async ({ browser }) => {
+  test(`mobile-${theme}-swipe-remove @home @history`, async ({ browser }) => {
     const { page, close } = await newPage(browser, VP_MOBILE, theme, FIVE_ROOMS.slice(0, 3));
     // Programmatically open the IonItemSliding to expose the Remove option.
     await page

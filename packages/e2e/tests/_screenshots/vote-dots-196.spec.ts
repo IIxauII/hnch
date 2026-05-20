@@ -113,7 +113,7 @@ const SCENARIOS: Scenario[] = [
 const PARTICIPANT_NAMES = ['Alice', 'Bob', 'Christopher'];
 
 for (const sc of SCENARIOS) {
-  test(`vote-dots ${sc.label}`, async ({ browser }) => {
+  test(`vote-dots ${sc.label} @scale @layout`, async ({ browser }) => {
     test.setTimeout(240_000);
 
     const clients: { ctx: BrowserContext; page: Page; name: string }[] = [];

@@ -58,9 +58,9 @@ SCREENSHOT_CAPTURE=1 SCREENSHOT_SHA=local \
 - **`capture.spec.ts`** — single-host linear tour (onboarding → home → settings → join → lobby → estimating → results). Add single-context, single-viewport scenes here.
 - **`<feature>.spec.ts`** — multi-client + timing-sensitive scenes (password, reveal, skip, history, participants, cap, session-end, connection). One file per UI surface.
 
-### Tag catalog (forward-ref to Phase 4)
+### Tag catalog
 
-Per scene/`test()`, annotate with Playwright tags so `.screenshot-tags` can narrow capture to relevant subsets. Catalog (final list defined in Phase 4 of the plan):
+Every `test()` under `_screenshots/` is annotated with one or more Playwright tags. `.screenshot-tags` (repo root, gitignored) holds a `--grep` regex — `scripts/screenshot-publish.mjs` passes it through. Empty/missing → full suite runs.
 
 | Tag | Scope |
 |---|---|
@@ -80,7 +80,40 @@ Per scene/`test()`, annotate with Playwright tags so `.screenshot-tags` can narr
 | `@home` | home and last-session card |
 | `@onboarding` | first-run name entry |
 
-`.screenshot-tags` (repo root, gitignored) — one regex like `@participants|@viewer` — is read by `scripts/screenshot-publish.mjs` and translated into `--grep`. Empty/missing = full suite.
+**`.screenshot-tags` format.** A single line containing a Playwright `--grep` regex. Tags are space-separated inside test titles, so any tag substring matches. Examples:
+
+```
+# capture only viewer + participants scenes
+@viewer|@participants
+
+# capture all theming surfaces and the always-run baseline
+@theming|@all
+
+# capture reveal + skip flows
+@reveal|@skip
+```
+
+**Skills (`/plan`, `/spec`).** When the requested change scope is known, the skill writes `.screenshot-tags` so the next pre-push run captures only the relevant scenes. `/critique` reads `.screenshot-tags` and flags scope mismatches during plan review.
+
+**Tag-to-file map** (one tag → many tests across files; one test → many tags):
+
+| Tag | Files producing scenes |
+|---|---|
+| `@all` | `capture.spec.ts`, `estimating-shot.spec.ts` |
+| `@theming` | `avatar-color.spec.ts`, `capture.spec.ts`, `estimating-shot.spec.ts`, `vote-bars-shot.spec.ts` |
+| `@layout` | `agenda-states.spec.ts`, `capture.spec.ts`, `estimating-shot.spec.ts`, `keyboard-shortcuts.spec.ts`, `vote-bars-shot.spec.ts`, `vote-dots-196.spec.ts` |
+| `@participants` | `agenda-states.spec.ts`, `avatar-color.spec.ts`, `participant-cap.spec.ts`, `participants.spec.ts` |
+| `@viewer` | `participants.spec.ts` |
+| `@host` | `agenda-states.spec.ts`, `participants.spec.ts`, `session-ended.spec.ts`, `skip-round.spec.ts` |
+| `@password` | `password-flow.spec.ts` |
+| `@reveal` | `reveal-transition.spec.ts`, `vote-bars-shot.spec.ts` |
+| `@skip` | `skip-round.spec.ts` |
+| `@history` | `room-history.spec.ts`, `round-history.spec.ts` |
+| `@scale` | `vote-dots-196.spec.ts` |
+| `@connection` | `capture.spec.ts`, `connection-states.spec.ts` |
+| `@session-end` | `session-ended.spec.ts` |
+| `@home` | `capture.spec.ts`, `room-history.spec.ts` |
+| `@onboarding` | `keyboard-shortcuts.spec.ts` |
 
 ### Scene index (Phase 1)
 

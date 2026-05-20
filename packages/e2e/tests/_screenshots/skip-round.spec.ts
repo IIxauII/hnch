@@ -61,7 +61,7 @@ async function onboard(page: Page, name: string): Promise<void> {
 }
 
 test.describe('skip round screenshots', () => {
-  test('skip action menu open + lobby skipped state', async ({ browser }) => {
+  test('skip action menu open + lobby skipped state @skip @host', async ({ browser }) => {
     test.setTimeout(120_000);
     const viewport = { width: 1440, height: 900 };
     const contexts: BrowserContext[] = [];

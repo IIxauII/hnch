@@ -83,7 +83,7 @@ async function castAndWaitLobby(pages: Page[], votes: string[], hostPage: Page):
 }
 
 test.describe('round history screenshots', () => {
-  test('populated history + departed name resolves', async ({ browser }) => {
+  test('populated history + departed name resolves @history', async ({ browser }) => {
     test.setTimeout(180_000);
     const viewport = { width: 1440, height: 900 };
     const contexts: BrowserContext[] = [];

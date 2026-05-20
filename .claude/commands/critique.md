@@ -65,4 +65,6 @@ When critiquing a UI-touching spec/plan (paths under `packages/client/**`; keywo
 https://github.com/IIxauII/hnch/blob/main/docs/screenshots/latest/<scene>.png?raw=true
 ```
 
-Use them to verify the spec/plan's claims about current behavior match reality, and to spot scenes the change touches but the spec/plan doesn't mention. In Phase 4, also read `.screenshot-tags` (repo root) — if the listed tags miss obviously-affected surfaces, that's a critique to surface.
+Use them to verify the spec/plan's claims about current behavior match reality, and to spot scenes the change touches but the spec/plan doesn't mention.
+
+**Also read `.screenshot-tags`** (repo root, gitignored) if present. It is a Playwright `--grep` regex written by `/plan` or `/spec` to scope the pre-push capture. Tag catalog + per-tag file map: `packages/e2e/README.md → Tag catalog`. If the listed tags miss obviously-affected surfaces (e.g. plan touches participant rosters but `.screenshot-tags` only lists `@theming`), surface that as a critique under "missed scope". If the file is absent on a UI plan, the hook will run the full suite — usually fine, but flag if the diff is small enough that scoping would speed up review cycles.
