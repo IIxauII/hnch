@@ -14,15 +14,18 @@
  */
 import path from 'node:path';
 import fs from 'node:fs';
-import { execSync } from 'node:child_process';
 import { test, type BrowserContext, type Page } from '@playwright/test';
-import { BASE_URL, LOBBY, ROUND_START, HOME } from '../fixtures/helpers';
+import {
+  BASE_URL,
+  LOBBY,
+  HOME,
+  expandRoundStartSheet,
+  clickRoundStartSubmit,
+} from '../fixtures/helpers';
 
-const SHA =
-  process.env['SCREENSHOT_SHA'] ??
-  execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
+const SHA = process.env['SCREENSHOT_SHA'] ?? 'local';
 
-const OUT_DIR = path.resolve(__dirname, '../../../../.claude/screens', SHA, 'agenda');
+const OUT_DIR = path.resolve(__dirname, '../../../../docs/screenshots', SHA, 'agenda');
 
 // Disable trace/video/screenshot artefacts — we write our own files.
 test.use({ trace: 'off', video: 'off', screenshot: 'off' });
@@ -161,15 +164,11 @@ test.describe('agenda state screenshots', () => {
         .filter({ hasText: LOBBY.startRoundBtn });
       await startRoundBtn.waitFor({ state: 'visible' });
       await startRoundBtn.click();
-      const modal = page.locator('app-round-start-sheet');
-      await modal.waitFor({ state: 'visible' });
+      await expandRoundStartSheet(page);
       await shot(page, '06-round-start-modal-prefilled');
 
       // Start round, vote, and return to lobby
-      const startBtn = page.locator(ROUND_START.startBtn);
-      await startBtn.waitFor({ state: 'visible' });
-      await startBtn.click();
-      await page.waitForURL(/\/estimating/, { timeout: 15_000 });
+      await clickRoundStartSubmit(page);
       await page.locator('app-estimating:not(.ion-page-hidden)').waitFor({ state: 'visible' });
       await page
         .locator('app-estimating ion-card.card:has(ion-card-content:text-is("5"))')

@@ -118,6 +118,48 @@ export const ROUND_START = {
   startBtn: 'app-round-start-sheet ion-button:has-text("Start")',
 } as const;
 
+/**
+ * Drive the round-start `<ion-modal>` to its top breakpoint and wait for
+ * the animation to settle. On mobile (`initialBreakpoint=0.6`), Playwright's
+ * click on the Start button races with the drag-handle / backdrop layer
+ * and silently dismisses the sheet without navigating — `waitForURL`
+ * then hangs the entire test timeout. On desktop, the modal renders as
+ * a centered dialog (no breakpoints), so `setCurrentBreakpoint` is a
+ * no-op there. Call once after `app-round-start-sheet` becomes visible.
+ */
+export async function expandRoundStartSheet(page: Page): Promise<void> {
+  await page.locator('app-round-start-sheet').waitFor({ state: 'visible' });
+  const modal = page.locator('app-round-start-sheet').locator('xpath=ancestor::ion-modal');
+  await modal.evaluate(
+    async (el: HTMLElement & { setCurrentBreakpoint?: (b: number) => Promise<void> }) => {
+      if (typeof el.setCurrentBreakpoint === 'function') {
+        await el.setCurrentBreakpoint(0.95);
+      }
+    },
+  );
+  await page.waitForTimeout(400);
+}
+
+/**
+ * Click the round-start footer Start button and wait for navigation to
+ * `/estimating`. Uses force + dispatchEvent to bypass the bottom-sheet
+ * actionability race that intermittently dismisses the sheet without
+ * navigating on mobile viewports. Call after the title input has been
+ * filled and blurred.
+ */
+export async function clickRoundStartSubmit(page: Page): Promise<void> {
+  const btn = page.locator(ROUND_START.startBtn);
+  await btn.waitFor({ state: 'visible' });
+  // Dispatch click programmatically — on mobile viewports the bottom-sheet
+  // footer can render the Start button just below the visible scroll area
+  // (`outside of the viewport` even after scrollIntoViewIfNeeded), and
+  // `force: true` doesn't skip Playwright's viewport check. dispatchEvent
+  // fires the click on the element directly, which Angular/Ionic handle
+  // identically to a real tap for purposes of the click handler.
+  await btn.dispatchEvent('click');
+  await page.waitForURL(/\/estimating/, { timeout: 15_000 });
+}
+
 // ---------------------------------------------------------------------------
 // Estimating
 // ---------------------------------------------------------------------------

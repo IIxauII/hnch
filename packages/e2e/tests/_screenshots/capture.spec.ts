@@ -28,6 +28,8 @@ import {
   APP_SETTINGS_SCALE_PICKER,
   PRESET_CARD_EDITOR,
   CONNECTION_CHIP,
+  expandRoundStartSheet,
+  clickRoundStartSubmit,
 } from '../fixtures/helpers';
 
 const SHA = process.env['SCREENSHOT_SHA'] ?? 'local';
@@ -178,14 +180,13 @@ test.describe('screenshot capture', () => {
         .locator('app-lobby:not(.ion-page-hidden) ion-button')
         .filter({ hasText: LOBBY.startRoundBtn });
       await startBtn1.click();
-      await page.locator('app-round-start-sheet').waitFor({ state: 'visible' });
-      await page.waitForTimeout(400);
+      await expandRoundStartSheet(page);
       await shot(page, '12-round-start-modal');
 
       // 13 — estimating (after typing title + confirming)
       await page.locator(ROUND_START.titleInput).locator('input').fill(ROUND_TITLE);
-      await page.locator(ROUND_START.startBtn).click();
-      await page.waitForURL(/\/estimating/);
+      await page.locator(ROUND_START.titleInput).locator('input').blur();
+      await clickRoundStartSubmit(page);
       await page.locator(ESTIMATING.cardGrid).waitFor({ state: 'visible' });
       await page.waitForTimeout(600);
       await shot(page, '13-estimating-1440');
@@ -299,10 +300,10 @@ test.describe('screenshot capture', () => {
         .locator('app-lobby:not(.ion-page-hidden) ion-button')
         .filter({ hasText: LOBBY.startRoundBtn });
       await startBtn.click();
-      await page.locator('app-round-start-sheet').waitFor({ state: 'visible' });
+      await expandRoundStartSheet(page);
       await page.locator(ROUND_START.titleInput).locator('input').fill(ROUND_TITLE);
-      await page.locator(ROUND_START.startBtn).click();
-      await page.waitForURL(/\/estimating/);
+      await page.locator(ROUND_START.titleInput).locator('input').blur();
+      await clickRoundStartSubmit(page);
       await page.locator(ESTIMATING.cardGrid).waitFor({ state: 'visible' });
       await page.waitForTimeout(600);
       await shot(page, '22-estimating-390');
@@ -319,8 +320,7 @@ test.describe('screenshot capture', () => {
       // 21 — round-start modal for Round 2
       const nextBtn = page.locator('ion-button').filter({ hasText: LOBBY.nextRoundBtn });
       await nextBtn.click();
-      await page.locator('app-round-start-sheet').waitFor({ state: 'visible' });
-      await page.waitForTimeout(400);
+      await expandRoundStartSheet(page);
       await shot(page, '21-round-start-390');
     } finally {
       await ctx.close();
