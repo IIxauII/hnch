@@ -4,13 +4,14 @@
  *
  * Drives 5 participants with a spread vote distribution (3 / 5×3 / 8) so the
  * row-fill bars render with a clear plurality and two trailing groups.
- * Writes PNGs to .claude/screens/vote-bars/ in light + dark, desktop + mobile.
+ * Writes PNGs to docs/screenshots/<sha>/ in light + dark, desktop + mobile.
  *
  * Run:
  *   pnpm --filter @hnch/e2e exec playwright test \
  *     --project=chromium --workers=1 --reporter=list \
  *     tests/_screenshots/vote-bars-shot.spec.ts
  */
+import fs from 'node:fs';
 import path from 'node:path';
 import { test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import {
@@ -21,9 +22,12 @@ import {
   ROUND_START,
   ESTIMATING,
   fillRoomCode,
+  expandRoundStartSheet,
+  clickRoundStartSubmit,
 } from '../fixtures/helpers';
 
-const OUT_DIR = path.resolve(__dirname, '../../../../.claude/screens/vote-bars');
+const SHA = process.env['SCREENSHOT_SHA'] ?? 'local';
+const OUT_DIR = path.resolve(__dirname, '../../../../docs/screenshots', SHA);
 
 const ROUND_TITLE = 'Implement OAuth flow';
 // Capped at 3 voters: playwright runs against the relay with HNCH_ROOM_CAP=3
@@ -108,10 +112,10 @@ async function runScenario(
       .locator('app-lobby:not(.ion-page-hidden) ion-button')
       .filter({ hasText: LOBBY.startRoundBtn });
     await startBtn.click();
-    await hostPage.locator('app-round-start-sheet').waitFor({ state: 'visible' });
+    await expandRoundStartSheet(hostPage);
     await hostPage.locator(ROUND_START.titleInput).locator('input').fill(ROUND_TITLE);
-    await hostPage.locator(ROUND_START.startBtn).click();
-    await hostPage.waitForURL(/\/estimating/);
+    await hostPage.locator(ROUND_START.titleInput).locator('input').blur();
+    await clickRoundStartSubmit(hostPage);
 
     // All vote
     await castVote(hostPage, VOTERS[0]!.vote);
@@ -124,6 +128,7 @@ async function runScenario(
     await hostPage.locator(LOBBY.resultsSection).waitFor({ state: 'visible' });
     await hostPage.waitForTimeout(800); // settle stagger + bar
 
+    fs.mkdirSync(OUT_DIR, { recursive: true });
     await hostPage.screenshot({
       path: path.join(OUT_DIR, `${outName}.png`),
       fullPage: false,
