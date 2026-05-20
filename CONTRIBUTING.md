@@ -134,7 +134,7 @@ Two surfaces, both automated:
 
 A `lefthook` pre-push hook (`pre-push.commands.screenshots`) runs whenever a push includes changes under `packages/{client,shared,e2e/tests/_screenshots,e2e/tests/fixtures}/**`. It:
 
-1. Runs `packages/e2e/tests/_screenshots/` (full suite by default; `.screenshot-tags` regex narrows scope — see Phase 4 of the plan).
+1. Runs `packages/e2e/tests/_screenshots/` (full suite by default; `.screenshot-tags` in the worktree narrows scope — materialised from the plan doc's `## Screenshot tags` section by `pnpm worktree:add --plan <slug>`).
 2. Publishes PNGs to the `screenshots` branch under `sha-<short>/` via `git fetch + reset + push` with retry on rejection (non-force).
 3. Updates a sticky PR comment marked `<!-- hnch-screenshots -->` with inline `blob/<branch>/...?raw=true` embeds — the only embed pattern that renders on both mobile and desktop GitHub.
 
@@ -166,7 +166,7 @@ Output lands under `docs/screenshots/local/`. This directory is **not** gitignor
 
 - **Hook ran but no comment appeared.** Check that `gh auth status` shows you logged in. The hook bails (exit 0) if `gh` is missing — install via `brew install gh && gh auth login`.
 - **Push rejected after capture succeeded.** The retry loop fetches+resets `origin/screenshots` and re-pushes up to 5 times. If all 5 attempts fail, the hook exits 0 (push proceeds); re-run `pnpm screenshots:publish` once the contention clears.
-- **Capture took too long, push timed out.** Narrow scope via a `.screenshot-tags` file at the repo root (single line, Playwright `--grep` regex, e.g. `@theming|@layout`). See `packages/e2e/README.md` for the tag catalog.
+- **Capture took too long, push timed out.** Narrow scope by adding a `## Screenshot tags` section to the plan doc (canonical source) and re-creating the worktree with `pnpm worktree:add <name> --plan <slug>`, or by `HNCH_PLAN_SLUG=<slug> pnpm worktree:bootstrap` inside an existing worktree. As an escape hatch, you can also hand-write `.screenshot-tags` at the worktree root (single line, Playwright `--grep` regex, e.g. `@theming|@layout`). See `packages/e2e/README.md` for the tag catalog.
 - **`@{push}` not configured.** First push of a branch falls back to comparing vs `origin/main`. After `git push -u origin <branch>` lands, subsequent pushes use `@{push}` directly.
 - **Need to re-publish without pushing code.** `pnpm screenshots:publish` — always runs full capture against `HEAD`, regardless of diff state.
 - **Manual escape.** `git push --no-verify` skips the hook completely. The next non-bypassed push that touches a relevant file will republish.
