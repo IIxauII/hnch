@@ -60,7 +60,7 @@ SCREENSHOT_CAPTURE=1 SCREENSHOT_SHA=local \
 
 ### Tag catalog
 
-Every `test()` under `_screenshots/` is annotated with one or more Playwright tags. `.screenshot-tags` (repo root, gitignored) holds a `--grep` regex — `scripts/screenshot-publish.mjs` passes it through. Empty/missing → full suite runs.
+Every `test()` under `_screenshots/` is annotated with one or more Playwright tags. `.screenshot-tags` (worktree root, gitignored) holds a `--grep` regex — `scripts/screenshot-publish.mjs` passes it through. Empty/missing → full suite runs. The file is materialised inside worktrees by `pnpm worktree:add --plan <slug>` (or `HNCH_PLAN_SLUG=<slug> pnpm worktree:bootstrap`), parsed from the plan doc's `## Screenshot tags` section. Skills do not write this file directly; the primary worktree (`main`) should never contain it.
 
 | Tag | Scope |
 |---|---|
@@ -80,7 +80,7 @@ Every `test()` under `_screenshots/` is annotated with one or more Playwright ta
 | `@home` | home and last-session card |
 | `@onboarding` | first-run name entry |
 
-**`.screenshot-tags` format.** A single line containing a Playwright `--grep` regex. Tags are space-separated inside test titles, so any tag substring matches. Examples:
+**`.screenshot-tags` format.** A single line containing a Playwright `--grep` regex (with optional trailing newline). Tags are space-separated inside test titles, so any tag substring matches. Authoritative source is the plan doc; this file is just the materialised cache inside a worktree. Examples:
 
 ```
 # capture only viewer + participants scenes
@@ -93,7 +93,7 @@ Every `test()` under `_screenshots/` is annotated with one or more Playwright ta
 @reveal|@skip
 ```
 
-**Skills (`/plan`, `/spec`).** When the requested change scope is known, the skill writes `.screenshot-tags` so the next pre-push run captures only the relevant scenes. `/critique` reads `.screenshot-tags` and flags scope mismatches during plan review.
+**Skills (`/plan`, `/spec`, `/critique`).** `/plan` writes a `## Screenshot tags` section into the plan doc — a heading followed by a paragraph whose first inline code span is the regex (e.g. `` `@viewer|@participants` ``). `/spec` does not author tags. `/critique` reads the section from the plan doc and flags scope mismatches. The `.screenshot-tags` file is materialised inside the worktree at `pnpm worktree:add --plan <slug>` time, so parallel worktrees never collide on `main`.
 
 **Tag-to-file map** (one tag → many tests across files; one test → many tags):
 

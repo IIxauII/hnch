@@ -155,6 +155,35 @@ echo "→ Wrote .env.local"
 echo "→ Running pnpm install..."
 pnpm install
 
+# --- Step 6: write .screenshot-tags from plan, if HNCH_PLAN_SLUG set --------
+# Parses the first inline code span under a `## Screenshot tags` heading in
+# docs/plans/<slug>.md and writes it to .screenshot-tags at worktree root.
+# No-op when the env var is unset, so re-running bootstrap is safe.
+if [ -n "${HNCH_PLAN_SLUG:-}" ]; then
+  PLAN_FILE="$(git rev-parse --show-toplevel)/docs/plans/${HNCH_PLAN_SLUG}.md"
+  if [ ! -f "$PLAN_FILE" ]; then
+    echo "✗ Plan not found: $PLAN_FILE" >&2
+    exit 1
+  fi
+  TAGS_REGEX="$(awk '
+    /^#{1,6}[[:space:]]+[Ss]creenshot [Tt]ags([[:space:]]|$)/ { in_section = 1; next }
+    in_section && /^#{1,6}[[:space:]]/ { exit }
+    in_section {
+      if (match($0, /`[^`]+`/)) {
+        s = substr($0, RSTART + 1, RLENGTH - 2)
+        print s
+        exit
+      }
+    }
+  ' "$PLAN_FILE")"
+  if [ -n "$TAGS_REGEX" ]; then
+    printf '%s\n' "$TAGS_REGEX" > .screenshot-tags
+    echo "→ Wrote .screenshot-tags from plan '$HNCH_PLAN_SLUG': $TAGS_REGEX"
+  else
+    echo "→ Plan '$HNCH_PLAN_SLUG' has no '## Screenshot tags' section — leaving .screenshot-tags unchanged"
+  fi
+fi
+
 echo ""
 echo "✓ Worktree bootstrap complete."
 echo ""
