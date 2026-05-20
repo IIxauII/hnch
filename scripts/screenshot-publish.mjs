@@ -223,10 +223,30 @@ function buildCommentBody(sha, prNum) {
     `<sub>PR #${prNum} · ${files.length} image${files.length === 1 ? '' : 's'} · branch \`${SCREENSHOTS_BRANCH}\`</sub>`,
   );
   lines.push('');
+  // Group by first path segment (feature subfolder). Files at sha root (no
+  // segment) — should not occur after OUT_DIR normalization — fall into a
+  // synthetic '_root' group at the top so they remain visible if present.
+  const groups = new Map();
   for (const rel of files) {
-    const url = `https://github.com/${REPO}/blob/${SCREENSHOTS_BRANCH}/sha-${sha}/${rel}?raw=true`;
-    const alt = rel.replace(/\.png$/, '');
-    lines.push(`![${alt}](${url})`);
+    const slash = rel.indexOf('/');
+    const feature = slash === -1 ? '_root' : rel.slice(0, slash);
+    if (!groups.has(feature)) groups.set(feature, []);
+    groups.get(feature).push(rel);
+  }
+  const featureOrder = [...groups.keys()].toSorted((a, b) => {
+    if (a === '_root') return -1;
+    if (b === '_root') return 1;
+    return a.localeCompare(b);
+  });
+  for (const feature of featureOrder) {
+    lines.push(`### ${feature === '_root' ? '(uncategorized)' : feature}`);
+    lines.push('');
+    for (const rel of groups.get(feature)) {
+      const url = `https://github.com/${REPO}/blob/${SCREENSHOTS_BRANCH}/sha-${sha}/${rel}?raw=true`;
+      const alt = rel.replace(/\.png$/, '');
+      lines.push(`![${alt}](${url})`);
+    }
+    lines.push('');
   }
   return lines.join('\n');
 }

@@ -146,7 +146,18 @@ If you push before opening a PR, the hook prints a stderr advisory and exits 0. 
 
 ### Main CI workflow (canonical reference)
 
-`.github/workflows/screenshots-main.yml` runs on every push to `main` touching the same glob. It runs the full suite and commits PNGs to `main` under `docs/screenshots/<sha>/`, updates the `docs/screenshots/latest` symlink, and prunes to the newest 10 sha dirs. Skills (`/triage`, `/plan`, `/spec`, `/critique`) consult `docs/screenshots/latest/` on `main` as the canonical "what the app looks like now" reference.
+`.github/workflows/screenshots-main.yml` runs on every push to `main` touching the same glob. It runs the full suite and commits PNGs to `main` under `docs/screenshots/<sha>/<feature>/`, updates the `docs/screenshots/latest` symlink, and prunes to the newest 10 sha dirs. Skills (`/triage`, `/plan`, `/spec`, `/critique`) consult `docs/screenshots/latest/<feature>/` on `main` as the canonical "what the app looks like now" reference.
+
+### OUT_DIR layout
+
+Every spec under `packages/e2e/tests/_screenshots/*.spec.ts` resolves its output directory via the shared helper at `_helpers/out-dir.ts`:
+
+```ts
+import { resolveOutDir } from './_helpers/out-dir';
+const OUT_DIR = resolveOutDir('reveal'); // → docs/screenshots/<sha>/reveal/
+```
+
+Slug = the spec's primary `@tag` (see `packages/e2e/README.md` → Tag catalog). When two specs share one feature subfolder, each prefixes its PNG filenames with its basename (`participants-01-roster.png` vs `participant-cap-01-lobby.png`). Do not hardcode `path.resolve(...)` or `fs.mkdirSync(...)` in new specs.
 
 ### Scope (ADR-0028)
 
@@ -160,7 +171,7 @@ SCREENSHOT_CAPTURE=1 SCREENSHOT_SHA=local \
   --project=chromium --workers=1
 ```
 
-Output lands under `docs/screenshots/local/`. This directory is **not** gitignored — keep it out of commits by hand or rm before staging.
+Output lands under `docs/screenshots/local/<feature>/`. This directory is **not** gitignored — keep it out of commits by hand or rm before staging.
 
 ### Troubleshooting
 

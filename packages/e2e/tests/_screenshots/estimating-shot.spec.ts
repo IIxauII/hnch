@@ -16,6 +16,7 @@
  */
 import path from 'node:path';
 import { test, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { resolveOutDir } from './_helpers/out-dir';
 import {
   BASE_URL,
   ONBOARDING,
@@ -27,9 +28,7 @@ import {
   clickRoundStartSubmit,
 } from '../fixtures/helpers';
 
-const SHA = process.env['SCREENSHOT_SHA'] ?? 'local';
-const OUT_DIR = path.resolve(__dirname, '../../../../docs/screenshots', SHA);
-
+const OUT_DIR = resolveOutDir('layout');
 const ROUND_TITLE = 'Implement OAuth flow';
 // Host votes 3, joiner #1 votes 5, joiner #2 stays unvoted so auto-reveal
 // does not trigger and the host stays on /estimating for the screenshot.
