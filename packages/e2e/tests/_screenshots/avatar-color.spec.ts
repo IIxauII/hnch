@@ -2,19 +2,20 @@
 /**
  * Screenshot capture for ADR-0043 / issue #159 avatar color feature.
  *
- *   pnpm --filter @hnch/e2e exec playwright test \
+ *   SCREENSHOT_CAPTURE=1 pnpm --filter @hnch/e2e exec playwright test \
  *     --project=chromium --workers=1 --reporter=list \
  *     tests/_screenshots/avatar-color.spec.ts
  *
- * Writes PNGs into .claude/screens/avatar-color/. Opt-in via
- * SCREENSHOT_CAPTURE=1.
+ * Writes PNGs into docs/screenshots/<SHA>/ (SHA defaults to `local`).
  */
+import fs from 'node:fs';
 import path from 'node:path';
 import { test, type BrowserContext, type Page } from '@playwright/test';
 
 import { BASE_URL, ONBOARDING, HOME, LOBBY, ROUND_START, ESTIMATING } from '../fixtures/helpers';
 
-const OUT_DIR = path.resolve(__dirname, '../../../../.claude/screens/avatar-color');
+const SHA = process.env['SCREENSHOT_SHA'] ?? 'local';
+const OUT_DIR = path.resolve(__dirname, '../../../../docs/screenshots', SHA);
 
 test.use({ trace: 'off', video: 'off', screenshot: 'off' });
 test.describe.configure({ mode: 'serial' });
@@ -31,6 +32,7 @@ async function freshContext(
 }
 
 async function shot(page: Page, name: string): Promise<void> {
+  fs.mkdirSync(OUT_DIR, { recursive: true });
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(OUT_DIR, `${name}.png`), fullPage: false });
 }
@@ -92,7 +94,33 @@ async function captureSet(
       .filter({ hasText: LOBBY.startRoundBtn });
     await startBtn.click();
     await page.locator('app-round-start-sheet').waitFor({ state: 'visible' });
-    await page.getByRole('textbox', { name: 'Round title' }).fill('Auth flow');
+    // Settle wait: matches capture.spec.ts. Mobile bottom-sheet animates ~300ms;
+    // clicking before settle lands on the backdrop, which silently dismisses
+    // the sheet without navigating → 2-min timeout. Pattern from capture.spec.ts.
+    await page.waitForTimeout(400);
+    await page.locator(ROUND_START.titleInput).locator('input').fill('Auth flow');
+    // Blur the input before clicking the footer button. On mobile viewports
+    // the focused input shifts/scrolls the sheet enough that the next click
+    // can land on the backdrop instead of the button — silently dismisses
+    // the sheet without navigating, then waitForURL hangs for the full
+    // test timeout.
+    await page.locator(ROUND_START.titleInput).locator('input').blur();
+    // Drag-up the sheet handle to full breakpoint before clicking the footer
+    // button. The half-sheet's `initialBreakpoint=0.6` leaves the Start
+    // button just inside the viewport — but on small viewports Playwright's
+    // click can land on the sheet's drag handle or backdrop instead of the
+    // button itself. Expanding the sheet first eliminates the layer race.
+    const handle = page.locator('app-round-start-sheet').locator('xpath=ancestor::ion-modal');
+    await handle.evaluate(
+      (modal: HTMLElement & { setCurrentBreakpoint?: (b: number) => Promise<void> }) => {
+        if (typeof modal.setCurrentBreakpoint === 'function') {
+          return modal.setCurrentBreakpoint(0.95);
+        }
+        return undefined;
+      },
+    );
+    await page.waitForTimeout(400);
+    await page.locator(ROUND_START.startBtn).scrollIntoViewIfNeeded();
     await page.locator(ROUND_START.startBtn).click();
     await page.waitForURL(/\/estimating/);
     await page.locator(ESTIMATING.cardGrid).waitFor({ state: 'visible' });
@@ -108,22 +136,22 @@ async function captureSet(
 
 test.describe('avatar color screenshots', () => {
   test('desktop 1440 light @theming @participants', async ({ browser }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(180_000);
     await captureSet(browser, { width: 1440, height: 900 }, 'light', 'desktop-1440-light');
   });
 
   test('desktop 1440 dark @theming @participants', async ({ browser }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(180_000);
     await captureSet(browser, { width: 1440, height: 900 }, 'dark', 'desktop-1440-dark');
   });
 
   test('mobile 390 light @theming @participants', async ({ browser }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(180_000);
     await captureSet(browser, { width: 390, height: 844 }, 'light', 'mobile-390-light');
   });
 
   test('mobile 390 dark @theming @participants', async ({ browser }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(180_000);
     await captureSet(browser, { width: 390, height: 844 }, 'dark', 'mobile-390-dark');
   });
 });
