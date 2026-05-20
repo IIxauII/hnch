@@ -1,18 +1,24 @@
 /**
  * Unit tests for ConnectionChipComponent.
  *
- * Two strategies:
- *  1. Source-file structural checks — fast assertions on the template's
- *     accessibility and colour attributes.
- *  2. computeChipDisplay() pure-function tests — import the real exported
- *     function and assert each switch branch directly. No simulation.
+ * Tests the exported computeChipDisplay() pure function and the
+ * DISCONNECTED_WARNING_DELAY_MS constant. Both are imported directly from
+ * the production module — no source-text scanning.
+ *
+ * Removed: source-file structural checks (ChangeDetectionStrategy,
+ * aria-live, colour strings, onDestroy/clearTimeout). Source-text scanning
+ * imports nothing from production code and provides no runtime regression
+ * signal — if a template attribute is moved or renamed, these assertions pass
+ * while the behavior is broken. Behavioral coverage for ARIA attributes
+ * belongs in the e2e session-disconnect flow.
  *
  * Debounce integration (timer arms, cancels, fires) is covered by the
  * e2e session-disconnect flow; it requires driving the Angular effect()
  * with a live WebSocket, which is out of scope for unit tests.
  */
 
-import { readFileSync } from 'node:fs';
+// Exercises: connection-chip.component:computeChipDisplay, DISCONNECTED_WARNING_DELAY_MS
+
 import { describe, expect, it, vi } from 'vitest';
 
 // Mock Ionic/Capacitor imports that the component pulls in transitively
@@ -21,46 +27,15 @@ vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false }
 vi.mock('ionicons', () => ({ addIcons: () => {} }));
 vi.mock('ionicons/icons', () => ({ cloudOfflineOutline: '', syncOutline: '' }));
 
-// Exercises: connection-chip.component:computeChipDisplay, ChipState, DISCONNECTED_WARNING_DELAY_MS
 import { DISCONNECTED_WARNING_DELAY_MS, computeChipDisplay } from './connection-chip.component';
 
-// ---------------------------------------------------------------------------
-// Part 1 — Source-file structural checks
-// ---------------------------------------------------------------------------
-
-describe('ConnectionChipComponent structure', () => {
-  const src = readFileSync('./src/app/core/connection-chip.component.ts', 'utf-8');
-
-  it('exports DISCONNECTED_WARNING_DELAY_MS = 5000', () => {
+describe('DISCONNECTED_WARNING_DELAY_MS', () => {
+  it('equals 5000 ms (ADR-0025 debounce contract)', () => {
     expect(DISCONNECTED_WARNING_DELAY_MS).toBe(5_000);
-  });
-
-  it('uses ChangeDetectionStrategy.OnPush', () => {
-    expect(src).toContain('ChangeDetectionStrategy.OnPush');
-  });
-
-  it('chip has aria-live="polite" for screen-reader announcements', () => {
-    expect(src).toContain('aria-live="polite"');
-  });
-
-  it('disconnected state uses warning color', () => {
-    expect(src).toContain("color: 'warning'");
-  });
-
-  it('connecting state uses medium color', () => {
-    expect(src).toContain("color: 'medium'");
-  });
-
-  it('clears the debounce timer in DestroyRef.onDestroy', () => {
-    expect(src).toContain('onDestroy');
-    expect(src).toContain('clearTimeout');
   });
 });
 
-// ---------------------------------------------------------------------------
-// Part 2 — computeChipDisplay pure-function tests
-// ---------------------------------------------------------------------------
-
+// Exercises: connection-chip.component:computeChipDisplay
 describe('computeChipDisplay', () => {
   it('returns null when status is "connected"', () => {
     expect(computeChipDisplay('connected', false)).toBeNull();
