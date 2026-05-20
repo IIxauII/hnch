@@ -39,11 +39,17 @@ All screenshot specs live under `tests/_screenshots/` and are gated by `SCREENSH
 
 ### Output
 
-`docs/screenshots/<SHA>/<scene>.png` — relative to repo root. The `OUT_DIR` constant in each spec resolves via:
+`docs/screenshots/<SHA>/<feature>/<scene>.png` — relative to repo root. Every spec resolves its `OUT_DIR` via the shared helper:
 
 ```ts
-path.resolve(__dirname, '../../../../docs/screenshots', SHA);
+import { resolveOutDir } from './_helpers/out-dir';
+
+const OUT_DIR = resolveOutDir('reveal'); // → docs/screenshots/<sha>/reveal/
 ```
+
+`<feature>` is the spec's primary `@tag` (see Tag catalog below). When two specs share one feature subfolder (e.g. `participants.spec.ts` + `participant-cap.spec.ts` both → `participants/`), each spec prefixes its PNG filenames with its basename to avoid collisions: `participants-01-roster.png` vs `participant-cap-01-lobby.png`.
+
+The helper writes `mkdir -p` only when called — never at module import — so it is safe to import from non-test modules.
 
 ### Local manual run
 
@@ -64,7 +70,8 @@ Every `test()` under `_screenshots/` is annotated with one or more Playwright ta
 
 | Tag | Scope |
 |---|---|
-| `@all` | always-run baseline (home, lobby, estimating) |
+| `@all` | always-run grep-narrowing keyword — tag applied to every scene-test so a tag-scoped run includes the baseline |
+| `@baseline` | the canonical home/lobby/estimating tour (`capture.spec.ts`). Slug for the `baseline/` subfolder |
 | `@theming` | color/theme/accent surfaces |
 | `@layout` | layout-only changes (header, footer, padding) |
 | `@participants` | participant list, roster |
@@ -79,6 +86,12 @@ Every `test()` under `_screenshots/` is annotated with one or more Playwright ta
 | `@session-end` | host End Session → joiner toast |
 | `@home` | home and last-session card |
 | `@onboarding` | first-run name entry |
+| `@agenda` | agenda states (`agenda-states.spec.ts`) |
+| `@keyboard` | keyboard shortcuts surfaces (`keyboard-shortcuts.spec.ts`) |
+| `@vote-bars` | vote distribution bars (`vote-bars-shot.spec.ts`) |
+| `@vote-dots` | vote dot layout (`vote-dots-196.spec.ts`) |
+
+**Slug ≠ tag exactly.** Tags drive `--grep` scope selection; the OUT_DIR feature-slug is the *primary* tag of each spec (the one in the table above), and it is the name of the subfolder under `docs/screenshots/<sha>/`. `@all` is grep-only — it never appears as a slug.
 
 **`.screenshot-tags` format.** A single line containing a Playwright `--grep` regex (with optional trailing newline). Tags are space-separated inside test titles, so any tag substring matches. Authoritative source is the plan doc; this file is just the materialised cache inside a worktree. Examples:
 
@@ -115,16 +128,23 @@ Every `test()` under `_screenshots/` is annotated with one or more Playwright ta
 | `@home` | `capture.spec.ts`, `room-history.spec.ts` |
 | `@onboarding` | `keyboard-shortcuts.spec.ts` |
 
-### Scene index (Phase 1)
+### Scene index
 
-| File | Scenes |
-|---|---|
-| `capture.spec.ts` | Onboarding, home, home overflow, settings page, join page, lobby, session-settings sheet, scale picker, access picker, QR modal, lobby overflow, round-start modal, estimating, estimating w/ card selected, lobby results, custom scale editor, preset toggle, round-history empty, empty home, connection chip offline + reconnected |
-| `password-flow.spec.ts` | password sheet on join; wrong-password reject |
-| `reveal-transition.spec.ts` | pre-reveal all-voted; post-reveal lobby |
-| `skip-round.spec.ts` | host skip action; lobby skipped row; suppressed pre-skip votes |
-| `round-history.spec.ts` | populated history; departed-name resolution |
-| `participants.spec.ts` | viewer role badge + toggle; swipe-kick (mobile); leave-session confirm |
-| `participant-cap.spec.ts` | 4th joiner vs `HNCH_ROOM_CAP=3` → close 4006 |
-| `session-ended.spec.ts` | joiner-side toast on host's End Session |
-| `connection-states.spec.ts` | sustained disconnected (≥5,500 ms) |
+| File | Subfolder | Scenes |
+|---|---|---|
+| `capture.spec.ts` | `baseline/` | Onboarding, home, home overflow, settings page, join page, lobby, session-settings sheet, scale picker, access picker, QR modal, lobby overflow, round-start modal, estimating, estimating w/ card selected, lobby results, custom scale editor, preset toggle, round-history empty, empty home, connection chip offline + reconnected |
+| `password-flow.spec.ts` | `password/` | password sheet on join; wrong-password reject |
+| `reveal-transition.spec.ts` | `reveal/` | pre-reveal all-voted; post-reveal lobby |
+| `skip-round.spec.ts` | `skip/` | host skip action; lobby skipped row; suppressed pre-skip votes |
+| `round-history.spec.ts` | `history/` (prefixed `round-history-`) | populated history; departed-name resolution |
+| `room-history.spec.ts` | `history/` (prefixed `room-history-`) | home empty / one / two / five rooms; swipe-remove; hover-x |
+| `participants.spec.ts` | `participants/` (prefixed `participants-`) | viewer role badge + toggle; swipe-kick (mobile); leave-session confirm |
+| `participant-cap.spec.ts` | `participants/` (prefixed `participant-cap-`) | 4th joiner vs `HNCH_ROOM_CAP=3` → close 4006 |
+| `session-ended.spec.ts` | `session-end/` | joiner-side toast on host's End Session |
+| `connection-states.spec.ts` | `connection/` | sustained disconnected (≥5,500 ms) |
+| `avatar-color.spec.ts` | `theming/` | settings palette default + Pink; lobby + estimating with chosen color |
+| `agenda-states.spec.ts` | `agenda/` | empty agenda; add sheet open/filled; 3-item list; edit sheet; mid-session consumed; skipped/cancelled; joiner mobile collapsed/expanded |
+| `keyboard-shortcuts.spec.ts` | `keyboard/` | shortcuts overlay |
+| `vote-bars-shot.spec.ts` | `vote-bars/` | vote distribution bars (light/dark, desktop/mobile) |
+| `vote-dots-196.spec.ts` | `vote-dots/` | vote dot layout (issue #196) |
+| `estimating-shot.spec.ts` | `layout/` | estimating screen visual hierarchy (issue #191) |

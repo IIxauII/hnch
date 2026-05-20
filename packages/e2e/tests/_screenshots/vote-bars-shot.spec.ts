@@ -11,9 +11,9 @@
  *     --project=chromium --workers=1 --reporter=list \
  *     tests/_screenshots/vote-bars-shot.spec.ts
  */
-import fs from 'node:fs';
 import path from 'node:path';
 import { test, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { resolveOutDir } from './_helpers/out-dir';
 import {
   BASE_URL,
   ONBOARDING,
@@ -26,9 +26,7 @@ import {
   clickRoundStartSubmit,
 } from '../fixtures/helpers';
 
-const SHA = process.env['SCREENSHOT_SHA'] ?? 'local';
-const OUT_DIR = path.resolve(__dirname, '../../../../docs/screenshots', SHA);
-
+const OUT_DIR = resolveOutDir('vote-bars');
 const ROUND_TITLE = 'Implement OAuth flow';
 // Capped at 3 voters: playwright runs against the relay with HNCH_ROOM_CAP=3
 // (set by global-setup for test-route mode), so a 4th joiner gets 4006-rejected.
@@ -127,8 +125,6 @@ async function runScenario(
     await hostPage.waitForURL(/\/lobby/, { timeout: 15_000 });
     await hostPage.locator(LOBBY.resultsSection).waitFor({ state: 'visible' });
     await hostPage.waitForTimeout(800); // settle stagger + bar
-
-    fs.mkdirSync(OUT_DIR, { recursive: true });
     await hostPage.screenshot({
       path: path.join(OUT_DIR, `${outName}.png`),
       fullPage: false,
