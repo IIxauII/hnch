@@ -458,4 +458,38 @@ describe('VoteResultsComponent — consensus overlay', () => {
     expect(el.querySelector('.consensus-overlay')).not.toBeNull();
     expect(el.querySelector('.confetti-layer')).not.toBeNull();
   });
+
+  // Confetti spawn lifecycle — startConfetti initial burst, interval spawn, piece eviction, stopConfetti teardown
+  it('startConfetti emits initial batch + interval batches; pieces evict on their own; stopConfetti clears all', async () => {
+    vi.useFakeTimers();
+    try {
+      const round = makeRound({ votes: { p1: '5', p2: '5' } });
+      const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
+      const fixture = await mountVoteResults(round, participants);
+      const component = fixture.componentInstance;
+
+      // Advance past celebration delay (1 group × 80ms + 200ms = 280ms)
+      vi.advanceTimersByTime(300);
+
+      // Initial batch of 10 confetti pieces should be present
+      expect(component.showOverlay()).toBe(true);
+      expect(component.confettiPieces().length).toBeGreaterThanOrEqual(10);
+
+      // Advance 1s — second batch fires from setInterval (total ~20 pieces, no evictions yet since min duration+delay+50 = 750ms)
+      vi.advanceTimersByTime(1000);
+      const peak = component.confettiPieces().length;
+      expect(peak).toBeGreaterThan(10);
+
+      // Tap-dismiss → stopConfetti wipes all pieces + eviction timers
+      component.dismissOverlay();
+      expect(component.showOverlay()).toBe(false);
+      expect(component.confettiPieces().length).toBe(0);
+
+      // Advance well past any orphan eviction would have fired — no resurrection
+      vi.advanceTimersByTime(5000);
+      expect(component.confettiPieces().length).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
