@@ -13,9 +13,9 @@
  *     --project=chromium --workers=1 --reporter=list \
  *     tests/_screenshots/keyboard-shortcuts.spec.ts
  */
-import fs from 'node:fs';
 import path from 'node:path';
 import { test, type Browser, type Page } from '@playwright/test';
+import { resolveOutDir } from './_helpers/out-dir';
 import {
   BASE_URL,
   ONBOARDING,
@@ -29,14 +29,10 @@ import {
   clickRoundStartSubmit,
 } from '../fixtures/helpers';
 
-const SHA = process.env['SCREENSHOT_SHA'] ?? 'local';
-
-const OUT_DIR = path.resolve(__dirname, '../../../../docs/screenshots', SHA, 'kbd');
-
+const OUT_DIR = resolveOutDir('keyboard');
 test.use({ trace: 'off', video: 'off', screenshot: 'off' });
 
 async function shot(page: Page, name: string): Promise<void> {
-  fs.mkdirSync(OUT_DIR, { recursive: true });
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(OUT_DIR, `${name}.png`), fullPage: false });
 }

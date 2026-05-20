@@ -12,13 +12,11 @@
  *     tests/_screenshots/session-ended.spec.ts
  */
 import path from 'node:path';
-import fs from 'node:fs';
 import { test, type BrowserContext, type Page } from '@playwright/test';
 import { BASE_URL, ONBOARDING, HOME, LOBBY, fillRoomCode } from '../fixtures/helpers';
+import { resolveOutDir } from './_helpers/out-dir';
 
-const SHA = process.env['SCREENSHOT_SHA'] ?? 'local';
-const OUT_DIR = path.resolve(__dirname, '../../../../docs/screenshots', SHA);
-
+const OUT_DIR = resolveOutDir('session-end');
 test.use({ trace: 'off', video: 'off', screenshot: 'off' });
 test.describe.configure({ mode: 'serial' });
 test.skip(!process.env['SCREENSHOT_CAPTURE'], 'set SCREENSHOT_CAPTURE=1 to run');
@@ -33,7 +31,6 @@ async function freshCtx(
 }
 
 async function shot(page: Page, name: string): Promise<void> {
-  fs.mkdirSync(OUT_DIR, { recursive: true });
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(OUT_DIR, `${name}.png`), fullPage: false });
 }

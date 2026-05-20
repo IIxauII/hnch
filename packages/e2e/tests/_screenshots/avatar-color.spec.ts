@@ -8,9 +8,9 @@
  *
  * Writes PNGs into docs/screenshots/<SHA>/ (SHA defaults to `local`).
  */
-import fs from 'node:fs';
 import path from 'node:path';
 import { test, type BrowserContext, type Page } from '@playwright/test';
+import { resolveOutDir } from './_helpers/out-dir';
 
 import {
   BASE_URL,
@@ -23,9 +23,7 @@ import {
   clickRoundStartSubmit,
 } from '../fixtures/helpers';
 
-const SHA = process.env['SCREENSHOT_SHA'] ?? 'local';
-const OUT_DIR = path.resolve(__dirname, '../../../../docs/screenshots', SHA);
-
+const OUT_DIR = resolveOutDir('theming');
 test.use({ trace: 'off', video: 'off', screenshot: 'off' });
 test.describe.configure({ mode: 'serial' });
 test.skip(!process.env['SCREENSHOT_CAPTURE'], 'set SCREENSHOT_CAPTURE=1 to run');
@@ -41,7 +39,6 @@ async function freshContext(
 }
 
 async function shot(page: Page, name: string): Promise<void> {
-  fs.mkdirSync(OUT_DIR, { recursive: true });
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(OUT_DIR, `${name}.png`), fullPage: false });
 }

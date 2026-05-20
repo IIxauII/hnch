@@ -2,7 +2,7 @@
 /**
  * Screenshot capture for agenda feature states (ADR-0042).
  *
- * Writes PNGs to .claude/screens/<sha>/agenda/ covering key agenda UI
+ * Writes PNGs to docs/screenshots/<sha>/agenda/ (via shared helper) covering key agenda UI
  * states on desktop 1440 viewport: empty panel, add sheet (open + filled),
  * 3-item list, edit sheet, round-start pre-fill, mid-session (1 consumed),
  * skipped badge, cancelled hidden, and mobile joiner chip.
@@ -13,8 +13,8 @@
  *     tests/_screenshots/agenda-states.spec.ts
  */
 import path from 'node:path';
-import fs from 'node:fs';
 import { test, type BrowserContext, type Page } from '@playwright/test';
+import { resolveOutDir } from './_helpers/out-dir';
 import {
   BASE_URL,
   LOBBY,
@@ -23,10 +23,7 @@ import {
   clickRoundStartSubmit,
 } from '../fixtures/helpers';
 
-const SHA = process.env['SCREENSHOT_SHA'] ?? 'local';
-
-const OUT_DIR = path.resolve(__dirname, '../../../../docs/screenshots', SHA, 'agenda');
-
+const OUT_DIR = resolveOutDir('agenda');
 // Disable trace/video/screenshot artefacts — we write our own files.
 test.use({ trace: 'off', video: 'off', screenshot: 'off' });
 
@@ -47,7 +44,6 @@ async function freshCtx(
 }
 
 async function shot(page: Page, name: string): Promise<void> {
-  fs.mkdirSync(OUT_DIR, { recursive: true });
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(OUT_DIR, `${name}.png`), fullPage: false });
 }

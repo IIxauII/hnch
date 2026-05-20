@@ -4,7 +4,7 @@
  *
  * Captures the Home screen at 0/1/2/5-entry states, the portal hover/focus
  * × affordance, and the mobile swipe-open Remove option. Light + dark.
- * Output: `docs/screenshots/local-room-history/`.
+ * Output: `docs/screenshots/<sha>/history/room-history-*.png` (via shared helper).
  *
  * Run:
  *   pnpm --filter @hnch/e2e exec playwright test \
@@ -14,9 +14,9 @@
 import path from 'node:path';
 import { test, type Page } from '@playwright/test';
 import { BASE_URL } from '../fixtures/helpers';
+import { resolveOutDir } from './_helpers/out-dir';
 
-const OUT_DIR = path.resolve(__dirname, '../../../../docs/screenshots/local-room-history');
-
+const OUT_DIR = resolveOutDir('history');
 const VP_PORTAL = { width: 1280, height: 800 };
 const VP_MOBILE = { width: 390, height: 844 };
 
@@ -44,7 +44,7 @@ async function seedCache(page: Page, entries: SeedEntry[]): Promise<void> {
 
 async function shot(page: Page, name: string): Promise<void> {
   await page.waitForTimeout(250);
-  await page.screenshot({ path: path.join(OUT_DIR, `${name}.png`), fullPage: false });
+  await page.screenshot({ path: path.join(OUT_DIR, `room-history-${name}.png`), fullPage: false });
 }
 
 function nowMinus(mins: number): number {
