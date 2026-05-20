@@ -12,9 +12,9 @@
  *
  * Output: docs/screenshots/<sha>/vote-dots/<name>.png.
  */
-import fs from 'node:fs';
 import path from 'node:path';
 import { test, type BrowserContext, type Page } from '@playwright/test';
+import { resolveOutDir } from './_helpers/out-dir';
 import {
   BASE_URL,
   ONBOARDING,
@@ -28,9 +28,7 @@ import {
   clickRoundStartSubmit,
 } from '../fixtures/helpers';
 
-const SHA = process.env['SCREENSHOT_SHA'] ?? 'local';
-const OUT_DIR = path.resolve(__dirname, '../../../../docs/screenshots', SHA, 'vote-dots');
-
+const OUT_DIR = resolveOutDir('vote-dots');
 test.use({ trace: 'off', video: 'off', screenshot: 'off' });
 test.describe.configure({ mode: 'serial' });
 test.skip(!process.env['SCREENSHOT_CAPTURE'], 'set SCREENSHOT_CAPTURE=1 to run');
@@ -88,7 +86,6 @@ async function castVote(page: Page, value: string): Promise<void> {
 }
 
 async function shotRow(page: Page, name: string): Promise<void> {
-  fs.mkdirSync(OUT_DIR, { recursive: true });
   await page.waitForTimeout(300);
   const row = page.locator('app-avatar-vote-row').first();
   await row.screenshot({ path: path.join(OUT_DIR, `${name}.png`) });

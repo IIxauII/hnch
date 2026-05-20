@@ -13,8 +13,8 @@
  *     --project=chromium --workers=1 --reporter=list tests/_screenshots/capture.spec.ts
  */
 import path from 'node:path';
-import fs from 'node:fs';
 import { test, type BrowserContext, type Page } from '@playwright/test';
+import { resolveOutDir } from './_helpers/out-dir';
 import {
   BASE_URL,
   ONBOARDING,
@@ -32,10 +32,7 @@ import {
   clickRoundStartSubmit,
 } from '../fixtures/helpers';
 
-const SHA = process.env['SCREENSHOT_SHA'] ?? 'local';
-
-const OUT_DIR = path.resolve(__dirname, '../../../../docs/screenshots', SHA);
-
+const OUT_DIR = resolveOutDir('baseline');
 const NAME = 'Alex';
 const ROUND_TITLE = 'Implement OAuth flow';
 
@@ -52,7 +49,6 @@ async function freshContext(
 }
 
 async function shot(page: Page, name: string): Promise<void> {
-  fs.mkdirSync(OUT_DIR, { recursive: true });
   await page.waitForTimeout(200); // settle animations
   await page.screenshot({ path: path.join(OUT_DIR, `${name}.png`), fullPage: false });
 }
