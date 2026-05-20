@@ -1,3 +1,15 @@
+# [1.31.0](https://github.com/IIxauII/hnch/compare/client-v1.30.3...client-v1.31.0) (2026-05-20)
+
+
+### Features
+
+* **client:** add pencil icon affordance to lobby subtitle button ([#283](https://github.com/IIxauII/hnch/issues/283)) ([dc4970c](https://github.com/IIxauII/hnch/commit/dc4970cd4630c304036cdaa12f09bcb0b79775dd))
+
+
+### Reverts
+
+* **client:** smoke-test screenshot harness ([#275](https://github.com/IIxauII/hnch/issues/275)) ([#277](https://github.com/IIxauII/hnch/issues/277)) ([3f49542](https://github.com/IIxauII/hnch/commit/3f49542a49158f8aa415c09d873433531df769ec))
+
 ## [1.30.3](https://github.com/IIxauII/hnch/compare/client-v1.30.2...client-v1.30.3) (2026-05-19)
 
 
