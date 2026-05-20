@@ -23,10 +23,11 @@ import {
   ONBOARDING,
   HOME,
   LOBBY,
-  ROUND_START,
   ESTIMATING,
   ROUND_HISTORY,
   fillRoomCode,
+  expandRoundStartSheet,
+  clickRoundStartSubmit,
 } from '../fixtures/helpers';
 
 const SHA = process.env['SCREENSHOT_SHA'] ?? 'local';
@@ -65,11 +66,11 @@ async function startRound(page: Page, title: string): Promise<void> {
   const startBtn = page
     .locator('app-lobby:not(.ion-page-hidden) ion-button')
     .filter({ hasText: LOBBY.startRoundBtn });
-  await startBtn.evaluate((el: HTMLElement) => el.click());
-  await page.locator('app-round-start-sheet').waitFor({ state: 'visible' });
+  await startBtn.click();
+  await expandRoundStartSheet(page);
   await page.locator('app-round-start-sheet ion-input').first().locator('input').fill(title);
-  await page.locator(ROUND_START.startBtn).evaluate((el: HTMLElement) => el.click());
-  await page.waitForURL(/\/estimating/);
+  await page.locator('app-round-start-sheet ion-input').first().locator('input').blur();
+  await clickRoundStartSubmit(page);
   await page.locator(ESTIMATING.cardGrid).waitFor({ state: 'visible' });
 }
 
@@ -129,15 +130,15 @@ test.describe('round history screenshots', () => {
 
       // Round 2 (host is "Next Round")
       const nextBtn = hostPage.locator('ion-button').filter({ hasText: LOBBY.nextRoundBtn });
-      await nextBtn.evaluate((el: HTMLElement) => el.click());
-      await hostPage.locator('app-round-start-sheet').waitFor({ state: 'visible' });
+      await nextBtn.click();
+      await expandRoundStartSheet(hostPage);
       await hostPage
         .locator('app-round-start-sheet ion-input')
         .first()
         .locator('input')
         .fill('Round 2 story');
-      await hostPage.locator(ROUND_START.startBtn).evaluate((el: HTMLElement) => el.click());
-      await hostPage.waitForURL(/\/estimating/);
+      await hostPage.locator('app-round-start-sheet ion-input').first().locator('input').blur();
+      await clickRoundStartSubmit(hostPage);
       await hostPage.locator(ESTIMATING.cardGrid).waitFor({ state: 'visible' });
       await alicePage.waitForURL(/\/estimating/, { timeout: 10_000 });
       await bobPage.waitForURL(/\/estimating/, { timeout: 10_000 });
