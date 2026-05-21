@@ -355,8 +355,18 @@ export class VoteResultsComponent {
   /** Tracks which round the reveal-complete haptic has already fired for. */
   private hapticFiredForRound: string | null = null;
 
-  /** True when all votes in the round are identical (and ≥ 2 voters). */
-  readonly consensus = computed(() => isConsensus(this.round()));
+  /**
+   * True when all votes are identical (and ≥ 2 voters), excluding all-abstain
+   * rounds. When every voter abstains, `isConsensus` returns true because the
+   * sentinel strings are equal — but that is not a meaningful planning-poker
+   * consensus and must not trigger the overlay (ADR-0041 §2).
+   */
+  readonly consensus = computed(() => {
+    const r = this.round();
+    const values = Object.values(r.votes);
+    if (values.length >= 2 && values.every(isAbstainVote)) return false;
+    return isConsensus(r);
+  });
 
   /** Controls overlay visibility — resets per round, auto-dismisses after 3s. */
   readonly showOverlay = signal(false);
@@ -517,10 +527,16 @@ export class VoteResultsComponent {
     return formatElapsed(round.revealedAt - round.timerStartedAt);
   });
 
-  /** Stats computed via shared util — uses votes + scale directly. */
-  readonly stats = computed<RoundStats>(() =>
-    computeRoundStats(this.round().votes, this.round().scale),
-  );
+  /**
+   * Stats computed via shared util. Abstain-sentinel votes are stripped before
+   * the call so they don't skew spread calculations or surface 'hnch_abstain'
+   * as a mode string in the UI (ADR-0041 §2).
+   */
+  readonly stats = computed<RoundStats>(() => {
+    const r = this.round();
+    const votes = Object.fromEntries(Object.entries(r.votes).filter(([, v]) => !isAbstainVote(v)));
+    return computeRoundStats(votes, r.scale);
+  });
 
   /** "N votes" / "1 vote" — used inside group headers. */
   voteCountLabel(n: number): string {

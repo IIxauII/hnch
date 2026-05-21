@@ -292,3 +292,68 @@ describe('VoteResultsComponent — TestBed rendering', () => {
     expect(numericGroups[0]!.style.getPropertyValue('--bar-width')).toBe('100%');
   });
 });
+
+// ---------------------------------------------------------------------------
+// consensus() + stats() abstain guard (ADR-0041)
+// ---------------------------------------------------------------------------
+
+// Exercises: vote-results.component:VoteResultsComponent.consensus
+describe('VoteResultsComponent — consensus() abstain guard', () => {
+  it('consensus() is true for unanimous numeric votes (baseline)', async () => {
+    const round = makeRound({ votes: { p1: '5', p2: '5' } });
+    const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
+    const fixture = await mountVoteResults(round, participants);
+    expect(fixture.componentInstance.consensus()).toBe(true);
+  });
+
+  it('consensus() is false when all votes are abstain (all-abstain is not genuine consensus)', async () => {
+    const round = makeRound({ votes: { p1: ABSTAIN_SENTINEL, p2: ABSTAIN_SENTINEL } });
+    const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
+    const fixture = await mountVoteResults(round, participants);
+    expect(fixture.componentInstance.consensus()).toBe(false);
+  });
+
+  it('consensus() is false for split numeric votes (sanity)', async () => {
+    const round = makeRound({ votes: { p1: '3', p2: '5' } });
+    const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
+    const fixture = await mountVoteResults(round, participants);
+    expect(fixture.componentInstance.consensus()).toBe(false);
+  });
+
+  it('consensus() is false for 2-same + 1-abstain (abstainer breaks unanimity)', async () => {
+    const round = makeRound({ votes: { p1: '5', p2: '5', p3: ABSTAIN_SENTINEL } });
+    const participants = [
+      makeParticipant('p1', 'Alice'),
+      makeParticipant('p2', 'Bob'),
+      makeParticipant('p3', 'Carol'),
+    ];
+    const fixture = await mountVoteResults(round, participants);
+    expect(fixture.componentInstance.consensus()).toBe(false);
+  });
+});
+
+// Exercises: vote-results.component:VoteResultsComponent.stats
+describe('VoteResultsComponent — stats() abstain filtering', () => {
+  it('stats() returns null for all-abstain rounds (no meaningful stats to display)', async () => {
+    const round = makeRound({ votes: { p1: ABSTAIN_SENTINEL, p2: ABSTAIN_SENTINEL } });
+    const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
+    const fixture = await mountVoteResults(round, participants);
+    const stats = (fixture.componentInstance as unknown as { stats: () => unknown }).stats();
+    expect(stats).toBeNull();
+  });
+
+  it('stats() spread is "unanimous" for 2-same-numeric + 1-abstain (abstain excluded from spread)', async () => {
+    const round = makeRound({ votes: { p1: '5', p2: '5', p3: ABSTAIN_SENTINEL } });
+    const participants = [
+      makeParticipant('p1', 'Alice'),
+      makeParticipant('p2', 'Bob'),
+      makeParticipant('p3', 'Carol'),
+    ];
+    const fixture = await mountVoteResults(round, participants);
+    const stats = (
+      fixture.componentInstance as unknown as { stats: () => { spread: string } | null }
+    ).stats();
+    expect(stats).not.toBeNull();
+    expect(stats!.spread).toBe('unanimous');
+  });
+});
