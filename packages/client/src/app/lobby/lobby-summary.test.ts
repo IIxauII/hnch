@@ -2,18 +2,11 @@
  * Unit tests for lobby pure helpers.
  *
  * Full component-mount tests (DI heavy) are deferred to e2e.
- * Tests here cover:
- * - summarizeParticipants: online/offline/viewer summary string
- * - participantsAccordionValueFor: accordion collapse contract
  */
 
 import { describe, expect, it } from 'vitest';
 import type { ParticipantSnapshot } from '@hnch/shared';
-import {
-  participantsAccordionOpenFromValue,
-  participantsAccordionValueFor,
-  summarizeParticipants,
-} from './lobby-summary';
+import { summarizeParticipants } from './lobby-summary';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -95,42 +88,5 @@ describe('summarizeParticipants', () => {
     const ps = [makeParticipant('a'), makeParticipant('v', 'viewer')];
     const online = new Set(['a']); // v is offline but role=viewer
     expect(summarizeParticipants(ps, online, isViewer)).toBe('1 online · 1 viewer');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// participantsAccordionValueFor
-// ---------------------------------------------------------------------------
-
-describe('participantsAccordionValueFor', () => {
-  it('returns "open" when no revealed round (false)', () => {
-    expect(participantsAccordionValueFor(false)).toBe('open');
-  });
-
-  it('returns null when a round has been revealed (true)', () => {
-    expect(participantsAccordionValueFor(true)).toBeNull();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// participantsAccordionOpenFromValue
-// ---------------------------------------------------------------------------
-
-describe('participantsAccordionOpenFromValue', () => {
-  it('returns true for "open" (DOM expanded)', () => {
-    expect(participantsAccordionOpenFromValue('open')).toBe(true);
-  });
-
-  it('returns false for null (DOM collapsed)', () => {
-    expect(participantsAccordionOpenFromValue(null)).toBe(false);
-  });
-
-  it('returns false for undefined (event with no detail)', () => {
-    expect(participantsAccordionOpenFromValue(undefined)).toBe(false);
-  });
-
-  it('returns false for any other string value', () => {
-    expect(participantsAccordionOpenFromValue('')).toBe(false);
-    expect(participantsAccordionOpenFromValue('closed')).toBe(false);
   });
 });

@@ -442,9 +442,7 @@ export class Participant {
     if (isCollapsed) {
       await chip.click();
       // Wait for the expanded panel to appear
-      await this.page
-        .locator('app-agenda-panel section.agenda-panel')
-        .waitFor({ state: 'visible' });
+      await this.page.locator('app-agenda-panel .agenda-panel').waitFor({ state: 'visible' });
     }
   }
 
@@ -467,7 +465,7 @@ export class Participant {
     // Find the add button in the expanded agenda panel header.
     // getByRole pierces Ionic web component shadow DOM; searches by accessible name
     // derived from aria-label on the ion-button host element.
-    const panel = this.page.locator('app-agenda-panel section.agenda-panel');
+    const panel = this.page.locator('app-agenda-panel .agenda-panel');
     await panel.waitFor({ state: 'visible' });
     const addBtn = panel.getByRole('button', { name: 'Add agenda item' });
     await addBtn.waitFor({ state: 'visible', timeout: 10_000 });
@@ -693,7 +691,7 @@ export class Participant {
       throw new Error(`Expected to be on /estimating but URL is ${url}`);
     }
     // Ensure results section (shown after reveal) is not visible
-    await this.page.locator('section.results-section').waitFor({ state: 'hidden' });
+    await this.page.locator('.results-section').waitFor({ state: 'hidden' });
   }
 
   /** Assert this participant sees host controls. */

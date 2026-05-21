@@ -171,9 +171,7 @@ test.describe('Agenda multi-client visibility', () => {
 
       // Tap chip to expand — full list visible
       await chip.click();
-      await joinerPage
-        .locator('app-agenda-panel section.agenda-panel')
-        .waitFor({ state: 'visible' });
+      await joinerPage.locator('app-agenda-panel .agenda-panel').waitFor({ state: 'visible' });
 
       // All 3 items visible
       const items = joinerPage.locator(

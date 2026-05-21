@@ -97,12 +97,8 @@ import { SurfaceService } from '../core/surface.service';
       </div>
     } @else {
       <!-- Expanded list (always on desktop; toggled on mobile) -->
-      <section
-        class="agenda-panel"
-        aria-label="Agenda"
-      >
+      <div class="agenda-panel">
         <div class="agenda-header">
-          <h3 class="agenda-heading">Agenda</h3>
           <div class="agenda-header-actions">
             @if (surface.mode() === 'mobile') {
               <ion-button
@@ -235,7 +231,7 @@ import { SurfaceService } from '../core/surface.service';
             {{ showCancelled() ? 'Hide cancelled' : 'Show cancelled' }}
           </ion-button>
         }
-      </section>
+      </div>
     }
   `,
   styles: [
@@ -253,16 +249,8 @@ import { SurfaceService } from '../core/surface.service';
       .agenda-header {
         display: flex;
         align-items: center;
-        justify-content: space-between;
+        justify-content: flex-end;
         margin-bottom: 0.25rem;
-      }
-      .agenda-heading {
-        font-size: 0.875rem;
-        font-weight: 600;
-        color: var(--ion-color-medium);
-        margin: 0;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
       }
       .agenda-header-actions {
         display: flex;

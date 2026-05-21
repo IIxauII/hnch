@@ -62,10 +62,13 @@ async function openSwipeDrawer(
 ): Promise<void> {
   // Force the accordion open so the rows are visible
   await page.evaluate(() => {
-    const group = document.querySelector('ion-accordion-group') as
-      | (HTMLElement & { value?: string | null })
-      | null;
-    if (group) group.value = 'open';
+    const groups = document.querySelectorAll('ion-accordion-group') as NodeListOf<
+      HTMLElement & { value?: string | string[] | null }
+    >;
+    const all = ['general', 'share', 'participants', 'agenda', 'results', 'history'];
+    groups.forEach((g) => {
+      g.value = all;
+    });
   });
 
   const rowLocator = page.locator(
@@ -106,10 +109,13 @@ test.describe('Mobile host-actions swipe path (iPhone 13)', () => {
 
       // Force accordion open so content renders
       await hostPage.evaluate(() => {
-        const group = document.querySelector('ion-accordion-group') as
-          | (HTMLElement & { value?: string | null })
-          | null;
-        if (group) group.value = 'open';
+        const groups = document.querySelectorAll('ion-accordion-group') as NodeListOf<
+          HTMLElement & { value?: string | string[] | null }
+        >;
+        const all = ['general', 'share', 'participants', 'agenda', 'results', 'history'];
+        groups.forEach((g) => {
+          g.value = all;
+        });
       });
 
       // Overflow button must NOT be present on mobile
@@ -206,10 +212,13 @@ test.describe('Mobile host-actions swipe path (iPhone 13)', () => {
 
         // Force accordion open
         await page.evaluate(() => {
-          const group = document.querySelector('ion-accordion-group') as
-            | (HTMLElement & { value?: string | null })
-            | null;
-          if (group) group.value = 'open';
+          const groups = document.querySelectorAll('ion-accordion-group') as NodeListOf<
+            HTMLElement & { value?: string | string[] | null }
+          >;
+          const all = ['general', 'share', 'participants', 'agenda', 'results', 'history'];
+          groups.forEach((g) => {
+            g.value = all;
+          });
         });
 
         // swipe-hint NOT visible on desktop

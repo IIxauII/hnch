@@ -166,14 +166,18 @@ vi.mock('ionicons/icons', () => ({
   copyOutline: '',
   ellipsisHorizontalCircle: '',
   ellipsisVertical: '',
+  listOutline: '',
   logOutOutline: '',
   pencilOutline: '',
+  peopleOutline: '',
   personCircleOutline: '',
   personRemoveOutline: '',
   qrCodeOutline: '',
   settingsOutline: '',
   shareOutline: '',
   starOutline: '',
+  statsChartOutline: '',
+  timeOutline: '',
 }));
 vi.mock('@capacitor/share', () => ({ Share: { share: vi.fn(), canShare: vi.fn() } }));
 

@@ -1,6 +1,16 @@
 import { test, expect } from './fixtures/app.fixture';
 import { LOBBY } from './fixtures/helpers';
 
+/**
+ * Lobby participants accordion behaviour.
+ *
+ * Pre-#266: participants auto-collapsed on first reveal regardless of
+ * viewport. Post-#266: collapse is mobile-only (plan §5). These tests now
+ * run at Playwright's default desktop viewport and assert the desktop
+ * contract — both Participants and Results are visible after reveal; the
+ * header click toggles expansion.
+ */
+
 test.describe('Lobby participants accordion', () => {
   test('pre-reveal: participants visible by default', async ({ host, player }) => {
     const code = await host.createSession();
@@ -15,7 +25,7 @@ test.describe('Lobby participants accordion', () => {
     await expect(firstRow).toBeVisible();
   });
 
-  test('post-reveal: participants collapsed, results visible', async ({ host, player }) => {
+  test('post-reveal (desktop): participants and results both visible', async ({ host, player }) => {
     const code = await host.createSession();
     await player.joinSession(code);
     await host.expectParticipantCount(2);
@@ -29,37 +39,31 @@ test.describe('Lobby participants accordion', () => {
     await host.page.waitForURL(/\/lobby/, { timeout: 10_000 });
     await host.page.locator(LOBBY.resultsSection).waitFor({ state: 'visible' });
 
-    // Header still visible
+    // Header visible
     await expect(host.page.locator(LOBBY.participantCount)).toBeVisible();
 
-    // Participant rows hidden (accordion collapsed)
+    // On desktop, participants stay expanded alongside results
     const firstRow = host.page.locator(LOBBY.participantItems).first();
-    await expect(firstRow).toBeHidden();
+    await expect(firstRow).toBeVisible();
 
     // Results section visible
     await expect(host.page.locator(LOBBY.resultsSection)).toBeVisible();
   });
 
-  test('post-reveal: tapping header expands the list', async ({ host, player }) => {
+  test('header click toggles participants accordion', async ({ host, player }) => {
     const code = await host.createSession();
     await player.joinSession(code);
-    await host.startRound();
-    await player.waitForEstimating();
-    await host.castVote('5');
-    await player.castVote('5');
+    await host.expectParticipantCount(2);
 
-    // Wait for auto-reveal navigation
-    await host.page.waitForURL(/\/lobby/, { timeout: 10_000 });
-    await host.page.locator(LOBBY.resultsSection).waitFor({ state: 'visible' });
-
-    // Verify accordion is collapsed (rows hidden)
     const firstRow = host.page.locator(LOBBY.participantItems).first();
-    await expect(firstRow).toBeHidden();
+    await expect(firstRow).toBeVisible();
 
-    // Tap accordion header
+    // Tap header → collapses
     await host.page.locator(LOBBY.participantCount).click();
+    await expect(firstRow).toBeHidden({ timeout: 2_000 });
 
-    // Now first row visible
+    // Tap again → expands
+    await host.page.locator(LOBBY.participantCount).click();
     await expect(firstRow).toBeVisible({ timeout: 2_000 });
   });
 });
