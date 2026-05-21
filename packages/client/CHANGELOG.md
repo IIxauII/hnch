@@ -1,3 +1,10 @@
+# [1.32.0](https://github.com/IIxauII/hnch/compare/client-v1.31.0...client-v1.32.0) (2026-05-21)
+
+
+### Features
+
+* **client,e2e,repo:** hnch'd celebration overlay with confetti ([#284](https://github.com/IIxauII/hnch/issues/284)) ([75089ad](https://github.com/IIxauII/hnch/commit/75089ad5948d30303bb068866972f0818e713c9e))
+
 # [1.31.0](https://github.com/IIxauII/hnch/compare/client-v1.30.3...client-v1.31.0) (2026-05-20)
 
 

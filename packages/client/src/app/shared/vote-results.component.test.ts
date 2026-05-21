@@ -293,7 +293,6 @@ describe('VoteResultsComponent — TestBed rendering', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // consensus() + stats() abstain guard (ADR-0041)
 // ---------------------------------------------------------------------------
 
@@ -355,5 +354,206 @@ describe('VoteResultsComponent — stats() abstain filtering', () => {
     ).stats();
     expect(stats).not.toBeNull();
     expect(stats!.spread).toBe('unanimous');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Consensus overlay — "hnch'd!" badge + confetti (AC-11, AC-13, AC-14)
+// ---------------------------------------------------------------------------
+
+// Exercises: vote-results.component:VoteResultsComponent consensus overlay
+describe('VoteResultsComponent — consensus overlay', () => {
+  it('consensus() is false when round is skipped (AC-13: skip-race guard, ADR-0040)', async () => {
+    // skippedAt < revealedAt → skip wins (earlier timestamp wins per ADR-0040)
+    const round = makeRound({
+      votes: { p1: '5', p2: '5' },
+      revealedAt: 2000,
+      skippedAt: 1000,
+    });
+    const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
+    const fixture = await mountVoteResults(round, participants);
+    const component = fixture.componentInstance;
+    expect(component.consensus()).toBe(false);
+  });
+
+  it('consensus() is true when revealedAt wins over skippedAt (AC-13: reveal wins)', async () => {
+    // revealedAt <= skippedAt → reveal wins (earlier timestamp wins per ADR-0040)
+    const round = makeRound({
+      votes: { p1: '5', p2: '5' },
+      revealedAt: 1000,
+      skippedAt: 2000,
+    });
+    const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
+    const fixture = await mountVoteResults(round, participants);
+    const component = fixture.componentInstance;
+    expect(component.consensus()).toBe(true);
+  });
+
+  it('consensus() is false when only skippedAt is set (AC-13)', async () => {
+    const round = makeRound({
+      votes: { p1: '5', p2: '5' },
+      revealedAt: undefined,
+      skippedAt: 1000,
+    });
+    const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
+    const fixture = await mountVoteResults(round, participants);
+    const component = fixture.componentInstance;
+    expect(component.consensus()).toBe(false);
+  });
+
+  it('consensus() is not gated on participant role — viewer sees same result (AC-14, ADR-0020)', async () => {
+    const round = makeRound({ votes: { p1: '5', p2: '5' } });
+    const viewerParticipant: ParticipantSnapshot = {
+      id: 'viewer1',
+      displayName: 'Observer',
+      joinedAt: 0,
+      role: 'viewer',
+    };
+    const participants = [
+      makeParticipant('p1', 'Alice'),
+      makeParticipant('p2', 'Bob'),
+      viewerParticipant,
+    ];
+    // consensus() is round-state-driven; a viewer's myId does not affect it
+    const fixture = await mountVoteResults(round, participants, 'viewer1');
+    const component = fixture.componentInstance;
+    expect(component.consensus()).toBe(true);
+  });
+
+  it('consensus overlay renders .confetti-layer with aria-hidden="true" (AC-11)', async () => {
+    const round = makeRound({ votes: { p1: '5', p2: '5' } });
+    const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
+    const fixture = await mountVoteResults(round, participants);
+    const component = fixture.componentInstance;
+    // Manually show overlay to render the overlay DOM
+    component.showOverlay.set(true);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const confettiLayer = el.querySelector('.confetti-layer');
+    expect(confettiLayer).not.toBeNull();
+    expect(confettiLayer!.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('consensus-text contains "hnch\'d!" (badge text rename)', async () => {
+    const round = makeRound({ votes: { p1: '5', p2: '5' } });
+    const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
+    const fixture = await mountVoteResults(round, participants);
+    const component = fixture.componentInstance;
+    component.showOverlay.set(true);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const badge = el.querySelector('.consensus-text');
+    expect(badge).not.toBeNull();
+    expect(badge!.textContent).toContain("hnch'd!");
+  });
+
+  it('overlay not rendered when consensus() is false', async () => {
+    const round = makeRound({ votes: { p1: '3', p2: '5' } });
+    const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
+    const fixture = await mountVoteResults(round, participants);
+    const component = fixture.componentInstance;
+    component.showOverlay.set(true);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    // consensus() is false (split vote) → overlay @if never renders
+    expect(el.querySelector('.consensus-overlay')).toBeNull();
+  });
+
+  // AC-12: stale-timer bug — consensus celebration must not fire against a new round
+  it('AC-12: round swap before celebration timer fires cancels overlay + confetti + consensus haptic bump', async () => {
+    vi.useFakeTimers();
+    try {
+      hapticStub.notificationSuccess.mockClear();
+      hapticStub.impactMedium.mockClear();
+
+      // Round A: unanimous → consensus branch would fire overlay + impactMedium
+      const roundA = makeRound({ id: 'round-a', votes: { p1: '5', p2: '5' } });
+      const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
+      const fixture = await mountVoteResults(roundA, participants);
+      const component = fixture.componentInstance;
+
+      // Advance only partway — celebration timer has not fired yet
+      vi.advanceTimersByTime(50);
+      expect(component.showOverlay()).toBe(false);
+
+      // Swap to round B (non-consensus) before the timer fires
+      const roundB = makeRound({ id: 'round-b', votes: { p1: '3', p2: '5' } });
+      fixture.componentRef.setInput('round', roundB);
+      fixture.detectChanges();
+
+      // Advance well past the original delay (1 group × 80ms + 200ms = 280ms)
+      vi.advanceTimersByTime(400);
+
+      // Overlay must never appear; confetti list must stay empty
+      expect(component.showOverlay()).toBe(false);
+      expect(component.confettiPieces().length).toBe(0);
+      // The stale consensus haptic bump (impactMedium) must NOT have fired
+      expect(hapticStub.impactMedium).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // AC-14 (strengthened): viewer myId renders overlay DOM when showOverlay is true
+  it('AC-14: viewer myId still renders consensus-overlay + confetti-layer in DOM', async () => {
+    const round = makeRound({ votes: { p1: '5', p2: '5' } });
+    const viewerParticipant: ParticipantSnapshot = {
+      id: 'viewer1',
+      displayName: 'Observer',
+      joinedAt: 0,
+      role: 'viewer',
+    };
+    const participants = [
+      makeParticipant('p1', 'Alice'),
+      makeParticipant('p2', 'Bob'),
+      viewerParticipant,
+    ];
+    const fixture = await mountVoteResults(round, participants, 'viewer1');
+    const component = fixture.componentInstance;
+
+    // consensus() must be true regardless of viewer role
+    expect(component.consensus()).toBe(true);
+
+    // Manually trip the overlay (bypasses the animation delay for unit test clarity)
+    component.showOverlay.set(true);
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.consensus-overlay')).not.toBeNull();
+    expect(el.querySelector('.confetti-layer')).not.toBeNull();
+  });
+
+  // Confetti spawn lifecycle — startConfetti initial burst, interval spawn, piece eviction, stopConfetti teardown
+  it('startConfetti emits initial batch + interval batches; pieces evict on their own; stopConfetti clears all', async () => {
+    vi.useFakeTimers();
+    try {
+      const round = makeRound({ votes: { p1: '5', p2: '5' } });
+      const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
+      const fixture = await mountVoteResults(round, participants);
+      const component = fixture.componentInstance;
+
+      // Advance past celebration delay (1 group × 80ms + 200ms = 280ms)
+      vi.advanceTimersByTime(300);
+
+      // Initial batch of 10 confetti pieces should be present
+      expect(component.showOverlay()).toBe(true);
+      expect(component.confettiPieces().length).toBeGreaterThanOrEqual(10);
+
+      // Advance 1s — second batch fires from setInterval (total ~20 pieces, no evictions yet since min duration+delay+50 = 750ms)
+      vi.advanceTimersByTime(1000);
+      const peak = component.confettiPieces().length;
+      expect(peak).toBeGreaterThan(10);
+
+      // Tap-dismiss → stopConfetti wipes all pieces + eviction timers
+      component.dismissOverlay();
+      expect(component.showOverlay()).toBe(false);
+      expect(component.confettiPieces().length).toBe(0);
+
+      // Advance well past any orphan eviction would have fired — no resurrection
+      vi.advanceTimersByTime(5000);
+      expect(component.confettiPieces().length).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

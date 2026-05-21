@@ -150,4 +150,192 @@ test.describe('reveal transition screenshots', () => {
       for (const ctx of contexts) await ctx.close();
     }
   });
+
+  async function runConsensusScene(
+    browser: import('@playwright/test').Browser,
+    viewport: { width: number; height: number },
+    colorScheme: 'light' | 'dark',
+    reducedMotion: boolean,
+    outName: string,
+  ): Promise<void> {
+    const contexts: BrowserContext[] = [];
+    try {
+      // Create host context with requested scheme
+      const hostCtx = await browser.newContext({
+        viewport,
+        deviceScaleFactor: 2,
+        colorScheme,
+      });
+      contexts.push(hostCtx);
+      const hostPage = await hostCtx.newPage();
+
+      if (reducedMotion) {
+        await hostPage.emulateMedia({ reducedMotion: 'reduce' });
+      }
+
+      await onboard(hostPage, VOTERS[0]!.name);
+
+      // Host creates session
+      await hostPage.locator(HOME.createCard).click();
+      await hostPage.waitForURL(/\/lobby/);
+      const codeEl = hostPage.locator(LOBBY.roomCode);
+      await codeEl.waitFor({ state: 'visible' });
+      const code = ((await codeEl.textContent()) ?? '').replaceAll(/[^A-Z0-9]/gi, '');
+
+      // Two joiners (same scheme for consistency)
+      const joinerPages: Page[] = [];
+      for (let i = 1; i < VOTERS.length; i++) {
+        const ctx = await browser.newContext({
+          viewport,
+          deviceScaleFactor: 2,
+          colorScheme,
+        });
+        contexts.push(ctx);
+        const page = await ctx.newPage();
+        if (reducedMotion) {
+          await page.emulateMedia({ reducedMotion: 'reduce' });
+        }
+        await onboard(page, VOTERS[i]!.name);
+        await joinSession(page, code);
+        joinerPages.push(page);
+      }
+
+      // Confirm participants visible
+      await hostPage.locator(LOBBY.participantList).waitFor({ state: 'visible' });
+
+      // Host starts round
+      const startBtn = hostPage
+        .locator('app-lobby:not(.ion-page-hidden) ion-button')
+        .filter({ hasText: LOBBY.startRoundBtn });
+      await startBtn.evaluate((el: HTMLElement) => el.click());
+      await hostPage.locator('app-round-start-sheet').waitFor({ state: 'visible' });
+      await hostPage
+        .locator('app-round-start-sheet ion-input')
+        .first()
+        .locator('input')
+        .fill('New Feature');
+      await hostPage.locator(ROUND_START.startBtn).evaluate((el: HTMLElement) => el.click());
+      await hostPage.waitForURL(/\/estimating/);
+      await hostPage.locator(ESTIMATING.cardGrid).waitFor({ state: 'visible' });
+
+      // All vote the same card (consensus trigger)
+      for (const page of [hostPage, ...joinerPages]) {
+        await castVote(page, '5');
+      }
+
+      // Wait for auto-reveal to fire and navigate to /lobby
+      await hostPage.waitForURL(/\/lobby/, { timeout: 10_000 });
+      await hostPage.locator(LOBBY.resultsSection).waitFor({ state: 'visible' });
+
+      if (reducedMotion) {
+        // Static state — capture at any stable point
+        await hostPage.waitForTimeout(250);
+      } else {
+        // Motion state — capture at t≈500ms into overlay window
+        await hostPage.waitForTimeout(500);
+      }
+
+      await shot(hostPage, outName);
+    } finally {
+      for (const ctx of contexts) await ctx.close();
+    }
+  }
+
+  test('consensus celebration overlay — motion, desktop 1440 dark @reveal', async ({ browser }) => {
+    test.setTimeout(180_000);
+    await runConsensusScene(
+      browser,
+      { width: 1440, height: 900 },
+      'dark',
+      false,
+      'consensus-motion-1440-dark',
+    );
+  });
+
+  test('consensus celebration overlay — motion, desktop 1440 light @reveal', async ({
+    browser,
+  }) => {
+    test.setTimeout(180_000);
+    await runConsensusScene(
+      browser,
+      { width: 1440, height: 900 },
+      'light',
+      false,
+      'consensus-motion-1440-light',
+    );
+  });
+
+  test('consensus celebration overlay — motion, mobile 375 dark @reveal', async ({ browser }) => {
+    test.setTimeout(180_000);
+    await runConsensusScene(
+      browser,
+      { width: 375, height: 812 },
+      'dark',
+      false,
+      'consensus-motion-375-dark',
+    );
+  });
+
+  test('consensus celebration overlay — motion, mobile 375 light @reveal', async ({ browser }) => {
+    test.setTimeout(180_000);
+    await runConsensusScene(
+      browser,
+      { width: 375, height: 812 },
+      'light',
+      false,
+      'consensus-motion-375-light',
+    );
+  });
+
+  test('consensus celebration overlay — reduced-motion, desktop 1440 dark @reveal', async ({
+    browser,
+  }) => {
+    test.setTimeout(180_000);
+    await runConsensusScene(
+      browser,
+      { width: 1440, height: 900 },
+      'dark',
+      true,
+      'consensus-reduced-1440-dark',
+    );
+  });
+
+  test('consensus celebration overlay — reduced-motion, desktop 1440 light @reveal', async ({
+    browser,
+  }) => {
+    test.setTimeout(180_000);
+    await runConsensusScene(
+      browser,
+      { width: 1440, height: 900 },
+      'light',
+      true,
+      'consensus-reduced-1440-light',
+    );
+  });
+
+  test('consensus celebration overlay — reduced-motion, mobile 375 dark @reveal', async ({
+    browser,
+  }) => {
+    test.setTimeout(180_000);
+    await runConsensusScene(
+      browser,
+      { width: 375, height: 812 },
+      'dark',
+      true,
+      'consensus-reduced-375-dark',
+    );
+  });
+
+  test('consensus celebration overlay — reduced-motion, mobile 375 light @reveal', async ({
+    browser,
+  }) => {
+    test.setTimeout(180_000);
+    await runConsensusScene(
+      browser,
+      { width: 375, height: 812 },
+      'light',
+      true,
+      'consensus-reduced-375-light',
+    );
+  });
 });
