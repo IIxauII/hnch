@@ -1,3 +1,10 @@
+## [1.32.1](https://github.com/IIxauII/hnch/compare/client-v1.32.0...client-v1.32.1) (2026-05-21)
+
+
+### Bug Fixes
+
+* **client:** guard consensus overlay + stats against all-abstain rounds (ADR-0041) ([#287](https://github.com/IIxauII/hnch/issues/287)) ([e7a7194](https://github.com/IIxauII/hnch/commit/e7a719425e88142e244b8b407b05df45d1843e25))
+
 # [1.32.0](https://github.com/IIxauII/hnch/compare/client-v1.31.0...client-v1.32.0) (2026-05-21)
 
 
