@@ -79,7 +79,7 @@ test.describe('password flow screenshots', () => {
       const code = rawCode.replaceAll(/[^A-Z0-9]/gi, '');
 
       // Open session settings → set password
-      await hostPage.locator(LOBBY.subtitle).click();
+      await hostPage.locator(LOBBY.subtitleHostBtn).click();
       await hostPage.locator('app-session-settings-sheet').waitFor({ state: 'visible' });
       await hostPage.locator(SETTINGS_SHEET.accessRow).click();
       await hostPage.locator(ACCESS_PICKER.option('Password')).click();

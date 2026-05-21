@@ -213,6 +213,16 @@ Tapping estimate card on Estimating:
 
 When the results section appears in Lobby after reveal: cards enter with 80ms staggered fade-in-and-up (`opacity 0 → 1, translateY 8px → 0`, duration 200ms). Groups render top-down. After last group settles, `Haptics.notification({ type: 'Success' })` fires once — "results final."
 
+**Unanimous consensus overlay:** when all votes are identical (≥ 2 voters) and the round terminal state is `revealed` (not `skipped`), a full-scrim overlay appears over the results. The overlay is round-state-driven — all participants (host, voter, viewer) see it simultaneously.
+
+- Central badge reads **"hnch'd!"** in the success color, with a scale-in entrance animation (380 ms, spring curve) followed by 3 gentle pulses.
+- Party emoji confetti (`🎉 🎊 🥳 🪩 ✨ 🎈 🌟`) burst radially from the badge center and fall ballistically with per-piece rotation, spawning continuously at ~10 pieces/s for the 3-second window (~30 simultaneous at peak).
+- Confetti layers behind the badge so text stays legible at all times.
+- Auto-dismiss after 3 seconds. Tap anywhere on the overlay dismisses early.
+- `Haptics.impact({ style: 'Medium' })` fires 120 ms after the overlay appears.
+
+**Reduced-motion fallback** (`prefers-reduced-motion: reduce`): static "hnch'd!" badge with a single inline 🎉 next to the text. No confetti, no scale-in animation, no pulse.
+
 ### Share sheet
 
 **Share invite** calls `Share.share({ title, text, url })` from `@capacitor/share`:

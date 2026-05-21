@@ -280,9 +280,9 @@ export class Participant {
 
   // -- Settings (from lobby) ------------------------------------------------
 
-  /** Open session settings sheet from the lobby subtitle button. */
+  /** Open session settings sheet from the lobby subtitle button (host only). */
   async openSettings(): Promise<void> {
-    await this.page.locator(LOBBY.subtitle).click();
+    await this.page.locator(LOBBY.subtitleHostBtn).click();
     await this.page.locator('app-session-settings-sheet').waitFor({ state: 'visible' });
   }
 
