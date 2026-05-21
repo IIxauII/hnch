@@ -29,10 +29,13 @@ import { LOBBY } from './fixtures/helpers';
 
 async function ensureAccordionOpen(page: import('@playwright/test').Page): Promise<void> {
   await page.evaluate(() => {
-    const group = document.querySelector('ion-accordion-group') as
-      | (HTMLElement & { value?: string | null })
-      | null;
-    if (group) group.value = 'open';
+    const groups = document.querySelectorAll('ion-accordion-group') as NodeListOf<
+      HTMLElement & { value?: string | string[] | null }
+    >;
+    const all = ['general', 'share', 'participants', 'agenda', 'results', 'history'];
+    groups.forEach((g) => {
+      g.value = all;
+    });
   });
 }
 
