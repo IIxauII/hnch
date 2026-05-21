@@ -125,6 +125,7 @@ jobs:
           [[ "$relay"  == "true" ]] && pkgs+=('"relay"')
           [[ "$client" == "true" ]] && pkgs+=('"client"')
           [[ "$cli"    == "true" ]] && pkgs+=('"cli"')
+          [[ "$e2e"    == "true" ]] && pkgs+=('"e2e"')
           ifs_old=$IFS; IFS=,; echo "verify-packages=[${pkgs[*]}]" >> "$GITHUB_OUTPUT"; IFS=$ifs_old
 
   verify:
