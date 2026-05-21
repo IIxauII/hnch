@@ -691,7 +691,7 @@ export class Participant {
       throw new Error(`Expected to be on /estimating but URL is ${url}`);
     }
     // Ensure results section (shown after reveal) is not visible
-    await this.page.locator('section.results-section').waitFor({ state: 'hidden' });
+    await this.page.locator('.results-section').waitFor({ state: 'hidden' });
   }
 
   /** Assert this participant sees host controls. */

@@ -29,7 +29,7 @@ async function expectNumericVotes(
   await resultsSection.waitFor({ state: 'visible', timeout: 10_000 });
   // Wait for at least one numeric group card to appear.
   const numericGroups = page.locator(
-    'section.results-section ion-item-group.group:not(.didnt-vote):not(.abstained)',
+    '.results-section ion-item-group.group:not(.didnt-vote):not(.abstained)',
   );
   await numericGroups.first().waitFor({ state: 'visible', timeout: 10_000 });
   const allChips: string[] = [];
