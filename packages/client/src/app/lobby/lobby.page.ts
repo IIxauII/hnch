@@ -52,14 +52,18 @@ import {
   copyOutline,
   ellipsisHorizontalCircle,
   ellipsisVertical,
+  listOutline,
   logOutOutline,
   pencilOutline,
+  peopleOutline,
   personCircleOutline,
   personRemoveOutline,
   qrCodeOutline,
   settingsOutline,
   shareOutline,
   starOutline,
+  statsChartOutline,
+  timeOutline,
 } from 'ionicons/icons';
 
 import { ConnectionChipComponent } from '../core/connection-chip.component';
@@ -87,11 +91,7 @@ import { shouldRecordCache } from '../core/cache-record-guard';
 import { QrDisplaySheetComponent } from './qr-display.sheet';
 import { presentSheet } from '../utils/present-sheet';
 import { rejectionCopy } from '../join/join.page';
-import {
-  participantsAccordionOpenFromValue,
-  participantsAccordionValueFor,
-  summarizeParticipants,
-} from './lobby-summary';
+import { summarizeParticipants } from './lobby-summary';
 import { AgendaPanelComponent } from '../agenda/agenda-panel.component';
 import {
   AgendaItemFormSheetComponent,
@@ -194,231 +194,301 @@ import type { AgendaItem } from '@hnch/shared';
     </ion-header>
     <ion-content class="ion-padding">
       <ion-grid fixed class="page-container">
-        <ion-row><ion-col>
-      <app-connection-status-banner />
-      @if (roomCode()) {
-        <button
-          type="button"
-          class="room-code"
-          aria-label="Copy room code"
-          (click)="onCopyRoomCode()"
-        >
-          <span>{{ formattedRoomCode() }}</span>
-          <ion-icon name="copy-outline" aria-hidden="true"></ion-icon>
-        </button>
-        @if (subtitle()) {
-          @if (isHost()) {
-            <button
-              type="button"
-              class="subtitle"
-              [attr.aria-label]="'Edit session settings: ' + subtitle()"
-              (click)="openSessionSettings()"
+        <app-connection-status-banner />
+        <ion-row>
+          <ion-col size="12" sizeLg="6">
+            <ion-accordion-group
+              [multiple]="true"
+              [value]="expandedSections()"
+              expand="inset"
+              (ionChange)="onAccordionChange($event)"
             >
-              <span>{{ subtitle() }}</span>
-              <ion-icon name="pencil-outline" aria-hidden="true"></ion-icon>
-            </button>
-          } @else {
-            <ion-chip outline class="subtitle-chip">
-              {{ subtitle() }}
-            </ion-chip>
-          }
-        }
-      }
-
-      <ion-list lines="inset" class="actions">
-        <ion-item button (click)="onShareInvite()">
-          <ion-icon
-            slot="start"
-            name="share-outline"
-            aria-hidden="true"
-          ></ion-icon>
-          <ion-label>Share invite</ion-label>
-        </ion-item>
-        <ion-item button (click)="onShowQr()">
-          <ion-icon
-            slot="start"
-            name="qr-code-outline"
-            aria-hidden="true"
-          ></ion-icon>
-          <ion-label>Show QR code</ion-label>
-        </ion-item>
-      </ion-list>
-
-      <app-agenda-panel
-        [items]="agenda()"
-        [isHost]="isHost()"
-        (addRequested)="openAddAgendaItem()"
-        (editRequested)="openEditAgendaItem($event)"
-        (skipRequested)="onAgendaSkip($event)"
-        (cancelRequested)="onAgendaCancel($event)"
-        (reorderUpRequested)="onAgendaReorderUp($event)"
-        (reorderDownRequested)="onAgendaReorderDown($event)"
-      />
-
-      <ion-accordion-group
-        [value]="participantsAccordionValue()"
-        expand="inset"
-        (ionChange)="onParticipantsAccordionChange($event)"
-      >
-        <ion-accordion value="open">
-          <ion-item slot="header" lines="inset">
-            <ion-label>
-              Participants ({{ activeParticipants().length }})
-              @if (participantsSummary() && !participantsAccordionOpen()) {
-                <p class="participants-summary">{{ participantsSummary() }}</p>
-              }
-            </ion-label>
-          </ion-item>
-          <div slot="content">
-            @if (isHost() && surface.mode() === 'mobile') {
-              <p class="swipe-hint">Swipe a row for host actions.</p>
-            }
-            <ion-list lines="inset" class="participants">
-              @for (p of activeParticipants(); track p.id) {
-                @if (isHost() && p.id !== myId()) {
-                  <ion-item-sliding>
-                    <ion-item
-                      [class.offline]="!onlineIds().has(p.id)"
-                      [attr.aria-label]="p.displayName"
+              <ion-accordion
+                value="general"
+                class="lobby-section locked-open"
+              >
+                <ion-item slot="header" lines="inset">
+                  <ion-label>
+                    <h2 class="lobby-section__heading">Session</h2>
+                  </ion-label>
+                </ion-item>
+                <div slot="content" class="lobby-section__body">
+                  @if (roomCode()) {
+                    <button
+                      type="button"
+                      class="room-code"
+                      aria-label="Copy room code"
+                      (click)="onCopyRoomCode()"
                     >
-                      <ion-avatar
-                        slot="start"
-                        aria-hidden="true"
-                        [style.--avatar-color]="colorOf(p)"
-                      >
-                        <ion-icon name="person-circle-outline"></ion-icon>
-                      </ion-avatar>
-                      <ion-label>
-                        {{ p.displayName }}
-                        @if (p.id === hostId()) {
-                          <ion-icon
-                            name="star-outline"
-                            class="host-icon"
-                            aria-label="Host"
-                          ></ion-icon>
-                        }
-                      </ion-label>
-                      @if (isParticipantViewer(p)) {
-                        <ion-note slot="end" aria-label="Observer">observer</ion-note>
-                      } @else if (!onlineIds().has(p.id)) {
-                        <ion-note slot="end">Offline</ion-note>
-                      }
-                      @if (surface.mode() === 'desktop') {
-                        <ion-button
-                          fill="clear"
-                          slot="end"
-                          [attr.aria-label]="'Host actions for ' + p.displayName"
-                          (click)="openParticipantActions(p, $event)"
+                      <span>{{ formattedRoomCode() }}</span>
+                      <ion-icon name="copy-outline" aria-hidden="true"></ion-icon>
+                    </button>
+                    @if (subtitle()) {
+                      @if (isHost()) {
+                        <button
+                          type="button"
+                          class="subtitle"
+                          [attr.aria-label]="'Edit session settings: ' + subtitle()"
+                          (click)="openSessionSettings()"
                         >
-                          <ion-icon name="ellipsis-vertical" aria-hidden="true"></ion-icon>
-                        </ion-button>
+                          <span>{{ subtitle() }}</span>
+                          <ion-icon name="pencil-outline" aria-hidden="true"></ion-icon>
+                        </button>
+                      } @else {
+                        <ion-chip outline class="subtitle-chip">
+                          {{ subtitle() }}
+                        </ion-chip>
                       }
-                    </ion-item>
-                    <ion-item-options side="end">
-                      <ion-item-option
-                        color="primary"
-                        [attr.aria-label]="'Make ' + p.displayName + ' host'"
-                        (click)="onHandoffTap(p.id, p.displayName)"
-                      >
-                        <ion-icon slot="icon-only" name="star-outline"></ion-icon>
-                      </ion-item-option>
-                      <ion-item-option
-                        color="danger"
-                        [attr.aria-label]="'Remove ' + p.displayName + ' from session'"
-                        (click)="onRemoveTap(p.id, p.displayName)"
-                      >
-                        <ion-icon slot="icon-only" name="person-remove-outline"></ion-icon>
-                      </ion-item-option>
-                    </ion-item-options>
-                  </ion-item-sliding>
-                } @else {
-                  <ion-item
-                    [class.offline]="!onlineIds().has(p.id)"
-                    [attr.aria-label]="p.id === myId() ? 'You (' + p.displayName + ')' : p.displayName"
-                  >
-                    <ion-avatar
-                      slot="start"
-                      aria-hidden="true"
-                      [style.--avatar-color]="colorOf(p)"
-                    >
-                      <ion-icon name="person-circle-outline"></ion-icon>
-                    </ion-avatar>
-                    <ion-label>
-                      {{ p.id === myId() ? 'You (' + p.displayName + ')' : p.displayName }}
-                      @if (p.id === hostId()) {
-                        <ion-icon
-                          name="star-outline"
-                          class="host-icon"
-                          aria-label="Host"
-                        ></ion-icon>
-                      }
-                    </ion-label>
-                    @if (p.id === myId()) {
-                      <ion-chip
-                        slot="end"
-                        [color]="isParticipantViewer(p) ? 'medium' : 'primary'"
-                        [attr.aria-label]="isParticipantViewer(p) ? 'You are observing. Tap to switch to voter.' : 'You are a voter. Tap to switch to observer.'"
-                        [attr.aria-pressed]="isParticipantViewer(p)"
-                        (click)="onToggleRole()"
-                      >
-                        <ion-label>{{ isParticipantViewer(p) ? 'Observing' : 'Voter' }}</ion-label>
-                      </ion-chip>
-                    } @else if (isParticipantViewer(p)) {
-                      <ion-note slot="end" aria-label="Observer">observer</ion-note>
-                    } @else if (!onlineIds().has(p.id)) {
-                      <ion-note slot="end">Offline</ion-note>
                     }
-                  </ion-item>
-                }
-              }
-            </ion-list>
-          </div>
-        </ion-accordion>
-      </ion-accordion-group>
+                  }
+                </div>
+              </ion-accordion>
 
-      @if (lastRevealedRound(); as round) {
-        <section class="results-section" [attr.aria-label]="resultsHeading()">
-          <h2 class="results-heading">{{ resultsHeading() }}</h2>
-          @if (lastRoundWasSkipped()) {
-            <p class="round-skipped" role="status">Round skipped</p>
-          } @else {
-            <div class="results-descriptor-row">
-              @if (formatRoundLabel(round); as label) {
-                <p class="results-descriptor">{{ label }}</p>
-              } @else if (isHost()) {
-                <p class="results-descriptor placeholder">Add a descriptor</p>
-              }
-              @if (isHost()) {
-                <ion-button
-                  fill="clear"
-                  size="small"
-                  class="edit-btn"
-                  aria-label="Edit round descriptor"
-                  (click)="openRoundEdit(round)"
+              <ion-accordion value="share" class="lobby-section">
+                <ion-item slot="header" lines="inset">
+                  <ion-icon slot="start" name="share-outline" aria-hidden="true"></ion-icon>
+                  <ion-label>
+                    <h2 class="lobby-section__heading">Share</h2>
+                  </ion-label>
+                </ion-item>
+                <div slot="content" class="lobby-section__body">
+                  <ion-list lines="inset" class="actions">
+                    <ion-item button (click)="onShareInvite()">
+                      <ion-icon
+                        slot="start"
+                        name="share-outline"
+                        aria-hidden="true"
+                      ></ion-icon>
+                      <ion-label>Share invite</ion-label>
+                    </ion-item>
+                    <ion-item button (click)="onShowQr()">
+                      <ion-icon
+                        slot="start"
+                        name="qr-code-outline"
+                        aria-hidden="true"
+                      ></ion-icon>
+                      <ion-label>Show QR code</ion-label>
+                    </ion-item>
+                  </ion-list>
+                </div>
+              </ion-accordion>
+
+              <ion-accordion value="participants" class="lobby-section">
+                <ion-item slot="header" lines="inset">
+                  <ion-icon slot="start" name="people-outline" aria-hidden="true"></ion-icon>
+                  <ion-label>
+                    <h2 class="lobby-section__heading">
+                      Participants ({{ activeParticipants().length }})
+                    </h2>
+                    @if (participantsSummary() && !participantsAccordionOpen()) {
+                      <p class="participants-summary">{{ participantsSummary() }}</p>
+                    }
+                  </ion-label>
+                </ion-item>
+                <div slot="content" class="lobby-section__body">
+                  @if (isHost() && surface.mode() === 'mobile') {
+                    <p class="swipe-hint">Swipe a row for host actions.</p>
+                  }
+                  <ion-list lines="inset" class="participants">
+                    @for (p of activeParticipants(); track p.id) {
+                      @if (isHost() && p.id !== myId()) {
+                        <ion-item-sliding>
+                          <ion-item
+                            [class.offline]="!onlineIds().has(p.id)"
+                            [attr.aria-label]="p.displayName"
+                          >
+                            <ion-avatar
+                              slot="start"
+                              aria-hidden="true"
+                              [style.--avatar-color]="colorOf(p)"
+                            >
+                              <ion-icon name="person-circle-outline"></ion-icon>
+                            </ion-avatar>
+                            <ion-label>
+                              {{ p.displayName }}
+                              @if (p.id === hostId()) {
+                                <ion-icon
+                                  name="star-outline"
+                                  class="host-icon"
+                                  aria-label="Host"
+                                ></ion-icon>
+                              }
+                            </ion-label>
+                            @if (isParticipantViewer(p)) {
+                              <ion-note slot="end" aria-label="Observer">observer</ion-note>
+                            } @else if (!onlineIds().has(p.id)) {
+                              <ion-note slot="end">Offline</ion-note>
+                            }
+                            @if (surface.mode() === 'desktop') {
+                              <ion-button
+                                fill="clear"
+                                slot="end"
+                                [attr.aria-label]="'Host actions for ' + p.displayName"
+                                (click)="openParticipantActions(p, $event)"
+                              >
+                                <ion-icon name="ellipsis-vertical" aria-hidden="true"></ion-icon>
+                              </ion-button>
+                            }
+                          </ion-item>
+                          <ion-item-options side="end">
+                            <ion-item-option
+                              color="primary"
+                              [attr.aria-label]="'Make ' + p.displayName + ' host'"
+                              (click)="onHandoffTap(p.id, p.displayName)"
+                            >
+                              <ion-icon slot="icon-only" name="star-outline"></ion-icon>
+                            </ion-item-option>
+                            <ion-item-option
+                              color="danger"
+                              [attr.aria-label]="'Remove ' + p.displayName + ' from session'"
+                              (click)="onRemoveTap(p.id, p.displayName)"
+                            >
+                              <ion-icon slot="icon-only" name="person-remove-outline"></ion-icon>
+                            </ion-item-option>
+                          </ion-item-options>
+                        </ion-item-sliding>
+                      } @else {
+                        <ion-item
+                          [class.offline]="!onlineIds().has(p.id)"
+                          [attr.aria-label]="p.id === myId() ? 'You (' + p.displayName + ')' : p.displayName"
+                        >
+                          <ion-avatar
+                            slot="start"
+                            aria-hidden="true"
+                            [style.--avatar-color]="colorOf(p)"
+                          >
+                            <ion-icon name="person-circle-outline"></ion-icon>
+                          </ion-avatar>
+                          <ion-label>
+                            {{ p.id === myId() ? 'You (' + p.displayName + ')' : p.displayName }}
+                            @if (p.id === hostId()) {
+                              <ion-icon
+                                name="star-outline"
+                                class="host-icon"
+                                aria-label="Host"
+                              ></ion-icon>
+                            }
+                          </ion-label>
+                          @if (p.id === myId()) {
+                            <ion-chip
+                              slot="end"
+                              [color]="isParticipantViewer(p) ? 'medium' : 'primary'"
+                              [attr.aria-label]="isParticipantViewer(p) ? 'You are observing. Tap to switch to voter.' : 'You are a voter. Tap to switch to observer.'"
+                              [attr.aria-pressed]="isParticipantViewer(p)"
+                              (click)="onToggleRole()"
+                            >
+                              <ion-label>{{ isParticipantViewer(p) ? 'Observing' : 'Voter' }}</ion-label>
+                            </ion-chip>
+                          } @else if (isParticipantViewer(p)) {
+                            <ion-note slot="end" aria-label="Observer">observer</ion-note>
+                          } @else if (!onlineIds().has(p.id)) {
+                            <ion-note slot="end">Offline</ion-note>
+                          }
+                        </ion-item>
+                      }
+                    }
+                  </ion-list>
+                </div>
+              </ion-accordion>
+            </ion-accordion-group>
+          </ion-col>
+
+          <ion-col size="12" sizeLg="6">
+            <ion-accordion-group
+              [multiple]="true"
+              [value]="expandedSections()"
+              expand="inset"
+              (ionChange)="onAccordionChange($event)"
+            >
+              <ion-accordion
+                value="agenda"
+                class="lobby-section locked-open"
+              >
+                <ion-item slot="header" lines="inset">
+                  <ion-icon slot="start" name="list-outline" aria-hidden="true"></ion-icon>
+                  <ion-label>
+                    <h2 class="lobby-section__heading">Agenda</h2>
+                  </ion-label>
+                </ion-item>
+                <div slot="content" class="lobby-section__body">
+                  <app-agenda-panel
+                    [items]="agenda()"
+                    [isHost]="isHost()"
+                    (addRequested)="openAddAgendaItem()"
+                    (editRequested)="openEditAgendaItem($event)"
+                    (skipRequested)="onAgendaSkip($event)"
+                    (cancelRequested)="onAgendaCancel($event)"
+                    (reorderUpRequested)="onAgendaReorderUp($event)"
+                    (reorderDownRequested)="onAgendaReorderDown($event)"
+                  />
+                </div>
+              </ion-accordion>
+
+              @if (lastRevealedRound(); as round) {
+                <ion-accordion
+                  value="results"
+                  class="lobby-section locked-open"
                 >
-                  <ion-icon name="pencil-outline" slot="icon-only" />
-                </ion-button>
+                  <ion-item slot="header" lines="inset">
+                    <ion-icon slot="start" name="stats-chart-outline" aria-hidden="true"></ion-icon>
+                    <ion-label>
+                      <h2 class="lobby-section__heading">{{ resultsHeading() }}</h2>
+                    </ion-label>
+                  </ion-item>
+                  <div slot="content" class="lobby-section__body results-section" [attr.aria-label]="resultsHeading()">
+                    @if (lastRoundWasSkipped()) {
+                      <p class="round-skipped" role="status">Round skipped</p>
+                    } @else {
+                      <div class="results-descriptor-row">
+                        @if (formatRoundLabel(round); as label) {
+                          <p class="results-descriptor">{{ label }}</p>
+                        } @else if (isHost()) {
+                          <p class="results-descriptor placeholder">Add a descriptor</p>
+                        }
+                        @if (isHost()) {
+                          <ion-button
+                            fill="clear"
+                            size="small"
+                            class="edit-btn"
+                            aria-label="Edit round descriptor"
+                            (click)="openRoundEdit(round)"
+                          >
+                            <ion-icon name="pencil-outline" slot="icon-only" />
+                          </ion-button>
+                        }
+                      </div>
+                      <app-vote-results
+                        [round]="round"
+                        [participants]="participants()"
+                        [myId]="myId()"
+                      />
+                    }
+                  </div>
+                </ion-accordion>
               }
-            </div>
-            <app-vote-results
-              [round]="round"
-              [participants]="participants()"
-              [myId]="myId()"
-            />
-          }
-        </section>
-      }
 
-      @if (pastRevealedRounds().length > 0) {
-        <app-round-history
-          [rounds]="pastRevealedRounds()"
-          [allRounds]="rounds()"
-          [participants]="participants()"
-          [isHost]="isHost()"
-          (editTriggered)="openRoundEditById($event)"
-        />
-      }
-        </ion-col></ion-row>
+              @if (pastRevealedRounds().length > 0) {
+                <ion-accordion value="history" class="lobby-section">
+                  <ion-item slot="header" lines="inset">
+                    <ion-icon slot="start" name="time-outline" aria-hidden="true"></ion-icon>
+                    <ion-label>
+                      <h2 class="lobby-section__heading">History</h2>
+                    </ion-label>
+                  </ion-item>
+                  <div slot="content" class="lobby-section__body">
+                    <app-round-history
+                      [rounds]="pastRevealedRounds()"
+                      [allRounds]="rounds()"
+                      [participants]="participants()"
+                      [isHost]="isHost()"
+                      (editTriggered)="openRoundEditById($event)"
+                    />
+                  </div>
+                </ion-accordion>
+              }
+            </ion-accordion-group>
+          </ion-col>
+        </ion-row>
       </ion-grid>
     </ion-content>
 
@@ -686,6 +756,34 @@ import type { AgendaItem } from '@hnch/shared';
         gap: 0.5rem;
         padding-inline: var(--ion-margin, 16px);
       }
+      ion-accordion.lobby-section {
+        background: var(--hnch-surface, var(--ion-card-background));
+        border-radius: 12px;
+        margin-bottom: 1rem;
+        --background: transparent;
+      }
+      ion-accordion.lobby-section ion-item[slot='header'] {
+        --background: transparent;
+        --padding-start: 1rem;
+      }
+      ion-accordion.lobby-section .lobby-section__heading {
+        font-size: 1.05rem;
+        font-weight: 600;
+        margin: 0;
+      }
+      ion-accordion.lobby-section ion-icon[slot='start'] {
+        margin-inline-end: 0.5rem;
+      }
+      ion-accordion.lobby-section .lobby-section__body {
+        padding: 0.5rem 1rem 1rem;
+      }
+      ion-accordion.lobby-section.locked-open::part(expand-icon) {
+        display: none;
+      }
+      ion-accordion.lobby-section.locked-open ion-item[slot='header'] {
+        --background-hover: transparent;
+        pointer-events: none;
+      }
     `,
   ],
 })
@@ -766,12 +864,13 @@ export class LobbyPage implements OnDestroy {
   }
 
   /**
-   * Syncs the participants-accordion expanded state from the DOM after a user
-   * toggle. The (ionChange) detail.value is `'open'` when the section is
-   * expanded and `null` (or absent) when collapsed.
+   * Sync the expanded-sections signal from `ion-accordion-group` (ionChange).
+   * With `[multiple]="true"`, `detail.value` is a string[] of expanded values.
+   * Hedges against the older single-value shape for safety.
    */
-  protected onParticipantsAccordionChange(event: CustomEvent<{ value?: string | null }>): void {
-    this.participantsAccordionOpen.set(participantsAccordionOpenFromValue(event.detail?.value));
+  protected onAccordionChange(event: CustomEvent<{ value?: string | string[] | null }>): void {
+    const v = event.detail?.value;
+    this.expandedSections.set(Array.isArray(v) ? v : v ? [v] : []);
   }
 
   protected readonly isHost = computed(() => {
@@ -863,21 +962,16 @@ export class LobbyPage implements OnDestroy {
   );
 
   /**
-   * Controls accordion open/closed state. Null collapses when a round
-   * has reached a terminal state so results stay above the fold.
+   * Expanded-section values driving the lobby's `ion-accordion-group`s.
+   * Seeded by the mode-transition effect; updated by `(ionChange)`.
    */
-  protected readonly participantsAccordionValue = computed(() =>
-    participantsAccordionValueFor(this.hasTerminalRounds()),
-  );
+  protected readonly expandedSections = signal<string[]>([]);
+  private prevSurfaceMode: 'mobile' | 'desktop' | null = null;
 
-  /**
-   * Tracks the participants accordion's actual expanded state. Seeded from
-   * `participantsAccordionValue()` via an effect in the constructor; updated
-   * on `(ionChange)` when the user manually toggles. Gates the header summary
-   * so it only renders while the section is collapsed (avoids duplicating the
-   * per-row status info shown in the expanded list).
-   */
-  protected readonly participantsAccordionOpen = signal(true);
+  /** True when the participants accordion is currently expanded. */
+  protected readonly participantsAccordionOpen = computed(() =>
+    this.expandedSections().includes('participants'),
+  );
 
   /**
    * Short summary line shown in the accordion header when collapsed —
@@ -926,24 +1020,39 @@ export class LobbyPage implements OnDestroy {
       'copy-outline': copyOutline,
       'ellipsis-horizontal-circle': ellipsisHorizontalCircle,
       'ellipsis-vertical': ellipsisVertical,
+      'list-outline': listOutline,
       'log-out-outline': logOutOutline,
       'pencil-outline': pencilOutline,
+      'people-outline': peopleOutline,
       'person-circle-outline': personCircleOutline,
       'person-remove-outline': personRemoveOutline,
       'qr-code-outline': qrCodeOutline,
       'settings-outline': settingsOutline,
       'share-outline': shareOutline,
       'star-outline': starOutline,
+      'stats-chart-outline': statsChartOutline,
+      'time-outline': timeOutline,
     });
 
-    // Mirror the auto-collapse intent into the actual-expanded signal so the
-    // header summary tracks whichever state the section is really in. The
-    // user can still tap to override after a terminal round; the (ionChange)
-    // handler keeps the signal in sync with the DOM from that point on.
+    // Mode-transition defaults: re-apply only when surface mode flips.
+    // Mobile collapses Share + History; desktop expands every section.
     effect(() => {
-      this.participantsAccordionOpen.set(
-        participantsAccordionOpenFromValue(this.participantsAccordionValue()),
-      );
+      const mode = this.surface.mode();
+      if (this.prevSurfaceMode === mode) return;
+      const base =
+        mode === 'mobile'
+          ? ['general', 'participants', 'agenda', 'results']
+          : ['general', 'share', 'participants', 'agenda', 'results', 'history'];
+      this.expandedSections.set(base);
+      this.prevSurfaceMode = mode;
+    });
+
+    // Targeted Participants auto-collapse on first reveal (mobile only).
+    // Share / History user toggles are preserved.
+    effect(() => {
+      if (this.hasTerminalRounds() && this.surface.mode() === 'mobile') {
+        this.expandedSections.update((v) => v.filter((k) => k !== 'participants'));
+      }
     });
 
     // Refresh the jump-back-in cache only once per (uuid, screen)

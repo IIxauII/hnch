@@ -38,58 +38,44 @@ interface HistoryEntry {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (entries().length > 0) {
-      <section class="history" aria-label="Round history">
-        <h3 class="history-heading">History</h3>
-        <ul class="history-list" role="list">
-          @for (entry of entries(); track entry.roundNumber) {
-            <li class="history-item" [class.skipped]="entry.skipped">
-              <span class="round-label">Round {{ entry.roundNumber }}</span>
-              @if (entry.lineageLabel) {
-                <span class="revote-badge"> ({{ entry.lineageLabel }})</span>
+      <ul class="history-list" role="list">
+        @for (entry of entries(); track entry.roundNumber) {
+          <li class="history-item" [class.skipped]="entry.skipped">
+            <span class="round-label">Round {{ entry.roundNumber }}</span>
+            @if (entry.lineageLabel) {
+              <span class="revote-badge"> ({{ entry.lineageLabel }})</span>
+            }
+            @if (entry.label) {
+              <span class="round-title">: {{ entry.label }}</span>
+            }
+            @if (entry.skipped) {
+              <span class="round-skipped"> — Skipped</span>
+            } @else {
+              <span class="round-summary"> — {{ entry.summary }}</span>
+              @if (entry.elapsed) {
+                <span class="round-elapsed"> — {{ entry.elapsed }}</span>
               }
-              @if (entry.label) {
-                <span class="round-title">: {{ entry.label }}</span>
+              @if (isHost()) {
+                <ion-button
+                  fill="clear"
+                  size="small"
+                  class="edit-btn"
+                  [attr.aria-label]="'Edit round ' + entry.roundNumber + ' descriptor'"
+                  (click)="editTriggered.emit(entry.roundId)"
+                >
+                  <ion-icon name="pencil-outline" slot="icon-only" />
+                </ion-button>
               }
-              @if (entry.skipped) {
-                <span class="round-skipped"> — Skipped</span>
-              } @else {
-                <span class="round-summary"> — {{ entry.summary }}</span>
-                @if (entry.elapsed) {
-                  <span class="round-elapsed"> — {{ entry.elapsed }}</span>
-                }
-                @if (isHost()) {
-                  <ion-button
-                    fill="clear"
-                    size="small"
-                    class="edit-btn"
-                    [attr.aria-label]="'Edit round ' + entry.roundNumber + ' descriptor'"
-                    (click)="editTriggered.emit(entry.roundId)"
-                  >
-                    <ion-icon name="pencil-outline" slot="icon-only" />
-                  </ion-button>
-                }
-              }
-            </li>
-          }
-        </ul>
-      </section>
+            }
+          </li>
+        }
+      </ul>
     }
   `,
   styles: [
     `
       :host {
         display: block;
-      }
-      .history {
-        margin-top: 1.5rem;
-      }
-      .history-heading {
-        font-size: 0.875rem;
-        font-weight: 600;
-        color: var(--ion-color-medium);
-        margin: 0 0 0.5rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
       }
       .history-list {
         list-style: none;

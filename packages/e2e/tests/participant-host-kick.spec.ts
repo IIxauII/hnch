@@ -30,10 +30,13 @@ async function openSwipeDrawer(
   // row — otherwise ion-item-option renders inside a collapsed accordion and
   // Playwright reports the option as hidden.
   await page.evaluate(() => {
-    const group = document.querySelector('ion-accordion-group') as
-      | (HTMLElement & { value?: string | null })
-      | null;
-    if (group) group.value = 'open';
+    const groups = document.querySelectorAll('ion-accordion-group') as NodeListOf<
+      HTMLElement & { value?: string | string[] | null }
+    >;
+    const all = ['general', 'share', 'participants', 'agenda', 'results', 'history'];
+    groups.forEach((g) => {
+      g.value = all;
+    });
   });
 
   // Wait until the participant's row is in the DOM and contains the name text.

@@ -86,18 +86,18 @@ export const LOBBY = {
   subtitleHostBtn: 'button.subtitle',
   participantList: 'ion-list.participants',
   participantItems: 'ion-list.participants ion-item',
-  participantCount: 'ion-accordion ion-item[slot="header"] ion-label',
+  participantCount: 'ion-accordion[value="participants"] ion-item[slot="header"] ion-label',
   hostIcon: '.host-icon',
   startRoundBtn: /Start Round \d+/,
   /** Results section shown after a round is revealed */
-  resultsSection: 'section.results-section',
-  resultsHeading: 'section.results-section h2',
-  voteGroups: 'section.results-section ion-item-group.group:not(.didnt-vote)',
-  groupCard: 'section.results-section ion-item-group .card',
-  voterChips: 'section.results-section ion-chip ion-label',
-  didntVoteGroup: 'section.results-section ion-item-group.didnt-vote',
+  resultsSection: '.results-section',
+  resultsHeading: 'ion-accordion[value="results"] .lobby-section__heading',
+  voteGroups: '.results-section ion-item-group.group:not(.didnt-vote)',
+  groupCard: '.results-section ion-item-group .card',
+  voterChips: '.results-section ion-chip ion-label',
+  didntVoteGroup: '.results-section ion-item-group.didnt-vote',
   /** Abstained group shown after reveal when at least one participant abstained. */
-  abstainedGroup: 'section.results-section ion-item-group.group.abstained',
+  abstainedGroup: '.results-section ion-item-group.group.abstained',
   revoteBtn: 'ion-button:has-text("Re-vote")',
   nextRoundBtn: /Next Round \d+/,
 } as const;
@@ -320,11 +320,11 @@ export const CONNECTION_CHIP = {
 // ---------------------------------------------------------------------------
 // Round history
 // ---------------------------------------------------------------------------
-// app-round-history renders <section class="history"> only when entries.length > 0.
-// No empty-state placeholder rendered — component is absent when no rounds.
-// TODO Phase 1 verification: confirm no empty-state element exists in template.
+// app-round-history renders content only when entries.length > 0; the lobby
+// only mounts the component when there is at least one past revealed round,
+// so the host element absence is the empty-state signal.
 export const ROUND_HISTORY = {
-  section: 'app-round-history section.history',
+  section: 'app-round-history',
   items: 'app-round-history ul.history-list li.history-item',
   skippedItem: 'app-round-history li.history-item.skipped',
 } as const;
