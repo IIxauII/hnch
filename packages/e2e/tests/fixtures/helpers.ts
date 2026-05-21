@@ -78,7 +78,12 @@ export async function fillRoomCode(page: Page, code: string): Promise<void> {
 export const LOBBY = {
   roomCode: 'button.room-code',
   roomCodeText: 'button.room-code span',
-  subtitle: 'button.subtitle',
+  // Host renders subtitle as a tappable button (opens session settings).
+  // Non-host renders as a read-only ion-chip (no settings affordance).
+  // Selector matches both so role-agnostic reads work; host-only click
+  // helpers should use `subtitleHostBtn` explicitly.
+  subtitle: 'button.subtitle, ion-chip.subtitle-chip',
+  subtitleHostBtn: 'button.subtitle',
   participantList: 'ion-list.participants',
   participantItems: 'ion-list.participants ion-item',
   participantCount: 'ion-accordion ion-item[slot="header"] ion-label',

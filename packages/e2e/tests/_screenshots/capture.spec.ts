@@ -132,7 +132,7 @@ test.describe('screenshot capture', () => {
       await shot(page, '06-lobby-1440');
 
       // 07 — session-settings sheet (open via subtitle)
-      await page.locator(LOBBY.subtitle).click();
+      await page.locator(LOBBY.subtitleHostBtn).click();
       await page.locator('app-session-settings-sheet').waitFor({ state: 'visible' });
       await page.waitForTimeout(400);
       await shot(page, '07-session-settings-sheet');
