@@ -320,11 +320,11 @@ export const CONNECTION_CHIP = {
 // ---------------------------------------------------------------------------
 // Round history
 // ---------------------------------------------------------------------------
-// app-round-history renders <section class="history"> only when entries.length > 0.
-// No empty-state placeholder rendered — component is absent when no rounds.
-// TODO Phase 1 verification: confirm no empty-state element exists in template.
+// app-round-history renders content only when entries.length > 0; the lobby
+// only mounts the component when there is at least one past revealed round,
+// so the host element absence is the empty-state signal.
 export const ROUND_HISTORY = {
-  section: 'app-round-history section.history',
+  section: 'app-round-history',
   items: 'app-round-history ul.history-list li.history-item',
   skippedItem: 'app-round-history li.history-item.skipped',
 } as const;
