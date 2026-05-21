@@ -72,7 +72,7 @@ async function createSession(page: Page): Promise<string> {
 }
 
 async function addItem(page: Page, input: { title?: string; ticketId?: string }): Promise<void> {
-  const panel = page.locator('app-agenda-panel section.agenda-panel');
+  const panel = page.locator('app-agenda-panel .agenda-panel');
   await panel.waitFor({ state: 'visible' });
   const addBtn = panel.getByRole('button', { name: 'Add agenda item' });
   await addBtn.waitFor({ state: 'visible', timeout: 10_000 });
@@ -115,7 +115,7 @@ test.describe('agenda state screenshots', () => {
       await shot(page, '01-empty-agenda-host-desktop');
 
       // 02 — add sheet open (empty)
-      const panel = page.locator('app-agenda-panel section.agenda-panel');
+      const panel = page.locator('app-agenda-panel .agenda-panel');
       const addBtn = panel.getByRole('button', { name: 'Add agenda item' });
       await addBtn.waitFor({ state: 'visible' });
       await addBtn.click();
@@ -245,9 +245,7 @@ test.describe('agenda state screenshots', () => {
 
       // 11 — joiner mobile expanded
       await chip.click();
-      await joinerPage
-        .locator('app-agenda-panel section.agenda-panel')
-        .waitFor({ state: 'visible' });
+      await joinerPage.locator('app-agenda-panel .agenda-panel').waitFor({ state: 'visible' });
       await shot(joinerPage, '11-agenda-joiner-mobile-expanded');
     } finally {
       await hostCtx.close();

@@ -25,25 +25,3 @@ export function summarizeParticipants(
   if (viewers > 0) parts.push(`${viewers} viewer${viewers === 1 ? '' : 's'}`);
   return parts.join(' · ');
 }
-
-/**
- * Accordion `value` for the participants section. Returns `'open'`
- * when the participants list should be expanded; `null` collapses.
- * Collapses once a round has been revealed so results stay above
- * the fold. Pure helper exported for unit testing.
- */
-export function participantsAccordionValueFor(hasRevealedRound: boolean): 'open' | null {
-  return hasRevealedRound ? null : 'open';
-}
-
-/**
- * Maps the ion-accordion-group `(ionChange)` detail value to the
- * "is the participants section actually expanded" boolean used to gate
- * the redundant header summary. `'open'` → true; everything else
- * (null, undefined, any other value) → false. Pure helper exported
- * for unit testing — the binding from intent (`participantsAccordionValueFor`)
- * to DOM state is one-way, so the component reconciles via this predicate.
- */
-export function participantsAccordionOpenFromValue(value: string | null | undefined): boolean {
-  return value === 'open';
-}
