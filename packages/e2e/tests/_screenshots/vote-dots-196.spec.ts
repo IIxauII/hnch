@@ -124,7 +124,9 @@ for (const sc of SCENARIOS) {
         await onboard(page, name);
         clients.push({ ctx, page, name });
       }
-      const [hostC, p2, p3] = clients;
+      const hostC = clients[0]!;
+      const p2 = clients[1]!;
+      const p3 = clients[2]!;
 
       const code = await host_createSession(hostC.page);
       await joinSession(p2.page, code);
