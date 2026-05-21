@@ -214,7 +214,7 @@ test.describe('reveal transition screenshots', () => {
         .first()
         .locator('input')
         .fill('New Feature');
-      await hostPage.locator(ROUND_START.startBtn).evaluate((el: HTMLElement) => el.click());
+      await clickRoundStartSubmit(hostPage);
       await hostPage.waitForURL(/\/estimating/);
       await hostPage.locator(ESTIMATING.cardGrid).waitFor({ state: 'visible' });
 
