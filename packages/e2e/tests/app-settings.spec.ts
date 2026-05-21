@@ -155,7 +155,7 @@ test.describe('App Settings', () => {
     await host.page.waitForURL(/\/lobby/);
 
     // Open session settings and verify scale is Linear
-    await host.page.locator(LOBBY.subtitle).click();
+    await host.page.locator(LOBBY.subtitleHostBtn).click();
     await host.page.locator('app-session-settings-sheet').waitFor({ state: 'visible' });
 
     // The session settings sheet should show Linear as the current scale
@@ -175,7 +175,7 @@ test.describe('App Settings', () => {
     await host.page.waitForURL(/\/lobby/);
 
     // Open session settings and then scale picker
-    await host.page.locator(LOBBY.subtitle).click();
+    await host.page.locator(LOBBY.subtitleHostBtn).click();
     await host.page.locator('app-session-settings-sheet').waitFor({ state: 'visible' });
     await host.page.locator(SETTINGS_SHEET.scaleRow).click();
 
