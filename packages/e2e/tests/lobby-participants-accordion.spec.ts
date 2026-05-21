@@ -1,6 +1,8 @@
 import { test, expect } from './fixtures/app.fixture';
 import { LOBBY } from './fixtures/helpers';
 
+const MOBILE_VIEWPORT = { width: 390, height: 844 };
+
 test.describe('Lobby participants accordion', () => {
   test('pre-reveal: participants visible by default', async ({ host, player }) => {
     const code = await host.createSession();
@@ -16,6 +18,9 @@ test.describe('Lobby participants accordion', () => {
   });
 
   test('post-reveal: participants collapsed, results visible', async ({ host, player }) => {
+    // Auto-collapse on reveal is mobile-only per #266; pin viewport.
+    await host.page.setViewportSize(MOBILE_VIEWPORT);
+    await player.page.setViewportSize(MOBILE_VIEWPORT);
     const code = await host.createSession();
     await player.joinSession(code);
     await host.expectParticipantCount(2);
@@ -41,6 +46,9 @@ test.describe('Lobby participants accordion', () => {
   });
 
   test('post-reveal: tapping header expands the list', async ({ host, player }) => {
+    // Auto-collapse on reveal is mobile-only per #266; pin viewport.
+    await host.page.setViewportSize(MOBILE_VIEWPORT);
+    await player.page.setViewportSize(MOBILE_VIEWPORT);
     const code = await host.createSession();
     await player.joinSession(code);
     await host.startRound();
