@@ -1,3 +1,15 @@
+# [1.33.0](https://github.com/IIxauII/hnch/compare/client-v1.32.1...client-v1.33.0) (2026-05-22)
+
+
+### Bug Fixes
+
+* **client,e2e:** celebration overlay page-scoped + first-reveal arm ([#293](https://github.com/IIxauII/hnch/issues/293)) ([fbc638d](https://github.com/IIxauII/hnch/commit/fbc638db3c657d58d02d0dd477ee86087aa9c8a2))
+
+
+### Features
+
+* **client,e2e:** unify lobby sections into accordion grid ([#292](https://github.com/IIxauII/hnch/issues/292)) ([053c751](https://github.com/IIxauII/hnch/commit/053c7517b44ab99c5320b2b53c69127d84b60311))
+
 ## [1.32.1](https://github.com/IIxauII/hnch/compare/client-v1.32.0...client-v1.32.1) (2026-05-21)
 
 
