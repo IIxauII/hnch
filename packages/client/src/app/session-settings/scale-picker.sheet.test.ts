@@ -1,3 +1,4 @@
+// Exercises: scale-picker.helpers:previewCards
 // Exercises: scale-picker.helpers:previewBuiltinCards
 // Exercises: ScalePickerSheetComponent:formatId (custom-scale label resolution)
 
@@ -6,7 +7,7 @@ import { signal } from '@angular/core';
 import { describe, expect, it, vi } from 'vitest';
 import type { CustomScale } from '@hnch/shared';
 
-import { previewBuiltinCards } from './scale-picker.helpers';
+import { previewCards, previewBuiltinCards } from './scale-picker.helpers';
 import { HapticService } from '../core/haptic.service';
 import { ScalePreferenceService } from '../core/scale-preference.service';
 import { SurfaceService } from '../core/surface.service';
@@ -106,6 +107,20 @@ async function mountPicker(customs: CustomScale[]) {
   fixture.detectChanges();
   return fixture;
 }
+
+describe('previewCards', () => {
+  it('joins cards with " · " separator', () => {
+    expect(previewCards(['0', '1', '2', '3', '5', '8'])).toBe('0 · 1 · 2 · 3 · 5 · 8');
+  });
+
+  it('returns the single card unchanged', () => {
+    expect(previewCards(['XL'])).toBe('XL');
+  });
+
+  it('returns empty string for an empty array', () => {
+    expect(previewCards([])).toBe('');
+  });
+});
 
 describe('previewBuiltinCards — no overrides', () => {
   it('shows all fibonacci cards when no override exists', () => {
