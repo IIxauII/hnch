@@ -1,3 +1,10 @@
+# [1.35.0](https://github.com/IIxauII/hnch/compare/client-v1.34.0...client-v1.35.0) (2026-05-22)
+
+
+### Features
+
+* **client,shared:** voted dot initials adopt palette ink color ([#300](https://github.com/IIxauII/hnch/issues/300)) ([b90e7ca](https://github.com/IIxauII/hnch/commit/b90e7ca1a4a27522c336984578594acb8098b5a9))
+
 # [1.34.0](https://github.com/IIxauII/hnch/compare/client-v1.33.0...client-v1.34.0) (2026-05-22)
 
 
