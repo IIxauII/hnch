@@ -7,6 +7,7 @@ import {
   deterministicAvatarColor,
   parseAvatarColor,
   resolveAvatarColor,
+  resolveAvatarInkColor,
 } from './avatar-palette.js';
 
 describe('AVATAR_PALETTE_KEYS', () => {
@@ -111,5 +112,33 @@ describe('resolveAvatarColor', () => {
     const fallback = ACCENTS[deterministicAvatarColor('dev-x')].base;
     expect(resolveAvatarColor(undefined, 'dev-x')).toBe(fallback);
     expect(resolveAvatarColor('garbage', 'dev-x')).toBe(fallback);
+  });
+});
+
+describe('resolveAvatarInkColor', () => {
+  it('returns declared ink for every AccentKey', () => {
+    for (const k of AVATAR_PALETTE_KEYS) {
+      expect(resolveAvatarInkColor(k, 'dev')).toBe(ACCENTS[k].ink);
+    }
+  });
+
+  it('computes #000 for light custom hexes', () => {
+    expect(resolveAvatarInkColor('#FFFF00', 'dev')).toBe('#000');
+    expect(resolveAvatarInkColor('#FFD60A', 'dev')).toBe('#000');
+    expect(resolveAvatarInkColor('#ffffff', 'dev')).toBe('#000');
+  });
+
+  it('computes #fff for dark custom hexes', () => {
+    expect(resolveAvatarInkColor('#111111', 'dev')).toBe('#fff');
+    expect(resolveAvatarInkColor('#0B3D2E', 'dev')).toBe('#fff');
+    expect(resolveAvatarInkColor('#000000', 'dev')).toBe('#fff');
+  });
+
+  it('falls back to deterministic-key ink when missing / invalid', () => {
+    const fallback = ACCENTS[deterministicAvatarColor('dev-x')].ink;
+    expect(resolveAvatarInkColor(undefined, 'dev-x')).toBe(fallback);
+    expect(resolveAvatarInkColor(null, 'dev-x')).toBe(fallback);
+    expect(resolveAvatarInkColor('', 'dev-x')).toBe(fallback);
+    expect(resolveAvatarInkColor('garbage', 'dev-x')).toBe(fallback);
   });
 });

@@ -151,3 +151,36 @@ export function deterministicAvatarColor(deviceId: string): AccentKey {
 export function resolveAvatarColor(value: string | undefined | null, deviceId: string): string {
   return parseAvatarColor(value) ?? ACCENTS[deterministicAvatarColor(deviceId)].base;
 }
+
+/**
+ * Resolve the ink (foreground) color paired with the avatar background
+ * for `value`. Mirrors `resolveAvatarColor`'s fallback shape so callers
+ * can bind text/icon color over the rendered avatar bg without picking
+ * a contrast color themselves (ADR-0043).
+ *
+ * - `AccentKey` → declared `ACCENTS[key].ink`.
+ * - `#rrggbb` (custom hex) → WCAG relative luminance of the hex itself;
+ *   `'#000'` when `L > 0.179`, else `'#fff'`. Computed from the actual
+ *   rendered bg, not a palette fallback, since custom-color UI can emit
+ *   arbitrary hexes whose contrast can't be predicted by key.
+ * - missing / invalid → ink of the deterministic palette key for `deviceId`.
+ */
+export function resolveAvatarInkColor(
+  value: string | undefined | null,
+  deviceId: string,
+): '#000' | '#fff' {
+  if (value) {
+    if (isAccentKey(value)) return ACCENTS[value].ink as '#000' | '#fff';
+    if (HEX_RE.test(value)) return inkForHex(value);
+  }
+  return ACCENTS[deterministicAvatarColor(deviceId)].ink as '#000' | '#fff';
+}
+
+function inkForHex(hex: string): '#000' | '#fff' {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const lin = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  return L > 0.179 ? '#000' : '#fff';
+}
