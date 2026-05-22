@@ -231,7 +231,7 @@ import { resolveKeyboardCardAction, shouldHandleKeyEvent } from './estimating.ke
     `
       @use '../../theme/breakpoints' as *;
       @use '../../theme/page-container' as *;
-      @include page-container(640px);
+      @include page-container(800px);
 
       .title {
         font-size: 1.75rem;
