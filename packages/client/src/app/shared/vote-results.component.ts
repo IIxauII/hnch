@@ -198,12 +198,30 @@ interface VoteGroup {
         flex: 0 0 auto;
         min-width: 5.5rem;
         display: flex;
-        align-items: baseline;
+        align-items: center;
         gap: 0.35rem;
       }
       .card {
-        font-size: 1.15rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 2rem;
+        padding: 2px 8px;
+        border-radius: 6px;
+        border: 1.5px solid var(--hnch-sep-strong);
+        background: var(--hnch-elev-2);
+        box-shadow: var(--hnch-shadow-1);
+        font-size: 1rem;
         font-weight: 700;
+      }
+      .group.abstained .card,
+      .group.didnt-vote .card {
+        border: none;
+        background: none;
+        box-shadow: none;
+        padding: 0;
+        border-radius: 0;
+        min-width: unset;
       }
       .count {
         color: var(--ion-color-medium);
