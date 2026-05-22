@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-import { resolveAvatarColor, type ParticipantSnapshot } from '@hnch/shared';
+import { resolveAvatarColor, resolveAvatarInkColor, type ParticipantSnapshot } from '@hnch/shared';
 
 @Component({
   selector: 'app-avatar-vote-row',
@@ -16,7 +16,10 @@ import { resolveAvatarColor, type ParticipantSnapshot } from '@hnch/shared';
               [class.voted]="votedIds().has(p.id)"
               [style.--avatar-color]="colorOf(p)"
             >
-              <span class="dot-initial">{{ initialOf(p) }}</span>
+              <span
+                class="dot-initial"
+                [style.color]="votedIds().has(p.id) ? inkOf(p) : null"
+              >{{ initialOf(p) }}</span>
             </span>
           }
         </div>
@@ -67,9 +70,6 @@ import { resolveAvatarColor, type ParticipantSnapshot } from '@hnch/shared';
         font-weight: 600;
         line-height: 1;
         color: var(--ion-color-medium);
-      }
-      .dot.voted .dot-initial {
-        color: #fff;
       }
       .count {
         color: var(--ion-color-medium);
@@ -125,5 +125,9 @@ export class AvatarVoteRowComponent {
   /** Resolved avatar color (ADR-0043). Falls back to deterministic hash of `p.id`. */
   protected colorOf(p: ParticipantSnapshot): string {
     return resolveAvatarColor(p.avatarColor, p.id);
+  }
+
+  protected inkOf(p: ParticipantSnapshot): '#000' | '#fff' {
+    return resolveAvatarInkColor(p.avatarColor, p.id);
   }
 }
