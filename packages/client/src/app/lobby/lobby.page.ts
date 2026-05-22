@@ -8,6 +8,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { CelebrationService } from '../core/celebration.service';
 import { Router } from '@angular/router';
 import { Share } from '@capacitor/share';
 import {
@@ -127,6 +128,7 @@ import type { AgendaItem } from '@hnch/shared';
 @Component({
   selector: 'app-lobby',
   host: { class: 'ion-page' },
+  providers: [CelebrationService],
   imports: [
     AgendaItemFormSheetComponent,
     AgendaPanelComponent,
@@ -490,6 +492,30 @@ import type { AgendaItem } from '@hnch/shared';
           </ion-col>
         </ion-row>
       </ion-grid>
+      @if (celebration.consensus() && celebration.showOverlay()) {
+        <div
+          class="consensus-overlay"
+          role="status"
+          aria-live="polite"
+          (click)="celebration.dismissOverlay()"
+        >
+          <div class="confetti-layer" aria-hidden="true">
+            @for (piece of celebration.confettiPieces(); track piece.id) {
+              <span
+                class="confetti-piece"
+                [style.--angle.deg]="piece.angle"
+                [style.--distance.px]="piece.distance"
+                [style.--rotate.deg]="piece.rotate"
+                [style.--duration.ms]="piece.duration"
+                [style.--delay.ms]="piece.delay"
+              >{{ piece.emoji }}</span>
+            }
+          </div>
+          <span class="consensus-text">hnch'd!
+            @if (celebration.reducedMotion()) {<span aria-hidden="true"> 🎉</span>}
+          </span>
+        </div>
+      }
     </ion-content>
 
     @if (isHost()) {
@@ -784,6 +810,104 @@ import type { AgendaItem } from '@hnch/shared';
         --background-hover: transparent;
         pointer-events: none;
       }
+
+      /* Consensus overlay — positioned inside ion-content, below toolbar */
+      @keyframes consensusScaleIn {
+        from {
+          opacity: 0;
+          transform: translate(-50%, -50%) scale(0.4);
+        }
+        60% {
+          transform: translate(-50%, -50%) scale(1.15);
+        }
+        to {
+          opacity: 1;
+          transform: translate(-50%, -50%) scale(1);
+        }
+      }
+      @keyframes consensusPulse {
+        0%, 100% {
+          transform: translate(-50%, -50%) scale(1);
+        }
+        50% {
+          transform: translate(-50%, -50%) scale(1.06);
+        }
+      }
+      @keyframes hnchdConfetti {
+        0% {
+          opacity: 1;
+          transform:
+            rotate(0deg)
+            translate(
+              calc(cos(var(--angle)) * 0px),
+              calc(sin(var(--angle)) * 0px)
+            );
+        }
+        60% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0;
+          transform:
+            rotate(var(--rotate))
+            translate(
+              calc(cos(var(--angle)) * var(--distance)),
+              calc(sin(var(--angle)) * var(--distance) + 60px)
+            );
+        }
+      }
+      .consensus-overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        background: rgba(0, 0, 0, var(--hnch-backdrop-alpha, 0.55));
+        cursor: pointer;
+        animation: none;
+      }
+      .confetti-layer {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 1001;
+        overflow: hidden;
+      }
+      .confetti-piece {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        font-size: 1.5rem;
+        line-height: 1;
+        animation: hnchdConfetti var(--duration) ease-out var(--delay) both;
+        will-change: transform, opacity;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .confetti-piece {
+          display: none;
+        }
+      }
+      .consensus-text {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 3rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: var(--ion-color-primary);
+        text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+        white-space: nowrap;
+        z-index: 1002;
+        animation: consensusScaleIn 380ms cubic-bezier(0.34, 1.56, 0.64, 1) both,
+                   consensusPulse 900ms ease-in-out 380ms 3;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .consensus-text {
+          animation: none;
+        }
+      }
     `,
   ],
 })
@@ -799,6 +923,7 @@ export class LobbyPage implements OnDestroy {
   private readonly popoverCtrl = inject(PopoverController);
   private readonly toastService = inject(ToastService);
   private readonly exportService = inject(ExportService);
+  protected readonly celebration = inject(CelebrationService);
 
   protected readonly hasSession = this.docService.hasSession;
   protected readonly participants = this.docService.participants;
@@ -1074,6 +1199,14 @@ export class LobbyPage implements OnDestroy {
           lastScreen: 'lobby',
         });
       }
+    });
+
+    // Wire last revealed round into CelebrationService.
+    // Only non-skipped revealed rounds trigger celebration; CelebrationService
+    // guards internally via consensus() computed.
+    effect(() => {
+      const round = this.lastRevealedRound();
+      this.celebration.setRound(round);
     });
 
     // Auto-navigate to Estimating when a round starts. Covers
