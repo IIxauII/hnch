@@ -1,3 +1,10 @@
+## [1.35.1](https://github.com/IIxauII/hnch/compare/client-v1.35.0...client-v1.35.1) (2026-05-22)
+
+
+### Bug Fixes
+
+* **client:** widen Estimating portal column to match Lobby ([#296](https://github.com/IIxauII/hnch/issues/296)) ([#304](https://github.com/IIxauII/hnch/issues/304)) ([9ac7ba2](https://github.com/IIxauII/hnch/commit/9ac7ba2b46e14e4b1055292496d0153c2a96a3c2))
+
 # [1.35.0](https://github.com/IIxauII/hnch/compare/client-v1.34.0...client-v1.35.0) (2026-05-22)
 
 
