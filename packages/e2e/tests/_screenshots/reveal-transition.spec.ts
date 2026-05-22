@@ -226,6 +226,7 @@ test.describe('reveal transition screenshots', () => {
       // Wait for auto-reveal to fire and navigate to /lobby
       await hostPage.waitForURL(/\/lobby/, { timeout: 10_000 });
       await hostPage.locator(LOBBY.resultsSection).waitFor({ state: 'visible' });
+      await hostPage.locator('.consensus-overlay').waitFor({ state: 'visible' });
 
       if (reducedMotion) {
         // Static state — capture at any stable point
