@@ -149,7 +149,40 @@ function runCapture(sha) {
 
 // ---------------------------------------------------------------- publish
 
+function countPngs(dir) {
+  if (!existsSync(dir)) return 0;
+  const out = execSync(`find ${JSON.stringify(dir)} -type f -name '*.png' | wc -l`, {
+    encoding: 'utf8',
+  }).trim();
+  return parseInt(out, 10) || 0;
+}
+
+function remoteShaDirExists(sha) {
+  // `git ls-tree` on a missing path exits 128 with stderr "not a valid object name".
+  return shOk(`git ls-tree origin/${SCREENSHOTS_BRANCH} -- ${JSON.stringify(`sha-${sha}`)}`);
+}
+
 function publishToScreenshotsBranch(sha) {
+  const src = resolve(repoRoot, 'docs/screenshots', `sha-${sha}`);
+  const localCount = countPngs(src);
+  if (localCount === 0) {
+    throw new Error(
+      `expected PNGs under ${src} after capture; found 0. Capture step likely produced no files — check tag regex matches at least one spec.`,
+    );
+  }
+  log(`local capture: ${localCount} PNG${localCount === 1 ? '' : 's'} in sha-${sha}/`);
+
+  // Legitimate no-op: origin already carries this sha-dir (e.g. earlier run of
+  // this same script, or a concurrent CI publish). Skip without touching the
+  // branch — comment URLs will resolve.
+  sh(`git fetch origin ${SCREENSHOTS_BRANCH}`);
+  if (remoteShaDirExists(sha)) {
+    log(
+      `origin/${SCREENSHOTS_BRANCH} already has sha-${sha}/ — skipping push, comment URLs valid.`,
+    );
+    return;
+  }
+
   const tmpDir = resolve(repoRoot, '..', '.screenshots-tmp');
   if (existsSync(tmpDir)) {
     // Stale leftover from a previous failed run — clean up first.
@@ -161,21 +194,31 @@ function publishToScreenshotsBranch(sha) {
   }
   for (let attempt = 1; attempt <= MAX_PUSH_ATTEMPTS; attempt++) {
     log(`publish attempt ${attempt}/${MAX_PUSH_ATTEMPTS} → ${SCREENSHOTS_BRANCH} branch`);
-    sh(`git fetch origin ${SCREENSHOTS_BRANCH}`);
+    if (attempt > 1) sh(`git fetch origin ${SCREENSHOTS_BRANCH}`);
     sh(`git worktree add -f ${JSON.stringify(tmpDir)} ${SCREENSHOTS_BRANCH}`);
     sh(`git -C ${JSON.stringify(tmpDir)} reset --hard origin/${SCREENSHOTS_BRANCH}`);
-    const src = resolve(repoRoot, 'docs/screenshots', `sha-${sha}`);
     const dest = resolve(tmpDir, `sha-${sha}`);
     mkdirSync(dest, { recursive: true });
     // rsync isn't ubiquitous on dev macs without homebrew; use a tar-pipe.
     execSync(`tar -C ${JSON.stringify(src)} -cf - . | tar -C ${JSON.stringify(dest)} -xf -`, {
       stdio: 'inherit',
     });
+    const copiedCount = countPngs(dest);
+    if (copiedCount !== localCount) {
+      sh(`git worktree remove --force ${JSON.stringify(tmpDir)}`);
+      throw new Error(
+        `tar copy mismatch: ${localCount} PNGs in src, ${copiedCount} in dest. Aborting before comment update.`,
+      );
+    }
     sh(`git -C ${JSON.stringify(tmpDir)} add -A`);
     if (shOk(`git -C ${JSON.stringify(tmpDir)} diff --cached --quiet`)) {
-      log('no changes vs screenshots branch; skipping commit.');
+      // Should be unreachable: we already verified remoteShaDirExists is false
+      // and copied ${localCount} PNGs into a previously-non-existent dest.
+      // Treat as a bug rather than silently no-op.
       sh(`git worktree remove --force ${JSON.stringify(tmpDir)}`);
-      return;
+      throw new Error(
+        `staged diff is empty despite copying ${localCount} PNGs into sha-${sha}/. Refusing to update comment with broken URLs.`,
+      );
     }
     const prNum = process.env['SCREENSHOTS_PR_NUM'] ?? '?';
     sh(
@@ -334,6 +377,17 @@ function main() {
   const sha = shortSHA();
   runCapture(sha);
   publishToScreenshotsBranch(sha);
+
+  // Final verification before claiming success in the sticky comment: refetch
+  // origin/screenshots and confirm the sha-dir actually landed. Catches the
+  // failure mode where publish silently no-ops but the dir is missing remote.
+  sh(`git fetch origin ${SCREENSHOTS_BRANCH}`);
+  if (!remoteShaDirExists(sha)) {
+    throw new Error(
+      `publish reported success but origin/${SCREENSHOTS_BRANCH} does not contain sha-${sha}/. Refusing to update sticky comment with broken URLs.`,
+    );
+  }
+
   const body = buildCommentBody(sha, pr);
   upsertStickyComment(pr, body);
   log(`done. https://github.com/${REPO}/pull/${pr}`);
