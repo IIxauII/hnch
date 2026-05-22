@@ -1,3 +1,10 @@
+# [1.34.0](https://github.com/IIxauII/hnch/compare/client-v1.33.0...client-v1.34.0) (2026-05-22)
+
+
+### Features
+
+* **client:** style revealed vote values as card-face badges ([#298](https://github.com/IIxauII/hnch/issues/298)) ([3808e1a](https://github.com/IIxauII/hnch/commit/3808e1acd0069014263f4264c4250b372bdbddd2))
+
 # [1.33.0](https://github.com/IIxauII/hnch/compare/client-v1.32.1...client-v1.33.0) (2026-05-22)
 
 
