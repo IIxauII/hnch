@@ -1,3 +1,10 @@
+## [1.36.1](https://github.com/IIxauII/hnch/compare/client-v1.36.0...client-v1.36.1) (2026-05-23)
+
+
+### Bug Fixes
+
+* **client:** guard celebration reset effect against projection-tick thrash ([#312](https://github.com/IIxauII/hnch/issues/312)) ([18e1789](https://github.com/IIxauII/hnch/commit/18e178948f5495e0c17a486fc2bf2b0d0681c0f1))
+
 # [1.36.0](https://github.com/IIxauII/hnch/compare/client-v1.35.1...client-v1.36.0) (2026-05-23)
 
 
