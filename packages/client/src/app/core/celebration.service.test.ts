@@ -401,6 +401,142 @@ describe('CelebrationService — AC-17: skip-race cancel', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Race regression (#310): projection-tick reference-thrash must not cancel
+// in-flight celebration. Doc.service rewrites `projection` on every observeDeep
+// callback (awareness, heartbeats, vote settles), and `rounds()` rebuilds as a
+// new array of new Round objects each tick. LobbyPage's
+// `effect(() => celebration.setRound(lastRevealedRound()))` then feeds the
+// service a new-reference-same-id round on every tick. Without an identity
+// guard on the reset effect, the celebration is wiped on every tick.
+//
+// IMPORTANT: this test must call `setRound` with a NEW object reference
+// each tick (e.g. `{ ...round }`); calling with the same ref is a signal-
+// equality no-op that would pass against the buggy code.
+// ---------------------------------------------------------------------------
+
+describe('CelebrationService — #310 race: projection-tick reference-thrash', () => {
+  it('celebration survives repeated same-id setRound across the 3s window', () => {
+    vi.useFakeTimers();
+    try {
+      hapticStub.notificationSuccess.mockClear();
+      hapticStub.impactMedium.mockClear();
+
+      const svc = mountService();
+      const round = makeRound({
+        id: 'round-310',
+        votes: { p1: '5', p2: '5' },
+        revealedAt: 2000,
+      });
+
+      // Initial set
+      svc.setRound({ ...round });
+      TestBed.flushEffects();
+
+      // Simulate projection thrash: re-emit a NEW object with the SAME id
+      // every 50ms for the full arming-delay + 3s-display window.
+      // Total: 3500ms / 50ms = 70 ticks.
+      for (let i = 0; i < 70; i++) {
+        vi.advanceTimersByTime(50);
+        svc.setRound({ ...round });
+        TestBed.flushEffects();
+      }
+
+      // Without the guard, the reset effect would have wiped showOverlay on
+      // every tick. With the guard, the celebration fires once and runs
+      // through the full window.
+      expect(hapticStub.notificationSuccess).toHaveBeenCalledTimes(1);
+      expect(hapticStub.impactMedium).toHaveBeenCalledTimes(1);
+
+      // After the 3s window: overlay cleared by auto-dismiss
+      expect(svc.showOverlay()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('celebration fires (not preempted) when thrash starts before arming delay completes', () => {
+    vi.useFakeTimers();
+    try {
+      hapticStub.notificationSuccess.mockClear();
+
+      const svc = mountService();
+      const round = makeRound({
+        id: 'round-310b',
+        votes: { p1: '5', p2: '5' },
+        revealedAt: 2000,
+      });
+
+      svc.setRound({ ...round });
+      TestBed.flushEffects();
+
+      // Thrash during the 280ms arming delay (1-group stagger = 1*80+200)
+      for (let i = 0; i < 5; i++) {
+        vi.advanceTimersByTime(50);
+        svc.setRound({ ...round });
+        TestBed.flushEffects();
+      }
+
+      // Now past the arming delay (5*50 = 250ms + one more tick)
+      vi.advanceTimersByTime(50);
+
+      expect(svc.showOverlay()).toBe(true);
+      expect(hapticStub.notificationSuccess).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Null-cycle remount (C2): setRound(round) → setRound(null) → setRound(sameRound)
+// must re-arm. The identity guard early-returns when ids match, but null
+// transitions must still run the reset and a new non-null after null must
+// re-arm cleanly.
+// ---------------------------------------------------------------------------
+
+describe('CelebrationService — null-cycle remount', () => {
+  it('setRound(round) → null → same round re-arms overlay', () => {
+    vi.useFakeTimers();
+    try {
+      hapticStub.notificationSuccess.mockClear();
+
+      const svc = mountService();
+      const round = makeRound({
+        id: 'round-cycle',
+        votes: { p1: '5', p2: '5' },
+        revealedAt: 2000,
+      });
+
+      // Arm once
+      svc.setRound({ ...round });
+      TestBed.flushEffects();
+      vi.advanceTimersByTime(300);
+      expect(svc.showOverlay()).toBe(true);
+      expect(hapticStub.notificationSuccess).toHaveBeenCalledTimes(1);
+
+      // Clear via null (e.g. page navigation away)
+      svc.setRound(null);
+      TestBed.flushEffects();
+      expect(svc.showOverlay()).toBe(false);
+
+      // Null self-tick: must not break anything
+      svc.setRound(null);
+      TestBed.flushEffects();
+      expect(svc.showOverlay()).toBe(false);
+
+      // Re-set same round id (e.g. re-navigation back to Lobby): must re-arm
+      svc.setRound({ ...round });
+      TestBed.flushEffects();
+      vi.advanceTimersByTime(300);
+      expect(svc.showOverlay()).toBe(true);
+      expect(hapticStub.notificationSuccess).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // AC-18: Reduced-motion — no engine instantiation
 // ---------------------------------------------------------------------------
 
