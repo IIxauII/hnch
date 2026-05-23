@@ -3,16 +3,8 @@ import { isAbstainVote, isConsensus, terminalState } from '@hnch/shared';
 import type { Round } from '@hnch/shared';
 
 import { HapticService } from './haptic.service';
-
-interface ConfettiPiece {
-  readonly id: number;
-  readonly emoji: string;
-  readonly angle: number;
-  readonly distance: number;
-  readonly rotate: number;
-  readonly duration: number;
-  readonly delay: number;
-}
+import { ConfettiEngine } from './confetti-engine';
+import type { ConfettiPattern } from './confetti-engine';
 
 const CONFETTI_EMOJIS = ['🎉', '🎊', '🥳', '🪩', '✨', '🎈', '🌟'] as const;
 
@@ -21,13 +13,13 @@ const CONFETTI_EMOJIS = ['🎉', '🎊', '🥳', '🪩', '✨', '🎈', '🌟'] 
  *
  * Provided at LobbyPage level (not root) so it is destroyed with the page.
  * LobbyPage wires the current round via `setRound()`.
+ * LobbyPage wires the confetti-layer DOM node via `attachLayer()` /
+ * `detachLayer()` — the engine is created lazily when both a pattern
+ * and a layer are present.
  *
  * Bug fix: celebration effect arms on the **false→true transition** of
  * `consensus()` tracked via `previousConsensus`, so it fires on the live
- * reveal without requiring a page reload (root cause: old effect in
- * VoteResultsComponent captured `consensus` as closure constant before
- * `revealedAt` was set, then guarded on `hapticFiredForRound` so it never
- * re-fired on the actual transition).
+ * reveal without requiring a page reload.
  */
 @Injectable()
 export class CelebrationService {
@@ -45,8 +37,6 @@ export class CelebrationService {
   /** Controls overlay visibility — resets per round. */
   readonly showOverlay = signal(false);
 
-  readonly confettiPieces = signal<readonly ConfettiPiece[]>([]);
-
   /**
    * True when consensus: all votes identical (≥2 voters), round revealed
    * (not skipped per ADR-0040), not all-abstain (ADR-0041 §2).
@@ -62,12 +52,24 @@ export class CelebrationService {
   private overlayDismissTimer: ReturnType<typeof setTimeout> | null = null;
   private revealCelebrationTimer: ReturnType<typeof setTimeout> | null = null;
   private revealHapticBumpTimer: ReturnType<typeof setTimeout> | null = null;
-  private confettiInterval: ReturnType<typeof setInterval> | null = null;
-  private confettiPieceCounter = 0;
-  private readonly confettiEvictionTimers = new Map<number, ReturnType<typeof setTimeout>>();
 
   /** Tracks `consensus()` value from previous effect run for edge detection. */
   private previousConsensus = false;
+
+  /** WAAPI engine — non-null only while a celebration is in flight. */
+  private engine: ConfettiEngine | null = null;
+
+  /** DOM element owned by LobbyPage — attached/detached via attachLayer(). */
+  private layerEl: HTMLElement | null = null;
+
+  /** Queued pattern when startConfetti() fires before attachLayer(). */
+  private pendingPattern: ConfettiPattern | null = null;
+
+  /** Injected rng for pattern selection (narrow seam — mirrors engine seam). */
+  private readonly rng: () => number =
+    typeof window !== 'undefined'
+      ? () => ((window as { __confettiRng?: () => number }).__confettiRng ?? Math.random)()
+      : Math.random;
 
   constructor() {
     this.destroyRef.onDestroy(() => {
@@ -80,9 +82,9 @@ export class CelebrationService {
       const r = this._round();
       // Track round identity (id) + null. Side-effect: reset on any round change.
       void (r?.id ?? null);
+      this.stopConfetti();
       this.showOverlay.set(false);
       this.clearAllTimers();
-      this.stopConfetti();
       this.previousConsensus = false;
     });
 
@@ -117,9 +119,11 @@ export class CelebrationService {
             this.haptic.impactMedium();
           }, 120);
           this.overlayDismissTimer = setTimeout(() => {
+            this.engine?.stop();
+            this.engine = null;
+            this.pendingPattern = null;
             this.showOverlay.set(false);
             this.overlayDismissTimer = null;
-            this.stopConfetti();
           }, 3000);
         }, delay);
       } else if (!nowConsensus && prev) {
@@ -137,13 +141,46 @@ export class CelebrationService {
     this._round.set(round);
   }
 
+  /**
+   * Called by LobbyPage afterRenderEffect when confettiLayer viewChild changes.
+   * - el non-null: store layer; if pendingPattern set, instantiate engine + start.
+   * - el null: teardown engine, clear layer ref.
+   */
+  attachLayer(el: HTMLElement | null): void {
+    if (el !== null) {
+      this.layerEl = el;
+      if (this.pendingPattern !== null) {
+        const pattern = this.pendingPattern;
+        this.pendingPattern = null;
+        this.engine = new ConfettiEngine({
+          viewportW: el.offsetWidth || window.innerWidth,
+          viewportH: el.offsetHeight || window.innerHeight,
+          emojis: CONFETTI_EMOJIS,
+          layer: el,
+        });
+        this.engine.start(pattern);
+      }
+    } else {
+      this.engine?.stop();
+      this.engine = null;
+      this.layerEl = null;
+    }
+  }
+
+  /** Alias for attachLayer(null). Also called from LobbyPage ngOnDestroy. */
+  detachLayer(): void {
+    this.attachLayer(null);
+  }
+
   dismissOverlay(): void {
+    this.engine?.stop();
+    this.engine = null;
+    this.pendingPattern = null;
     this.showOverlay.set(false);
     if (this.overlayDismissTimer !== null) {
       clearTimeout(this.overlayDismissTimer);
       this.overlayDismissTimer = null;
     }
-    this.stopConfetti();
   }
 
   private clearAllTimers(): void {
@@ -163,64 +200,28 @@ export class CelebrationService {
 
   private startConfetti(): void {
     if (this.reducedMotion()) return;
-    this.confettiPieces.set([]);
-    this.confettiPieceCounter = 0;
 
-    const spawnBatch = (count: number): ConfettiPiece[] => {
-      const pieces: ConfettiPiece[] = [];
-      for (let i = 0; i < count; i++) {
-        pieces.push(this.makeConfettiPiece());
-      }
-      return pieces;
-    };
+    const patternIndex = Math.floor(this.rng() * 3);
+    const patterns: ConfettiPattern[] = ['center', 'top-sprinkle', 'side-cannons'];
+    const pattern = patterns[patternIndex]!;
 
-    const schedulePieceEviction = (piece: ConfettiPiece): void => {
-      const t = setTimeout(
-        () => {
-          this.confettiEvictionTimers.delete(piece.id);
-          this.confettiPieces.update((prev) => prev.filter((p) => p.id !== piece.id));
-        },
-        piece.duration + piece.delay + 50,
-      );
-      this.confettiEvictionTimers.set(piece.id, t);
-    };
-
-    const addPieces = (pieces: ConfettiPiece[]): void => {
-      this.confettiPieces.update((prev) => [...prev, ...pieces]);
-      for (const piece of pieces) {
-        schedulePieceEviction(piece);
-      }
-    };
-
-    addPieces(spawnBatch(10));
-
-    this.confettiInterval = setInterval(() => {
-      addPieces(spawnBatch(10));
-    }, 1000);
+    if (this.layerEl !== null) {
+      const el = this.layerEl;
+      this.engine = new ConfettiEngine({
+        viewportW: el.offsetWidth || window.innerWidth,
+        viewportH: el.offsetHeight || window.innerHeight,
+        emojis: CONFETTI_EMOJIS,
+        layer: el,
+      });
+      this.engine.start(pattern);
+    } else {
+      this.pendingPattern = pattern;
+    }
   }
 
   stopConfetti(): void {
-    if (this.confettiInterval !== null) {
-      clearInterval(this.confettiInterval);
-      this.confettiInterval = null;
-    }
-    for (const t of this.confettiEvictionTimers.values()) {
-      clearTimeout(t);
-    }
-    this.confettiEvictionTimers.clear();
-    this.confettiPieces.set([]);
-  }
-
-  private makeConfettiPiece(): ConfettiPiece {
-    const emoji = CONFETTI_EMOJIS[Math.floor(Math.random() * CONFETTI_EMOJIS.length)]!;
-    return {
-      id: ++this.confettiPieceCounter,
-      emoji,
-      angle: Math.random() * 360,
-      distance: 60 + Math.random() * 120,
-      rotate: Math.random() * 360,
-      duration: 700 + Math.random() * 600,
-      delay: Math.random() * 200,
-    };
+    this.engine?.stop();
+    this.engine = null;
+    this.pendingPattern = null;
   }
 }
