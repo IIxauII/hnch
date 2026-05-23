@@ -158,8 +158,10 @@ function countPngs(dir) {
 }
 
 function remoteShaDirExists(sha) {
-  // `git ls-tree` on a missing path exits 128 with stderr "not a valid object name".
-  return shOk(`git ls-tree origin/${SCREENSHOTS_BRANCH} -- ${JSON.stringify(`sha-${sha}`)}`);
+  // `git cat-file -e <ref>:<path>` exits non-zero when the path is absent on the
+  // ref. Prior `git ls-tree` form exited 0 with empty stdout on a missing path,
+  // so `shOk` returned a false positive — see issue #309.
+  return shOk(`git cat-file -e origin/${SCREENSHOTS_BRANCH}:sha-${sha}`);
 }
 
 function publishToScreenshotsBranch(sha) {
