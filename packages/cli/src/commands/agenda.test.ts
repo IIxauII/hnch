@@ -253,6 +253,32 @@ describe('handleAgendaAdd', () => {
     expect(logSpy.mock.calls.some((c) => String(c[0]).startsWith('Added agenda item:'))).toBe(true);
     logSpy.mockRestore();
   });
+
+  // Doc-state assertions: verify the Y.Doc was actually mutated (not just that a
+  // log message was emitted). These fail if appendAgendaItem is removed from the handler.
+  it('actually writes the agenda item to the Y.Doc (title path)', async () => {
+    const { handleAgendaAdd } = await import('./agenda.js');
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await handleAgendaAdd({ title: 'Doc-verified title story' });
+    logSpy.mockRestore();
+
+    const { projectDoc } = await import('@hnch/shared');
+    const state = projectDoc(_lastSeenDoc);
+    expect(state.agenda.some((i) => i.title === 'Doc-verified title story')).toBe(true);
+  });
+
+  it('actually writes the agenda item to the Y.Doc (ticketId path)', async () => {
+    const { handleAgendaAdd } = await import('./agenda.js');
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await handleAgendaAdd({ ticket: 'DOC-999' });
+    logSpy.mockRestore();
+
+    const { projectDoc } = await import('@hnch/shared');
+    const state = projectDoc(_lastSeenDoc);
+    expect(state.agenda.some((i) => i.ticketId === 'DOC-999')).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------
