@@ -360,6 +360,41 @@ describe('CelebrationService — AC-15: live false→true transition', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Regression: consecutive unanimous rounds — overlay must fire for round N+1
+// even when consensus() stays true across the round swap. Without explicit
+// round-id tracking in the celebration effect, Angular skips the re-run
+// because the tracked signal value is unchanged.
+// ---------------------------------------------------------------------------
+
+describe('CelebrationService — consecutive unanimous rounds', () => {
+  it('overlay fires on round B unanimous after round A unanimous', () => {
+    vi.useFakeTimers();
+    try {
+      const svc = mountService();
+
+      // Round A: unanimous → overlay fires
+      svc.setRound(makeRound({ id: 'round-a', votes: { p1: '5', p2: '5' }, revealedAt: 2000 }));
+      TestBed.flushEffects();
+      vi.advanceTimersByTime(300);
+      expect(svc.showOverlay()).toBe(true);
+
+      // Dismiss + advance past lifetime
+      svc.dismissOverlay();
+      vi.advanceTimersByTime(3500);
+      expect(svc.showOverlay()).toBe(false);
+
+      // Round B: unanimous again → overlay must fire again
+      svc.setRound(makeRound({ id: 'round-b', votes: { p1: '3', p2: '3' }, revealedAt: 3000 }));
+      TestBed.flushEffects();
+      vi.advanceTimersByTime(300);
+      expect(svc.showOverlay()).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // AC-17: Skip-race — true→false transition cancels overlay + clears timers
 // ---------------------------------------------------------------------------
 
