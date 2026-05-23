@@ -112,6 +112,8 @@ const ROUND_FIELDS = [
   'timerStartedAt',
   'revealedAt',
   'skippedAt',
+  'discardedAt',
+  'discardedBy',
   'createdBy',
   'createdAt',
   'agendaItemId',
@@ -441,6 +443,17 @@ export function appendRound(doc: Y.Doc, init: AppendRoundInit): string {
     throw new Error('appendRound: no scale (settings.defaultScale missing)');
   }
 
+  // Re-vote guard: parent round must not be discarded. Discarded rounds are
+  // tombstones and may not anchor lineage chains.
+  if (init.parentRoundId !== undefined) {
+    const parent = findRoundMap(doc, init.parentRoundId);
+    if (parent !== undefined && parent.get('discardedAt') !== undefined) {
+      throw new Error(
+        `appendRound: parentRoundId ${init.parentRoundId} points at a discarded round`,
+      );
+    }
+  }
+
   doc.transact(() => {
     const round = new Y.Map<unknown>();
     round.set('id', init.id);
@@ -526,12 +539,42 @@ export function clearVote(doc: Y.Doc, roundId: string, participantId: string): v
 }
 
 /**
+ * Internal: if the round has a linked agenda item that is currently in the
+ * `pending` state, transition it to `consumed` inside the same transaction.
+ * Idempotent no-op when there is no linked item or the item is already in a
+ * terminal state — supports re-vote reveals where the parent round already
+ * consumed the item.
+ *
+ * Must be called from inside a `doc.transact()`.
+ */
+function maybeConsumeLinkedAgendaItem(
+  doc: Y.Doc,
+  round: UnknownMap,
+  roundId: string,
+  timestamp: number,
+): void {
+  const agendaItemId = round.get('agendaItemId') as string | undefined;
+  if (agendaItemId === undefined) return;
+  const item = findAgendaItemMap(doc, agendaItemId);
+  if (item === undefined) return;
+  if (item.get('state') !== 'pending') return;
+  item.set('state', 'consumed');
+  item.set('consumedAt', timestamp);
+  item.set('consumedByRoundId', roundId);
+}
+
+/**
  * Mark a round as revealed at the given timestamp. Idempotent — concurrent
  * writes from multiple clients (unanimous auto-reveal) merge harmlessly.
  *
- * Throws if `skippedAt` is already set on the round (ADR-0040 writer-side
- * mutual exclusion). CRDT merges can still produce both fields on the same
- * round; readers must funnel through `terminalState()` to pick a winner.
+ * Atomically consumes the linked agenda item (if any, and if currently
+ * `pending`) inside the same transaction — single chokepoint for the
+ * consume-at-terminal lifecycle so CLI and client share identical behavior.
+ *
+ * Throws if `skippedAt` or `discardedAt` is already set on the round
+ * (writer-side mutual exclusion). CRDT merges can still produce multiple
+ * terminal fields on the same round; readers must funnel through
+ * `terminalState()` to pick a winner.
  */
 export function revealRound(doc: Y.Doc, roundId: string, revealedAt: number): void {
   const round = findRoundMap(doc, roundId);
@@ -539,16 +582,25 @@ export function revealRound(doc: Y.Doc, roundId: string, revealedAt: number): vo
   if (round.get('skippedAt') !== undefined) {
     throw new Error(`revealRound: round ${roundId} already skipped`);
   }
+  if (round.get('discardedAt') !== undefined) {
+    throw new Error(`revealRound: round ${roundId} already discarded`);
+  }
   doc.transact(() => {
     round.set('revealedAt', revealedAt);
+    maybeConsumeLinkedAgendaItem(doc, round, roundId, revealedAt);
   });
 }
 
 /**
  * Mark a round as skipped at the given timestamp (ADR-0040). Throws if the
- * round is missing, already revealed, or already skipped. Concurrent merges
- * can still produce both `revealedAt` and `skippedAt`; readers must funnel
- * through `terminalState()` to render deterministically.
+ * round is missing, already revealed, already skipped, or already discarded.
+ *
+ * Atomically consumes the linked agenda item (if any, and if currently
+ * `pending`) inside the same transaction. Skip is still a terminal outcome
+ * for the agenda item; only discard leaves it `pending`.
+ *
+ * Concurrent merges can produce multiple terminal fields on the same round;
+ * readers must funnel through `terminalState()` to render deterministically.
  */
 export function skipRound(doc: Y.Doc, roundId: string, skippedAt: number): void {
   const round = findRoundMap(doc, roundId);
@@ -559,8 +611,46 @@ export function skipRound(doc: Y.Doc, roundId: string, skippedAt: number): void 
   if (round.get('skippedAt') !== undefined) {
     throw new Error(`skipRound: round ${roundId} already skipped`);
   }
+  if (round.get('discardedAt') !== undefined) {
+    throw new Error(`skipRound: round ${roundId} already discarded`);
+  }
   doc.transact(() => {
     round.set('skippedAt', skippedAt);
+    maybeConsumeLinkedAgendaItem(doc, round, roundId, skippedAt);
+  });
+}
+
+/**
+ * Mark a round as discarded at the given timestamp. Distinct from skip:
+ * the linked agenda item (if any) stays `pending` and the round is excluded
+ * from `currentRound()` and history projections. Audit fields `discardedAt`
+ * and `discardedBy` are written together; readers must funnel through
+ * `terminalState()` to resolve CRDT-merged multi-terminal rounds.
+ *
+ * Throws on missing round or when any terminal field is already set on the
+ * local read. Late CRDT-merged terminal writes from peers are tolerated as
+ * no-ops at the projection layer (`terminalState()` picks a winner).
+ */
+export function discardRound(
+  doc: Y.Doc,
+  roundId: string,
+  discardedAt: number,
+  discardedBy: string,
+): void {
+  const round = findRoundMap(doc, roundId);
+  if (!round) throw new Error(`discardRound: round ${roundId} not found`);
+  if (round.get('revealedAt') !== undefined) {
+    throw new Error(`discardRound: round ${roundId} already revealed`);
+  }
+  if (round.get('skippedAt') !== undefined) {
+    throw new Error(`discardRound: round ${roundId} already skipped`);
+  }
+  if (round.get('discardedAt') !== undefined) {
+    throw new Error(`discardRound: round ${roundId} already discarded`);
+  }
+  doc.transact(() => {
+    round.set('discardedAt', discardedAt);
+    round.set('discardedBy', discardedBy);
   });
 }
 
@@ -620,18 +710,26 @@ export function removeParticipant(doc: Y.Doc, hostId: string, targetId: string):
 // ---------------------------------------------------------------------------
 
 /**
- * Current round = last round whose `revealedAt` is unset; if all are
- * revealed, the last round overall. Matches schema.md "Derived state".
- * Returns `null` iff `rounds` is empty.
+ * Current round = last round with no terminal field set (no `revealedAt`,
+ * `skippedAt`, or `discardedAt`); if all are terminal, the last
+ * NON-DISCARDED round overall — discarded rounds are tombstones and never
+ * surface as the active or last anchor. Returns `null` when no such round
+ * exists (empty array, or every round is discarded).
  */
 export function currentRound(projection: DocProjection): Round | null {
   const { rounds } = projection;
   if (rounds.length === 0) return null;
   for (let i = rounds.length - 1; i >= 0; i -= 1) {
     const r = rounds[i]!;
-    if (r.revealedAt === undefined) return r;
+    if (r.revealedAt === undefined && r.skippedAt === undefined && r.discardedAt === undefined) {
+      return r;
+    }
   }
-  return rounds.at(-1)!;
+  for (let i = rounds.length - 1; i >= 0; i -= 1) {
+    const r = rounds[i]!;
+    if (r.discardedAt === undefined) return r;
+  }
+  return null;
 }
 
 /**
