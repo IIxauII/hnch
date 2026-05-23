@@ -56,6 +56,15 @@ export class CelebrationService {
   /** Tracks `consensus()` value from previous effect run for edge detection. */
   private previousConsensus = false;
 
+  /**
+   * Tracks last `_round()` id seen by the reset effect. Guards against the
+   * projection-tick reference-thrash race (#310): doc.service rewrites
+   * `projection` on every observeDeep callback, so `rounds()` re-emits
+   * new-reference-same-id rounds on awareness/heartbeat ticks. Without this
+   * guard, the reset effect wipes any in-flight celebration on every tick.
+   */
+  private lastRoundId: string | null = null;
+
   /** WAAPI engine — non-null only while a celebration is in flight. */
   private engine: ConfettiEngine | null = null;
 
@@ -78,10 +87,15 @@ export class CelebrationService {
     });
 
     // Round-change reset: cancel in-flight celebration when round identity changes.
+    // Identity guard (#310): early-return when the new round's id matches the
+    // last seen id. Projection ticks (awareness, heartbeats) re-emit the same
+    // round id with a fresh object reference; without this guard, the reset
+    // body fires on every tick and wipes any in-flight celebration.
     effect(() => {
       const r = this._round();
-      // Track round identity (id) + null. Side-effect: reset on any round change.
-      void (r?.id ?? null);
+      const nextId = r?.id ?? null;
+      if (nextId !== null && nextId === this.lastRoundId) return;
+      this.lastRoundId = nextId;
       this.stopConfetti();
       this.showOverlay.set(false);
       this.clearAllTimers();
