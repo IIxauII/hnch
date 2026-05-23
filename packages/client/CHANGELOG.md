@@ -1,3 +1,10 @@
+## [1.36.2](https://github.com/IIxauII/hnch/compare/client-v1.36.1...client-v1.36.2) (2026-05-23)
+
+
+### Bug Fixes
+
+* **client:** fire consensus celebration on consecutive unanimous rounds ([#313](https://github.com/IIxauII/hnch/issues/313)) ([f2eb620](https://github.com/IIxauII/hnch/commit/f2eb6208ae9272d7d7a048ecb0244349396ad80d))
+
 ## [1.36.1](https://github.com/IIxauII/hnch/compare/client-v1.36.0...client-v1.36.1) (2026-05-23)
 
 
