@@ -1,3 +1,10 @@
+# [1.36.0](https://github.com/IIxauII/hnch/compare/client-v1.35.1...client-v1.36.0) (2026-05-23)
+
+
+### Features
+
+* **client,e2e:** rework consensus celebration with gravity-based emoji bursts ([#308](https://github.com/IIxauII/hnch/issues/308)) ([6ab2a3a](https://github.com/IIxauII/hnch/commit/6ab2a3af40238f5feb995b1f982a87bdbc4cd023))
+
 ## [1.35.1](https://github.com/IIxauII/hnch/compare/client-v1.35.0...client-v1.35.1) (2026-05-22)
 
 
