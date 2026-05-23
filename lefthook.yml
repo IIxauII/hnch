@@ -25,14 +25,22 @@ commit-msg:
     scope-check:
       run: bash scripts/check-commit-scope.sh {1}
 
-# Screenshot pre-push: when the local diff vs the push target touches client /
-# shared / e2e screenshot specs / fixtures, capture the suite, publish to the
-# `screenshots` orphan branch, and (re)post a sticky PR comment with inline
-# image embeds. Skipped on merge/rebase pushes. Bypass with `git push --no-verify`.
+# Screenshot CAPTURE + PUBLISH pre-push hook.
+#
+# THIS IS NOT A CI / e2e VERIFICATION STEP. It does not gate the push on test
+# results. Its job is purely:
+#   1. Run the visual screenshot suite under packages/e2e/tests/_screenshots/.
+#   2. Push the resulting PNGs to the `screenshots` orphan branch under sha-<short>/.
+#   3. Upsert a sticky PR comment with inline image embeds.
+#
+# It is NOT `pnpm test:e2e`, NOT the CI `verify` matrix, NOT a typecheck/lint.
+# A green screenshot hook says nothing about whether the code works — only that
+# the visual fixtures rendered without crashing Playwright. Skipped on
+# merge/rebase pushes. Bypass with `git push --no-verify`.
 # See docs/plans/e2e-screenshot-coverage-expansion.md (Phase 3).
 pre-push:
   commands:
-    screenshots:
+    screenshots-capture-and-publish:
       run: node scripts/screenshot-publish.mjs --mode=hook
       skip:
         - merge

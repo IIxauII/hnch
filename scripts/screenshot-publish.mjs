@@ -1,11 +1,27 @@
 #!/usr/bin/env node
-// Capture screenshots, publish to the `screenshots` orphan branch, sticky-
-// comment the inline links on the active PR. Invoked by:
+// ============================================================================
+// SCREENSHOT CAPTURE + PUBLISH
+// ----------------------------------------------------------------------------
+// THIS IS NOT A CI / e2e VERIFICATION RUN.
 //
+// This script:
+//   1. Runs the visual screenshot Playwright suite (packages/e2e/tests/_screenshots/).
+//   2. Pushes resulting PNGs to the `screenshots` orphan branch (sha-<short>/).
+//   3. Upserts a sticky PR comment with inline image embeds.
+//
+// It does NOT:
+//   - Run `pnpm test:e2e` or the full e2e suite.
+//   - Run the CI `verify` matrix (typecheck / lint / unit / build).
+//   - Gate the push on test results — failures exit 0 in hook mode.
+//
+// A successful run means "screenshots captured + uploaded", nothing more.
+//
+// Invoked by:
 //   - lefthook pre-push (mode=hook): conditional on UI-bearing diff vs @{push}
 //   - pnpm screenshots:publish (mode=manual): always runs full or tag-scoped
 //
 // See docs/plans/e2e-screenshot-coverage-expansion.md (Phase 3).
+// ============================================================================
 
 import { execFileSync, execSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -487,6 +503,14 @@ function upsertStickyComment(prNum, body) {
 
 // ---------------------------------------------------------------- main
 
+function printBanner() {
+  log('============================================================');
+  log('SCREENSHOT CAPTURE + PUBLISH (not a CI/e2e verification run)');
+  log(`mode=${mode} — captures visual suite, pushes PNGs to`);
+  log('`screenshots` branch, upserts sticky PR comment.');
+  log('============================================================');
+}
+
 function main() {
   // Dry-run: emit the comment body for the given sha + PR num without
   // touching git, gh, or playwright. Used for local layout iteration.
@@ -497,6 +521,8 @@ function main() {
     process.stdout.write(buildCommentBody(sha, pr));
     return 0;
   }
+
+  printBanner();
 
   // gh is required; bail fast if missing rather than failing mid-publish.
   if (!shOk('gh --version')) {

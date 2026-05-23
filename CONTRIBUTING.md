@@ -128,11 +128,13 @@ If the change shifts user-visible behavior or product scope, update the relevant
 
 ## Screenshots
 
-Two surfaces, both automated:
+Two surfaces, both automated.
+
+> **Not a test gate.** The screenshot harness is a *capture-and-publish* flow: capture visual fixtures, push PNGs, post a sticky PR comment. It does not run `pnpm test:e2e`, does not run the CI `verify` matrix (typecheck / lint / unit / build), and does not gate the push on test results — failures exit 0 in hook mode. A successful run means "PNGs uploaded + comment posted", nothing more. Do not invoke `pnpm screenshots:publish` to validate behavior — use `pnpm test:e2e` or push and let CI run `verify`.
 
 ### PR pre-push hook (per-author, scoped)
 
-A `lefthook` pre-push hook (`pre-push.commands.screenshots`) runs whenever a push includes changes under `packages/{client,shared,e2e/tests/_screenshots,e2e/tests/fixtures}/**`. It:
+A `lefthook` pre-push hook (`pre-push.commands.screenshots-capture-and-publish`) runs whenever a push includes changes under `packages/{client,shared,e2e/tests/_screenshots,e2e/tests/fixtures}/**`. It:
 
 1. Runs `packages/e2e/tests/_screenshots/` (full suite by default; `.screenshot-tags` in the worktree narrows scope — materialised from the plan doc's `## Screenshot tags` section by `pnpm worktree:add --plan <slug>`).
 2. Publishes PNGs to the `screenshots` branch under `sha-<short>/` via `git fetch + reset + push` with retry on rejection (non-force).
