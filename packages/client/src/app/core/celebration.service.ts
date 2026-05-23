@@ -100,37 +100,8 @@ export class CelebrationService {
       const prev = this.previousConsensus;
 
       if (nowConsensus && !prev) {
-        // false → true: schedule celebration
         this.previousConsensus = true;
-        const r = this._round();
-        if (!r?.revealedAt) return;
-
-        // Compute stagger delay from vote groups count (same formula as VoteResults stagger).
-        const votes = Object.entries(r.votes);
-        const nonAbstainCards = new Set(
-          votes.filter(([, v]) => !isAbstainVote(v)).map(([, v]) => v),
-        );
-        const hasAbstained = votes.some(([, v]) => isAbstainVote(v));
-        const totalGroups = nonAbstainCards.size + (hasAbstained ? 1 : 0);
-        const delay = Math.max(0, totalGroups - 1) * 80 + 200;
-
-        this.revealCelebrationTimer = setTimeout(() => {
-          this.revealCelebrationTimer = null;
-          this.haptic.notificationSuccess();
-          this.showOverlay.set(true);
-          this.startConfetti();
-          this.revealHapticBumpTimer = setTimeout(() => {
-            this.revealHapticBumpTimer = null;
-            this.haptic.impactMedium();
-          }, 120);
-          this.overlayDismissTimer = setTimeout(() => {
-            this.engine?.stop();
-            this.engine = null;
-            this.pendingPattern = null;
-            this.showOverlay.set(false);
-            this.overlayDismissTimer = null;
-          }, 3000);
-        }, delay);
+        this.scheduleCelebration();
       } else if (!nowConsensus && prev) {
         // true → false: cancel pending celebration (AC-17: skip-after-reveal)
         this.previousConsensus = false;
@@ -139,6 +110,36 @@ export class CelebrationService {
         this.showOverlay.set(false);
       }
     });
+  }
+
+  private scheduleCelebration(): void {
+    const r = this._round();
+    if (!r?.revealedAt) return;
+
+    // Compute stagger delay from vote groups count (same formula as VoteResults stagger).
+    const votes = Object.entries(r.votes);
+    const nonAbstainCards = new Set(votes.filter(([, v]) => !isAbstainVote(v)).map(([, v]) => v));
+    const hasAbstained = votes.some(([, v]) => isAbstainVote(v));
+    const totalGroups = nonAbstainCards.size + (hasAbstained ? 1 : 0);
+    const delay = Math.max(0, totalGroups - 1) * 80 + 200;
+
+    this.revealCelebrationTimer = setTimeout(() => {
+      this.revealCelebrationTimer = null;
+      this.haptic.notificationSuccess();
+      this.showOverlay.set(true);
+      this.startConfetti();
+      this.revealHapticBumpTimer = setTimeout(() => {
+        this.revealHapticBumpTimer = null;
+        this.haptic.impactMedium();
+      }, 120);
+      this.overlayDismissTimer = setTimeout(() => {
+        this.engine?.stop();
+        this.engine = null;
+        this.pendingPattern = null;
+        this.showOverlay.set(false);
+        this.overlayDismissTimer = null;
+      }, 3000);
+    }, delay);
   }
 
   /** LobbyPage wires the current revealed round here. Pass null to clear. */
