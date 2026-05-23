@@ -3,6 +3,7 @@
  *
  * AC-16: consensus text styling (transparent bg + accent color)
  * AC-18: reduced-motion 🎉 glyph rendering
+ * P3-C8: .confetti-layer overflow: hidden
  */
 
 import { describe, expect, it, vi } from 'vitest';
@@ -84,11 +85,21 @@ describe('CelebrationService overlay DOM — AC-16: text styling', () => {
         standalone: true,
         template: `
           @if (svc.showOverlay()) {
-            <span class="consensus-text">hnch'd!</span>
+            <div class="consensus-overlay">
+              <div class="confetti-layer" aria-hidden="true"></div>
+              <span class="consensus-text">hnch'd!</span>
+            </div>
           }
         `,
         styles: [
           `
+            .confetti-layer {
+              position: absolute;
+              inset: 0;
+              pointer-events: none;
+              z-index: 1001;
+              overflow: hidden;
+            }
             .consensus-text {
               background-color: transparent;
               color: var(--ion-color-primary, blue);
@@ -113,6 +124,107 @@ describe('CelebrationService overlay DOM — AC-16: text styling', () => {
 
       const color = computed.color;
       expect(color !== 'transparent' && color !== 'rgba(0, 0, 0, 0)').toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P3-C8: .confetti-layer exists and has overflow: hidden
+// ---------------------------------------------------------------------------
+
+describe('CelebrationService overlay DOM — P3-C8: confetti-layer overflow', () => {
+  it('.confetti-layer renders when showOverlay() is true and has overflow hidden', async () => {
+    vi.useFakeTimers();
+    try {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [CelebrationService, { provide: HapticService, useValue: hapticStub }],
+      });
+
+      const svc = TestBed.inject(CelebrationService);
+      svc.setRound(makeRound({ votes: { p1: '5', p2: '5' }, revealedAt: 2000 }));
+      TestBed.flushEffects();
+      vi.advanceTimersByTime(300);
+      expect(svc.showOverlay()).toBe(true);
+
+      const { Component: Comp } = await import('@angular/core');
+
+      @Comp({
+        selector: 'test-overlay-layer',
+        standalone: true,
+        template: `
+          @if (svc.showOverlay()) {
+            <div class="consensus-overlay">
+              <div class="confetti-layer" aria-hidden="true"></div>
+            </div>
+          }
+        `,
+        styles: [
+          `
+            .confetti-layer {
+              position: absolute;
+              inset: 0;
+              pointer-events: none;
+              z-index: 1001;
+              overflow: hidden;
+            }
+          `,
+        ],
+      })
+      class TestHostComponent {
+        svc = svc;
+      }
+
+      const fixture = TestBed.createComponent(TestHostComponent);
+      fixture.detectChanges();
+
+      const layerEl = fixture.nativeElement.querySelector('.confetti-layer');
+      expect(layerEl).toBeTruthy();
+
+      const computed = window.getComputedStyle(layerEl);
+      expect(computed.overflow).toBe('hidden');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('no <span class="confetti-piece"> rendered by template (engine owns children)', async () => {
+    vi.useFakeTimers();
+    try {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [CelebrationService, { provide: HapticService, useValue: hapticStub }],
+      });
+
+      const svc = TestBed.inject(CelebrationService);
+      svc.setRound(makeRound({ votes: { p1: '5', p2: '5' }, revealedAt: 2000 }));
+      TestBed.flushEffects();
+      vi.advanceTimersByTime(300);
+
+      const { Component: Comp } = await import('@angular/core');
+
+      @Comp({
+        selector: 'test-overlay-nospan',
+        standalone: true,
+        template: `
+          @if (svc.showOverlay()) {
+            <div class="consensus-overlay">
+              <div class="confetti-layer" aria-hidden="true"></div>
+            </div>
+          }
+        `,
+      })
+      class TestHostComponent {
+        svc = svc;
+      }
+
+      const fixture = TestBed.createComponent(TestHostComponent);
+      fixture.detectChanges();
+
+      const pieces = fixture.nativeElement.querySelectorAll('.confetti-piece');
+      expect(pieces.length).toBe(0);
     } finally {
       vi.useRealTimers();
     }

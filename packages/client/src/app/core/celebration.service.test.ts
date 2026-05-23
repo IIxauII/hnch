@@ -117,18 +117,13 @@ describe('CelebrationService — consensus()', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Overlay + confetti DOM state (AC-11)
+// Overlay state (AC-11)
 // ---------------------------------------------------------------------------
 
 describe('CelebrationService — overlay state (AC-11)', () => {
   it('showOverlay starts false', () => {
     const svc = mountService();
     expect(svc.showOverlay()).toBe(false);
-  });
-
-  it('confettiPieces starts empty', () => {
-    const svc = mountService();
-    expect(svc.confettiPieces()).toHaveLength(0);
   });
 
   it('celebration fires after stagger delay on consensus round (AC-11)', () => {
@@ -154,21 +149,7 @@ describe('CelebrationService — overlay state (AC-11)', () => {
     }
   });
 
-  it('confetti pieces spawn after overlay shows', () => {
-    vi.useFakeTimers();
-    try {
-      const svc = mountService();
-      svc.setRound(makeRound({ votes: { p1: '5', p2: '5' }, revealedAt: 2000 }));
-      TestBed.flushEffects();
-
-      vi.advanceTimersByTime(300);
-      expect(svc.confettiPieces().length).toBeGreaterThanOrEqual(10);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('auto-dismiss after 3s clears overlay + confetti (AC-11)', () => {
+  it('auto-dismiss after 3s clears overlay (AC-11)', () => {
     vi.useFakeTimers();
     try {
       const svc = mountService();
@@ -180,13 +161,12 @@ describe('CelebrationService — overlay state (AC-11)', () => {
 
       vi.advanceTimersByTime(3000);
       expect(svc.showOverlay()).toBe(false);
-      expect(svc.confettiPieces()).toHaveLength(0);
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it('dismissOverlay() clears overlay + confetti immediately', () => {
+  it('dismissOverlay() clears overlay immediately', () => {
     vi.useFakeTimers();
     try {
       const svc = mountService();
@@ -197,7 +177,59 @@ describe('CelebrationService — overlay state (AC-11)', () => {
 
       svc.dismissOverlay();
       expect(svc.showOverlay()).toBe(false);
-      expect(svc.confettiPieces()).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Engine presence: attachLayer + pendingPattern flush
+// ---------------------------------------------------------------------------
+
+describe('CelebrationService — attachLayer / pendingPattern', () => {
+  it('startConfetti() without prior attachLayer stores pendingPattern; no animate calls', () => {
+    vi.useFakeTimers();
+    try {
+      const animateSpy = vi.spyOn(HTMLElement.prototype, 'animate');
+
+      const svc = mountService();
+      // Trigger confetti via consensus reveal but no layer attached
+      svc.setRound(makeRound({ votes: { p1: '5', p2: '5' }, revealedAt: 2000 }));
+      TestBed.flushEffects();
+      vi.advanceTimersByTime(300);
+
+      expect(svc.showOverlay()).toBe(true);
+      // No layer → no animate calls from engine
+      expect(animateSpy).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('subsequent attachLayer(el) flushes pending start and engine spawns', () => {
+    vi.useFakeTimers();
+    try {
+      const animateSpy = vi.spyOn(HTMLElement.prototype, 'animate');
+
+      const svc = mountService();
+      svc.setRound(makeRound({ votes: { p1: '5', p2: '5' }, revealedAt: 2000 }));
+      TestBed.flushEffects();
+      vi.advanceTimersByTime(300); // celebration fires, pendingPattern set
+
+      expect(svc.showOverlay()).toBe(true);
+      expect(animateSpy).not.toHaveBeenCalled();
+
+      // Now attach layer — engine should flush pending + start
+      const layer = document.createElement('div');
+      document.body.appendChild(layer);
+      svc.attachLayer(layer);
+      vi.advanceTimersByTime(50); // first spawn delay
+
+      expect(animateSpy).toHaveBeenCalled();
+      expect(layer.children.length).toBeGreaterThan(0);
+
+      layer.remove();
     } finally {
       vi.useRealTimers();
     }
@@ -209,7 +241,7 @@ describe('CelebrationService — overlay state (AC-11)', () => {
 // ---------------------------------------------------------------------------
 
 describe('CelebrationService — AC-12: round-swap cancel', () => {
-  it('round swap before celebration timer fires cancels overlay + confetti + haptic bump', () => {
+  it('round swap before celebration timer fires cancels overlay + haptic bump', () => {
     vi.useFakeTimers();
     try {
       hapticStub.notificationSuccess.mockClear();
@@ -240,44 +272,40 @@ describe('CelebrationService — AC-12: round-swap cancel', () => {
 
       // Overlay must never appear
       expect(svc.showOverlay()).toBe(false);
-      expect(svc.confettiPieces()).toHaveLength(0);
       // Stale consensus haptic bump (impactMedium) must NOT have fired
       expect(hapticStub.impactMedium).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }
   });
-});
 
-// ---------------------------------------------------------------------------
-// Confetti spawn lifecycle
-// ---------------------------------------------------------------------------
-
-describe('CelebrationService — confetti lifecycle', () => {
-  it('initial batch + interval batches; stopConfetti clears all', () => {
+  it('AC-12 mid-celebration round swap: engine null and layer children cleared', () => {
     vi.useFakeTimers();
     try {
+      const animateSpy = vi.spyOn(HTMLElement.prototype, 'animate');
+
       const svc = mountService();
-      svc.setRound(makeRound({ votes: { p1: '5', p2: '5' }, revealedAt: 2000 }));
+      const layer = document.createElement('div');
+      document.body.appendChild(layer);
+      svc.attachLayer(layer);
+
+      const roundA = makeRound({ id: 'round-a', votes: { p1: '5', p2: '5' }, revealedAt: 2000 });
+      svc.setRound(roundA);
+      TestBed.flushEffects();
+      vi.advanceTimersByTime(300); // celebration fires + engine starts
+      vi.advanceTimersByTime(50); // first spawn
+
+      expect(animateSpy).toHaveBeenCalled();
+      expect(layer.children.length).toBeGreaterThan(0);
+
+      // Swap round → engine should stop, layer cleared
+      const roundB = makeRound({ id: 'round-b', votes: { p1: '3', p2: '5' }, revealedAt: 3000 });
+      svc.setRound(roundB);
       TestBed.flushEffects();
 
-      vi.advanceTimersByTime(300);
-      expect(svc.showOverlay()).toBe(true);
-      expect(svc.confettiPieces().length).toBeGreaterThanOrEqual(10);
+      expect(layer.children.length).toBe(0);
 
-      // Advance 1s — second batch from setInterval
-      vi.advanceTimersByTime(1000);
-      const peak = svc.confettiPieces().length;
-      expect(peak).toBeGreaterThan(10);
-
-      // Dismiss → all cleared
-      svc.dismissOverlay();
-      expect(svc.showOverlay()).toBe(false);
-      expect(svc.confettiPieces()).toHaveLength(0);
-
-      // No resurrection after orphan timers
-      vi.advanceTimersByTime(5000);
-      expect(svc.confettiPieces()).toHaveLength(0);
+      layer.remove();
     } finally {
       vi.useRealTimers();
     }
@@ -294,13 +322,13 @@ describe('CelebrationService — AC-15: live false→true transition', () => {
     try {
       const svc = mountService();
 
-      // Step 1: set round to non-consensus state (votes differ → consensus() = false)
+      // Step 1: set round to non-consensus state
       const roundNonConsensus = {
         id: 'round-x',
         scale: SCALE,
         createdBy: 'host',
         createdAt: 1000,
-        votes: { p1: '3', p2: '5' }, // Different votes → isConsensus() = false
+        votes: { p1: '3', p2: '5' },
         timerStartedAt: 1000,
       } as Round;
       svc.setRound(roundNonConsensus);
@@ -309,14 +337,13 @@ describe('CelebrationService — AC-15: live false→true transition', () => {
       expect(svc.consensus()).toBe(false);
       expect(svc.showOverlay()).toBe(false);
 
-      // Advance timers to verify no spurious overlay (none expected)
       vi.advanceTimersByTime(400);
       expect(svc.showOverlay()).toBe(false);
 
-      // Step 2: update same round to consensus+revealed state (live mutation)
+      // Step 2: update same round to consensus+revealed state
       const roundRevealed = makeRound({
         id: 'round-x',
-        votes: { p1: '5', p2: '5' }, // Same votes now → isConsensus() = true
+        votes: { p1: '5', p2: '5' },
         revealedAt: 2000,
       });
       svc.setRound(roundRevealed);
@@ -324,12 +351,8 @@ describe('CelebrationService — AC-15: live false→true transition', () => {
 
       expect(svc.consensus()).toBe(true);
 
-      // Service not remounted; effect detects false→true transition and arms timer
       vi.advanceTimersByTime(300);
-
-      // Overlay should appear after stagger delay
       expect(svc.showOverlay()).toBe(true);
-      expect(svc.confettiPieces().length).toBeGreaterThanOrEqual(10);
     } finally {
       vi.useRealTimers();
     }
@@ -346,7 +369,6 @@ describe('CelebrationService — AC-17: skip-race cancel', () => {
     try {
       const svc = mountService();
 
-      // Start with consensus round
       const roundConsensus = makeRound({
         id: 'round-y',
         votes: { p1: '5', p2: '5' },
@@ -355,29 +377,23 @@ describe('CelebrationService — AC-17: skip-race cancel', () => {
       svc.setRound(roundConsensus);
       TestBed.flushEffects();
 
-      // Advance partway into stagger delay
       vi.advanceTimersByTime(100);
       expect(svc.showOverlay()).toBe(false);
 
-      // Inject skip (simulate ADR-0040 skip-after-reveal CRDT merge)
+      // Inject skip
       const roundSkipped = makeRound({
         id: 'round-y',
         votes: { p1: '5', p2: '5' },
         revealedAt: 2000,
-        skippedAt: 1000, // Earlier timestamp → skip wins per ADR-0040
+        skippedAt: 1000,
       });
       svc.setRound(roundSkipped);
       TestBed.flushEffects();
 
-      // consensus() now false (skip winner); effect should fire on false transition
       expect(svc.consensus()).toBe(false);
 
-      // Advance well past original delay window
       vi.advanceTimersByTime(400);
-
-      // Overlay must never have appeared
       expect(svc.showOverlay()).toBe(false);
-      expect(svc.confettiPieces()).toHaveLength(0);
     } finally {
       vi.useRealTimers();
     }
@@ -385,14 +401,13 @@ describe('CelebrationService — AC-17: skip-race cancel', () => {
 });
 
 // ---------------------------------------------------------------------------
-// AC-18: Reduced-motion — no confetti
+// AC-18: Reduced-motion — no engine instantiation
 // ---------------------------------------------------------------------------
 
 describe('CelebrationService — AC-18: reduced-motion', () => {
-  it('prefers-reduced-motion: no confetti spawned, showOverlay true after stagger', () => {
+  it('prefers-reduced-motion: no animate calls, showOverlay true after stagger', () => {
     vi.useFakeTimers();
     try {
-      // Stub matchMedia before service instantiation
       const matchMediaMock = vi.fn((query: string) => ({
         matches: query === '(prefers-reduced-motion: reduce)',
         media: query,
@@ -405,8 +420,14 @@ describe('CelebrationService — AC-18: reduced-motion', () => {
       }));
       window.matchMedia = matchMediaMock as any;
 
+      const animateSpy = vi.spyOn(HTMLElement.prototype, 'animate');
+
       const svc = mountService();
       expect(svc.reducedMotion()).toBe(true);
+
+      const layer = document.createElement('div');
+      document.body.appendChild(layer);
+      svc.attachLayer(layer);
 
       svc.setRound(makeRound({ votes: { p1: '5', p2: '5' }, revealedAt: 2000 }));
       TestBed.flushEffects();
@@ -416,8 +437,11 @@ describe('CelebrationService — AC-18: reduced-motion', () => {
       // Overlay should appear
       expect(svc.showOverlay()).toBe(true);
 
-      // But confetti must be empty (reduced-motion prevents startConfetti)
-      expect(svc.confettiPieces()).toHaveLength(0);
+      // Engine never instantiated — no animate calls
+      vi.advanceTimersByTime(200);
+      expect(animateSpy).not.toHaveBeenCalled();
+
+      layer.remove();
     } finally {
       vi.useRealTimers();
     }
