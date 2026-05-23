@@ -14,6 +14,7 @@ export default defineConfig({
     globalSetup: ['src/vitest.global-setup.ts'],
     setupFiles: ['src/test-setup.ts'],
     globals: true,
+    restoreMocks: true,
     server: {
       deps: {
         inline: ['@ionic/core'],

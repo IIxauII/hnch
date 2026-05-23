@@ -157,6 +157,7 @@ test.describe('reveal transition screenshots', () => {
     colorScheme: 'light' | 'dark',
     reducedMotion: boolean,
     outName: string,
+    rngSeed?: number,
   ): Promise<void> {
     const contexts: BrowserContext[] = [];
     try {
@@ -168,6 +169,18 @@ test.describe('reveal transition screenshots', () => {
       });
       contexts.push(hostCtx);
       const hostPage = await hostCtx.newPage();
+
+      if (rngSeed !== undefined) {
+        // Pin the confetti engine's rng so pattern selection is deterministic.
+        // Engine reads (window as any).__confettiRng ?? Math.random.
+        // Pattern = Math.floor(rng() * 3) on the first call inside start().
+        // LCG: s' = (s * 1664525 + 1013904223) >>> 0; emitted = s' / 2^32.
+        await hostPage.addInitScript((seed: number) => {
+          let s = seed;
+          (window as any).__confettiRng = () =>
+            (s = (s * 1664525 + 1013904223) >>> 0) / 0x100000000;
+        }, rngSeed);
+      }
 
       if (reducedMotion) {
         await hostPage.emulateMedia({ reducedMotion: 'reduce' });
@@ -242,49 +255,46 @@ test.describe('reveal transition screenshots', () => {
     }
   }
 
-  test('consensus celebration overlay — motion, desktop 1440 dark @reveal', async ({ browser }) => {
+  // Pattern-pinned burst snapshots. Seeds chosen so the first LCG output
+  // (s' = (seed*1664525+1013904223)>>>0, emitted as s'/2^32) falls in the
+  // correct bucket for Math.floor(rng()*3):
+  //   seed 1      → s'=0x3c88596c → bucket 0 (center)
+  //   seed 999    → s'=0x9f8c301a → bucket 1 (top-sprinkle)
+  //   seed 100000 → s'=0xfdc6897f → bucket 2 (side-cannons)
+
+  test('consensus celebration — burst center pattern @reveal', async ({ browser }) => {
     test.setTimeout(180_000);
     await runConsensusScene(
       browser,
       { width: 1440, height: 900 },
       'dark',
       false,
-      'consensus-motion-1440-dark',
+      'reveal-burst-center',
+      1, // seed 1 → first rng value 0x3c.../2^32 < 1/3 → center (pattern 0)
     );
   });
 
-  test('consensus celebration overlay — motion, desktop 1440 light @reveal', async ({
-    browser,
-  }) => {
+  test('consensus celebration — burst top-sprinkle pattern @reveal', async ({ browser }) => {
     test.setTimeout(180_000);
     await runConsensusScene(
       browser,
       { width: 1440, height: 900 },
-      'light',
-      false,
-      'consensus-motion-1440-light',
-    );
-  });
-
-  test('consensus celebration overlay — motion, mobile 375 dark @reveal', async ({ browser }) => {
-    test.setTimeout(180_000);
-    await runConsensusScene(
-      browser,
-      { width: 375, height: 812 },
       'dark',
       false,
-      'consensus-motion-375-dark',
+      'reveal-burst-top',
+      999, // seed 999 → first rng value 0x9f.../2^32 ∈ [1/3, 2/3) → top-sprinkle (pattern 1)
     );
   });
 
-  test('consensus celebration overlay — motion, mobile 375 light @reveal', async ({ browser }) => {
+  test('consensus celebration — burst side-cannons pattern @reveal', async ({ browser }) => {
     test.setTimeout(180_000);
     await runConsensusScene(
       browser,
-      { width: 375, height: 812 },
-      'light',
+      { width: 1440, height: 900 },
+      'dark',
       false,
-      'consensus-motion-375-light',
+      'reveal-burst-sides',
+      100_000, // seed 100000 → first rng value 0xfd.../2^32 ≥ 2/3 → side-cannons (pattern 2)
     );
   });
 
