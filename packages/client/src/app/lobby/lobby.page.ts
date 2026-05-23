@@ -1,7 +1,9 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   OnDestroy,
+  afterRenderEffect,
   computed,
   effect,
   inject,
@@ -499,18 +501,7 @@ import type { AgendaItem } from '@hnch/shared';
           aria-live="polite"
           (click)="celebration.dismissOverlay()"
         >
-          <div class="confetti-layer" aria-hidden="true">
-            @for (piece of celebration.confettiPieces(); track piece.id) {
-              <span
-                class="confetti-piece"
-                [style.--angle.deg]="piece.angle"
-                [style.--distance.px]="piece.distance"
-                [style.--rotate.deg]="piece.rotate"
-                [style.--duration.ms]="piece.duration"
-                [style.--delay.ms]="piece.delay"
-              >{{ piece.emoji }}</span>
-            }
-          </div>
+          <div #confettiLayer class="confetti-layer" aria-hidden="true"></div>
           <span class="consensus-text">hnch'd!
             @if (celebration.reducedMotion()) {<span aria-hidden="true"> 🎉</span>}
           </span>
@@ -833,29 +824,6 @@ import type { AgendaItem } from '@hnch/shared';
           transform: translate(-50%, -50%) scale(1.06);
         }
       }
-      @keyframes hnchdConfetti {
-        0% {
-          opacity: 1;
-          transform:
-            rotate(0deg)
-            translate(
-              calc(cos(var(--angle)) * 0px),
-              calc(sin(var(--angle)) * 0px)
-            );
-        }
-        60% {
-          opacity: 1;
-        }
-        100% {
-          opacity: 0;
-          transform:
-            rotate(var(--rotate))
-            translate(
-              calc(cos(var(--angle)) * var(--distance)),
-              calc(sin(var(--angle)) * var(--distance) + 60px)
-            );
-        }
-      }
       .consensus-overlay {
         position: absolute;
         inset: 0;
@@ -873,20 +841,6 @@ import type { AgendaItem } from '@hnch/shared';
         pointer-events: none;
         z-index: 1001;
         overflow: hidden;
-      }
-      .confetti-piece {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        font-size: 1.5rem;
-        line-height: 1;
-        animation: hnchdConfetti var(--duration) ease-out var(--delay) both;
-        will-change: transform, opacity;
-      }
-      @media (prefers-reduced-motion: reduce) {
-        .confetti-piece {
-          display: none;
-        }
       }
       .consensus-text {
         position: absolute;
@@ -1132,6 +1086,9 @@ export class LobbyPage implements OnDestroy {
   private readonly sessionSettingsModalRef = viewChild<IonModal>('sessionSettingsModal');
   private readonly qrModalRef = viewChild<IonModal>('qrModal');
 
+  /** ViewChild for the engine-owned confetti layer div inside the overlay. */
+  private readonly confettiLayer = viewChild<ElementRef<HTMLElement>>('confettiLayer');
+
   // Tracks the last uuid written to the cache so the effect does not
   // re-fire on every Yjs doc mutation (votes, awareness, etc.) while
   // connected to the same room. Reset to null when status leaves
@@ -1240,6 +1197,13 @@ export class LobbyPage implements OnDestroy {
           await this.router.navigate(['/home']);
         }
       })();
+    });
+
+    // Wire confetti layer DOM node to CelebrationService after each render.
+    // afterRenderEffect guarantees the read runs after view commit so the
+    // element is document-attached when attachLayer() is called (P3-C3).
+    afterRenderEffect(() => {
+      this.celebration.attachLayer(this.confettiLayer()?.nativeElement ?? null);
     });
   }
 
@@ -1659,6 +1623,7 @@ export class LobbyPage implements OnDestroy {
 
   ngOnDestroy(): void {
     this.popoverCtrl.dismiss().catch(() => {});
+    this.celebration.detachLayer();
   }
 
   /**

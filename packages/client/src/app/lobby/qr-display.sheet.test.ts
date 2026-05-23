@@ -1,7 +1,7 @@
 // Exercises: qr-display.sheet:QrDisplaySheetComponent
 
 import { TestBed } from '@angular/core/testing';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('qrcode', () => ({
   default: {
@@ -41,6 +41,13 @@ async function mountSheet(inviteUrl: string, roomCode: string) {
 }
 
 describe('QrDisplaySheetComponent', () => {
+  beforeEach(() => {
+    // Re-establish mock resolved value after restoreMocks resets it between tests.
+    (QRCode.toDataURL as ReturnType<typeof vi.fn>).mockResolvedValue(
+      'data:image/png;base64,MOCK_QR',
+    );
+  });
+
   afterEach(() => {
     TestBed.resetTestingModule();
     vi.clearAllMocks();
