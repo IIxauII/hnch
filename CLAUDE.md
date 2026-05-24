@@ -39,7 +39,7 @@ When proposing a code change that conflicts with an existing ADR, either adjust 
 
 ## Current decisions at a glance
 
-For quick orientation without reading all 36 ADRs:
+For quick orientation without reading all 41 ADRs:
 
 - **Architecture:** Yjs CRDTs synchronized via a content-blind y-websocket relay. No direct WebRTC. No authoritative session server. (ADR-0001, ADR-0003)
 - **Stack:** Angular + Ionic + Capacitor for the client; Node.js y-websocket relay for the server. (ADR-0002)
@@ -52,14 +52,16 @@ For quick orientation without reading all 36 ADRs:
 - **Host authority:** creator is initial host; on drop, 5-second debounce then lowest-peer-ID election. (ADR-0010)
 - **Reveal:** manual (host taps Reveal) + unanimous auto-reveal (fires when all online voters have voted). No countdown timer. `timerStartedAt` written at round creation as stopwatch origin for elapsed time display. (ADR-0018)
 - **Skip:** host-only terminal action distinct from reveal. Writes optional `skippedAt` on the round; mutually exclusive with `revealedAt` at the writer (both can coexist after CRDT merge — earlier timestamp wins via `terminalState()`). Auto-reveal guards on `!skippedAt`. No re-vote lineage from skip. Votes cast pre-skip stay in doc, suppressed in UI. (ADR-0040)
+- **Abstain:** per-round voter action — writes `hnch_abstain` sentinel to `round.votes[participantId]`. Abstainers appear filled in the avatar row pre-reveal (preserves anonymity). Post-reveal, abstained participants are shown in a distinct group separate from "Didn't vote". An abstain entry satisfies the unanimous auto-reveal "has voted" predicate; abstention does not carry forward to re-votes. (ADR-0041)
 - **Snapshots:** 24-hour in-memory TTL on the relay, keyed by room UUID; no disk persistence. (ADR-0012)
 - **Rounds:** flat list with optional `parentRoundId` for re-vote lineage; vote change allowed until reveal. (ADR-0013)
 - **Password protection:** PBKDF2-SHA-256 via Web Crypto (100k iterations, room UUID as salt). Wrong-password rejection surfaces via WS close `4002` (post-upgrade), not pre-upgrade HTTP 403, so browsers can read the reason. Invite-only mode dropped from v1 scope. (ADR-0017, ADR-0035)
 - **Scales:** 5 builtin presets (`fibonacci`, `t-shirt`, `powers-of-2`, `linear`, `risk`); `?` and `☕` sentinel cards removed. Device-local customization via `PresetOverrides` (toggle cards per preset) and `CustomScale` (arbitrary card set, ID prefixed `custom-`). Resolved client-side before writing to the doc — wire format is always flat `{ id, cards }`. (ADR-0019)
 - **Participant roles:** every participant has a `role` field on their doc record — `voter` (default) or `viewer`. Viewers excluded from unanimous auto-reveal denominator so observers don't block reveals; toggleable in-session. (ADR-0020)
+- **Avatar color:** user-selectable color stored as `avatarColor?` on the participant record. Wire value is an `AccentKey` palette entry (one of 12) or `#rrggbb` hex. Absent ⇒ clients derive a stable hue deterministically from `participantId`. Readers must funnel through `resolveAvatarColor()` to tolerate unknown/malformed values from old and future clients. (ADR-0043)
 - **Participant removal:** soft-delete via optional `leftAt` + `removedBy` fields on the participant record. "Leave Session" and host-kick (swipe-left → Remove) write the fields; transient disconnect does not. Active rosters filter on `!leftAt`; round history reads the raw map so departed names still resolve. No relay-side ban — kicked users can re-enter via room code (their `leftAt` is cleared on rejoin); password rotation is the persistent-removal lever. (ADR-0036)
 - **CLI:** fourth deliverable (`packages/cli`, `@xauyxau/hnch`) — Node.js + Ink terminal client with full wire-protocol parity to the mobile client. Identity and persistence differ (no Capacitor plugins); protocol surface is identical. (ADR-0021)
-- **Last-session cache:** shared base `{ roomCode, roomUuid, lastSeenAt }` with a 24 h TTL aligned to the relay snapshot TTL. Mobile client extends with `lastScreen: 'lobby' | 'estimating'` to restore the right route on rejoin; CLI extends with optional `passwordHash` for unattended `hnch resume` of password-protected rooms. (ADR-0022)
+- **Last-session cache:** shared base `{ roomCode, roomUuid, lastSeenAt }` with a 24 h TTL aligned to the relay snapshot TTL. Mobile client extends with `lastScreen: 'lobby' | 'estimating'` to restore the right route on rejoin; CLI extends with optional `passwordHash` for unattended `hnch resume` of password-protected rooms. (ADR-0044, supersedes ADR-0022)
 - **Session-end broadcast:** host writes `meta.sessionEndedAt` to the Yjs doc; all clients observe the field, show a toast, and navigate Home. Absent = still active. (ADR-0023)
 - **Participant cap:** 20-peer hard limit enforced at the relay on WebSocket upgrade (close code 4006). (ADR-0024)
 - **Reconnect backoff:** y-websocket default exponential backoff + a `window online` event handler that force-resets backoff and closes stale sockets — works around a Chromium quirk where the network reports up before existing sockets tear down. (ADR-0025)

@@ -14,7 +14,10 @@ This document describes the shape of the Yjs doc that represents a single hnch s
 - [ADR-0018](../adr/0018-remove-timer-add-unanimous-reveal.md) — removed countdown timer; added unanimous auto-reveal; `timerStartedAt` repurposed as stopwatch origin
 - [ADR-0019](../adr/0019-scale-customization.md) — scale customization: 5 builtin presets, sentinel removal, device-local overrides and custom scales
 - [ADR-0036](../adr/0036-participant-removal-lifecycle.md) — participant removal lifecycle (`leftAt` / `removedBy` soft-delete fields)
+- [ADR-0040](../adr/0040-skipped-rounds.md) — skip as a distinct round terminal state (`skippedAt`); `terminalState()` helper for CRDT tie-break
+- [ADR-0041](../adr/0041-per-round-abstain-sentinel.md) — per-round abstain sentinel (`hnch_abstain` in `round.votes`); auto-reveal amendment
 - [ADR-0042](../adr/0042-pre-session-agenda.md) — pre-session story agenda (`agenda: Y.Array<Y.Map>` + `round.agendaItemId` backref)
+- [ADR-0043](../adr/0043-per-participant-avatar-color.md) — per-participant avatar color (`avatarColor?` on participant record)
 
 **Not covered here.** Teams are local-only and never enter the Yjs doc (see [ADR-0007](../adr/0007-teams-local-only.md)). Access control tokens (password hash, invite tokens) are managed by the relay and not stored in the doc ([ADR-0009](../adr/0009-access-control-relay-tokens.md)). Room codes are a relay-side lookup to `roomUuid` and do not appear in the doc ([ADR-0008](../adr/0008-room-code-format.md), [ADR-0012](../adr/0012-snapshot-policy.md)).
 
@@ -72,6 +75,7 @@ Host-editable. Changes propagate to all clients via Yjs. The "host" at any momen
 | `role?` | `'voter' \| 'viewer'` | Optional participant role ([ADR-0020](../adr/0020-participant-viewer-voter-role.md)). Defaults to `'voter'` if absent. Viewers cannot vote and are excluded from unanimous auto-reveal checks. |
 | `leftAt?` | `number` | Optional. Unix milliseconds when the participant was removed from the active roster ([ADR-0036](../adr/0036-participant-removal-lifecycle.md)). Absent ⇒ active. Set on voluntary "Leave Session" or host kick. NOT set by transient disconnect — offline presence stays awareness-driven. Cleared on re-join (self upsert in `joinSession`). |
 | `removedBy?` | `string` | Optional. `participantId` of the actor that wrote `leftAt`. Equal to the target ⇒ voluntary leave; otherwise ⇒ kicked by host. Used by clients to render the right toast/system message ([ADR-0036](../adr/0036-participant-removal-lifecycle.md)). |
+| `avatarColor?` | `string` | Optional. User-chosen avatar color ([ADR-0043](../adr/0043-per-participant-avatar-color.md)). Wire value is an `AccentKey` palette entry (one of 12) or a `#rrggbb` hex literal. Absent ⇒ clients derive a stable hue deterministically from `participantId`. Readers must use `resolveAvatarColor()` to tolerate unknown/malformed values from old or future clients. |
 
 A participant stays in this map even if they disconnect — the map is cumulative for the session's lifetime. Online status is derived from **awareness**, not from this map.
 
@@ -96,7 +100,7 @@ Each round's `Y.Map`:
 | `skippedAt?` | `number` | Unix milliseconds when the host skipped the round ([ADR-0040](../adr/0040-skipped-rounds.md)). Mutually exclusive terminal state with `revealedAt` at the writer; both fields can coexist after a concurrent CRDT merge, in which case the earlier timestamp wins via `terminalState()`. Absent means not skipped. |
 | `createdBy` | `string` | `participantId` of whoever created the round. |
 | `createdAt` | `number` | Unix milliseconds when the round was created. |
-| `votes` | `Y.Map<participantId, string>` | Votes keyed by participant. The value is the card face (e.g. `"5"`, `"M"`, `"High"`). Vote-change-before-reveal ([ADR-0013](../adr/0013-round-model-flat-parentroundid.md)) is just overwriting this key. Only the final value is retained. |
+| `votes` | `Y.Map<participantId, string>` | Votes keyed by participant. Value is a card face (e.g. `"5"`, `"M"`, `"High"`) or the abstain sentinel `"hnch_abstain"` ([ADR-0041](../adr/0041-per-round-abstain-sentinel.md)). Vote-change-before-reveal ([ADR-0013](../adr/0013-round-model-flat-parentroundid.md)) is just overwriting this key. Only the final value is retained. Absent key = not yet voted. |
 | `agendaItemId?` | `string` | Optional. ID of the agenda item this round was started from ([ADR-0042](../adr/0042-pre-session-agenda.md)). Absent when the round was not created from an agenda item. On re-vote, callers pass the parent round's `agendaItemId` unchanged — the agenda item state is not modified again. |
 
 Note: `revealMode` and `timerDurationMs` were removed in [ADR-0018](../adr/0018-remove-timer-add-unanimous-reveal.md). Reveal is always manual + unanimous auto-reveal. `timerStartedAt` is retained as a stopwatch origin.
@@ -186,10 +190,10 @@ Agenda items share the doc's 24h relay snapshot TTL ([ADR-0012](../adr/0012-snap
 
 These are computed on the client from the doc; they are not persisted:
 
-- **Round status:** `revealedAt ? 'revealed' : (timerStartedAt ? 'voting' : 'pending')`.
+- **Round status:** `terminalState(round)` returns `'revealed'` or `'skipped'` (or `null` for an in-progress round). In-progress rounds display as `'voting'` when `timerStartedAt` is set. Consumers must call `terminalState()` — never read `revealedAt`/`skippedAt` directly — to handle CRDT merges that can set both fields concurrently ([ADR-0040](../adr/0040-skipped-rounds.md)).
 - **Current round:** the last round in `rounds` whose `revealedAt` is unset; if all are revealed, the last round overall.
 - **Elapsed voting time:** `Date.now() - round.timerStartedAt` (counting up, displayed as a stopwatch).
-- **All voted:** every online *active* voter (awareness set ∩ `!leftAt` ∩ `role !== 'viewer'`) has a key in `round.votes`. When true, any client writes `revealedAt` (unanimous auto-reveal, ADR-0018; left-participant exclusion per ADR-0036).
+- **All voted:** every online *active* voter (awareness set ∩ `!leftAt` ∩ `role !== 'viewer'`) has a key in `round.votes` — including `"hnch_abstain"` entries, which satisfy the predicate ([ADR-0041](../adr/0041-per-round-abstain-sentinel.md)). When true, any client writes `revealedAt` (unanimous auto-reveal, [ADR-0018](../adr/0018-remove-timer-add-unanimous-reveal.md); left-participant exclusion per [ADR-0036](../adr/0036-participant-removal-lifecycle.md)).
 - **Lineage chain:** walk `parentRoundId` backwards from a round to collect the full re-vote history for that item (useful for UI display and exports).
 - **Host liveness:** awareness has an entry for `settings.hostParticipantId`. Absence for longer than the 5-second debounce triggers election (ADR-0010).
 

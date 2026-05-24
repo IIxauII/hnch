@@ -80,7 +80,7 @@ Internally, each room has a stable UUID; the 6-char code is a lookup pointing at
 
 User picks a nickname on first app launch. The nickname is persisted locally and tied to a **device identifier** obtained via the Capacitor Device plugin (`Device.getId()`), cached in Capacitor Preferences (or SQLite) to avoid re-hitting the native bridge on every launch. Durability varies by platform: Android's `ANDROID_ID` is stable across reinstalls under the same signing key; iOS's `identifierForVendor` resets on reinstall for a single-app vendor; web generates and stores a UUID. These limitations are accepted for v1 — if durable cross-device identity becomes a real need, it will be solved at a higher layer (e.g. opt-in passkey), not by fingerprinting.
 
-Users can optionally change their nickname before joining any session. Each user gets an auto-assigned color and avatar for visual differentiation. Nickname changes within an active session are not allowed.
+Users can optionally change their nickname before joining any session. Each user has an avatar color for visual differentiation — auto-assigned by default (derived from device ID), user-selectable from a palette or as a custom hex color (ADR-0043). Nickname changes within an active session are not allowed.
 
 ## Teams (local concept)
 
