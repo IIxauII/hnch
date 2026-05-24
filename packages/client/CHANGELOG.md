@@ -1,3 +1,10 @@
+## [1.36.3](https://github.com/IIxauII/hnch/compare/client-v1.36.2...client-v1.36.3) (2026-05-24)
+
+
+### Bug Fixes
+
+* **shared,client,cli,e2e:** defer agenda consume to round-terminal + host discard chevron ([#314](https://github.com/IIxauII/hnch/issues/314)) ([6f34575](https://github.com/IIxauII/hnch/commit/6f3457543b15a57648d04b8175466aa827d373c9))
+
 ## [1.36.2](https://github.com/IIxauII/hnch/compare/client-v1.36.1...client-v1.36.2) (2026-05-23)
 
 
