@@ -101,7 +101,7 @@ export function App({
       setOnlineIds(session.onlineIds());
       const proj = session.projection();
       const round = currentRound(proj);
-      if (round?.timerStartedAt !== undefined && round.revealedAt === undefined) {
+      if (round?.timerStartedAt !== undefined && terminalState(round) === null) {
         setElapsedMs(Date.now() - round.timerStartedAt);
       } else {
         setElapsedMs(undefined);
@@ -250,6 +250,10 @@ export function App({
 
   const handleSkip = useCallback(() => {
     session.skip();
+  }, [session]);
+
+  const handleDiscard = useCallback(() => {
+    session.discardCurrentRound();
   }, [session]);
 
   const handleNewRound = useCallback(() => {
@@ -511,6 +515,7 @@ export function App({
           onClearVote={handleClearVote}
           onReveal={handleReveal}
           onSkip={handleSkip}
+          onDiscard={handleDiscard}
           onToggleRole={handleToggleRole}
           onShare={handleShare}
           onSetShareOpen={setShareOpen}

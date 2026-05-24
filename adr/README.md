@@ -33,7 +33,7 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0009](0009-access-control-relay-tokens.md) | Access control enforced at the relay via opaque tokens | Accepted |
 | [0010](0010-host-election.md) | Host election mechanics | Accepted |
 | [0012](0012-snapshot-policy.md) | Ephemeral room snapshot policy | Accepted |
-| [0013](0013-round-model-flat-parentroundid.md) | Round model: flat list with parentRoundId linking | Accepted |
+| [0013](0013-round-model-flat-parentroundid.md) | Round model: flat list with parentRoundId linking | Superseded by ADR-0046 |
 | [0014](0014-repo-layout-pnpm-workspaces.md) | Repo layout: pnpm workspaces monorepo | Accepted |
 | [0016](0016-client-relay-connection-handshake.md) | Client ↔ relay connection handshake | Accepted |
 | [0017](0017-password-hashing-drop-invite-only.md) | Password hashing scheme and invite-only removal | Accepted (password-enforcement clause superseded by ADR-0035) |
@@ -60,9 +60,11 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0039](0039-desktop-responsive-layout.md) | Desktop-responsive layout — breakpoint-conditional surface modes, capped containers, popover menus, centered modals | Accepted |
 | [0040](0040-skipped-rounds.md) | Skipped rounds — host terminal-state action distinct from reveal | Accepted |
 | [0041](0041-per-round-abstain-sentinel.md) | Per-round abstain action for voters — `hnch_abstain` sentinel, auto-reveal amendment | Accepted |
-| [0042](0042-pre-session-agenda.md) | Pre-session story agenda — `agenda: Y.Array<Y.Map>` + `round.agendaItemId` backref | Accepted |
+| [0042](0042-pre-session-agenda.md) | Pre-session story agenda — `agenda: Y.Array<Y.Map>` + `round.agendaItemId` backref | Superseded by ADR-0045 |
 | [0043](0043-per-participant-avatar-color.md) | Per-participant avatar color — user-selectable palette or hex, stored on participant record | Accepted |
 | [0044](0044-local-room-history-cache.md) | Local room history cache — v2 multi-entry shape, mobile passwordHash reversal | Accepted |
+| [0045](0045-agenda-consume-at-round-terminal.md) | Agenda items consume at round-terminal (reveal/skip) instead of round-start (supersedes ADR-0042) | Accepted |
+| [0046](0046-round-discard-tombstone.md) | Round record — three terminal fields (`revealedAt`/`skippedAt`/`discardedAt`) + tombstone semantics (supersedes ADR-0013) | Accepted |
 
 ## When to write an ADR
 
