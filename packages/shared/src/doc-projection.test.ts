@@ -17,6 +17,7 @@ import {
   clearVote,
   consumeAgendaItem,
   currentRound,
+  discardRound,
   DOC_META_KEY,
   DOC_PARTICIPANTS_KEY,
   DOC_ROUNDS_KEY,
@@ -534,7 +535,7 @@ describe('skipRound', () => {
 // ---------------------------------------------------------------------------
 
 describe('terminalState', () => {
-  it('returns null when neither field is set', () => {
+  it('returns null when no terminal field is set', () => {
     expect(terminalState({})).toBeNull();
   });
 
@@ -546,13 +547,40 @@ describe('terminalState', () => {
     expect(terminalState({ skippedAt: 100 })).toBe('skipped');
   });
 
-  it('picks the earlier timestamp when both are set (CRDT merge)', () => {
+  it('returns "discarded" when only discardedAt is set', () => {
+    expect(terminalState({ discardedAt: 100 })).toBe('discarded');
+  });
+
+  it('treats discardedAt: 0 as terminal (defends against truthy checks)', () => {
+    expect(terminalState({ discardedAt: 0 })).toBe('discarded');
+  });
+
+  it('picks the earlier timestamp when reveal + skip both set (CRDT merge)', () => {
     expect(terminalState({ revealedAt: 100, skippedAt: 200 })).toBe('revealed');
     expect(terminalState({ revealedAt: 200, skippedAt: 100 })).toBe('skipped');
   });
 
-  it('prefers reveal on a literal tie (revealedAt <= skippedAt)', () => {
+  it('picks the earlier timestamp when reveal + discard both set (CRDT merge)', () => {
+    expect(terminalState({ revealedAt: 100, discardedAt: 200 })).toBe('revealed');
+    expect(terminalState({ revealedAt: 200, discardedAt: 100 })).toBe('discarded');
+  });
+
+  it('picks the earlier timestamp when skip + discard both set (CRDT merge)', () => {
+    expect(terminalState({ skippedAt: 100, discardedAt: 200 })).toBe('skipped');
+    expect(terminalState({ skippedAt: 200, discardedAt: 100 })).toBe('discarded');
+  });
+
+  it('picks the earliest of all three when concurrently merged', () => {
+    expect(terminalState({ revealedAt: 50, skippedAt: 100, discardedAt: 200 })).toBe('revealed');
+    expect(terminalState({ revealedAt: 200, skippedAt: 50, discardedAt: 100 })).toBe('skipped');
+    expect(terminalState({ revealedAt: 200, skippedAt: 100, discardedAt: 50 })).toBe('discarded');
+  });
+
+  it('on literal tie prefers reveal > skip > discard', () => {
     expect(terminalState({ revealedAt: 100, skippedAt: 100 })).toBe('revealed');
+    expect(terminalState({ revealedAt: 100, discardedAt: 100 })).toBe('revealed');
+    expect(terminalState({ skippedAt: 100, discardedAt: 100 })).toBe('skipped');
+    expect(terminalState({ revealedAt: 100, skippedAt: 100, discardedAt: 100 })).toBe('revealed');
   });
 });
 
@@ -1712,5 +1740,249 @@ describe('agenda CRDT concurrent append', () => {
     expect(ids).toContain(idX);
     expect(ids).toContain(idY);
     expect(ids).toContain(idZ);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// discardRound — host back-chevron tombstone
+// ---------------------------------------------------------------------------
+
+describe('discardRound', () => {
+  it('stamps discardedAt and discardedBy', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    discardRound(doc, 'r1', 1_700_000_500_000, 'p-host');
+    const round = projectDoc(doc).rounds[0]!;
+    expect(round.discardedAt).toBe(1_700_000_500_000);
+    expect(round.discardedBy).toBe('p-host');
+  });
+
+  it('throws on unknown round id', () => {
+    const { doc } = seedDoc();
+    expect(() => discardRound(doc, 'nope', 1, 'p-host')).toThrow(/not found/);
+  });
+
+  it('throws when the round is already revealed', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    revealRound(doc, 'r1', 100);
+    expect(() => discardRound(doc, 'r1', 200, 'p-host')).toThrow(/already revealed/);
+  });
+
+  it('throws when the round is already skipped', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    skipRound(doc, 'r1', 100);
+    expect(() => discardRound(doc, 'r1', 200, 'p-host')).toThrow(/already skipped/);
+  });
+
+  it('throws on double-discard', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    discardRound(doc, 'r1', 100, 'p-host');
+    expect(() => discardRound(doc, 'r1', 200, 'p-host')).toThrow(/already discarded/);
+  });
+
+  it('reveal blocks when round already discarded (writer mutex)', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    discardRound(doc, 'r1', 100, 'p-host');
+    expect(() => revealRound(doc, 'r1', 200)).toThrow(/already discarded/);
+  });
+
+  it('skip blocks when round already discarded (writer mutex)', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    discardRound(doc, 'r1', 100, 'p-host');
+    expect(() => skipRound(doc, 'r1', 200)).toThrow(/already discarded/);
+  });
+
+  it('leaves linked agenda item in pending state (no consumption)', () => {
+    const { doc } = seedDoc();
+    const itemId = appendAgendaItem(doc, { title: 'Story', createdAt: 1 });
+    appendRound(doc, {
+      id: 'r1',
+      createdAt: 2,
+      createdBy: 'p-host',
+      agendaItemId: itemId,
+    });
+    discardRound(doc, 'r1', 100, 'p-host');
+    const item = projectDoc(doc).agenda.find((a) => a.id === itemId)!;
+    expect(item.state).toBe('pending');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// revealRound / skipRound atomic agenda consume
+// ---------------------------------------------------------------------------
+
+describe('revealRound / skipRound atomic agenda consume', () => {
+  it('revealRound consumes linked pending agenda item in same transaction', () => {
+    const { doc } = seedDoc();
+    const itemId = appendAgendaItem(doc, { title: 'Story', createdAt: 1 });
+    appendRound(doc, {
+      id: 'r1',
+      createdAt: 2,
+      createdBy: 'p-host',
+      agendaItemId: itemId,
+    });
+    revealRound(doc, 'r1', 100);
+    const item = projectDoc(doc).agenda.find((a) => a.id === itemId)!;
+    expect(item.state).toBe('consumed');
+    expect(item.consumedAt).toBe(100);
+    expect(item.consumedByRoundId).toBe('r1');
+  });
+
+  it('skipRound consumes linked pending agenda item in same transaction', () => {
+    const { doc } = seedDoc();
+    const itemId = appendAgendaItem(doc, { title: 'Story', createdAt: 1 });
+    appendRound(doc, {
+      id: 'r1',
+      createdAt: 2,
+      createdBy: 'p-host',
+      agendaItemId: itemId,
+    });
+    skipRound(doc, 'r1', 100);
+    const item = projectDoc(doc).agenda.find((a) => a.id === itemId)!;
+    expect(item.state).toBe('consumed');
+    expect(item.consumedAt).toBe(100);
+    expect(item.consumedByRoundId).toBe('r1');
+  });
+
+  it('revealRound is idempotent when linked agenda item is already consumed (re-vote)', () => {
+    const { doc } = seedDoc();
+    const itemId = appendAgendaItem(doc, { title: 'Story', createdAt: 1 });
+    appendRound(doc, {
+      id: 'r1',
+      createdAt: 2,
+      createdBy: 'p-host',
+      agendaItemId: itemId,
+    });
+    revealRound(doc, 'r1', 100);
+    // Re-vote: append a new round inheriting the same agendaItemId.
+    appendRound(doc, {
+      id: 'r2',
+      createdAt: 200,
+      createdBy: 'p-host',
+      parentRoundId: 'r1',
+      agendaItemId: itemId,
+    });
+    // Must not throw and must not rewrite consumedAt.
+    expect(() => revealRound(doc, 'r2', 300)).not.toThrow();
+    const item = projectDoc(doc).agenda.find((a) => a.id === itemId)!;
+    expect(item.state).toBe('consumed');
+    expect(item.consumedAt).toBe(100);
+    expect(item.consumedByRoundId).toBe('r1');
+  });
+
+  it('revealRound with no agendaItemId leaves agenda untouched', () => {
+    const { doc } = seedDoc();
+    const itemId = appendAgendaItem(doc, { title: 'Story', createdAt: 1 });
+    appendRound(doc, { id: 'r1', createdAt: 2, createdBy: 'p-host' });
+    revealRound(doc, 'r1', 100);
+    const item = projectDoc(doc).agenda.find((a) => a.id === itemId)!;
+    expect(item.state).toBe('pending');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// currentRound fallback when last round is discarded
+// ---------------------------------------------------------------------------
+
+describe('currentRound discard handling', () => {
+  it('returns null when the only round is discarded', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    discardRound(doc, 'r1', 100, 'p-host');
+    expect(currentRound(projectDoc(doc))).toBeNull();
+  });
+
+  it('falls back to the last non-discarded round when the latest is discarded', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    revealRound(doc, 'r1', 10);
+    appendRound(doc, { id: 'r2', createdAt: 2, createdBy: 'p-host' });
+    discardRound(doc, 'r2', 100, 'p-host');
+    expect(currentRound(projectDoc(doc))!.id).toBe('r1');
+  });
+
+  it('returns next active round skipping a discarded one in the middle', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    revealRound(doc, 'r1', 10);
+    appendRound(doc, { id: 'r2', createdAt: 2, createdBy: 'p-host' });
+    discardRound(doc, 'r2', 50, 'p-host');
+    appendRound(doc, { id: 'r3', createdAt: 3, createdBy: 'p-host' });
+    expect(currentRound(projectDoc(doc))!.id).toBe('r3');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// appendRound parent-guard (discarded parent rejected)
+// ---------------------------------------------------------------------------
+
+describe('appendRound discarded-parent guard', () => {
+  it('rejects parentRoundId pointing at a discarded round', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    discardRound(doc, 'r1', 100, 'p-host');
+    expect(() =>
+      appendRound(doc, {
+        id: 'r2',
+        createdAt: 200,
+        createdBy: 'p-host',
+        parentRoundId: 'r1',
+      }),
+    ).toThrow(/discarded round/);
+  });
+
+  it('accepts parentRoundId pointing at a revealed round', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    revealRound(doc, 'r1', 10);
+    expect(() =>
+      appendRound(doc, {
+        id: 'r2',
+        createdAt: 200,
+        createdBy: 'p-host',
+        parentRoundId: 'r1',
+      }),
+    ).not.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Late-vote race vs discard (deterministic CRDT merge)
+// ---------------------------------------------------------------------------
+
+describe('discard vs late vote (CRDT merge)', () => {
+  it('does not resurrect: a vote merged after discard is projection-ignored via currentRound', () => {
+    // Two peers diverge: peer A discards round r1; peer B casts a vote on r1.
+    const { doc: docA } = seedDoc();
+    appendRound(docA, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+
+    // Copy state to docB before either mutation.
+    const docB = new Y.Doc();
+    Y.applyUpdate(docB, Y.encodeStateAsUpdate(docA));
+
+    // Peer A discards.
+    discardRound(docA, 'r1', 100, 'p-host');
+
+    // Peer B casts a vote on the same round (still active locally).
+    castVote(docB, 'r1', 'p-host', '5');
+
+    // Cross-merge.
+    Y.applyUpdate(docA, Y.encodeStateAsUpdate(docB));
+    Y.applyUpdate(docB, Y.encodeStateAsUpdate(docA));
+
+    // Both projections agree: round is discarded; no active round.
+    for (const doc of [docA, docB]) {
+      const snap = projectDoc(doc);
+      expect(snap.rounds[0]!.discardedAt).toBe(100);
+      // The vote did land in the doc — castVote does not guard on discardedAt
+      // and detached-map semantics do not apply since the round is a tombstone,
+      // not deleted. The vote is harmless because currentRound() returns null.
+      expect(currentRound(snap)).toBeNull();
+    }
   });
 });

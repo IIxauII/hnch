@@ -133,6 +133,7 @@ import { SurfaceService } from '../core/surface.service';
             @for (item of visibleItems(); track item.id; let i = $index) {
               <ion-item
                 class="agenda-item"
+                [class.agenda-item--pending]="item.state === 'pending'"
                 [class.agenda-item--consumed]="item.state === 'consumed'"
                 [class.agenda-item--skipped]="item.state === 'skipped'"
                 [class.agenda-item--cancelled]="item.state === 'cancelled'"

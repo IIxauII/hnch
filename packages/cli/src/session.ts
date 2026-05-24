@@ -12,12 +12,13 @@ import {
   joinDoc,
   projectDoc,
   currentRound,
+  terminalState,
   castVote,
   clearVote,
   revealRound as revealRoundMutation,
   skipRound as skipRoundMutation,
+  discardRound as discardRoundMutation,
   appendRound,
-  consumeAgendaItem,
   patchRoundDescriptor,
   patchSettings,
   hashPassword,
@@ -80,6 +81,12 @@ export interface SessionHandle {
   reveal(): void;
   /** Skip the current round (host only). */
   skip(): void;
+  /**
+   * Discard the active round (host only). Writes `discardedAt`/`discardedBy`
+   * tombstone; linked agenda item (if any) stays `pending`. No-op when no
+   * active round exists.
+   */
+  discardCurrentRound(): void;
   /** Start a new round. Optionally linked to an agenda item. */
   newRound(title?: string, ticketId?: string, agendaItemId?: string): string;
   /** Re-vote: start new round linked to current. */
@@ -246,7 +253,10 @@ export function wireSession(opts: WireOptions): SessionHandle {
   const autoRevealInterval = setInterval(() => {
     const projection = projectDoc(doc);
     const round = currentRound(projection);
-    if (!round || round.revealedAt !== undefined) return;
+    // `currentRound()` already skips discarded rounds; this extra guard
+    // catches the late-merge case where a remote terminal write lands
+    // between projection reads.
+    if (!round || terminalState(round) !== null) return;
     if (revealedByAuto.has(round.id)) return;
 
     const onlineIds = getOnlineIds();
@@ -322,20 +332,23 @@ export function wireSession(opts: WireOptions): SessionHandle {
     newRound(title?: string, ticketId?: string, agendaItemId?: string) {
       const id = randomUUID();
       const now = Date.now();
-      doc.transact(() => {
-        appendRound(doc, {
-          id,
-          createdAt: now,
-          createdBy: participantId,
-          ...(title !== undefined && { title }),
-          ...(ticketId !== undefined && { ticketId }),
-          ...(agendaItemId !== undefined && { agendaItemId }),
-        });
-        if (agendaItemId !== undefined) {
-          consumeAgendaItem(doc, agendaItemId, id, now);
-        }
+      // Agenda consume is deferred to round-terminal (reveal/skip) inside the
+      // shared writers. Host discard via back-chevron leaves the linked item
+      // pending. See ADR superseding ADR-0042.
+      appendRound(doc, {
+        id,
+        createdAt: now,
+        createdBy: participantId,
+        ...(title !== undefined && { title }),
+        ...(ticketId !== undefined && { ticketId }),
+        ...(agendaItemId !== undefined && { agendaItemId }),
       });
       return id;
+    },
+
+    discardCurrentRound() {
+      const round = currentRound(projectDoc(doc));
+      if (round) discardRoundMutation(doc, round.id, Date.now(), participantId);
     },
 
     revote() {

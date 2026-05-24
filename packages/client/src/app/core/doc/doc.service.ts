@@ -11,8 +11,8 @@ import {
   appendRound as appendRoundY,
   castVote as castVoteY,
   clearVote as clearVoteY,
-  consumeAgendaItem as consumeAgendaItemY,
   currentRound as currentRoundFromProjection,
+  discardRound as discardRoundY,
   DOC_AGENDA_KEY,
   DOC_META_KEY,
   DOC_PARTICIPANTS_KEY,
@@ -631,6 +631,17 @@ export class DocService {
   }
 
   /**
+   * Host back-chevron discard. Writes `discardedAt` + `discardedBy` on the
+   * round — distinct from reveal/skip, leaves any linked agenda item in the
+   * `pending` state, and excludes the round from `currentRound()` and
+   * history projections. UI must gate on `isHost()`; the writer itself does
+   * not enforce host authority (matches existing reveal/skip surface).
+   */
+  discardRound(roundId: string, discardedBy: string): void {
+    discardRoundY(this.requireDoc('discardRound'), roundId, Date.now(), discardedBy);
+  }
+
+  /**
    * Write `sessionEndedAt` to meta, broadcasting session termination to all
    * peers. Sets `endingSessionLocally` so `SessionEndService` can distinguish
    * this local trigger from a remote one.
@@ -701,14 +712,6 @@ export class DocService {
    */
   reorderAgendaItem(id: string, before?: string | null, after?: string | null): void {
     reorderAgendaItemY(this.requireDoc('reorderAgendaItem'), id, before, after);
-  }
-
-  /**
-   * Mark an agenda item as consumed by the given round (state → 'consumed').
-   * Writes `consumedAt` and `consumedByRoundId`.
-   */
-  consumeAgendaItem(id: string, roundId: string, timestamp: number): void {
-    consumeAgendaItemY(this.requireDoc('consumeAgendaItem'), id, roundId, timestamp);
   }
 
   /**
