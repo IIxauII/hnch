@@ -1,6 +1,6 @@
 # ADR-0042: Pre-session story agenda
 
-**Status:** Accepted
+**Status:** Superseded by [ADR-0045](0045-agenda-consume-at-round-terminal.md)
 **Date:** 2026-05-17
 
 ## Context

@@ -236,6 +236,20 @@ export interface Round {
    * timestamp wins (resolve via `terminalState()`). Absent means not skipped.
    */
   skippedAt?: number;
+  /**
+   * Unix milliseconds when the host discarded the round via the Estimating
+   * back chevron. Distinct from `skippedAt` — discard leaves the linked
+   * agenda item `pending` (no consumption), writes no history entry, and
+   * suppresses the round from `currentRound()` and history projections.
+   * Earliest-timestamp-wins tie-break against `revealedAt`/`skippedAt`
+   * (resolve via `terminalState()`). Absent means not discarded.
+   */
+  discardedAt?: number;
+  /**
+   * `participantId` of the host that wrote `discardedAt`. Audit/attribution
+   * hook; no immediate UI consumer. Always written alongside `discardedAt`.
+   */
+  discardedBy?: string;
   /** `participantId` of whoever created the round. */
   createdBy: string;
   /** Unix milliseconds when the round was created. */
@@ -259,23 +273,33 @@ export interface Round {
 }
 
 /**
- * Resolves the terminal state of a round per ADR-0040. Returns `'revealed'`
- * if only `revealedAt` is set, `'skipped'` if only `skippedAt` is set, the
- * earlier of the two if both are set after a concurrent CRDT merge, or
- * `null` if the round is still in progress.
+ * Resolves the terminal state of a round. Returns `'revealed'`, `'skipped'`,
+ * or `'discarded'` when the corresponding timestamp is set, or `null` if the
+ * round is still in progress. When multiple terminal timestamps coexist after
+ * a concurrent CRDT merge, the earliest wins (ADR-0040 tie-break extended
+ * uniformly to all three terminal fields). On a literal tie the resolution
+ * order is reveal → skip → discard so that revealed rounds win against
+ * 1ms-late discards (matching the reveal-vs-skip precedent).
  *
  * Every consumer that branches on round end state must funnel through this
- * helper — otherwise concurrent reveal+skip can render divergently across
- * clients.
+ * helper — otherwise concurrent reveal+skip+discard can render divergently
+ * across clients.
  */
 export function terminalState(
-  r: Pick<Round, 'revealedAt' | 'skippedAt'>,
-): 'revealed' | 'skipped' | null {
-  const { revealedAt, skippedAt } = r;
-  if (revealedAt === undefined && skippedAt === undefined) return null;
-  if (revealedAt === undefined) return 'skipped';
-  if (skippedAt === undefined) return 'revealed';
-  return revealedAt <= skippedAt ? 'revealed' : 'skipped';
+  r: Pick<Round, 'revealedAt' | 'skippedAt' | 'discardedAt'>,
+): 'revealed' | 'skipped' | 'discarded' | null {
+  const { revealedAt, skippedAt, discardedAt } = r;
+  if (revealedAt === undefined && skippedAt === undefined && discardedAt === undefined) {
+    return null;
+  }
+  const candidates: { kind: 'revealed' | 'skipped' | 'discarded'; at: number }[] = [];
+  if (revealedAt !== undefined) candidates.push({ kind: 'revealed', at: revealedAt });
+  if (skippedAt !== undefined) candidates.push({ kind: 'skipped', at: skippedAt });
+  if (discardedAt !== undefined) candidates.push({ kind: 'discarded', at: discardedAt });
+  // Stable preference on literal tie: revealed > skipped > discarded.
+  const rank = { revealed: 0, skipped: 1, discarded: 2 } as const;
+  candidates.sort((a, b) => a.at - b.at || rank[a.kind] - rank[b.kind]);
+  return candidates[0]!.kind;
 }
 
 // ---------------------------------------------------------------------------

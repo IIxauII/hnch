@@ -1,81 +1,86 @@
 # Agenda item orphaned as `consumed` when host backs out of estimating
 
 **Status:** Draft
-**Date:** 2026-05-22
+**Date:** 2026-05-23
 **Source:** https://github.com/IIxauII/hnch/issues/299
 
 ## Problem
 
-When a host starts a round from an agenda item and then taps the back chevron in Estimating before reveal/skip, the agenda item is left permanently `consumed` with no way to revote it, and the back button itself "feels broken" — Lobby's auto-nav effect bounces the host straight back to Estimating because the round is still non-terminal.
+When a host starts a round from an agenda item and then taps the back chevron in Estimating before reveal or skip, the agenda item is left permanently `consumed` with no path back to `pending`, and the back button itself "feels broken" — Lobby's auto-nav effect bounces the host straight back to Estimating because the in-flight round is still non-terminal.
 
 Quoting the issue: *"There is no way to revote on it"* and *"back button feels like a no-op"*.
 
-Root cause is three coupled things: agenda item is consumed atomically at round-start (not at terminal state), `consumed` is a terminal writer state with no un-consume transition, and `softExit()` in Estimating navigates without terminating the round.
+Three coupled causes: agenda items are consumed atomically at round-start (not at terminal state), the `consumed` writer state has no reverse transition, and `softExit()` in Estimating navigates without terminating the round.
 
 ## Users
 
-- **Host** — primary actor. Starts rounds from agenda items, decides when a round is done.
-- **Voter** — affected when host discards an in-flight round (gets returned to Lobby).
-- **Viewer** — same as voter (observer of the same nav transition).
+- **Host** — primary actor. Starts rounds from agenda items, decides when a round is done or should be thrown away.
+- **Voter** — affected when host discards an in-flight round (gets auto-nav'd back to Lobby; any cast vote is lost).
+- **Viewer** — same as voter (passive observer of the same nav transition).
 
 ## Proposed behavior
 
 **Agenda item lifecycle (revised):**
-- Tapping an agenda item → Start Round modal → Submit starts a round but does NOT mark the item `consumed`. Item stays `pending`.
+- Tapping an agenda item → Start Round modal → Submit starts a round but does NOT mark the item `consumed`. The item stays `pending` for the duration of the round.
 - When the round reaches a terminal state (revealed or skipped), the linked agenda item is marked `consumed` at that moment.
-- Result: an in-flight round leaves the item in `pending`, so a discarded round naturally leaves the item available for re-estimation.
+- A discarded round (see below) leaves the agenda item in `pending`, so the host can immediately start a fresh round from the same item.
 
-**Back chevron in Estimating (host):**
+**Back chevron in Estimating — host:**
 - Visible only to the host.
-- Tap → silent discard of the in-flight round (round removed from doc, no terminal state written, no history entry, no confirm dialog).
-- Host lands on Lobby. Agenda item is still in `pending` (it was never consumed).
+- Tap → silent discard of the in-flight round. No confirmation dialog.
+- Host lands on Lobby. Originating agenda item is still in `pending`.
 
-**Back chevron in Estimating (non-host voter / viewer):**
-- No back affordance during an active round. They wait for terminal state.
+**Back chevron in Estimating — voter / viewer:**
+- No back affordance during an active round. They wait for terminal state or for the host to discard.
 
 **Voter experience when host discards:**
-- Voter is auto-nav'd to Lobby silently (doc no longer has `currentRound`, Lobby's existing effect handles the transition).
+- Voter is auto-nav'd to Lobby silently — once the doc reflects the discard, Lobby's existing "no active round" effect handles the transition.
 - No toast, no banner. Votes cast pre-discard are lost with the round.
 
 **Lobby during an in-flight round:**
-- Not visible to anyone — all clients are in Estimating during flight. No in-flight indicator needed.
+- Not visible to anyone — all clients are in Estimating during flight. No in-flight indicator on agenda items is needed.
 
 ## Success criteria
 
-- Host can tap back in Estimating and reach Lobby; back chevron is no longer a no-op.
+- Host can tap back in Estimating and reach Lobby; the back chevron is no longer a no-op.
 - After host backs out, the originating agenda item is selectable again and a new round can be started from it.
-- Voters/viewers never see the back chevron during an active round.
+- Voters and viewers never see the back chevron during an active round.
 - A revealed or skipped round still marks its linked agenda item `consumed` (terminal lifecycle preserved).
 - No agenda item can be left in `consumed` state pointing to a round that has neither `revealedAt` nor `skippedAt`.
+- A late vote merged in after the host discards does not resurrect the round on any client.
 
 ## Scope
 
 **In:**
 - Defer agenda item `consume` write from round-start to round-terminal (reveal and skip paths).
 - Host-only back affordance in Estimating that discards the in-flight round.
-- Voter/viewer back affordance hidden during active round.
-- Superseding ADR documenting the agenda lifecycle change.
+- Voter and viewer back affordance hidden during active round.
+- Discard writes a `discardedAt` tombstone on the round (round node is NOT deleted from the Yjs map). Projection treats `discardedAt` as authoritative: the round is excluded from active state, history, and any UI surface.
+- Delete-wins race semantics: late votes merged into a discarded round are ignored by the projection — the round does not resurrect.
+- Superseding ADR documenting the agenda item lifecycle change and the new round terminal-vs-tombstone distinction.
 
 **Out (explicit anti-goals):**
 - No confirm dialog for host discard.
-- No toast/banner for voters when round is discarded.
+- No toast or banner for voters when round is discarded.
 - No "round in progress" indicator on agenda items in Lobby (Lobby is unreachable during flight).
-- No `consumed → pending` transition (approach B from the issue); the item is never consumed during flight in the first place.
-- No back-button-as-implicit-skip (approach C); discard ≠ skip.
+- No `consumed → pending` transition (option B from the issue); the item is never consumed during flight in the first place.
+- No back-button-as-implicit-skip (option C); discard is distinct from skip — no terminal state written, no history entry.
 - No round-history entry for discarded rounds.
-- No re-vote lineage from a discarded round (`parentRoundId` unaffected; discard is a delete, not a fork).
+- No re-vote lineage from a discarded round (`parentRoundId` unaffected; discard is a tombstone, not a fork).
+- No undo affordance on Lobby after discard.
+- No telemetry of discard events (ADR-0028).
 
 ## Open questions
 
-- Multi-host edge case: if host role transfers mid-flight (current host drops, new host elected), does the new host get the back/discard affordance immediately? Assumed yes; `/plan` to verify against ADR-0010 election semantics.
-- Race: host discards at the same instant a voter casts. CRDT will merge a vote into a now-deleted round — does the round resurrect, or does the delete win? `/plan` to specify the delete-wins semantics and any tombstone needed to prevent resurrection.
-- Does "discard" delete the entire round node from the Yjs map, or write a `discardedAt` tombstone field? Affects round-history reads and the resurrection race above.
+- Multi-host edge case: if host role transfers mid-flight (current host drops, new host elected per ADR-0010), does the new host get the back/discard affordance immediately? Assumed yes; `/plan` to verify against election semantics.
+- Should `discardedAt` carry a `discardedBy` peer-ID (parallel to `removedBy` on participants), or is the timestamp alone sufficient? `/plan` to decide.
+- Storage cost of keeping tombstoned rounds in the doc — bounded in practice (manual host action, low frequency) but `/plan` should confirm no projection hot path scales with the tombstone count.
 
 ## ADR impact
 
-- **ADR-0042 (pre-session agenda)** — will be superseded. Lifecycle changes from *consume-at-start* to *consume-at-terminal*; superseding ADR documents the new state machine and the discard semantics.
+- **ADR-0042 (pre-session agenda)** — superseded. Lifecycle changes from *consume-at-start* to *consume-at-terminal*; the superseding ADR documents the new state machine and the discard semantics.
+- **ADR-0013 (rounds list)** — likely superseded or amended. Introduces `discardedAt` as a third terminal-ish field alongside `revealedAt` and `skippedAt`, with delete-wins projection semantics. `/plan` to confirm whether a superseding ADR or a clarifying note suffices.
 - **ADR-0040 (skip semantics)** — unchanged. Discard is distinct from skip (no terminal write, no history entry).
-- **ADR-0013 (rounds list)** — may need a clarifying note that rounds can be deleted pre-terminal; not a supersede.
 
 ## References
 
@@ -87,4 +92,4 @@ Root cause is three coupled things: agenda item is consumed atomically at round-
 
 ## Screenshot scope (suggested)
 
-Informational for `/plan`. Likely tags: `lobby-agenda`, `estimating-header`. Visual baseline of current Estimating header back chevron + Lobby agenda list helps verify the host-only back affordance and the post-discard item state.
+Informational for `/plan`. Likely tags: `lobby-agenda`, `estimating-header`. Visual baseline of the current Estimating header back chevron + Lobby agenda list helps verify the host-only back affordance and the post-discard `pending` item state.

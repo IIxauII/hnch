@@ -104,15 +104,17 @@ import { resolveKeyboardCardAction, shouldHandleKeyEvent } from './estimating.ke
     <ion-header>
       <ion-toolbar>
         <ion-buttons slot="start">
-          <ion-button
-            aria-label="Back to lobby"
-            (click)="softExit()"
-          >
-            <ion-icon
-              slot="icon-only"
-              name="chevron-back-outline"
-            ></ion-icon>
-          </ion-button>
+          @if (showBackChevron()) {
+            <ion-button
+              [attr.aria-label]="backChevronLabel()"
+              (click)="softExit()"
+            >
+              <ion-icon
+                slot="icon-only"
+                name="chevron-back-outline"
+              ></ion-icon>
+            </ion-button>
+          }
         </ion-buttons>
         <ion-title>Estimating</ion-title>
         <ion-buttons slot="end">
@@ -381,6 +383,29 @@ export class EstimatingPage {
       }
     });
 
+    // Discard recovery: when the host writes `discardedAt` on the round this
+    // peer is currently looking at, navigate back to Lobby. The active-round
+    // projection (`currentRound()`) excludes discarded rounds, so the
+    // primary auto-nav effect above does NOT see this transition when the
+    // discarded round was the only one in the session. Looks at the raw
+    // rounds array against the entry-round id captured at mount. See ADR
+    // superseding ADR-0013.
+    let entryRoundId: string | undefined;
+    effect(() => {
+      const round = this.docService.currentRound();
+      if (entryRoundId === undefined && round !== null && round !== undefined) {
+        entryRoundId = round.id;
+        return;
+      }
+      if (entryRoundId === undefined) return;
+      const tracked = this.docService.rounds().find((r) => r.id === entryRoundId);
+      if (tracked !== undefined && tracked.discardedAt !== undefined) {
+        const activeCode = this.docService.roomCode();
+        assertRoomCode(activeCode, 'estimating.discardRecovery');
+        void this.router.navigate(['/lobby', activeCode], { replaceUrl: true });
+      }
+    });
+
     // Clear the transient keyboard focus cursor when the round changes
     // (issue #154) — otherwise a stale index from a previous scale leaks
     // into the new round's grid. Only reacts to id transitions: a bare
@@ -512,6 +537,26 @@ export class EstimatingPage {
     return !!myId && !!hostId && myId === hostId;
   });
 
+  /**
+   * Back chevron is visible to the host always (so they can discard an
+   * active round) and to voters/viewers only after the round reaches a
+   * terminal state (so they can soft-exit but cannot interrupt active
+   * voting). See ADR superseding ADR-0013.
+   */
+  protected readonly showBackChevron = computed<boolean>(() => {
+    if (this.isHost()) return true;
+    const round = this.currentRound();
+    return round !== null && terminalState(round) !== null;
+  });
+
+  protected readonly backChevronLabel = computed<string>(() => {
+    const round = this.currentRound();
+    if (this.isHost() && round && terminalState(round) === null) {
+      return 'Discard round and return to lobby';
+    }
+    return 'Back to lobby';
+  });
+
   /** True when the current user's effective role is `'viewer'`. */
   protected readonly isViewer = computed(() => {
     const myId = this.myId();
@@ -570,7 +615,7 @@ export class EstimatingPage {
       overlayPresent: !!document.querySelector(
         'ion-action-sheet:not(.overlay-hidden), ion-alert:not(.overlay-hidden), ion-modal:not(.overlay-hidden), ion-popover:not(.overlay-hidden), ion-loading:not(.overlay-hidden)',
       ),
-      roundActive: !!round && round.revealedAt === undefined && round.skippedAt === undefined,
+      roundActive: !!round && terminalState(round) === null,
       isViewer: this.isViewer(),
     });
     if (!gateOk || !round || !id) return;
@@ -654,10 +699,21 @@ export class EstimatingPage {
   /**
    * Soft exit — back-chevron path. Navigates back to Lobby in the SAME
    * session WITHOUT clearing the cache. Does not tear down the WebSocket.
+   *
+   * Host branch: when an active (non-terminal) round is in progress, write
+   * `discardedAt` first so the round becomes a tombstone (linked agenda
+   * item stays `pending`) and Lobby's auto-nav does not bounce the host
+   * straight back into Estimating. See ADR superseding ADR-0013.
    */
   protected softExit(): void {
     const code = this.docService.roomCode();
     assertRoomCode(code, 'estimating.softExit');
+    const round = this.currentRound();
+    const myId = this.myId();
+    if (this.isHost() && myId && round && terminalState(round) === null) {
+      this.haptic.impactLight();
+      this.docService.discardRound(round.id, myId);
+    }
     void this.router.navigate(['/lobby', code]);
   }
 
@@ -794,13 +850,14 @@ export function shouldAutoReveal(
         readonly id: string;
         readonly revealedAt?: number;
         readonly skippedAt?: number;
+        readonly discardedAt?: number;
         readonly votes: Record<string, string>;
       }
     | null
     | undefined,
   onlineVoterIds: ReadonlySet<string>,
 ): boolean {
-  if (!round || round.revealedAt !== undefined || round.skippedAt !== undefined) return false;
+  if (!round || terminalState(round) !== null) return false;
   if (onlineVoterIds.size === 0) return false;
   const onlineEntries = Object.entries(round.votes).filter(([id]) => onlineVoterIds.has(id));
   const abstainCount = onlineEntries.filter(([, v]) => isAbstainVote(v)).length;
