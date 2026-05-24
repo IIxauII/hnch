@@ -997,12 +997,15 @@ export class LobbyPage implements OnDestroy {
   /**
    * The most recently terminal round (revealed or skipped), or null if no
    * rounds have ended yet. Drives the inline results / skipped notice display.
+   * Discarded rounds are tombstones — they never surface as the "last" anchor
+   * (no votes were revealed, nothing to display or re-vote from).
    */
   protected readonly lastRevealedRound = computed(() => {
     const rounds = this.rounds();
     for (let i = rounds.length - 1; i >= 0; i--) {
       const r = rounds[i]!;
-      if (terminalState(r) !== null) return r;
+      const state = terminalState(r);
+      if (state !== null && state !== 'discarded') return r;
     }
     return null;
   });
