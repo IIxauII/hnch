@@ -85,6 +85,7 @@ You are the **plan orchestrator**. You delegate research and drafting to the `pl
 - **Scope:** <files/packages touched>
 - **Exit bar:** <observable state when this phase is mergeable>
 - **PR title scope:** `feat(client,shared): ...` (or whichever)
+- **Closes:** `Closes #<N>` (verbatim line for PR body — `Refs #N` does NOT auto-close)
 - **Worktree:** `pnpm worktree:add <slug>-phase-1 main` at execution time
 - **Depends on:** none
 
@@ -128,6 +129,7 @@ You are the **plan orchestrator**. You delegate research and drafting to the `pl
 - **Convert relative dates to absolute** before writing.
 - **Run `git fetch origin` before any worktree advice** — stale local main is a known footgun (CLAUDE.md).
 - **PR title scope is required and comma-separated** for multi-package — verify the listed scope covers every directory the phase touches.
+- **Capture source issue refs as `Closes #N`** on every phase that resolves a GitHub issue. Only `Closes/Fixes/Resolves #N` in the PR body (or default-branch commit message) triggers GitHub auto-close — `Refs #N` or a bare `#N` mention does not. If a phase resolves multiple issues, list each: `Closes #326, Closes #294`. If the spec's `Source:` is an issue and no phase carries `Closes`, surface via `AskUserQuestion` before finalizing.
 - **No telemetry** in verification — observable UX or test assertions only (ADR-0028).
 - **One spec = one plan = one shippable change** (possibly across N phases). If scope balloons mid-interview, propose splitting into a second spec.
 
