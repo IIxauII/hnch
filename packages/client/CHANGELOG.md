@@ -1,3 +1,10 @@
+# [1.39.0](https://github.com/IIxauII/hnch/compare/client-v1.38.0...client-v1.39.0) (2026-05-26)
+
+
+### Features
+
+* **client:** promote agenda context on estimating, demote elapsed timer ([#337](https://github.com/IIxauII/hnch/issues/337)) ([213d14f](https://github.com/IIxauII/hnch/commit/213d14f7611aa83ba62b113b3e09e78e494f31b6))
+
 # [1.38.0](https://github.com/IIxauII/hnch/compare/client-v1.37.0...client-v1.38.0) (2026-05-26)
 
 
