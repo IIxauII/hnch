@@ -780,7 +780,7 @@ import type { AgendaItem } from '@hnch/shared';
         padding-inline: var(--ion-margin, 16px);
       }
       ion-accordion.lobby-section {
-        background: var(--hnch-surface, var(--ion-card-background));
+        background: var(--hnch-elev-1);
         border-radius: 12px;
         margin-bottom: 1rem;
         --background: transparent;
@@ -799,6 +799,15 @@ import type { AgendaItem } from '@hnch/shared';
       }
       ion-accordion.lobby-section .lobby-section__body {
         padding: 0.5rem 1rem 1rem;
+      }
+      ion-accordion.lobby-section .lobby-section__body ion-list {
+        background: transparent;
+        --ion-item-background: var(--hnch-elev-2);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      ion-accordion.lobby-section .lobby-section__body ion-list ion-item {
+        --background: var(--hnch-elev-2);
       }
       ion-accordion.lobby-section.locked-open::part(expand-icon) {
         display: none;
