@@ -1,3 +1,10 @@
+# [1.37.0](https://github.com/IIxauII/hnch/compare/client-v1.36.4...client-v1.37.0) (2026-05-26)
+
+
+### Features
+
+* **client:** widen lobby and shift columns to 5/7 on wide screens ([#334](https://github.com/IIxauII/hnch/issues/334)) ([3ca61f4](https://github.com/IIxauII/hnch/commit/3ca61f4208e4d82f8eb7e25be15771e4dd823719))
+
 ## [1.36.4](https://github.com/IIxauII/hnch/compare/client-v1.36.3...client-v1.36.4) (2026-05-26)
 
 
