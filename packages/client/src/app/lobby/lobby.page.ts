@@ -796,10 +796,12 @@ import type { AgendaItem } from '@hnch/shared';
       }
       ion-accordion.lobby-section .lobby-section__body ion-list {
         background: transparent;
-        --ion-item-background: transparent;
+        --ion-item-background: var(--hnch-elev-2);
+        border-radius: 8px;
+        overflow: hidden;
       }
       ion-accordion.lobby-section .lobby-section__body ion-list ion-item {
-        --background: transparent;
+        --background: var(--hnch-elev-2);
       }
       ion-accordion.lobby-section.locked-open::part(expand-icon) {
         display: none;
