@@ -97,7 +97,9 @@ Each round's `Y.Map`:
 | `scale` | `Scale` | Snapshotted at round creation from `settings.defaultScale` (or chosen per-round by the host). Independent after creation — changing `settings.defaultScale` later does not alter existing rounds. |
 | `timerStartedAt?` | `number` | Unix milliseconds when voting started. Always written at round creation. Used as a stopwatch origin for elapsed voting time display ([ADR-0018](../adr/0018-remove-timer-add-unanimous-reveal.md)). |
 | `revealedAt?` | `number` | Unix milliseconds when the round was revealed. Written by the host (manual reveal) or by any client when all online participants have voted (unanimous auto-reveal, [ADR-0018](../adr/0018-remove-timer-add-unanimous-reveal.md)). Absent means not yet revealed. |
-| `skippedAt?` | `number` | Unix milliseconds when the host skipped the round ([ADR-0040](../adr/0040-skipped-rounds.md)). Mutually exclusive terminal state with `revealedAt` at the writer; both fields can coexist after a concurrent CRDT merge, in which case the earlier timestamp wins via `terminalState()`. Absent means not skipped. |
+| `skippedAt?` | `number` | Unix milliseconds when the host skipped the round ([ADR-0040](../adr/0040-skipped-rounds.md)). Mutually exclusive terminal state with `revealedAt` at the writer; multiple terminal fields can coexist after a concurrent CRDT merge — the earliest timestamp wins via `terminalState()`. Absent means not skipped. |
+| `discardedAt?` | `number` | Unix milliseconds when the host discarded the round via the Estimating back chevron ([ADR-0046](../adr/0046-round-discard-tombstone.md)). Distinct from skip: linked agenda item stays `pending`, no history entry, excluded from `currentRound()` and history projections. Mutually exclusive with `revealedAt` / `skippedAt` at the writer. Absent means not discarded. |
+| `discardedBy?` | `string` | `participantId` of the host that wrote `discardedAt`. Audit field, no immediate UI consumer. Always written alongside `discardedAt`. |
 | `createdBy` | `string` | `participantId` of whoever created the round. |
 | `createdAt` | `number` | Unix milliseconds when the round was created. |
 | `votes` | `Y.Map<participantId, string>` | Votes keyed by participant. Value is a card face (e.g. `"5"`, `"M"`, `"High"`) or the abstain sentinel `"hnch_abstain"` ([ADR-0041](../adr/0041-per-round-abstain-sentinel.md)). Vote-change-before-reveal ([ADR-0013](../adr/0013-round-model-flat-parentroundid.md)) is just overwriting this key. Only the final value is retained. Absent key = not yet voted. |
@@ -170,6 +172,8 @@ Valid transitions (at the writer — CRDT merge may produce concurrent writes):
 - `consumed` → `consumed` (idempotent)
 - All other transitions rejected at the writer.
 
+The `pending → consumed` transition is written **at the round's terminal state** (reveal or skip) — see [ADR-0045](../adr/0045-agenda-consume-at-round-terminal.md). Round-start does not consume; the linked agenda item stays `pending` so a host back-chevron discard ([ADR-0046](../adr/0046-round-discard-tombstone.md)) leaves the item re-startable.
+
 ### Fractional indexing (`sortKey`)
 
 `sortKey` uses the `keyBetween(a, b)` utility in `packages/shared/src/fractional-index.ts`. One key rewrite per reorder; no neighbor renumbering. Yjs LWW semantics on a `Y.Map` key means concurrent reorders converge deterministically. The display sort is always lexicographic on `sortKey`.
@@ -190,8 +194,8 @@ Agenda items share the doc's 24h relay snapshot TTL ([ADR-0012](../adr/0012-snap
 
 These are computed on the client from the doc; they are not persisted:
 
-- **Round status:** `terminalState(round)` returns `'revealed'` or `'skipped'` (or `null` for an in-progress round). In-progress rounds display as `'voting'` when `timerStartedAt` is set. Consumers must call `terminalState()` — never read `revealedAt`/`skippedAt` directly — to handle CRDT merges that can set both fields concurrently ([ADR-0040](../adr/0040-skipped-rounds.md)).
-- **Current round:** the last round in `rounds` whose `revealedAt` is unset; if all are revealed, the last round overall.
+- **Round status:** `terminalState(round) ?? (timerStartedAt ? 'voting' : 'pending')`. `terminalState()` returns `'revealed' | 'skipped' | 'discarded' | null` ([ADR-0046](../adr/0046-round-discard-tombstone.md)).
+- **Current round:** the last round in `rounds` with no terminal field set; if all are terminal, the last NON-DISCARDED round (discarded rounds are tombstones — never the active or "last result" anchor).
 - **Elapsed voting time:** `Date.now() - round.timerStartedAt` (counting up, displayed as a stopwatch).
 - **All voted:** every online *active* voter (awareness set ∩ `!leftAt` ∩ `role !== 'viewer'`) has a key in `round.votes` — including `"hnch_abstain"` entries, which satisfy the predicate ([ADR-0041](../adr/0041-per-round-abstain-sentinel.md)). When true, any client writes `revealedAt` (unanimous auto-reveal, [ADR-0018](../adr/0018-remove-timer-add-unanimous-reveal.md); left-participant exclusion per [ADR-0036](../adr/0036-participant-removal-lifecycle.md)).
 - **Lineage chain:** walk `parentRoundId` backwards from a round to collect the full re-vote history for that item (useful for UI display and exports).

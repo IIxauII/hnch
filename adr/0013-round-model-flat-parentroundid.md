@@ -1,6 +1,6 @@
 # ADR-0013: Round model — flat list with parentRoundId linking
 
-**Status:** Accepted
+**Status:** Superseded by [ADR-0046](0046-round-discard-tombstone.md)
 **Date:** 2026-04-21
 
 ## Context

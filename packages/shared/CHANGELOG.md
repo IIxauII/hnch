@@ -1,3 +1,10 @@
+## [1.11.1](https://github.com/IIxauII/hnch/compare/shared-v1.11.0...shared-v1.11.1) (2026-05-24)
+
+
+### Bug Fixes
+
+* **shared,client,cli,e2e:** defer agenda consume to round-terminal + host discard chevron ([#314](https://github.com/IIxauII/hnch/issues/314)) ([6f34575](https://github.com/IIxauII/hnch/commit/6f3457543b15a57648d04b8175466aa827d373c9))
+
 # [1.11.0](https://github.com/IIxauII/hnch/compare/shared-v1.10.0...shared-v1.11.0) (2026-05-22)
 
 

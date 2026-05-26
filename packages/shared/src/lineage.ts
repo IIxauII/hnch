@@ -28,8 +28,15 @@ export function resolveRoundLineage(
   roundId: string,
   allRounds: readonly Round[],
 ): RoundLineage | null {
+  // Discarded rounds are tombstones — exclude from the lineage graph so they
+  // are never traversed as parent or descendant. ADR-0013 (round-record
+  // restatement) forbids `parentRoundId` pointing at a discarded round; the
+  // writer guard in `appendRound` enforces that for new writes, but a CRDT
+  // merge could still produce one — filtering here keeps the projection
+  // self-consistent.
+  const liveRounds = allRounds.filter((r) => r.discardedAt === undefined);
   const byId = new Map<string, Round>();
-  for (const r of allRounds) byId.set(r.id, r);
+  for (const r of liveRounds) byId.set(r.id, r);
 
   const target = byId.get(roundId);
   if (target === undefined) return null;
@@ -49,9 +56,10 @@ export function resolveRoundLineage(
   }
   const chainRoot = cursor;
 
-  // Index children by parent for descendant BFS.
+  // Index children by parent for descendant BFS. `liveRounds` already excludes
+  // discarded rounds, so discarded children never enter the chain.
   const childrenByParent = new Map<string, Round[]>();
-  for (const r of allRounds) {
+  for (const r of liveRounds) {
     if (r.parentRoundId === undefined) continue;
     const list = childrenByParent.get(r.parentRoundId);
     if (list === undefined) childrenByParent.set(r.parentRoundId, [r]);

@@ -997,12 +997,15 @@ export class LobbyPage implements OnDestroy {
   /**
    * The most recently terminal round (revealed or skipped), or null if no
    * rounds have ended yet. Drives the inline results / skipped notice display.
+   * Discarded rounds are tombstones — they never surface as the "last" anchor
+   * (no votes were revealed, nothing to display or re-vote from).
    */
   protected readonly lastRevealedRound = computed(() => {
     const rounds = this.rounds();
     for (let i = rounds.length - 1; i >= 0; i--) {
       const r = rounds[i]!;
-      if (terminalState(r) !== null) return r;
+      const state = terminalState(r);
+      if (state !== null && state !== 'discarded') return r;
     }
     return null;
   });
@@ -1220,18 +1223,16 @@ export class LobbyPage implements OnDestroy {
   }
 
   protected async onRoundStart(submission: RoundStartSubmission): Promise<void> {
-    const now = Date.now();
-    const roundId = this.docService.startRound({
+    // Agenda consume is deferred to the round's terminal state (reveal or
+    // skip) — handled inside the shared `revealRound` / `skipRound` writers.
+    // Host back-chevron discard leaves the linked item `pending` so it can be
+    // re-started. See ADR superseding ADR-0042.
+    this.docService.startRound({
       ...(submission.title !== null && { title: submission.title }),
       ...(submission.ticketId !== null && { ticketId: submission.ticketId }),
       ...(submission.description !== null && { description: submission.description }),
       ...(submission.agendaItemId !== undefined && { agendaItemId: submission.agendaItemId }),
     });
-
-    // Consume the agenda item atomically with round creation (ADR-0042).
-    if (submission.agendaItemId !== undefined) {
-      this.docService.consumeAgendaItem(submission.agendaItemId, roundId, now);
-    }
 
     await this.modalRef()?.dismiss();
     this.roundStartOpen.set(false);
