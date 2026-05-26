@@ -774,7 +774,7 @@ import type { AgendaItem } from '@hnch/shared';
         padding-inline: var(--ion-margin, 16px);
       }
       ion-accordion.lobby-section {
-        background: var(--hnch-surface, var(--ion-card-background));
+        background: var(--hnch-elev-1);
         border-radius: 12px;
         margin-bottom: 1rem;
         --background: transparent;
