@@ -81,7 +81,7 @@ describe('session integration', () => {
 
     // Wait until the round appears in the host projection.
     await vi.waitFor(
-      () => expect(host.projection().rounds.find((r) => r.id === roundId)).toBeDefined(),
+      () => expect(host.projection().rounds.find((x) => x.id === roundId)).toBeDefined(),
       { timeout: SYNC_TIMEOUT },
     );
 
@@ -92,7 +92,7 @@ describe('session integration', () => {
     // Wait for both votes to be visible to both clients.
     await vi.waitFor(
       () => {
-        const r = host.projection().rounds.find((r) => r.id === roundId);
+        const r = host.projection().rounds.find((x) => x.id === roundId);
         expect(r?.votes['host-1']).toBe('5');
         expect(r?.votes['joiner-1']).toBe('8');
       },
@@ -100,7 +100,7 @@ describe('session integration', () => {
     );
     await vi.waitFor(
       () => {
-        const r = joiner.projection().rounds.find((r) => r.id === roundId);
+        const r = joiner.projection().rounds.find((x) => x.id === roundId);
         expect(r?.votes['host-1']).toBe('5');
         expect(r?.votes['joiner-1']).toBe('8');
       },
@@ -111,7 +111,7 @@ describe('session integration', () => {
     host.reveal();
     await vi.waitFor(
       () =>
-        expect(host.projection().rounds.find((r) => r.id === roundId)?.revealedAt).toBeDefined(),
+        expect(host.projection().rounds.find((x) => x.id === roundId)?.revealedAt).toBeDefined(),
       { timeout: SYNC_TIMEOUT },
     );
 
@@ -168,7 +168,7 @@ describe('session integration', () => {
 
     await vi.waitFor(
       () => {
-        const r = host.projection().rounds.find((r) => r.id === round1Id);
+        const r = host.projection().rounds.find((x) => x.id === round1Id);
         expect(r?.votes['host-rv']).toBe('3');
       },
       { timeout: SYNC_TIMEOUT },
@@ -178,7 +178,7 @@ describe('session integration', () => {
 
     await vi.waitFor(
       () =>
-        expect(host.projection().rounds.find((r) => r.id === round1Id)?.revealedAt).toBeDefined(),
+        expect(host.projection().rounds.find((x) => x.id === round1Id)?.revealedAt).toBeDefined(),
       { timeout: SYNC_TIMEOUT },
     );
 
@@ -186,11 +186,11 @@ describe('session integration', () => {
     const round2Id = host.revote();
 
     await vi.waitFor(
-      () => expect(host.projection().rounds.find((r) => r.id === round2Id)).toBeDefined(),
+      () => expect(host.projection().rounds.find((x) => x.id === round2Id)).toBeDefined(),
       { timeout: SYNC_TIMEOUT },
     );
 
-    const round2 = host.projection().rounds.find((r) => r.id === round2Id);
+    const round2 = host.projection().rounds.find((x) => x.id === round2Id);
     expect(round2).toBeDefined();
     expect(round2!.parentRoundId).toBe(round1Id);
 
@@ -219,17 +219,17 @@ describe('session integration', () => {
     await vi.waitFor(
       () => {
         const p = host.projection();
-        expect(p.rounds.find((r) => r.id === r1)).toBeDefined();
-        expect(p.rounds.find((r) => r.id === r2)).toBeDefined();
-        expect(p.rounds.find((r) => r.id === r3)).toBeDefined();
+        expect(p.rounds.find((x) => x.id === r1)).toBeDefined();
+        expect(p.rounds.find((x) => x.id === r2)).toBeDefined();
+        expect(p.rounds.find((x) => x.id === r3)).toBeDefined();
       },
       { timeout: SYNC_TIMEOUT },
     );
 
     const p = host.projection();
-    const round1 = p.rounds.find((r) => r.id === r1);
-    const round2 = p.rounds.find((r) => r.id === r2);
-    const round3 = p.rounds.find((r) => r.id === r3);
+    const round1 = p.rounds.find((x) => x.id === r1);
+    const round2 = p.rounds.find((x) => x.id === r2);
+    const round3 = p.rounds.find((x) => x.id === r3);
 
     expect(round1?.title).toBe('Auth migration');
     expect(round1?.ticketId).toBe('PROJ-42');
@@ -257,7 +257,7 @@ describe('session integration', () => {
     const round1Id = host.newRound('Story 2');
 
     await vi.waitFor(
-      () => expect(host.projection().rounds.find((r) => r.id === round1Id)).toBeDefined(),
+      () => expect(host.projection().rounds.find((x) => x.id === round1Id)).toBeDefined(),
       { timeout: SYNC_TIMEOUT },
     );
 
@@ -272,7 +272,7 @@ describe('session integration', () => {
 
     await vi.waitFor(
       () => {
-        const r = host.projection().rounds.find((r) => r.id === round1Id);
+        const r = host.projection().rounds.find((x) => x.id === round1Id);
         expect(r?.ticketId).toBe('https://github.com/foo/bar/issues/1');
       },
       { timeout: SYNC_TIMEOUT },
@@ -282,7 +282,7 @@ describe('session integration', () => {
 
     await vi.waitFor(
       () => {
-        const r = host.projection().rounds.find((r) => r.id === round1Id);
+        const r = host.projection().rounds.find((x) => x.id === round1Id);
         expect(r?.votes['host-revote-inherit']).toBe('5');
       },
       { timeout: SYNC_TIMEOUT },
@@ -292,7 +292,7 @@ describe('session integration', () => {
 
     await vi.waitFor(
       () =>
-        expect(host.projection().rounds.find((r) => r.id === round1Id)?.revealedAt).toBeDefined(),
+        expect(host.projection().rounds.find((x) => x.id === round1Id)?.revealedAt).toBeDefined(),
       { timeout: SYNC_TIMEOUT },
     );
 
@@ -300,13 +300,13 @@ describe('session integration', () => {
     const round2Id = host.revote();
 
     await vi.waitFor(
-      () => expect(host.projection().rounds.find((r) => r.id === round2Id)).toBeDefined(),
+      () => expect(host.projection().rounds.find((x) => x.id === round2Id)).toBeDefined(),
       { timeout: SYNC_TIMEOUT },
     );
 
     const p = host.projection();
-    const round1 = p.rounds.find((r) => r.id === round1Id);
-    const round2 = p.rounds.find((r) => r.id === round2Id);
+    const round1 = p.rounds.find((x) => x.id === round1Id);
+    const round2 = p.rounds.find((x) => x.id === round2Id);
 
     expect(round2).toBeDefined();
     expect(round2!.title).toBe('Story 2');
@@ -476,7 +476,7 @@ describe('session integration', () => {
     const roundId = host.newRound('Skip me');
 
     await vi.waitFor(
-      () => expect(host.projection().rounds.find((r) => r.id === roundId)).toBeDefined(),
+      () => expect(host.projection().rounds.find((x) => x.id === roundId)).toBeDefined(),
       { timeout: SYNC_TIMEOUT },
     );
 
@@ -484,14 +484,14 @@ describe('session integration', () => {
 
     await vi.waitFor(
       () =>
-        expect(host.projection().rounds.find((r) => r.id === roundId)?.skippedAt).toBeTypeOf(
+        expect(host.projection().rounds.find((x) => x.id === roundId)?.skippedAt).toBeTypeOf(
           'number',
         ),
       { timeout: SYNC_TIMEOUT },
     );
     await vi.waitFor(
       () =>
-        expect(joiner.projection().rounds.find((r) => r.id === roundId)?.skippedAt).toBeTypeOf(
+        expect(joiner.projection().rounds.find((x) => x.id === roundId)?.skippedAt).toBeTypeOf(
           'number',
         ),
       { timeout: SYNC_TIMEOUT },
