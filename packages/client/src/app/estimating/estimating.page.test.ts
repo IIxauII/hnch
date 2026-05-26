@@ -10,6 +10,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@ionic/angular/standalone', () => ({
+  IonAccordion: {},
+  IonAccordionGroup: {},
   IonBackButton: {},
   IonButton: {},
   IonButtons: {},
@@ -37,7 +39,7 @@ vi.mock('@ionic/angular/standalone', () => ({
 }));
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false } }));
 
-import { shouldAutoReveal } from './estimating.page';
+import { parseTicketIdHref, shouldAutoReveal } from './estimating.page';
 
 describe('EstimatingPage', () => {
   describe('shouldAutoReveal', () => {
@@ -138,6 +140,36 @@ describe('EstimatingPage', () => {
         votes: { voter1: 'card1', voter2: 'card2', voter3: 'card3' },
       };
       expect(shouldAutoReveal(round, new Set(['voter1', 'voter2', 'voter3']))).toBe(true);
+    });
+  });
+
+  describe('parseTicketIdHref', () => {
+    it('returns null for undefined', () => {
+      expect(parseTicketIdHref(undefined)).toBeNull();
+    });
+    it('returns null for non-URL plain ticket id', () => {
+      expect(parseTicketIdHref('PROJ-1234')).toBeNull();
+    });
+    it('returns url for https', () => {
+      expect(parseTicketIdHref('https://x.com')).toBe('https://x.com');
+    });
+    it('returns url for http', () => {
+      expect(parseTicketIdHref('http://x')).toBe('http://x');
+    });
+    it('rejects javascript: scheme', () => {
+      expect(parseTicketIdHref('javascript:alert(1)')).toBeNull();
+    });
+    it('rejects ftp:', () => {
+      expect(parseTicketIdHref('ftp://x')).toBeNull();
+    });
+    it('trims whitespace and returns trimmed url', () => {
+      expect(parseTicketIdHref('  https://x  ')).toBe('https://x');
+    });
+    it('returns null for malformed "http://"', () => {
+      expect(parseTicketIdHref('http://')).toBeNull();
+    });
+    it('returns null for empty string', () => {
+      expect(parseTicketIdHref('')).toBeNull();
     });
   });
 });
