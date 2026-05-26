@@ -1,3 +1,10 @@
+## [1.36.4](https://github.com/IIxauII/hnch/compare/client-v1.36.3...client-v1.36.4) (2026-05-26)
+
+
+### Bug Fixes
+
+* **client:** abstain button uses clear fill in unabstained state ([#331](https://github.com/IIxauII/hnch/issues/331)) ([6faa7c8](https://github.com/IIxauII/hnch/commit/6faa7c8daddaa3058434ebfcd36bda704dc390da))
+
 ## [1.36.3](https://github.com/IIxauII/hnch/compare/client-v1.36.2...client-v1.36.3) (2026-05-24)
 
 
