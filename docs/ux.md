@@ -87,20 +87,51 @@ Home
       → Same as URL flow from "auto-attempt connect"
 ```
 
+### 1.3b Pre-session agenda (ADR-0042)
+
+Host may queue stories before or during the session. All participants see the agenda read-only; only the host may mutate it.
+
+```
+Lobby (host)
+  → Tap "Add story" → enter title / ticket ID / description
+    → Item appears in the "Pending" band of the agenda list
+  → Tap item in Pending band → Start Round modal opens pre-filled with item details
+    → round.agendaItemId set to item id; item consumed on reveal/skip
+  → Host may reorder items (drag-handle) — sortKey fractional-index rewrite, no renumbering
+  → Host may edit or cancel (soft-delete) a pending item
+  → Host may skip an agenda item (no round created) — item moves to "Skipped" terminal state
+
+Consumed band
+  → Item shows linked round result (revealed) or "Skipped" chip (skipped)
+  → Past-round history resolves item names even after participants leave
+```
+
 ### 1.4 Round cycle (Estimating → Lobby → next)
 
 ```
 Estimating
   → Participants tap cards to vote / change votes (ADR-0013)
-  → Avatar row updates in real time (presence, voted-state)
+  → Voter may abstain from the round (ADR-0041):
+      - Tap "Abstain this round" below card grid
+      - sentinel hnch_abstain written to round.votes[participantId]
+      - Card grid dims to ~40% opacity; abstain button shows active state
+      - Tapping any card clears abstention and casts that vote instead
+      - Abstaining satisfies the unanimous-reveal "has voted" predicate
+  → Avatar row updates in real time (presence, voted-state; abstainers shown as filled)
   → Reveal fires when:
       - Host taps Reveal Votes (manual), OR
-      - All online participants have voted (unanimous auto-reveal, ADR-0018)
+      - All online participants have voted or abstained (unanimous auto-reveal, ADR-0018)
   → All participants navigate to Lobby (results shown inline)
+  → Host may skip the round instead of revealing (ADR-0040):
+      - Host taps Skip → round marked skippedAt, no vote results shown
+      - All participants navigate to Lobby; skipped round listed in history with "Skipped" chip
+      - Host can start a new round immediately; no re-vote lineage from a skip
 
 Lobby (post-reveal)
-  → Latest round results shown in full (grouped by vote value, voter chips, stats, elapsed time)
-  → Below results, past rounds shown as compact history list
+  → Latest round results shown in full
+      - Votes grouped by value with voter chips, stats, elapsed time
+      - Abstained participants shown in a distinct "Abstained" group (separate from "Didn't vote")
+  → Below results, past rounds shown as compact history list (skipped rounds included with chip)
   → Host taps:
       - Re-vote: creates new Round with parentRoundId = current, reuses descriptor → Estimating
       - Next Round: opens round-start modal → Estimating

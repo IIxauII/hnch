@@ -232,7 +232,7 @@ These apply across phases; flagging them once here saves repeating per phase.
 **Tests.** We are not writing a separate test-strategy document for v1. Rule of thumb:
 - Pure shared utilities get unit tests (as `room-code.ts` already does).
 - Yjs-coordination edge cases (timer fallback, host election) get simulation tests where feasible — two or more in-process peers against a mock transport.
-- UI screens are exercised by manual smoke tests; no Karma/Cypress investment in v1.
+- UI flows are covered by a Playwright e2e suite (`packages/e2e`), which landed in Phase 5. The suite covers multi-client flows end-to-end; no Karma/Cypress investment in v1.
 
 **Error handling.** Network errors bubble to toasts, not console. Relay rejections map to the `JoinRejectionReason` enum and produce user-facing copy from one source.
 
