@@ -200,7 +200,7 @@ import type { AgendaItem } from '@hnch/shared';
       <ion-grid fixed class="page-container">
         <app-connection-status-banner />
         <ion-row>
-          <ion-col size="12" sizeLg="6">
+          <ion-col size="12" sizeLg="6" sizeXl="5">
             <ion-accordion-group
               [multiple]="true"
               [value]="expandedSections()"
@@ -397,7 +397,7 @@ import type { AgendaItem } from '@hnch/shared';
             </ion-accordion-group>
           </ion-col>
 
-          <ion-col size="12" sizeLg="6">
+          <ion-col size="12" sizeLg="6" sizeXl="7">
             <ion-accordion-group
               [multiple]="true"
               [value]="expandedSections()"
@@ -647,6 +647,12 @@ import type { AgendaItem } from '@hnch/shared';
       @use '../../theme/breakpoints' as *;
       @use '../../theme/page-container' as *;
       @include page-container(800px);
+
+      @media (min-width: $bp-xl) {
+        ion-grid.page-container {
+          max-width: 1600px;
+        }
+      }
 
       .room-code {
         appearance: none;
