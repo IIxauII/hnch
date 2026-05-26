@@ -107,8 +107,14 @@ interface VoteGroup {
       <div class="stats" role="region" aria-label="Round statistics">
         @switch (s.kind) {
           @case ('numeric') {
-            <span class="stat">Avg {{ s.mean | number:'1.1-1' }}</span>
-            <span class="stat">Med {{ s.median | number:'1.0-0' }}</span>
+            <span class="stat">
+              <span class="stat-label">Avg</span>
+              <strong class="stat-value">{{ s.mean | number:'1.1-1' }}</strong>
+            </span>
+            <span class="stat">
+              <span class="stat-label">Med</span>
+              <strong class="stat-value">{{ s.median | number:'1.0-0' }}</strong>
+            </span>
             <ion-chip
               [color]="spreadColor(s.spread)"
               class="spread-chip"
@@ -118,7 +124,10 @@ interface VoteGroup {
             </ion-chip>
           }
           @case ('categorical') {
-            <span class="stat">Most common: <strong>{{ s.mode }}</strong></span>
+            <span class="stat">
+              <span class="stat-label">Most common</span>
+              <strong class="stat-value">{{ s.mode }}</strong>
+            </span>
             <ion-chip
               [color]="spreadColor(s.spread)"
               class="spread-chip"
@@ -253,8 +262,19 @@ interface VoteGroup {
         align-items: center;
       }
       .stat {
-        color: var(--ion-color-medium);
+        display: inline-flex;
+        align-items: baseline;
+        gap: 0.25rem;
         font-size: 0.875rem;
+      }
+      .stat-label {
+        color: var(--ion-color-medium);
+        font-size: 0.8rem;
+      }
+      .stat-value {
+        color: var(--hnch-text, var(--ion-text-color));
+        font-size: 1rem;
+        font-weight: 600;
       }
       .stats .spread-chip {
         margin: 0;
