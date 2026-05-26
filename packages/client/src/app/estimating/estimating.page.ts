@@ -233,6 +233,7 @@ import { resolveKeyboardCardAction, shouldHandleKeyEvent } from './estimating.ke
     `
       @use '../../theme/breakpoints' as *;
       @use '../../theme/page-container' as *;
+      @use '../../theme/a11y' as *;
       @include page-container(800px);
 
       .title {
@@ -272,6 +273,13 @@ import { resolveKeyboardCardAction, shouldHandleKeyEvent } from './estimating.ke
         background: var(--ion-color-primary-tint);
         transform: scale(1.02);
         box-shadow: 0 2px 8px rgba(var(--ion-color-primary-rgb), 0.3);
+      }
+      @include hover-only {
+        .grid:not(.abstained) .card:not(.selected):not(:focus-visible):hover {
+          border-color: var(--hnch-sep-strong);
+          background: var(--hnch-fill);
+          cursor: pointer;
+        }
       }
       .card.focused:not(.selected) {
         outline: 2px solid var(--ion-color-primary);
