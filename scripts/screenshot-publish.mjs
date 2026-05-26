@@ -14,6 +14,10 @@
 //   - Run the CI `verify` matrix (typecheck / lint / unit / build).
 //   - Gate the push on test results — failures exit 0 in hook mode.
 //
+// Best-effort EXCEPT for HEAD-invariant violations: if this script ever moves
+// the invoking worktree's HEAD (a past bug — see #335), it exits non-zero in
+// every mode, hook included, to abort the push.
+//
 // A successful run means "screenshots captured + uploaded", nothing more.
 //
 // Invoked by:
@@ -24,7 +28,7 @@
 // ============================================================================
 
 import { execFileSync, execSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
@@ -79,6 +83,63 @@ function shOk(cmd, opts = {}) {
     return true;
   } catch {
     return false;
+  }
+}
+
+// -------------------------------------------------------- HEAD invariant
+//
+// The invoking worktree's HEAD must never move as a result of this script.
+// Past bug (#335): `git worktree add` against the shared `.git` dir reset the
+// invoking worktree's HEAD to origin/screenshots. The publish path now stages
+// in an isolated clone, but we still guard with a runtime invariant.
+
+let headAtEntry = null;
+let branchAtEntry = null;
+let headAssertionFailed = false;
+
+function captureHeadInvariant() {
+  try {
+    headAtEntry = sh('git rev-parse HEAD');
+    branchAtEntry = sh('git rev-parse --abbrev-ref HEAD');
+  } catch (e) {
+    log(`warning: could not capture HEAD invariant at entry: ${e.message}`);
+  }
+}
+
+function assertHeadUnchanged(where) {
+  if (!headAtEntry) return;
+  let now;
+  let branchNow;
+  try {
+    now = sh('git rev-parse HEAD');
+    branchNow = sh('git rev-parse --abbrev-ref HEAD');
+  } catch (e) {
+    log(`warning: HEAD invariant check failed to read HEAD (${where}): ${e.message}`);
+    return;
+  }
+  if (now === headAtEntry && branchNow === branchAtEntry) return;
+  // HEAD moved. Distinguish "this script caused it" from "user switched
+  // branches in another shell" via the reflog message.
+  let reflog = '';
+  try {
+    reflog = sh('git reflog HEAD -n 5');
+  } catch {
+    // fall through
+  }
+  const screenshotsInReflog = /screenshots/i.test(reflog);
+  if (screenshotsInReflog) {
+    headAssertionFailed = true;
+    log('============================================================');
+    log(`FATAL: HEAD invariant violated at ${where}.`);
+    log(`  entry: branch=${branchAtEntry} sha=${headAtEntry}`);
+    log(`  now:   branch=${branchNow} sha=${now}`);
+    log(`  recent reflog mentions 'screenshots' — this script corrupted HEAD.`);
+    log('  push aborted (non-zero exit). Restore with: git checkout -');
+    log('============================================================');
+  } else {
+    log(
+      `warning: HEAD moved during run at ${where} (entry=${branchAtEntry}@${headAtEntry.slice(0, 7)} now=${branchNow}@${now.slice(0, 7)}); reflog does not implicate this script, treating as concurrent user activity.`,
+    );
   }
 }
 
@@ -173,12 +234,30 @@ function countPngs(dir) {
   return parseInt(out, 10) || 0;
 }
 
-function remoteShaDirExists(sha) {
+function remoteShaDirExists(sha, remoteName = 'origin') {
   // `git cat-file -e <ref>:<path>` exits non-zero when the path is absent on the
   // ref. Prior `git ls-tree` form exited 0 with empty stdout on a missing path,
   // so `shOk` returned a false positive — see issue #309.
-  return shOk(`git cat-file -e origin/${SCREENSHOTS_BRANCH}:sha-${sha}`);
+  return shOk(`git cat-file -e ${remoteName}/${SCREENSHOTS_BRANCH}:sha-${sha}`);
 }
+
+function resolveNetworkRemote() {
+  const remotes = sh('git remote').split('\n').filter(Boolean);
+  if (remotes.length === 0) {
+    throw new Error('no git remotes configured in invoking worktree; cannot publish screenshots');
+  }
+  for (const r of remotes) {
+    if (shOk(`git rev-parse --verify refs/remotes/${r}/${SCREENSHOTS_BRANCH}`)) {
+      const url = sh(`git config --get remote.${r}.url`);
+      return { name: r, url };
+    }
+  }
+  const fallback = remotes[0];
+  const url = sh(`git config --get remote.${fallback}.url`);
+  return { name: fallback, url };
+}
+
+const AUTH_FAIL_RE = /Permission denied|fatal: Authentication failed|Could not read from remote/i;
 
 function publishToScreenshotsBranch(sha) {
   const src = resolve(repoRoot, 'docs/screenshots', `sha-${sha}`);
@@ -190,70 +269,109 @@ function publishToScreenshotsBranch(sha) {
   }
   log(`local capture: ${localCount} PNG${localCount === 1 ? '' : 's'} in sha-${sha}/`);
 
-  // Legitimate no-op: origin already carries this sha-dir (e.g. earlier run of
-  // this same script, or a concurrent CI publish). Skip without touching the
-  // branch — comment URLs will resolve.
-  sh(`git fetch origin ${SCREENSHOTS_BRANCH}`);
-  if (remoteShaDirExists(sha)) {
+  // Resolve the network remote once. Read-only against invokingWorktreeRoot.
+  const remote = resolveNetworkRemote();
+  vlog(`network remote: ${remote.name} → ${remote.url}`);
+
+  // Read-only fetch into invokingWorktreeRoot's tracker — needed only to answer
+  // the "does origin already carry this sha?" no-op question. This is a fetch,
+  // not a checkout/reset, so it cannot move HEAD.
+  sh(`git fetch ${remote.name} ${SCREENSHOTS_BRANCH}`);
+  assertHeadUnchanged('after fetch (no-op probe)');
+  if (remoteShaDirExists(sha, remote.name)) {
     log(
-      `origin/${SCREENSHOTS_BRANCH} already has sha-${sha}/ — skipping push, comment URLs valid.`,
+      `${remote.name}/${SCREENSHOTS_BRANCH} already has sha-${sha}/ — skipping push, comment URLs valid.`,
     );
     return;
   }
 
-  const tmpDir = resolve(repoRoot, '..', '.screenshots-tmp');
-  if (existsSync(tmpDir)) {
-    // Stale leftover from a previous failed run — clean up first.
-    try {
-      sh(`git worktree remove --force ${JSON.stringify(tmpDir)}`);
-    } catch {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  }
-  for (let attempt = 1; attempt <= MAX_PUSH_ATTEMPTS; attempt++) {
-    log(`publish attempt ${attempt}/${MAX_PUSH_ATTEMPTS} → ${SCREENSHOTS_BRANCH} branch`);
-    if (attempt > 1) sh(`git fetch origin ${SCREENSHOTS_BRANCH}`);
-    sh(`git worktree add -f ${JSON.stringify(tmpDir)} ${SCREENSHOTS_BRANCH}`);
-    sh(`git -C ${JSON.stringify(tmpDir)} reset --hard origin/${SCREENSHOTS_BRANCH}`);
-    const dest = resolve(tmpDir, `sha-${sha}`);
-    mkdirSync(dest, { recursive: true });
-    // rsync isn't ubiquitous on dev macs without homebrew; use a tar-pipe.
-    execSync(`tar -C ${JSON.stringify(src)} -cf - . | tar -C ${JSON.stringify(dest)} -xf -`, {
-      stdio: 'inherit',
-    });
-    const copiedCount = countPngs(dest);
-    if (copiedCount !== localCount) {
-      sh(`git worktree remove --force ${JSON.stringify(tmpDir)}`);
-      throw new Error(
-        `tar copy mismatch: ${localCount} PNGs in src, ${copiedCount} in dest. Aborting before comment update.`,
-      );
-    }
-    sh(`git -C ${JSON.stringify(tmpDir)} add -A`);
-    if (shOk(`git -C ${JSON.stringify(tmpDir)} diff --cached --quiet`)) {
-      // Should be unreachable: we already verified remoteShaDirExists is false
-      // and copied ${localCount} PNGs into a previously-non-existent dest.
-      // Treat as a bug rather than silently no-op.
-      sh(`git worktree remove --force ${JSON.stringify(tmpDir)}`);
-      throw new Error(
-        `staged diff is empty despite copying ${localCount} PNGs into sha-${sha}/. Refusing to update comment with broken URLs.`,
-      );
-    }
-    const prNum = process.env['SCREENSHOTS_PR_NUM'] ?? '?';
+  // Stage the publish in an isolated clone with its OWN .git. No ref state is
+  // shared with the invoking worktree, so `reset --hard` here cannot reach it.
+  const stagingDir = mkdtempSync(join(tmpdir(), 'hnch-screenshots-'));
+  registerStagingForCleanup(stagingDir);
+  try {
+    log(`staging clone → ${stagingDir}`);
     sh(
-      `git -C ${JSON.stringify(tmpDir)} commit -m ${JSON.stringify(`screenshots: PR #${prNum} @ sha-${sha}`)}`,
+      `git clone --branch ${SCREENSHOTS_BRANCH} --single-branch --no-tags ${JSON.stringify(repoRoot)} ${JSON.stringify(stagingDir)}`,
     );
-    const pushRes = spawnSync('git', ['-C', tmpDir, 'push', 'origin', SCREENSHOTS_BRANCH], {
-      stdio: 'inherit',
-    });
-    if (pushRes.status === 0) {
-      sh(`git worktree remove --force ${JSON.stringify(tmpDir)}`);
-      return;
+    // Point staging's `origin` at the network URL so push goes to the network,
+    // not back to the local source clone.
+    sh(`git -C ${JSON.stringify(stagingDir)} remote set-url origin ${JSON.stringify(remote.url)}`);
+    assertHeadUnchanged('after staging clone');
+
+    for (let attempt = 1; attempt <= MAX_PUSH_ATTEMPTS; attempt++) {
+      log(`publish attempt ${attempt}/${MAX_PUSH_ATTEMPTS} → ${SCREENSHOTS_BRANCH} branch`);
+      sh(`git -C ${JSON.stringify(stagingDir)} fetch origin ${SCREENSHOTS_BRANCH}`);
+      sh(`git -C ${JSON.stringify(stagingDir)} reset --hard origin/${SCREENSHOTS_BRANCH}`);
+      assertHeadUnchanged(`attempt ${attempt} after staging reset`);
+
+      const dest = resolve(stagingDir, `sha-${sha}`);
+      mkdirSync(dest, { recursive: true });
+      execSync(`tar -C ${JSON.stringify(src)} -cf - . | tar -C ${JSON.stringify(dest)} -xf -`, {
+        stdio: 'inherit',
+      });
+      const copiedCount = countPngs(dest);
+      if (copiedCount !== localCount) {
+        throw new Error(
+          `tar copy mismatch: ${localCount} PNGs in src, ${copiedCount} in dest. Aborting before comment update.`,
+        );
+      }
+      sh(`git -C ${JSON.stringify(stagingDir)} add -A`);
+      if (shOk(`git -C ${JSON.stringify(stagingDir)} diff --cached --quiet`)) {
+        throw new Error(
+          `staged diff is empty despite copying ${localCount} PNGs into sha-${sha}/. Refusing to update comment with broken URLs.`,
+        );
+      }
+      const prNum = process.env['SCREENSHOTS_PR_NUM'] ?? '?';
+      sh(
+        `git -C ${JSON.stringify(stagingDir)} commit -m ${JSON.stringify(`screenshots: PR #${prNum} @ sha-${sha}`)}`,
+      );
+      const pushRes = spawnSync('git', ['-C', stagingDir, 'push', 'origin', SCREENSHOTS_BRANCH], {
+        encoding: 'utf8',
+      });
+      // Mirror inherited stdio behavior for the user.
+      if (pushRes.stdout) process.stderr.write(pushRes.stdout);
+      if (pushRes.stderr) process.stderr.write(pushRes.stderr);
+      if (pushRes.status === 0) {
+        assertHeadUnchanged('after successful push');
+        return;
+      }
+      const combined = `${pushRes.stdout ?? ''}\n${pushRes.stderr ?? ''}`;
+      if (AUTH_FAIL_RE.test(combined)) {
+        throw new Error(
+          `git push failed with auth error — aborting retries. Check SSH key / gh auth login. (stderr matched ${AUTH_FAIL_RE})`,
+        );
+      }
+      log('push rejected (non-fast-forward); will fetch + retry');
+      sleepSync(2000);
     }
-    log('push rejected; will fetch + retry');
-    sh(`git worktree remove --force ${JSON.stringify(tmpDir)}`);
-    sleepSync(2000);
+    throw new Error(`failed to push to ${SCREENSHOTS_BRANCH} after ${MAX_PUSH_ATTEMPTS} attempts`);
+  } finally {
+    cleanupStaging(stagingDir);
   }
-  throw new Error(`failed to push to ${SCREENSHOTS_BRANCH} after ${MAX_PUSH_ATTEMPTS} attempts`);
+}
+
+// Track every staging dir for signal-driven cleanup. mkdtemp names are unique,
+// so this is a set (1-element in practice), not a single var.
+const stagingDirs = new Set();
+
+function registerStagingForCleanup(dir) {
+  stagingDirs.add(dir);
+}
+
+function cleanupStaging(dir) {
+  stagingDirs.delete(dir);
+  try {
+    rmSync(dir, { recursive: true, force: true });
+  } catch (e) {
+    log(`warning: failed to remove staging dir ${dir}: ${e.message}`);
+  }
+}
+
+function cleanupAllStaging() {
+  // Set iteration is safe under deletion of already-visited entries per spec,
+  // and cleanupStaging only deletes the current dir.
+  for (const dir of stagingDirs) cleanupStaging(dir);
 }
 
 function sleepSync(ms) {
@@ -570,10 +688,39 @@ function main() {
   return 0;
 }
 
+captureHeadInvariant();
+
+process.on('exit', () => {
+  assertHeadUnchanged('process exit handler');
+  cleanupAllStaging();
+});
+for (const sig of ['SIGINT', 'SIGTERM']) {
+  process.on(sig, () => {
+    assertHeadUnchanged(`${sig} handler`);
+    cleanupAllStaging();
+    // Re-raise so the OS exit code is preserved.
+    process.kill(process.pid, sig);
+  });
+}
+
+function finalize(code) {
+  assertHeadUnchanged('finalize');
+  if (headAssertionFailed) {
+    // HEAD-invariant violations gate the push in EVERY mode (hook included).
+    process.exit(1);
+  }
+  process.exit(code);
+}
+
 try {
-  process.exit(main());
+  finalize(main());
 } catch (e) {
   log(`error: ${e.message}`);
+  assertHeadUnchanged('error path');
+  if (headAssertionFailed) {
+    // Carve-out: HEAD invariant trumps hook-mode best-effort swallow.
+    process.exit(1);
+  }
   // In hook mode we still exit 0 — screenshots are best-effort, not a push gate.
   // Caller can re-run via pnpm screenshots:publish after diagnosing.
   if (mode === 'hook') {
