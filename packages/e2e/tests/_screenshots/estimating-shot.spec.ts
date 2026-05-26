@@ -138,22 +138,22 @@ async function runScenario(
 }
 
 test.describe('Estimating screen — screenshots (#191)', () => {
-  test('desktop 1440 dark @all @layout @theming', async ({ browser }) => {
+  test('desktop 1440 dark @all @layout @theming @estimating', async ({ browser }) => {
     test.setTimeout(180_000);
     await runScenario(browser, { width: 1440, height: 900 }, 'dark', 'estimating-1440-dark');
   });
 
-  test('desktop 1440 light @all @layout @theming', async ({ browser }) => {
+  test('desktop 1440 light @all @layout @theming @estimating', async ({ browser }) => {
     test.setTimeout(180_000);
     await runScenario(browser, { width: 1440, height: 900 }, 'light', 'estimating-1440-light');
   });
 
-  test('mobile 390 dark @all @layout @theming', async ({ browser }) => {
+  test('mobile 390 dark @all @layout @theming @estimating', async ({ browser }) => {
     test.setTimeout(180_000);
     await runScenario(browser, { width: 390, height: 844 }, 'dark', 'estimating-390-dark');
   });
 
-  test('mobile 390 light @all @layout @theming', async ({ browser }) => {
+  test('mobile 390 light @all @layout @theming @estimating', async ({ browser }) => {
     test.setTimeout(180_000);
     await runScenario(browser, { width: 390, height: 844 }, 'light', 'estimating-390-light');
   });

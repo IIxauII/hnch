@@ -1,3 +1,22 @@
+# [1.38.0](https://github.com/IIxauII/hnch/compare/client-v1.37.0...client-v1.38.0) (2026-05-26)
+
+
+### Bug Fixes
+
+* **client:** replace undefined --hnch-surface token on Lobby accordion ([#332](https://github.com/IIxauII/hnch/issues/332)) ([0be9b4e](https://github.com/IIxauII/hnch/commit/0be9b4ed0f44c0b015329a3b84411fb5d8c3f335))
+
+
+### Features
+
+* **client,e2e:** estimating cards show hover affordance on fine-pointer devices ([#336](https://github.com/IIxauII/hnch/issues/336)) ([18d6e22](https://github.com/IIxauII/hnch/commit/18d6e2209c5c5c7bfe05bdfcf3bdb0a97b7ea08a))
+
+# [1.37.0](https://github.com/IIxauII/hnch/compare/client-v1.36.4...client-v1.37.0) (2026-05-26)
+
+
+### Features
+
+* **client:** widen lobby and shift columns to 5/7 on wide screens ([#334](https://github.com/IIxauII/hnch/issues/334)) ([3ca61f4](https://github.com/IIxauII/hnch/commit/3ca61f4208e4d82f8eb7e25be15771e4dd823719))
+
 ## [1.36.4](https://github.com/IIxauII/hnch/compare/client-v1.36.3...client-v1.36.4) (2026-05-26)
 
 

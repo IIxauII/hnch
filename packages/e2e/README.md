@@ -90,6 +90,7 @@ Every `test()` under `_screenshots/` is annotated with one or more Playwright ta
 | `@keyboard` | keyboard shortcuts surfaces (`keyboard-shortcuts.spec.ts`) |
 | `@vote-bars` | vote distribution bars (`vote-bars-shot.spec.ts`) |
 | `@vote-dots` | vote dot layout (`vote-dots-196.spec.ts`) |
+| `@estimating` | Estimating page baseline + card interactions (`estimating-shot.spec.ts`) |
 
 **Slug ≠ tag exactly.** Tags drive `--grep` scope selection; the OUT_DIR feature-slug is the *primary* tag of each spec (the one in the table above), and it is the name of the subfolder under `docs/screenshots/<sha>/`. `@all` is grep-only — it never appears as a slug.
 
@@ -127,6 +128,7 @@ Every `test()` under `_screenshots/` is annotated with one or more Playwright ta
 | `@session-end` | `session-ended.spec.ts` |
 | `@home` | `capture.spec.ts`, `room-history.spec.ts` |
 | `@onboarding` | `keyboard-shortcuts.spec.ts` |
+| `@estimating` | `estimating-shot.spec.ts` |
 
 ### Scene index
 
