@@ -1,3 +1,10 @@
+# [1.40.0](https://github.com/IIxauII/hnch/compare/client-v1.39.0...client-v1.40.0) (2026-05-26)
+
+
+### Features
+
+* **client:** make VoteResults stat values prominent ([#338](https://github.com/IIxauII/hnch/issues/338)) ([13da7e1](https://github.com/IIxauII/hnch/commit/13da7e11d07c0d993b44273ef59b4a97388be45e))
+
 # [1.39.0](https://github.com/IIxauII/hnch/compare/client-v1.38.0...client-v1.39.0) (2026-05-26)
 
 
