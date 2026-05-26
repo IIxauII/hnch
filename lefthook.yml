@@ -37,6 +37,11 @@ commit-msg:
 # A green screenshot hook says nothing about whether the code works — only that
 # the visual fixtures rendered without crashing Playwright. Skipped on
 # merge/rebase pushes. Bypass with `git push --no-verify`.
+#
+# Best-effort EXCEPT for HEAD-invariant violations: if the publish script
+# detects that it moved the invoking worktree's HEAD (a past bug — issue #335),
+# it exits non-zero to gate the push. All other publish failures (playwright
+# flake, push rejection, comment update error) still exit 0 in hook mode.
 # See docs/plans/e2e-screenshot-coverage-expansion.md (Phase 3).
 pre-push:
   commands:
