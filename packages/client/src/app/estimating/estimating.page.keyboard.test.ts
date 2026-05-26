@@ -15,6 +15,8 @@ vi.mock('@ionic/angular/standalone', async () => {
   const stub = (selector: string) =>
     Comp({ selector, template: '<ng-content/>', standalone: true })(class {});
   return {
+    IonAccordion: stub('ion-accordion'),
+    IonAccordionGroup: stub('ion-accordion-group'),
     IonButton: stub('ion-button'),
     IonButtons: stub('ion-buttons'),
     IonCard: stub('ion-card'),
