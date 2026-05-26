@@ -794,6 +794,13 @@ import type { AgendaItem } from '@hnch/shared';
       ion-accordion.lobby-section .lobby-section__body {
         padding: 0.5rem 1rem 1rem;
       }
+      ion-accordion.lobby-section .lobby-section__body ion-list {
+        background: transparent;
+        --ion-item-background: transparent;
+      }
+      ion-accordion.lobby-section .lobby-section__body ion-list ion-item {
+        --background: transparent;
+      }
       ion-accordion.lobby-section.locked-open::part(expand-icon) {
         display: none;
       }
