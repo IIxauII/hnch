@@ -190,7 +190,7 @@ import { resolveKeyboardCardAction, shouldHandleKeyEvent } from './estimating.ke
 
           <ion-button
             expand="block"
-            [fill]="isAbstained() ? 'solid' : 'outline'"
+            [fill]="isAbstained() ? 'solid' : 'clear'"
             color="medium"
             class="abstain-btn"
             [attr.aria-pressed]="isAbstained()"
