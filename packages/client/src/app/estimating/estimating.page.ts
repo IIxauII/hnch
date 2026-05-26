@@ -21,6 +21,8 @@ import {
 } from '@hnch/shared';
 import {
   AlertController,
+  IonAccordion,
+  IonAccordionGroup,
   IonButton,
   IonButtons,
   IonCard,
@@ -32,6 +34,7 @@ import {
   IonGrid,
   IonHeader,
   IonIcon,
+  IonItem,
   IonLabel,
   IonRow,
   IonTitle,
@@ -83,6 +86,8 @@ import { resolveKeyboardCardAction, shouldHandleKeyEvent } from './estimating.ke
     AvatarVoteRowComponent,
     ConnectionChipComponent,
     ConnectionStatusBannerComponent,
+    IonAccordion,
+    IonAccordionGroup,
     IonButton,
     IonButtons,
     IonCard,
@@ -94,6 +99,7 @@ import { resolveKeyboardCardAction, shouldHandleKeyEvent } from './estimating.ke
     IonGrid,
     IonHeader,
     IonIcon,
+    IonItem,
     IonLabel,
     IonRow,
     IonTitle,
@@ -142,8 +148,41 @@ import { resolveKeyboardCardAction, shouldHandleKeyEvent } from './estimating.ke
       <app-connection-status-banner />
       @if (currentRound(); as round) {
         <h1 class="title">Round {{ roundIndex() }}</h1>
+
+        @if (round.ticketId) {
+          @if (ticketIdHref(); as href) {
+            <a
+              class="ticket-link"
+              [href]="href"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <ion-chip class="ticket-chip" color="primary">
+                <ion-label>{{ round.ticketId }}</ion-label>
+              </ion-chip>
+            </a>
+          } @else {
+            <ion-chip class="ticket-chip">
+              <ion-label>{{ round.ticketId }}</ion-label>
+            </ion-chip>
+          }
+        }
+
         @if (round.title) {
           <p class="descriptor">{{ round.title }}</p>
+        }
+
+        @if (round.description) {
+          <ion-accordion-group class="description-accordion-group">
+            <ion-accordion value="description">
+              <ion-item slot="header" lines="none" class="description-header">
+                <ion-label>Details</ion-label>
+              </ion-item>
+              <div slot="content" class="description-body">
+                {{ round.description }}
+              </div>
+            </ion-accordion>
+          </ion-accordion-group>
         }
 
         @if (elapsedLabel(); as label) {
@@ -241,15 +280,39 @@ import { resolveKeyboardCardAction, shouldHandleKeyEvent } from './estimating.ke
         margin: 0.25rem 0 0.25rem;
       }
       .descriptor {
-        margin: 0 0 1rem;
-        color: var(--ion-color-medium);
+        margin: 0 0 0.75rem;
+        color: var(--hnch-text-2);
+        font-weight: 500;
       }
       .elapsed {
-        font-size: 1.25rem;
+        font-size: 0.875rem;
         font-weight: 400;
         font-variant-numeric: tabular-nums;
         margin: 0.5rem 0 1rem;
-        color: var(--ion-color-medium);
+        color: var(--hnch-muted);
+      }
+      .ticket-link {
+        text-decoration: none;
+        display: inline-block;
+      }
+      .ticket-chip {
+        --background: var(--hnch-elev-1);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        margin: 0 0 0.5rem;
+      }
+      .description-accordion-group {
+        margin: 0 0 0.75rem;
+        background: var(--hnch-elev-1);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .description-header {
+        --background: var(--hnch-elev-1);
+      }
+      .description-body {
+        padding: 0.75rem 1rem 1rem;
+        color: var(--hnch-text-2);
+        white-space: pre-wrap;
       }
       .section {
         margin: 1.5rem 0 0.5rem;
@@ -569,6 +632,15 @@ export class EstimatingPage {
    * Elapsed voting time label (M:SS counting up), or `null` before the
    * round's stopwatch has started. Driven by the 4 Hz wall-clock tick.
    */
+  /**
+   * Reactive http(s) URL parsed from `round.ticketId`, or `null` when
+   * the value is missing or non-URL. Single parse point — template uses
+   * the result to switch between an anchor-wrapped chip and a plain chip.
+   */
+  protected readonly ticketIdHref = computed<string | null>(() => {
+    return parseTicketIdHref(this.currentRound()?.ticketId);
+  });
+
   protected readonly elapsedLabel = computed<string | null>(() => {
     const round = this.docService.currentRound();
     if (!round || round.timerStartedAt === undefined) return null;
@@ -832,6 +904,26 @@ export class EstimatingPage {
       ],
     });
     await alert.present();
+  }
+}
+
+// ---------------------------------------------------------------------------
+/**
+ * Pure: parse a raw `ticketId` field into an http(s) URL string suitable
+ * for an `<a href>`, or `null` when the value is absent or not a URL.
+ * Trims whitespace, requires `http:` or `https:` protocol.
+ */
+export function parseTicketIdHref(raw: string | undefined | null): string | null {
+  if (raw === undefined || raw === null) return null;
+  const trimmed = raw.trim();
+  if (trimmed === '') return null;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+    if (parsed.host === '') return null;
+    return trimmed;
+  } catch {
+    return null;
   }
 }
 
