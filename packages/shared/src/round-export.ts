@@ -1,4 +1,5 @@
 import type { Participant, Round } from './doc.js';
+import { isAbstainVote } from './abstain.js';
 import { computeRoundStats } from './round-stats.js';
 import { formatElapsed } from './format-time.js';
 import { isLikelyUrl } from './is-likely-url.js';
@@ -77,14 +78,22 @@ function groupByChainRoot(rounds: readonly Round[]): Map<string, Round[]> {
 /**
  * Build vote-group table rows sorted by count desc, then scale-card index asc.
  * Matches sort order in vote-results.component.ts:381-384.
+ * Abstainers are separated from regular votes and rendered as an "Abstained" row
+ * at the end of the table (mirrors the UI's separate abstained group).
  */
 function buildVoteTable(round: Round, nameById: ReadonlyMap<string, string>): string {
   const scaleOrder = new Map<string, number>();
   round.scale.cards.forEach((card, i) => scaleOrder.set(card, i));
 
   const byCard = new Map<string, string[]>();
+  const abstainedNames: string[] = [];
+
   for (const [participantId, card] of Object.entries(round.votes)) {
     const name = nameById.get(participantId) ?? participantId;
+    if (isAbstainVote(card)) {
+      abstainedNames.push(name);
+      continue;
+    }
     const bucket = byCard.get(card);
     if (bucket) {
       bucket.push(name);
@@ -105,11 +114,19 @@ function buildVoteTable(round: Round, nameById: ReadonlyMap<string, string>): st
   });
 
   const rows = groups.map((g) => `| ${escMd(g.card)} | ${g.voters.join(', ')} |`);
+
+  if (abstainedNames.length > 0) {
+    rows.push(`| Abstained | ${[...abstainedNames].toSorted().map(escMd).join(', ')} |`);
+  }
+
   return ['| Vote | Voters |', '|------|--------|', ...rows].join('\n');
 }
 
 function buildStatsLine(round: Round): string {
-  const stats = computeRoundStats(round.votes, round.scale);
+  const filteredVotes = Object.fromEntries(
+    Object.entries(round.votes).filter(([, v]) => !isAbstainVote(v)),
+  );
+  const stats = computeRoundStats(filteredVotes, round.scale);
   const elapsed =
     round.timerStartedAt != null && round.revealedAt != null
       ? formatElapsed(round.revealedAt - round.timerStartedAt)
