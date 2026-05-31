@@ -74,19 +74,46 @@ hnch config [--name "Alice"] [--relay-url http://...] [--scale <id>] [--session-
 | `--session-name` | Default session name for `create` (empty string clears) |
 | `--password` / `--no-password` | Whether `create` prompts for a password by default |
 
+### `hnch agenda`
+
+Manage the pre-session story agenda for the most recently joined session. Subcommands operate against the agenda stored in the session doc; the CLI reads the last-session cache to locate the active room.
+
+```
+hnch agenda <subcommand>
+```
+
+| Subcommand | Description |
+|---|---|
+| `add [--title "..."] [--ticket "..."] [--description "..."]` | Add a story. At least one of `--title` or `--ticket` is required. |
+| `list` | List all agenda items in display order. |
+| `skip <id>` | Mark an item as skipped (terminal — no round will be created for it). |
+| `cancel <id>` | Soft-delete an item (terminal — removed from active agenda views). |
+| `mv <id> [--before <id> \| --after <id>]` | Reorder an item relative to another item by ID. |
+
 ## Keyboard
 
-The CLI is keyboard-driven end to end via Ink's input handling. Keys on the Voting screen mirror the PWA card-grid shortcuts (issue #154) so muscle memory carries between the two clients:
+The CLI is keyboard-driven end to end via Ink's input handling.
+
+### Card picker
 
 | Key | Action |
 | --- | --- |
-| `1` – `9` | Select card at index 0 – 8 |
-| `0` | Select card at index 9 (10th card) |
 | `←` / `→` | Move focus between cards (wraps) |
-| `Enter` / `Space` | Cast or clear vote on the focused card |
-| `Esc` / `q` | Back / leave (context-dependent) |
+| `Enter` | Cast vote on the focused card (re-press to clear) |
+| `⌫` / `Del` | Clear vote |
 
-The PWA enforces the same digit-to-index mapping and the same re-press-to-clear toggle on the Estimating screen. Indices > 9 are reachable via arrow keys only — digits cover the first 10 cards across all builtin scales (longest is Linear at 10).
+### In-session shortcuts (Voting screen)
+
+| Key | Action |
+| --- | --- |
+| `A` | Abstain / un-abstain (voters only) |
+| `W` | Toggle your role: voter ↔ viewer |
+| `E` | Open settings |
+| `C` | Copy invite link |
+| `R` | Reveal round (host only) |
+| `S` | Skip round (host only) |
+| `D` | Discard round (host only) |
+| `Q` | Leave session |
 
 ## Protocol parity
 
@@ -100,6 +127,8 @@ Scale customization (preset overrides, custom scales) is persisted in `config.js
 packages/cli/
   src/
     index.ts                  — entry point, yargs command wiring
+    commands/
+      agenda.ts               — hnch agenda subcommand handlers
     session.ts                — createSession / joinSession / wireSession / reconnect
     sync.ts                   — y-websocket provider setup
     relay-api.ts              — HTTP client for GET /rooms/:code and POST /rooms
@@ -127,4 +156,4 @@ packages/cli/
 pnpm --filter @xauyxau/hnch test
 ```
 
-Unit tests are spread across `src/*.test.ts` files (`session`, `config`, `host-election`, `last-session`, `relay-api`, `room-code-input`, `session-end-observer`, `session-expired`, `share`, `sync`) and `src/ui/components/settings.test.ts`. A terminal-level e2e harness (node-pty + vitest, covering `create`/`join`/`resume` against a live relay) is planned but not yet implemented — see `docs/backlog.md` §5.2.
+Unit tests are spread across `src/*.test.ts` files (`session`, `config`, `host-election`, `last-session`, `relay-api`, `room-code-input`, `session-end-observer`, `session-expired`, `share`, `sync`), `src/commands/agenda.test.ts`, and `src/ui/components/settings.test.ts`. A terminal-level e2e harness (node-pty + vitest, covering `create`/`join`/`resume` against a live relay) is planned but not yet implemented — see `docs/backlog.md` §5.2.

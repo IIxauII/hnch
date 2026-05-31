@@ -17,7 +17,7 @@ Terminal client for hnch (pointing poker for agile teams). Speaks the same Yjs-o
 
 ## Default relay
 
-`wss://hnch.dev`. Override with the `HNCH_RELAY_URL` env var or `hnch config --relay-url <url>`.
+`https://hnch.dev`. Override with the `HNCH_RELAY_URL` env var or `hnch config --relay-url <url>`.
 
 ## License
 
