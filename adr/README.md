@@ -22,10 +22,10 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 
 | # | Title | Status |
 |---|---|---|
-| [0001](0001-networking-crdt-over-relay.md) | Networking: CRDT sync over a content-blind relay | Accepted |
-| [0002](0002-frontend-framework-angular-ionic-capacitor.md) | Frontend framework: Angular + Ionic + Capacitor | Accepted |
-| [0003](0003-state-sync-yjs.md) | State sync: Yjs CRDT library | Accepted |
-| [0004](0004-local-persistence-sqlite-indexeddb.md) | Local persistence: Capawesome SQLite (native) + IndexedDB (PWA) | Accepted |
+| [0001](0001-networking-crdt-over-relay.md) | Networking — CRDT sync over a content-blind relay | Accepted |
+| [0002](0002-frontend-framework-angular-ionic-capacitor.md) | Frontend framework — Angular + Ionic + Capacitor | Accepted |
+| [0003](0003-state-sync-yjs.md) | State sync — Yjs CRDT library | Accepted |
+| [0004](0004-local-persistence-sqlite-indexeddb.md) | Local persistence — Capawesome SQLite (native) + IndexedDB (PWA) | Accepted |
 | [0005](0005-device-identity-capacitor-device-plugin.md) | Device identity via the Capacitor Device plugin | Accepted |
 | [0006](0006-ephemeral-sessions.md) | Sessions are ephemeral (one per meeting) | Accepted |
 | [0007](0007-teams-local-only.md) | Teams as a local-only layered concept | Accepted |
@@ -33,8 +33,8 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0009](0009-access-control-relay-tokens.md) | Access control enforced at the relay via opaque tokens | Accepted |
 | [0010](0010-host-election.md) | Host election mechanics | Accepted |
 | [0012](0012-snapshot-policy.md) | Ephemeral room snapshot policy | Accepted |
-| [0013](0013-round-model-flat-parentroundid.md) | Round model: flat list with parentRoundId linking | Superseded by ADR-0046 |
-| [0014](0014-repo-layout-pnpm-workspaces.md) | Repo layout: pnpm workspaces monorepo | Accepted |
+| [0013](0013-round-model-flat-parentroundid.md) | Round model — flat list with parentRoundId linking | Superseded by ADR-0046 |
+| [0014](0014-repo-layout-pnpm-workspaces.md) | Repo layout — pnpm workspaces monorepo | Accepted |
 | [0016](0016-client-relay-connection-handshake.md) | Client ↔ relay connection handshake | Accepted |
 | [0017](0017-password-hashing-drop-invite-only.md) | Password hashing scheme and invite-only removal | Accepted (password-enforcement clause superseded by ADR-0035) |
 | [0018](0018-remove-timer-add-unanimous-reveal.md) | Remove countdown timer; add unanimous auto-reveal | Accepted |
@@ -62,7 +62,7 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0041](0041-per-round-abstain-sentinel.md) | Per-round abstain action for voters — `hnch_abstain` sentinel, auto-reveal amendment | Accepted |
 | [0042](0042-pre-session-agenda.md) | Pre-session story agenda — `agenda: Y.Array<Y.Map>` + `round.agendaItemId` backref | Superseded by ADR-0045 |
 | [0043](0043-per-participant-avatar-color.md) | Per-participant avatar color — user-selectable palette or hex, stored on participant record | Accepted |
-| [0044](0044-local-room-history-cache.md) | Local room history cache — v2 multi-entry shape, mobile passwordHash reversal | Accepted |
+| [0044](0044-local-room-history-cache.md) | Local room history cache — per-room entries, mobile passwordHash reversal | Accepted |
 | [0045](0045-agenda-consume-at-round-terminal.md) | Agenda items consume at round-terminal (reveal/skip) instead of round-start (supersedes ADR-0042) | Accepted |
 | [0046](0046-round-discard-tombstone.md) | Round record — three terminal fields (`revealedAt`/`skippedAt`/`discardedAt`) + tombstone semantics (supersedes ADR-0013) | Accepted |
 
