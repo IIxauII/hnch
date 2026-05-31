@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { roundsToMarkdown } from '@hnch/shared';
+import { ABSTAIN_SENTINEL, roundsToMarkdown } from '@hnch/shared';
 import type { DocProjection, ParticipantSnapshot, Round, Scale } from '@hnch/shared';
 
 import { buildExportMarkdown, exportResultsToClipboard } from './lobby-helpers.js';
@@ -101,6 +101,30 @@ describe('buildExportMarkdown', () => {
       rounds: [makeRound({ id: 'r1', title: 'Spike', skippedAt: 5_000 })],
     });
     expect(buildExportMarkdown(projection)).toBe('');
+  });
+});
+
+// Exercises: ui/lobby-helpers:buildExportMarkdown (abstain regression guard)
+describe('buildExportMarkdown — abstain (ADR-0041)', () => {
+  it('abstain voter appears as "Abstained" in export, sentinel string not surfaced', () => {
+    const projection = makeProjection({
+      participants: [
+        { id: 'p1', displayName: 'Alice', joinedAt: 0 },
+        { id: 'p2', displayName: 'Bob', joinedAt: 0 },
+      ],
+      rounds: [
+        makeRound({
+          id: 'r1',
+          votes: { p1: '5', p2: ABSTAIN_SENTINEL },
+          timerStartedAt: 0,
+          revealedAt: 30_000,
+        }),
+      ],
+    });
+    const md = buildExportMarkdown(projection);
+    expect(md).not.toContain('hnch_abstain');
+    expect(md).toContain('Abstained');
+    expect(md).toContain('Bob');
   });
 });
 
