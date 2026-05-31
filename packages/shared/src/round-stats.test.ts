@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ABSTAIN_SENTINEL } from './abstain.js';
 import {
   FIBONACCI_SCALE,
   LINEAR_SCALE,
@@ -178,5 +179,43 @@ describe('computeRoundStats', () => {
       mode: '10', // tie: both 1 vote; '10' is first in scale order (index 0)
       spread: 'spread',
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Abstain sentinel — caller contract (ADR-0041)
+//
+// computeRoundStats does NOT filter the abstain sentinel. Callers are
+// responsible for pre-filtering (pattern: vote-results.component.ts:440).
+// These tests document the degradation behaviour and guard against
+// accidental changes to that contract.
+// ---------------------------------------------------------------------------
+
+// Exercises: round-stats:computeRoundStats
+describe('computeRoundStats — abstain sentinel caller contract (ADR-0041)', () => {
+  it('numeric scale: mean/median exclude abstain via NaN filter; spread is skewed by off-scale index', () => {
+    // Two voters unanimously chose 5; one abstained.
+    // Without caller-side pre-filtering:
+    //   mean/median = 5 (NaN filter saves them)
+    //   mode = '5' (higher frequency than sentinel)
+    //   spread = 'spread' because 'hnch_abstain' maps to an off-scale card-order index
+    //            far from index 4 ('5'), making max-min > 1.
+    const r = computeRoundStats({ p1: '5', p2: '5', p3: ABSTAIN_SENTINEL }, FIBONACCI_SCALE);
+    expect(r).not.toBeNull();
+    if (!r || r.kind !== 'numeric') throw new Error('expected numeric result');
+    expect(r.mean).toBe(5);
+    expect(r.median).toBe(5);
+    expect(r.mode).toBe('5');
+    expect(r.spread).toBe('spread');
+  });
+
+  it('all-abstain on numeric scale degrades to categorical (NaN filter empties numericValues)', () => {
+    // All votes are non-numeric strings → numericValues = [] → graceful categorical fallback.
+    // Mode = sentinel (only value present). Callers must pre-filter to avoid this path.
+    const r = computeRoundStats({ p1: ABSTAIN_SENTINEL, p2: ABSTAIN_SENTINEL }, FIBONACCI_SCALE);
+    expect(r).not.toBeNull();
+    expect(r?.kind).toBe('categorical');
+    expect(r?.mode).toBe(ABSTAIN_SENTINEL);
+    expect(r?.spread).toBe('unanimous');
   });
 });
