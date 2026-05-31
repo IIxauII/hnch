@@ -1,3 +1,10 @@
+## [1.12.2](https://github.com/IIxauII/hnch/compare/cli-v1.12.1...cli-v1.12.2) (2026-05-31)
+
+
+### Bug Fixes
+
+* **shared,cli:** filter abstain sentinel in roundsToMarkdown export ([#362](https://github.com/IIxauII/hnch/issues/362)) ([04f71e3](https://github.com/IIxauII/hnch/commit/04f71e3866277fe3ca5850e449ae896acd033a83))
+
 ## [1.12.1](https://github.com/IIxauII/hnch/compare/cli-v1.12.0...cli-v1.12.1) (2026-05-24)
 
 
