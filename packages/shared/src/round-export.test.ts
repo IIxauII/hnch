@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ABSTAIN_SENTINEL } from './abstain.js';
 import { FIBONACCI_SCALE, TSHIRT_SCALE } from './doc.js';
 import type { Participant, Round } from './doc.js';
 import { roundsToMarkdown } from './round-export.js';
@@ -447,5 +448,134 @@ describe('roundsToMarkdown — ticketId formatting', () => {
     });
     expect(result).toContain('## Round 1 — Story\n');
     expect(result).not.toContain('(');
+  });
+});
+
+// Exercises: round-export:roundsToMarkdown (abstain handling, ADR-0041)
+describe('roundsToMarkdown — abstain (ADR-0041)', () => {
+  it('abstain voter appears as "Abstained" row in table, not as hnch_abstain', () => {
+    const round = makeRound({
+      id: 'r1',
+      votes: { p1: '5', p2: ABSTAIN_SENTINEL },
+      revealedAt: 10_000,
+    });
+    const result = roundsToMarkdown({
+      rounds: [round],
+      participants: new Map([
+        ['p1', makeParticipant('Alice')],
+        ['p2', makeParticipant('Bob')],
+      ]),
+    });
+
+    expect(result).toContain('| Abstained | Bob |');
+    expect(result).not.toContain('hnch_abstain');
+  });
+
+  it('multiple abstainers grouped in one row, sorted alphabetically', () => {
+    const round = makeRound({
+      id: 'r1',
+      votes: {
+        p1: '5',
+        p2: ABSTAIN_SENTINEL,
+        p3: ABSTAIN_SENTINEL,
+      },
+      revealedAt: 10_000,
+    });
+    const result = roundsToMarkdown({
+      rounds: [round],
+      participants: new Map([
+        ['p1', makeParticipant('Alice')],
+        ['p2', makeParticipant('Zelda')],
+        ['p3', makeParticipant('Bob')],
+      ]),
+    });
+
+    expect(result).toContain('| Abstained | Bob, Zelda |');
+    expect(result).not.toContain('hnch_abstain');
+  });
+
+  it('abstain voters excluded from numeric stats (correct avg/med on fibonacci scale)', () => {
+    const round = makeRound({
+      id: 'r1',
+      votes: { p1: '5', p2: '8', p3: ABSTAIN_SENTINEL },
+      timerStartedAt: 0,
+      revealedAt: 60_000,
+    });
+    const result = roundsToMarkdown({
+      rounds: [round],
+      participants: new Map([
+        ['p1', makeParticipant('Alice')],
+        ['p2', makeParticipant('Bob')],
+        ['p3', makeParticipant('Carol')],
+      ]),
+    });
+
+    // avg of [5, 8] = 6.5; median of [5, 8] = 6.5
+    expect(result).toContain('Avg 6.5');
+    expect(result).toContain('Med 6.5');
+    expect(result).not.toContain('hnch_abstain');
+  });
+
+  it('all-abstain round: "Abstained" row present, no numeric/categorical stats line', () => {
+    const round = makeRound({
+      id: 'r1',
+      votes: { p1: ABSTAIN_SENTINEL, p2: ABSTAIN_SENTINEL },
+      revealedAt: 10_000,
+    });
+    const result = roundsToMarkdown({
+      rounds: [round],
+      participants: new Map([
+        ['p1', makeParticipant('Alice')],
+        ['p2', makeParticipant('Bob')],
+      ]),
+    });
+
+    expect(result).toContain('| Abstained |');
+    expect(result).not.toContain('hnch_abstain');
+    expect(result).not.toContain('Avg');
+    expect(result).not.toContain('Most common');
+  });
+
+  it('abstain excluded from categorical spread — T-shirt scale', () => {
+    const round = makeRound({
+      id: 'r1',
+      scale: TSHIRT_SCALE,
+      votes: { p1: 'M', p2: 'M', p3: ABSTAIN_SENTINEL },
+      timerStartedAt: 0,
+      revealedAt: 30_000,
+    });
+    const result = roundsToMarkdown({
+      rounds: [round],
+      participants: new Map([
+        ['p1', makeParticipant('Alice')],
+        ['p2', makeParticipant('Bob')],
+        ['p3', makeParticipant('Carol')],
+      ]),
+    });
+
+    // Only M votes → unanimous; should emit "Most common: M", not hnch_abstain
+    expect(result).toContain('Most common: M');
+    expect(result).not.toContain('hnch_abstain');
+  });
+
+  it('abstained row appears after regular vote rows in the table', () => {
+    const round = makeRound({
+      id: 'r1',
+      votes: { p1: '5', p2: ABSTAIN_SENTINEL },
+      revealedAt: 10_000,
+    });
+    const result = roundsToMarkdown({
+      rounds: [round],
+      participants: new Map([
+        ['p1', makeParticipant('Alice')],
+        ['p2', makeParticipant('Bob')],
+      ]),
+    });
+
+    const pos5 = result.indexOf('| 5 |');
+    const posAbstain = result.indexOf('| Abstained |');
+    expect(pos5).toBeGreaterThanOrEqual(0);
+    expect(posAbstain).toBeGreaterThanOrEqual(0);
+    expect(pos5).toBeLessThan(posAbstain);
   });
 });
