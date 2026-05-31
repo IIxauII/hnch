@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as Y from 'yjs';
 
+import { ABSTAIN_SENTINEL } from './abstain.js';
 import {
   FIBONACCI_SCALE,
   TSHIRT_SCALE,
@@ -1984,5 +1985,63 @@ describe('discard vs late vote (CRDT merge)', () => {
       // not deleted. The vote is harmless because currentRound() returns null.
       expect(currentRound(snap)).toBeNull();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// castVote / clearVote — abstain sentinel (ADR-0041)
+// ---------------------------------------------------------------------------
+
+// Exercises: doc-projection:castVote, doc-projection:clearVote
+describe('castVote / clearVote — abstain sentinel (ADR-0041)', () => {
+  it('stores ABSTAIN_SENTINEL as a vote like any other card value', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    castVote(doc, 'r1', 'p-host', ABSTAIN_SENTINEL);
+    expect(projectDoc(doc).rounds[0]!.votes).toEqual({ 'p-host': ABSTAIN_SENTINEL });
+  });
+
+  it('clearVote removes an abstain entry', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    castVote(doc, 'r1', 'p-host', ABSTAIN_SENTINEL);
+    clearVote(doc, 'r1', 'p-host');
+    expect(projectDoc(doc).rounds[0]!.votes).toEqual({});
+  });
+
+  it('castVote overwrites an abstain with a real card (un-abstain)', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    castVote(doc, 'r1', 'p-host', ABSTAIN_SENTINEL);
+    castVote(doc, 'r1', 'p-host', '5');
+    expect(projectDoc(doc).rounds[0]!.votes).toEqual({ 'p-host': '5' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isConsensus — abstain sentinel (ADR-0041)
+// ---------------------------------------------------------------------------
+
+// Exercises: doc-projection:isConsensus
+describe('isConsensus — abstain sentinel (ADR-0041)', () => {
+  it('returns false when one voter abstains and another casts a numeric card', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    castVote(doc, 'r1', 'p-host', '5');
+    castVote(doc, 'r1', 'p-bob', ABSTAIN_SENTINEL);
+    const snap = projectDoc(doc);
+    expect(isConsensus(snap.rounds[0]!)).toBe(false);
+  });
+
+  it('returns true when all participants abstained (callers must add the all-abstain guard)', () => {
+    // isConsensus performs value-equality: all-abstain satisfies it.
+    // Callers (CelebrationService, VoteResultsComponent) add an explicit
+    // `values.every(isAbstainVote)` guard to return false in this case.
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    castVote(doc, 'r1', 'p-host', ABSTAIN_SENTINEL);
+    castVote(doc, 'r1', 'p-bob', ABSTAIN_SENTINEL);
+    const snap = projectDoc(doc);
+    expect(isConsensus(snap.rounds[0]!)).toBe(true);
   });
 });
