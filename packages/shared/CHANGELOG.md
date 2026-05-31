@@ -1,3 +1,10 @@
+## [1.11.2](https://github.com/IIxauII/hnch/compare/shared-v1.11.1...shared-v1.11.2) (2026-05-31)
+
+
+### Bug Fixes
+
+* **shared,cli:** filter abstain sentinel in roundsToMarkdown export ([#362](https://github.com/IIxauII/hnch/issues/362)) ([04f71e3](https://github.com/IIxauII/hnch/commit/04f71e3866277fe3ca5850e449ae896acd033a83))
+
 ## [1.11.1](https://github.com/IIxauII/hnch/compare/shared-v1.11.0...shared-v1.11.1) (2026-05-24)
 
 
