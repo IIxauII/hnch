@@ -149,10 +149,10 @@ describe('LobbySettings — main-menu keyboard interactions', () => {
 });
 
 // ---------------------------------------------------------------------------
-// editing-room-name state
+// editing-room-name state — submission
 // ---------------------------------------------------------------------------
 
-describe('LobbySettings — editing-room-name state', () => {
+describe('LobbySettings — editing-room-name submission', () => {
   it('submitting calls onChangeName with the pre-seeded session name', async () => {
     // LobbySettings initialises roomNameInput from the sessionName prop.
     // Pressing Enter without extra typing submits the pre-seeded value.
@@ -161,14 +161,12 @@ describe('LobbySettings — editing-room-name state', () => {
       <LobbySettings {...makeProps({ onChangeName, sessionName: 'My Sprint' })} />,
     );
     await flush();
-    // Open room name editor (Enter on cursor=0 → Room name item)
     await act(async () => {
-      stdin.write('\r');
+      stdin.write('\r'); // open room name editor
       await flush();
     });
-    // Submit the pre-seeded value
     await act(async () => {
-      stdin.write('\r');
+      stdin.write('\r'); // submit pre-seeded value
       await flush();
     });
     expect(onChangeName).toHaveBeenCalledWith('My Sprint');
@@ -176,36 +174,36 @@ describe('LobbySettings — editing-room-name state', () => {
 
   it('submitting an empty room name calls onChangeName with undefined', async () => {
     const onChangeName = vi.fn();
-    // sessionName starts as empty string so TextInput value is ''
     const { stdin } = render(<LobbySettings {...makeProps({ onChangeName, sessionName: '' })} />);
     await flush();
-    // Open room name editor
     await act(async () => {
-      stdin.write('\r');
+      stdin.write('\r'); // open room name editor
       await flush();
     });
-    // Submit with an empty value
     await act(async () => {
-      stdin.write('\r');
+      stdin.write('\r'); // submit empty value
       await flush();
     });
     expect(onChangeName).toHaveBeenCalledWith(undefined);
   });
+});
 
+// ---------------------------------------------------------------------------
+// editing-room-name state — navigation
+// ---------------------------------------------------------------------------
+
+describe('LobbySettings — editing-room-name navigation', () => {
   it('ESC from editing-room-name returns to main menu', async () => {
     const { stdin, lastFrame } = render(<LobbySettings {...makeProps()} />);
     await flush();
-    // Open room name editor
     await act(async () => {
-      stdin.write('\r');
+      stdin.write('\r'); // open room name editor
       await flush();
     });
-    // ESC back to main menu
     await act(async () => {
-      stdin.write('\x1b');
+      stdin.write('\x1b'); // ESC back to main menu
       await flush();
     });
-    // Main menu items should be visible again
     expect(lastFrame() ?? '').toContain('Scale');
     expect(lastFrame() ?? '').toContain('Access');
   });
