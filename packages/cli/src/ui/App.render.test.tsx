@@ -52,6 +52,7 @@ function makeSession(): {
     unvote: vi.fn(),
     reveal: vi.fn(),
     skip: vi.fn(),
+    discardCurrentRound: vi.fn(),
     newRound,
     revote: vi.fn().mockReturnValue('rv-id'),
     updateRoundDescriptor: vi.fn(),
