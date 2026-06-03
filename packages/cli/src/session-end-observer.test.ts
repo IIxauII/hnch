@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as Y from 'yjs';
+import { upsertParticipant } from '@hnch/shared';
 import { observeSessionEnd } from './session-end-observer.js';
 
 function flushSetImmediate(): Promise<void> {
@@ -102,5 +103,95 @@ describe('observeSessionEnd', () => {
     doc.getMap('meta').set('sessionEndedAt', 6000);
     await flushSetImmediate();
     expect(onEnded).not.toHaveBeenCalled();
+  });
+});
+
+// Exercises: session-end-observer:observeSessionEnd (isLocal + hostName fields)
+describe('observeSessionEnd — isLocal field', () => {
+  it('isLocal is true when createdBy matches localParticipantId', async () => {
+    const doc = new Y.Doc();
+    doc.getMap('meta').set('createdBy', 'p1');
+    doc.getMap('meta').set('sessionEndedAt', 1000);
+
+    const onEnded = vi.fn();
+    observeSessionEnd({ doc, localParticipantId: 'p1', onEnded });
+    await flushSetImmediate();
+
+    expect(onEnded.mock.calls[0][0].isLocal).toBe(true);
+  });
+
+  it('isLocal is false when createdBy does not match localParticipantId', async () => {
+    const doc = new Y.Doc();
+    doc.getMap('meta').set('createdBy', 'p2');
+    doc.getMap('meta').set('sessionEndedAt', 1000);
+
+    const onEnded = vi.fn();
+    observeSessionEnd({ doc, localParticipantId: 'p1', onEnded });
+    await flushSetImmediate();
+
+    expect(onEnded.mock.calls[0][0].isLocal).toBe(false);
+  });
+
+  it('isLocal is false when createdBy is absent', async () => {
+    const doc = new Y.Doc();
+    doc.getMap('meta').set('sessionEndedAt', 1000);
+
+    const onEnded = vi.fn();
+    observeSessionEnd({ doc, localParticipantId: 'p1', onEnded });
+    await flushSetImmediate();
+
+    expect(onEnded.mock.calls[0][0].isLocal).toBe(false);
+  });
+});
+
+// Exercises: session-end-observer:observeSessionEnd (isLocal + hostName fields)
+describe('observeSessionEnd — hostName field', () => {
+  it('hostName defaults to "host" when no host info in doc', async () => {
+    const doc = new Y.Doc();
+    doc.getMap('meta').set('sessionEndedAt', 1000);
+
+    const onEnded = vi.fn();
+    observeSessionEnd({ doc, localParticipantId: 'p1', onEnded });
+    await flushSetImmediate();
+
+    expect(onEnded.mock.calls[0][0].hostName).toBe('host');
+  });
+
+  it('hostName resolved from settings.hostParticipantId via participants map', async () => {
+    const doc = new Y.Doc();
+    upsertParticipant(doc, 'h1', { displayName: 'Alice', joinedAt: 0 });
+    doc.getMap('settings').set('hostParticipantId', 'h1');
+    doc.getMap('meta').set('sessionEndedAt', 1000);
+
+    const onEnded = vi.fn();
+    observeSessionEnd({ doc, localParticipantId: 'p1', onEnded });
+    await flushSetImmediate();
+
+    expect(onEnded.mock.calls[0][0].hostName).toBe('Alice');
+  });
+
+  it('hostName falls back to createdBy display name when no settings.hostParticipantId', async () => {
+    const doc = new Y.Doc();
+    upsertParticipant(doc, 'p2', { displayName: 'Bob', joinedAt: 0 });
+    doc.getMap('meta').set('createdBy', 'p2');
+    doc.getMap('meta').set('sessionEndedAt', 1000);
+
+    const onEnded = vi.fn();
+    observeSessionEnd({ doc, localParticipantId: 'p1', onEnded });
+    await flushSetImmediate();
+
+    expect(onEnded.mock.calls[0][0].hostName).toBe('Bob');
+  });
+
+  it('hostName stays "host" when hostId has no participant entry', async () => {
+    const doc = new Y.Doc();
+    doc.getMap('settings').set('hostParticipantId', 'nobody');
+    doc.getMap('meta').set('sessionEndedAt', 1000);
+
+    const onEnded = vi.fn();
+    observeSessionEnd({ doc, localParticipantId: 'p1', onEnded });
+    await flushSetImmediate();
+
+    expect(onEnded.mock.calls[0][0].hostName).toBe('host');
   });
 });
