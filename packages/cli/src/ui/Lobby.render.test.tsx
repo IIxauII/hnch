@@ -145,9 +145,11 @@ describe('Lobby render — issue #111 patch lines', () => {
       <Lobby {...baseProps([r1], r1)} canExport={true} onExportResults={onExportResults} />,
     );
     expect(lastFrame() ?? '').toContain('[x] Export');
-    await new Promise((r) => setImmediate(r));
     await act(async () => {
       stdin.write('x');
+      // Three rounds needed: arm64 CI processes Ink's stdin event chain more slowly.
+      await new Promise((r) => setImmediate(r));
+      await new Promise((r) => setImmediate(r));
       await new Promise((r) => setImmediate(r));
     });
     expect(onExportResults).toHaveBeenCalledOnce();
