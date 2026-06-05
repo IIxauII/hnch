@@ -9,7 +9,6 @@
  */
 
 import { render } from 'ink-testing-library';
-import { act } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { ABSTAIN_SENTINEL } from '@hnch/shared';
 import type { AgendaItem, DocProjection, Round, Scale } from '@hnch/shared';
@@ -214,10 +213,7 @@ describe('Lobby render — issue #111 patch lines', () => {
     );
     expect(lastFrame() ?? '').not.toContain('[x] Export');
     await new Promise((r) => setImmediate(r));
-    await act(async () => {
-      stdin.write('x');
-      await new Promise((r) => setImmediate(r));
-    });
+    stdin.write('x');
     expect(onExportResults).not.toHaveBeenCalled();
   });
 
