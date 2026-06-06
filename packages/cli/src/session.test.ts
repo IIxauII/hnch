@@ -12,6 +12,7 @@ import { createCodePool } from '../../relay/src/code-pool.js';
 import { createRoomStore } from '../../relay/src/room-store.js';
 import { createRelayServer } from '../../relay/src/server.js';
 import { createSession, joinSession } from './session.js';
+import { resolveRoom } from './relay-api.js';
 import { FIBONACCI_SCALE, TSHIRT_SCALE } from '@hnch/shared';
 
 let server: Server;
@@ -499,5 +500,370 @@ describe('session integration', () => {
 
     host.disconnect();
     joiner.disconnect();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Exercises: session:SessionHandle — methods not covered by the suite above
+// ---------------------------------------------------------------------------
+
+// Exercises: session:wireSession (unvote path)
+describe('session — unvote', () => {
+  it('clears a previously cast vote from the round', async () => {
+    const host = await createSession({
+      participantId: 'host-unvote',
+      displayName: 'Alice',
+      relayUrl,
+    });
+
+    await vi.waitFor(
+      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(1),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    const roundId = host.newRound();
+
+    await vi.waitFor(
+      () => expect(host.projection().rounds.find((r) => r.id === roundId)).toBeDefined(),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    host.vote('5');
+
+    await vi.waitFor(
+      () =>
+        expect(host.projection().rounds.find((r) => r.id === roundId)?.votes['host-unvote']).toBe(
+          '5',
+        ),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    host.unvote();
+
+    await vi.waitFor(
+      () =>
+        expect(
+          host.projection().rounds.find((r) => r.id === roundId)?.votes['host-unvote'],
+        ).toBeUndefined(),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    host.disconnect();
+  });
+});
+
+// Exercises: session:wireSession (discardCurrentRound path)
+describe('session — discardCurrentRound', () => {
+  it('writes discardedAt and excludes the round from currentRound()', async () => {
+    const host = await createSession({
+      participantId: 'host-discard',
+      displayName: 'Alice',
+      relayUrl,
+    });
+
+    await vi.waitFor(
+      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(1),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    const roundId = host.newRound('Discard me');
+
+    await vi.waitFor(() => expect(host.current()?.id).toBe(roundId), { timeout: SYNC_TIMEOUT });
+
+    host.discardCurrentRound();
+
+    await vi.waitFor(
+      () =>
+        expect(host.projection().rounds.find((r) => r.id === roundId)?.discardedAt).toBeTypeOf(
+          'number',
+        ),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    // currentRound() excludes discarded rounds
+    expect(host.current()).toBeNull();
+
+    host.disconnect();
+  });
+
+  it('is a no-op when there is no active round', async () => {
+    const host = await createSession({
+      participantId: 'host-discard-noop',
+      displayName: 'Alice',
+      relayUrl,
+    });
+
+    await vi.waitFor(
+      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(1),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    // No round started — should not throw
+    expect(() => host.discardCurrentRound()).not.toThrow();
+
+    host.disconnect();
+  });
+});
+
+// Exercises: session:wireSession (toggleRole path)
+describe('session — toggleRole', () => {
+  it('switches voter to viewer then back to voter', async () => {
+    const host = await createSession({
+      participantId: 'host-toggle',
+      displayName: 'Alice',
+      relayUrl,
+    });
+
+    await vi.waitFor(
+      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(1),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    // role is absent (undefined) before first toggle; participantRole() interprets absent as 'voter'
+    const initial = host.projection().participants.find((p) => p.id === 'host-toggle');
+    expect(initial?.role ?? 'voter').toBe('voter');
+
+    host.toggleRole();
+
+    // After first toggle the field is explicitly written as 'viewer'
+    await vi.waitFor(
+      () =>
+        expect(host.projection().participants.find((p) => p.id === 'host-toggle')?.role).toBe(
+          'viewer',
+        ),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    host.toggleRole();
+
+    // After second toggle the field is written as 'voter'
+    await vi.waitFor(
+      () =>
+        expect(host.projection().participants.find((p) => p.id === 'host-toggle')?.role).toBe(
+          'voter',
+        ),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    host.disconnect();
+  });
+});
+
+// Exercises: session:wireSession (updateDisplayName path)
+describe('session — updateDisplayName', () => {
+  it('changes the participant display name in the projection', async () => {
+    const host = await createSession({
+      participantId: 'host-dname',
+      displayName: 'Alice',
+      relayUrl,
+    });
+
+    await vi.waitFor(
+      () =>
+        expect(host.projection().participants.find((p) => p.id === 'host-dname')?.displayName).toBe(
+          'Alice',
+        ),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    host.updateDisplayName('Alicia');
+
+    await vi.waitFor(
+      () =>
+        expect(host.projection().participants.find((p) => p.id === 'host-dname')?.displayName).toBe(
+          'Alicia',
+        ),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    host.disconnect();
+  });
+});
+
+// Exercises: session:wireSession (updateRoundDescriptor path)
+describe('session — updateRoundDescriptor', () => {
+  it('updates title and description on a round', async () => {
+    const host = await createSession({
+      participantId: 'host-descriptor',
+      displayName: 'Alice',
+      relayUrl,
+    });
+
+    await vi.waitFor(
+      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(1),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    const roundId = host.newRound('Initial title');
+
+    await vi.waitFor(
+      () =>
+        expect(host.projection().rounds.find((r) => r.id === roundId)?.title).toBe('Initial title'),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    host.updateRoundDescriptor(roundId, { title: 'Revised title', description: 'Some context' });
+
+    await vi.waitFor(
+      () => {
+        const r = host.projection().rounds.find((x) => x.id === roundId);
+        expect(r?.title).toBe('Revised title');
+        expect(r?.description).toBe('Some context');
+      },
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    host.disconnect();
+  });
+});
+
+// Exercises: session:wireSession (handoffHost path)
+describe('session — handoffHost', () => {
+  it('transfers host authority to a second online participant', async () => {
+    const host = await createSession({
+      participantId: 'host-handoff',
+      displayName: 'Alice',
+      relayUrl,
+    });
+
+    await vi.waitFor(
+      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(1),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    const joiner = await joinSession({
+      participantId: 'joiner-handoff',
+      displayName: 'Bob',
+      relayUrl,
+      roomCode: host.roomCode,
+    });
+
+    // Wait until both are in the doc projection and in awareness
+    await vi.waitFor(
+      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(2),
+      { timeout: SYNC_TIMEOUT },
+    );
+    await vi.waitFor(() => expect(host.onlineIds().has('joiner-handoff')).toBe(true), {
+      timeout: SYNC_TIMEOUT,
+    });
+
+    expect(host.isHost()).toBe(true);
+    expect(joiner.isHost()).toBe(false);
+
+    host.handoffHost('joiner-handoff');
+
+    await vi.waitFor(
+      () => expect(host.projection().settings.hostParticipantId).toBe('joiner-handoff'),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    expect(host.isHost()).toBe(false);
+
+    host.disconnect();
+    joiner.disconnect();
+  });
+
+  it('throws when the caller is not the host', async () => {
+    const host = await createSession({
+      participantId: 'host-handoff-guard',
+      displayName: 'Alice',
+      relayUrl,
+    });
+
+    await vi.waitFor(
+      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(1),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    const joiner = await joinSession({
+      participantId: 'joiner-handoff-guard',
+      displayName: 'Bob',
+      relayUrl,
+      roomCode: host.roomCode,
+    });
+
+    await vi.waitFor(
+      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(2),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    // Joiner is not host
+    expect(() => joiner.handoffHost('host-handoff-guard')).toThrow(
+      'Only the current host can hand off',
+    );
+
+    host.disconnect();
+    joiner.disconnect();
+  });
+});
+
+// Exercises: session:wireSession (updateAccess path)
+describe('session — updateAccess', () => {
+  it('sets a password and the relay reports password access mode', async () => {
+    const host = await createSession({
+      participantId: 'host-access',
+      displayName: 'Alice',
+      relayUrl,
+    });
+
+    await vi.waitFor(
+      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(1),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    // Initially open
+    const before = await resolveRoom(relayUrl, host.roomCode);
+    expect(before.accessMode).toBe('open');
+
+    await host.updateAccess('password', 'secret123');
+
+    const after = await resolveRoom(relayUrl, host.roomCode);
+    expect(after.accessMode).toBe('password');
+
+    host.disconnect();
+  });
+
+  it('removes a password and the relay reports open access mode', async () => {
+    const host = await createSession({
+      participantId: 'host-access-remove',
+      displayName: 'Alice',
+      relayUrl,
+      password: 'initial-pass',
+    });
+
+    await vi.waitFor(
+      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(1),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    // Initially password-protected
+    const before = await resolveRoom(relayUrl, host.roomCode);
+    expect(before.accessMode).toBe('password');
+
+    await host.updateAccess('open');
+
+    const after = await resolveRoom(relayUrl, host.roomCode);
+    expect(after.accessMode).toBe('open');
+
+    host.disconnect();
+  });
+
+  it('throws when password mode is requested without providing a password', async () => {
+    const host = await createSession({
+      participantId: 'host-access-throw',
+      displayName: 'Alice',
+      relayUrl,
+    });
+
+    await vi.waitFor(
+      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(1),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    await expect(host.updateAccess('password')).rejects.toThrow(
+      'Password required for password mode',
+    );
+
+    host.disconnect();
   });
 });
