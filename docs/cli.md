@@ -143,6 +143,8 @@ packages/cli/
       App.tsx         — root Ink component (Lobby / Voting screens)
       Lobby.tsx
       Voting.tsx
+      lobby-helpers.ts        — pure export and round-display helpers used by Lobby.tsx
+      round-prompt-flow.ts    — two-step round-start prompt helpers (title/ticketId trim, agenda pre-fill)
       components/     — AccessPicker, CardPicker, ConfigSettings, CustomScaleEditor,
                         HostActionsMenu, LobbySettings, MenuList, ParticipantList,
                         PresetEditor, ScalePicker, SharePicker, StatusBar, TextInput, etc.
@@ -156,4 +158,4 @@ packages/cli/
 pnpm --filter @xauyxau/hnch test
 ```
 
-Unit tests are spread across `src/*.test.ts` files (`session`, `config`, `host-election`, `last-session`, `relay-api`, `room-code-input`, `session-end-observer`, `session-expired`, `share`, `sync`), `src/commands/agenda.test.ts`, and `src/ui/components/settings.test.ts`. A terminal-level e2e harness (node-pty + vitest, covering `create`/`join`/`resume` against a live relay) is planned but not yet implemented — see `docs/backlog.md` §5.2.
+Unit tests span `src/*.test.ts` files (`session`, `config`, `host-election`, `last-session`, `relay-api`, `room-code-input`, `session-end-observer`, `session-expired`, `share`, `sync`), `src/commands/agenda.test.ts`, and render tests throughout `src/ui/` (App, Lobby, Voting) and `src/ui/components/` (AccessPicker, CardPicker, CustomScaleEditor, HostActionsMenu, MenuList, ParticipantList, PresetEditor, ScalePicker, SharePicker, StatusBar, TextInput, and settings). A terminal-level e2e harness (node-pty + vitest, covering `create`/`join`/`resume` against a live relay) is planned but not yet implemented — see `docs/backlog.md` §5.2.

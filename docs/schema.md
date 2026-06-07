@@ -10,14 +10,16 @@ This document describes the shape of the Yjs doc that represents a single hnch s
 - [ADR-0006](../adr/0006-ephemeral-sessions.md) — sessions are per-meeting
 - [ADR-0008](../adr/0008-room-code-format.md) — room codes resolve to `roomUuid`
 - [ADR-0010](../adr/0010-host-election.md) — host election mechanics (`hostParticipantId` storage)
-- [ADR-0013](../adr/0013-round-model-flat-parentroundid.md) — flat rounds with `parentRoundId` lineage
+- [ADR-0013](../adr/0013-round-model-flat-parentroundid.md) — flat rounds with `parentRoundId` lineage (superseded by ADR-0046)
 - [ADR-0018](../adr/0018-remove-timer-add-unanimous-reveal.md) — removed countdown timer; added unanimous auto-reveal; `timerStartedAt` repurposed as stopwatch origin
 - [ADR-0019](../adr/0019-scale-customization.md) — scale customization: 5 builtin presets, sentinel removal, device-local overrides and custom scales
 - [ADR-0036](../adr/0036-participant-removal-lifecycle.md) — participant removal lifecycle (`leftAt` / `removedBy` soft-delete fields)
 - [ADR-0040](../adr/0040-skipped-rounds.md) — skip as a distinct round terminal state (`skippedAt`); `terminalState()` helper for CRDT tie-break
 - [ADR-0041](../adr/0041-per-round-abstain-sentinel.md) — per-round abstain sentinel (`hnch_abstain` in `round.votes`); auto-reveal amendment
-- [ADR-0042](../adr/0042-pre-session-agenda.md) — pre-session story agenda (`agenda: Y.Array<Y.Map>` + `round.agendaItemId` backref)
+- [ADR-0042](../adr/0042-pre-session-agenda.md) — pre-session story agenda (`agenda: Y.Array<Y.Map>` + `round.agendaItemId` backref) (superseded by ADR-0045)
 - [ADR-0043](../adr/0043-per-participant-avatar-color.md) — per-participant avatar color (`avatarColor?` on participant record)
+- [ADR-0045](../adr/0045-agenda-consume-at-round-terminal.md) — agenda items consume at round-terminal (reveal/skip), not round-start; supersedes ADR-0042
+- [ADR-0046](../adr/0046-round-discard-tombstone.md) — three terminal fields (`revealedAt`/`skippedAt`/`discardedAt`); round discard tombstone semantics; supersedes ADR-0013
 
 **Not covered here.** Teams are local-only and never enter the Yjs doc (see [ADR-0007](../adr/0007-teams-local-only.md)). Access control tokens (password hash, invite tokens) are managed by the relay and not stored in the doc ([ADR-0009](../adr/0009-access-control-relay-tokens.md)). Room codes are a relay-side lookup to `roomUuid` and do not appear in the doc ([ADR-0008](../adr/0008-room-code-format.md), [ADR-0012](../adr/0012-snapshot-policy.md)).
 
