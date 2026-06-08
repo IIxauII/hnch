@@ -42,7 +42,7 @@ vi.mock('@hnch/shared', () => ({
   pruneLastSessionEntries: (cache: unknown) => cache,
 }));
 
-import { rejectionCopy, shouldAutoSubmitDeepLink } from './join.page';
+import { qrScanErrorCopy, rejectionCopy, shouldAutoSubmitDeepLink } from './join.page';
 
 describe('shouldAutoSubmitDeepLink', () => {
   it('returns false when no code param', () => {
@@ -107,5 +107,30 @@ describe('rejectionCopy', () => {
     expect(rejectionCopy('invite-already-redeemed')).toBe(
       'That invite link has already been used.',
     );
+  });
+});
+
+// Exercises: join.page:qrScanErrorCopy
+describe('qrScanErrorCopy', () => {
+  it('maps permission-denied to expected copy', () => {
+    expect(qrScanErrorCopy('permission-denied')).toBe(
+      'Camera access blocked. Allow camera in browser settings to scan.',
+    );
+  });
+
+  it('maps no-camera to expected copy', () => {
+    expect(qrScanErrorCopy('no-camera')).toBe('No camera available on this device.');
+  });
+
+  it('maps camera-busy to expected copy', () => {
+    expect(qrScanErrorCopy('camera-busy')).toBe('Camera is in use by another app.');
+  });
+
+  it('maps unavailable to expected copy', () => {
+    expect(qrScanErrorCopy('unavailable')).toBe("Scanning isn't supported on this browser.");
+  });
+
+  it('maps unknown to expected copy', () => {
+    expect(qrScanErrorCopy('unknown')).toBe("Couldn't start the scanner.");
   });
 });

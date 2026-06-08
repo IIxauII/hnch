@@ -174,6 +174,17 @@ describe('relay server', () => {
       expect(a.code).not.toBe(b.code);
       expect(roomStore.roomCount).toBe(2);
     });
+
+    it('rejects a body exceeding 4 KB with 400', async () => {
+      // MAX_BODY_BYTES = 4 * 1024; send one byte over the limit.
+      const res = await fetch(`${baseUrl}/rooms`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: 'x'.repeat(4 * 1024 + 1),
+      });
+      expect(res.status).toBe(400);
+      expect(roomStore.roomCount).toBe(0);
+    });
   });
 
   describe('GET /rooms/:code', () => {
@@ -361,6 +372,25 @@ describe('relay server', () => {
       expect(res.status).toBe(404);
       const body = (await res.json()) as unknown;
       expect(body).toEqual({ error: 'not-found' });
+    });
+  });
+
+  // Exercises: relay/server:handleHttpRequest (OPTIONS branch + CORS headers)
+  describe('CORS / OPTIONS preflight', () => {
+    it('OPTIONS returns 204 with required CORS headers', async () => {
+      const res = await fetch(`${baseUrl}/health`, { method: 'OPTIONS' });
+      expect(res.status).toBe(204);
+      expect(res.headers.get('access-control-allow-origin')).toBe('*');
+      expect(res.headers.get('access-control-allow-methods')).toBe(
+        'GET, POST, PATCH, DELETE, OPTIONS',
+      );
+      expect(res.headers.get('access-control-allow-headers')).toBe('Content-Type');
+    });
+
+    it('regular GET /health also carries CORS headers', async () => {
+      const res = await fetch(`${baseUrl}/health`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get('access-control-allow-origin')).toBe('*');
     });
   });
 
