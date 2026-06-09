@@ -1,0 +1,1767 @@
+{
+  "/Users/felix/Documents/projects/hnch/packages/cli/package.json": {
+    "mtime": 1781033378.7739315,
+    "ast_hash": "646cf48ff0d181bd080f074f44ca444e",
+    "semantic_hash": "646cf48ff0d181bd080f074f44ca444e"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/release.config.mjs": {
+    "mtime": 1781033378.7739744,
+    "ast_hash": "1e41672af6478f4cf8b43ed7bae23594",
+    "semantic_hash": "1e41672af6478f4cf8b43ed7bae23594"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/commands/agenda.test.ts": {
+    "mtime": 1781033378.7741356,
+    "ast_hash": "f8f4e8bb49d7df8f4e2381b5aec75d08",
+    "semantic_hash": "f8f4e8bb49d7df8f4e2381b5aec75d08"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/commands/agenda.ts": {
+    "mtime": 1781033378.7742033,
+    "ast_hash": "ca8b0cb628d1edb3302a5066bca72fb1",
+    "semantic_hash": "ca8b0cb628d1edb3302a5066bca72fb1"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/config.test.ts": {
+    "mtime": 1781033378.774271,
+    "ast_hash": "0f5f6e21c40a27bf0d8eec0f84941d3a",
+    "semantic_hash": "0f5f6e21c40a27bf0d8eec0f84941d3a"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/config.ts": {
+    "mtime": 1781033378.774327,
+    "ast_hash": "47ee9a508a0a6b72376b10819bd7f0ab",
+    "semantic_hash": "47ee9a508a0a6b72376b10819bd7f0ab"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/host-election.test.ts": {
+    "mtime": 1781033378.7743843,
+    "ast_hash": "9004b735f28584d88531535fc51be93b",
+    "semantic_hash": "9004b735f28584d88531535fc51be93b"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/host-election.ts": {
+    "mtime": 1781033378.7744296,
+    "ast_hash": "47f01684e49ed80611cab26cecbacd36",
+    "semantic_hash": "47f01684e49ed80611cab26cecbacd36"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/index.ts": {
+    "mtime": 1781033378.7744997,
+    "ast_hash": "b4e3479bc219807879be735bb2ad47f1",
+    "semantic_hash": "b4e3479bc219807879be735bb2ad47f1"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/last-session.test.ts": {
+    "mtime": 1781033378.7745643,
+    "ast_hash": "b97ab6ed6a5fda2c8272d1b02dec93b8",
+    "semantic_hash": "b97ab6ed6a5fda2c8272d1b02dec93b8"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/last-session.ts": {
+    "mtime": 1781033378.7746143,
+    "ast_hash": "10510c3065a3ef1f9eadaf1a0c60e8f5",
+    "semantic_hash": "10510c3065a3ef1f9eadaf1a0c60e8f5"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/relay-api.test.ts": {
+    "mtime": 1781033378.7746656,
+    "ast_hash": "980521792d7598958fa054fb6f107581",
+    "semantic_hash": "980521792d7598958fa054fb6f107581"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/relay-api.ts": {
+    "mtime": 1781033378.7747157,
+    "ast_hash": "484364a69709cb4021b795f4d0177cf5",
+    "semantic_hash": "484364a69709cb4021b795f4d0177cf5"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/room-code-input.test.ts": {
+    "mtime": 1781033378.774756,
+    "ast_hash": "34ada519f89be3a62a845a44eef5a52a",
+    "semantic_hash": "34ada519f89be3a62a845a44eef5a52a"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/room-code-input.ts": {
+    "mtime": 1781033378.7747972,
+    "ast_hash": "ec5a0224b09e49e98e1740f161ed9fe5",
+    "semantic_hash": "ec5a0224b09e49e98e1740f161ed9fe5"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/session-end-observer.test.ts": {
+    "mtime": 1781033378.774846,
+    "ast_hash": "bedb07ed7c4dd78847192fa24afed618",
+    "semantic_hash": "bedb07ed7c4dd78847192fa24afed618"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/session-end-observer.ts": {
+    "mtime": 1781033378.7748945,
+    "ast_hash": "ea0eb6201bb90b2fb06a246e372b4c28",
+    "semantic_hash": "ea0eb6201bb90b2fb06a246e372b4c28"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/session-expired.test.ts": {
+    "mtime": 1781033378.7749422,
+    "ast_hash": "8d2bba4485e5127b5ec8e4a0c6411570",
+    "semantic_hash": "8d2bba4485e5127b5ec8e4a0c6411570"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/session-expired.ts": {
+    "mtime": 1781033378.7749891,
+    "ast_hash": "69f585d60f8942fa6f03c8f8cceffd8e",
+    "semantic_hash": "69f585d60f8942fa6f03c8f8cceffd8e"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/session.test.ts": {
+    "mtime": 1781033378.7751021,
+    "ast_hash": "029752f0dd2b1fecdd6a4ca48a45d688",
+    "semantic_hash": "029752f0dd2b1fecdd6a4ca48a45d688"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/session.ts": {
+    "mtime": 1781033378.7752042,
+    "ast_hash": "a135b38a90059d0c791ea05aaccb1c3a",
+    "semantic_hash": "a135b38a90059d0c791ea05aaccb1c3a"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/share.test.ts": {
+    "mtime": 1781033378.7752478,
+    "ast_hash": "6887ccc3485afeff2c9715c5e045d6a4",
+    "semantic_hash": "6887ccc3485afeff2c9715c5e045d6a4"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/share.ts": {
+    "mtime": 1781033378.775288,
+    "ast_hash": "9df6d90d9052c5abbe4526a5b61dcc1d",
+    "semantic_hash": "9df6d90d9052c5abbe4526a5b61dcc1d"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/sync.test.ts": {
+    "mtime": 1781033378.7753484,
+    "ast_hash": "4625fda0adaa8f15237ff58c87beecce",
+    "semantic_hash": "4625fda0adaa8f15237ff58c87beecce"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/sync.ts": {
+    "mtime": 1781033378.775397,
+    "ast_hash": "cb5bccb5dc50af0765888fd0eebb90c4",
+    "semantic_hash": "cb5bccb5dc50af0765888fd0eebb90c4"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/App.render.test.tsx": {
+    "mtime": 1781033378.7754765,
+    "ast_hash": "1a0e37b60e8ada6d52275965453b832f",
+    "semantic_hash": "1a0e37b60e8ada6d52275965453b832f"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/App.tsx": {
+    "mtime": 1781033378.7755337,
+    "ast_hash": "0aad17eee7da4e4e1fa74b7a69a31fa4",
+    "semantic_hash": "0aad17eee7da4e4e1fa74b7a69a31fa4"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/Lobby.render.test.tsx": {
+    "mtime": 1781033378.7756467,
+    "ast_hash": "9444446e387d6ee9ffdbd76536c40ddf",
+    "semantic_hash": "9444446e387d6ee9ffdbd76536c40ddf"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/Lobby.test.ts": {
+    "mtime": 1781033378.775754,
+    "ast_hash": "83054a0668848f487802383e44cd6c8d",
+    "semantic_hash": "83054a0668848f487802383e44cd6c8d"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/Lobby.tsx": {
+    "mtime": 1781033378.7758114,
+    "ast_hash": "2a4bc8bc00300659a4d46e72aee45ea2",
+    "semantic_hash": "2a4bc8bc00300659a4d46e72aee45ea2"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/Voting.render.test.tsx": {
+    "mtime": 1781033378.775866,
+    "ast_hash": "edaaea559bcea78027ad5e866b4c4795",
+    "semantic_hash": "edaaea559bcea78027ad5e866b4c4795"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/Voting.tsx": {
+    "mtime": 1781033378.7759154,
+    "ast_hash": "754d51617abd74527565a1a5dafa7f0b",
+    "semantic_hash": "754d51617abd74527565a1a5dafa7f0b"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/components/AccessPicker.render.test.tsx": {
+    "mtime": 1781033378.7760003,
+    "ast_hash": "b1199baca1dc4f3d4327a440e64546d2",
+    "semantic_hash": "b1199baca1dc4f3d4327a440e64546d2"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/components/AccessPicker.tsx": {
+    "mtime": 1781033378.776051,
+    "ast_hash": "e58324143a5a5ae3015abf8dae3acfb4",
+    "semantic_hash": "e58324143a5a5ae3015abf8dae3acfb4"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/components/CardPicker.render.test.tsx": {
+    "mtime": 1781033378.776111,
+    "ast_hash": "4fe39b1eb1ff14700bc65bf3de861432",
+    "semantic_hash": "4fe39b1eb1ff14700bc65bf3de861432"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/components/CardPicker.tsx": {
+    "mtime": 1781033378.7761574,
+    "ast_hash": "bc7852fe71739f31d67f6bb1403a69c0",
+    "semantic_hash": "bc7852fe71739f31d67f6bb1403a69c0"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/components/ConfigSettings.tsx": {
+    "mtime": 1781033378.7762876,
+    "ast_hash": "985ffc2f24abcaee999d492dfa50035f",
+    "semantic_hash": "985ffc2f24abcaee999d492dfa50035f"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/components/CustomScaleEditor.render.test.tsx": {
+    "mtime": 1781033378.7763536,
+    "ast_hash": "d969e8520608df4cd7627afff232d057",
+    "semantic_hash": "d969e8520608df4cd7627afff232d057"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/components/CustomScaleEditor.tsx": {
+    "mtime": 1781033378.7764134,
+    "ast_hash": "5180d23b8701a5bf1a8a401478fc2e86",
+    "semantic_hash": "5180d23b8701a5bf1a8a401478fc2e86"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/components/HostActionsMenu.render.test.tsx": {
+    "mtime": 1781033378.7764692,
+    "ast_hash": "84b4727e159680161d87d39553b4d618",
+    "semantic_hash": "84b4727e159680161d87d39553b4d618"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/components/HostActionsMenu.tsx": {
+    "mtime": 1781033378.776514,
+    "ast_hash": "8d09107db573287128c960a950028eab",
+    "semantic_hash": "8d09107db573287128c960a950028eab"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/components/LobbySettings.tsx": {
+    "mtime": 1781033378.7765608,
+    "ast_hash": "db98fc445d996a459a344996a1f5b64b",
+    "semantic_hash": "db98fc445d996a459a344996a1f5b64b"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/components/MenuList.render.test.tsx": {
+    "mtime": 1781033378.776615,
+    "ast_hash": "aa5c15b3d362dc7d26ae607c576631f1",
+    "semantic_hash": "aa5c15b3d362dc7d26ae607c576631f1"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/components/MenuList.tsx": {
+    "mtime": 1781033378.7766595,
+    "ast_hash": "82e7da8b657495d4b69cd7b1d820894b",
+    "semantic_hash": "82e7da8b657495d4b69cd7b1d820894b"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/components/ParticipantList.render.test.tsx": {
+    "mtime": 1781033378.7767105,
+    "ast_hash": "7f0d40245381fdd8f882e782c4bfc5e4",
+    "semantic_hash": "7f0d40245381fdd8f882e782c4bfc5e4"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/components/ParticipantList.tsx": {
+    "mtime": 1781033378.7767599,
+    "ast_hash": "f06b9298542027c1f90991c074e202f5",
+    "semantic_hash": "f06b9298542027c1f90991c074e202f5"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/components/PresetEditor.render.test.tsx": {
+    "mtime": 1781033378.7768204,
+    "ast_hash": "7fa1863f616c70175e5bc2768d8e5f68",
+    "semantic_hash": "7fa1863f616c70175e5bc2768d8e5f68"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/components/PresetEditor.tsx": {
+    "mtime": 1781033378.7768664,
+    "ast_hash": "bd6e6178809a6c69050e1ea5ecdceb45",
+    "semantic_hash": "bd6e6178809a6c69050e1ea5ecdceb45"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/components/ScalePicker.render.test.tsx": {
+    "mtime": 1781033378.7769163,
+    "ast_hash": "d96d6fa3aa9f0196e94a306acaa399fe",
+    "semantic_hash": "d96d6fa3aa9f0196e94a306acaa399fe"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/components/ScalePicker.tsx": {
+    "mtime": 1781033378.776984,
+    "ast_hash": "17b51eb8a56503012d2c4e083781c783",
+    "semantic_hash": "17b51eb8a56503012d2c4e083781c783"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/components/SharePicker.render.test.tsx": {
+    "mtime": 1781033378.777026,
+    "ast_hash": "b2615b6980ca631cfb896fd15111c54d",
+    "semantic_hash": "b2615b6980ca631cfb896fd15111c54d"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/components/SharePicker.tsx": {
+    "mtime": 1781033378.777074,
+    "ast_hash": "ce1fb268e52b0b0aa793f2ec23c261ce",
+    "semantic_hash": "ce1fb268e52b0b0aa793f2ec23c261ce"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/components/StatusBar.render.test.tsx": {
+    "mtime": 1781033378.7771127,
+    "ast_hash": "31eef2fc5561e3c53e2eaccaff699e47",
+    "semantic_hash": "31eef2fc5561e3c53e2eaccaff699e47"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/components/StatusBar.tsx": {
+    "mtime": 1781033378.7771518,
+    "ast_hash": "771dec55f99521239a464a46c6e51a78",
+    "semantic_hash": "771dec55f99521239a464a46c6e51a78"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/components/TextInput.render.test.tsx": {
+    "mtime": 1781033378.7772038,
+    "ast_hash": "a1183c4cda44fd7dee9ade27e46fcfc6",
+    "semantic_hash": "a1183c4cda44fd7dee9ade27e46fcfc6"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/components/TextInput.tsx": {
+    "mtime": 1781033378.7772465,
+    "ast_hash": "2492aa2623f7777ceb02d9b05fb23f34",
+    "semantic_hash": "2492aa2623f7777ceb02d9b05fb23f34"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/components/scale-label-render.test.tsx": {
+    "mtime": 1781033378.7773027,
+    "ast_hash": "69ee1db4caa40e31dafde764ac3c78a3",
+    "semantic_hash": "69ee1db4caa40e31dafde764ac3c78a3"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/components/settings.test.ts": {
+    "mtime": 1781033378.7773693,
+    "ast_hash": "d4184d958d924d314e9d6552b1be2acc",
+    "semantic_hash": "d4184d958d924d314e9d6552b1be2acc"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/export.test.ts": {
+    "mtime": 1781033378.7774386,
+    "ast_hash": "93a6398b60ec1c524b9d37d54481e585",
+    "semantic_hash": "93a6398b60ec1c524b9d37d54481e585"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/hooks/useTransientNotice.test.tsx": {
+    "mtime": 1781033378.7775395,
+    "ast_hash": "63efb58255f31ea6136b493309ef8d7d",
+    "semantic_hash": "63efb58255f31ea6136b493309ef8d7d"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/hooks/useTransientNotice.ts": {
+    "mtime": 1781033378.7775888,
+    "ast_hash": "5ee7b4cb442245d6c63c1ff652fee8bd",
+    "semantic_hash": "5ee7b4cb442245d6c63c1ff652fee8bd"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/lobby-helpers.ts": {
+    "mtime": 1781033378.7776494,
+    "ast_hash": "980c9f106cc3c16bedef59f577283841",
+    "semantic_hash": "980c9f106cc3c16bedef59f577283841"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/round-prompt-flow.test.ts": {
+    "mtime": 1781033378.7777092,
+    "ast_hash": "2aafb3573ba7672ef80e42c0d0d4b860",
+    "semantic_hash": "2aafb3573ba7672ef80e42c0d0d4b860"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/src/ui/round-prompt-flow.ts": {
+    "mtime": 1781033378.7779472,
+    "ast_hash": "c326e72f5b48d08ccf52bb65e2366ef4",
+    "semantic_hash": "c326e72f5b48d08ccf52bb65e2366ef4"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/tsconfig.json": {
+    "mtime": 1781033378.777996,
+    "ast_hash": "86c940cf3d26cd18209286e5bd5c2d9e",
+    "semantic_hash": "86c940cf3d26cd18209286e5bd5c2d9e"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/tsup.config.ts": {
+    "mtime": 1781033378.7780666,
+    "ast_hash": "147c113b496821b7561e5494820d6b45",
+    "semantic_hash": "147c113b496821b7561e5494820d6b45"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/vitest.config.ts": {
+    "mtime": 1781033378.7781103,
+    "ast_hash": "1eecff1d269d12159900ce361af67cb5",
+    "semantic_hash": "1eecff1d269d12159900ce361af67cb5"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/angular.json": {
+    "mtime": 1781033378.7784348,
+    "ast_hash": "025c2c653eb7ed838f70973efdf1cca0",
+    "semantic_hash": "025c2c653eb7ed838f70973efdf1cca0"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/capacitor.config.ts": {
+    "mtime": 1781033378.778476,
+    "ast_hash": "658582ed3325b8a1e7a0caa2c0ca830c",
+    "semantic_hash": "658582ed3325b8a1e7a0caa2c0ca830c"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/eslint.config.mjs": {
+    "mtime": 1781033378.7785234,
+    "ast_hash": "f2a422ade87a46b7b372f46a030e2449",
+    "semantic_hash": "f2a422ade87a46b7b372f46a030e2449"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/ionic.config.json": {
+    "mtime": 1781033378.7785654,
+    "ast_hash": "d65f7b8fca115cf7b9579ba58765b71b",
+    "semantic_hash": "d65f7b8fca115cf7b9579ba58765b71b"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/karma.conf.js": {
+    "mtime": 1781033378.778609,
+    "ast_hash": "446b355a8ffaa080732187668ba37c1a",
+    "semantic_hash": "446b355a8ffaa080732187668ba37c1a"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/package.json": {
+    "mtime": 1781033378.7786527,
+    "ast_hash": "dd262bbd97ef2d2821364c39621de95e",
+    "semantic_hash": "dd262bbd97ef2d2821364c39621de95e"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/release.config.mjs": {
+    "mtime": 1781033378.77869,
+    "ast_hash": "2f141d82bbcc483ba135b37164a3bd98",
+    "semantic_hash": "2f141d82bbcc483ba135b37164a3bd98"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/scripts/generate-version.mjs": {
+    "mtime": 1781033378.7787626,
+    "ast_hash": "257898b7d91218ff0026c51d60835e25",
+    "semantic_hash": "257898b7d91218ff0026c51d60835e25"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/scripts/run-ng-dev.mjs": {
+    "mtime": 1781033378.7788088,
+    "ast_hash": "3dc5e8b6fb103afa89e545a6242b7016",
+    "semantic_hash": "3dc5e8b6fb103afa89e545a6242b7016"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/agenda/agenda-item-form.sheet.ts": {
+    "mtime": 1781033378.7789564,
+    "ast_hash": "3712082425ae33746b31ba130b262f84",
+    "semantic_hash": "3712082425ae33746b31ba130b262f84"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/agenda/agenda-panel.component.ts": {
+    "mtime": 1781033378.7790802,
+    "ast_hash": "737b30d4c0a77b40f9eee4a0ccc9795e",
+    "semantic_hash": "737b30d4c0a77b40f9eee4a0ccc9795e"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/agenda/agenda.test.ts": {
+    "mtime": 1781033378.7791474,
+    "ast_hash": "02062cb0fc1830219af134ad2abaf83f",
+    "semantic_hash": "02062cb0fc1830219af134ad2abaf83f"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/app.component.test.ts": {
+    "mtime": 1781033378.7792273,
+    "ast_hash": "d1980a5082d1119c46cad168ce38bd66",
+    "semantic_hash": "d1980a5082d1119c46cad168ce38bd66"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/app.component.ts": {
+    "mtime": 1781033378.7792833,
+    "ast_hash": "753b0c6a1f9e6239f2974d1b490196a4",
+    "semantic_hash": "753b0c6a1f9e6239f2974d1b490196a4"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/app.routes.ts": {
+    "mtime": 1781033378.7793322,
+    "ast_hash": "ddd1495f774c84e53c59155136f36220",
+    "semantic_hash": "ddd1495f774c84e53c59155136f36220"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/accent.service.test.ts": {
+    "mtime": 1781033378.7794337,
+    "ast_hash": "a10c8e53ed89796b2c05d344ccd1c6a7",
+    "semantic_hash": "a10c8e53ed89796b2c05d344ccd1c6a7"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/accent.service.ts": {
+    "mtime": 1781033378.7794979,
+    "ast_hash": "1299ee2f2510f6a7600fe4deddaa0bcf",
+    "semantic_hash": "1299ee2f2510f6a7600fe4deddaa0bcf"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/accent.tokens.ts": {
+    "mtime": 1781033378.7795482,
+    "ast_hash": "1cb43a2d1cbbae8f0ee3776a84c21a8e",
+    "semantic_hash": "1cb43a2d1cbbae8f0ee3776a84c21a8e"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/app-preference.service.test.ts": {
+    "mtime": 1781033378.7796123,
+    "ast_hash": "f49384a0fd5c04769158cea49bfc99d4",
+    "semantic_hash": "f49384a0fd5c04769158cea49bfc99d4"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/app-preference.service.ts": {
+    "mtime": 1781033378.779668,
+    "ast_hash": "e76ed9ad1b00fd925b7af7ed19696a1e",
+    "semantic_hash": "e76ed9ad1b00fd925b7af7ed19696a1e"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/avatar-color.service.test.ts": {
+    "mtime": 1781033378.779726,
+    "ast_hash": "0291f7d7118c3f064e69a9964e546dc0",
+    "semantic_hash": "0291f7d7118c3f064e69a9964e546dc0"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/avatar-color.service.ts": {
+    "mtime": 1781033378.7797766,
+    "ast_hash": "589569a622d6d86c78cb0b856ae51ccb",
+    "semantic_hash": "589569a622d6d86c78cb0b856ae51ccb"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/breakpoints.ts": {
+    "mtime": 1781033378.7798305,
+    "ast_hash": "d7ae33d631736884d0a0fa6f4ebcf9ec",
+    "semantic_hash": "d7ae33d631736884d0a0fa6f4ebcf9ec"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/cache-record-guard.test.ts": {
+    "mtime": 1781033378.7798882,
+    "ast_hash": "8b37652ab7788c9586f12e46bba7dbfb",
+    "semantic_hash": "8b37652ab7788c9586f12e46bba7dbfb"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/cache-record-guard.ts": {
+    "mtime": 1781033378.7799356,
+    "ast_hash": "a3623d098fde8a43d3d0902860aaeb66",
+    "semantic_hash": "a3623d098fde8a43d3d0902860aaeb66"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/celebration-overlay-dom.test.ts": {
+    "mtime": 1781033378.7800148,
+    "ast_hash": "d6bfd9305a548b534a4ca286ba03a547",
+    "semantic_hash": "d6bfd9305a548b534a4ca286ba03a547"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/celebration.service.test.ts": {
+    "mtime": 1781033378.7801054,
+    "ast_hash": "0a06409704d6af83a63b179745d44899",
+    "semantic_hash": "0a06409704d6af83a63b179745d44899"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/celebration.service.ts": {
+    "mtime": 1781033378.780199,
+    "ast_hash": "0212c4ce4195f897b3be615c9adad9cb",
+    "semantic_hash": "0212c4ce4195f897b3be615c9adad9cb"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/confetti-engine.test.ts": {
+    "mtime": 1781033378.780324,
+    "ast_hash": "bb08847c27ba530c71daff8ef367ddcb",
+    "semantic_hash": "bb08847c27ba530c71daff8ef367ddcb"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/confetti-engine.ts": {
+    "mtime": 1781033378.7804155,
+    "ast_hash": "2a2b2993f9821d8defdcc1466163d3a3",
+    "semantic_hash": "2a2b2993f9821d8defdcc1466163d3a3"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/connection-chip.component.test.ts": {
+    "mtime": 1781033378.7804713,
+    "ast_hash": "4185ad778b337b50e92ab48f490c7aa7",
+    "semantic_hash": "4185ad778b337b50e92ab48f490c7aa7"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/connection-chip.component.ts": {
+    "mtime": 1781033378.7805343,
+    "ast_hash": "eb93705aed75fc032cd6e5650483e5aa",
+    "semantic_hash": "eb93705aed75fc032cd6e5650483e5aa"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/display-name.guard.test.ts": {
+    "mtime": 1781033378.7805958,
+    "ast_hash": "e0b74ea088a62dd2cb0b1a88f259e983",
+    "semantic_hash": "e0b74ea088a62dd2cb0b1a88f259e983"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/display-name.guard.ts": {
+    "mtime": 1781033378.780645,
+    "ast_hash": "ae46595d92482d3616d46779426b4252",
+    "semantic_hash": "ae46595d92482d3616d46779426b4252"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/display-name.service.test.ts": {
+    "mtime": 1781033378.7807078,
+    "ast_hash": "aa7912a2601d682746f61f121ff7a4ea",
+    "semantic_hash": "aa7912a2601d682746f61f121ff7a4ea"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/display-name.service.ts": {
+    "mtime": 1781033378.7807686,
+    "ast_hash": "b209b3f68be9af41ecd4f18c595ef8b1",
+    "semantic_hash": "b209b3f68be9af41ecd4f18c595ef8b1"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/doc/doc.service.test.ts": {
+    "mtime": 1781033378.7808793,
+    "ast_hash": "d89f9036ea9c98814c872463c6e3a1ea",
+    "semantic_hash": "d89f9036ea9c98814c872463c6e3a1ea"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/doc/doc.service.ts": {
+    "mtime": 1781033378.7809765,
+    "ast_hash": "9ddb827db43f669892317db686f88dec",
+    "semantic_hash": "9ddb827db43f669892317db686f88dec"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/doc/sync-provider.test.ts": {
+    "mtime": 1781033378.781072,
+    "ast_hash": "0a4f1edd6f6227ee8a89cbbd6083b96e",
+    "semantic_hash": "0a4f1edd6f6227ee8a89cbbd6083b96e"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/doc/sync-provider.ts": {
+    "mtime": 1781033378.7811973,
+    "ast_hash": "569630c69ac483af0ad54e4b9e08fa2f",
+    "semantic_hash": "569630c69ac483af0ad54e4b9e08fa2f"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/export.service.test.ts": {
+    "mtime": 1781033378.7812517,
+    "ast_hash": "ed43fb83386bd8ca3e7dcb839111ffef",
+    "semantic_hash": "ed43fb83386bd8ca3e7dcb839111ffef"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/export.service.ts": {
+    "mtime": 1781033378.7813056,
+    "ast_hash": "6f8936a772bbe531d369df4c9bbe4eaa",
+    "semantic_hash": "6f8936a772bbe531d369df4c9bbe4eaa"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/haptic.service.test.ts": {
+    "mtime": 1781033378.7813554,
+    "ast_hash": "1fca9a667441b1c40cba2328b70aa46c",
+    "semantic_hash": "1fca9a667441b1c40cba2328b70aa46c"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/haptic.service.ts": {
+    "mtime": 1781033378.7814076,
+    "ast_hash": "812d1e793a6d987655fb7a7fe2d09a66",
+    "semantic_hash": "812d1e793a6d987655fb7a7fe2d09a66"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/host-change-message.test.ts": {
+    "mtime": 1781033378.7814603,
+    "ast_hash": "f772671ee468be05bc489b222007431b",
+    "semantic_hash": "f772671ee468be05bc489b222007431b"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/host-change-message.ts": {
+    "mtime": 1781033378.78151,
+    "ast_hash": "0b8e694a98f45271c15e74da1363d9fc",
+    "semantic_hash": "0b8e694a98f45271c15e74da1363d9fc"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/host-election.service.test.ts": {
+    "mtime": 1781033378.7815711,
+    "ast_hash": "e6166c37089ea1e422915c8720f63db5",
+    "semantic_hash": "e6166c37089ea1e422915c8720f63db5"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/host-election.service.ts": {
+    "mtime": 1781033378.7816374,
+    "ast_hash": "a4ac8038c5e82b88c76eac9a8d124839",
+    "semantic_hash": "a4ac8038c5e82b88c76eac9a8d124839"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/last-session.service.test.ts": {
+    "mtime": 1781033378.7817628,
+    "ast_hash": "7019ec47c3568d7c0c1a6a3ee1b57cac",
+    "semantic_hash": "7019ec47c3568d7c0c1a6a3ee1b57cac"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/last-session.service.ts": {
+    "mtime": 1781033378.7818391,
+    "ast_hash": "0e41443341b82bd130ce3a7b76a41824",
+    "semantic_hash": "0e41443341b82bd130ce3a7b76a41824"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/participant-id.service.test.ts": {
+    "mtime": 1781033378.7819126,
+    "ast_hash": "e02887e4479f9dfed072e2e9270a366c",
+    "semantic_hash": "e02887e4479f9dfed072e2e9270a366c"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/participant-id.service.ts": {
+    "mtime": 1781033378.7819793,
+    "ast_hash": "feb1fddc84e60fa3890bcd32be6d9980",
+    "semantic_hash": "feb1fddc84e60fa3890bcd32be6d9980"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/participant-removal.service.test.ts": {
+    "mtime": 1781033378.7820575,
+    "ast_hash": "bea60fbdaf50ece4fb065a71e8d4a460",
+    "semantic_hash": "bea60fbdaf50ece4fb065a71e8d4a460"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/participant-removal.service.ts": {
+    "mtime": 1781033378.78212,
+    "ast_hash": "28dea3b4ce44f40cc7031230b4b7f155",
+    "semantic_hash": "28dea3b4ce44f40cc7031230b4b7f155"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/qr-scanner.polyfill-rejection.test.ts": {
+    "mtime": 1781033378.7822087,
+    "ast_hash": "b35ad2be8e261f2850b6500f831cb665",
+    "semantic_hash": "b35ad2be8e261f2850b6500f831cb665"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/qr-scanner.service.test.ts": {
+    "mtime": 1781033378.7823775,
+    "ast_hash": "775b6d823467af804f1642e31671ea93",
+    "semantic_hash": "775b6d823467af804f1642e31671ea93"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/qr-scanner.service.ts": {
+    "mtime": 1781033378.7824483,
+    "ast_hash": "3d2be3cfa526bf96dccedadc52998438",
+    "semantic_hash": "3d2be3cfa526bf96dccedadc52998438"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/relay/relay-api.test.ts": {
+    "mtime": 1781033378.7825778,
+    "ast_hash": "8da1c67c6b192566944b2f35893d880d",
+    "semantic_hash": "8da1c67c6b192566944b2f35893d880d"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/relay/relay-api.ts": {
+    "mtime": 1781033378.7827241,
+    "ast_hash": "2555e3d925a7795cf6edb7661a7a07d1",
+    "semantic_hash": "2555e3d925a7795cf6edb7661a7a07d1"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/room-join.service.test.ts": {
+    "mtime": 1781033378.7828696,
+    "ast_hash": "9aeaec383f480b1053601984c3534a35",
+    "semantic_hash": "9aeaec383f480b1053601984c3534a35"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/room-join.service.ts": {
+    "mtime": 1781033378.782966,
+    "ast_hash": "5ac96bedf2fbd782234f333aa67ed0d8",
+    "semantic_hash": "5ac96bedf2fbd782234f333aa67ed0d8"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/scale-preference.service.test.ts": {
+    "mtime": 1781033378.783097,
+    "ast_hash": "37c1d6bdd0e152163b2ac575a6656b0a",
+    "semantic_hash": "37c1d6bdd0e152163b2ac575a6656b0a"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/scale-preference.service.ts": {
+    "mtime": 1781033378.7831695,
+    "ast_hash": "d1ba2e0dd7a9bb36e269db633b5e6f7c",
+    "semantic_hash": "d1ba2e0dd7a9bb36e269db633b5e6f7c"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/session-end.service.test.ts": {
+    "mtime": 1781033378.7832284,
+    "ast_hash": "201d4f96b63cc189e86e6ec1c50ee58a",
+    "semantic_hash": "201d4f96b63cc189e86e6ec1c50ee58a"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/session-end.service.ts": {
+    "mtime": 1781033378.7832916,
+    "ast_hash": "70c7665b1f26cc81965977bdbfefff2d",
+    "semantic_hash": "70c7665b1f26cc81965977bdbfefff2d"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/session-resume.guard.test.ts": {
+    "mtime": 1781033378.7833743,
+    "ast_hash": "3da005fdb50e8ffed748c081a1fac458",
+    "semantic_hash": "3da005fdb50e8ffed748c081a1fac458"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/session-resume.guard.ts": {
+    "mtime": 1781033378.7834682,
+    "ast_hash": "c92a7e95eaccf27c52a53fa71743aea1",
+    "semantic_hash": "c92a7e95eaccf27c52a53fa71743aea1"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/surface.service.test.ts": {
+    "mtime": 1781033378.7835293,
+    "ast_hash": "f6dcd30298664ad6abc5979c51d0a97d",
+    "semantic_hash": "f6dcd30298664ad6abc5979c51d0a97d"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/surface.service.ts": {
+    "mtime": 1781033378.783614,
+    "ast_hash": "9c8b2147d04a47bb103fb913aa9a6444",
+    "semantic_hash": "9c8b2147d04a47bb103fb913aa9a6444"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/theme.service.test.ts": {
+    "mtime": 1781033378.783684,
+    "ast_hash": "b97559e2235c72da87a81b4ae86d99a3",
+    "semantic_hash": "b97559e2235c72da87a81b4ae86d99a3"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/theme.service.ts": {
+    "mtime": 1781033378.7837336,
+    "ast_hash": "c4f19a5b7a5cddff659c4b0f659e6f76",
+    "semantic_hash": "c4f19a5b7a5cddff659c4b0f659e6f76"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/timer-tick.service.test.ts": {
+    "mtime": 1781033378.7837791,
+    "ast_hash": "95619a02b3bf164fb8eb401748e043e3",
+    "semantic_hash": "95619a02b3bf164fb8eb401748e043e3"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/timer-tick.service.ts": {
+    "mtime": 1781033378.783824,
+    "ast_hash": "d3feb6607a8367273278d83c9f76e022",
+    "semantic_hash": "d3feb6607a8367273278d83c9f76e022"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/web-qr-scanner.overlay.test.ts": {
+    "mtime": 1781033378.7839353,
+    "ast_hash": "79c187fe9c55212a7f4e90eaa3b9aa0b",
+    "semantic_hash": "79c187fe9c55212a7f4e90eaa3b9aa0b"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/core/web-qr-scanner.overlay.ts": {
+    "mtime": 1781033378.7840006,
+    "ast_hash": "7f775652301d55312a9baa0f5189dee3",
+    "semantic_hash": "7f775652301d55312a9baa0f5189dee3"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/estimating/avatar-vote-row.component.test.ts": {
+    "mtime": 1781033378.7840946,
+    "ast_hash": "3a78d77f955f1cacead454cf7c96b961",
+    "semantic_hash": "3a78d77f955f1cacead454cf7c96b961"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/estimating/avatar-vote-row.component.ts": {
+    "mtime": 1781033378.7841685,
+    "ast_hash": "bb81117b30f800c256000d48797b2238",
+    "semantic_hash": "bb81117b30f800c256000d48797b2238"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/estimating/estimating.keyboard.test.ts": {
+    "mtime": 1781033378.7842572,
+    "ast_hash": "02226b18917e395f7ca9840ae5cbb475",
+    "semantic_hash": "02226b18917e395f7ca9840ae5cbb475"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/estimating/estimating.keyboard.ts": {
+    "mtime": 1781033378.7843854,
+    "ast_hash": "8c073d847c5290a79e2d29a66a46f5ab",
+    "semantic_hash": "8c073d847c5290a79e2d29a66a46f5ab"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/estimating/estimating.page.keyboard.test.ts": {
+    "mtime": 1781033378.7848346,
+    "ast_hash": "4dae7f8dd41f50e32918013ecc0185a6",
+    "semantic_hash": "4dae7f8dd41f50e32918013ecc0185a6"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/estimating/estimating.page.test.ts": {
+    "mtime": 1781033378.7848938,
+    "ast_hash": "eeaec81aae35ccb351a849e892c770b3",
+    "semantic_hash": "eeaec81aae35ccb351a849e892c770b3"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/estimating/estimating.page.ts": {
+    "mtime": 1781033378.7849677,
+    "ast_hash": "74bcb4e059ab19eab404ea5c8ab357eb",
+    "semantic_hash": "74bcb4e059ab19eab404ea5c8ab357eb"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/home/home.helpers.ts": {
+    "mtime": 1781033378.7850597,
+    "ast_hash": "9ac4393b660841b27980c75ce5d28001",
+    "semantic_hash": "9ac4393b660841b27980c75ce5d28001"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/home/home.page.test.ts": {
+    "mtime": 1781033378.7851043,
+    "ast_hash": "5d8a2fdcbfb3410f77b701adf84d1e29",
+    "semantic_hash": "5d8a2fdcbfb3410f77b701adf84d1e29"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/home/home.page.ts": {
+    "mtime": 1781033378.7851963,
+    "ast_hash": "f84bf10a261a21e261db8e196e5a541f",
+    "semantic_hash": "f84bf10a261a21e261db8e196e5a541f"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/home/jump-back-in-banner.component.test.ts": {
+    "mtime": 1781033378.7852476,
+    "ast_hash": "71ac63f0072aa805f9f3dd4995f4f4c3",
+    "semantic_hash": "71ac63f0072aa805f9f3dd4995f4f4c3"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/home/jump-back-in-banner.component.ts": {
+    "mtime": 1781033378.7853339,
+    "ast_hash": "438912891f4b404041da77ade75663e9",
+    "semantic_hash": "438912891f4b404041da77ade75663e9"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/home/jump-back-in-banner.helpers.ts": {
+    "mtime": 1781033378.7853806,
+    "ast_hash": "6e9ea15916fe97932c5163347d620591",
+    "semantic_hash": "6e9ea15916fe97932c5163347d620591"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/home/recent-rooms-list.component.test.ts": {
+    "mtime": 1781033378.7855897,
+    "ast_hash": "fdb66d198c185ebe97f82ce26d27b440",
+    "semantic_hash": "fdb66d198c185ebe97f82ce26d27b440"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/home/recent-rooms-list.component.ts": {
+    "mtime": 1781033378.7856603,
+    "ast_hash": "cb914b0c4222d5b74ff505bd97ef3eb6",
+    "semantic_hash": "cb914b0c4222d5b74ff505bd97ef3eb6"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/join/join.page.test.ts": {
+    "mtime": 1781033378.785767,
+    "ast_hash": "555da63e37abbd7608f397582c9477ad",
+    "semantic_hash": "555da63e37abbd7608f397582c9477ad"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/join/join.page.ts": {
+    "mtime": 1781033378.7858481,
+    "ast_hash": "0cb4c967282f6d1afcaf2b4dce62b95a",
+    "semantic_hash": "0cb4c967282f6d1afcaf2b4dce62b95a"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/lobby/lobby-helpers.ts": {
+    "mtime": 1781033378.7859495,
+    "ast_hash": "6ddcbd2614aaabc63a63d6d8b72d9405",
+    "semantic_hash": "6ddcbd2614aaabc63a63d6d8b72d9405"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/lobby/lobby-summary.test.ts": {
+    "mtime": 1781033378.786005,
+    "ast_hash": "746ca862c5d764031128d74e3c5fb182",
+    "semantic_hash": "746ca862c5d764031128d74e3c5fb182"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/lobby/lobby-summary.ts": {
+    "mtime": 1781033378.7860556,
+    "ast_hash": "127ed36b8791aa7ef8c1379574581404",
+    "semantic_hash": "127ed36b8791aa7ef8c1379574581404"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/lobby/lobby.page.test.ts": {
+    "mtime": 1781033378.7861798,
+    "ast_hash": "d6d4908dddcc674643fa77a7068a42ce",
+    "semantic_hash": "d6d4908dddcc674643fa77a7068a42ce"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/lobby/lobby.page.ts": {
+    "mtime": 1781033378.786332,
+    "ast_hash": "c33dd4d363a3656b29a8f0c3ab478a33",
+    "semantic_hash": "c33dd4d363a3656b29a8f0c3ab478a33"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/lobby/qr-display.sheet.test.ts": {
+    "mtime": 1781033378.786399,
+    "ast_hash": "aad8373972c015d5cf760407e684372e",
+    "semantic_hash": "aad8373972c015d5cf760407e684372e"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/lobby/qr-display.sheet.ts": {
+    "mtime": 1781033378.7864754,
+    "ast_hash": "b4728c4699f6a3a1e6584562a5b20985",
+    "semantic_hash": "b4728c4699f6a3a1e6584562a5b20985"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/lobby/round-edit.helpers.ts": {
+    "mtime": 1781033378.7865262,
+    "ast_hash": "9edbecda4758834e56ca77a16191d4fd",
+    "semantic_hash": "9edbecda4758834e56ca77a16191d4fd"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/lobby/round-edit.sheet.test.ts": {
+    "mtime": 1781033378.7865815,
+    "ast_hash": "1ba9678abf0adc4f0844c67225fe83b1",
+    "semantic_hash": "1ba9678abf0adc4f0844c67225fe83b1"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/lobby/round-edit.sheet.ts": {
+    "mtime": 1781033378.786648,
+    "ast_hash": "810552b182ba7fc4d365277270b4238d",
+    "semantic_hash": "810552b182ba7fc4d365277270b4238d"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/onboarding/onboarding.helpers.ts": {
+    "mtime": 1781033378.7867265,
+    "ast_hash": "24fa5f1556d2546d716b56aa240b214d",
+    "semantic_hash": "24fa5f1556d2546d716b56aa240b214d"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/onboarding/onboarding.page.test.ts": {
+    "mtime": 1781033378.7867835,
+    "ast_hash": "bfef49fc69b12bea9e3f2d6e21820897",
+    "semantic_hash": "bfef49fc69b12bea9e3f2d6e21820897"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/onboarding/onboarding.page.ts": {
+    "mtime": 1781033378.7868483,
+    "ast_hash": "9f89ecc257d41d8973775d9b2e9b094e",
+    "semantic_hash": "9f89ecc257d41d8973775d9b2e9b094e"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/round-start/round-start.helpers.ts": {
+    "mtime": 1781033378.7869785,
+    "ast_hash": "cadd60e53e29cd915300d541c4e9d905",
+    "semantic_hash": "cadd60e53e29cd915300d541c4e9d905"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/round-start/round-start.sheet.test.ts": {
+    "mtime": 1781033378.7882133,
+    "ast_hash": "b38355e0fcca9b5c500ed44a6caefbab",
+    "semantic_hash": "b38355e0fcca9b5c500ed44a6caefbab"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/round-start/round-start.sheet.ts": {
+    "mtime": 1781033378.7883034,
+    "ast_hash": "8d33f55c012aa849b07c03c3e3dad8c1",
+    "semantic_hash": "8d33f55c012aa849b07c03c3e3dad8c1"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/services/toast.service.test.ts": {
+    "mtime": 1781033378.7884047,
+    "ast_hash": "a25361a42dbc46f6cf0ce90879bdb530",
+    "semantic_hash": "a25361a42dbc46f6cf0ce90879bdb530"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/services/toast.service.ts": {
+    "mtime": 1781033378.7884662,
+    "ast_hash": "2e928868b6d227ddb039d43a82de2d23",
+    "semantic_hash": "2e928868b6d227ddb039d43a82de2d23"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/session-settings/access-picker.sheet.test.ts": {
+    "mtime": 1781033378.788764,
+    "ast_hash": "3baf290c90cf8f9e4443871715b53c40",
+    "semantic_hash": "3baf290c90cf8f9e4443871715b53c40"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/session-settings/access-picker.sheet.ts": {
+    "mtime": 1781033378.7888358,
+    "ast_hash": "52ff557b7cea757a44755382451b5d0c",
+    "semantic_hash": "52ff557b7cea757a44755382451b5d0c"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/session-settings/custom-scale-editor.sheet.test.ts": {
+    "mtime": 1781033378.7889128,
+    "ast_hash": "44232bdb7984c16e3d7178c5dec9ad71",
+    "semantic_hash": "44232bdb7984c16e3d7178c5dec9ad71"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/session-settings/custom-scale-editor.sheet.ts": {
+    "mtime": 1781033378.7889853,
+    "ast_hash": "04ff9e9d273e3bd308283ac3fed307ae",
+    "semantic_hash": "04ff9e9d273e3bd308283ac3fed307ae"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/session-settings/scale-editor.helpers.ts": {
+    "mtime": 1781033378.7890282,
+    "ast_hash": "c86b0c26395d7536fc79d24142ca54c3",
+    "semantic_hash": "c86b0c26395d7536fc79d24142ca54c3"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/session-settings/scale-editor.sheet.test.ts": {
+    "mtime": 1781033378.7890856,
+    "ast_hash": "29c6dbd9897b3bdeb32de5e6c81f1168",
+    "semantic_hash": "29c6dbd9897b3bdeb32de5e6c81f1168"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/session-settings/scale-editor.sheet.ts": {
+    "mtime": 1781033378.7891402,
+    "ast_hash": "e3cbc2f907de74ca8998d32c6167952e",
+    "semantic_hash": "e3cbc2f907de74ca8998d32c6167952e"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/session-settings/scale-picker.helpers.ts": {
+    "mtime": 1781033378.7891898,
+    "ast_hash": "fc84e122308e01fb4daca330647c8c0f",
+    "semantic_hash": "fc84e122308e01fb4daca330647c8c0f"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/session-settings/scale-picker.sheet.test.ts": {
+    "mtime": 1781033378.7892432,
+    "ast_hash": "8e38a4dacbce40e2b0d03b89f173a06d",
+    "semantic_hash": "8e38a4dacbce40e2b0d03b89f173a06d"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/session-settings/scale-picker.sheet.ts": {
+    "mtime": 1781033378.7893732,
+    "ast_hash": "4ef88101b0a2c8150a523337f5dfe602",
+    "semantic_hash": "4ef88101b0a2c8150a523337f5dfe602"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/session-settings/session-settings.sheet.test.ts": {
+    "mtime": 1781033378.7894304,
+    "ast_hash": "d1ca5373c1a283f6dffe69646e32a47b",
+    "semantic_hash": "d1ca5373c1a283f6dffe69646e32a47b"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/session-settings/session-settings.sheet.ts": {
+    "mtime": 1781033378.7895076,
+    "ast_hash": "0362d3adf50079c9cc56db06236ab39a",
+    "semantic_hash": "0362d3adf50079c9cc56db06236ab39a"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/settings/relay-url-editor.helpers.ts": {
+    "mtime": 1781033378.7895956,
+    "ast_hash": "5959e118cddce0492ee2fdd524b7e087",
+    "semantic_hash": "5959e118cddce0492ee2fdd524b7e087"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/settings/relay-url-editor.sheet.test.ts": {
+    "mtime": 1781033378.7896426,
+    "ast_hash": "d3db0f1bee54c7533fbc3a4e687065fa",
+    "semantic_hash": "d3db0f1bee54c7533fbc3a4e687065fa"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/settings/relay-url-editor.sheet.ts": {
+    "mtime": 1781033378.7896903,
+    "ast_hash": "79df4bab065c581f83815f3fc743e6a9",
+    "semantic_hash": "79df4bab065c581f83815f3fc743e6a9"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/settings/settings.helpers.ts": {
+    "mtime": 1781033378.7897418,
+    "ast_hash": "c3ddfe7ad9faae3a8f8ac511a271c09c",
+    "semantic_hash": "c3ddfe7ad9faae3a8f8ac511a271c09c"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/settings/settings.page.test.ts": {
+    "mtime": 1781033378.7897944,
+    "ast_hash": "a26d9249745601a01c73461c4e43eae5",
+    "semantic_hash": "a26d9249745601a01c73461c4e43eae5"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/settings/settings.page.ts": {
+    "mtime": 1781033378.7898886,
+    "ast_hash": "101a1a66372c65f06ff45b03fc065f8e",
+    "semantic_hash": "101a1a66372c65f06ff45b03fc065f8e"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/shared/brand-mark.component.ts": {
+    "mtime": 1781033378.789968,
+    "ast_hash": "bedda8c3320ffb18afbed798e5846e65",
+    "semantic_hash": "bedda8c3320ffb18afbed798e5846e65"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/shared/connection-status-banner.component.test.ts": {
+    "mtime": 1781033378.7900178,
+    "ast_hash": "d6e3a57d46586e69647f4a3939dd7458",
+    "semantic_hash": "d6e3a57d46586e69647f4a3939dd7458"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/shared/connection-status-banner.component.ts": {
+    "mtime": 1781033378.790063,
+    "ast_hash": "0c65d57ab60d2fd62abfe68364c763c1",
+    "semantic_hash": "0c65d57ab60d2fd62abfe68364c763c1"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/shared/menu-popover/menu-popover.component.test.ts": {
+    "mtime": 1781033378.790154,
+    "ast_hash": "77fbd4db3eb8f9c7bee480a9fce3abf8",
+    "semantic_hash": "77fbd4db3eb8f9c7bee480a9fce3abf8"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/shared/menu-popover/menu-popover.component.ts": {
+    "mtime": 1781033378.790213,
+    "ast_hash": "e86e9d5f307d127f5c3f8b085c9df9d9",
+    "semantic_hash": "e86e9d5f307d127f5c3f8b085c9df9d9"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/shared/round-history.component.test.ts": {
+    "mtime": 1781033378.7903636,
+    "ast_hash": "360c3c355853dee7202f93d34676e7e2",
+    "semantic_hash": "360c3c355853dee7202f93d34676e7e2"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/shared/round-history.component.ts": {
+    "mtime": 1781033378.7904253,
+    "ast_hash": "d89ba6a019efb1a09f5e57f79fdb34a5",
+    "semantic_hash": "d89ba6a019efb1a09f5e57f79fdb34a5"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/shared/segmented-code-input.component.test.ts": {
+    "mtime": 1781033378.7905126,
+    "ast_hash": "d55c1a6a9e97f037cc478daae0946ba8",
+    "semantic_hash": "d55c1a6a9e97f037cc478daae0946ba8"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/shared/segmented-code-input.component.ts": {
+    "mtime": 1781033378.790576,
+    "ast_hash": "78e1b2a0f043bffeab2824cba149bfde",
+    "semantic_hash": "78e1b2a0f043bffeab2824cba149bfde"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/shared/vote-results.component.test.ts": {
+    "mtime": 1781033378.790646,
+    "ast_hash": "db3a21c439261cec683886fdfca4506a",
+    "semantic_hash": "db3a21c439261cec683886fdfca4506a"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/shared/vote-results.component.ts": {
+    "mtime": 1781033378.7907672,
+    "ast_hash": "ef6b65bada8406625257ccb9f9018a3f",
+    "semantic_hash": "ef6b65bada8406625257ccb9f9018a3f"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/utils/present-sheet.test.ts": {
+    "mtime": 1781033378.790834,
+    "ast_hash": "ceb5e0c2779b7f7027859b644397cac5",
+    "semantic_hash": "ceb5e0c2779b7f7027859b644397cac5"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/app/utils/present-sheet.ts": {
+    "mtime": 1781033378.7908766,
+    "ast_hash": "84413bca90f281b68de61c69db74e3ec",
+    "semantic_hash": "84413bca90f281b68de61c69db74e3ec"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/environments/environment.prod.ts": {
+    "mtime": 1781033378.7910924,
+    "ast_hash": "255f894a0a77f541019d9ed513e7d77e",
+    "semantic_hash": "255f894a0a77f541019d9ed513e7d77e"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/environments/environment.ts": {
+    "mtime": 1781033378.7911422,
+    "ast_hash": "1383928c59f959f313ac8b9265e532eb",
+    "semantic_hash": "1383928c59f959f313ac8b9265e532eb"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/main.ts": {
+    "mtime": 1781033378.7912858,
+    "ast_hash": "206855ac44f2d2ee2313f7e7547d0dfb",
+    "semantic_hash": "206855ac44f2d2ee2313f7e7547d0dfb"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/polyfills.ts": {
+    "mtime": 1781033378.7913373,
+    "ast_hash": "ca6dd13c9c59b7b6c2a23f015b3ad7ba",
+    "semantic_hash": "ca6dd13c9c59b7b6c2a23f015b3ad7ba"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/test-setup.ts": {
+    "mtime": 1781033378.7913873,
+    "ast_hash": "91545f2d38e58fd71c0a360526a2eec3",
+    "semantic_hash": "91545f2d38e58fd71c0a360526a2eec3"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/test.ts": {
+    "mtime": 1781033378.7914386,
+    "ast_hash": "948297df857f49fe0f7ad14a79cfd548",
+    "semantic_hash": "948297df857f49fe0f7ad14a79cfd548"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/vitest.global-setup.ts": {
+    "mtime": 1781033378.7917857,
+    "ast_hash": "d602f341227049e6c0c5e4d11c73657b",
+    "semantic_hash": "d602f341227049e6c0c5e4d11c73657b"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/zone-flags.ts": {
+    "mtime": 1781033378.7918427,
+    "ast_hash": "f9f30408d427d1fda86558d69dd34ee6",
+    "semantic_hash": "f9f30408d427d1fda86558d69dd34ee6"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/tsconfig.app.json": {
+    "mtime": 1781033378.7919188,
+    "ast_hash": "855d277f053fc14f4d87057a4aee1f96",
+    "semantic_hash": "855d277f053fc14f4d87057a4aee1f96"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/tsconfig.json": {
+    "mtime": 1781033378.7919686,
+    "ast_hash": "4bfbe39a7a17c45a6b023887a6a3074f",
+    "semantic_hash": "4bfbe39a7a17c45a6b023887a6a3074f"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/tsconfig.spec.json": {
+    "mtime": 1781033378.7920132,
+    "ast_hash": "186b856e1c2f7f45272d77dd60db10cf",
+    "semantic_hash": "186b856e1c2f7f45272d77dd60db10cf"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/tsconfig.vitest.json": {
+    "mtime": 1781033378.7920573,
+    "ast_hash": "7a865199de98a47bfac75ba5e9bdb862",
+    "semantic_hash": "7a865199de98a47bfac75ba5e9bdb862"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/vitest.config.ts": {
+    "mtime": 1781033378.792098,
+    "ast_hash": "02571dec4448d8a4eca56156b1ce7b00",
+    "semantic_hash": "02571dec4448d8a4eca56156b1ce7b00"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/global-setup.ts": {
+    "mtime": 1781033378.7922413,
+    "ast_hash": "81b5e8017359a6808053749f71f05aa2",
+    "semantic_hash": "81b5e8017359a6808053749f71f05aa2"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/package.json": {
+    "mtime": 1781033378.7922857,
+    "ast_hash": "bf14277b1cacc441ed0f880b16c91e26",
+    "semantic_hash": "bf14277b1cacc441ed0f880b16c91e26"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/playwright.config.ts": {
+    "mtime": 1781033378.7923312,
+    "ast_hash": "ba52229edb3bf38fe308751b6ae40b2b",
+    "semantic_hash": "ba52229edb3bf38fe308751b6ae40b2b"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/0-bootstrap-smoke.spec.ts": {
+    "mtime": 1781033378.7924063,
+    "ast_hash": "fe640d3dad9dc340c756f009402d750b",
+    "semantic_hash": "fe640d3dad9dc340c756f009402d750b"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/_screenshots/_helpers/out-dir.ts": {
+    "mtime": 1781033378.7925098,
+    "ast_hash": "52a04664f03d6ae9599a8b2ffe6a3d87",
+    "semantic_hash": "52a04664f03d6ae9599a8b2ffe6a3d87"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/_screenshots/agenda-states.spec.ts": {
+    "mtime": 1781033378.7925823,
+    "ast_hash": "c3f9738da92e32e781409ee1cbe68584",
+    "semantic_hash": "c3f9738da92e32e781409ee1cbe68584"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/_screenshots/avatar-color.spec.ts": {
+    "mtime": 1781033378.7926395,
+    "ast_hash": "78caa1480cb4fd7913827052821a3c34",
+    "semantic_hash": "78caa1480cb4fd7913827052821a3c34"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/_screenshots/capture.spec.ts": {
+    "mtime": 1781033378.7927623,
+    "ast_hash": "bb3643d7d8f797e3a29ea379af8c4957",
+    "semantic_hash": "bb3643d7d8f797e3a29ea379af8c4957"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/_screenshots/connection-states.spec.ts": {
+    "mtime": 1781033378.7928178,
+    "ast_hash": "01f62c80cbd0b677d0a5b0d95e4367c3",
+    "semantic_hash": "01f62c80cbd0b677d0a5b0d95e4367c3"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/_screenshots/estimating-shot.spec.ts": {
+    "mtime": 1781033378.7930121,
+    "ast_hash": "c502400ea0b468ba53e4f5ee7294a50a",
+    "semantic_hash": "c502400ea0b468ba53e4f5ee7294a50a"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/_screenshots/keyboard-shortcuts.spec.ts": {
+    "mtime": 1781033378.7930677,
+    "ast_hash": "7078b25373e54697b7e27d95bd1cd78a",
+    "semantic_hash": "7078b25373e54697b7e27d95bd1cd78a"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/_screenshots/lobby-hierarchy.spec.ts": {
+    "mtime": 1781033378.7931223,
+    "ast_hash": "6f95d164cfac4b31741e7d2f08c3d79e",
+    "semantic_hash": "6f95d164cfac4b31741e7d2f08c3d79e"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/_screenshots/participant-cap.spec.ts": {
+    "mtime": 1781033378.793189,
+    "ast_hash": "87974a0f040463c09fcdab5187b1fb2c",
+    "semantic_hash": "87974a0f040463c09fcdab5187b1fb2c"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/_screenshots/participants.spec.ts": {
+    "mtime": 1781033378.7933502,
+    "ast_hash": "4b2666b7b5271be81000acf8daed6b8e",
+    "semantic_hash": "4b2666b7b5271be81000acf8daed6b8e"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/_screenshots/reveal-transition.spec.ts": {
+    "mtime": 1781033378.793497,
+    "ast_hash": "44a6316b8843aacc9b0dd08dad40595f",
+    "semantic_hash": "44a6316b8843aacc9b0dd08dad40595f"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/_screenshots/room-history.spec.ts": {
+    "mtime": 1781033378.7935529,
+    "ast_hash": "b4ab3aed7f2657c4b15ed169b7441069",
+    "semantic_hash": "b4ab3aed7f2657c4b15ed169b7441069"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/_screenshots/round-history.spec.ts": {
+    "mtime": 1781033378.793601,
+    "ast_hash": "9da670f85d8f9d59657b7501ccaa1c2c",
+    "semantic_hash": "9da670f85d8f9d59657b7501ccaa1c2c"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/_screenshots/session-ended.spec.ts": {
+    "mtime": 1781033378.7936578,
+    "ast_hash": "b5cb5d2fc2a3595942a58c5606e60e3a",
+    "semantic_hash": "b5cb5d2fc2a3595942a58c5606e60e3a"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/_screenshots/skip-round.spec.ts": {
+    "mtime": 1781033378.7937117,
+    "ast_hash": "bc52eed7d464bbef2f0f8356ec9eb299",
+    "semantic_hash": "bc52eed7d464bbef2f0f8356ec9eb299"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/_screenshots/vote-bars-shot.spec.ts": {
+    "mtime": 1781033378.7937684,
+    "ast_hash": "8bc29930ad8fa354a5a8de96eb1395f4",
+    "semantic_hash": "8bc29930ad8fa354a5a8de96eb1395f4"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/_screenshots/vote-dots-196.spec.ts": {
+    "mtime": 1781033378.7938275,
+    "ast_hash": "d0b662d3cd058f24699f3b840a7085e0",
+    "semantic_hash": "d0b662d3cd058f24699f3b840a7085e0"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/abstain-round.spec.ts": {
+    "mtime": 1781033378.7938948,
+    "ast_hash": "b456f8ed6226fb40df50de970cdefca5",
+    "semantic_hash": "b456f8ed6226fb40df50de970cdefca5"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/agenda.spec.ts": {
+    "mtime": 1781033378.794013,
+    "ast_hash": "5bd8e3593eb4a11fe1fa53b3fc2d0206",
+    "semantic_hash": "5bd8e3593eb4a11fe1fa53b3fc2d0206"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/app-settings.spec.ts": {
+    "mtime": 1781033378.7941043,
+    "ast_hash": "899a9b0a053e8f5ce8199ca9e4b0a9cf",
+    "semantic_hash": "899a9b0a053e8f5ce8199ca9e4b0a9cf"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/auto-reconnect.spec.ts": {
+    "mtime": 1781033378.7941782,
+    "ast_hash": "1d8b3caed3758fbd6dab84c7e1161c4e",
+    "semantic_hash": "1d8b3caed3758fbd6dab84c7e1161c4e"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/back-button-soft-exit.spec.ts": {
+    "mtime": 1781033378.79425,
+    "ast_hash": "3555ce17dbae3bddac5573853bb09b38",
+    "semantic_hash": "3555ce17dbae3bddac5573853bb09b38"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/copy-room-code.spec.ts": {
+    "mtime": 1781033378.7943165,
+    "ast_hash": "ae5bf6df6bb9ecad8fdb2fa9318ce801",
+    "semantic_hash": "ae5bf6df6bb9ecad8fdb2fa9318ce801"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/custom-scale-display.spec.ts": {
+    "mtime": 1781033378.7943742,
+    "ast_hash": "db1acd81d40beb5bc8a0c8f331dc774a",
+    "semantic_hash": "db1acd81d40beb5bc8a0c8f331dc774a"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/deep-link-join.spec.ts": {
+    "mtime": 1781033378.7945375,
+    "ast_hash": "50e9163b6c4b6bc12a1370178584cc59",
+    "semantic_hash": "50e9163b6c4b6bc12a1370178584cc59"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/end-session.spec.ts": {
+    "mtime": 1781033378.7949288,
+    "ast_hash": "f2010713fd724ce7a7fd7b09837dd8ce",
+    "semantic_hash": "f2010713fd724ce7a7fd7b09837dd8ce"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/estimating-card-hover.spec.ts": {
+    "mtime": 1781033378.7949774,
+    "ast_hash": "f50e01f1af8daf0764e139a497c288ff",
+    "semantic_hash": "f50e01f1af8daf0764e139a497c288ff"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/expired-jump-back-in.spec.ts": {
+    "mtime": 1781033378.7951221,
+    "ast_hash": "c64f42baa81c7a3139b630691fac2054",
+    "semantic_hash": "c64f42baa81c7a3139b630691fac2054"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/fixtures/app.fixture.ts": {
+    "mtime": 1781033378.7952247,
+    "ast_hash": "61c2b97ff23585c9e29429079a69c193",
+    "semantic_hash": "61c2b97ff23585c9e29429079a69c193"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/fixtures/helpers.ts": {
+    "mtime": 1781033378.8002093,
+    "ast_hash": "1fc37ed6f3b08db6d17700e7a804d61c",
+    "semantic_hash": "1fc37ed6f3b08db6d17700e7a804d61c"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/host-discard-round.spec.ts": {
+    "mtime": 1781033378.800412,
+    "ast_hash": "eac08373e23ece85db5f0900c806af55",
+    "semantic_hash": "eac08373e23ece85db5f0900c806af55"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/host-election.spec.ts": {
+    "mtime": 1781033378.8004656,
+    "ast_hash": "dc53699cea05d66ce6d2707994b0b62b",
+    "semantic_hash": "dc53699cea05d66ce6d2707994b0b62b"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/join-by-code.spec.ts": {
+    "mtime": 1781033378.8005161,
+    "ast_hash": "a7883e0362ac6b63bb27e24ed484dc05",
+    "semantic_hash": "a7883e0362ac6b63bb27e24ed484dc05"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/keyboard-vote.spec.ts": {
+    "mtime": 1781033378.8005898,
+    "ast_hash": "ee9be8c8f4c3ddd16392ac7be856ef7b",
+    "semantic_hash": "ee9be8c8f4c3ddd16392ac7be856ef7b"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/leave-session.spec.ts": {
+    "mtime": 1781033378.8006456,
+    "ast_hash": "e0b4c4a8007a34d9175385c6de935758",
+    "semantic_hash": "e0b4c4a8007a34d9175385c6de935758"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/lobby-host-actions-mobile-swipe.spec.ts": {
+    "mtime": 1781033378.800722,
+    "ast_hash": "e22c7541b97f7f4dd6e835b393a7989b",
+    "semantic_hash": "e22c7541b97f7f4dd6e835b393a7989b"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/lobby-host-actions-portal.spec.ts": {
+    "mtime": 1781033378.800794,
+    "ast_hash": "b18a5d5a531591a887caeb30df14a97d",
+    "semantic_hash": "b18a5d5a531591a887caeb30df14a97d"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/lobby-participants-accordion.spec.ts": {
+    "mtime": 1781033378.8008454,
+    "ast_hash": "c9677b593a226346697d049eb8f33587",
+    "semantic_hash": "c9677b593a226346697d049eb8f33587"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/manual-reveal.spec.ts": {
+    "mtime": 1781033378.8009012,
+    "ast_hash": "8447d6ee799abd93740f59330e56bb15",
+    "semantic_hash": "8447d6ee799abd93740f59330e56bb15"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/participant-host-kick.spec.ts": {
+    "mtime": 1781033378.80101,
+    "ast_hash": "f31e0bbceb71ee0b053be1eccfae0b31",
+    "semantic_hash": "f31e0bbceb71ee0b053be1eccfae0b31"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/participant-leave-unanimous-reveal.spec.ts": {
+    "mtime": 1781033378.8010516,
+    "ast_hash": "483572f9390ec4ae3b74fb3935170e48",
+    "semantic_hash": "483572f9390ec4ae3b74fb3935170e48"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/participant-leave.spec.ts": {
+    "mtime": 1781033378.801097,
+    "ast_hash": "fa48892e413c1949df3a0d64effbefda",
+    "semantic_hash": "fa48892e413c1949df3a0d64effbefda"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/password-room-reload.spec.ts": {
+    "mtime": 1781033378.8012042,
+    "ast_hash": "e8d72231ab1021fdfaacf6d4610275b4",
+    "semantic_hash": "e8d72231ab1021fdfaacf6d4610275b4"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/qr-display.spec.ts": {
+    "mtime": 1781033378.8012962,
+    "ast_hash": "ea70a4d964f1c23aaedaf85913b5b4df",
+    "semantic_hash": "ea70a4d964f1c23aaedaf85913b5b4df"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/qr-scan.spec.ts": {
+    "mtime": 1781033378.8013427,
+    "ast_hash": "ae4045c01f56d413f80d747c0a26505f",
+    "semantic_hash": "ae4045c01f56d413f80d747c0a26505f"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/recent-rooms-list.spec.ts": {
+    "mtime": 1781033378.8014114,
+    "ast_hash": "b86468c4bb3441dd97dd51c75025bcec",
+    "semantic_hash": "b86468c4bb3441dd97dd51c75025bcec"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/rejoin-rehydration.spec.ts": {
+    "mtime": 1781033378.801455,
+    "ast_hash": "73dadf8f6a98cda7b1ee30064e3d3372",
+    "semantic_hash": "73dadf8f6a98cda7b1ee30064e3d3372"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/reload-restores-session.spec.ts": {
+    "mtime": 1781033378.8015041,
+    "ast_hash": "9ebf454d9ae6d1acae7edd67908beb16",
+    "semantic_hash": "9ebf454d9ae6d1acae7edd67908beb16"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/revote-cycle.spec.ts": {
+    "mtime": 1781033378.8015478,
+    "ast_hash": "d8f58f3b7b1eb1fc8ea99c928328338a",
+    "semantic_hash": "d8f58f3b7b1eb1fc8ea99c928328338a"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/revote-role-toggle.spec.ts": {
+    "mtime": 1781033378.8016005,
+    "ast_hash": "19658c57d8a811114c9854a6eac91d2d",
+    "semantic_hash": "19658c57d8a811114c9854a6eac91d2d"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/room-full.spec.ts": {
+    "mtime": 1781033378.8016644,
+    "ast_hash": "8e199dcf4cbc7443c77e6346386c5fbe",
+    "semantic_hash": "8e199dcf4cbc7443c77e6346386c5fbe"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/round-descriptor-edit.spec.ts": {
+    "mtime": 1781033378.8017192,
+    "ast_hash": "d1a77f8b303e95d678554767bea1dc52",
+    "semantic_hash": "d1a77f8b303e95d678554767bea1dc52"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/round-management.spec.ts": {
+    "mtime": 1781033378.8017821,
+    "ast_hash": "8971f79a84136d5da96d14f26a1ceae1",
+    "semantic_hash": "8971f79a84136d5da96d14f26a1ceae1"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/round-ticket-id.spec.ts": {
+    "mtime": 1781033378.8018277,
+    "ast_hash": "3dcd007ff7866d3851214bc321102e38",
+    "semantic_hash": "3dcd007ff7866d3851214bc321102e38"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/session-creation.spec.ts": {
+    "mtime": 1781033378.8018782,
+    "ast_hash": "cff42abbb3da5eb0356b57890f95a607",
+    "semantic_hash": "cff42abbb3da5eb0356b57890f95a607"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/settings.spec.ts": {
+    "mtime": 1781033378.8019335,
+    "ast_hash": "5e44b394c389321bc78959b113e6c4b5",
+    "semantic_hash": "5e44b394c389321bc78959b113e6c4b5"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/skip-round.spec.ts": {
+    "mtime": 1781033378.8020296,
+    "ast_hash": "0075080a4f208ccbb620147c0ff80305",
+    "semantic_hash": "0075080a4f208ccbb620147c0ff80305"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/three-client.spec.ts": {
+    "mtime": 1781033378.8020968,
+    "ast_hash": "c79185a2755c3ca907f732b457b9e312",
+    "semantic_hash": "c79185a2755c3ca907f732b457b9e312"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/unanimous-reveal.spec.ts": {
+    "mtime": 1781033378.8021457,
+    "ast_hash": "4a1510f554992b4b4fa81a72aea0a2d1",
+    "semantic_hash": "4a1510f554992b4b4fa81a72aea0a2d1"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/unknown-room.spec.ts": {
+    "mtime": 1781033378.8022058,
+    "ast_hash": "4e18d6834427c1d0e79d5f4bf06d98e1",
+    "semantic_hash": "4e18d6834427c1d0e79d5f4bf06d98e1"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/viewer-role.spec.ts": {
+    "mtime": 1781033378.8022537,
+    "ast_hash": "69d2672baba4de3818238cbd23280db4",
+    "semantic_hash": "69d2672baba4de3818238cbd23280db4"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/vote-change.spec.ts": {
+    "mtime": 1781033378.802309,
+    "ast_hash": "48b6254a4c4f43d96423f2f6533950ae",
+    "semantic_hash": "48b6254a4c4f43d96423f2f6533950ae"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tests/voting-flow.spec.ts": {
+    "mtime": 1781033378.8023577,
+    "ast_hash": "3d948af490e4f037370d0096066e3e65",
+    "semantic_hash": "3d948af490e4f037370d0096066e3e65"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/tsconfig.json": {
+    "mtime": 1781033378.8024032,
+    "ast_hash": "4aa1150a7585658cbbd4298f3b2e87e2",
+    "semantic_hash": "4aa1150a7585658cbbd4298f3b2e87e2"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/relay/package.json": {
+    "mtime": 1781033378.8025591,
+    "ast_hash": "082efc2fafeb24611808f302c88ea0d1",
+    "semantic_hash": "082efc2fafeb24611808f302c88ea0d1"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/relay/release.config.mjs": {
+    "mtime": 1781033378.8026085,
+    "ast_hash": "52ecb04b66740b3dfcb7456a31227b4e",
+    "semantic_hash": "52ecb04b66740b3dfcb7456a31227b4e"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/relay/src/boot-log.test.ts": {
+    "mtime": 1781033378.8026886,
+    "ast_hash": "3ee4324340901087847d4e65b4331b25",
+    "semantic_hash": "3ee4324340901087847d4e65b4331b25"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/relay/src/code-pool.test.ts": {
+    "mtime": 1781033378.8027368,
+    "ast_hash": "cc197fc8ad4cc455b182b6339c5a0331",
+    "semantic_hash": "cc197fc8ad4cc455b182b6339c5a0331"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/relay/src/code-pool.ts": {
+    "mtime": 1781033378.8027885,
+    "ast_hash": "c2067da09a04ef63aace3d0d6a501ec9",
+    "semantic_hash": "c2067da09a04ef63aace3d0d6a501ec9"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/relay/src/index.ts": {
+    "mtime": 1781033378.8028398,
+    "ast_hash": "b9735e1a8fb17550d0b3b7c5f862f344",
+    "semantic_hash": "b9735e1a8fb17550d0b3b7c5f862f344"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/relay/src/room-store.test.ts": {
+    "mtime": 1781033378.8029013,
+    "ast_hash": "1f2d625d41231c765961ff464ded3fad",
+    "semantic_hash": "1f2d625d41231c765961ff464ded3fad"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/relay/src/room-store.ts": {
+    "mtime": 1781033378.8029666,
+    "ast_hash": "067ff4ced5f8d33ba75060ba5abded15",
+    "semantic_hash": "067ff4ced5f8d33ba75060ba5abded15"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/relay/src/server.password-timing.test.ts": {
+    "mtime": 1781033378.8030431,
+    "ast_hash": "fd73f96596b4964f95845d8ed9430766",
+    "semantic_hash": "fd73f96596b4964f95845d8ed9430766"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/relay/src/server.test-routes.test.ts": {
+    "mtime": 1781033378.8031023,
+    "ast_hash": "33853fe04fc823d400dbf049afea4423",
+    "semantic_hash": "33853fe04fc823d400dbf049afea4423"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/relay/src/server.test.ts": {
+    "mtime": 1781033378.8031468,
+    "ast_hash": "52b46b894f0ac70077ba2fc37304c151",
+    "semantic_hash": "52b46b894f0ac70077ba2fc37304c151"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/relay/src/server.ts": {
+    "mtime": 1781033378.8032327,
+    "ast_hash": "fe73404f6c8419a0eee90cc6f7cf47ce",
+    "semantic_hash": "fe73404f6c8419a0eee90cc6f7cf47ce"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/relay/src/snapshot.test.ts": {
+    "mtime": 1781033378.8033037,
+    "ast_hash": "29c26e9a3f84e85db3a75d88e74d21b9",
+    "semantic_hash": "29c26e9a3f84e85db3a75d88e74d21b9"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/relay/src/snapshot.ts": {
+    "mtime": 1781033378.8033679,
+    "ast_hash": "f3a11e73c644426bc7f67b2ab3a4d3d5",
+    "semantic_hash": "f3a11e73c644426bc7f67b2ab3a4d3d5"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/relay/src/ws-connection.test.ts": {
+    "mtime": 1781033378.8034708,
+    "ast_hash": "3b00473d957a8d6aac9d2ee8f2e44cde",
+    "semantic_hash": "3b00473d957a8d6aac9d2ee8f2e44cde"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/relay/src/ws-connection.ts": {
+    "mtime": 1781033378.8035648,
+    "ast_hash": "1ab889486a04da339506fd4afb771494",
+    "semantic_hash": "1ab889486a04da339506fd4afb771494"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/relay/tsconfig.json": {
+    "mtime": 1781033378.8036125,
+    "ast_hash": "58fff47967cf21d36374b7dc1a286413",
+    "semantic_hash": "58fff47967cf21d36374b7dc1a286413"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/relay/vitest.config.ts": {
+    "mtime": 1781033378.8036554,
+    "ast_hash": "ec079e1062266f1d6e4e6ce4f8d2dfb6",
+    "semantic_hash": "ec079e1062266f1d6e4e6ce4f8d2dfb6"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/package.json": {
+    "mtime": 1781033378.8037837,
+    "ast_hash": "2fc79b990161570a008013f1626b5978",
+    "semantic_hash": "2fc79b990161570a008013f1626b5978"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/release.config.mjs": {
+    "mtime": 1781033378.8038208,
+    "ast_hash": "2359a27721e17aaca8f114a8a4e61c82",
+    "semantic_hash": "2359a27721e17aaca8f114a8a4e61c82"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/abstain.test.ts": {
+    "mtime": 1781033378.803887,
+    "ast_hash": "c7e7e2a623ccc243d1dfb7829327328d",
+    "semantic_hash": "c7e7e2a623ccc243d1dfb7829327328d"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/abstain.ts": {
+    "mtime": 1781033378.8039267,
+    "ast_hash": "da70160b0b20f9de24036d5bf3db61e2",
+    "semantic_hash": "da70160b0b20f9de24036d5bf3db61e2"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/auth.test.ts": {
+    "mtime": 1781033378.803968,
+    "ast_hash": "4662a4f9a72e743cb9c64cf6d6a1c7a0",
+    "semantic_hash": "4662a4f9a72e743cb9c64cf6d6a1c7a0"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/auth.ts": {
+    "mtime": 1781033378.8040123,
+    "ast_hash": "95cfe55eeb8df37637ae07bfa34d592a",
+    "semantic_hash": "95cfe55eeb8df37637ae07bfa34d592a"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/avatar-palette.test.ts": {
+    "mtime": 1781033378.8040612,
+    "ast_hash": "a28ffdb8e7f5206295d322ef07af819b",
+    "semantic_hash": "a28ffdb8e7f5206295d322ef07af819b"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/avatar-palette.ts": {
+    "mtime": 1781033378.8041143,
+    "ast_hash": "e12e06851c9d4fc8075ea4cc5bf82e2c",
+    "semantic_hash": "e12e06851c9d4fc8075ea4cc5bf82e2c"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/doc-projection.test.ts": {
+    "mtime": 1781033378.8042119,
+    "ast_hash": "25716d225e4aa896096888bdef2a39b0",
+    "semantic_hash": "25716d225e4aa896096888bdef2a39b0"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/doc-projection.ts": {
+    "mtime": 1781033378.8042893,
+    "ast_hash": "5064fbe446b438ff680b642470ce8014",
+    "semantic_hash": "5064fbe446b438ff680b642470ce8014"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/doc.test.ts": {
+    "mtime": 1781033378.804346,
+    "ast_hash": "017eafffaa4be8fe9c90114ecd173922",
+    "semantic_hash": "017eafffaa4be8fe9c90114ecd173922"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/doc.ts": {
+    "mtime": 1781033378.8044715,
+    "ast_hash": "25ba70167234bd992d1648f7b2f98144",
+    "semantic_hash": "25ba70167234bd992d1648f7b2f98144"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/format-round-label.test.ts": {
+    "mtime": 1781033378.8045108,
+    "ast_hash": "a0aa5e36794bce6503c49501c8839720",
+    "semantic_hash": "a0aa5e36794bce6503c49501c8839720"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/format-round-label.ts": {
+    "mtime": 1781033378.8045511,
+    "ast_hash": "1009a572f1eca6697b629ab6d08a39d2",
+    "semantic_hash": "1009a572f1eca6697b629ab6d08a39d2"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/format-time.test.ts": {
+    "mtime": 1781033378.8045926,
+    "ast_hash": "bae13134f287c6ee6c3a3006d65e8c94",
+    "semantic_hash": "bae13134f287c6ee6c3a3006d65e8c94"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/format-time.ts": {
+    "mtime": 1781033378.804636,
+    "ast_hash": "eb496e762eee137eced77e1df0f2505c",
+    "semantic_hash": "eb496e762eee137eced77e1df0f2505c"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/fractional-index.test.ts": {
+    "mtime": 1781033378.8047018,
+    "ast_hash": "8c42a7b1a22a80f40c8ca607ab68ef61",
+    "semantic_hash": "8c42a7b1a22a80f40c8ca607ab68ef61"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/fractional-index.ts": {
+    "mtime": 1781033378.8047612,
+    "ast_hash": "314b0e9876769792933d5e5317932068",
+    "semantic_hash": "314b0e9876769792933d5e5317932068"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/health.ts": {
+    "mtime": 1781033378.8048096,
+    "ast_hash": "4427e483e9960657dc0d3110ce328412",
+    "semantic_hash": "4427e483e9960657dc0d3110ce328412"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/index.ts": {
+    "mtime": 1781033378.8048575,
+    "ast_hash": "2e77c7036f1d7dd0facabb1b4f05018f",
+    "semantic_hash": "2e77c7036f1d7dd0facabb1b4f05018f"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/is-likely-url.test.ts": {
+    "mtime": 1781033378.8049085,
+    "ast_hash": "52f23a176f00bca6b1a28117368f15bf",
+    "semantic_hash": "52f23a176f00bca6b1a28117368f15bf"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/is-likely-url.ts": {
+    "mtime": 1781033378.804956,
+    "ast_hash": "aaba9775f919008718de5de06f53ecaf",
+    "semantic_hash": "aaba9775f919008718de5de06f53ecaf"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/last-session.test.ts": {
+    "mtime": 1781033378.8050117,
+    "ast_hash": "8caabdda24e620dbdf541ec3c36164e7",
+    "semantic_hash": "8caabdda24e620dbdf541ec3c36164e7"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/last-session.ts": {
+    "mtime": 1781033378.8050656,
+    "ast_hash": "604e9a13833bcc9866d15bf07da8a033",
+    "semantic_hash": "604e9a13833bcc9866d15bf07da8a033"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/lineage.test.ts": {
+    "mtime": 1781033378.805108,
+    "ast_hash": "f42375140f62f681d38793c7589c13d9",
+    "semantic_hash": "f42375140f62f681d38793c7589c13d9"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/lineage.ts": {
+    "mtime": 1781033378.8051505,
+    "ast_hash": "6aefde6ce8a3d6e9c2a16ee4e361e034",
+    "semantic_hash": "6aefde6ce8a3d6e9c2a16ee4e361e034"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/room-code.test.ts": {
+    "mtime": 1781033378.8052986,
+    "ast_hash": "33ee2a0990cc9522862c29243ceba80b",
+    "semantic_hash": "33ee2a0990cc9522862c29243ceba80b"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/room-code.ts": {
+    "mtime": 1781033378.8053563,
+    "ast_hash": "3f64f1348d8215d6e87d24e041dce826",
+    "semantic_hash": "3f64f1348d8215d6e87d24e041dce826"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/round-export.test.ts": {
+    "mtime": 1781033378.8054185,
+    "ast_hash": "6e2ee61e7233e5b045dea67d4a73fdb3",
+    "semantic_hash": "6e2ee61e7233e5b045dea67d4a73fdb3"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/round-export.ts": {
+    "mtime": 1781033378.8054886,
+    "ast_hash": "e79d5b2c4724ff9926565fb4baea9b34",
+    "semantic_hash": "e79d5b2c4724ff9926565fb4baea9b34"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/round-stats.test.ts": {
+    "mtime": 1781033378.8055587,
+    "ast_hash": "ae16e4b841733fe9b6157e275682eb90",
+    "semantic_hash": "ae16e4b841733fe9b6157e275682eb90"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/round-stats.ts": {
+    "mtime": 1781033378.805607,
+    "ast_hash": "be611349425d2118501a264bccd70e35",
+    "semantic_hash": "be611349425d2118501a264bccd70e35"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/scales.test.ts": {
+    "mtime": 1781033378.805663,
+    "ast_hash": "aa53b7e176805960294c2dee4a118622",
+    "semantic_hash": "aa53b7e176805960294c2dee4a118622"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/src/scales.ts": {
+    "mtime": 1781033378.805718,
+    "ast_hash": "f29b5129b3a06f1c7365fa3bfa11a02b",
+    "semantic_hash": "f29b5129b3a06f1c7365fa3bfa11a02b"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/tsconfig.json": {
+    "mtime": 1781033378.805766,
+    "ast_hash": "58fff47967cf21d36374b7dc1a286413",
+    "semantic_hash": "58fff47967cf21d36374b7dc1a286413"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/vitest.config.ts": {
+    "mtime": 1781033378.8058114,
+    "ast_hash": "928355209afc5e101d6f9bf582869669",
+    "semantic_hash": "928355209afc5e101d6f9bf582869669"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/CHANGELOG.md": {
+    "mtime": 1781033378.7738051,
+    "ast_hash": "0c947edb32847a1969b23d908098bd50",
+    "semantic_hash": "0c947edb32847a1969b23d908098bd50"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/LICENSE.md": {
+    "mtime": 1781033378.7738492,
+    "ast_hash": "44c7cefe927992357021546446f3ff66",
+    "semantic_hash": "44c7cefe927992357021546446f3ff66"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/cli/README.md": {
+    "mtime": 1781033378.773891,
+    "ast_hash": "e04e590ae9bf7ba091b205cbfbd326f8",
+    "semantic_hash": "e04e590ae9bf7ba091b205cbfbd326f8"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/CHANGELOG.md": {
+    "mtime": 1781033378.7783773,
+    "ast_hash": "cc408e1650961052c8e7af3ef3d174e3",
+    "semantic_hash": "cc408e1650961052c8e7af3ef3d174e3"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/index.html": {
+    "mtime": 1781033378.791236,
+    "ast_hash": "415435f4aab79c7528e9c046006501bf",
+    "semantic_hash": "415435f4aab79c7528e9c046006501bf"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/e2e/README.md": {
+    "mtime": 1781033378.792193,
+    "ast_hash": "d4396d2a8452d622df448aff7412e623",
+    "semantic_hash": "d4396d2a8452d622df448aff7412e623"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/relay/CHANGELOG.md": {
+    "mtime": 1781033378.8025105,
+    "ast_hash": "d7d6ebda6730d49878109a4697906098",
+    "semantic_hash": "d7d6ebda6730d49878109a4697906098"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/shared/CHANGELOG.md": {
+    "mtime": 1781033378.8037343,
+    "ast_hash": "bde10c77e9b04daa21fc8f0dd8862a97",
+    "semantic_hash": "bde10c77e9b04daa21fc8f0dd8862a97"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/assets/icon/favicon.png": {
+    "mtime": 1781033378.7909722,
+    "ast_hash": "988be98f12b400c41a22b59b82cfeab6",
+    "semantic_hash": "988be98f12b400c41a22b59b82cfeab6"
+  },
+  "/Users/felix/Documents/projects/hnch/packages/client/src/assets/shapes.svg": {
+    "mtime": 1781033378.7910151,
+    "ast_hash": "e535ce83da20a4b7719ca3d45195ebd5",
+    "semantic_hash": "e535ce83da20a4b7719ca3d45195ebd5"
+  }
+}

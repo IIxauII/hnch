@@ -60,3 +60,11 @@ node-compile-cache/
 # Screenshot scope hint — per-author, per-feature; read by
 # scripts/screenshot-publish.mjs as a Playwright --grep regex.
 .screenshot-tags
+
+# graphify knowledge-graph build artefacts
+# Per graphify README: graphify-out/ is meant to be committed so everyone on the
+# team starts with a map. These entries exclude per-machine state only.
+graphify-out/cost.json
+graphify-out/cache/
+graphify-out/.graphify_python
+graphify-out/.graphify_root
