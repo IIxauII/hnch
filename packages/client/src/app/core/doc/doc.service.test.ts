@@ -18,24 +18,36 @@
 
 import { computed, signal, type Signal, type WritableSignal } from '@angular/core';
 import {
+  appendAgendaItem as appendAgendaItemFn,
   appendRound,
   castVote,
   clearVote,
+  currentRound as currentRoundFn,
+  discardRound as discardRoundFn,
   endSessionForEveryone,
   initDoc,
   isActiveParticipant,
   joinDoc,
   leaveSession,
+  nextPendingAgendaItem as nextPendingAgendaItemFn,
+  participantRole,
   patchRoundDescriptor,
   patchSettings,
   projectDoc,
+  reorderAgendaItem as reorderAgendaItemFn,
   removeParticipant,
   revealRound,
+  setAgendaItemState as setAgendaItemStateFn,
+  setAvatarColor as setAvatarColorFn,
   skipRound,
+  updateAgendaItemFields as updateAgendaItemFieldsFn,
   upsertParticipant,
+  type AgendaItem,
+  type AppendAgendaItemInit,
   type DocProjection,
   type Round,
   type Scale,
+  type UpdateAgendaItemFieldsInit,
 } from '@hnch/shared';
 import { Awareness } from 'y-protocols/awareness';
 import * as Y from 'yjs';
@@ -103,6 +115,22 @@ class DocServiceHarness {
   readonly offlineParticipants = computed(() => {
     const online = this.onlineParticipantIdsSignal();
     return this.activeParticipants().filter((p) => !online.has(p.id));
+  });
+
+  readonly currentRound: Signal<Round | null> = computed(() => {
+    const snap = this.projection();
+    return snap ? currentRoundFn(snap) : null;
+  });
+
+  readonly agenda: Signal<readonly AgendaItem[]> = computed(() => this.projection()?.agenda ?? []);
+
+  readonly pendingAgenda: Signal<readonly AgendaItem[]> = computed(() =>
+    this.agenda().filter((item) => item.state === 'pending'),
+  );
+
+  readonly nextPendingAgendaItem: Signal<AgendaItem | null> = computed(() => {
+    const snap = this.projection();
+    return snap ? nextPendingAgendaItemFn(snap) : null;
   });
 
   createSession(init: ReturnType<typeof makeInit>): void {
@@ -194,6 +222,46 @@ class DocServiceHarness {
     patchRoundDescriptor(this.requireDoc(), roundId, fields);
   }
 
+  setAvatarColor(participantId: string, color: string): void {
+    if (!this.doc) return;
+    setAvatarColorFn(this.doc, participantId, color);
+  }
+
+  toggleRole(participantId: string): void {
+    const participant = this.participants().find((p) => p.id === participantId);
+    if (!participant) return;
+    const current = participantRole(participant);
+    const next = current === 'voter' ? 'viewer' : 'voter';
+    upsertParticipant(this.requireDoc(), participantId, {
+      displayName: participant.displayName,
+      joinedAt: participant.joinedAt,
+      role: next,
+    });
+  }
+
+  discardRound(roundId: string, discardedBy: string, now = Date.now()): void {
+    discardRoundFn(this.requireDoc(), roundId, now, discardedBy);
+  }
+
+  appendAgendaItem(init: Omit<AppendAgendaItemInit, 'createdAt'> & { createdAt?: number }): string {
+    return appendAgendaItemFn(this.requireDoc(), {
+      ...init,
+      createdAt: init.createdAt ?? Date.now(),
+    });
+  }
+
+  updateAgendaItemFields(id: string, patch: UpdateAgendaItemFieldsInit): void {
+    updateAgendaItemFieldsFn(this.requireDoc(), id, patch);
+  }
+
+  cancelAgendaItem(id: string): void {
+    setAgendaItemStateFn(this.requireDoc(), id, 'cancelled');
+  }
+
+  reorderAgendaItem(id: string, before?: string | null, after?: string | null): void {
+    reorderAgendaItemFn(this.requireDoc(), id, before, after);
+  }
+
   /** Merge another doc's state into this one (simulate peer sync). */
   mergeFrom(other: Y.Doc): void {
     const encoded = Y.encodeStateAsUpdate(other);
@@ -213,17 +281,20 @@ class DocServiceHarness {
     const settings = doc.getMap('settings');
     const participants = doc.getMap('participants');
     const rounds = doc.getArray('rounds');
+    const agenda = doc.getArray('agenda');
 
     meta.observeDeep(rebuild);
     settings.observeDeep(rebuild);
     participants.observeDeep(rebuild);
     rounds.observeDeep(rebuild);
+    agenda.observeDeep(rebuild);
 
     this.observers = [
       () => meta.unobserveDeep(rebuild),
       () => settings.unobserveDeep(rebuild),
       () => participants.unobserveDeep(rebuild),
       () => rounds.unobserveDeep(rebuild),
+      () => agenda.unobserveDeep(rebuild),
     ];
   }
 
@@ -880,5 +951,187 @@ describe('DocService — hasFirstSyncCompleted signal (ADR-0036 §6 rejoin race 
     expect(h.hasFirstSyncCompleted()).toBe(true);
     h.endSession();
     expect(h.hasFirstSyncCompleted()).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Exercises: doc.service:DocService.setAvatarColor (+ setAvatarColorFn from @hnch/shared)
+
+describe('DocService — setAvatarColor', () => {
+  let h: DocServiceHarness;
+
+  beforeEach(() => {
+    h = makeHarness();
+    h.createSession(makeInit({ participantId: 'p-host' }));
+  });
+  afterEach(() => {
+    h.endSession();
+  });
+
+  it('sets avatarColor on the participant and projection reflects it', () => {
+    h.setAvatarColor('p-host', '#ff0000');
+    const me = h.participants().find((p) => p.id === 'p-host');
+    expect(me?.avatarColor).toBe('#ff0000');
+  });
+
+  it('is a no-op when no session is active (no throw)', () => {
+    const h2 = makeHarness();
+    expect(() => h2.setAvatarColor('p-host', 'blue')).not.toThrow();
+  });
+
+  it('updates avatarColor when called again with a new value', () => {
+    h.setAvatarColor('p-host', 'red');
+    h.setAvatarColor('p-host', 'blue');
+    const me = h.participants().find((p) => p.id === 'p-host');
+    expect(me?.avatarColor).toBe('blue');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Exercises: doc.service:DocService.toggleRole (+ participantRole, upsertParticipant from @hnch/shared)
+
+describe('DocService — toggleRole', () => {
+  let h: DocServiceHarness;
+
+  beforeEach(() => {
+    h = makeHarness();
+    h.createSession(makeInit({ participantId: 'p-host' }));
+    h.upsertParticipant('p-voter', { displayName: 'Voter', joinedAt: NOW + 1 });
+  });
+  afterEach(() => {
+    h.endSession();
+  });
+
+  it('flips an implicit-voter participant to viewer', () => {
+    const before = h.participants().find((p) => p.id === 'p-voter');
+    expect(participantRole(before!)).toBe('voter');
+    h.toggleRole('p-voter');
+    const after = h.participants().find((p) => p.id === 'p-voter');
+    expect(after?.role).toBe('viewer');
+  });
+
+  it('flips an explicit viewer back to voter', () => {
+    h.upsertParticipant('p-viewer', { displayName: 'Viewer', joinedAt: NOW + 2, role: 'viewer' });
+    h.toggleRole('p-viewer');
+    const viewer = h.participants().find((participant) => participant.id === 'p-viewer');
+    expect(viewer?.role).toBe('voter');
+  });
+
+  it('voter → viewer → voter cycle restores voter role', () => {
+    // first toggle: voter → viewer
+    h.toggleRole('p-voter');
+    // second toggle: viewer → voter
+    h.toggleRole('p-voter');
+    const toggled = h.participants().find((participant) => participant.id === 'p-voter');
+    expect(toggled?.role).toBe('voter');
+  });
+
+  it('is a no-op for an unknown participant — participant count unchanged', () => {
+    const countBefore = h.participants().length;
+    h.toggleRole('unknown-id');
+    expect(h.participants().length).toBe(countBefore);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Exercises: doc.service:DocService.discardRound (+ discardRoundFn, currentRoundFn from @hnch/shared)
+
+describe('DocService — discardRound', () => {
+  let h: DocServiceHarness;
+  let roundId: string;
+
+  beforeEach(() => {
+    h = makeHarness();
+    h.createSession(makeInit({ participantId: 'p-host' }));
+    roundId = h.startRound({ now: () => NOW });
+  });
+  afterEach(() => {
+    h.endSession();
+  });
+
+  it('sets discardedAt on the round', () => {
+    h.discardRound(roundId, 'p-host', NOW + 1000);
+    const round = h.rounds().find((rnd) => rnd.id === roundId);
+    expect(round?.discardedAt).toBe(NOW + 1000);
+  });
+
+  it('currentRound() returns null after the only round is discarded', () => {
+    expect(h.currentRound()?.id).toBe(roundId);
+    h.discardRound(roundId, 'p-host', NOW + 1000);
+    expect(h.currentRound()).toBeNull();
+  });
+
+  it('a new round started after a discard becomes the currentRound()', () => {
+    h.discardRound(roundId, 'p-host', NOW + 1000);
+    const r2 = h.startRound({ now: () => NOW + 2000 });
+    expect(h.currentRound()?.id).toBe(r2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Exercises: doc.service:DocService agenda signals + appendAgendaItem, cancelAgendaItem,
+//            reorderAgendaItem, updateAgendaItemFields from @hnch/shared
+
+describe('DocService — agenda reactive wiring', () => {
+  let h: DocServiceHarness;
+
+  beforeEach(() => {
+    h = makeHarness();
+    h.createSession(makeInit({ participantId: 'p-host' }));
+  });
+  afterEach(() => {
+    h.endSession();
+  });
+
+  it('agenda() is empty before any items are added', () => {
+    expect(h.agenda()).toHaveLength(0);
+  });
+
+  it('appendAgendaItem updates agenda signal', () => {
+    h.appendAgendaItem({ title: 'Auth migration', createdAt: NOW });
+    expect(h.agenda()).toHaveLength(1);
+    expect(h.agenda()[0]?.title).toBe('Auth migration');
+  });
+
+  it('pendingAgenda() excludes cancelled items', () => {
+    const id = h.appendAgendaItem({ title: 'To cancel', createdAt: NOW });
+    h.appendAgendaItem({ title: 'Keep me', createdAt: NOW + 1 });
+    expect(h.pendingAgenda()).toHaveLength(2);
+    h.cancelAgendaItem(id);
+    expect(h.pendingAgenda()).toHaveLength(1);
+    expect(h.pendingAgenda()[0]?.title).toBe('Keep me');
+  });
+
+  it('nextPendingAgendaItem() returns the first pending item by sortKey', () => {
+    expect(h.nextPendingAgendaItem()).toBeNull();
+    const id1 = h.appendAgendaItem({ title: 'First', createdAt: NOW });
+    h.appendAgendaItem({ title: 'Second', createdAt: NOW + 1 });
+    expect(h.nextPendingAgendaItem()?.id).toBe(id1);
+  });
+
+  it('nextPendingAgendaItem() is null when all items are cancelled', () => {
+    const id1 = h.appendAgendaItem({ title: 'A', createdAt: NOW });
+    const id2 = h.appendAgendaItem({ title: 'B', createdAt: NOW + 1 });
+    h.cancelAgendaItem(id1);
+    h.cancelAgendaItem(id2);
+    expect(h.nextPendingAgendaItem()).toBeNull();
+  });
+
+  it('reorderAgendaItem moves an item to the front', () => {
+    h.appendAgendaItem({ title: 'A', createdAt: NOW });
+    h.appendAgendaItem({ title: 'B', createdAt: NOW + 1 });
+    const id3 = h.appendAgendaItem({ title: 'C', createdAt: NOW + 2 });
+    // Move id3 (last) before the first item
+    const firstSortKey = h.pendingAgenda()[0]!.sortKey;
+    h.reorderAgendaItem(id3, null, firstSortKey);
+    expect(h.pendingAgenda()[0]!.id).toBe(id3);
+  });
+
+  it('updateAgendaItemFields patches title and ticketId', () => {
+    const id = h.appendAgendaItem({ title: 'Original title', createdAt: NOW });
+    h.updateAgendaItemFields(id, { title: 'Updated title', ticketId: 'PROJ-99' });
+    const item = h.agenda().find((a) => a.id === id);
+    expect(item?.title).toBe('Updated title');
+    expect(item?.ticketId).toBe('PROJ-99');
   });
 });
