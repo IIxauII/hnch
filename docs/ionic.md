@@ -24,30 +24,6 @@ All half-sheet modals follow this pattern:
 
 Full-screen modals (e.g., QR display) omit `[breakpoints]` and `[initialBreakpoint]`.
 
-### Form sheets: action placement
-
-Form sheets (sheets with a Cancel and/or primary action button) **must place their actions in the `ion-header` toolbar**, not in an `ion-footer`. The header is visible at every breakpoint and stays above the keyboard; a footer is translated below the visible 60 % of the sheet at the `0.6` breakpoint and is unreachable on mobile.
-
-Canonical layout — Cancel in `slot="start"`, primary action in `slot="end"` with `strong="true"` and `color="primary"`, title centred between them:
-
-```html
-<ion-header>
-  <ion-toolbar>
-    <ion-buttons slot="start">
-      <ion-button (click)="cancelled.emit()" aria-label="Cancel">Cancel</ion-button>
-    </ion-buttons>
-    <ion-title>Sheet Title</ion-title>
-    <ion-buttons slot="end">
-      <ion-button strong="true" color="primary" (click)="submit()" aria-label="Primary action">
-        Confirm
-      </ion-button>
-    </ion-buttons>
-  </ion-toolbar>
-</ion-header>
-```
-
-Do **not** add an `ion-footer` to form sheets. Sheets that need no Cancel (e.g. swipe-to-dismiss only) omit the `slot="start"` buttons but keep the primary action in the header.
-
 ## Standalone component imports
 
 All Ionic components must be imported individually in the component's `imports` array (e.g., `IonButton`, `IonContent`, `IonHeader`). There is no barrel import.
