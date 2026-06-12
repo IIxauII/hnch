@@ -24,6 +24,18 @@ All half-sheet modals follow this pattern:
 
 Full-screen modals (e.g., QR display) omit `[breakpoints]` and `[initialBreakpoint]`.
 
+### Form sheet action placement
+
+Form sheets (any sheet with a Cancel or primary-action button) place those actions in the `ion-header` `ion-toolbar` — **not** in an `ion-footer`:
+
+- Cancel: `<ion-buttons slot="start">` — fill, no color override.
+- Primary action: `<ion-buttons slot="end">` with `strong="true"` and `color="primary"`.
+- `ion-title` centred between them.
+
+**Rationale:** at the `0.6` initial breakpoint on a real phone, the `ion-footer` is pinned to the bottom of the full-height modal wrapper — which is translated ~40% below the visible sheet edge. An on-screen keyboard pushes it further. The footer is unreachable regardless of whether the sheet is dragged or a field is focused. The header is always visible at the top of the exposed sheet area and stays above the keyboard.
+
+The custom-scale editor already follows this pattern and serves as canonical prior art. A shared `SheetHeader` abstraction is explicitly deferred — the toolbar is hand-rolled inline in each sheet for now.
+
 ## Standalone component imports
 
 All Ionic components must be imported individually in the component's `imports` array (e.g., `IonButton`, `IonContent`, `IonHeader`). There is no barrel import.
