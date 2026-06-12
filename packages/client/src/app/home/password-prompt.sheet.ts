@@ -4,7 +4,6 @@ import {
   IonButton,
   IonButtons,
   IonContent,
-  IonFooter,
   IonHeader,
   IonInput,
   IonItem,
@@ -27,7 +26,6 @@ import {
     IonButton,
     IonButtons,
     IonContent,
-    IonFooter,
     IonHeader,
     IonInput,
     IonItem,
@@ -41,9 +39,18 @@ import {
   template: `
     <ion-header>
       <ion-toolbar>
+        <ion-buttons slot="start">
+          <ion-button (click)="closeRequested.emit()">Cancel</ion-button>
+        </ion-buttons>
         <ion-title>Set Password (optional)</ion-title>
         <ion-buttons slot="end">
-          <ion-button (click)="closeRequested.emit()">Cancel</ion-button>
+          <ion-button
+            strong="true"
+            color="primary"
+            (click)="onConfirm()"
+          >
+            Confirm
+          </ion-button>
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
@@ -62,41 +69,8 @@ import {
         </ion-item>
       </ion-list>
     </ion-content>
-
-    <ion-footer>
-      <ion-toolbar>
-        <div class="footer-row">
-          <ion-button
-            expand="block"
-            fill="outline"
-            (click)="closeRequested.emit()"
-          >
-            Cancel
-          </ion-button>
-          <ion-button
-            expand="block"
-            color="primary"
-            (click)="onConfirm()"
-          >
-            Confirm
-          </ion-button>
-        </div>
-      </ion-toolbar>
-    </ion-footer>
   `,
-  styles: [
-    `
-      .footer-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 0.5rem;
-        padding: 0.25rem 0.5rem;
-      }
-      ion-footer {
-        border-top: 1px solid var(--hnch-sep);
-      }
-    `,
-  ],
+  styles: [],
 })
 export class PasswordPromptSheetComponent {
   /**
