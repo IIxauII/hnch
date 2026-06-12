@@ -5,7 +5,6 @@ import {
   IonButton,
   IonButtons,
   IonContent,
-  IonFooter,
   IonHeader,
   IonInput,
   IonItem,
@@ -42,8 +41,9 @@ export interface RoundStartSubmission {
  * Round-start half-sheet content — ux.md §5.8 "Round-start modal".
  *
  * Rendered inside an `<ion-modal>` by the caller; this component
- * owns only the internal chrome (title, descriptor input, footer
- * button). Descriptor is optional, Start is always enabled.
+ * owns only the internal chrome (title, descriptor inputs, and the
+ * Cancel / Start actions in the header toolbar). Descriptor is
+ * optional, Start is always enabled.
  *
  * When `prefillAgendaItem` is set on modal open, the form is pre-filled
  * from the agenda item's title/ticketId/description. Mid-edit state is
@@ -56,7 +56,6 @@ export interface RoundStartSubmission {
     IonButton,
     IonButtons,
     IonContent,
-    IonFooter,
     IonHeader,
     IonInput,
     IonItem,
@@ -71,7 +70,22 @@ export interface RoundStartSubmission {
   template: `
     <ion-header>
       <ion-toolbar>
+        <ion-buttons slot="start">
+          <ion-button
+            (click)="cancelled.emit()"
+            aria-label="Cancel"
+          >Cancel</ion-button>
+        </ion-buttons>
         <ion-title>Start Round {{ roundNumber() }}</ion-title>
+        <ion-buttons slot="end">
+          <ion-button
+            strong="true"
+            color="primary"
+            [disabled]="isSubmitting()"
+            (click)="submit()"
+            aria-label="Start round"
+          >Start</ion-button>
+        </ion-buttons>
       </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding">
@@ -113,25 +127,6 @@ export interface RoundStartSubmission {
         All fields are optional. This will appear on everyone's Estimating screen.
       </ion-note>
     </ion-content>
-    <ion-footer>
-      <ion-toolbar>
-        <ion-buttons slot="start">
-          <ion-button
-            (click)="cancelled.emit()"
-            aria-label="Cancel"
-          >Cancel</ion-button>
-        </ion-buttons>
-        <ion-buttons slot="end">
-          <ion-button
-            strong="true"
-            color="primary"
-            [disabled]="isSubmitting()"
-            (click)="submit()"
-            aria-label="Start round"
-          >Start</ion-button>
-        </ion-buttons>
-      </ion-toolbar>
-    </ion-footer>
   `,
   styles: [
     `
