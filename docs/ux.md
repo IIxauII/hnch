@@ -301,7 +301,7 @@ Buttons: [Cancel]   [Leave]   (Leave role: destructive)
 
 `ion-toast` for transient system messages:
 
-- Position: `top` (no clash with footer primary-action area).
+- Position: `top` (no clash with header toolbar action area).
 - Duration: 2000ms informational, 4000ms errors.
 - No close button on short toasts; close icon for 4000ms error variant.
 - Non-blocking — never prevents user action.
