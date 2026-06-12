@@ -1,3 +1,10 @@
+## [1.40.1](https://github.com/IIxauII/hnch/compare/client-v1.40.0...client-v1.40.1) (2026-06-12)
+
+
+### Bug Fixes
+
+* **client,e2e:** relocate round-start sheet actions to header toolbar ([#451](https://github.com/IIxauII/hnch/issues/451)) ([15815a6](https://github.com/IIxauII/hnch/commit/15815a665e1ce7f34ddd105923ec4dbda3430237))
+
 # [1.40.0](https://github.com/IIxauII/hnch/compare/client-v1.39.0...client-v1.40.0) (2026-05-26)
 
 
