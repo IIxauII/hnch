@@ -27,7 +27,7 @@ permissions:
 jobs:
   detect-changes:
     name: Detect changed packages
-    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}
+    runs-on: [self-hosted, linux, arm64, hnch-podman]
     timeout-minutes: 1
     outputs:
       shared: ${{ steps.filter.outputs.shared }}
@@ -130,7 +130,7 @@ jobs:
 
   verify:
     name: Verify (${{ matrix.package }})
-    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}
+    runs-on: [self-hosted, linux, arm64, hnch-podman]
     needs: detect-changes
     # Skip entire job when no relevant packages changed, AND when this is a
     # fork PR (defense in depth — keeps fork PRs off self-hosted runners).
@@ -208,7 +208,7 @@ jobs:
   # not fake-passed) while still giving branch protection a single target.
   verify-summary:
     name: Verify
-    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}
+    runs-on: [self-hosted, linux, arm64, hnch-podman]
     needs: verify
     if: always()
     timeout-minutes: 1
@@ -230,7 +230,7 @@ jobs:
 
   version-audit:
     name: Version audit
-    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}
+    runs-on: [self-hosted, linux, arm64, hnch-podman]
     timeout-minutes: 3
     steps:
       - uses: actions/checkout@v4
@@ -249,7 +249,7 @@ jobs:
 
   pr-title-lint:
     name: PR title (Conventional Commits)
-    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}
+    runs-on: [self-hosted, linux, arm64, hnch-podman]
     if: github.event_name == 'pull_request'
     timeout-minutes: 1
     permissions:
@@ -274,7 +274,7 @@ jobs:
 
   e2e:
     name: E2E (Playwright)
-    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}
+    runs-on: [self-hosted, linux, arm64, hnch-podman]
     needs: [detect-changes, verify-summary]
     # `!failure() && !cancelled()` disables GitHub's default rule that auto-skips
     # a job when any transitive ancestor was skipped. For e2e-only PRs the
