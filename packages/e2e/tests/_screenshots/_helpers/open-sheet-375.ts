@@ -84,3 +84,38 @@ export async function openRoundStartSheetMobile(page: Page) {
   await sheet.waitFor({ state: 'visible', timeout: 10_000 });
   return sheet;
 }
+
+/**
+ * Enable "Password by default" in app settings, then return to Home and
+ * create a room so the set-password half-sheet opens. Returns a locator
+ * scoped to the sheet element once it is visible.
+ *
+ * Precondition: `page` is on the Home screen (after `onboardMobile`).
+ * The caller is responsible for closing the browser context in a finally block.
+ * DO NOT expand the sheet to 0.95 — assert button visibility at the natural
+ * 0.6 breakpoint.
+ */
+export async function openSetPasswordSheetMobile(page: Page, baseUrl: string) {
+  // Enable the "Password by default" toggle in app settings.
+  await page.goto(`${baseUrl}/settings`);
+  await page.waitForURL(/\/settings/);
+  const toggle = page.locator('ion-toggle[aria-label="Enable password by default"]');
+  await toggle.waitFor({ state: 'visible' });
+  const isChecked = await toggle.evaluate(
+    (el: HTMLElement & { checked?: boolean }) => el.checked === true,
+  );
+  if (!isChecked) {
+    await toggle.click();
+    await page.waitForTimeout(300);
+  }
+
+  // Return to Home.
+  await page.goto(`${baseUrl}/home`);
+  await page.waitForURL(/\/home/);
+
+  // Create Room — the password-prompt sheet opens automatically.
+  await page.locator('ion-item:has(h2:text-is("Create Room"))').click();
+  const sheet = page.locator('app-password-prompt-sheet');
+  await sheet.waitFor({ state: 'visible', timeout: 15_000 });
+  return sheet;
+}
