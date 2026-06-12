@@ -32,7 +32,7 @@ permissions:
 jobs:
   deploy:
     name: Build + ship PWA
-    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}
+    runs-on: [self-hosted, linux, arm64, hnch-podman]
     timeout-minutes: 5
     steps:
       - name: Runner identity

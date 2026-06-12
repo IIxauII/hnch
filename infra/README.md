@@ -275,19 +275,27 @@ Within ~30 s, `gh api /repos/IIxauII/hnch/actions/runners | jq '.runners[].label
 
 After editing `supervisor.sh` or `prune.sh` in the repo, re-run `bash infra/runner/install.sh` to copy the changes into `~/.local/bin/`, then `launchctl kickstart -k gui/$(id -u)/dev.hnch.runner` to force fresh containers on the next spawn cycle.
 
-### Flip workflows over
+### Runner targeting
+
+Every Linux CI/CD job hardcodes `runs-on: [self-hosted, linux, arm64, hnch-podman]` (ADR-0047). There is no `vars.LINUX_RUNNER` toggle and no `ubuntu-latest` fallback — a dead pool queues jobs until the host is back. `runner-health.yml` stays on `ubuntu-latest` as the dead-man's-switch and raises an alarm within the hour when the pool is down.
+
+### Recovery when the pool is down (e.g. after a reboot)
+
+The supervisor LaunchAgent calls `podman run` but does **not** start the podman machine — on a cold boot it can fire before the machine is up, fail every spawn, and fall into a 5-minute crashloop backoff. Deterministic spin-up:
 
 ```sh
-gh variable set LINUX_RUNNER --body '["self-hosted","linux","arm64","hnch-podman"]'
+# 1. Ensure the VM is running (no-op if already up)
+podman machine list --format '{{.Name}} {{.Running}}' | grep -q 'hnch-runner true' \
+  || podman machine start hnch-runner
+
+# 2. Wait until podman is actually reachable
+until podman -c hnch-runner info >/dev/null 2>&1; do sleep 2; done
+
+# 3. Kick the supervisor so it spawns now instead of waiting out any backoff
+launchctl kickstart -k gui/$(id -u)/dev.hnch.runner
 ```
 
-### Rollback (instant, no PR)
-
-```sh
-gh variable set LINUX_RUNNER --body '["ubuntu-latest"]'
-```
-
-This flips every `verify` and `e2e` job back to GitHub-hosted on the next workflow run. Use for home-network outages, Mac-mini reboots, or any time the pool misbehaves.
+Within ~30 s, `gh api /repos/IIxauII/hnch/actions/runners --jq '.runners[].name'` should list 4 runners; queued jobs drain automatically.
 
 ### Bumping the runner base image
 
