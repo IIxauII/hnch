@@ -37,7 +37,7 @@ permissions:
 jobs:
   refresh:
     name: Capture and commit
-    runs-on: ${{ fromJSON(vars.LINUX_RUNNER || '["ubuntu-latest"]') }}
+    runs-on: [self-hosted, linux, arm64, hnch-podman]
     timeout-minutes: 15
     steps:
       - name: Runner identity
