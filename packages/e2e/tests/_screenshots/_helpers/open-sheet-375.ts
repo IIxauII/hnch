@@ -119,3 +119,53 @@ export async function openSetPasswordSheetMobile(page: Page, baseUrl: string) {
   await sheet.waitFor({ state: 'visible', timeout: 15_000 });
   return sheet;
 }
+
+/**
+ * Open the agenda item form sheet (Add mode) on a mobile page already on the
+ * Lobby screen. Returns a locator scoped to the sheet element once visible.
+ *
+ * On mobile the agenda panel is collapsed by default (AgendaPanelComponent
+ * renders the expanded `.agenda-panel` only when `expanded()` is true). In a
+ * fresh session with no items, the host sees a collapsed "Add agenda" chip
+ * (`aria-label="No agenda items. Tap to add."`) that emits `addRequested`
+ * directly — there is no `.agenda-panel` / "Add agenda item" button to wait
+ * for. This helper opens the sheet via whichever affordance is present:
+ *   - empty session: the "Add agenda" chip → opens the sheet directly;
+ *   - non-empty session: the "Next up" chip → expand → "Add agenda item" btn.
+ *
+ * The sheet opens at the `0.6` initial breakpoint — do NOT expand it, because
+ * the regression guard is specifically about visibility at that breakpoint.
+ */
+export async function openAgendaItemSheetMobile(page: Page) {
+  const sheet = page.locator('app-agenda-item-form-sheet');
+
+  // Empty-session host: a single collapsed "Add agenda" chip opens the sheet.
+  const addChip = page.getByRole('button', { name: 'No agenda items. Tap to add.' });
+  // Non-empty session: a "Next up" chip expands the panel.
+  const nextUpChip = page.locator('app-agenda-panel ion-chip.next-up-chip');
+  const panel = page.locator('app-agenda-panel .agenda-panel');
+
+  await Promise.race([
+    addChip.waitFor({ state: 'visible', timeout: 10_000 }),
+    nextUpChip.waitFor({ state: 'visible', timeout: 10_000 }),
+    panel.waitFor({ state: 'visible', timeout: 10_000 }),
+  ]);
+
+  if (await addChip.isVisible()) {
+    await addChip.click();
+    await sheet.waitFor({ state: 'visible', timeout: 10_000 });
+    return sheet;
+  }
+
+  // Non-empty / already-expanded path: ensure the panel is expanded, then
+  // use the host "Add agenda item" button inside it.
+  if (!(await panel.isVisible()) && (await nextUpChip.isVisible())) {
+    await nextUpChip.click();
+  }
+  await panel.waitFor({ state: 'visible', timeout: 10_000 });
+  const addBtn = panel.getByRole('button', { name: 'Add agenda item' });
+  await addBtn.waitFor({ state: 'visible', timeout: 10_000 });
+  await addBtn.click();
+  await sheet.waitFor({ state: 'visible', timeout: 10_000 });
+  return sheet;
+}
