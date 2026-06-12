@@ -1,3 +1,10 @@
+## [1.40.2](https://github.com/IIxauII/hnch/compare/client-v1.40.1...client-v1.40.2) (2026-06-12)
+
+
+### Bug Fixes
+
+* **client,e2e:** collapse duplicate Cancel and relocate set-password sheet actions to header ([#455](https://github.com/IIxauII/hnch/issues/455)) ([2006eb6](https://github.com/IIxauII/hnch/commit/2006eb6a244214f269ab410755682708c4e8a761))
+
 ## [1.40.1](https://github.com/IIxauII/hnch/compare/client-v1.40.0...client-v1.40.1) (2026-06-12)
 
 
