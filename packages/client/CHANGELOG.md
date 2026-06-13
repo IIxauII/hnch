@@ -1,3 +1,10 @@
+## [1.40.5](https://github.com/IIxauII/hnch/compare/client-v1.40.4...client-v1.40.5) (2026-06-13)
+
+
+### Bug Fixes
+
+* **shared,client,cli:** hoist unanimous auto-reveal into a shared deep predicate ([#460](https://github.com/IIxauII/hnch/issues/460)) ([ccdec3c](https://github.com/IIxauII/hnch/commit/ccdec3c595a7b3a35f0ab8aa280f82736b0bfa60))
+
 ## [1.40.4](https://github.com/IIxauII/hnch/compare/client-v1.40.3...client-v1.40.4) (2026-06-13)
 
 
