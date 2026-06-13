@@ -83,3 +83,5 @@ High bar. Only write one for **structural** decisions:
 - Implementation details of an already-decided architecture.
 
 If unsure, default to **not** writing one. ADRs are for decisions a future contributor would otherwise have to excavate; everything else is documentation, not architecture.
+
+When a proposed code change conflicts with an existing ADR, either conform the change to the ADR or draft the superseding ADR first and get agreement before implementing — never silently land a change that contradicts an Accepted ADR.
