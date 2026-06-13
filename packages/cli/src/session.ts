@@ -12,7 +12,6 @@ import {
   joinDoc,
   projectDoc,
   currentRound,
-  terminalState,
   castVote,
   clearVote,
   revealRound as revealRoundMutation,
@@ -24,6 +23,7 @@ import {
   hashPassword,
   upsertParticipant,
   participantRole,
+  shouldAutoReveal,
   endSessionForEveryone as endSessionMutation,
   FIBONACCI_SCALE,
   type DocProjection,
@@ -247,29 +247,18 @@ export function wireSession(opts: WireOptions): SessionHandle {
     return ids;
   }
 
-  // Unanimous auto-reveal: if all online voters have voted, reveal automatically.
-  // Viewers (role='viewer') are excluded from the count (ADR-0018, ADR-0020).
+  // Unanimous auto-reveal: when every online voter has a numeric vote, reveal
+  // automatically. The who-counts decision (active roster ∩ online ∩ non-viewer,
+  // abstainers excluded, terminal guard) lives entirely in the shared
+  // `shouldAutoReveal` predicate — both clients call it with raw inputs so the
+  // rule can't drift (ADR-0018 / ADR-0020 / ADR-0036 / ADR-0041).
   const revealedByAuto = new Set<string>();
   const autoRevealInterval = setInterval(() => {
     const projection = projectDoc(doc);
     const round = currentRound(projection);
-    // `currentRound()` already skips discarded rounds; this extra guard
-    // catches the late-merge case where a remote terminal write lands
-    // between projection reads.
-    if (!round || terminalState(round) !== null) return;
-    if (revealedByAuto.has(round.id)) return;
+    if (!round || revealedByAuto.has(round.id)) return;
 
-    const onlineIds = getOnlineIds();
-    if (onlineIds.size === 0) return;
-
-    // Only voters count toward unanimous reveal
-    const onlineVoters = projection.participants.filter(
-      (p) => onlineIds.has(p.id) && participantRole(p) === 'voter',
-    );
-    if (onlineVoters.length === 0) return;
-
-    const votedOnlineVoterCount = onlineVoters.filter((p) => p.id in round.votes).length;
-    if (votedOnlineVoterCount >= onlineVoters.length) {
+    if (shouldAutoReveal(round, projection.participants, getOnlineIds())) {
       revealedByAuto.add(round.id);
       revealRoundMutation(doc, round.id, Date.now());
     }
