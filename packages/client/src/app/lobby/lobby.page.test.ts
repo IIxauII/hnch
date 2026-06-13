@@ -55,6 +55,7 @@ function makeRound(overrides: Partial<Round> & { id: string }): Round {
     votes: {},
     createdAt: 0,
     createdBy: 'p1',
+    status: 'voting',
     ...overrides,
   };
 }
@@ -1082,5 +1083,119 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
     internals.roundStartOpen.set(true);
     await internals.closeRoundStart();
     expect(internals.roundStartOpen()).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LobbyPage — terminal-round computeds (status-driven, issue #468)
+// lastRevealedRound / lastRoundWasSkipped / pastRevealedRounds branch on the
+// projection `status` now that the raw terminal timestamps are gone.
+// ---------------------------------------------------------------------------
+
+describe('LobbyPage — terminal-round computeds (status)', () => {
+  type Computeds = {
+    lastRevealedRound(): Round | null;
+    lastRoundWasSkipped(): boolean;
+    pastRevealedRounds(): readonly Round[];
+  };
+
+  async function mountWithRounds(rounds: Round[]) {
+    const { Router } = await import('@angular/router');
+    const { DocService } = await import('../core/doc/doc.service');
+    const { HapticService } = await import('../core/haptic.service');
+    const { ParticipantIdService } = await import('../core/participant-id.service');
+    const { LastSessionService } = await import('../core/last-session.service');
+    const { ScalePreferenceService } = await import('../core/scale-preference.service');
+    const { SurfaceService } = await import('../core/surface.service');
+    const { ToastService } = await import('../services/toast.service');
+    const { ExportService } = await import('../core/export.service');
+    const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: Router, useValue: { navigate: vi.fn().mockResolvedValue(true) } },
+        {
+          provide: DocService,
+          useValue: {
+            settings: signal(undefined).asReadonly(),
+            roomCode: signal('ABC123').asReadonly(),
+            meta: signal(undefined).asReadonly(),
+            syncStatus: signal('disconnected').asReadonly(),
+            currentRound: signal(undefined).asReadonly(),
+            lastRejection: signal(null).asReadonly(),
+            rounds: signal(rounds).asReadonly(),
+            participants: signal([]).asReadonly(),
+            activeParticipants: signal([]).asReadonly(),
+            onlineParticipantIds: signal(new Set()).asReadonly(),
+            agenda: signal([]).asReadonly(),
+            pendingAgenda: signal([]).asReadonly(),
+            nextPendingAgendaItem: signal(null).asReadonly(),
+            endSession: vi.fn(),
+          },
+        },
+        { provide: HapticService, useValue: { impactLight: vi.fn() } },
+        { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
+        { provide: LastSessionService, useValue: { record: vi.fn() } },
+        { provide: ScalePreferenceService, useValue: { customScales: signal([]).asReadonly() } },
+        {
+          provide: SurfaceService,
+          useValue: {
+            mode: signal('mobile').asReadonly(),
+            sheetBreakpoints: () => [0, 0.5, 1],
+            initialSheetBreakpoint: () => 0.5,
+            sheetBreakpointsFull: () => [0, 0.6, 1],
+            initialSheetBreakpointFull: () => 1,
+          },
+        },
+        { provide: ToastService, useValue: { show: vi.fn(), info: vi.fn(), error: vi.fn() } },
+        { provide: ExportService, useValue: { export: vi.fn() } },
+        {
+          provide: AlertController,
+          useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
+        },
+        {
+          provide: PopoverController,
+          useValue: {
+            create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }),
+            dismiss: vi.fn().mockResolvedValue(true),
+          },
+        },
+      ],
+    });
+    const { LobbyPage } = await import('./lobby.page');
+    const fixture = TestBed.createComponent(LobbyPage);
+    return fixture.componentInstance as unknown as Computeds;
+  }
+
+  it('lastRevealedRound returns the latest revealed/skipped round; pastRevealedRounds excludes it', async () => {
+    const r1 = makeRound({ id: 'r1', status: 'revealed', terminalAt: 1000 });
+    const r2 = makeRound({ id: 'r2', status: 'skipped', terminalAt: 2000 });
+    const c = await mountWithRounds([r1, r2]);
+    expect(c.lastRevealedRound()?.id).toBe('r2');
+    expect(c.lastRoundWasSkipped()).toBe(true);
+    expect(c.pastRevealedRounds().map((r) => r.id)).toEqual(['r1']);
+  });
+
+  it('lastRevealedRound skips discarded tombstones and an active (voting) round', async () => {
+    const r1 = makeRound({ id: 'r1', status: 'revealed', terminalAt: 1000 });
+    const r2 = makeRound({ id: 'r2', status: 'discarded', terminalAt: 2000 });
+    const r3 = makeRound({ id: 'r3', status: 'voting' });
+    const c = await mountWithRounds([r1, r2, r3]);
+    // lastRevealedRound anchors on the latest revealed/skipped round, skipping
+    // the discarded tombstone and the still-voting round.
+    expect(c.lastRevealedRound()?.id).toBe('r1');
+    expect(c.lastRoundWasSkipped()).toBe(false);
+    // pastRevealedRounds = all non-active rounds except the anchor — the
+    // discarded round is a non-active terminal and is retained here (the
+    // history component tombstone-filters separately).
+    expect(c.pastRevealedRounds().map((r) => r.id)).toEqual(['r2']);
+  });
+
+  it('lastRevealedRound is null when no round has ended', async () => {
+    const c = await mountWithRounds([makeRound({ id: 'r1', status: 'voting' })]);
+    expect(c.lastRevealedRound()).toBeNull();
+    expect(c.lastRoundWasSkipped()).toBe(false);
+    expect(c.pastRevealedRounds()).toEqual([]);
   });
 });
