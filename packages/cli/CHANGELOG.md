@@ -1,3 +1,10 @@
+# [1.13.0](https://github.com/IIxauII/hnch/compare/cli-v1.12.3...cli-v1.13.0) (2026-06-13)
+
+
+### Features
+
+* **shared,cli,client:** single-source host-election as shared pure reducer ([#465](https://github.com/IIxauII/hnch/issues/465)) ([b891a45](https://github.com/IIxauII/hnch/commit/b891a45fc59be53c06ec5eb31d066b35b7c9f721))
+
 ## [1.12.3](https://github.com/IIxauII/hnch/compare/cli-v1.12.2...cli-v1.12.3) (2026-06-13)
 
 
