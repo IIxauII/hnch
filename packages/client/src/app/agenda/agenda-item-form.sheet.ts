@@ -20,7 +20,6 @@ import {
   IonButton,
   IonButtons,
   IonContent,
-  IonFooter,
   IonHeader,
   IonInput,
   IonItem,
@@ -70,7 +69,6 @@ function atLeastOneRequired(group: AbstractControl): ValidationErrors | null {
     IonButton,
     IonButtons,
     IonContent,
-    IonFooter,
     IonHeader,
     IonInput,
     IonItem,
@@ -85,7 +83,22 @@ function atLeastOneRequired(group: AbstractControl): ValidationErrors | null {
   template: `
     <ion-header>
       <ion-toolbar>
+        <ion-buttons slot="start">
+          <ion-button
+            (click)="closeRequested.emit()"
+            aria-label="Cancel"
+          >Cancel</ion-button>
+        </ion-buttons>
         <ion-title>{{ mode() === 'edit' ? 'Edit Agenda Item' : 'Add Agenda Item' }}</ion-title>
+        <ion-buttons slot="end">
+          <ion-button
+            strong="true"
+            color="primary"
+            [disabled]="isSubmitting() || !form.valid"
+            (click)="submit()"
+            aria-label="{{ mode() === 'edit' ? 'Save agenda item' : 'Add agenda item' }}"
+          >{{ mode() === 'edit' ? 'Save' : 'Add' }}</ion-button>
+        </ion-buttons>
       </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding">
@@ -146,25 +159,6 @@ function atLeastOneRequired(group: AbstractControl): ValidationErrors | null {
         }
       </form>
     </ion-content>
-    <ion-footer>
-      <ion-toolbar>
-        <ion-buttons slot="start">
-          <ion-button
-            (click)="closeRequested.emit()"
-            aria-label="Cancel"
-          >Cancel</ion-button>
-        </ion-buttons>
-        <ion-buttons slot="end">
-          <ion-button
-            strong="true"
-            color="primary"
-            [disabled]="isSubmitting() || !form.valid"
-            (click)="submit()"
-            aria-label="{{ mode() === 'edit' ? 'Save agenda item' : 'Add agenda item' }}"
-          >{{ mode() === 'edit' ? 'Save' : 'Add' }}</ion-button>
-        </ion-buttons>
-      </ion-toolbar>
-    </ion-footer>
   `,
   styles: [
     `
