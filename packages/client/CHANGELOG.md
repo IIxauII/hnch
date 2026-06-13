@@ -1,3 +1,10 @@
+## [1.40.4](https://github.com/IIxauII/hnch/compare/client-v1.40.3...client-v1.40.4) (2026-06-13)
+
+
+### Bug Fixes
+
+* **client,e2e:** relocate round-edit sheet Save action to header toolbar ([#456](https://github.com/IIxauII/hnch/issues/456)) ([220b995](https://github.com/IIxauII/hnch/commit/220b995e65d300009dedb892f062a1532202298b))
+
 ## [1.40.3](https://github.com/IIxauII/hnch/compare/client-v1.40.2...client-v1.40.3) (2026-06-13)
 
 
