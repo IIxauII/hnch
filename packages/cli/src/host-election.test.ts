@@ -9,7 +9,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as Y from 'yjs';
 import { Awareness } from 'y-protocols/awareness';
-import { patchSettings, DOC_SETTINGS_KEY } from '@hnch/shared';
+import { patchSettings, upsertParticipant, leaveSession, DOC_SETTINGS_KEY } from '@hnch/shared';
 import { startElection, HOST_ABSENCE_ELECTION_DEBOUNCE_MS } from './host-election.js';
 
 // ---------------------------------------------------------------------------
@@ -44,6 +44,17 @@ function getDocHostId(doc: Y.Doc): string | undefined {
   return doc.getMap(DOC_SETTINGS_KEY).get('hostParticipantId') as string | undefined;
 }
 
+/**
+ * Seed active participant records in the doc. The eligible peer set is
+ * online ∩ active (ADR-0048), so awareness alone is no longer enough —
+ * each online peer must also have an active (`!leftAt`) doc entry.
+ */
+function seedParticipants(doc: Y.Doc, ids: string[]): void {
+  for (const id of ids) {
+    upsertParticipant(doc, id, { displayName: id, joinedAt: 0 });
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -64,6 +75,7 @@ describe('startElection (ADR-0010)', () => {
         : setInterval(fn, delay, ...args),
     );
     patchSettings(doc, { hostParticipantId: 'host-1' });
+    seedParticipants(doc, ['host-1', 'peer-a', 'peer-b']);
   });
 
   afterEach(() => {
@@ -202,6 +214,48 @@ describe('startElection (ADR-0010)', () => {
     // hostParticipantId should still be 'peer-a' (the value written above),
     // not corrupted by the debounce firing
     expect(getDocHostId(doc)).toBe('peer-a');
+
+    handle.stop();
+  });
+
+  it('kicked-but-lingering peer cannot win election (ADR-0048 parity with client)', () => {
+    setAwarenessStates(awareness, [
+      { clientID: 1, participantId: 'host-1' },
+      { clientID: 2, participantId: 'peer-a' },
+      { clientID: 3, participantId: 'peer-b' },
+    ]);
+
+    // peer-a is kicked: leftAt set in the doc, but its awareness entry lingers.
+    leaveSession(doc, 'peer-a');
+
+    // peer-b runs the election. Old CLI would let lex-lowest 'peer-a' win/block;
+    // now 'peer-a' is inactive and excluded → 'peer-b' wins.
+    const handle = startElection(doc, awareness, 'peer-b');
+
+    removePeerFromAwareness(awareness, 1);
+    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS);
+
+    expect(getDocHostId(doc)).toBe('peer-b');
+
+    handle.stop();
+  });
+
+  it('kicked-but-lingering peer cannot block election when it is lex-lowest online', () => {
+    setAwarenessStates(awareness, [
+      { clientID: 1, participantId: 'host-1' },
+      { clientID: 2, participantId: 'peer-a' },
+    ]);
+
+    // peer-a kicked but still in awareness; it is the only other online id.
+    leaveSession(doc, 'peer-a');
+
+    // peer-a itself must NOT promote — it's inactive.
+    const handle = startElection(doc, awareness, 'peer-a');
+
+    removePeerFromAwareness(awareness, 1);
+    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS);
+
+    expect(getDocHostId(doc)).toBe('host-1');
 
     handle.stop();
   });

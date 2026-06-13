@@ -4,6 +4,7 @@ export * from './auto-reveal.js';
 export * from './avatar-palette.js';
 export * from './doc.js';
 export * from './doc-projection.js';
+export * from './election.js';
 export * from './format-round-label.js';
 export * from './fractional-index.js';
 export * from './format-time.js';

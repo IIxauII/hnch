@@ -12,8 +12,9 @@
  */
 
 import { TestBed } from '@angular/core/testing';
-import { signal } from '@angular/core';
+import { computed, signal } from '@angular/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { DocProjection } from '@hnch/shared';
 
 // Mock ESM-only packages that cascade in via doc.service.ts imports.
 vi.mock('@ionic/angular/standalone', () => ({}));
@@ -29,28 +30,36 @@ import { ParticipantIdService } from './participant-id.service';
 // (signals are required so the service's effect() tracks and re-runs on change)
 // ---------------------------------------------------------------------------
 
+// The service now drives the shared election fns (ADR-0048), so it reads a
+// live `projectionSnapshot` (host id + participants, incl. `leftAt`) plus the
+// raw `onlineParticipantIds`. The online ∩ active intersection happens inside
+// `@hnch/shared` — the mock only supplies the projection and awareness set.
 function makeDocMock() {
-  const hasSession = signal(true);
-  const settings = signal<{ hostParticipantId: string } | null>({ hostParticipantId: 'host-1' });
-  const onlineParticipantIds = signal<ReadonlySet<string>>(new Set(['host-1', 'peer-a', 'peer-b']));
-  const activeParticipants = signal<readonly { id: string }[]>([
+  const hostId = signal('host-1');
+  const participants = signal<readonly { id: string; leftAt?: number }[]>([
     { id: 'host-1' },
     { id: 'peer-a' },
     { id: 'peer-b' },
   ]);
+  const onlineParticipantIds = signal<ReadonlySet<string>>(new Set(['host-1', 'peer-a', 'peer-b']));
   const updateSettings = vi.fn<[{ hostParticipantId: string }], void>();
 
+  const projectionSnapshot = computed(
+    () =>
+      ({
+        settings: { hostParticipantId: hostId() },
+        participants: participants(),
+      }) as unknown as DocProjection,
+  );
+
   return {
-    hasSession: hasSession.asReadonly(),
-    settings: settings.asReadonly(),
+    projectionSnapshot,
     onlineParticipantIds: onlineParticipantIds.asReadonly(),
-    activeParticipants: activeParticipants.asReadonly(),
     updateSettings,
     // Writable handles for test scenarios:
-    _hasSession: hasSession,
-    _settings: settings,
+    _hostId: hostId,
+    _participants: participants,
     _onlineParticipantIds: onlineParticipantIds,
-    _activeParticipants: activeParticipants,
   };
 }
 
@@ -144,8 +153,8 @@ describe('HostElectionService (ADR-0010)', () => {
   });
 
   it('kicked peer in awareness is ineligible — active set excludes them', () => {
-    // peer-b was kicked: absent from activeParticipants but still in awareness (stale)
-    docMock._activeParticipants.set([{ id: 'host-1' }, { id: 'peer-a' }]);
+    // peer-b was kicked: `leftAt` set in the projection but still in awareness (stale)
+    docMock._participants.set([{ id: 'host-1' }, { id: 'peer-a' }, { id: 'peer-b', leftAt: 1000 }]);
     TestBed.inject(HostElectionService);
     TestBed.flushEffects();
 
