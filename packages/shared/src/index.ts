@@ -1,5 +1,6 @@
 export * from './abstain.js';
 export * from './auth.js';
+export * from './auto-reveal.js';
 export * from './avatar-palette.js';
 export * from './doc.js';
 export * from './doc-projection.js';
