@@ -58,6 +58,12 @@ jobs:
           # already persistent across ephemeral runner respawns. See
           # ci.yml verify lanes for the same pattern.
 
+      # OIDC Trusted Publishing needs npm CLI >= 11.5.1 to mint + exchange the
+      # GitHub Actions id-token (Node 22 ships npm 10.x). @semantic-release/npm
+      # >= 13.1.0 detects the OIDC context and skips token auth entirely.
+      - name: Upgrade npm for OIDC publish
+        run: npm install -g npm@latest
+
       - name: Install
         run: pnpm install --frozen-lockfile
 
@@ -69,13 +75,11 @@ jobs:
           # PAT (not GITHUB_TOKEN). Read by both semantic-release (push) and
           # `gh` inside per-package publishCmd (workflow_dispatch on deploy-*.yml).
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-          # npm granular automation token, used by @semantic-release/npm in
-          # cli's release.config.mjs (npmPublish: true). Other packages stay private.
-          # Trusted Publishing (OIDC) was the preferred auth, but npm only
-          # exposes the publisher binding UI per-package after the first
-          # publish — so we bootstrap with a token, then migrate to OIDC
-          # once the `hnch` package exists on the registry.
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # No NPM_TOKEN: cli publishes via OIDC Trusted Publishing. The job's
+          # `id-token: write` permission + the publisher binding configured on
+          # npmjs.com (repo IIxauII/hnch, workflow release.yml) authorize the
+          # publish. @semantic-release/npm >= 13.1.0 exchanges the id-token and
+          # skips token auth. Other packages stay private (npmPublish: false).
         run: |
           # If one package's release fails, later packages are skipped. semantic-release is idempotent on tags, so re-running the workflow after fixing the failure resumes safely.
           set -euo pipefail
