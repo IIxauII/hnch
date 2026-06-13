@@ -1,19 +1,23 @@
 import { effect, inject, Injectable } from '@angular/core';
+import {
+  evaluateElection,
+  resolvePromotion,
+  HOST_ABSENCE_ELECTION_DEBOUNCE_MS,
+} from '@hnch/shared';
 
 import { DocService } from './doc/doc.service';
 import { ParticipantIdService } from './participant-id.service';
 
 /**
  * Debounce before promoting a new host after the current one drops from
- * awareness. Matches ADR-0010's 5-second window — long enough to absorb
- * transient WebSocket reconnects, short enough that the session doesn't
- * feel leaderless.
+ * awareness. Single-sourced in `@hnch/shared` (ADR-0048); re-exported here
+ * for the connection chip and tests that reference the client-side value.
  *
  * Intentionally separate from `DISCONNECTED_WARNING_DELAY_MS` in the
  * connection chip — they're semantically different timers that happen
  * to share a value.
  */
-export const HOST_ABSENCE_ELECTION_DEBOUNCE_MS = 5_000;
+export { HOST_ABSENCE_ELECTION_DEBOUNCE_MS };
 
 /**
  * Host-election state machine (ADR-0010).
@@ -46,72 +50,52 @@ export class HostElectionService {
   }
 
   private evaluate(): void {
-    if (!this.docService.hasSession()) return;
+    // Read both tracked signals up front so the effect re-runs on any
+    // projection or awareness change. `null` projection ⇒ no session.
+    const projection = this.docService.projectionSnapshot();
+    const onlineIds = this.docService.onlineParticipantIds();
+    if (!projection) return;
 
-    const settings = this.docService.settings();
-    if (!settings) return;
+    // The election rule — including the online ∩ active intersection — lives
+    // in `@hnch/shared` (ADR-0048). This driver only applies the action.
+    const result = evaluateElection(projection, onlineIds, { missingHostId: this.missingHostId });
 
-    const hostId = settings.hostParticipantId;
-    if (!hostId) return;
-
-    // Intersect awareness set with active (non-kicked) participants — a
-    // kicked peer whose awareness lingers must not block or win an election.
-    const rawOnlineIds = this.docService.onlineParticipantIds();
-    const activeIds = new Set(this.docService.activeParticipants().map((p) => p.id));
-    const onlineIds = new Set([...rawOnlineIds].filter((id) => activeIds.has(id)));
-
-    // 1. Host is online AND active → no action, cancel any pending debounce.
-    if (onlineIds.has(hostId)) {
-      this.cancelDebounce();
-      return;
+    switch (result.kind) {
+      case 'cancel':
+        this.cancelDebounce();
+        break;
+      case 'start-debounce':
+        this.cancelDebounce();
+        this.missingHostId = result.hostId;
+        this.debounceTimeout = setTimeout(() => {
+          this.debounceTimeout = null;
+          this.tryPromote();
+        }, HOST_ABSENCE_ELECTION_DEBOUNCE_MS);
+        break;
+      case 'none':
+        break;
     }
-
-    // 2. Host is offline and no debounce is running → start one.
-    //    Also restart if a *different* host went missing (edge case:
-    //    host changed while the previous debounce was in flight).
-    if (this.missingHostId !== hostId) {
-      this.cancelDebounce();
-      this.missingHostId = hostId;
-      this.debounceTimeout = setTimeout(() => {
-        this.debounceTimeout = null;
-        this.tryPromote();
-      }, HOST_ABSENCE_ELECTION_DEBOUNCE_MS);
-    }
-    // 3. If the same missing host is already being debounced, let the
-    //    timeout run — nothing to do here.
   }
 
   private tryPromote(): void {
-    const settings = this.docService.settings();
-    if (!settings) return;
-
-    const hostId = settings.hostParticipantId;
+    const projection = this.docService.projectionSnapshot();
+    const myId = this.participantIdService.id();
     const cachedMissing = this.missingHostId;
     this.missingHostId = null;
+    if (!projection || !myId) return;
 
-    // Guard: the host we started debouncing for must still be the
-    // current host and must still be offline.
-    if (!cachedMissing || hostId !== cachedMissing) return;
-
-    // Re-intersect at promotion time (same logic as evaluate).
-    const rawOnlineIds = this.docService.onlineParticipantIds();
-    const activeIds = new Set(this.docService.activeParticipants().map((p) => p.id));
-    const onlineIds = new Set([...rawOnlineIds].filter((id) => activeIds.has(id)));
-    if (onlineIds.has(hostId)) return;
-
-    // Compute the winner: lexicographically lowest active-online participantId.
-    const sorted = [...onlineIds].toSorted();
-    if (sorted.length === 0) return;
-
-    const winner = sorted[0]!;
-    const myId = this.participantIdService.id();
-
-    // Only the winner writes — other clients see the doc update and
-    // stand down. If two clients compute different winners (awareness
-    // drift), Yjs merges deterministically; the loser re-reads and
-    // stands down (ADR-0010 §Consequences).
-    if (winner === myId) {
-      this.docService.updateSettings({ hostParticipantId: winner });
+    // Only the winner writes — other clients see the doc update and stand
+    // down. If two clients compute different winners (awareness drift), Yjs
+    // merges deterministically; the loser re-reads and stands down
+    // (ADR-0010 §Consequences).
+    const result = resolvePromotion(
+      projection,
+      this.docService.onlineParticipantIds(),
+      myId,
+      cachedMissing,
+    );
+    if (result.promote) {
+      this.docService.updateSettings({ hostParticipantId: result.winner });
     }
   }
 

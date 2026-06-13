@@ -65,6 +65,8 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0044](0044-local-room-history-cache.md) | Local room history cache — per-room entries, mobile passwordHash reversal | Accepted |
 | [0045](0045-agenda-consume-at-round-terminal.md) | Agenda items consume at round-terminal (reveal/skip) instead of round-start (supersedes ADR-0042) | Accepted |
 | [0046](0046-round-discard-tombstone.md) | Round record — three terminal fields (`revealedAt`/`skippedAt`/`discardedAt`) + tombstone semantics (supersedes ADR-0013) | Accepted |
+| [0047](0047-hardcode-self-hosted-runner-no-hosted-fallback.md) | Hardcode self-hosted runner — no hosted fallback | Accepted |
+| [0048](0048-host-election-eligible-peer-set.md) | Host election eligible peer set — online ∩ active, single-sourced in `shared/election.ts` (refines ADR-0010) | Accepted |
 
 ## When to write an ADR
 
