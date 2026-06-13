@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
-import { formatElapsed, formatRoundLabel, resolveRoundLineage, terminalState } from '@hnch/shared';
+import { formatElapsed, formatRoundLabel, resolveRoundLineage } from '@hnch/shared';
 import type { AgendaItem, ParticipantSnapshot, Round } from '@hnch/shared';
 import { IonButton, IonIcon } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -152,7 +152,7 @@ export class RoundHistoryComponent {
 
   readonly entries = computed<readonly HistoryEntry[]>(() => {
     // Include rounds that have reached a terminal state (revealed or skipped).
-    const terminal = this.rounds().filter((r) => terminalState(r) !== null);
+    const terminal = this.rounds().filter((r) => r.status !== 'pending' && r.status !== 'voting');
     // Reverse chronological — newest rounds first in the history list.
     const reversed = [...terminal].toReversed();
     // Fall back to local rounds when `allRounds` not provided.
@@ -161,7 +161,7 @@ export class RoundHistoryComponent {
     return reversed.map((round, revIdx) => {
       const originalIndex = terminal.length - 1 - revIdx;
       const roundNumber = originalIndex + 1;
-      const isSkipped = terminalState(round) === 'skipped';
+      const isSkipped = round.status === 'skipped';
       const lineageLabel = resolveRoundLineage(round.id, lineageSource) !== null ? 're-vote' : null;
 
       // Fallback: when round has no title/ticketId but has an agendaItemId,
@@ -191,8 +191,10 @@ export class RoundHistoryComponent {
 
       const summary = buildVoteSummary(round.votes, round.scale.cards);
       const elapsed =
-        round.revealedAt !== undefined && round.timerStartedAt !== undefined
-          ? formatElapsed(round.revealedAt - round.timerStartedAt)
+        round.status === 'revealed' &&
+        round.terminalAt !== undefined &&
+        round.timerStartedAt !== undefined
+          ? formatElapsed(round.terminalAt - round.timerStartedAt)
           : null;
 
       return {

@@ -18,13 +18,43 @@ import { Lobby } from './Lobby.js';
 
 const SCALE: Scale = { id: 'fibonacci', cards: ['1', '2', '3', '5', '8'] };
 
-function makeRound(overrides: Partial<Round> & { id: string }): Round {
+/**
+ * Resolve raw terminal timestamps into `status` / `terminalAt` (earliest wins;
+ * literal tie reveal>skip>discard) — mirrors `projectRound`.
+ */
+function resolveTerminal(
+  revealedAt?: number,
+  skippedAt?: number,
+  discardedAt?: number,
+): { status: 'revealed' | 'skipped' | 'discarded'; at: number } | null {
+  const c: { status: 'revealed' | 'skipped' | 'discarded'; at: number }[] = [];
+  if (revealedAt !== undefined) c.push({ status: 'revealed', at: revealedAt });
+  if (skippedAt !== undefined) c.push({ status: 'skipped', at: skippedAt });
+  if (discardedAt !== undefined) c.push({ status: 'discarded', at: discardedAt });
+  if (c.length === 0) return null;
+  const rank = { revealed: 0, skipped: 1, discarded: 2 };
+  c.sort((a, b) => a.at - b.at || rank[a.status] - rank[b.status]);
+  return c[0]!;
+}
+
+function makeRound(
+  overrides: Partial<Round> & {
+    id: string;
+    revealedAt?: number;
+    skippedAt?: number;
+    discardedAt?: number;
+  },
+): Round {
+  const { revealedAt, skippedAt, discardedAt, ...rest } = overrides;
+  const terminal = resolveTerminal(revealedAt, skippedAt, discardedAt);
   return {
     scale: SCALE,
     votes: {},
     createdAt: 0,
     createdBy: 'host',
-    ...overrides,
+    status: terminal?.status ?? (rest.timerStartedAt !== undefined ? 'voting' : 'pending'),
+    ...(terminal ? { terminalAt: terminal.at } : {}),
+    ...rest,
   };
 }
 
@@ -124,6 +154,24 @@ describe('Lobby render — issue #111 patch lines', () => {
     const frame = lastFrame() ?? '';
     expect(frame).toContain('Round 1');
     expect(frame).toContain('Skipped');
+  });
+
+  it('ResultsSection renders elapsed time when timerStartedAt + status=revealed + terminalAt present', () => {
+    // timerStartedAt=0, revealedAt=90_000 → terminalAt=90_000, status='revealed'
+    // elapsed branch: round.status === 'revealed' && round.terminalAt !== undefined → formatElapsed
+    const r1 = makeRound({ id: 'r1', revealedAt: 90_000, timerStartedAt: 0, votes: { host: '5' } });
+    const { lastFrame } = render(<Lobby {...baseProps([r1], r1)} />);
+    const frame = lastFrame() ?? '';
+    // formatElapsed(0, 90_000) = '1:30'
+    expect(frame).toContain('1:30');
+  });
+
+  it('ResultsSection omits elapsed when timerStartedAt absent (terminalAt alone not enough)', () => {
+    const r1 = makeRound({ id: 'r1', revealedAt: 90_000, votes: { host: '5' } });
+    const { lastFrame } = render(<Lobby {...baseProps([r1], r1)} />);
+    const frame = lastFrame() ?? '';
+    // No timerStartedAt → elapsed branch is null → no time string
+    expect(frame).not.toContain('1:30');
   });
 
   it('renders ticket ID prompt block when roundTicketIdPromptActive is true (issue #109)', () => {

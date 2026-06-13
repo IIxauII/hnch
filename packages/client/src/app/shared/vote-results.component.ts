@@ -6,7 +6,6 @@ import {
   isAbstainVote,
   isActiveParticipant,
   isConsensus,
-  terminalState,
 } from '@hnch/shared';
 import type { ParticipantSnapshot, Round, RoundStats, SpreadLabel } from '@hnch/shared';
 import { IonChip, IonItemGroup, IonLabel } from '@ionic/angular/standalone';
@@ -320,7 +319,7 @@ export class VoteResultsComponent {
     const r = this.round();
     const values = Object.values(r.votes);
     if (values.length >= 2 && values.every(isAbstainVote)) return false;
-    return isConsensus(r) && terminalState(r) !== 'skipped';
+    return isConsensus(r) && r.status !== 'skipped';
   });
 
   /**
@@ -424,10 +423,14 @@ export class VoteResultsComponent {
    */
   readonly elapsedLabel = computed<string | null>(() => {
     const round = this.round();
-    if (round.revealedAt === undefined || round.timerStartedAt === undefined) {
+    if (
+      round.status !== 'revealed' ||
+      round.terminalAt === undefined ||
+      round.timerStartedAt === undefined
+    ) {
       return null;
     }
-    return formatElapsed(round.revealedAt - round.timerStartedAt);
+    return formatElapsed(round.terminalAt - round.timerStartedAt);
   });
 
   /**

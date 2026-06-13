@@ -19,6 +19,7 @@ function makeRound(overrides: Partial<Round> = {}): Round {
     votes: {},
     createdAt: 0,
     createdBy: 'host',
+    status: 'voting',
     ...overrides,
   };
 }

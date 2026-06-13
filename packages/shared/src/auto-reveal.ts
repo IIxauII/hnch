@@ -19,7 +19,7 @@
  */
 
 import { isAbstainVote } from './abstain.js';
-import { isActiveParticipant, participantRole, terminalState, type Round } from './doc.js';
+import { isActiveParticipant, participantRole, type Round } from './doc.js';
 import type { ParticipantSnapshot } from './doc-projection.js';
 
 /**
@@ -33,11 +33,13 @@ import type { ParticipantSnapshot } from './doc-projection.js';
  * @param onlineIds     Participant ids currently present in awareness.
  */
 export function shouldAutoReveal(
-  round: Pick<Round, 'revealedAt' | 'skippedAt' | 'discardedAt' | 'votes'> | null | undefined,
+  round: Pick<Round, 'status' | 'votes'> | null | undefined,
   participants: readonly ParticipantSnapshot[],
   onlineIds: ReadonlySet<string>,
 ): boolean {
-  if (!round || terminalState(round) !== null) return false;
+  // Terminal guard: a round already revealed / skipped / discarded never
+  // re-reveals. Only `'voting'` / `'pending'` rounds are eligible.
+  if (!round || (round.status !== 'voting' && round.status !== 'pending')) return false;
 
   const onlineVoterIds = new Set(
     participants

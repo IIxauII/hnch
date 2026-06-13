@@ -110,8 +110,7 @@ describe('session integration', () => {
     // Host reveals
     host.reveal();
     await vi.waitFor(
-      () =>
-        expect(host.projection().rounds.find((x) => x.id === roundId)?.revealedAt).toBeDefined(),
+      () => expect(host.projection().rounds.find((x) => x.id === roundId)?.status).toBe('revealed'),
       { timeout: SYNC_TIMEOUT },
     );
 
@@ -178,7 +177,7 @@ describe('session integration', () => {
 
     await vi.waitFor(
       () =>
-        expect(host.projection().rounds.find((x) => x.id === round1Id)?.revealedAt).toBeDefined(),
+        expect(host.projection().rounds.find((x) => x.id === round1Id)?.status).toBe('revealed'),
       { timeout: SYNC_TIMEOUT },
     );
 
@@ -292,7 +291,7 @@ describe('session integration', () => {
 
     await vi.waitFor(
       () =>
-        expect(host.projection().rounds.find((x) => x.id === round1Id)?.revealedAt).toBeDefined(),
+        expect(host.projection().rounds.find((x) => x.id === round1Id)?.status).toBe('revealed'),
       { timeout: SYNC_TIMEOUT },
     );
 
@@ -483,17 +482,12 @@ describe('session integration', () => {
     host.skip();
 
     await vi.waitFor(
-      () =>
-        expect(host.projection().rounds.find((x) => x.id === roundId)?.skippedAt).toBeTypeOf(
-          'number',
-        ),
+      () => expect(host.projection().rounds.find((x) => x.id === roundId)?.status).toBe('skipped'),
       { timeout: SYNC_TIMEOUT },
     );
     await vi.waitFor(
       () =>
-        expect(joiner.projection().rounds.find((x) => x.id === roundId)?.skippedAt).toBeTypeOf(
-          'number',
-        ),
+        expect(joiner.projection().rounds.find((x) => x.id === roundId)?.status).toBe('skipped'),
       { timeout: SYNC_TIMEOUT },
     );
 

@@ -18,14 +18,44 @@ import {
 
 const SCALE: Scale = { id: 'fibonacci', cards: ['1', '2', '3', '5', '8', '13'] };
 
-function makeRound(overrides: Partial<Round> = {}): Round {
+/**
+ * Resolve raw terminal timestamps into the projection's `status` / `terminalAt`
+ * (earliest wins; literal tie reveal>skip>discard) — mirrors `projectRound` so
+ * fixtures can keep expressing intent in raw terms.
+ */
+function resolveTerminal(
+  revealedAt?: number,
+  skippedAt?: number,
+  discardedAt?: number,
+): { status: 'revealed' | 'skipped' | 'discarded'; at: number } | null {
+  const c: { status: 'revealed' | 'skipped' | 'discarded'; at: number }[] = [];
+  if (revealedAt !== undefined) c.push({ status: 'revealed', at: revealedAt });
+  if (skippedAt !== undefined) c.push({ status: 'skipped', at: skippedAt });
+  if (discardedAt !== undefined) c.push({ status: 'discarded', at: discardedAt });
+  if (c.length === 0) return null;
+  const rank = { revealed: 0, skipped: 1, discarded: 2 };
+  c.sort((a, b) => a.at - b.at || rank[a.status] - rank[b.status]);
+  return c[0]!;
+}
+
+function makeRound(
+  overrides: Partial<Round> & {
+    revealedAt?: number;
+    skippedAt?: number;
+    discardedAt?: number;
+  } = {},
+): Round {
+  const { revealedAt, skippedAt, discardedAt, ...rest } = overrides;
+  const terminal = resolveTerminal(revealedAt, skippedAt, discardedAt);
   return {
     id: 'r1',
     scale: SCALE,
     votes: {},
     createdAt: 0,
     createdBy: 'host',
-    ...overrides,
+    status: terminal?.status ?? (rest.timerStartedAt !== undefined ? 'voting' : 'pending'),
+    ...(terminal ? { terminalAt: terminal.at } : {}),
+    ...rest,
   };
 }
 
@@ -248,9 +278,8 @@ describe('compactRoundSummary', () => {
     ).toBe('Round 2: Auth [AUTH-1] — Skipped');
   });
 
-  it('revealed wins over skipped when revealedAt > skippedAt', () => {
-    // terminalState: revealedAt <= skippedAt → 'revealed'; revealedAt > skippedAt → 'skipped'
-    // revealedAt=2_000 > skippedAt=1_000 → 'skipped'
+  it('earliest terminal wins on CRDT merge: skip (1_000) beats reveal (2_000) → Skipped', () => {
+    // projectRound resolves earliest-wins: skippedAt=1_000 < revealedAt=2_000 → status 'skipped'.
     expect(compactRoundSummary(makeRound({ revealedAt: 2_000, skippedAt: 1_000 }), 1)).toBe(
       'Round 1: — Skipped',
     );
