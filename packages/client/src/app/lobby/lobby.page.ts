@@ -13,13 +13,7 @@ import {
 import { CelebrationService } from '../core/celebration.service';
 import { Router } from '@angular/router';
 import { Share } from '@capacitor/share';
-import {
-  formatRoomCode,
-  formatRoundLabel,
-  getScaleLabel,
-  resolveAvatarColor,
-  terminalState,
-} from '@hnch/shared';
+import { formatRoomCode, formatRoundLabel, getScaleLabel, resolveAvatarColor } from '@hnch/shared';
 import type { Round } from '@hnch/shared';
 import {
   AlertController,
@@ -1019,8 +1013,7 @@ export class LobbyPage implements OnDestroy {
     const rounds = this.rounds();
     for (let i = rounds.length - 1; i >= 0; i--) {
       const r = rounds[i]!;
-      const state = terminalState(r);
-      if (state !== null && state !== 'discarded') return r;
+      if (r.status !== 'pending' && r.status !== 'voting' && r.status !== 'discarded') return r;
     }
     return null;
   });
@@ -1030,7 +1023,7 @@ export class LobbyPage implements OnDestroy {
    */
   protected readonly lastRoundWasSkipped = computed(() => {
     const r = this.lastRevealedRound();
-    return r !== null && terminalState(r) === 'skipped';
+    return r !== null && r.status === 'skipped';
   });
 
   /**
@@ -1050,12 +1043,12 @@ export class LobbyPage implements OnDestroy {
 
   /** True when at least one round has been revealed (gates "Copy results" button). */
   protected readonly hasRevealedRounds = computed(() =>
-    this.rounds().some((r) => r.revealedAt != null),
+    this.rounds().some((r) => r.status === 'revealed'),
   );
 
   /** True when at least one round has reached a terminal state (gates accordion collapse). */
   protected readonly hasTerminalRounds = computed(() =>
-    this.rounds().some((r) => terminalState(r) !== null),
+    this.rounds().some((r) => r.status !== 'pending' && r.status !== 'voting'),
   );
 
   /**
@@ -1089,7 +1082,9 @@ export class LobbyPage implements OnDestroy {
     const rounds = this.rounds();
     const last = this.lastRevealedRound();
     if (!last) return [];
-    return rounds.filter((r) => terminalState(r) !== null && r.id !== last.id);
+    return rounds.filter(
+      (r) => r.status !== 'pending' && r.status !== 'voting' && r.id !== last.id,
+    );
   });
 
   /** 1-based round number for the edit modal header. */
@@ -1191,7 +1186,7 @@ export class LobbyPage implements OnDestroy {
     // rounds briefly appear as currentRound before the projection updates).
     effect(() => {
       const round = this.docService.currentRound();
-      if (round && terminalState(round) === null) {
+      if (round && (round.status === 'pending' || round.status === 'voting')) {
         const code = this.docService.roomCode();
         assertRoomCode(code, 'lobby.autoNav');
         void this.router.navigate(['/estimating', code]);

@@ -1,5 +1,5 @@
 import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
-import { isAbstainVote, isConsensus, terminalState } from '@hnch/shared';
+import { isAbstainVote, isConsensus } from '@hnch/shared';
 import type { Round } from '@hnch/shared';
 
 import { HapticService } from './haptic.service';
@@ -46,7 +46,7 @@ export class CelebrationService {
     if (!r) return false;
     const values = Object.values(r.votes);
     if (values.length >= 2 && values.every(isAbstainVote)) return false;
-    return isConsensus(r) && terminalState(r) !== 'skipped';
+    return isConsensus(r) && r.status !== 'skipped';
   });
 
   private overlayDismissTimer: ReturnType<typeof setTimeout> | null = null;
@@ -128,7 +128,7 @@ export class CelebrationService {
 
   private scheduleCelebration(): void {
     const r = this._round();
-    if (!r?.revealedAt) return;
+    if (r?.status !== 'revealed') return;
 
     // Compute stagger delay from vote groups count (same formula as VoteResults stagger).
     const votes = Object.entries(r.votes);

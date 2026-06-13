@@ -552,9 +552,10 @@ describe('DocService — startRound / castVote / clearVote / revealRound', () =>
     expect(h.rounds()[0]?.votes['p-host']).toBeUndefined();
   });
 
-  it('revealRound sets revealedAt', () => {
+  it('revealRound sets status to revealed and terminalAt', () => {
     h.revealRound(roundId, NOW + 5000);
-    expect(h.rounds()[0]?.revealedAt).toBe(NOW + 5000);
+    expect(h.rounds()[0]?.status).toBe('revealed');
+    expect(h.rounds()[0]?.terminalAt).toBe(NOW + 5000);
   });
 
   it('castVote is no-op after reveal', () => {
@@ -758,16 +759,18 @@ describe('DocService — multi-peer merge via Y.Doc', () => {
     joiner.mergeFrom(host.getDoc());
 
     const revealedRound = joiner.rounds().find((r: Round) => r.id === roundId);
-    expect(revealedRound?.revealedAt).toBe(NOW + 2000);
+    expect(revealedRound?.status).toBe('revealed');
+    expect(revealedRound?.terminalAt).toBe(NOW + 2000);
   });
 
-  it('skip from host writes skippedAt', () => {
+  it('skip from host sets status to skipped and terminalAt', () => {
     const roundId = host.startRound({ now: () => NOW });
 
     host.skipRound(roundId, NOW + 1000);
 
     const skippedRound = host.rounds().find((r: Round) => r.id === roundId);
-    expect(skippedRound?.skippedAt).toBe(NOW + 1000);
+    expect(skippedRound?.status).toBe('skipped');
+    expect(skippedRound?.terminalAt).toBe(NOW + 1000);
   });
 
   it('skip from host propagates to joiner', () => {
@@ -778,7 +781,8 @@ describe('DocService — multi-peer merge via Y.Doc', () => {
     joiner.mergeFrom(host.getDoc());
 
     const skippedRound = joiner.rounds().find((r: Round) => r.id === roundId);
-    expect(skippedRound?.skippedAt).toBe(NOW + 1500);
+    expect(skippedRound?.status).toBe('skipped');
+    expect(skippedRound?.terminalAt).toBe(NOW + 1500);
   });
 });
 

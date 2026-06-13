@@ -205,7 +205,31 @@ export function isActiveParticipant(p: Pick<Participant, 'leftAt'>): boolean {
 // rounds — flat list with optional parentRoundId for re-vote lineage (ADR-0013)
 // ---------------------------------------------------------------------------
 
-export interface Round {
+/**
+ * A round's resolved lifecycle state, materialized on the projection `Round`
+ * (never stored in the doc). Readers branch on this single field instead of
+ * re-deriving terminal state from raw timestamps.
+ *
+ *  - `pending`   — created but no timer started (rare; `appendRound` always
+ *                  stamps `timerStartedAt`, so this is effectively unreachable
+ *                  for normally-created rounds — kept for totality).
+ *  - `voting`    — timer started, no terminal field set.
+ *  - `revealed` / `skipped` / `discarded` — resolved terminal outcome (the
+ *    winner under the earliest-wins / reveal→skip→discard tie-break; see the
+ *    internal `terminalState` helper).
+ */
+export type RoundStatus = 'pending' | 'voting' | 'revealed' | 'skipped' | 'discarded';
+
+/** The three terminal members of `RoundStatus`. */
+export type TerminalRoundStatus = 'revealed' | 'skipped' | 'discarded';
+
+/**
+ * The doc/writer-side shape of a round — the raw fields written to the Yjs
+ * `Y.Map`, including the three raw terminal timestamps. Internal to
+ * `packages/shared`'s writer + projection paths; readers never see this type.
+ * The projected, reader-facing view is `Round` (resolved `status` + `terminalAt`).
+ */
+export interface StoredRound {
   /** UUID. */
   id: string;
   /** E.g. `"Auth migration"`. Optional; inherited from parent on re-vote. */
@@ -273,33 +297,22 @@ export interface Round {
 }
 
 /**
- * Resolves the terminal state of a round. Returns `'revealed'`, `'skipped'`,
- * or `'discarded'` when the corresponding timestamp is set, or `null` if the
- * round is still in progress. When multiple terminal timestamps coexist after
- * a concurrent CRDT merge, the earliest wins (ADR-0040 tie-break extended
- * uniformly to all three terminal fields). On a literal tie the resolution
- * order is reveal → skip → discard so that revealed rounds win against
- * 1ms-late discards (matching the reveal-vs-skip precedent).
- *
- * Every consumer that branches on round end state must funnel through this
- * helper — otherwise concurrent reveal+skip+discard can render divergently
- * across clients.
+ * The projection-side view of a round — the shape `projectDoc` emits and every
+ * reader (client, CLI) consumes. Carries a resolved `status` and `terminalAt`;
+ * the raw terminal timestamps (`revealedAt` / `skippedAt` / `discardedAt`) are
+ * deliberately absent so readers branch on `status` and never re-derive terminal
+ * state. `terminalAt` is the sole source for elapsed-time display.
  */
-export function terminalState(
-  r: Pick<Round, 'revealedAt' | 'skippedAt' | 'discardedAt'>,
-): 'revealed' | 'skipped' | 'discarded' | null {
-  const { revealedAt, skippedAt, discardedAt } = r;
-  if (revealedAt === undefined && skippedAt === undefined && discardedAt === undefined) {
-    return null;
-  }
-  const candidates: { kind: 'revealed' | 'skipped' | 'discarded'; at: number }[] = [];
-  if (revealedAt !== undefined) candidates.push({ kind: 'revealed', at: revealedAt });
-  if (skippedAt !== undefined) candidates.push({ kind: 'skipped', at: skippedAt });
-  if (discardedAt !== undefined) candidates.push({ kind: 'discarded', at: discardedAt });
-  // Stable preference on literal tie: revealed > skipped > discarded.
-  const rank = { revealed: 0, skipped: 1, discarded: 2 } as const;
-  candidates.sort((a, b) => a.at - b.at || rank[a.kind] - rank[b.kind]);
-  return candidates[0]!.kind;
+export interface Round extends Omit<StoredRound, 'revealedAt' | 'skippedAt' | 'discardedAt'> {
+  /** Resolved lifecycle state, computed once in `projectRound`. */
+  status: RoundStatus;
+  /**
+   * The resolved winning terminal timestamp (Unix ms). Present only when
+   * `status` is terminal (`'revealed' | 'skipped' | 'discarded'`); it is the
+   * timestamp of whichever terminal event won the tie-break. Source for
+   * elapsed-time display (e.g. `terminalAt - timerStartedAt`).
+   */
+  terminalAt?: number;
 }
 
 // ---------------------------------------------------------------------------

@@ -2,19 +2,46 @@ import { describe, expect, it } from 'vitest';
 import { ABSTAIN_SENTINEL } from './abstain.js';
 import { FIBONACCI_SCALE, TSHIRT_SCALE } from './doc.js';
 import type { Participant, Round } from './doc.js';
+import { terminalState } from './round-status.js';
 import { roundsToMarkdown } from './round-export.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeRound(overrides: Partial<Round> & { id: string }): Round {
+/**
+ * Build a projection `Round`. Accepts the raw terminal timestamps
+ * (`revealedAt` / `skippedAt` / `discardedAt`) as a fixture convenience and
+ * resolves them into the projection's `status` / `terminalAt` exactly as
+ * `projectRound` does, so call sites can keep expressing intent in raw terms.
+ */
+function makeRound(
+  overrides: Partial<Round> & {
+    id: string;
+    revealedAt?: number;
+    skippedAt?: number;
+    discardedAt?: number;
+  },
+): Round {
+  const { revealedAt, skippedAt, discardedAt, ...rest } = overrides;
+  const terminal = terminalState({ revealedAt, skippedAt, discardedAt });
+  const terminalAt =
+    terminal === 'revealed'
+      ? revealedAt
+      : terminal === 'skipped'
+        ? skippedAt
+        : terminal === 'discarded'
+          ? discardedAt
+          : undefined;
+  const status = terminal ?? (rest.timerStartedAt !== undefined ? 'voting' : 'pending');
   return {
     scale: FIBONACCI_SCALE,
     votes: {},
     createdBy: 'p1',
     createdAt: 1000,
-    ...overrides,
+    status,
+    ...(terminalAt !== undefined ? { terminalAt } : {}),
+    ...rest,
   };
 }
 

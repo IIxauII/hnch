@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 
 import { ABSTAIN_SENTINEL } from './abstain.js';
 import { shouldAutoReveal } from './auto-reveal.js';
+import type { RoundStatus } from './doc.js';
 import type { ParticipantSnapshot } from './doc-projection.js';
 
 /** Build a participant snapshot with sensible defaults (active voter). */
@@ -26,9 +27,9 @@ const voter = (id: string) => participant(id);
 const viewer = (id: string) => participant(id, { role: 'viewer' });
 const left = (id: string) => participant(id, { leftAt: 1000, removedBy: 'host' });
 
-const round = (votes: Record<string, string>, extra: Record<string, number> = {}) => ({
+const round = (votes: Record<string, string>, status: RoundStatus = 'voting') => ({
   votes,
-  ...extra,
+  status,
 });
 
 describe('shouldAutoReveal', () => {
@@ -105,20 +106,20 @@ describe('shouldAutoReveal', () => {
 
   // Terminal guard
   it('returns false when the round is already revealed', () => {
-    expect(
-      shouldAutoReveal(round({ v1: '5' }, { revealedAt: 1000 }), [voter('v1')], new Set(['v1'])),
-    ).toBe(false);
+    expect(shouldAutoReveal(round({ v1: '5' }, 'revealed'), [voter('v1')], new Set(['v1']))).toBe(
+      false,
+    );
   });
 
   it('returns false when the round is skipped', () => {
-    expect(
-      shouldAutoReveal(round({ v1: '5' }, { skippedAt: 1000 }), [voter('v1')], new Set(['v1'])),
-    ).toBe(false);
+    expect(shouldAutoReveal(round({ v1: '5' }, 'skipped'), [voter('v1')], new Set(['v1']))).toBe(
+      false,
+    );
   });
 
   it('returns false when the round is discarded', () => {
-    expect(
-      shouldAutoReveal(round({ v1: '5' }, { discardedAt: 1000 }), [voter('v1')], new Set(['v1'])),
-    ).toBe(false);
+    expect(shouldAutoReveal(round({ v1: '5' }, 'discarded'), [voter('v1')], new Set(['v1']))).toBe(
+      false,
+    );
   });
 });

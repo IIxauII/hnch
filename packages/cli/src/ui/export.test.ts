@@ -28,13 +28,43 @@ function makeProjection(overrides: {
   };
 }
 
-function makeRound(overrides: Partial<Round> & { id: string }): Round {
+/**
+ * Resolve raw terminal timestamps into `status` / `terminalAt` (earliest wins;
+ * literal tie reveal>skip>discard) — mirrors `projectRound`.
+ */
+function resolveTerminal(
+  revealedAt?: number,
+  skippedAt?: number,
+  discardedAt?: number,
+): { status: 'revealed' | 'skipped' | 'discarded'; at: number } | null {
+  const c: { status: 'revealed' | 'skipped' | 'discarded'; at: number }[] = [];
+  if (revealedAt !== undefined) c.push({ status: 'revealed', at: revealedAt });
+  if (skippedAt !== undefined) c.push({ status: 'skipped', at: skippedAt });
+  if (discardedAt !== undefined) c.push({ status: 'discarded', at: discardedAt });
+  if (c.length === 0) return null;
+  const rank = { revealed: 0, skipped: 1, discarded: 2 };
+  c.sort((a, b) => a.at - b.at || rank[a.status] - rank[b.status]);
+  return c[0]!;
+}
+
+function makeRound(
+  overrides: Partial<Round> & {
+    id: string;
+    revealedAt?: number;
+    skippedAt?: number;
+    discardedAt?: number;
+  },
+): Round {
+  const { revealedAt, skippedAt, discardedAt, ...rest } = overrides;
+  const terminal = resolveTerminal(revealedAt, skippedAt, discardedAt);
   return {
     scale: SCALE,
     votes: {},
     createdBy: 'p1',
     createdAt: 1000,
-    ...overrides,
+    status: terminal?.status ?? (rest.timerStartedAt !== undefined ? 'voting' : 'pending'),
+    ...(terminal ? { terminalAt: terminal.at } : {}),
+    ...rest,
   };
 }
 
