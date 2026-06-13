@@ -609,3 +609,61 @@ describe('CelebrationService — AC-18: reduced-motion', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// scheduleCelebration early-return guard (changed line ~131):
+// `if (r?.status !== 'revealed') return;`
+// The guard is reachable when consensus() returns true but the round status
+// is not 'revealed' (e.g. 'voting' with unanimous votes). Verify both paths.
+// ---------------------------------------------------------------------------
+
+describe('CelebrationService — scheduleCelebration status guard', () => {
+  it('early-return: unanimous voting round (status !== revealed) never shows overlay', () => {
+    vi.useFakeTimers();
+    try {
+      const svc = mountService();
+      // unanimous votes on a VOTING round → consensus() = true (isConsensus passes,
+      // status !== 'skipped'), but scheduleCelebration's guard bails because
+      // status !== 'revealed'.
+      const votingRound = makeRound({
+        id: 'guard-test',
+        votes: { p1: '5', p2: '5' },
+        status: 'voting',
+        terminalAt: undefined,
+      });
+      svc.setRound(votingRound);
+      TestBed.flushEffects();
+
+      expect(svc.consensus()).toBe(true);
+
+      // Advance well past any stagger delay
+      vi.advanceTimersByTime(500);
+      expect(svc.showOverlay()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('proceeds: unanimous revealed round (status === revealed) shows overlay', () => {
+    vi.useFakeTimers();
+    try {
+      const svc = mountService();
+      const revealedRound = makeRound({
+        id: 'guard-revealed',
+        votes: { p1: '5', p2: '5' },
+        status: 'revealed',
+        terminalAt: 2000,
+      });
+      svc.setRound(revealedRound);
+      TestBed.flushEffects();
+
+      expect(svc.consensus()).toBe(true);
+
+      // Advance past stagger delay (1 group: 1×80+200=280ms)
+      vi.advanceTimersByTime(300);
+      expect(svc.showOverlay()).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

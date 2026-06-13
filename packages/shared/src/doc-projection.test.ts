@@ -622,6 +622,25 @@ describe('projectRound status / terminalAt', () => {
       expect(r.terminalAt).toBe(100);
     }
   });
+
+  it('projects status=pending for a round with no timerStartedAt (defensive totality)', () => {
+    // `appendRound` always stamps `timerStartedAt`, so a timerless round only
+    // arises from a hand-built or future-client doc. Construct one directly on
+    // the rounds Y.Array to exercise the `'pending'` branch of projectRound.
+    const { doc } = seedDoc();
+    const round = new Y.Map<unknown>();
+    round.set('id', 'r1');
+    round.set('createdAt', 1);
+    round.set('createdBy', 'p-host');
+    round.set('scale', FIBONACCI_SCALE);
+    round.set('votes', new Y.Map<string>());
+    doc.transact(() => {
+      (doc.getArray(DOC_ROUNDS_KEY) as Y.Array<Y.Map<unknown>>).push([round]);
+    });
+    const r = projectDoc(doc).rounds[0]!;
+    expect(r.status).toBe('pending');
+    expect(r.terminalAt).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------

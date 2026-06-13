@@ -156,6 +156,24 @@ describe('Lobby render — issue #111 patch lines', () => {
     expect(frame).toContain('Skipped');
   });
 
+  it('ResultsSection renders elapsed time when timerStartedAt + status=revealed + terminalAt present', () => {
+    // timerStartedAt=0, revealedAt=90_000 → terminalAt=90_000, status='revealed'
+    // elapsed branch: round.status === 'revealed' && round.terminalAt !== undefined → formatElapsed
+    const r1 = makeRound({ id: 'r1', revealedAt: 90_000, timerStartedAt: 0, votes: { host: '5' } });
+    const { lastFrame } = render(<Lobby {...baseProps([r1], r1)} />);
+    const frame = lastFrame() ?? '';
+    // formatElapsed(0, 90_000) = '1:30'
+    expect(frame).toContain('1:30');
+  });
+
+  it('ResultsSection omits elapsed when timerStartedAt absent (terminalAt alone not enough)', () => {
+    const r1 = makeRound({ id: 'r1', revealedAt: 90_000, votes: { host: '5' } });
+    const { lastFrame } = render(<Lobby {...baseProps([r1], r1)} />);
+    const frame = lastFrame() ?? '';
+    // No timerStartedAt → elapsed branch is null → no time string
+    expect(frame).not.toContain('1:30');
+  });
+
   it('renders ticket ID prompt block when roundTicketIdPromptActive is true (issue #109)', () => {
     const props = {
       ...baseProps([], null),

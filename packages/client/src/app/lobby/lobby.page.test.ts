@@ -1199,3 +1199,139 @@ describe('LobbyPage — terminal-round computeds (status)', () => {
     expect(c.pastRevealedRounds()).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// LobbyPage autoNav effect (~line 1189): navigates to /estimating when
+// currentRound status is 'pending' or 'voting'; does NOT navigate for
+// terminal rounds (revealed/skipped/discarded).
+// ---------------------------------------------------------------------------
+
+describe('LobbyPage — autoNav effect: navigate on active round', () => {
+  async function mountWithCurrentRound(round: Round | null | undefined) {
+    const { Router } = await import('@angular/router');
+    const { DocService } = await import('../core/doc/doc.service');
+    const { HapticService } = await import('../core/haptic.service');
+    const { ParticipantIdService } = await import('../core/participant-id.service');
+    const { LastSessionService } = await import('../core/last-session.service');
+    const { ScalePreferenceService } = await import('../core/scale-preference.service');
+    const { SurfaceService } = await import('../core/surface.service');
+    const { ToastService } = await import('../services/toast.service');
+    const { ExportService } = await import('../core/export.service');
+    const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
+
+    const navigate = vi.fn().mockResolvedValue(true);
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: Router, useValue: { navigate } },
+        {
+          provide: DocService,
+          useValue: {
+            settings: signal(undefined).asReadonly(),
+            roomCode: signal('LOBBY1').asReadonly(),
+            meta: signal(undefined).asReadonly(),
+            syncStatus: signal('disconnected').asReadonly(),
+            currentRound: signal(round).asReadonly(),
+            lastRejection: signal(null).asReadonly(),
+            rounds: signal(round ? [round] : []).asReadonly(),
+            participants: signal([]).asReadonly(),
+            activeParticipants: signal([]).asReadonly(),
+            onlineParticipantIds: signal(new Set()).asReadonly(),
+            agenda: signal([]).asReadonly(),
+            pendingAgenda: signal([]).asReadonly(),
+            nextPendingAgendaItem: signal(null).asReadonly(),
+            endSession: vi.fn(),
+          },
+        },
+        { provide: HapticService, useValue: { impactLight: vi.fn() } },
+        { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
+        { provide: LastSessionService, useValue: { record: vi.fn() } },
+        {
+          provide: ScalePreferenceService,
+          useValue: { customScales: signal([]).asReadonly() },
+        },
+        {
+          provide: SurfaceService,
+          useValue: {
+            mode: signal('mobile').asReadonly(),
+            sheetBreakpoints: () => [0, 0.5, 1],
+            initialSheetBreakpoint: () => 0.5,
+            sheetBreakpointsFull: () => [0, 0.6, 1],
+            initialSheetBreakpointFull: () => 1,
+          },
+        },
+        { provide: ToastService, useValue: { show: vi.fn(), info: vi.fn(), error: vi.fn() } },
+        { provide: ExportService, useValue: { export: vi.fn() } },
+        {
+          provide: AlertController,
+          useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
+        },
+        {
+          provide: PopoverController,
+          useValue: {
+            create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }),
+            dismiss: vi.fn().mockResolvedValue(true),
+          },
+        },
+      ],
+    });
+    const { LobbyPage } = await import('./lobby.page');
+    const fixture = TestBed.createComponent(LobbyPage);
+    // Do NOT call detectChanges — the effect fires synchronously at construction.
+    return { fixture, navigate };
+  }
+
+  function activeRound(status: 'pending' | 'voting'): Round {
+    return {
+      id: 'lobby-nav-r',
+      createdAt: 0,
+      createdBy: 'host',
+      status,
+      scale: { id: 'fibonacci', cards: ['1', '2', '3'] },
+      votes: {},
+    };
+  }
+
+  function terminalRound(status: 'revealed' | 'skipped' | 'discarded'): Round {
+    return {
+      id: 'lobby-nav-r',
+      createdAt: 0,
+      createdBy: 'host',
+      status,
+      terminalAt: 9999,
+      scale: { id: 'fibonacci', cards: ['1', '2', '3'] },
+      votes: {},
+    };
+  }
+
+  it('navigates to /estimating when currentRound status is voting', async () => {
+    const { navigate } = await mountWithCurrentRound(activeRound('voting'));
+    TestBed.flushEffects();
+    expect(navigate).toHaveBeenCalledWith(['/estimating', 'LOBBY1']);
+  });
+
+  it('navigates to /estimating when currentRound status is pending', async () => {
+    const { navigate } = await mountWithCurrentRound(activeRound('pending'));
+    TestBed.flushEffects();
+    expect(navigate).toHaveBeenCalledWith(['/estimating', 'LOBBY1']);
+  });
+
+  it('does NOT navigate when currentRound is null', async () => {
+    const { navigate } = await mountWithCurrentRound(null);
+    TestBed.flushEffects();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('does NOT navigate when currentRound status is revealed (terminal)', async () => {
+    const { navigate } = await mountWithCurrentRound(terminalRound('revealed'));
+    TestBed.flushEffects();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('does NOT navigate when currentRound status is skipped (terminal)', async () => {
+    const { navigate } = await mountWithCurrentRound(terminalRound('skipped'));
+    TestBed.flushEffects();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+});
