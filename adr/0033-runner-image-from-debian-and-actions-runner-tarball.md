@@ -1,6 +1,6 @@
 # ADR-0033: Runner image from `debian:bookworm-slim` + official `actions/runner` tarball (refines ADR-0032 §base-image)
 
-**Status:** Proposed
+**Status:** Superseded by ADR-0049
 **Date:** 2026-04-29
 
 ## Context

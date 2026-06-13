@@ -27,4 +27,6 @@ One or two sentences. What we do.
 Style: terse. Bullets over prose. Caveman-ultra: drop articles, filler, hedging. Technical terms exact.
 NO Options/Alternatives section. NO Action Items / phase checklists. NO implementation phases.
 The decision and its trade-offs are what survives. Rejected alternatives belong in commit/PR discussion, not in the durable ADR.
+
+Status: keep this header a bare value (Proposed / Accepted / Deprecated / Superseded by ADR-XXXX). Partial supersession stays one short parenthetical — `Accepted (<clause> superseded by ADR-XXXX)` — never paragraph-length prose. In the README Index the Status column collapses to the bare word and the pointer lives in the `Superseded by` column (`ADR-XXXX (partial)` for partials). See README Conventions.
 -->
