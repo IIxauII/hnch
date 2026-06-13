@@ -169,3 +169,58 @@ export async function openAgendaItemSheetMobile(page: Page) {
   await sheet.waitFor({ state: 'visible', timeout: 10_000 });
   return sheet;
 }
+
+/**
+ * Open the round-edit half-sheet on a mobile page already on the Lobby
+ * screen after at least one round has been revealed.
+ *
+ * Drives the full single-host flow to produce a revealed round:
+ *   1. Clicks "Start Round N" and submits the sheet (with an optional title).
+ *   2. Waits for /estimating, casts a vote — auto-reveal fires for a solo host.
+ *   3. Waits for the Lobby results section to appear.
+ *   4. Clicks the pencil ("Edit round descriptor") button.
+ *   5. Returns a locator scoped to the open `app-round-edit-sheet`.
+ *
+ * After this call the sheet is visible at its natural 0.6 breakpoint — DO NOT
+ * expand it programmatically; the whole point of these tests is to assert
+ * button visibility at the initial breakpoint.
+ */
+export async function openRoundEditSheetMobile(page: Page, roundTitle = 'Test round') {
+  // 1. Open the round-start sheet and submit it.
+  const startRoundBtn = page
+    .locator('app-lobby:not(.ion-page-hidden) ion-button')
+    .filter({ hasText: /Start Round \d+/ });
+  await startRoundBtn.waitFor({ state: 'visible' });
+  await startRoundBtn.click();
+  const startSheet = page.locator('app-round-start-sheet');
+  await startSheet.waitFor({ state: 'visible', timeout: 10_000 });
+  // Fill the title so the round has a descriptor to edit later.
+  await startSheet.locator('ion-input').first().locator('input').fill(roundTitle);
+  const startBtn = startSheet.getByRole('button', { name: 'Start round' });
+  await startBtn.waitFor({ state: 'visible' });
+  await startBtn.dispatchEvent('click');
+  await startSheet.waitFor({ state: 'hidden', timeout: 10_000 });
+
+  // 2. Wait for /estimating, then cast a vote (solo host — auto-reveal fires).
+  await page.waitForURL(/\/estimating/, { timeout: 15_000 });
+  const active = page.locator('app-estimating:not(.ion-page-hidden):not(.ion-page-invisible)');
+  await active.waitFor({ timeout: 10_000 });
+  // Pick any card from the Fibonacci scale (default).
+  const card = page.locator('app-estimating ion-card.card').first();
+  await card.waitFor({ state: 'visible', timeout: 10_000 });
+  await card.click();
+
+  // 3. Auto-reveal navigates back to /lobby; wait for the results section.
+  await page.waitForURL(/\/lobby/, { timeout: 15_000 });
+  await page.locator('.results-section').waitFor({ state: 'visible', timeout: 10_000 });
+
+  // 4. Click the pencil button to open the round-edit sheet.
+  const pencil = page.locator('.results-descriptor-row ion-button.edit-btn');
+  await pencil.waitFor({ state: 'visible', timeout: 5_000 });
+  await pencil.click();
+
+  // 5. Return the scoped sheet locator once it is visible.
+  const sheet = page.locator('app-round-edit-sheet');
+  await sheet.waitFor({ state: 'visible', timeout: 10_000 });
+  return sheet;
+}

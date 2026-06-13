@@ -3,8 +3,8 @@ import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { buildRoundEditSubmission } from './round-edit.helpers';
 import {
   IonButton,
+  IonButtons,
   IonContent,
-  IonFooter,
   IonHeader,
   IonInput,
   IonItem,
@@ -24,8 +24,8 @@ export interface RoundEditSubmission {
   host: { class: 'ion-page' },
   imports: [
     IonButton,
+    IonButtons,
     IonContent,
-    IonFooter,
     IonHeader,
     IonInput,
     IonItem,
@@ -40,6 +40,15 @@ export interface RoundEditSubmission {
     <ion-header>
       <ion-toolbar>
         <ion-title>Edit Round {{ roundNumber() }}</ion-title>
+        <ion-buttons slot="end">
+          <ion-button
+            strong="true"
+            color="primary"
+            [disabled]="isSubmitting() || titleControl.value.trim() === ''"
+            (click)="submit()"
+            aria-label="Save round details"
+          >Save</ion-button>
+        </ion-buttons>
       </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding">
@@ -72,19 +81,6 @@ export interface RoundEditSubmission {
         </ion-note>
       }
     </ion-content>
-    <ion-footer>
-      <ion-toolbar>
-        <ion-button
-          expand="block"
-          color="primary"
-          [disabled]="isSubmitting() || titleControl.value.trim() === ''"
-          (click)="submit()"
-          aria-label="Save round details"
-        >
-          Save
-        </ion-button>
-      </ion-toolbar>
-    </ion-footer>
   `,
   styles: [
     `
