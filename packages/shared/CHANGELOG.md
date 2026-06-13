@@ -1,3 +1,10 @@
+## [1.11.3](https://github.com/IIxauII/hnch/compare/shared-v1.11.2...shared-v1.11.3) (2026-06-13)
+
+
+### Bug Fixes
+
+* **shared,client,cli:** hoist unanimous auto-reveal into a shared deep predicate ([#460](https://github.com/IIxauII/hnch/issues/460)) ([ccdec3c](https://github.com/IIxauII/hnch/commit/ccdec3c595a7b3a35f0ab8aa280f82736b0bfa60))
+
 ## [1.11.2](https://github.com/IIxauII/hnch/compare/shared-v1.11.1...shared-v1.11.2) (2026-05-31)
 
 
