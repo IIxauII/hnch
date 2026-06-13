@@ -10,6 +10,7 @@ function makeRound(id: string, parentRoundId?: string): Round {
     createdBy: 'p1',
     createdAt: 0,
     votes: {},
+    status: 'voting',
   };
 }
 

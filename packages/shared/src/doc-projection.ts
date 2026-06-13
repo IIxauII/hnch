@@ -29,10 +29,13 @@ import type {
   Meta,
   Participant,
   Round,
+  RoundStatus,
   Scale,
   Settings,
+  StoredRound,
 } from './doc.js';
 import { keyBetween } from './fractional-index.js';
+import { terminalState } from './round-status.js';
 
 // ---------------------------------------------------------------------------
 // Snapshot shape
@@ -196,10 +199,28 @@ function projectVotes(votesMap: Y.Map<string>): Record<string, string> {
 }
 
 function projectRound(roundMap: UnknownMap): Round {
-  const base = projectFields<Omit<Round, 'votes'>>(roundMap, ROUND_FIELDS);
+  const raw = projectFields<Omit<StoredRound, 'votes'>>(roundMap, ROUND_FIELDS);
   const votesY = roundMap.get('votes') as Y.Map<string> | undefined;
   const votes = votesY ? projectVotes(votesY) : {};
-  return { ...base, votes };
+
+  // Resolve the raw terminal timestamps into a single status + winning
+  // timestamp here, once — readers branch on `status` / `terminalAt` and the
+  // raw fields never reach the projection `Round` (see ADR-0040 tie-break).
+  const terminal = terminalState(raw);
+  const { revealedAt, skippedAt, discardedAt, ...rest } = raw;
+  const status: RoundStatus = terminal ?? (raw.timerStartedAt !== undefined ? 'voting' : 'pending');
+  const terminalAt =
+    terminal === 'revealed'
+      ? revealedAt
+      : terminal === 'skipped'
+        ? skippedAt
+        : terminal === 'discarded'
+          ? discardedAt
+          : undefined;
+
+  return terminalAt === undefined
+    ? { ...rest, votes, status }
+    : { ...rest, votes, status, terminalAt };
 }
 
 function projectRounds(doc: Y.Doc): readonly Round[] {
@@ -710,24 +731,22 @@ export function removeParticipant(doc: Y.Doc, hostId: string, targetId: string):
 // ---------------------------------------------------------------------------
 
 /**
- * Current round = last round with no terminal field set (no `revealedAt`,
- * `skippedAt`, or `discardedAt`); if all are terminal, the last
- * NON-DISCARDED round overall — discarded rounds are tombstones and never
- * surface as the active or last anchor. Returns `null` when no such round
- * exists (empty array, or every round is discarded).
+ * Current round = last round whose `status` is non-terminal (`'pending'` or
+ * `'voting'`); if all are terminal, the last NON-DISCARDED round overall —
+ * discarded rounds are tombstones and never surface as the active or last
+ * anchor. Returns `null` when no such round exists (empty array, or every
+ * round is discarded).
  */
 export function currentRound(projection: DocProjection): Round | null {
   const { rounds } = projection;
   if (rounds.length === 0) return null;
   for (let i = rounds.length - 1; i >= 0; i -= 1) {
     const r = rounds[i]!;
-    if (r.revealedAt === undefined && r.skippedAt === undefined && r.discardedAt === undefined) {
-      return r;
-    }
+    if (r.status === 'pending' || r.status === 'voting') return r;
   }
   for (let i = rounds.length - 1; i >= 0; i -= 1) {
     const r = rounds[i]!;
-    if (r.discardedAt === undefined) return r;
+    if (r.status !== 'discarded') return r;
   }
   return null;
 }

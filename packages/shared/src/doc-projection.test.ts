@@ -7,10 +7,12 @@ import {
   TSHIRT_SCALE,
   isActiveParticipant,
   participantRole,
-  terminalState,
   type Participant,
   type Scale,
 } from './doc.js';
+// terminalState is intentionally not part of the public barrel — import it
+// directly from its internal module to exercise the tie-break unit tests.
+import { terminalState } from './round-status.js';
 import {
   appendAgendaItem,
   appendRound,
@@ -469,7 +471,8 @@ describe('castVote / clearVote', () => {
     skipRound(doc, 'r1', 200);
     const snap = projectDoc(doc);
     expect(snap.rounds[0]!.votes).toEqual({ 'p-host': '8', 'p-bob': '13' });
-    expect(snap.rounds[0]!.skippedAt).toBe(200);
+    expect(snap.rounds[0]!.status).toBe('skipped');
+    expect(snap.rounds[0]!.terminalAt).toBe(200);
   });
 });
 
@@ -478,11 +481,12 @@ describe('castVote / clearVote', () => {
 // ---------------------------------------------------------------------------
 
 describe('revealRound', () => {
-  it('stamps revealedAt', () => {
+  it('stamps revealedAt (projects status=revealed + terminalAt)', () => {
     const { doc } = seedDoc();
     appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
     revealRound(doc, 'r1', 1_700_000_200_000);
-    expect(projectDoc(doc).rounds[0]!.revealedAt).toBe(1_700_000_200_000);
+    expect(projectDoc(doc).rounds[0]!.status).toBe('revealed');
+    expect(projectDoc(doc).rounds[0]!.terminalAt).toBe(1_700_000_200_000);
   });
 
   it('throws on unknown round ids', () => {
@@ -503,12 +507,12 @@ describe('revealRound', () => {
 // ---------------------------------------------------------------------------
 
 describe('skipRound', () => {
-  it('stamps skippedAt', () => {
+  it('stamps skippedAt (projects status=skipped + terminalAt)', () => {
     const { doc } = seedDoc();
     appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
     skipRound(doc, 'r1', 1_700_000_250_000);
-    expect(projectDoc(doc).rounds[0]!.skippedAt).toBe(1_700_000_250_000);
-    expect(projectDoc(doc).rounds[0]!.revealedAt).toBeUndefined();
+    expect(projectDoc(doc).rounds[0]!.status).toBe('skipped');
+    expect(projectDoc(doc).rounds[0]!.terminalAt).toBe(1_700_000_250_000);
   });
 
   it('throws on unknown round ids', () => {
@@ -586,6 +590,60 @@ describe('terminalState', () => {
 });
 
 // ---------------------------------------------------------------------------
+// projectRound — resolved status / terminalAt materialization
+// ---------------------------------------------------------------------------
+
+describe('projectRound status / terminalAt', () => {
+  it('non-terminal round projects status=voting and no terminalAt', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    const r = projectDoc(doc).rounds[0]!;
+    expect(r.status).toBe('voting');
+    expect(r.terminalAt).toBeUndefined();
+  });
+
+  it('CRDT-merged reveal+skip projects the winning status and its timestamp', () => {
+    // Two clients concurrently reveal (later) and skip (earlier) the same
+    // round; after exchanging updates both raw terminal fields coexist on r1.
+    const { doc: base } = seedDoc();
+    appendRound(base, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    const docA = new Y.Doc();
+    const docB = new Y.Doc();
+    Y.applyUpdate(docA, Y.encodeStateAsUpdate(base));
+    Y.applyUpdate(docB, Y.encodeStateAsUpdate(base));
+    revealRound(docA, 'r1', 200);
+    skipRound(docB, 'r1', 100);
+    Y.applyUpdate(docA, Y.encodeStateAsUpdate(docB));
+    Y.applyUpdate(docB, Y.encodeStateAsUpdate(docA));
+    for (const doc of [docA, docB]) {
+      const r = projectDoc(doc).rounds[0]!;
+      // earliest wins → skip (100) beats reveal (200), deterministically on both.
+      expect(r.status).toBe('skipped');
+      expect(r.terminalAt).toBe(100);
+    }
+  });
+
+  it('projects status=pending for a round with no timerStartedAt (defensive totality)', () => {
+    // `appendRound` always stamps `timerStartedAt`, so a timerless round only
+    // arises from a hand-built or future-client doc. Construct one directly on
+    // the rounds Y.Array to exercise the `'pending'` branch of projectRound.
+    const { doc } = seedDoc();
+    const round = new Y.Map<unknown>();
+    round.set('id', 'r1');
+    round.set('createdAt', 1);
+    round.set('createdBy', 'p-host');
+    round.set('scale', FIBONACCI_SCALE);
+    round.set('votes', new Y.Map<string>());
+    doc.transact(() => {
+      (doc.getArray(DOC_ROUNDS_KEY) as Y.Array<Y.Map<unknown>>).push([round]);
+    });
+    const r = projectDoc(doc).rounds[0]!;
+    expect(r.status).toBe('pending');
+    expect(r.terminalAt).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // appendRound always writes timerStartedAt (stopwatch)
 // ---------------------------------------------------------------------------
 
@@ -595,7 +653,8 @@ describe('appendRound timerStartedAt', () => {
     appendRound(doc, { id: 'r1', createdAt: 1_700_000_100_000, createdBy: 'p-host' });
     const snap = projectDoc(doc);
     expect(snap.rounds[0]!.timerStartedAt).toBe(1_700_000_100_000);
-    expect(snap.rounds[0]!.revealedAt).toBeUndefined();
+    expect(snap.rounds[0]!.status).toBe('voting');
+    expect(snap.rounds[0]!.terminalAt).toBeUndefined();
   });
 });
 
@@ -670,7 +729,8 @@ describe('projectDoc round-trip', () => {
     // Rounds keep insertion order; votes project as plain records.
     expect(snap.rounds.map((r) => r.id)).toEqual(['r1', 'r2']);
     expect(snap.rounds[0]!.votes).toEqual({ 'p-host': '5', 'p-bob': '8' });
-    expect(snap.rounds[0]!.revealedAt).toBe(1_700_000_110_000);
+    expect(snap.rounds[0]!.status).toBe('revealed');
+    expect(snap.rounds[0]!.terminalAt).toBe(1_700_000_110_000);
     expect(snap.rounds[1]!.parentRoundId).toBe('r1');
 
     // currentRound picks the unrevealed re-vote.
@@ -1273,7 +1333,8 @@ describe('patchRoundDescriptor', () => {
     const snap = projectDoc(doc);
     const round = snap.rounds.find((r) => r.id === id)!;
     expect(round.title).toBe('after reveal');
-    expect(round.revealedAt).toBe(1_700_000_002_000);
+    expect(round.status).toBe('revealed');
+    expect(round.terminalAt).toBe(1_700_000_002_000);
   });
 
   it('patches a skipped round — editorial corrections are not phase-gated (ADR-0040)', () => {
@@ -1284,7 +1345,8 @@ describe('patchRoundDescriptor', () => {
     const round = snap.rounds.find((r) => r.id === id)!;
     expect(round.title).toBe('after skip');
     expect(round.description).toBe('added retrospectively');
-    expect(round.skippedAt).toBe(1_700_000_003_000);
+    expect(round.status).toBe('skipped');
+    expect(round.terminalAt).toBe(1_700_000_003_000);
   });
 });
 
@@ -1749,12 +1811,13 @@ describe('agenda CRDT concurrent append', () => {
 // ---------------------------------------------------------------------------
 
 describe('discardRound', () => {
-  it('stamps discardedAt and discardedBy', () => {
+  it('stamps discardedAt and discardedBy (projects status=discarded + terminalAt)', () => {
     const { doc } = seedDoc();
     appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
     discardRound(doc, 'r1', 1_700_000_500_000, 'p-host');
     const round = projectDoc(doc).rounds[0]!;
-    expect(round.discardedAt).toBe(1_700_000_500_000);
+    expect(round.status).toBe('discarded');
+    expect(round.terminalAt).toBe(1_700_000_500_000);
     expect(round.discardedBy).toBe('p-host');
   });
 
@@ -1979,7 +2042,8 @@ describe('discard vs late vote (CRDT merge)', () => {
     // Both projections agree: round is discarded; no active round.
     for (const doc of [docA, docB]) {
       const snap = projectDoc(doc);
-      expect(snap.rounds[0]!.discardedAt).toBe(100);
+      expect(snap.rounds[0]!.status).toBe('discarded');
+      expect(snap.rounds[0]!.terminalAt).toBe(100);
       // The vote did land in the doc — castVote does not guard on discardedAt
       // and detached-map semantics do not apply since the round is a tombstone,
       // not deleted. The vote is harmless because currentRound() returns null.

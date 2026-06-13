@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { isAbstainVote, isConsensus, nextPendingAgendaItem, terminalState } from '@hnch/shared';
+import { isAbstainVote, isConsensus, nextPendingAgendaItem } from '@hnch/shared';
 import { ParticipantList } from './components/ParticipantList.js';
 import { HostActionsMenu } from './components/HostActionsMenu.js';
 import { SharePicker } from './components/SharePicker.js';
@@ -156,10 +156,13 @@ export function Lobby({
         if (input === 's' || input === 'S') onStartRound();
         if (input === 'h' || input === 'H') setHandoffMode('picking');
         if (input === 'm' || input === 'M') setHostMenuOpen(true);
-        if (currentRound !== null && terminalState(currentRound) !== null) {
+        if (
+          currentRound !== null &&
+          currentRound.status !== 'pending' &&
+          currentRound.status !== 'voting'
+        ) {
           if (input === 'n' || input === 'N') onNewRound();
-          if ((input === 'v' || input === 'V') && terminalState(currentRound) !== 'skipped')
-            onRevote();
+          if ((input === 'v' || input === 'V') && currentRound.status !== 'skipped') onRevote();
           if (input === 't' || input === 'T') onEditDescriptor();
         }
       }
@@ -231,7 +234,7 @@ export function Lobby({
   );
 
   const hasRounds = rounds.length > 0;
-  const terminalRounds = rounds.filter((r) => terminalState(r) !== null);
+  const terminalRounds = rounds.filter((r) => r.status !== 'pending' && r.status !== 'voting');
 
   // Past rounds = all terminal rounds except the latest (shown in full)
   const pastRounds = currentRound !== null ? terminalRounds.slice(0, -1) : terminalRounds;
@@ -279,9 +282,11 @@ export function Lobby({
         <AgendaPanel items={projection.agenda} nextPending={nextPendingAgendaItem(projection)} />
       )}
 
-      {currentRound !== null && terminalState(currentRound) !== null && (
-        <ResultsSection projection={projection} round={currentRound} rounds={rounds} />
-      )}
+      {currentRound !== null &&
+        currentRound.status !== 'pending' &&
+        currentRound.status !== 'voting' && (
+          <ResultsSection projection={projection} round={currentRound} rounds={rounds} />
+        )}
 
       {pastRounds.length > 0 && (
         <Box flexDirection="column">
@@ -427,11 +432,11 @@ export function Lobby({
           <Box gap={2}>
             {isHost ? (
               <>
-                {currentRound !== null && terminalState(currentRound) !== null ? (
+                {currentRound !== null &&
+                currentRound.status !== 'pending' &&
+                currentRound.status !== 'voting' ? (
                   <>
-                    {terminalState(currentRound) !== 'skipped' && (
-                      <Text color="yellow">[v] Revote</Text>
-                    )}
+                    {currentRound.status !== 'skipped' && <Text color="yellow">[v] Revote</Text>}
                     <Text color="yellow">[n] Next</Text>
                     <Text color="yellow">[t] Edit title</Text>
                     <Text color="yellow">[h] Handoff</Text>
@@ -479,7 +484,7 @@ function ResultsSection({ projection, round, rounds }: ResultsSectionProps): Rea
   const roundNum = rounds.indexOf(round) + 1;
   const header = buildResultsHeader(round, roundNum, rounds);
 
-  if (terminalState(round) === 'skipped') {
+  if (round.status === 'skipped') {
     return (
       <Box flexDirection="column" gap={1}>
         <Text bold>{header}</Text>
@@ -491,8 +496,10 @@ function ResultsSection({ projection, round, rounds }: ResultsSectionProps): Rea
   const nameMap = new Map(projection.participants.map((p) => [p.id, p.displayName]));
 
   const elapsed =
-    round.timerStartedAt !== undefined && round.revealedAt !== undefined
-      ? formatElapsed(round.timerStartedAt, round.revealedAt)
+    round.timerStartedAt !== undefined &&
+    round.status === 'revealed' &&
+    round.terminalAt !== undefined
+      ? formatElapsed(round.timerStartedAt, round.terminalAt)
       : null;
 
   const entries = Object.entries(round.votes);

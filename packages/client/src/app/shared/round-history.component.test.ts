@@ -3,13 +3,13 @@
  * signal that drives the compact round-history list.
  *
  * The key logic under test:
- *  - Rounds without `revealedAt` are filtered out
+ *  - Rounds without a terminal status are filtered out
  *  - Entries appear in reverse chronological order (newest first)
  *  - Round numbers reflect original array position, not display position
  *  - Vote summary groups identical cards by count (sorted count-desc,
  *    tie-broken by scale order) and formats as "card×count, card×count"
  *  - Rounds with no votes render "No votes"
- *  - Elapsed time uses formatElapsed(revealedAt - timerStartedAt)
+ *  - Elapsed time uses formatElapsed(terminalAt - timerStartedAt) for revealed rounds
  *  - Rounds missing timerStartedAt produce null elapsed
  *
  * Pattern: Ionic component stubs + TestBed, matching avatar-vote-row style.
@@ -51,6 +51,7 @@ function makeRound(overrides: Partial<Round> & Pick<Round, 'id' | 'scale' | 'vot
   return {
     createdAt: Date.now(),
     createdBy: 'p1',
+    status: 'pending',
     ...overrides,
   };
 }
@@ -98,16 +99,22 @@ describe('RoundHistoryComponent.entries', () => {
     expect(c.entries()).toHaveLength(0);
   });
 
-  it('filters out rounds that have no revealedAt', async () => {
+  it('filters out rounds that have no terminal status', async () => {
     const scale = makeScale(['1', '2', '3']);
     const notRevealed = makeRound({ id: 'r1', scale, votes: { p1: '1' } });
     const c = await createComponent([notRevealed]);
     expect(c.entries()).toHaveLength(0);
   });
 
-  it('includes only rounds that have revealedAt', async () => {
+  it('includes only rounds that have a terminal status', async () => {
     const scale = makeScale(['1', '2', '3']);
-    const revealed = makeRound({ id: 'r1', scale, votes: { p1: '1' }, revealedAt: 1000 });
+    const revealed = makeRound({
+      id: 'r1',
+      scale,
+      votes: { p1: '1' },
+      status: 'revealed',
+      terminalAt: 1000,
+    });
     const notRevealed = makeRound({ id: 'r2', scale, votes: {} });
     const c = await createComponent([revealed, notRevealed]);
     expect(c.entries()).toHaveLength(1);
@@ -118,9 +125,9 @@ describe('RoundHistoryComponent.entries', () => {
 
   it('returns entries in reverse chronological order (newest first)', async () => {
     const scale = makeScale(['1', '2']);
-    const r1 = makeRound({ id: 'r1', scale, votes: {}, revealedAt: 1000 });
-    const r2 = makeRound({ id: 'r2', scale, votes: {}, revealedAt: 2000 });
-    const r3 = makeRound({ id: 'r3', scale, votes: {}, revealedAt: 3000 });
+    const r1 = makeRound({ id: 'r1', scale, votes: {}, status: 'revealed', terminalAt: 1000 });
+    const r2 = makeRound({ id: 'r2', scale, votes: {}, status: 'revealed', terminalAt: 2000 });
+    const r3 = makeRound({ id: 'r3', scale, votes: {}, status: 'revealed', terminalAt: 3000 });
     const c = await createComponent([r1, r2, r3]);
     const entries = c.entries();
     expect(entries).toHaveLength(3);
@@ -131,8 +138,8 @@ describe('RoundHistoryComponent.entries', () => {
 
   it('round numbers reflect original array position (1-based), not display order', async () => {
     const scale = makeScale(['1', '2']);
-    const r1 = makeRound({ id: 'r1', scale, votes: {}, revealedAt: 1000 });
-    const r2 = makeRound({ id: 'r2', scale, votes: {}, revealedAt: 2000 });
+    const r1 = makeRound({ id: 'r1', scale, votes: {}, status: 'revealed', terminalAt: 1000 });
+    const r2 = makeRound({ id: 'r2', scale, votes: {}, status: 'revealed', terminalAt: 2000 });
     const c = await createComponent([r1, r2]);
     const entries = c.entries();
     // Display order: r2 (index 0), r1 (index 1) — newest first
@@ -145,7 +152,7 @@ describe('RoundHistoryComponent.entries', () => {
 
   it('"No votes" when round has no votes', async () => {
     const scale = makeScale(['1', '2', '3']);
-    const r = makeRound({ id: 'r1', scale, votes: {}, revealedAt: 1000 });
+    const r = makeRound({ id: 'r1', scale, votes: {}, status: 'revealed', terminalAt: 1000 });
     const c = await createComponent([r]);
     expect(c.entries()[0]!.summary).toBe('No votes');
   });
@@ -156,7 +163,8 @@ describe('RoundHistoryComponent.entries', () => {
       id: 'r1',
       scale,
       votes: { p1: '5', p2: '5', p3: '5' },
-      revealedAt: 2000,
+      status: 'revealed',
+      terminalAt: 2000,
     });
     const c = await createComponent([r]);
     expect(c.entries()[0]!.summary).toBe('5×3');
@@ -168,7 +176,8 @@ describe('RoundHistoryComponent.entries', () => {
       id: 'r1',
       scale,
       votes: { p1: '5', p2: '5', p3: '3' },
-      revealedAt: 2000,
+      status: 'revealed',
+      terminalAt: 2000,
     });
     const c = await createComponent([r]);
     // 5 appears twice, 3 once → "5×2, 3×1"
@@ -181,7 +190,8 @@ describe('RoundHistoryComponent.entries', () => {
       id: 'r1',
       scale,
       votes: { p1: '3', p2: '1' }, // both count 1; "1" is earlier in scale
-      revealedAt: 2000,
+      status: 'revealed',
+      terminalAt: 2000,
     });
     const c = await createComponent([r]);
     // "1" (index 0) beats "3" (index 2) on tie
@@ -190,14 +200,15 @@ describe('RoundHistoryComponent.entries', () => {
 
   // ── Elapsed time ──────────────────────────────────────────────────────────
 
-  it('computes elapsed as formatElapsed(revealedAt − timerStartedAt)', async () => {
+  it('computes elapsed as formatElapsed(terminalAt − timerStartedAt)', async () => {
     const scale = makeScale(['1', '2']);
     // 90 000 ms = 1 min 30 sec → "1:30"
     const r = makeRound({
       id: 'r1',
       scale,
       votes: {},
-      revealedAt: 100_000,
+      status: 'revealed',
+      terminalAt: 100_000,
       timerStartedAt: 10_000,
     });
     const c = await createComponent([r]);
@@ -206,14 +217,14 @@ describe('RoundHistoryComponent.entries', () => {
 
   it('elapsed is null when timerStartedAt is absent', async () => {
     const scale = makeScale(['1', '2']);
-    const r = makeRound({ id: 'r1', scale, votes: {}, revealedAt: 1000 });
+    const r = makeRound({ id: 'r1', scale, votes: {}, status: 'revealed', terminalAt: 1000 });
     const c = await createComponent([r]);
     expect(c.entries()[0]!.elapsed).toBeNull();
   });
 
-  it('elapsed is null when revealedAt is absent (guard)', async () => {
+  it('elapsed is null when status is not revealed (guard)', async () => {
     const scale = makeScale(['1', '2']);
-    // revealedAt absent → filtered out entirely; entries returns []
+    // no terminal status → filtered out entirely; entries returns []
     const r = makeRound({ id: 'r1', scale, votes: {}, timerStartedAt: 0 });
     const c = await createComponent([r]);
     expect(c.entries()).toHaveLength(0);
@@ -223,7 +234,7 @@ describe('RoundHistoryComponent.entries', () => {
 
   it('label is null when round has no title and no ticketId', async () => {
     const scale = makeScale(['1']);
-    const r = makeRound({ id: 'r1', scale, votes: {}, revealedAt: 500 });
+    const r = makeRound({ id: 'r1', scale, votes: {}, status: 'revealed', terminalAt: 500 });
     const c = await createComponent([r]);
     expect(c.entries()[0]!.label).toBeNull();
   });
@@ -234,7 +245,8 @@ describe('RoundHistoryComponent.entries', () => {
       id: 'r1',
       scale,
       votes: {},
-      revealedAt: 500,
+      status: 'revealed',
+      terminalAt: 500,
       title: 'Auth migration',
     });
     const c = await createComponent([r]);
@@ -247,7 +259,8 @@ describe('RoundHistoryComponent.entries', () => {
       id: 'r1',
       scale,
       votes: {},
-      revealedAt: 500,
+      status: 'revealed',
+      terminalAt: 500,
       ticketId: 'PROJ-42',
     });
     const c = await createComponent([r]);
@@ -260,7 +273,8 @@ describe('RoundHistoryComponent.entries', () => {
       id: 'r1',
       scale,
       votes: {},
-      revealedAt: 500,
+      status: 'revealed',
+      terminalAt: 500,
       title: 'Auth migration',
       ticketId: 'PROJ-42',
     });
@@ -270,9 +284,15 @@ describe('RoundHistoryComponent.entries', () => {
 
   // ── Skipped rounds ────────────────────────────────────────────────────────
 
-  it('includes a skipped round (skippedAt set, no revealedAt)', async () => {
+  it('includes a skipped round', async () => {
     const scale = makeScale(['1', '2', '3']);
-    const r = makeRound({ id: 'r1', scale, votes: { p1: '1' }, skippedAt: 2000 });
+    const r = makeRound({
+      id: 'r1',
+      scale,
+      votes: { p1: '1' },
+      status: 'skipped',
+      terminalAt: 2000,
+    });
     const c = await createComponent([r]);
     expect(c.entries()).toHaveLength(1);
     expect(c.entries()[0]!.roundId).toBe('r1');
@@ -281,7 +301,13 @@ describe('RoundHistoryComponent.entries', () => {
 
   it('skipped entry has no summary text', async () => {
     const scale = makeScale(['1', '2']);
-    const r = makeRound({ id: 'r1', scale, votes: { p1: '1' }, skippedAt: 2000 });
+    const r = makeRound({
+      id: 'r1',
+      scale,
+      votes: { p1: '1' },
+      status: 'skipped',
+      terminalAt: 2000,
+    });
     const c = await createComponent([r]);
     expect(c.entries()[0]!.summary).toBe('');
   });
@@ -292,7 +318,8 @@ describe('RoundHistoryComponent.entries', () => {
       id: 'r1',
       scale,
       votes: {},
-      skippedAt: 2000,
+      status: 'skipped',
+      terminalAt: 2000,
       timerStartedAt: 1000,
     });
     const c = await createComponent([r]);
@@ -301,9 +328,21 @@ describe('RoundHistoryComponent.entries', () => {
 
   it('skipped round interleaves with revealed by array position', async () => {
     const scale = makeScale(['1', '2']);
-    const r1 = makeRound({ id: 'r1', scale, votes: { p1: '1' }, revealedAt: 1000 });
-    const r2 = makeRound({ id: 'r2', scale, votes: {}, skippedAt: 2000 });
-    const r3 = makeRound({ id: 'r3', scale, votes: { p1: '2' }, revealedAt: 3000 });
+    const r1 = makeRound({
+      id: 'r1',
+      scale,
+      votes: { p1: '1' },
+      status: 'revealed',
+      terminalAt: 1000,
+    });
+    const r2 = makeRound({ id: 'r2', scale, votes: {}, status: 'skipped', terminalAt: 2000 });
+    const r3 = makeRound({
+      id: 'r3',
+      scale,
+      votes: { p1: '2' },
+      status: 'revealed',
+      terminalAt: 3000,
+    });
     const c = await createComponent([r1, r2, r3]);
     const entries = c.entries();
     expect(entries).toHaveLength(3);
@@ -320,10 +359,16 @@ describe('RoundHistoryComponent.entries', () => {
     expect(entries[2]!.roundNumber).toBe(1);
   });
 
-  it('filters out rounds that are not terminal (no revealedAt, no skippedAt)', async () => {
+  it('filters out rounds that are not terminal (no status set)', async () => {
     const scale = makeScale(['1', '2']);
     const active = makeRound({ id: 'r1', scale, votes: {} });
-    const revealed = makeRound({ id: 'r2', scale, votes: {}, revealedAt: 1000 });
+    const revealed = makeRound({
+      id: 'r2',
+      scale,
+      votes: {},
+      status: 'revealed',
+      terminalAt: 1000,
+    });
     const c = await createComponent([active, revealed]);
     expect(c.entries()).toHaveLength(1);
     expect(c.entries()[0]!.roundId).toBe('r2');
@@ -333,19 +378,20 @@ describe('RoundHistoryComponent.entries', () => {
 
   it('first-round (no parent, no children) has null lineageLabel (AC#3)', async () => {
     const scale = makeScale(['1', '2']);
-    const r1 = makeRound({ id: 'r1', scale, votes: {}, revealedAt: 1000 });
+    const r1 = makeRound({ id: 'r1', scale, votes: {}, status: 'revealed', terminalAt: 1000 });
     const c = await createComponent([r1]);
     expect(c.entries()[0]!.lineageLabel).toBeNull();
   });
 
   it('chain root with descendants has null lineageLabel (AC#4)', async () => {
     const scale = makeScale(['1', '2']);
-    const r1 = makeRound({ id: 'r1', scale, votes: {}, revealedAt: 1000 });
+    const r1 = makeRound({ id: 'r1', scale, votes: {}, status: 'revealed', terminalAt: 1000 });
     const r2 = makeRound({
       id: 'r2',
       scale,
       votes: {},
-      revealedAt: 2000,
+      status: 'revealed',
+      terminalAt: 2000,
       parentRoundId: 'r1',
     });
     const c = await createComponent([r1, r2]);
@@ -360,19 +406,21 @@ describe('RoundHistoryComponent.entries', () => {
 
   it('re-voted round (with parent) has lineageLabel "re-vote" (AC#4)', async () => {
     const scale = makeScale(['1', '2']);
-    const r1 = makeRound({ id: 'r1', scale, votes: {}, revealedAt: 1000 });
+    const r1 = makeRound({ id: 'r1', scale, votes: {}, status: 'revealed', terminalAt: 1000 });
     const r2 = makeRound({
       id: 'r2',
       scale,
       votes: {},
-      revealedAt: 2000,
+      status: 'revealed',
+      terminalAt: 2000,
       parentRoundId: 'r1',
     });
     const r3 = makeRound({
       id: 'r3',
       scale,
       votes: {},
-      revealedAt: 3000,
+      status: 'revealed',
+      terminalAt: 3000,
       parentRoundId: 'r2',
     });
     const c = await createComponent([r1, r2, r3]);
@@ -391,7 +439,8 @@ describe('RoundHistoryComponent.entries', () => {
       id: 'r2',
       scale,
       votes: {},
-      revealedAt: 2000,
+      status: 'revealed',
+      terminalAt: 2000,
       parentRoundId: 'missing-root',
     });
     const c = await createComponent([orphan]);
@@ -402,12 +451,13 @@ describe('RoundHistoryComponent.entries', () => {
     // Caller passes pastRevealedRounds (without current), but allRounds is full.
     // Lineage must walk the full chain even though the parent is not in `rounds`.
     const scale = makeScale(['1']);
-    const r1 = makeRound({ id: 'r1', scale, votes: {}, revealedAt: 1000 });
+    const r1 = makeRound({ id: 'r1', scale, votes: {}, status: 'revealed', terminalAt: 1000 });
     const r2 = makeRound({
       id: 'r2',
       scale,
       votes: {},
-      revealedAt: 2000,
+      status: 'revealed',
+      terminalAt: 2000,
       parentRoundId: 'r1',
     });
     // rounds = [r1] only; allRounds = [r1, r2]. r1 is chain root → null label.

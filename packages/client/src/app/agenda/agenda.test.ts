@@ -91,6 +91,7 @@ function makeRound(overrides: Partial<Round> & Pick<Round, 'id' | 'scale' | 'vot
   return {
     createdAt: Date.now(),
     createdBy: 'p1',
+    status: 'pending',
     ...overrides,
   };
 }
@@ -540,7 +541,8 @@ describe('RoundHistoryComponent — agenda backref label fallback', () => {
       id: 'r1',
       scale,
       votes: { p1: '3' },
-      revealedAt: 2000,
+      status: 'revealed',
+      terminalAt: 2000,
       timerStartedAt: 1000,
       agendaItemId: 'agenda-1',
     });
@@ -568,7 +570,8 @@ describe('RoundHistoryComponent — agenda backref label fallback', () => {
       id: 'r1',
       scale,
       votes: { p1: '3' },
-      revealedAt: 2000,
+      status: 'revealed',
+      terminalAt: 2000,
       timerStartedAt: 1000,
     });
     fixture.componentRef.setInput('rounds', [round]);
@@ -597,7 +600,8 @@ describe('RoundHistoryComponent — agenda backref label fallback', () => {
       id: 'r1',
       scale,
       votes: { p1: '3' },
-      revealedAt: 2000,
+      status: 'revealed',
+      terminalAt: 2000,
       timerStartedAt: 1000,
       title: 'Round title takes priority',
       agendaItemId: 'agenda-2',
@@ -630,7 +634,8 @@ describe('RoundHistoryComponent — agenda backref label fallback', () => {
       id: 'r1',
       scale,
       votes: { p1: '3' },
-      revealedAt: 2000,
+      status: 'revealed',
+      terminalAt: 2000,
       timerStartedAt: 1000,
       agendaItemId: 'agenda-3',
     });

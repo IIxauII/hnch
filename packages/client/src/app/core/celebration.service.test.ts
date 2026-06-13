@@ -45,7 +45,8 @@ function makeRound(overrides: Partial<Round> = {}): Round {
     createdBy: 'host',
     createdAt: 1000,
     votes: {},
-    revealedAt: 2000,
+    status: 'revealed',
+    terminalAt: 2000,
     timerStartedAt: 1000,
     ...overrides,
   };
@@ -76,41 +77,37 @@ describe('CelebrationService — consensus()', () => {
     expect(svc.consensus()).toBe(false);
   });
 
-  it('false when round is skipped (skippedAt < revealedAt — ADR-0040)', () => {
+  it('false when round is skipped', () => {
     const svc = mountService();
-    svc.setRound(makeRound({ votes: { p1: '5', p2: '5' }, revealedAt: 2000, skippedAt: 1000 }));
+    svc.setRound(makeRound({ votes: { p1: '5', p2: '5' }, status: 'skipped', terminalAt: 1000 }));
     TestBed.flushEffects();
     expect(svc.consensus()).toBe(false);
   });
 
-  it('true when revealedAt < skippedAt — reveal wins (ADR-0040)', () => {
+  it('true when round is revealed (ADR-0040)', () => {
     const svc = mountService();
-    svc.setRound(makeRound({ votes: { p1: '5', p2: '5' }, revealedAt: 1000, skippedAt: 2000 }));
+    svc.setRound(makeRound({ votes: { p1: '5', p2: '5' }, status: 'revealed', terminalAt: 1000 }));
     TestBed.flushEffects();
     expect(svc.consensus()).toBe(true);
   });
 
-  it('false when only skippedAt is set', () => {
+  it('false when round is skipped (only skippedAt was set)', () => {
     const svc = mountService();
-    svc.setRound(
-      makeRound({ votes: { p1: '5', p2: '5' }, revealedAt: undefined, skippedAt: 1000 }),
-    );
+    svc.setRound(makeRound({ votes: { p1: '5', p2: '5' }, status: 'skipped', terminalAt: 1000 }));
     TestBed.flushEffects();
     expect(svc.consensus()).toBe(false);
   });
 
   it('false when all votes are abstain (ADR-0041 §2)', () => {
     const svc = mountService();
-    svc.setRound(
-      makeRound({ votes: { p1: ABSTAIN_SENTINEL, p2: ABSTAIN_SENTINEL }, revealedAt: 2000 }),
-    );
+    svc.setRound(makeRound({ votes: { p1: ABSTAIN_SENTINEL, p2: ABSTAIN_SENTINEL } }));
     TestBed.flushEffects();
     expect(svc.consensus()).toBe(false);
   });
 
   it('true on unanimous revealed round (AC-14: viewer path same result)', () => {
     const svc = mountService();
-    svc.setRound(makeRound({ votes: { p1: '5', p2: '5' }, revealedAt: 2000 }));
+    svc.setRound(makeRound({ votes: { p1: '5', p2: '5' } }));
     TestBed.flushEffects();
     expect(svc.consensus()).toBe(true);
   });
@@ -133,7 +130,7 @@ describe('CelebrationService — overlay state (AC-11)', () => {
       hapticStub.impactMedium.mockClear();
 
       const svc = mountService();
-      svc.setRound(makeRound({ votes: { p1: '5', p2: '5' }, revealedAt: 2000 }));
+      svc.setRound(makeRound({ votes: { p1: '5', p2: '5' } }));
       TestBed.flushEffects();
 
       // Before delay: overlay not shown
@@ -153,7 +150,7 @@ describe('CelebrationService — overlay state (AC-11)', () => {
     vi.useFakeTimers();
     try {
       const svc = mountService();
-      svc.setRound(makeRound({ votes: { p1: '5', p2: '5' }, revealedAt: 2000 }));
+      svc.setRound(makeRound({ votes: { p1: '5', p2: '5' } }));
       TestBed.flushEffects();
 
       vi.advanceTimersByTime(300);
@@ -170,7 +167,7 @@ describe('CelebrationService — overlay state (AC-11)', () => {
     vi.useFakeTimers();
     try {
       const svc = mountService();
-      svc.setRound(makeRound({ votes: { p1: '5', p2: '5' }, revealedAt: 2000 }));
+      svc.setRound(makeRound({ votes: { p1: '5', p2: '5' } }));
       TestBed.flushEffects();
       vi.advanceTimersByTime(300);
       expect(svc.showOverlay()).toBe(true);
@@ -195,7 +192,7 @@ describe('CelebrationService — attachLayer / pendingPattern', () => {
 
       const svc = mountService();
       // Trigger confetti via consensus reveal but no layer attached
-      svc.setRound(makeRound({ votes: { p1: '5', p2: '5' }, revealedAt: 2000 }));
+      svc.setRound(makeRound({ votes: { p1: '5', p2: '5' } }));
       TestBed.flushEffects();
       vi.advanceTimersByTime(300);
 
@@ -213,7 +210,7 @@ describe('CelebrationService — attachLayer / pendingPattern', () => {
       const animateSpy = vi.spyOn(HTMLElement.prototype, 'animate');
 
       const svc = mountService();
-      svc.setRound(makeRound({ votes: { p1: '5', p2: '5' }, revealedAt: 2000 }));
+      svc.setRound(makeRound({ votes: { p1: '5', p2: '5' } }));
       TestBed.flushEffects();
       vi.advanceTimersByTime(300); // celebration fires, pendingPattern set
 
@@ -250,7 +247,7 @@ describe('CelebrationService — AC-12: round-swap cancel', () => {
       const svc = mountService();
 
       // Round A: unanimous consensus
-      const roundA = makeRound({ id: 'round-a', votes: { p1: '5', p2: '5' }, revealedAt: 2000 });
+      const roundA = makeRound({ id: 'round-a', votes: { p1: '5', p2: '5' } });
       svc.setRound(roundA);
       TestBed.flushEffects();
 
@@ -262,7 +259,6 @@ describe('CelebrationService — AC-12: round-swap cancel', () => {
       const roundB = makeRound({
         id: 'round-b',
         votes: { p1: '3', p2: '5' },
-        revealedAt: 3000,
       });
       svc.setRound(roundB);
       TestBed.flushEffects();
@@ -289,7 +285,7 @@ describe('CelebrationService — AC-12: round-swap cancel', () => {
       document.body.appendChild(layer);
       svc.attachLayer(layer);
 
-      const roundA = makeRound({ id: 'round-a', votes: { p1: '5', p2: '5' }, revealedAt: 2000 });
+      const roundA = makeRound({ id: 'round-a', votes: { p1: '5', p2: '5' } });
       svc.setRound(roundA);
       TestBed.flushEffects();
       vi.advanceTimersByTime(300); // celebration fires + engine starts
@@ -299,7 +295,7 @@ describe('CelebrationService — AC-12: round-swap cancel', () => {
       expect(layer.children.length).toBeGreaterThan(0);
 
       // Swap round → engine should stop, layer cleared
-      const roundB = makeRound({ id: 'round-b', votes: { p1: '3', p2: '5' }, revealedAt: 3000 });
+      const roundB = makeRound({ id: 'round-b', votes: { p1: '3', p2: '5' } });
       svc.setRound(roundB);
       TestBed.flushEffects();
 
@@ -344,7 +340,6 @@ describe('CelebrationService — AC-15: live false→true transition', () => {
       const roundRevealed = makeRound({
         id: 'round-x',
         votes: { p1: '5', p2: '5' },
-        revealedAt: 2000,
       });
       svc.setRound(roundRevealed);
       TestBed.flushEffects();
@@ -373,7 +368,7 @@ describe('CelebrationService — consecutive unanimous rounds', () => {
       const svc = mountService();
 
       // Round A: unanimous → overlay fires
-      svc.setRound(makeRound({ id: 'round-a', votes: { p1: '5', p2: '5' }, revealedAt: 2000 }));
+      svc.setRound(makeRound({ id: 'round-a', votes: { p1: '5', p2: '5' } }));
       TestBed.flushEffects();
       vi.advanceTimersByTime(300);
       expect(svc.showOverlay()).toBe(true);
@@ -384,7 +379,7 @@ describe('CelebrationService — consecutive unanimous rounds', () => {
       expect(svc.showOverlay()).toBe(false);
 
       // Round B: unanimous again → overlay must fire again
-      svc.setRound(makeRound({ id: 'round-b', votes: { p1: '3', p2: '3' }, revealedAt: 3000 }));
+      svc.setRound(makeRound({ id: 'round-b', votes: { p1: '3', p2: '3' } }));
       TestBed.flushEffects();
       vi.advanceTimersByTime(300);
       expect(svc.showOverlay()).toBe(true);
@@ -407,7 +402,6 @@ describe('CelebrationService — AC-17: skip-race cancel', () => {
       const roundConsensus = makeRound({
         id: 'round-y',
         votes: { p1: '5', p2: '5' },
-        revealedAt: 2000,
       });
       svc.setRound(roundConsensus);
       TestBed.flushEffects();
@@ -419,8 +413,8 @@ describe('CelebrationService — AC-17: skip-race cancel', () => {
       const roundSkipped = makeRound({
         id: 'round-y',
         votes: { p1: '5', p2: '5' },
-        revealedAt: 2000,
-        skippedAt: 1000,
+        status: 'skipped',
+        terminalAt: 1000,
       });
       svc.setRound(roundSkipped);
       TestBed.flushEffects();
@@ -460,7 +454,6 @@ describe('CelebrationService — #310 race: projection-tick reference-thrash', (
       const round = makeRound({
         id: 'round-310',
         votes: { p1: '5', p2: '5' },
-        revealedAt: 2000,
       });
 
       // Initial set
@@ -498,7 +491,6 @@ describe('CelebrationService — #310 race: projection-tick reference-thrash', (
       const round = makeRound({
         id: 'round-310b',
         votes: { p1: '5', p2: '5' },
-        revealedAt: 2000,
       });
 
       svc.setRound({ ...round });
@@ -539,7 +531,6 @@ describe('CelebrationService — null-cycle remount', () => {
       const round = makeRound({
         id: 'round-cycle',
         votes: { p1: '5', p2: '5' },
-        revealedAt: 2000,
       });
 
       // Arm once
@@ -600,7 +591,7 @@ describe('CelebrationService — AC-18: reduced-motion', () => {
       document.body.appendChild(layer);
       svc.attachLayer(layer);
 
-      svc.setRound(makeRound({ votes: { p1: '5', p2: '5' }, revealedAt: 2000 }));
+      svc.setRound(makeRound({ votes: { p1: '5', p2: '5' } }));
       TestBed.flushEffects();
 
       vi.advanceTimersByTime(300);
@@ -613,6 +604,64 @@ describe('CelebrationService — AC-18: reduced-motion', () => {
       expect(animateSpy).not.toHaveBeenCalled();
 
       layer.remove();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// scheduleCelebration early-return guard (changed line ~131):
+// `if (r?.status !== 'revealed') return;`
+// The guard is reachable when consensus() returns true but the round status
+// is not 'revealed' (e.g. 'voting' with unanimous votes). Verify both paths.
+// ---------------------------------------------------------------------------
+
+describe('CelebrationService — scheduleCelebration status guard', () => {
+  it('early-return: unanimous voting round (status !== revealed) never shows overlay', () => {
+    vi.useFakeTimers();
+    try {
+      const svc = mountService();
+      // unanimous votes on a VOTING round → consensus() = true (isConsensus passes,
+      // status !== 'skipped'), but scheduleCelebration's guard bails because
+      // status !== 'revealed'.
+      const votingRound = makeRound({
+        id: 'guard-test',
+        votes: { p1: '5', p2: '5' },
+        status: 'voting',
+        terminalAt: undefined,
+      });
+      svc.setRound(votingRound);
+      TestBed.flushEffects();
+
+      expect(svc.consensus()).toBe(true);
+
+      // Advance well past any stagger delay
+      vi.advanceTimersByTime(500);
+      expect(svc.showOverlay()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('proceeds: unanimous revealed round (status === revealed) shows overlay', () => {
+    vi.useFakeTimers();
+    try {
+      const svc = mountService();
+      const revealedRound = makeRound({
+        id: 'guard-revealed',
+        votes: { p1: '5', p2: '5' },
+        status: 'revealed',
+        terminalAt: 2000,
+      });
+      svc.setRound(revealedRound);
+      TestBed.flushEffects();
+
+      expect(svc.consensus()).toBe(true);
+
+      // Advance past stagger delay (1 group: 1×80+200=280ms)
+      vi.advanceTimersByTime(300);
+      expect(svc.showOverlay()).toBe(true);
     } finally {
       vi.useRealTimers();
     }

@@ -8,7 +8,6 @@ import {
   currentRound,
   nextPendingAgendaItem,
   participantRole,
-  terminalState,
 } from '@hnch/shared';
 import clipboard from 'clipboardy';
 import { shareCode, shareUrl, shareNpxCommand } from '../share.js';
@@ -38,7 +37,7 @@ type Screen = 'lobby' | 'voting';
 function deriveScreen(projection: DocProjection): Screen {
   const round = currentRound(projection);
   if (!round) return 'lobby';
-  if (terminalState(round) !== null) return 'lobby';
+  if (round.status !== 'pending' && round.status !== 'voting') return 'lobby';
   return 'voting';
 }
 
@@ -101,7 +100,10 @@ export function App({
       setOnlineIds(session.onlineIds());
       const proj = session.projection();
       const round = currentRound(proj);
-      if (round?.timerStartedAt !== undefined && terminalState(round) === null) {
+      if (
+        round?.timerStartedAt !== undefined &&
+        (round.status === 'pending' || round.status === 'voting')
+      ) {
         setElapsedMs(Date.now() - round.timerStartedAt);
       } else {
         setElapsedMs(undefined);
@@ -209,7 +211,7 @@ export function App({
 
   const handleEditDescriptor = useCallback(() => {
     const current = session.current();
-    if (!current || current.revealedAt === undefined) return;
+    if (!current || current.status !== 'revealed') return;
     setEditingRoundId(current.id);
     setDescriptorInput(current.title ?? '');
     setDescriptorPromptActive(true);
@@ -344,7 +346,9 @@ export function App({
   );
 
   // The latest terminal round (revealed or skipped) for results display in Lobby
-  const terminalRounds = projection.rounds.filter((r) => terminalState(r) !== null);
+  const terminalRounds = projection.rounds.filter(
+    (r) => r.status !== 'pending' && r.status !== 'voting',
+  );
   const latestRevealedRound: Round | null =
     terminalRounds.length > 0 ? terminalRounds.at(-1)! : null;
 

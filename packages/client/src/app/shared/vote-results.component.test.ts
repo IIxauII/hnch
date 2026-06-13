@@ -53,7 +53,8 @@ function makeRound(overrides: Partial<Round> = {}): Round {
     createdBy: 'host',
     createdAt: 1000,
     votes: {},
-    revealedAt: 2000,
+    status: 'revealed',
+    terminalAt: 2000,
     timerStartedAt: 1000,
     ...overrides,
   };
@@ -368,11 +369,10 @@ describe('VoteResultsComponent — stats() abstain filtering', () => {
 // Exercises: vote-results.component:VoteResultsComponent consensus()
 describe('VoteResultsComponent — consensus()', () => {
   it('consensus() is false when round is skipped (AC-13: skip-race guard, ADR-0040)', async () => {
-    // skippedAt < revealedAt → skip wins (earlier timestamp wins per ADR-0040)
     const round = makeRound({
       votes: { p1: '5', p2: '5' },
-      revealedAt: 2000,
-      skippedAt: 1000,
+      status: 'skipped',
+      terminalAt: 1000,
     });
     const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
     const fixture = await mountVoteResults(round, participants);
@@ -380,12 +380,11 @@ describe('VoteResultsComponent — consensus()', () => {
     expect(component.consensus()).toBe(false);
   });
 
-  it('consensus() is true when revealedAt wins over skippedAt (AC-13: reveal wins)', async () => {
-    // revealedAt <= skippedAt → reveal wins (earlier timestamp wins per ADR-0040)
+  it('consensus() is true when round is revealed (AC-13: reveal wins)', async () => {
     const round = makeRound({
       votes: { p1: '5', p2: '5' },
-      revealedAt: 1000,
-      skippedAt: 2000,
+      status: 'revealed',
+      terminalAt: 1000,
     });
     const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
     const fixture = await mountVoteResults(round, participants);
@@ -396,8 +395,8 @@ describe('VoteResultsComponent — consensus()', () => {
   it('consensus() is false when only skippedAt is set (AC-13)', async () => {
     const round = makeRound({
       votes: { p1: '5', p2: '5' },
-      revealedAt: undefined,
-      skippedAt: 1000,
+      status: 'skipped',
+      terminalAt: 1000,
     });
     const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
     const fixture = await mountVoteResults(round, participants);

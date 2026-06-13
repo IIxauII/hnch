@@ -34,7 +34,7 @@ export function resolveRoundLineage(
   // writer guard in `appendRound` enforces that for new writes, but a CRDT
   // merge could still produce one — filtering here keeps the projection
   // self-consistent.
-  const liveRounds = allRounds.filter((r) => r.discardedAt === undefined);
+  const liveRounds = allRounds.filter((r) => r.status !== 'discarded');
   const byId = new Map<string, Round>();
   for (const r of liveRounds) byId.set(r.id, r);
 
