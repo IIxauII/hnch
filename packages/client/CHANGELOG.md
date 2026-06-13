@@ -1,3 +1,10 @@
+## [1.40.3](https://github.com/IIxauII/hnch/compare/client-v1.40.2...client-v1.40.3) (2026-06-13)
+
+
+### Bug Fixes
+
+* **client,e2e:** relocate agenda item form sheet actions to header toolbar ([#453](https://github.com/IIxauII/hnch/issues/453)) ([3720174](https://github.com/IIxauII/hnch/commit/37201748daf209d147d64f49540a65fd1a3c20c6))
+
 ## [1.40.2](https://github.com/IIxauII/hnch/compare/client-v1.40.1...client-v1.40.2) (2026-06-12)
 
 
