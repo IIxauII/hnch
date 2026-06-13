@@ -1,5 +1,8 @@
 /**
- * Tests for EstimatingPage — shouldAutoReveal logic (ADR-0018, ADR-0041).
+ * Tests for EstimatingPage — `parseTicketIdHref` URL parsing.
+ *
+ * The unanimous auto-reveal predicate now lives in `@hnch/shared`
+ * (`shouldAutoReveal`); its test surface is `packages/shared/src/auto-reveal.test.ts`.
  *
  * Intentionally absent:
  *  - CSS prefers-reduced-motion check — JSDOM does not evaluate CSS; blocked gap.
@@ -39,110 +42,9 @@ vi.mock('@ionic/angular/standalone', () => ({
 }));
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false } }));
 
-import { parseTicketIdHref, shouldAutoReveal } from './estimating.page';
+import { parseTicketIdHref } from './estimating.page';
 
 describe('EstimatingPage', () => {
-  describe('shouldAutoReveal', () => {
-    it('returns false when no round', () => {
-      expect(shouldAutoReveal(null, new Set(['voter1']))).toBe(false);
-      expect(shouldAutoReveal(undefined, new Set(['voter1']))).toBe(false);
-    });
-
-    it('returns false when round already revealed', () => {
-      const round = {
-        id: 'r1',
-        revealedAt: 1000,
-        votes: { voter1: 'card1' },
-      };
-      expect(shouldAutoReveal(round, new Set(['voter1']))).toBe(false);
-    });
-
-    it('returns false when zero online voters (all viewers)', () => {
-      const round = {
-        id: 'r1',
-        votes: { viewer1: 'card1' },
-      };
-      expect(shouldAutoReveal(round, new Set())).toBe(false);
-    });
-
-    it('returns false when not all voters have voted', () => {
-      const round = {
-        id: 'r1',
-        votes: { voter1: 'card1' },
-      };
-      // 2 online voters but only 1 has voted
-      expect(shouldAutoReveal(round, new Set(['voter1', 'voter2']))).toBe(false);
-    });
-
-    it('returns true when all online voters have voted', () => {
-      const round = {
-        id: 'r1',
-        votes: { voter1: 'card1', voter2: 'card2' },
-      };
-      expect(shouldAutoReveal(round, new Set(['voter1', 'voter2']))).toBe(true);
-    });
-
-    it('ignores non-voter participants in the vote count', () => {
-      const round = {
-        id: 'r1',
-        votes: { voter1: 'card1', viewer1: 'card1' },
-      };
-      // Only 1 voter online; voter1 has voted, so should reveal
-      expect(shouldAutoReveal(round, new Set(['voter1']))).toBe(true);
-    });
-
-    it('returns true when single voter has voted', () => {
-      const round = {
-        id: 'r1',
-        votes: { voter1: 'card1' },
-      };
-      expect(shouldAutoReveal(round, new Set(['voter1']))).toBe(true);
-    });
-
-    it('returns false when round already skipped', () => {
-      const round = {
-        id: 'r1',
-        skippedAt: 1000,
-        votes: { voter1: 'card1' },
-      };
-      expect(shouldAutoReveal(round, new Set(['voter1']))).toBe(false);
-    });
-
-    // ADR-0041: abstain denominator
-    it('fires when 1 of 2 online voters abstains and the other has a numeric vote', () => {
-      const round = {
-        id: 'r1',
-        votes: { voter1: 'card1', voter2: 'hnch_abstain' },
-      };
-      expect(shouldAutoReveal(round, new Set(['voter1', 'voter2']))).toBe(true);
-    });
-
-    it('does NOT fire when all online voters abstained (denominator 0)', () => {
-      const round = {
-        id: 'r1',
-        votes: { voter1: 'hnch_abstain', voter2: 'hnch_abstain' },
-      };
-      expect(shouldAutoReveal(round, new Set(['voter1', 'voter2']))).toBe(false);
-    });
-
-    it('does NOT fire when 1 abstains, 1 votes, and 1 has not voted yet', () => {
-      const round = {
-        id: 'r1',
-        votes: { voter1: 'hnch_abstain', voter2: 'card5' },
-      };
-      // voter3 is online but has no vote yet
-      expect(shouldAutoReveal(round, new Set(['voter1', 'voter2', 'voter3']))).toBe(false);
-    });
-
-    it('fires when only non-abstain voters have voted (zero abstainers)', () => {
-      const round = {
-        id: 'r1',
-        votes: { voter1: 'card1', voter2: 'card2', voter3: 'card3' },
-      };
-      expect(shouldAutoReveal(round, new Set(['voter1', 'voter2', 'voter3']))).toBe(true);
-    });
-  });
-
   describe('parseTicketIdHref', () => {
     it('returns null for undefined', () => {
       expect(parseTicketIdHref(undefined)).toBeNull();

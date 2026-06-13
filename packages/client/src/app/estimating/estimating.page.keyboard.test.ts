@@ -109,6 +109,11 @@ async function mountEstimating(opts: MountOptions = {}) {
     rounds: signal([round].filter(Boolean) as Round[]).asReadonly(),
     onlineParticipants: signal([]).asReadonly(),
     onlineParticipantIds: signal(new Set<string>()).asReadonly(),
+    participants: signal(
+      opts.isViewer
+        ? [{ id: 'me', name: 'Me', role: 'viewer' as const }]
+        : [{ id: 'me', name: 'Me' }],
+    ).asReadonly(),
     activeParticipants: signal(
       opts.isViewer
         ? [{ id: 'me', name: 'Me', role: 'viewer' as const }]
