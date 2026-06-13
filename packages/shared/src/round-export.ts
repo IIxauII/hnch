@@ -128,8 +128,8 @@ function buildStatsLine(round: Round): string {
   );
   const stats = computeRoundStats(filteredVotes, round.scale);
   const elapsed =
-    round.timerStartedAt != null && round.revealedAt != null
-      ? formatElapsed(round.revealedAt - round.timerStartedAt)
+    round.timerStartedAt != null && round.status === 'revealed' && round.terminalAt != null
+      ? formatElapsed(round.terminalAt - round.timerStartedAt)
       : null;
 
   const parts: string[] = [];
@@ -163,7 +163,7 @@ export function roundsToMarkdown(input: RoundExportInput): string {
     nameById.set(id, p.displayName);
   }
 
-  const revealedRounds = rounds.filter((r) => r.revealedAt != null);
+  const revealedRounds = rounds.filter((r) => r.status === 'revealed');
   if (revealedRounds.length === 0) return '';
 
   // Only group revealed rounds; index into original full rounds array for numbering

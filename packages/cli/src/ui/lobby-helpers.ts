@@ -3,7 +3,7 @@
  * directly without rendering the Ink tree.
  */
 
-import { isAbstainVote, resolveRoundLineage, roundsToMarkdown, terminalState } from '@hnch/shared';
+import { isAbstainVote, resolveRoundLineage, roundsToMarkdown } from '@hnch/shared';
 import type { DocProjection, Round } from '@hnch/shared';
 
 /**
@@ -13,7 +13,9 @@ import type { DocProjection, Round } from '@hnch/shared';
  * resolve in historical rounds per ADR-0036.
  */
 export function buildExportMarkdown(projection: DocProjection): string {
-  const terminalRounds = projection.rounds.filter((r) => terminalState(r) !== null);
+  const terminalRounds = projection.rounds.filter(
+    (r) => r.status !== 'pending' && r.status !== 'voting',
+  );
   const participants = Object.fromEntries(projection.participants.map((p) => [p.id, p]));
   return roundsToMarkdown({ rounds: terminalRounds, participants });
 }
@@ -66,7 +68,7 @@ export function buildResultsHeader(
   const label = formatRoundLabel(round, roundNum, allRounds);
   const title = round.title ? ` — ${round.title}` : '';
   const ticket = round.ticketId ? ` [${round.ticketId}]` : '';
-  const suffix = terminalState(round) === 'skipped' ? ' — Skipped' : ' — Results';
+  const suffix = round.status === 'skipped' ? ' — Skipped' : ' — Results';
   return `${label}${title}${ticket}${suffix}`;
 }
 
@@ -121,7 +123,7 @@ export function compactRoundSummary(
 ): string {
   const label = formatRoundLabel(round, roundNum, allRounds);
 
-  if (terminalState(round) === 'skipped') {
+  if (round.status === 'skipped') {
     const title = round.title ? ` ${round.title}` : '';
     const ticket = round.ticketId ? ` [${round.ticketId}]` : '';
     return `${label}:${title}${ticket} — Skipped`;
@@ -144,8 +146,10 @@ export function compactRoundSummary(
   const title = round.title ? ` ${round.title}` : '';
   const ticket = round.ticketId ? ` [${round.ticketId}]` : '';
   const elapsed =
-    round.timerStartedAt !== undefined && round.revealedAt !== undefined
-      ? ` — ${formatElapsed(round.timerStartedAt, round.revealedAt)}`
+    round.timerStartedAt !== undefined &&
+    round.status === 'revealed' &&
+    round.terminalAt !== undefined
+      ? ` — ${formatElapsed(round.timerStartedAt, round.terminalAt)}`
       : '';
 
   return `${label}:${title}${ticket} — ${tally || '(no votes)'}${abstainSuffix}${elapsed}`;

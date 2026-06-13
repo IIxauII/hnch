@@ -78,6 +78,9 @@ vi.mock('./avatar-vote-row.component', async () => {
 const FIB_ROUND: Round = {
   id: 'r1',
   startedAt: 1,
+  createdAt: 0,
+  createdBy: 'host',
+  status: 'voting',
   scale: { id: 'fibonacci', cards: ['0', '1', '2', '3', '5', '8', '13', '21'] },
   votes: {},
 };
@@ -214,6 +217,9 @@ describe('EstimatingPage — keyboard handler (issue #154)', () => {
     const linearRound: Round = {
       id: 'r1',
       startedAt: 1,
+      createdAt: 0,
+      createdBy: 'host',
+      status: 'voting',
       scale: { id: 'linear', cards: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'] },
       votes: {},
     };
@@ -273,7 +279,7 @@ describe('EstimatingPage — keyboard handler (issue #154)', () => {
   });
 
   it('Skips when the round is already revealed', async () => {
-    const revealedRound: Round = { ...FIB_ROUND, revealedAt: 1000 };
+    const revealedRound: Round = { ...FIB_ROUND, status: 'revealed', terminalAt: 1000 };
     const { castVote } = await mountEstimating({ round: revealedRound });
     dispatchKey({ code: 'Digit1', key: '1' });
     expect(castVote).not.toHaveBeenCalled();

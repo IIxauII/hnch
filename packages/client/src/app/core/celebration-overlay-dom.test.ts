@@ -44,7 +44,8 @@ function makeRound(overrides: Partial<Round> = {}): Round {
     createdBy: 'host',
     createdAt: 1000,
     votes: {},
-    revealedAt: 2000,
+    status: 'revealed',
+    terminalAt: 2000,
     timerStartedAt: 1000,
     ...overrides,
   };
@@ -72,7 +73,7 @@ describe('CelebrationService overlay DOM — AC-16: text styling', () => {
       });
 
       const svc = TestBed.inject(CelebrationService);
-      svc.setRound(makeRound({ votes: { p1: '5', p2: '5' }, revealedAt: 2000 }));
+      svc.setRound(makeRound({ votes: { p1: '5', p2: '5' } }));
       TestBed.flushEffects();
 
       vi.advanceTimersByTime(300);
@@ -144,7 +145,7 @@ describe('CelebrationService overlay DOM — P3-C8: confetti-layer overflow', ()
       });
 
       const svc = TestBed.inject(CelebrationService);
-      svc.setRound(makeRound({ votes: { p1: '5', p2: '5' }, revealedAt: 2000 }));
+      svc.setRound(makeRound({ votes: { p1: '5', p2: '5' } }));
       TestBed.flushEffects();
       vi.advanceTimersByTime(300);
       expect(svc.showOverlay()).toBe(true);
@@ -199,7 +200,7 @@ describe('CelebrationService overlay DOM — P3-C8: confetti-layer overflow', ()
       });
 
       const svc = TestBed.inject(CelebrationService);
-      svc.setRound(makeRound({ votes: { p1: '5', p2: '5' }, revealedAt: 2000 }));
+      svc.setRound(makeRound({ votes: { p1: '5', p2: '5' } }));
       TestBed.flushEffects();
       vi.advanceTimersByTime(300);
 
@@ -257,7 +258,7 @@ describe('CelebrationService overlay DOM — AC-18: reduced-motion glyph', () =>
       });
 
       const svc = TestBed.inject(CelebrationService);
-      svc.setRound(makeRound({ votes: { p1: '5', p2: '5' }, revealedAt: 2000 }));
+      svc.setRound(makeRound({ votes: { p1: '5', p2: '5' } }));
       TestBed.flushEffects();
 
       vi.advanceTimersByTime(300);
