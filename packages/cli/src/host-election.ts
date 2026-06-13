@@ -1,18 +1,25 @@
 /**
- * Host-election state machine for CLI (ADR-0010).
+ * Host-election driver for CLI (ADR-0010, ADR-0021, ADR-0048).
  *
- * Ported from packages/client HostElectionService — same algorithm,
- * driven by awareness + Yjs map observers instead of Angular effects.
- *
- * When the current host vanishes from awareness for 5 seconds, the
- * lex-lowest online participantId wins. Only the winner writes.
+ * The election rule itself is single-sourced in `@hnch/shared`
+ * (`evaluateElection` / `resolvePromotion`). This driver holds only the
+ * imperative glue: awareness→Set extraction, the debounce timer +
+ * `missingHostId` state, the Y observers, and the doc write. No branch
+ * logic, winner calc, or active-set filtering lives here.
  */
 
 import type * as Y from 'yjs';
 import type { Awareness } from 'y-protocols/awareness';
-import { patchSettings, DOC_SETTINGS_KEY } from '@hnch/shared';
+import {
+  DOC_SETTINGS_KEY,
+  evaluateElection,
+  patchSettings,
+  projectDoc,
+  resolvePromotion,
+  HOST_ABSENCE_ELECTION_DEBOUNCE_MS,
+} from '@hnch/shared';
 
-export const HOST_ABSENCE_ELECTION_DEBOUNCE_MS = 5_000;
+export { HOST_ABSENCE_ELECTION_DEBOUNCE_MS };
 
 export interface ElectionHandle {
   stop(): void;
@@ -35,10 +42,6 @@ export function startElection(doc: Y.Doc, awareness: Awareness, myId: string): E
     return ids;
   }
 
-  function getHostId(): string | undefined {
-    return doc.getMap(DOC_SETTINGS_KEY).get('hostParticipantId') as string | undefined;
-  }
-
   function cancelDebounce(): void {
     if (debounceTimeout !== null) {
       clearTimeout(debounceTimeout);
@@ -48,44 +51,30 @@ export function startElection(doc: Y.Doc, awareness: Awareness, myId: string): E
   }
 
   function tryPromote(): void {
-    const hostId = getHostId();
+    debounceTimeout = null;
     const cachedMissing = missingHostId;
     missingHostId = null;
 
-    if (!cachedMissing || hostId !== cachedMissing) return;
-
-    const onlineIds = getOnlineIds();
-    if (onlineIds.has(hostId!)) return;
-
-    const sorted = [...onlineIds].toSorted();
-    if (sorted.length === 0) return;
-
-    const winner = sorted[0]!;
-    if (winner === myId) {
-      patchSettings(doc, { hostParticipantId: winner });
+    const result = resolvePromotion(projectDoc(doc), getOnlineIds(), myId, cachedMissing);
+    if (result.promote) {
+      patchSettings(doc, { hostParticipantId: result.winner });
     }
   }
 
   function evaluate(): void {
-    const hostId = getHostId();
-    if (!hostId) return;
+    const result = evaluateElection(projectDoc(doc), getOnlineIds(), { missingHostId });
 
-    const onlineIds = getOnlineIds();
-
-    // Host online → cancel any pending debounce
-    if (onlineIds.has(hostId)) {
-      cancelDebounce();
-      return;
-    }
-
-    // Host offline — start or restart debounce
-    if (missingHostId !== hostId) {
-      cancelDebounce();
-      missingHostId = hostId;
-      debounceTimeout = setTimeout(() => {
-        debounceTimeout = null;
-        tryPromote();
-      }, HOST_ABSENCE_ELECTION_DEBOUNCE_MS);
+    switch (result.kind) {
+      case 'cancel':
+        cancelDebounce();
+        break;
+      case 'start-debounce':
+        cancelDebounce();
+        missingHostId = result.hostId;
+        debounceTimeout = setTimeout(tryPromote, HOST_ABSENCE_ELECTION_DEBOUNCE_MS);
+        break;
+      case 'none':
+        break;
     }
   }
 

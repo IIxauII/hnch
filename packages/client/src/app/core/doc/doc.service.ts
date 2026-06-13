@@ -202,6 +202,14 @@ export class DocService {
 
   readonly hasSession: Signal<boolean> = computed(() => this.projection() !== null);
 
+  /**
+   * Full live projection snapshot, or `null` when no session is live.
+   * Consumed by `HostElectionService` to drive the shared election
+   * decision functions (ADR-0048) — the single source supplies the live
+   * projection; the intersection with awareness happens inside `@hnch/shared`.
+   */
+  readonly projectionSnapshot: Signal<DocProjection | null> = this.projection.asReadonly();
+
   readonly meta: Signal<Meta | null> = computed(() => this.projection()?.meta ?? null);
 
   readonly settings: Signal<Settings | null> = computed(() => this.projection()?.settings ?? null);
