@@ -1,6 +1,6 @@
 # ADR-0037: Self-hosted runner pool covers all CI/CD jobs except `runner-health.yml`
 
-**Status:** Proposed
+**Status:** Superseded by ADR-0049
 **Date:** 2026-04-30
 
 ## Context

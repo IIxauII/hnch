@@ -1,6 +1,6 @@
 # ADR-0031: Runtime `window.location.origin` for invite URLs (supersedes ADR-0026 §1 origin clause)
 
-**Status:** Accepted — supersedes the origin clause of [ADR-0026](0026-deep-link-url-format.md) (Decision §1). All other clauses of ADR-0026 remain in force.
+**Status:** Accepted
 **Date:** 2026-04-29
 
 ## Context
