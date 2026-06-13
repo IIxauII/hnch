@@ -1,6 +1,6 @@
 # ADR-0047: Hardcode self-hosted runner labels; drop the `LINUX_RUNNER` hosted-fallback toggle
 
-**Status:** Accepted
+**Status:** Superseded by ADR-0049
 **Date:** 2026-06-12
 
 Supersedes the runner-targeting mechanism of [ADR-0037](0037-self-hosted-runner-pool-covers-all-non-health-jobs.md). The *coverage* decision of ADR-0037 (every Linux job except `runner-health.yml` runs on the M4 Podman pool) stands; only the indirection through `vars.LINUX_RUNNER` and its `ubuntu-latest` fallback is removed.
