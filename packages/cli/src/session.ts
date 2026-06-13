@@ -24,6 +24,7 @@ import {
   upsertParticipant,
   participantRole,
   shouldAutoReveal,
+  canEnterTerminal,
   endSessionForEveryone as endSessionMutation,
   FIBONACCI_SCALE,
   type DocProjection,
@@ -310,12 +311,12 @@ export function wireSession(opts: WireOptions): SessionHandle {
 
     reveal() {
       const round = currentRound(projectDoc(doc));
-      if (round) revealRoundMutation(doc, round.id, Date.now());
+      if (round && canEnterTerminal(round.status)) revealRoundMutation(doc, round.id, Date.now());
     },
 
     skip() {
       const round = currentRound(projectDoc(doc));
-      if (round) skipRoundMutation(doc, round.id, Date.now());
+      if (round && canEnterTerminal(round.status)) skipRoundMutation(doc, round.id, Date.now());
     },
 
     newRound(title?: string, ticketId?: string, agendaItemId?: string) {
@@ -337,7 +338,9 @@ export function wireSession(opts: WireOptions): SessionHandle {
 
     discardCurrentRound() {
       const round = currentRound(projectDoc(doc));
-      if (round) discardRoundMutation(doc, round.id, Date.now(), participantId);
+      if (round && canEnterTerminal(round.status)) {
+        discardRoundMutation(doc, round.id, Date.now(), participantId);
+      }
     },
 
     revote() {
