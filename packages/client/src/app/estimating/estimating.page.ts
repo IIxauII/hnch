@@ -16,6 +16,7 @@ import {
   formatElapsed,
   isAbstainVote,
   participantRole,
+  shouldAutoReveal,
   terminalState,
   type ParticipantSnapshot,
 } from '@hnch/shared';
@@ -496,8 +497,9 @@ export class EstimatingPage {
     // write `revealedAt`. Guard: require at least 1 online voter (ADR-0018).
     effect(() => {
       const round = this.docService.currentRound();
-      const onlineVoterIds = this.onlineVoterIds();
-      if (shouldAutoReveal(round, onlineVoterIds)) {
+      const participants = this.docService.participants();
+      const onlineIds = this.docService.onlineParticipantIds();
+      if (shouldAutoReveal(round, participants, onlineIds)) {
         this.haptic.notificationSuccess();
         this.docService.revealRound(round!.id);
       }
@@ -933,36 +935,4 @@ export function parseTicketIdHref(raw: string | undefined | null): string | null
   } catch {
     return null;
   }
-}
-
-// ---------------------------------------------------------------------------
-/**
- * Pure predicate: should the current round auto-reveal?
- * Guards: round must exist + not already revealed, at least 1 online voter,
- * all online non-abstain voters have a numeric vote.
- *
- * Abstainers (vote === ABSTAIN_SENTINEL) are excluded from the denominator —
- * they behave as round-level viewers per ADR-0041.
- */
-export function shouldAutoReveal(
-  round:
-    | {
-        readonly id: string;
-        readonly revealedAt?: number;
-        readonly skippedAt?: number;
-        readonly discardedAt?: number;
-        readonly votes: Record<string, string>;
-      }
-    | null
-    | undefined,
-  onlineVoterIds: ReadonlySet<string>,
-): boolean {
-  if (!round || terminalState(round) !== null) return false;
-  if (onlineVoterIds.size === 0) return false;
-  const onlineEntries = Object.entries(round.votes).filter(([id]) => onlineVoterIds.has(id));
-  const abstainCount = onlineEntries.filter(([, v]) => isAbstainVote(v)).length;
-  const numericCount = onlineEntries.length - abstainCount;
-  const denominator = onlineVoterIds.size - abstainCount;
-  if (denominator <= 0) return false; // all online voters abstained — host must manually reveal
-  return numericCount >= denominator;
 }
