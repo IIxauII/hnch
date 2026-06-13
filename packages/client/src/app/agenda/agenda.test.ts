@@ -31,7 +31,6 @@ vi.mock('@ionic/angular/standalone', async () => {
     IonBadge: makeComp('ion-badge'),
     IonChip: makeComp('ion-chip'),
     IonContent: makeComp('ion-content'),
-    IonFooter: makeComp('ion-footer'),
     IonHeader: makeComp('ion-header'),
     IonIcon: makeComp('ion-icon'),
     IonInput: makeComp('ion-input'),
