@@ -1,3 +1,10 @@
+# [1.13.0](https://github.com/IIxauII/hnch/compare/shared-v1.12.0...shared-v1.13.0) (2026-06-14)
+
+
+### Features
+
+* **shared,client,cli:** deepen round-transition legality into shared round-transitions module ([#471](https://github.com/IIxauII/hnch/issues/471)) ([525614b](https://github.com/IIxauII/hnch/commit/525614bc136dde92ec829b87cfcfb477d42d8a30))
+
 # [1.12.0](https://github.com/IIxauII/hnch/compare/shared-v1.11.3...shared-v1.12.0) (2026-06-13)
 
 
