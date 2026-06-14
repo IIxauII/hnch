@@ -12,7 +12,7 @@
  * own tests can still exercise the tie-break directly.
  */
 
-import type { StoredRound, TerminalRoundStatus } from './doc.js';
+import type { TerminalRoundStatus } from './doc.js';
 
 /**
  * Resolves the terminal state of a round. Returns `'revealed'`, `'skipped'`,
@@ -23,9 +23,11 @@ import type { StoredRound, TerminalRoundStatus } from './doc.js';
  * order is reveal → skip → discard so that revealed rounds win against
  * 1ms-late discards (matching the reveal-vs-skip precedent).
  */
-export function terminalState(
-  r: Pick<StoredRound, 'revealedAt' | 'skippedAt' | 'discardedAt'>,
-): TerminalRoundStatus | null {
+export function terminalState(r: {
+  revealedAt?: number | undefined;
+  skippedAt?: number | undefined;
+  discardedAt?: number | undefined;
+}): TerminalRoundStatus | null {
   const { revealedAt, skippedAt, discardedAt } = r;
   if (revealedAt === undefined && skippedAt === undefined && discardedAt === undefined) {
     return null;

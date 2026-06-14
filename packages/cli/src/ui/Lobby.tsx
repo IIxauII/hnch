@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { isAbstainVote, isConsensus, nextPendingAgendaItem } from '@hnch/shared';
+import { isAbstainVote, isConsensus, isTerminalStatus, nextPendingAgendaItem } from '@hnch/shared';
 import { ParticipantList } from './components/ParticipantList.js';
 import { HostActionsMenu } from './components/HostActionsMenu.js';
 import { SharePicker } from './components/SharePicker.js';
@@ -156,11 +156,7 @@ export function Lobby({
         if (input === 's' || input === 'S') onStartRound();
         if (input === 'h' || input === 'H') setHandoffMode('picking');
         if (input === 'm' || input === 'M') setHostMenuOpen(true);
-        if (
-          currentRound !== null &&
-          currentRound.status !== 'pending' &&
-          currentRound.status !== 'voting'
-        ) {
+        if (currentRound !== null && isTerminalStatus(currentRound.status)) {
           if (input === 'n' || input === 'N') onNewRound();
           if ((input === 'v' || input === 'V') && currentRound.status !== 'skipped') onRevote();
           if (input === 't' || input === 'T') onEditDescriptor();
@@ -234,7 +230,7 @@ export function Lobby({
   );
 
   const hasRounds = rounds.length > 0;
-  const terminalRounds = rounds.filter((r) => r.status !== 'pending' && r.status !== 'voting');
+  const terminalRounds = rounds.filter((r) => isTerminalStatus(r.status));
 
   // Past rounds = all terminal rounds except the latest (shown in full)
   const pastRounds = currentRound !== null ? terminalRounds.slice(0, -1) : terminalRounds;
@@ -282,11 +278,9 @@ export function Lobby({
         <AgendaPanel items={projection.agenda} nextPending={nextPendingAgendaItem(projection)} />
       )}
 
-      {currentRound !== null &&
-        currentRound.status !== 'pending' &&
-        currentRound.status !== 'voting' && (
-          <ResultsSection projection={projection} round={currentRound} rounds={rounds} />
-        )}
+      {currentRound !== null && isTerminalStatus(currentRound.status) && (
+        <ResultsSection projection={projection} round={currentRound} rounds={rounds} />
+      )}
 
       {pastRounds.length > 0 && (
         <Box flexDirection="column">
@@ -432,9 +426,7 @@ export function Lobby({
           <Box gap={2}>
             {isHost ? (
               <>
-                {currentRound !== null &&
-                currentRound.status !== 'pending' &&
-                currentRound.status !== 'voting' ? (
+                {currentRound !== null && isTerminalStatus(currentRound.status) ? (
                   <>
                     {currentRound.status !== 'skipped' && <Text color="yellow">[v] Revote</Text>}
                     <Text color="yellow">[n] Next</Text>
