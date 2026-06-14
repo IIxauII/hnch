@@ -1,5 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
-import { formatElapsed, formatRoundLabel, resolveRoundLineage } from '@hnch/shared';
+import {
+  formatElapsed,
+  formatRoundLabel,
+  isTerminalStatus,
+  resolveRoundLineage,
+} from '@hnch/shared';
 import type { AgendaItem, ParticipantSnapshot, Round } from '@hnch/shared';
 import { IonButton, IonIcon } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -152,7 +157,7 @@ export class RoundHistoryComponent {
 
   readonly entries = computed<readonly HistoryEntry[]>(() => {
     // Include rounds that have reached a terminal state (revealed or skipped).
-    const terminal = this.rounds().filter((r) => r.status !== 'pending' && r.status !== 'voting');
+    const terminal = this.rounds().filter((r) => isTerminalStatus(r.status));
     // Reverse chronological — newest rounds first in the history list.
     const reversed = [...terminal].toReversed();
     // Fall back to local rounds when `allRounds` not provided.

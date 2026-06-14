@@ -33,6 +33,7 @@ import type {
   Scale,
   Settings,
   StoredRound,
+  TerminalRoundStatus,
 } from './doc.js';
 import { keyBetween } from './fractional-index.js';
 import { terminalState } from './round-status.js';
@@ -531,6 +532,20 @@ function findRoundMap(doc: Y.Doc, roundId: string): UnknownMap | undefined {
 }
 
 /**
+ * Writer-side terminal-mutex check: resolves a round map's three raw terminal
+ * timestamps through the same `terminalState()` choke point readers use, so
+ * reveal / skip / discard share one uniform guard. Returns the winning
+ * terminal state, or `null` when the round is still active.
+ */
+function roundTerminalState(round: UnknownMap): TerminalRoundStatus | null {
+  return terminalState({
+    revealedAt: round.get('revealedAt') as number | undefined,
+    skippedAt: round.get('skippedAt') as number | undefined,
+    discardedAt: round.get('discardedAt') as number | undefined,
+  });
+}
+
+/**
  * Set or change a vote for a participant in a round. Overwriting a
  * prior value is the supported vote-change path (ADR-0013).
  * No-ops if the round is already revealed — reveals are immutable.
@@ -585,26 +600,25 @@ function maybeConsumeLinkedAgendaItem(
 }
 
 /**
- * Mark a round as revealed at the given timestamp. Idempotent — concurrent
- * writes from multiple clients (unanimous auto-reveal) merge harmlessly.
+ * Mark a round as revealed at the given timestamp.
  *
  * Atomically consumes the linked agenda item (if any, and if currently
  * `pending`) inside the same transaction — single chokepoint for the
  * consume-at-terminal lifecycle so CLI and client share identical behavior.
  *
- * Throws if `skippedAt` or `discardedAt` is already set on the round
- * (writer-side mutual exclusion). CRDT merges can still produce multiple
- * terminal fields on the same round; readers must funnel through
- * `terminalState()` to pick a winner.
+ * Throws if the round is already terminal on the local read (reveal / skip /
+ * discard) — the uniform terminal mutex shared by all three writers, so a
+ * re-reveal is rejected rather than silently overwriting. Concurrent reveals
+ * from multiple clients (unanimous auto-reveal) each pass their own local
+ * guard and merge harmlessly; CRDT merges can still produce multiple terminal
+ * fields, so readers funnel through `terminalState()` to pick a winner.
  */
 export function revealRound(doc: Y.Doc, roundId: string, revealedAt: number): void {
   const round = findRoundMap(doc, roundId);
   if (!round) throw new Error(`revealRound: round ${roundId} not found`);
-  if (round.get('skippedAt') !== undefined) {
-    throw new Error(`revealRound: round ${roundId} already skipped`);
-  }
-  if (round.get('discardedAt') !== undefined) {
-    throw new Error(`revealRound: round ${roundId} already discarded`);
+  const terminal = roundTerminalState(round);
+  if (terminal !== null) {
+    throw new Error(`revealRound: round ${roundId} already terminal (${terminal})`);
   }
   doc.transact(() => {
     round.set('revealedAt', revealedAt);
@@ -626,14 +640,9 @@ export function revealRound(doc: Y.Doc, roundId: string, revealedAt: number): vo
 export function skipRound(doc: Y.Doc, roundId: string, skippedAt: number): void {
   const round = findRoundMap(doc, roundId);
   if (!round) throw new Error(`skipRound: round ${roundId} not found`);
-  if (round.get('revealedAt') !== undefined) {
-    throw new Error(`skipRound: round ${roundId} already revealed`);
-  }
-  if (round.get('skippedAt') !== undefined) {
-    throw new Error(`skipRound: round ${roundId} already skipped`);
-  }
-  if (round.get('discardedAt') !== undefined) {
-    throw new Error(`skipRound: round ${roundId} already discarded`);
+  const terminal = roundTerminalState(round);
+  if (terminal !== null) {
+    throw new Error(`skipRound: round ${roundId} already terminal (${terminal})`);
   }
   doc.transact(() => {
     round.set('skippedAt', skippedAt);
@@ -660,14 +669,9 @@ export function discardRound(
 ): void {
   const round = findRoundMap(doc, roundId);
   if (!round) throw new Error(`discardRound: round ${roundId} not found`);
-  if (round.get('revealedAt') !== undefined) {
-    throw new Error(`discardRound: round ${roundId} already revealed`);
-  }
-  if (round.get('skippedAt') !== undefined) {
-    throw new Error(`discardRound: round ${roundId} already skipped`);
-  }
-  if (round.get('discardedAt') !== undefined) {
-    throw new Error(`discardRound: round ${roundId} already discarded`);
+  const terminal = roundTerminalState(round);
+  if (terminal !== null) {
+    throw new Error(`discardRound: round ${roundId} already terminal (${terminal})`);
   }
   doc.transact(() => {
     round.set('discardedAt', discardedAt);

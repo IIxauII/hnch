@@ -3,7 +3,12 @@
  * directly without rendering the Ink tree.
  */
 
-import { isAbstainVote, resolveRoundLineage, roundsToMarkdown } from '@hnch/shared';
+import {
+  isAbstainVote,
+  isTerminalStatus,
+  resolveRoundLineage,
+  roundsToMarkdown,
+} from '@hnch/shared';
 import type { DocProjection, Round } from '@hnch/shared';
 
 /**
@@ -13,9 +18,7 @@ import type { DocProjection, Round } from '@hnch/shared';
  * resolve in historical rounds per ADR-0036.
  */
 export function buildExportMarkdown(projection: DocProjection): string {
-  const terminalRounds = projection.rounds.filter(
-    (r) => r.status !== 'pending' && r.status !== 'voting',
-  );
+  const terminalRounds = projection.rounds.filter((r) => isTerminalStatus(r.status));
   const participants = Object.fromEntries(projection.participants.map((p) => [p.id, p]));
   return roundsToMarkdown({ rounds: terminalRounds, participants });
 }

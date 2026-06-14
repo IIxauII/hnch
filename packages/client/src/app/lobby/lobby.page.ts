@@ -13,7 +13,14 @@ import {
 import { CelebrationService } from '../core/celebration.service';
 import { Router } from '@angular/router';
 import { Share } from '@capacitor/share';
-import { formatRoomCode, formatRoundLabel, getScaleLabel, resolveAvatarColor } from '@hnch/shared';
+import {
+  canEnterTerminal,
+  formatRoomCode,
+  formatRoundLabel,
+  getScaleLabel,
+  isTerminalStatus,
+  resolveAvatarColor,
+} from '@hnch/shared';
 import type { Round } from '@hnch/shared';
 import {
   AlertController,
@@ -1013,7 +1020,7 @@ export class LobbyPage implements OnDestroy {
     const rounds = this.rounds();
     for (let i = rounds.length - 1; i >= 0; i--) {
       const r = rounds[i]!;
-      if (r.status !== 'pending' && r.status !== 'voting' && r.status !== 'discarded') return r;
+      if (isTerminalStatus(r.status) && r.status !== 'discarded') return r;
     }
     return null;
   });
@@ -1048,7 +1055,7 @@ export class LobbyPage implements OnDestroy {
 
   /** True when at least one round has reached a terminal state (gates accordion collapse). */
   protected readonly hasTerminalRounds = computed(() =>
-    this.rounds().some((r) => r.status !== 'pending' && r.status !== 'voting'),
+    this.rounds().some((r) => isTerminalStatus(r.status)),
   );
 
   /**
@@ -1082,9 +1089,7 @@ export class LobbyPage implements OnDestroy {
     const rounds = this.rounds();
     const last = this.lastRevealedRound();
     if (!last) return [];
-    return rounds.filter(
-      (r) => r.status !== 'pending' && r.status !== 'voting' && r.id !== last.id,
-    );
+    return rounds.filter((r) => isTerminalStatus(r.status) && r.id !== last.id);
   });
 
   /** 1-based round number for the edit modal header. */
@@ -1186,7 +1191,7 @@ export class LobbyPage implements OnDestroy {
     // rounds briefly appear as currentRound before the projection updates).
     effect(() => {
       const round = this.docService.currentRound();
-      if (round && (round.status === 'pending' || round.status === 'voting')) {
+      if (round && canEnterTerminal(round.status)) {
         const code = this.docService.roomCode();
         assertRoomCode(code, 'lobby.autoNav');
         void this.router.navigate(['/estimating', code]);

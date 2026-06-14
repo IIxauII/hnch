@@ -13,8 +13,10 @@ import {
 import { Router } from '@angular/router';
 import {
   ABSTAIN_SENTINEL,
+  canEnterTerminal,
   formatElapsed,
   isAbstainVote,
+  isTerminalStatus,
   participantRole,
   shouldAutoReveal,
   type ParticipantSnapshot,
@@ -447,12 +449,7 @@ export class EstimatingPage {
     // host skip. Scoped to this component's lifetime.
     effect(() => {
       const round = this.docService.currentRound();
-      if (
-        round !== null &&
-        round !== undefined &&
-        round.status !== 'pending' &&
-        round.status !== 'voting'
-      ) {
+      if (round !== null && round !== undefined && isTerminalStatus(round.status)) {
         const activeCode = this.docService.roomCode();
         assertRoomCode(activeCode, 'estimating.autoNav');
         void this.router.navigate(['/lobby', activeCode], { replaceUrl: true });
@@ -623,12 +620,12 @@ export class EstimatingPage {
   protected readonly showBackChevron = computed<boolean>(() => {
     if (this.isHost()) return true;
     const round = this.currentRound();
-    return round !== null && round.status !== 'pending' && round.status !== 'voting';
+    return round !== null && isTerminalStatus(round.status);
   });
 
   protected readonly backChevronLabel = computed<string>(() => {
     const round = this.currentRound();
-    if (this.isHost() && round && (round.status === 'pending' || round.status === 'voting')) {
+    if (this.isHost() && round && canEnterTerminal(round.status)) {
       return 'Discard round and return to lobby';
     }
     return 'Back to lobby';
@@ -701,7 +698,7 @@ export class EstimatingPage {
       overlayPresent: !!document.querySelector(
         'ion-action-sheet:not(.overlay-hidden), ion-alert:not(.overlay-hidden), ion-modal:not(.overlay-hidden), ion-popover:not(.overlay-hidden), ion-loading:not(.overlay-hidden)',
       ),
-      roundActive: !!round && (round.status === 'pending' || round.status === 'voting'),
+      roundActive: !!round && canEnterTerminal(round.status),
       isViewer: this.isViewer(),
     });
     if (!gateOk || !round || !id) return;
@@ -772,7 +769,7 @@ export class EstimatingPage {
 
   protected async onReveal(): Promise<void> {
     const round = this.currentRound();
-    if (!round) return;
+    if (!round || !canEnterTerminal(round.status)) return;
     this.haptic.impactMedium();
     this.docService.revealRound(round.id);
     const code = this.docService.roomCode();
@@ -796,12 +793,7 @@ export class EstimatingPage {
     assertRoomCode(code, 'estimating.softExit');
     const round = this.currentRound();
     const myId = this.myId();
-    if (
-      this.isHost() &&
-      myId &&
-      round &&
-      (round.status === 'pending' || round.status === 'voting')
-    ) {
+    if (this.isHost() && myId && round && canEnterTerminal(round.status)) {
       this.haptic.impactLight();
       this.docService.discardRound(round.id, myId);
     }
@@ -832,7 +824,7 @@ export class EstimatingPage {
 
     if (this.isHost()) {
       const round = this.currentRound();
-      if (round && (round.status === 'pending' || round.status === 'voting')) {
+      if (round && canEnterTerminal(round.status)) {
         items.splice(1, 0, {
           text: 'Skip round',
           icon: 'close-circle-outline',

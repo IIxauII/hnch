@@ -5,7 +5,9 @@ import type { SyncStatus } from '../sync.js';
 import type { DocProjection, Round, Scale, PresetOverrides, CustomScale } from '@hnch/shared';
 import {
   appendAgendaItem,
+  canEnterTerminal,
   currentRound,
+  isTerminalStatus,
   nextPendingAgendaItem,
   participantRole,
 } from '@hnch/shared';
@@ -37,7 +39,7 @@ type Screen = 'lobby' | 'voting';
 function deriveScreen(projection: DocProjection): Screen {
   const round = currentRound(projection);
   if (!round) return 'lobby';
-  if (round.status !== 'pending' && round.status !== 'voting') return 'lobby';
+  if (isTerminalStatus(round.status)) return 'lobby';
   return 'voting';
 }
 
@@ -100,10 +102,7 @@ export function App({
       setOnlineIds(session.onlineIds());
       const proj = session.projection();
       const round = currentRound(proj);
-      if (
-        round?.timerStartedAt !== undefined &&
-        (round.status === 'pending' || round.status === 'voting')
-      ) {
+      if (round?.timerStartedAt !== undefined && canEnterTerminal(round.status)) {
         setElapsedMs(Date.now() - round.timerStartedAt);
       } else {
         setElapsedMs(undefined);
@@ -346,9 +345,7 @@ export function App({
   );
 
   // The latest terminal round (revealed or skipped) for results display in Lobby
-  const terminalRounds = projection.rounds.filter(
-    (r) => r.status !== 'pending' && r.status !== 'voting',
-  );
+  const terminalRounds = projection.rounds.filter((r) => isTerminalStatus(r.status));
   const latestRevealedRound: Round | null =
     terminalRounds.length > 0 ? terminalRounds.at(-1)! : null;
 
