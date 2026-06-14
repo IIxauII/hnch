@@ -41,6 +41,7 @@ import {
   type JoinRejectionReason,
 } from '@hnch/shared';
 import { accessModeOf, type AccessMode, type RoomRecord, type RoomStore } from './room-store.js';
+import { createSnapshotSweeper, type SnapshotSweeperOptions } from './snapshot.js';
 import { setupWSConnection, type WsRoom } from './ws-connection.js';
 
 /**
@@ -84,6 +85,13 @@ export interface ResolveRoomRejection {
 
 export interface RelayServerDeps {
   readonly roomStore: RoomStore;
+  /**
+   * Test seam for the snapshot sweeper (ADR-0012). Omit in production:
+   * the server constructs a sweeper with 24h TTL / 1h cadence defaults.
+   * Tests inject `{ now, ttlMs, intervalMs }` to drive eviction
+   * deterministically.
+   */
+  readonly snapshot?: SnapshotSweeperOptions;
 }
 
 /** Max bytes we'll read on a JSON body before giving up. */
@@ -170,10 +178,20 @@ export function createRelayServer(deps: RelayServerDeps): Server {
     handleUpgrade(req, socket, head, wss, deps);
   });
 
+  // Server-owned snapshot TTL sweeper (ADR-0012). Constructing it here —
+  // rather than in `index.ts` — means the 24h-TTL eviction is wired on
+  // every runtime path (production and tests) automatically, closing the
+  // forgettable-last-mile-wiring gap. Tests inject `deps.snapshot` to
+  // drive eviction deterministically; production omits it for the
+  // 24h-TTL / 1h-cadence defaults.
+  const snapshotSweeper = createSnapshotSweeper(deps.roomStore, deps.snapshot);
+
   // When the HTTP server closes, also stop accepting new upgrades and
-  // close live sockets so tests can tear down cleanly.
+  // close live sockets so tests can tear down cleanly. Stop the sweeper
+  // interval here too so no timer handle leaks across test teardown.
   httpServer.on('close', () => {
     wss.close();
+    snapshotSweeper.stop();
   });
 
   return httpServer;
