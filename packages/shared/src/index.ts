@@ -16,4 +16,5 @@ export * from './password.js';
 export * from './room-code.js';
 export * from './round-export.js';
 export * from './round-stats.js';
+export * from './round-transitions.js';
 export * from './scales.js';

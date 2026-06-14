@@ -498,7 +498,16 @@ describe('revealRound', () => {
     const { doc } = seedDoc();
     appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
     skipRound(doc, 'r1', 1_700_000_300_000);
-    expect(() => revealRound(doc, 'r1', 1_700_000_400_000)).toThrow(/already skipped/);
+    expect(() => revealRound(doc, 'r1', 1_700_000_400_000)).toThrow(/already terminal \(skipped\)/);
+  });
+
+  it('throws on re-reveal (uniform terminal mutex)', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    revealRound(doc, 'r1', 1_700_000_300_000);
+    expect(() => revealRound(doc, 'r1', 1_700_000_400_000)).toThrow(
+      /already terminal \(revealed\)/,
+    );
   });
 });
 
@@ -524,14 +533,14 @@ describe('skipRound', () => {
     const { doc } = seedDoc();
     appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
     revealRound(doc, 'r1', 1_700_000_200_000);
-    expect(() => skipRound(doc, 'r1', 1_700_000_300_000)).toThrow(/already revealed/);
+    expect(() => skipRound(doc, 'r1', 1_700_000_300_000)).toThrow(/already terminal \(revealed\)/);
   });
 
   it('throws when the round is already skipped', () => {
     const { doc } = seedDoc();
     appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
     skipRound(doc, 'r1', 1_700_000_250_000);
-    expect(() => skipRound(doc, 'r1', 1_700_000_300_000)).toThrow(/already skipped/);
+    expect(() => skipRound(doc, 'r1', 1_700_000_300_000)).toThrow(/already terminal \(skipped\)/);
   });
 });
 
@@ -1830,35 +1839,35 @@ describe('discardRound', () => {
     const { doc } = seedDoc();
     appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
     revealRound(doc, 'r1', 100);
-    expect(() => discardRound(doc, 'r1', 200, 'p-host')).toThrow(/already revealed/);
+    expect(() => discardRound(doc, 'r1', 200, 'p-host')).toThrow(/already terminal \(revealed\)/);
   });
 
   it('throws when the round is already skipped', () => {
     const { doc } = seedDoc();
     appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
     skipRound(doc, 'r1', 100);
-    expect(() => discardRound(doc, 'r1', 200, 'p-host')).toThrow(/already skipped/);
+    expect(() => discardRound(doc, 'r1', 200, 'p-host')).toThrow(/already terminal \(skipped\)/);
   });
 
   it('throws on double-discard', () => {
     const { doc } = seedDoc();
     appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
     discardRound(doc, 'r1', 100, 'p-host');
-    expect(() => discardRound(doc, 'r1', 200, 'p-host')).toThrow(/already discarded/);
+    expect(() => discardRound(doc, 'r1', 200, 'p-host')).toThrow(/already terminal \(discarded\)/);
   });
 
   it('reveal blocks when round already discarded (writer mutex)', () => {
     const { doc } = seedDoc();
     appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
     discardRound(doc, 'r1', 100, 'p-host');
-    expect(() => revealRound(doc, 'r1', 200)).toThrow(/already discarded/);
+    expect(() => revealRound(doc, 'r1', 200)).toThrow(/already terminal \(discarded\)/);
   });
 
   it('skip blocks when round already discarded (writer mutex)', () => {
     const { doc } = seedDoc();
     appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
     discardRound(doc, 'r1', 100, 'p-host');
-    expect(() => skipRound(doc, 'r1', 200)).toThrow(/already discarded/);
+    expect(() => skipRound(doc, 'r1', 200)).toThrow(/already terminal \(discarded\)/);
   });
 
   it('leaves linked agenda item in pending state (no consumption)', () => {
