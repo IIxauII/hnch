@@ -1,3 +1,10 @@
+# [1.14.0](https://github.com/IIxauII/hnch/compare/shared-v1.13.0...shared-v1.14.0) (2026-06-15)
+
+
+### Features
+
+* **shared,client,cli,docs:** deepen round terminals into shared round-commands module ([#472](https://github.com/IIxauII/hnch/issues/472)) ([#475](https://github.com/IIxauII/hnch/issues/475)) ([b685377](https://github.com/IIxauII/hnch/commit/b6853772a609a69163af4174258637a79f98bbca))
+
 # [1.13.0](https://github.com/IIxauII/hnch/compare/shared-v1.12.0...shared-v1.13.0) (2026-06-14)
 
 
