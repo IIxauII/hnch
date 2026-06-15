@@ -34,6 +34,8 @@ function main(): void {
 
   const codePool = createCodePool();
   const roomStore = createRoomStore(codePool);
+  // The 24h snapshot TTL sweeper (ADR-0012) is owned by createRelayServer
+  // and auto-started with production defaults — no wiring step here.
   const server = createRelayServer({ roomStore });
   server.listen(port, host, () => {
     const address = server.address();
