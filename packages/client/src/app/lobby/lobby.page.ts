@@ -1239,7 +1239,8 @@ export class LobbyPage implements OnDestroy {
 
   protected async onRoundStart(submission: RoundStartSubmission): Promise<void> {
     // Agenda consume is deferred to the round's terminal state (reveal or
-    // skip) — handled inside the shared `revealRound` / `skipRound` writers.
+    // skip) — handled inside the shared round-terminal writers behind the
+    // `round-commands` seam.
     // Host back-chevron discard leaves the linked item `pending` so it can be
     // re-started. See ADR superseding ADR-0042.
     this.docService.startRound({
