@@ -14,9 +14,9 @@ import {
   currentRound,
   castVote,
   clearVote,
-  revealRound as revealRoundMutation,
-  skipRound as skipRoundMutation,
-  discardRound as discardRoundMutation,
+  revealCurrentRound,
+  skipCurrentRound,
+  discardCurrentRound as discardCurrentRoundCommand,
   appendRound,
   patchRoundDescriptor,
   patchSettings,
@@ -24,7 +24,6 @@ import {
   upsertParticipant,
   participantRole,
   shouldAutoReveal,
-  canEnterTerminal,
   endSessionForEveryone as endSessionMutation,
   FIBONACCI_SCALE,
   type DocProjection,
@@ -261,7 +260,7 @@ export function wireSession(opts: WireOptions): SessionHandle {
 
     if (shouldAutoReveal(round, projection.participants, getOnlineIds())) {
       revealedByAuto.add(round.id);
-      revealRoundMutation(doc, round.id, Date.now());
+      revealCurrentRound(doc);
     }
   }, 250);
 
@@ -310,13 +309,11 @@ export function wireSession(opts: WireOptions): SessionHandle {
     },
 
     reveal() {
-      const round = currentRound(projectDoc(doc));
-      if (round && canEnterTerminal(round.status)) revealRoundMutation(doc, round.id, Date.now());
+      revealCurrentRound(doc);
     },
 
     skip() {
-      const round = currentRound(projectDoc(doc));
-      if (round && canEnterTerminal(round.status)) skipRoundMutation(doc, round.id, Date.now());
+      skipCurrentRound(doc);
     },
 
     newRound(title?: string, ticketId?: string, agendaItemId?: string) {
@@ -337,10 +334,7 @@ export function wireSession(opts: WireOptions): SessionHandle {
     },
 
     discardCurrentRound() {
-      const round = currentRound(projectDoc(doc));
-      if (round && canEnterTerminal(round.status)) {
-        discardRoundMutation(doc, round.id, Date.now(), participantId);
-      }
+      discardCurrentRoundCommand(doc, participantId);
     },
 
     revote() {

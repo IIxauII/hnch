@@ -30,8 +30,8 @@ import {
   patchSettings,
   projectDoc,
   removeParticipant,
-  revealRound,
-  skipRound,
+  revealCurrentRound as revealCurrentRoundCommand,
+  skipCurrentRound as skipCurrentRoundCommand,
   upsertParticipant,
   type DocProjection,
   type Round,
@@ -174,12 +174,12 @@ class DocServiceHarness {
     clearVote(this.requireDoc(), roundId, participantId);
   }
 
-  revealRound(roundId: string, now = Date.now()): void {
-    revealRound(this.requireDoc(), roundId, now);
+  revealCurrentRound(now = Date.now()): void {
+    revealCurrentRoundCommand(this.requireDoc(), () => now);
   }
 
-  skipRound(roundId: string, now = Date.now()): void {
-    skipRound(this.requireDoc(), roundId, now);
+  skipCurrentRound(now = Date.now()): void {
+    skipCurrentRoundCommand(this.requireDoc(), () => now);
   }
 
   leaveSession(selfId: string): void {
@@ -553,13 +553,13 @@ describe('DocService — startRound / castVote / clearVote / revealRound', () =>
   });
 
   it('revealRound sets status to revealed and terminalAt', () => {
-    h.revealRound(roundId, NOW + 5000);
+    h.revealCurrentRound(NOW + 5000);
     expect(h.rounds()[0]?.status).toBe('revealed');
     expect(h.rounds()[0]?.terminalAt).toBe(NOW + 5000);
   });
 
   it('castVote is no-op after reveal', () => {
-    h.revealRound(roundId, NOW + 5000);
+    h.revealCurrentRound(NOW + 5000);
     h.castVote(roundId, 'p-host', '13');
     // Vote must not appear after reveal
     expect(h.rounds()[0]?.votes['p-host']).toBeUndefined();
@@ -755,7 +755,7 @@ describe('DocService — multi-peer merge via Y.Doc', () => {
     const roundId = host.startRound({ now: () => NOW });
     joiner.mergeFrom(host.getDoc());
 
-    host.revealRound(roundId, NOW + 2000);
+    host.revealCurrentRound(NOW + 2000);
     joiner.mergeFrom(host.getDoc());
 
     const revealedRound = joiner.rounds().find((r: Round) => r.id === roundId);
@@ -766,7 +766,7 @@ describe('DocService — multi-peer merge via Y.Doc', () => {
   it('skip from host sets status to skipped and terminalAt', () => {
     const roundId = host.startRound({ now: () => NOW });
 
-    host.skipRound(roundId, NOW + 1000);
+    host.skipCurrentRound(NOW + 1000);
 
     const skippedRound = host.rounds().find((r: Round) => r.id === roundId);
     expect(skippedRound?.status).toBe('skipped');
@@ -777,7 +777,7 @@ describe('DocService — multi-peer merge via Y.Doc', () => {
     const roundId = host.startRound({ now: () => NOW });
     joiner.mergeFrom(host.getDoc());
 
-    host.skipRound(roundId, NOW + 1500);
+    host.skipCurrentRound(NOW + 1500);
     joiner.mergeFrom(host.getDoc());
 
     const skippedRound = joiner.rounds().find((r: Round) => r.id === roundId);

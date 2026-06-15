@@ -494,4 +494,57 @@ describe('session integration', () => {
     host.disconnect();
     joiner.disconnect();
   });
+
+  it('host discardCurrentRound tombstones the active round', async () => {
+    const host = await createSession({
+      participantId: 'host-discard',
+      displayName: 'Alice',
+      relayUrl,
+      defaultScale: FIBONACCI_SCALE,
+    });
+
+    const roundId = host.newRound('To discard');
+    await vi.waitFor(
+      () => expect(host.projection().rounds.find((x) => x.id === roundId)).toBeDefined(),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    host.discardCurrentRound();
+
+    await vi.waitFor(
+      () =>
+        expect(host.projection().rounds.find((x) => x.id === roundId)?.status).toBe('discarded'),
+      { timeout: SYNC_TIMEOUT },
+    );
+    // Discarded rounds are tombstones — excluded from the active selector.
+    expect(host.current()).toBeNull();
+
+    host.disconnect();
+  });
+
+  it('unanimous vote auto-reveals without a manual reveal call', async () => {
+    const host = await createSession({
+      participantId: 'host-auto',
+      displayName: 'Alice',
+      relayUrl,
+      defaultScale: FIBONACCI_SCALE,
+    });
+
+    const roundId = host.newRound('Auto-reveal');
+    await vi.waitFor(
+      () => expect(host.projection().rounds.find((x) => x.id === roundId)).toBeDefined(),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    // Single online voter casts a numeric vote — unanimity. No host.reveal():
+    // the 250ms auto-reveal interval must fire the terminal transition itself.
+    host.vote('5');
+
+    await vi.waitFor(
+      () => expect(host.projection().rounds.find((x) => x.id === roundId)?.status).toBe('revealed'),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    host.disconnect();
+  });
 });
