@@ -436,3 +436,46 @@ describe('GET /health with HNCH_ROOM_CAP override', () => {
     }
   });
 });
+
+/**
+ * Regression for the ADR-0012 TTL last-mile wiring gap: the sweeper was
+ * implemented + unit-tested but never started on any runtime path, so
+ * idle rooms accumulated in RAM until redeploy. This proves the server
+ * *auto-starts* the interval — not merely that a sweeper is constructed.
+ * It fails if the sweeper is constructed-but-not-started or not wired.
+ */
+describe('relay server snapshot sweeper wiring (ADR-0012)', () => {
+  it('the auto-started interval evicts an idle room once the TTL elapses', async () => {
+    // Fake timers must be installed *before* the server is created so the
+    // sweeper's `setInterval` is the mocked one we can advance.
+    vi.useFakeTimers();
+    const store = createRoomStore(createCodePool());
+    const record = store.createRoom();
+    record.connections = 0;
+    record.lastEmptyAt = 0; // emptied at epoch — far older than any TTL
+
+    // Inject a deterministic clock + short TTL via the test seam. No
+    // explicit `start: false`, so the server schedules the interval itself.
+    const clock = { now: 10_000_000 };
+    const server = createRelayServer({
+      roomStore: store,
+      snapshot: { ttlMs: 60_000, intervalMs: 1_000, now: () => clock.now },
+    });
+    try {
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+
+      // Still present before the interval fires.
+      expect(store.getByUuid(record.uuid)).toBe(record);
+
+      // Advance past one cadence tick; the auto-started sweep runs and,
+      // because `lastEmptyAt (0) <= now - ttl`, evicts the room.
+      vi.advanceTimersByTime(1_000);
+      expect(store.getByUuid(record.uuid)).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+      await new Promise<void>((resolve, reject) =>
+        server.close((err) => (err ? reject(err) : resolve())),
+      );
+    }
+  });
+});
