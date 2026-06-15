@@ -8,7 +8,7 @@
  *  - showBackChevron computed: non-host + terminal round → true
  *  - backChevronLabel computed: host + active round → discard label
  *  - keyboard-gate roundActive: host + active round passes gate
- *  - softExit: host + active round → calls discardRound; non-active → does not
+ *  - softExit: host → routes through discardCurrentRound command; non-host → does not
  *  - openActionSheet: host + active round → inserts 'Skip round' item
  */
 
@@ -142,7 +142,11 @@ async function mount(opts: MountOpts = {}) {
   const currentRoundSig = signal<Round | null | undefined>(round);
   const roundsSig = signal<Round[]>(rounds);
   const navigate = vi.fn().mockResolvedValue(true);
-  const discardRound = vi.fn();
+  // Terminal commands return a TerminalResult; the page branches on `applied`.
+  // Default to applied:true (active round); tests override to simulate no-ops.
+  const discardCurrentRound = vi.fn().mockReturnValue({ applied: true, at: 1 });
+  const revealCurrentRound = vi.fn().mockReturnValue({ applied: true, at: 1 });
+  const skipCurrentRound = vi.fn().mockReturnValue({ applied: true, at: 1 });
   const openSheetOrPopover = vi.fn().mockResolvedValue(undefined);
 
   const hostId = opts.isHost === false ? 'other-host' : 'me';
@@ -160,9 +164,9 @@ async function mount(opts: MountOpts = {}) {
     syncStatus: signal('idle').asReadonly(),
     castVote: vi.fn(),
     clearVote: vi.fn(),
-    revealRound: vi.fn(),
-    skipRound: vi.fn(),
-    discardRound,
+    revealCurrentRound,
+    skipCurrentRound,
+    discardCurrentRound,
     leaveSession: vi.fn(),
     flushUpdates: vi.fn().mockResolvedValue(undefined),
     endSession: vi.fn(),
@@ -216,7 +220,7 @@ async function mount(opts: MountOpts = {}) {
   return {
     fixture,
     navigate,
-    discardRound,
+    discardCurrentRound,
     openSheetOrPopover,
     currentRoundSig,
     roundsSig,
@@ -396,42 +400,45 @@ describe('EstimatingPage — keyboard gate: roundActive', () => {
 });
 
 // ---------------------------------------------------------------------------
-// softExit — host + active round → discardRound; host + terminal → no discard
+// softExit — wiring only. The terminal-legality gate now lives in the shared
+// `discardCurrentRound` command (covered in round-commands.test.ts); the page
+// delegates to it whenever the user is host, then navigates regardless.
 // ---------------------------------------------------------------------------
 
 describe('EstimatingPage — softExit', () => {
   type Internals = { softExit(): void };
 
-  it('host + active round → calls discardRound then navigates', async () => {
-    const { fixture, discardRound, navigate } = await mount({
+  it('host → routes through discardCurrentRound then navigates', async () => {
+    const { fixture, discardCurrentRound, navigate } = await mount({
       isHost: true,
       initialRound: votingRound('r-active'),
     });
     const page = fixture.componentInstance as unknown as Internals;
     page.softExit();
-    expect(discardRound).toHaveBeenCalledWith('r-active', 'me');
+    expect(discardCurrentRound).toHaveBeenCalledWith('me');
     expect(navigate).toHaveBeenCalledWith(['/lobby', 'ZZZZZZ']);
   });
 
-  it('host + terminal round → does NOT call discardRound', async () => {
-    const { fixture, discardRound, navigate } = await mount({
+  it('host + command no-ops (already-terminal) → still navigates', async () => {
+    const { fixture, discardCurrentRound, navigate } = await mount({
       isHost: true,
       initialRound: terminalRound('revealed', 'r-done'),
     });
+    discardCurrentRound.mockReturnValue({ applied: false, reason: 'already-terminal' });
     const page = fixture.componentInstance as unknown as Internals;
     page.softExit();
-    expect(discardRound).not.toHaveBeenCalled();
+    expect(discardCurrentRound).toHaveBeenCalledWith('me');
     expect(navigate).toHaveBeenCalledWith(['/lobby', 'ZZZZZZ']);
   });
 
-  it('non-host → does NOT call discardRound', async () => {
-    const { fixture, discardRound } = await mount({
+  it('non-host → does NOT call discardCurrentRound', async () => {
+    const { fixture, discardCurrentRound } = await mount({
       isHost: false,
       initialRound: votingRound(),
     });
     const page = fixture.componentInstance as unknown as Internals;
     page.softExit();
-    expect(discardRound).not.toHaveBeenCalled();
+    expect(discardCurrentRound).not.toHaveBeenCalled();
   });
 });
 

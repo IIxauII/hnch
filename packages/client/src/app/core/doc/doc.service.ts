@@ -12,7 +12,7 @@ import {
   castVote as castVoteY,
   clearVote as clearVoteY,
   currentRound as currentRoundFromProjection,
-  discardRound as discardRoundY,
+  discardCurrentRound as discardCurrentRoundCommand,
   DOC_AGENDA_KEY,
   DOC_META_KEY,
   DOC_PARTICIPANTS_KEY,
@@ -30,10 +30,10 @@ import {
   patchRoundDescriptor as patchRoundDescriptorY,
   reorderAgendaItem as reorderAgendaItemY,
   removeParticipant as removeParticipantY,
-  revealRound as revealRoundY,
+  revealCurrentRound as revealCurrentRoundCommand,
   setAvatarColor as setAvatarColorY,
   setAgendaItemState as setAgendaItemStateY,
-  skipRound as skipRoundY,
+  skipCurrentRound as skipCurrentRoundCommand,
   updateAgendaItemFields as updateAgendaItemFieldsY,
   upsertParticipant as upsertParticipantY,
   type AgendaItem,
@@ -48,6 +48,7 @@ import {
   type Round,
   type Scale,
   type Settings,
+  type TerminalResult,
   type UpdateAgendaItemFieldsInit,
 } from '@hnch/shared';
 import { Capacitor } from '@capacitor/core';
@@ -629,24 +630,31 @@ export class DocService {
     clearVoteY(this.requireDoc('clearVote'), roundId, participantId);
   }
 
-  revealRound(roundId: string, opts: { now?: () => number } = {}): void {
-    const now = opts.now ?? (() => Date.now());
-    revealRoundY(this.requireDoc('revealRound'), roundId, now());
+  /**
+   * Reveal the current round via the shared `round-commands` seam. No-arg —
+   * the command selects `currentRound` and applies the terminal-legality gate
+   * internally. Returns a `TerminalResult` so callers branch on `applied`
+   * (e.g. suppress haptics on a lost race) instead of re-spelling the gate.
+   */
+  revealCurrentRound(opts: { now?: () => number } = {}): TerminalResult {
+    const clock = opts.now ?? Date.now;
+    return revealCurrentRoundCommand(this.requireDoc('revealCurrentRound'), clock);
   }
 
-  skipRound(roundId: string): void {
-    skipRoundY(this.requireDoc('skipRound'), roundId, Date.now());
+  /** Skip the current round via the shared command. See `revealCurrentRound`. */
+  skipCurrentRound(): TerminalResult {
+    return skipCurrentRoundCommand(this.requireDoc('skipCurrentRound'));
   }
 
   /**
-   * Host back-chevron discard. Writes `discardedAt` + `discardedBy` on the
-   * round — distinct from reveal/skip, leaves any linked agenda item in the
-   * `pending` state, and excludes the round from `currentRound()` and
-   * history projections. UI must gate on `isHost()`; the writer itself does
-   * not enforce host authority (matches existing reveal/skip surface).
+   * Host back-chevron discard of the current round. Writes `discardedAt` +
+   * `discardedBy` — distinct from reveal/skip, leaves any linked agenda item
+   * `pending` and excludes the round from `currentRound()` and history
+   * projections. UI must gate on `isHost()`; the command does not enforce
+   * host authority (matches the reveal/skip surface).
    */
-  discardRound(roundId: string, discardedBy: string): void {
-    discardRoundY(this.requireDoc('discardRound'), roundId, Date.now(), discardedBy);
+  discardCurrentRound(discardedBy: string): TerminalResult {
+    return discardCurrentRoundCommand(this.requireDoc('discardCurrentRound'), discardedBy);
   }
 
   /**
