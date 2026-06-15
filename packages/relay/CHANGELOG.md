@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/IIxauII/hnch/compare/relay-v1.2.0...relay-v1.2.1) (2026-06-15)
+
+
+### Bug Fixes
+
+* **relay:** wire snapshot sweeper into server lifecycle (ADR-0012 TTL unenforced in prod) ([#474](https://github.com/IIxauII/hnch/issues/474)) ([cace09d](https://github.com/IIxauII/hnch/commit/cace09d6d6f0956a1b4e33bcf7d334af29a8eea2))
+
 # [1.2.0](https://github.com/IIxauII/hnch/compare/relay-v1.1.1...relay-v1.2.0) (2026-05-17)
 
 
