@@ -124,6 +124,10 @@ interface MountOpts {
   initialRounds?: Round[];
   /** Whether 'me' is the host. */
   isHost?: boolean;
+  /** Roster (defaults to a single active 'me'). */
+  participants?: { id: string; joinedAt?: number }[];
+  /** Online participant ids (defaults to empty — suppresses auto-reveal). */
+  onlineIds?: Set<string>;
 }
 
 async function mount(opts: MountOpts = {}) {
@@ -148,16 +152,24 @@ async function mount(opts: MountOpts = {}) {
   const revealCurrentRound = vi.fn().mockReturnValue({ applied: true, at: 1 });
   const skipCurrentRound = vi.fn().mockReturnValue({ applied: true, at: 1 });
   const openSheetOrPopover = vi.fn().mockResolvedValue(undefined);
+  const haptic = {
+    impactLight: vi.fn(),
+    impactMedium: vi.fn(),
+    impactHeavy: vi.fn(),
+    notificationSuccess: vi.fn(),
+  };
 
   const hostId = opts.isHost === false ? 'other-host' : 'me';
+  const roster = opts.participants ?? [{ id: 'me', joinedAt: 0 }];
+  const onlineIds = opts.onlineIds ?? new Set<string>();
 
   const docService = {
     currentRound: currentRoundSig.asReadonly(),
     rounds: roundsSig.asReadonly(),
     onlineParticipants: signal([]).asReadonly(),
-    onlineParticipantIds: signal(new Set<string>()).asReadonly(),
-    participants: signal([{ id: 'me', name: 'Me' }]).asReadonly(),
-    activeParticipants: signal([{ id: 'me', name: 'Me' }]).asReadonly(),
+    onlineParticipantIds: signal(onlineIds).asReadonly(),
+    participants: signal(roster).asReadonly(),
+    activeParticipants: signal(roster).asReadonly(),
     settings: signal({ hostParticipantId: hostId }).asReadonly(),
     roomCode: signal('ZZZZZZ').asReadonly(),
     meta: signal({ roomUuid: 'uuid' }).asReadonly(),
@@ -179,15 +191,7 @@ async function mount(opts: MountOpts = {}) {
     providers: [
       { provide: DocService, useValue: docService },
       { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
-      {
-        provide: HapticService,
-        useValue: {
-          impactLight: vi.fn(),
-          impactMedium: vi.fn(),
-          impactHeavy: vi.fn(),
-          notificationSuccess: vi.fn(),
-        },
-      },
+      { provide: HapticService, useValue: haptic },
       {
         provide: LastSessionService,
         useValue: {
@@ -220,8 +224,11 @@ async function mount(opts: MountOpts = {}) {
   return {
     fixture,
     navigate,
+    revealCurrentRound,
+    skipCurrentRound,
     discardCurrentRound,
     openSheetOrPopover,
+    haptic,
     currentRoundSig,
     roundsSig,
   };
@@ -487,5 +494,85 @@ describe('EstimatingPage — openActionSheet skip-round insertion', () => {
     const [opts] = openSheetOrPopover.mock.calls[0] as [{ items: { text: string }[] }];
     const texts = opts.items.map((i) => i.text);
     expect(texts).not.toContain('Skip round');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// onReveal — routes through revealCurrentRound; haptics + navigates on applied
+// ---------------------------------------------------------------------------
+
+describe('EstimatingPage — onReveal', () => {
+  type Internals = { onReveal(): Promise<void> };
+
+  it('applied → haptics and navigates to lobby', async () => {
+    const { fixture, revealCurrentRound, haptic, navigate } = await mount({
+      isHost: true,
+      initialRound: votingRound(),
+    });
+    await (fixture.componentInstance as unknown as Internals).onReveal();
+    expect(revealCurrentRound).toHaveBeenCalled();
+    expect(haptic.impactMedium).toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith(['/lobby', 'ZZZZZZ'], { replaceUrl: true });
+  });
+
+  it('no-op (not applied) → no haptic, no navigate', async () => {
+    const { fixture, revealCurrentRound, haptic, navigate } = await mount({
+      isHost: true,
+      initialRound: votingRound(),
+    });
+    revealCurrentRound.mockReturnValue({ applied: false, reason: 'already-terminal' });
+    await (fixture.componentInstance as unknown as Internals).onReveal();
+    expect(haptic.impactMedium).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Skip-round action handler — routes through skipCurrentRound; haptics on applied
+// ---------------------------------------------------------------------------
+
+describe('EstimatingPage — skip-round action', () => {
+  type Internals = { openActionSheet(e: Event): Promise<void> };
+
+  it('invokes skipCurrentRound and haptics on applied', async () => {
+    const { fixture, skipCurrentRound, haptic, openSheetOrPopover } = await mount({
+      isHost: true,
+      initialRound: votingRound(),
+    });
+    await (fixture.componentInstance as unknown as Internals).openActionSheet(new Event('click'));
+    const [opts] = openSheetOrPopover.mock.calls[0] as [
+      { items: { text: string; handler?: () => void }[] },
+    ];
+    opts.items.find((i) => i.text === 'Skip round')?.handler?.();
+    expect(skipCurrentRound).toHaveBeenCalled();
+    expect(haptic.impactHeavy).toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// auto-reveal effect — unanimous votes route through revealCurrentRound,
+// haptic fires only on result.applied
+// ---------------------------------------------------------------------------
+
+describe('EstimatingPage — auto-reveal effect', () => {
+  it('unanimous online votes → revealCurrentRound + success haptic on applied', async () => {
+    const round: Round = { ...votingRound(), votes: { me: '5' } };
+    const { revealCurrentRound, haptic } = await mount({
+      initialRound: round,
+      participants: [{ id: 'me', joinedAt: 0 }],
+      onlineIds: new Set(['me']),
+    });
+    TestBed.flushEffects();
+    expect(revealCurrentRound).toHaveBeenCalled();
+    expect(haptic.notificationSuccess).toHaveBeenCalled();
+  });
+
+  it('not unanimous (no online voters) → does not reveal', async () => {
+    const { revealCurrentRound, haptic } = await mount({
+      initialRound: votingRound(),
+    });
+    TestBed.flushEffects();
+    expect(revealCurrentRound).not.toHaveBeenCalled();
+    expect(haptic.notificationSuccess).not.toHaveBeenCalled();
   });
 });
