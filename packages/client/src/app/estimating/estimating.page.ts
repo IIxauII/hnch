@@ -501,8 +501,11 @@ export class EstimatingPage {
       const participants = this.docService.participants();
       const onlineIds = this.docService.onlineParticipantIds();
       if (shouldAutoReveal(round, participants, onlineIds)) {
-        this.haptic.notificationSuccess();
-        this.docService.revealRound(round!.id);
+        // Route through the shared command; haptic fires only when the reveal
+        // actually applied (a lost race no-ops, so no spurious feedback).
+        if (this.docService.revealCurrentRound().applied) {
+          this.haptic.notificationSuccess();
+        }
       }
     });
   }
@@ -768,10 +771,8 @@ export class EstimatingPage {
   }
 
   protected async onReveal(): Promise<void> {
-    const round = this.currentRound();
-    if (!round || !canEnterTerminal(round.status)) return;
+    if (!this.docService.revealCurrentRound().applied) return;
     this.haptic.impactMedium();
-    this.docService.revealRound(round.id);
     const code = this.docService.roomCode();
     assertRoomCode(code, 'estimating.onReveal');
     // replaceUrl: back-nav from Lobby (results view) should pop to the
@@ -791,11 +792,9 @@ export class EstimatingPage {
   protected softExit(): void {
     const code = this.docService.roomCode();
     assertRoomCode(code, 'estimating.softExit');
-    const round = this.currentRound();
     const myId = this.myId();
-    if (this.isHost() && myId && round && canEnterTerminal(round.status)) {
+    if (this.isHost() && myId && this.docService.discardCurrentRound(myId).applied) {
       this.haptic.impactLight();
-      this.docService.discardRound(round.id, myId);
     }
     void this.router.navigate(['/lobby', code]);
   }
@@ -892,10 +891,9 @@ export class EstimatingPage {
   }
 
   private onSkip(): void {
-    const round = this.currentRound();
-    if (!round) return;
-    this.haptic.impactHeavy();
-    this.docService.skipRound(round.id);
+    if (this.docService.skipCurrentRound().applied) {
+      this.haptic.impactHeavy();
+    }
   }
 
   private async confirmEndSession(): Promise<void> {
