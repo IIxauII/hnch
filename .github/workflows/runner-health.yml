@@ -1,8 +1,10 @@
 name: Runner health
 
 on:
-  schedule:
-    - cron: '0 */6 * * *'
+  # Cron disabled — run manually via workflow_dispatch. Re-enable by
+  # uncommenting the two lines below.
+  # schedule:
+  #   - cron: '0 */6 * * *'
   workflow_dispatch:
 
 # Note: this workflow uses RUNNER_HEALTH_PAT (a fine-grained PAT with
