@@ -8,8 +8,8 @@
 
 FROM debian:bookworm-slim
 
-ARG RUNNER_VERSION=2.334.0
-ARG RUNNER_SHA256=f44255bd3e80160eb25f71bc83d06ea025f6908748807a584687b3184759f7e4
+ARG RUNNER_VERSION=2.336.0
+ARG RUNNER_SHA256=58b758e420b87093fbd4bfddd368074960053e2f1388f01848c82624b90f27d1
 
 # System deps: actions/runner needs libicu + bash + ca-certs + git.
 # Playwright Chromium needs the libnss/libatk/etc. set.
