@@ -1,6 +1,6 @@
 # ADR-0034: QR scan native-vs-web split — single plugin, runtime platform branch, lazy ZXing-WASM polyfill on web
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-04-30
 
 ## Context

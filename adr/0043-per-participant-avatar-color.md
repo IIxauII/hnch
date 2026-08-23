@@ -7,7 +7,7 @@
 
 - Avatar dots in lobby + estimating row currently render with `--ion-color-primary` only — no per-participant differentiation. Identity cue = initials alone.
 - Teams that estimate together regularly build visual shortcuts ("Alice = blue"). Auto-assigned hues drift across sessions if join order changes; near 20-peer cap ([ADR-0024](0024-participant-cap.md)) similarly-hued auto colors hard to distinguish.
-- Display name already device-local via `@capacitor/preferences` ([ADR-0005](0005-device-identity.md)). Color = same category of personal identity data.
+- Display name already device-local via `@capacitor/preferences` ([ADR-0005](0005-device-identity-capacitor-device-plugin.md)). Color = same category of personal identity data.
 - 12-entry `ACCENTS` palette already exists at `packages/client/src/app/core/accent.tokens.ts` for theme accent — pre-validated for WCAG AA, has `ink`/`soft` + dark overrides. Theme accent and avatar color remain orthogonal settings.
 - Participant record schema ([ADR-0036](0036-participant-removal-lifecycle.md)) is the canonical per-peer doc data — readable mid-session, present in 24h snapshot ([ADR-0012](0012-snapshot-policy.md)), survives reconnect, intact in round-history reads.
 - Relay content-blind ([ADR-0001](0001-networking-crdt-over-relay.md)) — color must flow via Yjs doc; no relay change.
