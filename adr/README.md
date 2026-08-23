@@ -53,14 +53,9 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0028](0028-telemetry-posture.md) | Telemetry / analytics posture — none in v1 | Accepted |  |
 | [0029](0029-relay-deployment.md) | Relay deployment — bare-metal VPS with Caddy reverse proxy and single-origin layout | Accepted | ADR-0049 (partial) |
 | [0031](0031-runtime-origin-for-invite-urls.md) | Runtime `window.location.origin` for invite URLs (supersedes ADR-0026 §1) | Accepted |  |
-| [0032](0032-self-hosted-github-actions-runner.md) | Self-hosted GitHub Actions runner — ephemeral arm64 Podman pool on Mac mini M4 (Tart deferred) | Superseded | ADR-0049 |
-| [0033](0033-runner-image-from-debian-and-actions-runner-tarball.md) | Runner image from `debian:bookworm-slim` + official `actions/runner` tarball (refines ADR-0032 §base-image) | Superseded | ADR-0049 |
-| [0034](0034-qr-scan-native-web-split.md) | QR scan native-vs-web split — single plugin, runtime platform branch, lazy ZXing-WASM polyfill on web | Proposed |  |
+| [0034](0034-qr-scan-native-web-split.md) | QR scan native-vs-web split — single plugin, runtime platform branch, lazy ZXing-WASM polyfill on web | Accepted |  |
 | [0035](0035-wrong-password-post-upgrade-close.md) | Wrong-password rejection on WS close 4002 (supersedes ADR-0017 password-enforcement clause) | Accepted |  |
 | [0036](0036-participant-removal-lifecycle.md) | Participant removal lifecycle — voluntary leave + host kick via soft-delete `leftAt` / `removedBy` | Accepted |  |
-| [0037](0037-self-hosted-runner-pool-covers-all-non-health-jobs.md) | Self-hosted runner pool covers all CI/CD jobs except `runner-health.yml` (extends ADR-0029 + ADR-0032) | Superseded | ADR-0049 |
-| [0038](0038-biome-oxlint-lefthook-tooling.md) | Code-quality tooling — Biome (format) + Oxlint (lint) + lefthook (pre-commit) + ratcheted TS strictness | Accepted |  |
-| [0039](0039-desktop-responsive-layout.md) | Desktop-responsive layout — breakpoint-conditional surface modes, capped containers, popover menus, centered modals | Accepted |  |
 | [0040](0040-skipped-rounds.md) | Skipped rounds — host terminal-state action distinct from reveal | Accepted |  |
 | [0041](0041-per-round-abstain-sentinel.md) | Per-round abstain action for voters — `hnch_abstain` sentinel, auto-reveal amendment | Accepted |  |
 | [0042](0042-pre-session-agenda.md) | Pre-session story agenda — `agenda: Y.Array<Y.Map>` + `round.agendaItemId` backref | Superseded | ADR-0045 |
@@ -68,7 +63,6 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0044](0044-local-room-history-cache.md) | Local room history cache — per-room entries, mobile passwordHash reversal | Accepted |  |
 | [0045](0045-agenda-consume-at-round-terminal.md) | Agenda items consume at round-terminal (reveal/skip) instead of round-start (supersedes ADR-0042) | Accepted |  |
 | [0046](0046-round-discard-tombstone.md) | Round record — three terminal fields (`revealedAt`/`skippedAt`/`discardedAt`) + tombstone semantics (supersedes ADR-0013) | Accepted |  |
-| [0047](0047-hardcode-self-hosted-runner-no-hosted-fallback.md) | Hardcode self-hosted runner — no hosted fallback | Superseded | ADR-0049 |
 | [0048](0048-host-election-eligible-peer-set.md) | Host election eligible peer set — online ∩ active, single-sourced in `shared/election.ts` (refines ADR-0010) | Accepted |  |
 | [0049](0049-self-hosted-runner-pool-current-state-consolidation.md) | Self-hosted runner pool — current-state consolidation | Accepted |  |
 
