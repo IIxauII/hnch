@@ -28,7 +28,12 @@ jobs:
   detect-changes:
     name: Detect changed packages
     runs-on: [self-hosted, linux, arm64, hnch-podman]
-    timeout-minutes: 1
+    # The checkout below is full-history and the pack is dominated by
+    # docs/screenshots/** PNGs, so clone time grows with every screenshot
+    # refresh commit. At timeout-minutes: 1 the job started dying mid-fetch
+    # (successful runs were already landing at 40-53s). 3 minutes is headroom
+    # on top of the blob filter, not a licence for the step to get slower.
+    timeout-minutes: 3
     outputs:
       shared: ${{ steps.filter.outputs.shared }}
       relay: ${{ steps.filter.outputs.relay }}
@@ -40,7 +45,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # Full history is required: the filter step diffs base...head and
+          # needs the merge-base. blob:none makes that a treeless partial
+          # clone -- commits and trees, no file contents -- which is all the
+          # path-only diff below reads. Drops the fetch from ~250 MiB of
+          # screenshot blobs to ~1 MiB. NOTE: the diff MUST pass --no-renames,
+          # or git's similarity detection lazy-fetches every changed blob back
+          # from the promisor remote and the filter buys nothing.
           fetch-depth: 0
+          filter: blob:none
 
       - id: filter
         run: |
@@ -75,7 +88,11 @@ jobs:
             git fetch --no-tags origin "$head" || true
           fi
 
-          changed=$(git diff --name-only "$base"..."$head")
+          # --no-renames: keeps this a tree-only diff so the blob:none partial
+          # clone above never has to lazy-fetch file contents. Rename detection
+          # would only ever collapse an old+new path pair into the new path,
+          # and for a path-prefix lane filter the extra old path is harmless.
+          changed=$(git diff --name-only --no-renames "$base"..."$head")
           echo "Changed files between $base and $head:"
           echo "$changed"
 
