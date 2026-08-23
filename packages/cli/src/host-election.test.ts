@@ -260,6 +260,28 @@ describe('startElection (ADR-0010)', () => {
     handle.stop();
   });
 
+  it('host is kicked (leftAt set, awareness lingering) → election still fires', () => {
+    setAwarenessStates(awareness, [
+      { clientID: 1, participantId: 'host-1' },
+      { clientID: 2, participantId: 'peer-a' },
+      { clientID: 3, participantId: 'peer-b' },
+    ]);
+
+    const handle = startElection(doc, awareness, 'peer-a');
+
+    // Host is kicked: `leftAt` lands on the participant record while the
+    // awareness entry lingers (ADR-0036). This is a participants-map write —
+    // no settings or awareness event follows it.
+    leaveSession(doc, 'host-1');
+
+    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS + 100);
+
+    // Host is online-but-inactive → ineligible (ADR-0048) → peer-a wins.
+    expect(getDocHostId(doc)).toBe('peer-a');
+
+    handle.stop();
+  });
+
   it('stop() removes awareness and doc observers (no further evaluation)', () => {
     setAwarenessStates(awareness, [
       { clientID: 1, participantId: 'host-1' },
