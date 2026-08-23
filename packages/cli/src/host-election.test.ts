@@ -1,344 +1,132 @@
 /**
- * Host-election behaviour as the CLI drives it (ADR-0010).
+ * CLI host-election *wiring* (ADR-0010, ADR-0048).
  *
- * The driver lives in `@hnch/shared`; this suite exercises it through a
- * doc + awareness adapter matching `session.ts`'s wiring, with a real
- * Y.Doc, a real Awareness instance, and fake timers. Awareness states are
- * injected directly (no WS transport) to keep tests synchronous and
- * deterministic.
+ * The driver's behaviour — debounce, missing-host state, winner choice —
+ * lives in `@hnch/shared` and is tested there with fake deps and fake
+ * timers. What can only be verified here is that this adapter connects the
+ * driver to the right sources and sink: any doc change, any awareness
+ * change, and a promotion that lands in the settings map.
+ *
+ * That is deliberately not deleted coverage: subscribing the driver to the
+ * wrong change source is exactly the defect this module once had.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as Y from 'yjs';
 import { Awareness } from 'y-protocols/awareness';
 import {
   patchSettings,
   upsertParticipant,
-  leaveSession,
-  onlineIdsFrom,
-  projectDoc,
-  startElection as startSharedElection,
-  DOC_META_KEY,
-  DOC_PARTICIPANTS_KEY,
-  DOC_ROUNDS_KEY,
+  startElection,
   DOC_SETTINGS_KEY,
-  HOST_ABSENCE_ELECTION_DEBOUNCE_MS,
-  type ElectionHandle,
+  type ElectionDeps,
 } from '@hnch/shared';
 
-/**
- * Mirror of `session.ts`'s adapter: notify the driver on any doc change and
- * any awareness change, promote by patching the settings map.
- */
-function startElection(doc: Y.Doc, awareness: Awareness, myId: string): ElectionHandle {
-  const containers = [
-    doc.getMap(DOC_META_KEY),
-    doc.getMap(DOC_SETTINGS_KEY),
-    doc.getMap(DOC_PARTICIPANTS_KEY),
-    doc.getArray(DOC_ROUNDS_KEY),
-  ];
+// The adapter under test is inside `wireSession`, which opens a relay socket
+// on construction. Stub the transport — this suite is about the doc, not the
+// wire (relay-backed session behaviour is covered by session.test.ts).
+vi.mock('./sync.js', () => ({
+  connect: vi.fn(() => ({
+    disconnect: vi.fn(),
+    updateCredentials: vi.fn(),
+  })),
+}));
 
-  return startSharedElection({
-    projection: () => projectDoc(doc),
-    onlineIds: () => onlineIdsFrom(awareness.getStates()),
-    myId: () => myId,
-    subscribe(cb) {
-      for (const c of containers) c.observeDeep(cb);
-      awareness.on('change', cb);
-      return () => {
-        for (const c of containers) c.unobserveDeep(cb);
-        awareness.off('change', cb);
-      };
-    },
-    promote(winnerId) {
-      patchSettings(doc, { hostParticipantId: winnerId });
-    },
+vi.mock('@hnch/shared', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@hnch/shared')>();
+  return { ...actual, startElection: vi.fn(actual.startElection) };
+});
+
+import { wireSession } from './session.js';
+
+const startElectionMock = vi.mocked(startElection);
+
+function wire(doc: Y.Doc, awareness: Awareness) {
+  return wireSession({
+    doc,
+    awareness,
+    roomCode: 'ABC123',
+    roomUuid: 'room-uuid-1',
+    participantId: 'peer-a',
+    relayUrl: 'http://localhost:0',
   });
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Overwrite the awareness states map and emit a 'change' event so the
- * startElection listener re-evaluates. This bypasses the y-protocols wire
- * format — fine for unit tests, since we're not testing y-protocols itself.
- */
-function setAwarenessStates(
-  awareness: Awareness,
-  peers: Array<{ clientID: number; participantId: string }>,
-): void {
-  awareness.states.clear();
-  for (const { clientID, participantId } of peers) {
-    awareness.states.set(clientID, { participantId });
-  }
-  awareness.emit('change', [
-    { added: peers.map((p) => p.clientID), updated: [], removed: [] },
-    'test',
-  ]);
-}
-
-function removePeerFromAwareness(awareness: Awareness, clientID: number): void {
-  awareness.states.delete(clientID);
-  awareness.emit('change', [{ added: [], updated: [], removed: [clientID] }, 'test']);
-}
-
-function getDocHostId(doc: Y.Doc): string | undefined {
-  return doc.getMap(DOC_SETTINGS_KEY).get('hostParticipantId') as string | undefined;
-}
-
-/**
- * Seed active participant records in the doc. The eligible peer set is
- * online ∩ active (ADR-0048), so awareness alone is no longer enough —
- * each online peer must also have an active (`!leftAt`) doc entry.
- */
-function seedParticipants(doc: Y.Doc, ids: string[]): void {
-  for (const id of ids) {
-    upsertParticipant(doc, id, { displayName: id, joinedAt: 0 });
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
-describe('host election, CLI wiring (ADR-0010)', () => {
+describe('CLI host-election wiring', () => {
   let doc: Y.Doc;
   let awareness: Awareness;
+  let deps: ElectionDeps;
+  let notify: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    vi.useFakeTimers();
+    vi.clearAllMocks();
     doc = new Y.Doc();
     awareness = new Awareness(doc);
-    // Suppress the Awareness 30s cleanup interval noise in fake-timer env
-    vi.spyOn(globalThis, 'setInterval').mockImplementation((fn, delay, ...args) =>
-      // Let only short timeouts through; skip the 30 000 ms one
-      delay === 30_000
-        ? (0 as unknown as ReturnType<typeof setInterval>)
-        : setInterval(fn, delay, ...args),
-    );
     patchSettings(doc, { hostParticipantId: 'host-1' });
-    seedParticipants(doc, ['host-1', 'peer-a', 'peer-b']);
+    upsertParticipant(doc, 'host-1', { displayName: 'Host', joinedAt: 0 });
+
+    notify = vi.fn();
+    // Capture the deps the adapter hands to the shared driver, and swap the
+    // driver's own callback for a spy so we can see what notifies it.
+    startElectionMock.mockImplementation((d) => {
+      deps = d;
+      const unsubscribe = d.subscribe(notify);
+      return { stop: unsubscribe };
+    });
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.restoreAllMocks();
+  it('starts the shared driver with this peer as the caller', () => {
+    const session = wire(doc, awareness);
+
+    expect(startElectionMock).toHaveBeenCalledOnce();
+    expect(deps.myId()).toBe('peer-a');
+    expect(deps.projection()?.settings.hostParticipantId).toBe('host-1');
+
+    session.disconnect();
   });
 
-  it('host is online → no election fires after debounce', () => {
-    setAwarenessStates(awareness, [
-      { clientID: 1, participantId: 'host-1' },
-      { clientID: 2, participantId: 'peer-a' },
-    ]);
+  it('notifies the driver on a doc change', () => {
+    const session = wire(doc, awareness);
+    notify.mockClear();
 
-    const handle = startElection(doc, awareness, 'peer-a');
-    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS + 100);
+    // A participants-map write and nothing else — no awareness or settings
+    // event. This is the kicked-host shape (ADR-0036).
+    upsertParticipant(doc, 'peer-b', { displayName: 'Peer B', joinedAt: 0 });
 
-    expect(getDocHostId(doc)).toBe('host-1');
-    handle.stop();
+    expect(notify).toHaveBeenCalled();
+    session.disconnect();
   });
 
-  it('host goes offline → after debounce, lowest-ID peer is elected', () => {
-    setAwarenessStates(awareness, [
-      { clientID: 1, participantId: 'host-1' },
-      { clientID: 2, participantId: 'peer-a' },
-      { clientID: 3, participantId: 'peer-b' },
-    ]);
+  it('notifies the driver on an awareness change', () => {
+    const session = wire(doc, awareness);
+    notify.mockClear();
 
-    const handle = startElection(doc, awareness, 'peer-a');
+    awareness.states.set(7, { participantId: 'peer-b' });
+    awareness.emit('change', [{ added: [7], updated: [], removed: [] }, 'test']);
 
-    // Host drops out
-    removePeerFromAwareness(awareness, 1);
+    expect(notify).toHaveBeenCalled();
+    expect(deps.onlineIds()).toContain('peer-b');
 
-    // Debounce not yet elapsed — no change
-    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS - 100);
-    expect(getDocHostId(doc)).toBe('host-1');
-
-    // Debounce elapses — peer-a wins (lex-lowest: 'peer-a' < 'peer-b')
-    vi.advanceTimersByTime(200);
-    expect(getDocHostId(doc)).toBe('peer-a');
-
-    handle.stop();
+    session.disconnect();
   });
 
-  it('host rejoins before debounce → timer cancelled, no election', () => {
-    setAwarenessStates(awareness, [
-      { clientID: 1, participantId: 'host-1' },
-      { clientID: 2, participantId: 'peer-a' },
-    ]);
+  it('promoting writes the winner into the settings map', () => {
+    const session = wire(doc, awareness);
 
-    const handle = startElection(doc, awareness, 'peer-a');
+    deps.promote('peer-a');
 
-    removePeerFromAwareness(awareness, 1);
-    vi.advanceTimersByTime(3_000);
-
-    // Host comes back
-    awareness.states.set(1, { participantId: 'host-1' });
-    awareness.emit('change', [{ added: [1], updated: [], removed: [] }, 'test']);
-
-    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS);
-    expect(getDocHostId(doc)).toBe('host-1');
-
-    handle.stop();
+    expect(doc.getMap(DOC_SETTINGS_KEY).get('hostParticipantId')).toBe('peer-a');
+    session.disconnect();
   });
 
-  it('I am NOT the lowest-ID peer → no write when debounce fires', () => {
-    setAwarenessStates(awareness, [
-      { clientID: 1, participantId: 'host-1' },
-      { clientID: 2, participantId: 'peer-a' },
-      { clientID: 3, participantId: 'peer-b' },
-    ]);
+  it('disconnect stops the driver — later changes no longer notify it', () => {
+    const session = wire(doc, awareness);
+    session.disconnect();
+    notify.mockClear();
 
-    // peer-b starts election; peer-a is lex-lower so peer-b must not write
-    const handle = startElection(doc, awareness, 'peer-b');
+    upsertParticipant(doc, 'peer-b', { displayName: 'Peer B', joinedAt: 0 });
+    awareness.emit('change', [{ added: [], updated: [], removed: [] }, 'test']);
 
-    removePeerFromAwareness(awareness, 1);
-    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS);
-
-    expect(getDocHostId(doc)).toBe('host-1');
-
-    handle.stop();
-  });
-
-  it('stop() before debounce fires → no election happens', () => {
-    setAwarenessStates(awareness, [
-      { clientID: 1, participantId: 'host-1' },
-      { clientID: 2, participantId: 'peer-a' },
-    ]);
-
-    const handle = startElection(doc, awareness, 'peer-a');
-    removePeerFromAwareness(awareness, 1);
-
-    // Stop before the timer fires
-    handle.stop();
-    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS);
-
-    expect(getDocHostId(doc)).toBe('host-1');
-  });
-
-  it('no online peers when debounce fires → guard prevents write', () => {
-    setAwarenessStates(awareness, [
-      { clientID: 1, participantId: 'host-1' },
-      { clientID: 2, participantId: 'peer-a' },
-    ]);
-
-    const handle = startElection(doc, awareness, 'peer-a');
-
-    // Both go offline before debounce elapses
-    removePeerFromAwareness(awareness, 1);
-    removePeerFromAwareness(awareness, 2);
-
-    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS);
-
-    expect(getDocHostId(doc)).toBe('host-1');
-
-    handle.stop();
-  });
-
-  it('host change in doc while debounce is pending → election aborts', () => {
-    setAwarenessStates(awareness, [
-      { clientID: 1, participantId: 'host-1' },
-      { clientID: 2, participantId: 'peer-a' },
-    ]);
-
-    const handle = startElection(doc, awareness, 'peer-a');
-    removePeerFromAwareness(awareness, 1);
-
-    // A different client wins and writes to the doc before our debounce
-    // (simulated by patching the settings directly)
-    patchSettings(doc, { hostParticipantId: 'peer-a' });
-
-    // Now simulate timer firing from peer-a's old debounce
-    // tryPromote checks: cachedMissing === hostId after the doc write changed hostId
-    // So it should be a no-op (host is now 'peer-a', not the missing 'host-1')
-    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS);
-
-    // hostParticipantId should still be 'peer-a' (the value written above),
-    // not corrupted by the debounce firing
-    expect(getDocHostId(doc)).toBe('peer-a');
-
-    handle.stop();
-  });
-
-  it('kicked-but-lingering peer cannot win election (ADR-0048 parity with client)', () => {
-    setAwarenessStates(awareness, [
-      { clientID: 1, participantId: 'host-1' },
-      { clientID: 2, participantId: 'peer-a' },
-      { clientID: 3, participantId: 'peer-b' },
-    ]);
-
-    // peer-a is kicked: leftAt set in the doc, but its awareness entry lingers.
-    leaveSession(doc, 'peer-a');
-
-    // peer-b runs the election. Old CLI would let lex-lowest 'peer-a' win/block;
-    // now 'peer-a' is inactive and excluded → 'peer-b' wins.
-    const handle = startElection(doc, awareness, 'peer-b');
-
-    removePeerFromAwareness(awareness, 1);
-    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS);
-
-    expect(getDocHostId(doc)).toBe('peer-b');
-
-    handle.stop();
-  });
-
-  it('kicked-but-lingering peer cannot block election when it is lex-lowest online', () => {
-    setAwarenessStates(awareness, [
-      { clientID: 1, participantId: 'host-1' },
-      { clientID: 2, participantId: 'peer-a' },
-    ]);
-
-    // peer-a kicked but still in awareness; it is the only other online id.
-    leaveSession(doc, 'peer-a');
-
-    // peer-a itself must NOT promote — it's inactive.
-    const handle = startElection(doc, awareness, 'peer-a');
-
-    removePeerFromAwareness(awareness, 1);
-    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS);
-
-    expect(getDocHostId(doc)).toBe('host-1');
-
-    handle.stop();
-  });
-
-  it('host is kicked (leftAt set, awareness lingering) → election still fires', () => {
-    setAwarenessStates(awareness, [
-      { clientID: 1, participantId: 'host-1' },
-      { clientID: 2, participantId: 'peer-a' },
-      { clientID: 3, participantId: 'peer-b' },
-    ]);
-
-    const handle = startElection(doc, awareness, 'peer-a');
-
-    // Host is kicked: `leftAt` lands on the participant record while the
-    // awareness entry lingers (ADR-0036). This is a participants-map write —
-    // no settings or awareness event follows it.
-    leaveSession(doc, 'host-1');
-
-    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS + 100);
-
-    // Host is online-but-inactive → ineligible (ADR-0048) → peer-a wins.
-    expect(getDocHostId(doc)).toBe('peer-a');
-
-    handle.stop();
-  });
-
-  it('stop() removes awareness and doc observers (no further evaluation)', () => {
-    setAwarenessStates(awareness, [
-      { clientID: 1, participantId: 'host-1' },
-      { clientID: 2, participantId: 'peer-a' },
-    ]);
-
-    const handle = startElection(doc, awareness, 'peer-a');
-    handle.stop();
-
-    // After stop, awareness changes must NOT trigger elections
-    removePeerFromAwareness(awareness, 1);
-    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS);
-
-    expect(getDocHostId(doc)).toBe('host-1');
+    expect(notify).not.toHaveBeenCalled();
   });
 });

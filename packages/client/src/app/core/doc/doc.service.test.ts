@@ -12,7 +12,8 @@
  *
  * What is NOT tested here (covered elsewhere):
  *  - Sync-provider WS state machine → sync-provider.test.ts
- *  - Host election → host-election.service.test.ts
+ *  - Host election behaviour → @hnch/shared election.test.ts
+ *  - Host election wiring → doc.service.election.test.ts
  *  - SessionEndService observer → tested via the harness's sessionEndedAt signal
  */
 
