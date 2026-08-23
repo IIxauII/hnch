@@ -11,6 +11,7 @@
 import type * as Y from 'yjs';
 import type { Awareness } from 'y-protocols/awareness';
 import {
+  DOC_PARTICIPANTS_KEY,
   DOC_SETTINGS_KEY,
   evaluateElection,
   patchSettings,
@@ -78,9 +79,13 @@ export function startElection(doc: Y.Doc, awareness: Awareness, myId: string): E
     }
   }
 
-  // Listen to awareness changes and settings map changes
+  // Listen to awareness changes, settings map changes, and participant
+  // changes. The last one matters: a kicked or departed host keeps its
+  // awareness entry but gains `leftAt` (ADR-0036), which makes it ineligible
+  // (ADR-0048) without emitting an awareness or settings event.
   awareness.on('change', evaluate);
   doc.getMap(DOC_SETTINGS_KEY).observe(evaluate);
+  doc.getMap(DOC_PARTICIPANTS_KEY).observeDeep(evaluate);
 
   // Initial evaluation
   evaluate();
@@ -90,6 +95,7 @@ export function startElection(doc: Y.Doc, awareness: Awareness, myId: string): E
       cancelDebounce();
       awareness.off('change', evaluate);
       doc.getMap(DOC_SETTINGS_KEY).unobserve(evaluate);
+      doc.getMap(DOC_PARTICIPANTS_KEY).unobserveDeep(evaluate);
     },
   };
 }
