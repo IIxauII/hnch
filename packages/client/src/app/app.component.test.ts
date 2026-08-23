@@ -9,9 +9,9 @@
  *  - hostId changes → toast + haptic
  *  - hostId transitions to null → reset tracking, no toast
  *
- * HostElectionService / SessionEndService / ParticipantRemovalService /
- * ThemeService are provided as empty stubs because they are eagerly
- * injected but their own behaviour is tested in dedicated suites.
+ * SessionEndService / ParticipantRemovalService / ThemeService are
+ * provided as empty stubs because they are eagerly injected but their
+ * own behaviour is tested in dedicated suites.
  */
 
 // Exercises: app/app.component:AppComponent (host-change toast effect)
@@ -68,7 +68,6 @@ import type { ParticipantSnapshot, SessionSettings } from '@hnch/shared';
 import { AppComponent } from './app.component';
 import { DocService } from './core/doc/doc.service';
 import { HapticService } from './core/haptic.service';
-import { HostElectionService } from './core/host-election.service';
 import { ParticipantIdService } from './core/participant-id.service';
 import { ParticipantRemovalService } from './core/participant-removal.service';
 import { SessionEndService } from './core/session-end.service';
@@ -112,7 +111,6 @@ describe('AppComponent — host-change toast effect', () => {
         { provide: ParticipantIdService, useValue: { id: signal<string | null>('me') } },
         { provide: ToastService, useValue: { info: toastInfoSpy } },
         // Eagerly-instantiated services that must be injectable but are not exercised here
-        { provide: HostElectionService, useValue: {} },
         { provide: SessionEndService, useValue: {} },
         { provide: ParticipantRemovalService, useValue: {} },
         { provide: ThemeService, useValue: {} },

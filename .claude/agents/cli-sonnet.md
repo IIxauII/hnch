@@ -53,7 +53,6 @@ src/
 ├── config.ts           # ~/.config/hnch/config.json — participantId, displayName, relayUrl
 ├── session.ts          # Yjs doc wiring, mutations, awareness, host election
 ├── sync.ts             # y-websocket connection wrapper
-├── host-election.ts    # Host absence detection + lowest-peer-ID election
 ├── relay-api.ts        # HTTP: POST /rooms, GET /rooms/:code
 ├── session.test.ts     # Vitest tests
 └── ui/

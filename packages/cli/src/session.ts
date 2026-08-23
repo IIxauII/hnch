@@ -24,6 +24,10 @@ import {
   upsertParticipant,
   participantRole,
   shouldAutoReveal,
+  onlineIdsFrom,
+  AWARENESS_PARTICIPANT_ID_FIELD,
+  startElection,
+  type ElectionHandle,
   endSessionForEveryone as endSessionMutation,
   FIBONACCI_SCALE,
   type DocProjection,
@@ -34,7 +38,6 @@ import {
 import { randomUUID } from 'node:crypto';
 import { mintRoom, resolveRoom, patchRoomAccess } from './relay-api.js';
 import { connect, type SyncConnection, type SyncStatus } from './sync.js';
-import { startElection, type ElectionHandle } from './host-election.js';
 
 export interface CreateSessionOptions {
   readonly participantId: string;
@@ -144,7 +147,7 @@ export async function createSession(opts: CreateSessionOptions): Promise<Session
     ...(opts.avatarColor !== undefined && { avatarColor: opts.avatarColor }),
   });
 
-  awareness.setLocalStateField('participantId', opts.participantId);
+  awareness.setLocalStateField(AWARENESS_PARTICIPANT_ID_FIELD, opts.participantId);
 
   return wireSession({
     doc,
@@ -177,7 +180,7 @@ export async function joinSession(opts: JoinSessionOptions): Promise<SessionHand
     ...(opts.avatarColor !== undefined && { avatarColor: opts.avatarColor }),
   });
 
-  awareness.setLocalStateField('participantId', opts.participantId);
+  awareness.setLocalStateField(AWARENESS_PARTICIPANT_ID_FIELD, opts.participantId);
 
   return wireSession({
     doc,
@@ -226,9 +229,6 @@ export function wireSession(opts: WireOptions): SessionHandle {
     },
   });
 
-  // Wire host election
-  const election: ElectionHandle = startElection(doc, awareness, participantId);
-
   // Observe doc changes
   const observeHandler = (): void => {
     changeCallbacks.forEach((cb) => cb());
@@ -239,13 +239,28 @@ export function wireSession(opts: WireOptions): SessionHandle {
   doc.getArray('rounds').observeDeep(observeHandler);
 
   function getOnlineIds(): Set<string> {
-    const ids = new Set<string>();
-    awareness.getStates().forEach((state) => {
-      const pid = (state as Record<string, unknown>)['participantId'];
-      if (typeof pid === 'string') ids.add(pid);
-    });
-    return ids;
+    return onlineIdsFrom(awareness.getStates());
   }
+
+  // Wire host election. The driver (debounce, missing-host state, promotion
+  // decision) lives in `@hnch/shared`; this is the adapter. It re-uses the
+  // doc-change fan-out above, so no new Yjs observer is introduced.
+  const election: ElectionHandle = startElection({
+    projection: () => projectDoc(doc),
+    onlineIds: getOnlineIds,
+    myId: () => participantId,
+    subscribe(cb) {
+      changeCallbacks.add(cb);
+      awareness.on('change', cb);
+      return (): void => {
+        changeCallbacks.delete(cb);
+        awareness.off('change', cb);
+      };
+    },
+    promote(winnerId) {
+      patchSettings(doc, { hostParticipantId: winnerId });
+    },
+  });
 
   // Unanimous auto-reveal: when every online voter has a numeric vote, reveal
   // automatically. The who-counts decision (active roster ∩ online ∩ non-viewer,
