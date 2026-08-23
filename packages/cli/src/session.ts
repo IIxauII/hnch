@@ -25,6 +25,7 @@ import {
   participantRole,
   shouldAutoReveal,
   onlineIdsFrom,
+  AWARENESS_PARTICIPANT_ID_FIELD,
   startElection,
   type ElectionHandle,
   endSessionForEveryone as endSessionMutation,
@@ -146,7 +147,7 @@ export async function createSession(opts: CreateSessionOptions): Promise<Session
     ...(opts.avatarColor !== undefined && { avatarColor: opts.avatarColor }),
   });
 
-  awareness.setLocalStateField('participantId', opts.participantId);
+  awareness.setLocalStateField(AWARENESS_PARTICIPANT_ID_FIELD, opts.participantId);
 
   return wireSession({
     doc,
@@ -179,7 +180,7 @@ export async function joinSession(opts: JoinSessionOptions): Promise<SessionHand
     ...(opts.avatarColor !== undefined && { avatarColor: opts.avatarColor }),
   });
 
-  awareness.setLocalStateField('participantId', opts.participantId);
+  awareness.setLocalStateField(AWARENESS_PARTICIPANT_ID_FIELD, opts.participantId);
 
   return wireSession({
     doc,

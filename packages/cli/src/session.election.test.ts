@@ -1,5 +1,5 @@
 /**
- * CLI host-election *wiring* (ADR-0010, ADR-0048).
+ * `wireSession` host-election *wiring* (ADR-0010, ADR-0048).
  *
  * The driver's behaviour — debounce, missing-host state, winner choice —
  * lives in `@hnch/shared` and is tested there with fake deps and fake

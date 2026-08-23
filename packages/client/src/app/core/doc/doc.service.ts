@@ -7,6 +7,7 @@ import {
   type WritableSignal,
 } from '@angular/core';
 import {
+  AWARENESS_PARTICIPANT_ID_FIELD,
   appendAgendaItem as appendAgendaItemY,
   appendRound as appendRoundY,
   castVote as castVoteY,
@@ -64,14 +65,6 @@ import { AppPreferenceService } from '../app-preference.service';
 import { ParticipantIdService } from '../participant-id.service';
 import { ToastService } from '../../services/toast.service';
 import { createSyncProvider, type SyncProvider, type SyncStatus } from './sync-provider';
-
-/**
- * Awareness field name that carries a peer's `participantId`. A
- * string literal kept here (and not in `@hnch/shared`) because the
- * awareness channel is a client-only transport detail — the relay is
- * content-blind (ADR-0001) and never reads this.
- */
-const AWARENESS_PARTICIPANT_ID_FIELD = 'participantId';
 
 /**
  * Caller-facing init for {@link DocService.createSession}. Mirrors the

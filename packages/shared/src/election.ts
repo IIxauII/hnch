@@ -41,10 +41,12 @@ export const HOST_ABSENCE_ELECTION_DEBOUNCE_MS = 5_000;
 
 /**
  * Awareness field name carrying a peer's `participantId`. The awareness
- * channel is a client-side transport detail — the relay never reads it — but
- * both clients must agree on the key, so it is named once here.
+ * channel is a client-side transport detail — the relay is content-blind
+ * (ADR-0001) and never reads it — but both clients must agree on the key,
+ * and the writers must agree with {@link onlineIdsFrom}, so it is named
+ * once here and imported at every read and write site.
  */
-const AWARENESS_PARTICIPANT_ID_FIELD = 'participantId';
+export const AWARENESS_PARTICIPANT_ID_FIELD = 'participantId';
 
 /**
  * Extract the set of online participantIds from a raw awareness state map
