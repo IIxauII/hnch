@@ -381,9 +381,12 @@ export class DocService {
     };
     initDoc(doc, seed);
 
+    // Awareness first: `attach` starts the host-election driver, whose initial
+    // evaluation reads the online set. Seeding the local peer beforehand means
+    // the driver never sees a present host as absent (ADR-0010).
+    this.initAwareness(doc, init.participantId);
     this.attach(doc);
     this.roomCodeSignal.set(init.roomCode ?? null);
-    this.initAwareness(doc, init.participantId);
     return roomUuid;
   }
 
@@ -411,9 +414,10 @@ export class DocService {
       ...(init.avatarColor !== undefined && { avatarColor: init.avatarColor }),
     });
 
+    // Awareness before attach — see the note in `createSession`.
+    this.initAwareness(doc, init.participantId);
     this.attach(doc);
     this.roomCodeSignal.set(init.roomCode ?? null);
-    this.initAwareness(doc, init.participantId);
     // Store so connectWithPersistence can schedule the post-sync leftAt clear
     // (ADR-0036 §6 LWW fix — delete must run after relay snapshot merges).
     this.joinParticipantId = init.participantId;
@@ -817,6 +821,10 @@ export class DocService {
    * live in `@hnch/shared`; this is the adapter. It is notified on every
    * projection rebuild *and* every awareness change — a kicked host sets
    * `leftAt` without touching awareness, and vice versa.
+   *
+   * Called from {@link attach}, which both session entry points run *after*
+   * {@link initAwareness} — the driver's initial evaluation must not see an
+   * empty online set, or it would arm a debounce against a present host.
    */
   private startElectionDriver(): void {
     this.electionHandle?.stop();

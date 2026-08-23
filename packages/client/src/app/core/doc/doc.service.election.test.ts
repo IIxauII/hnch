@@ -51,6 +51,7 @@ describe('DocService — host-election wiring', () => {
   let deps: ElectionDeps;
   let notify: ReturnType<typeof vi.fn>;
   let stop: ReturnType<typeof vi.fn>;
+  let onlineIdsAtStart: ReadonlySet<string>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -59,8 +60,12 @@ describe('DocService — host-election wiring', () => {
 
     // Capture the deps the adapter hands to the shared driver, and swap the
     // driver's own callback for a spy so we can see what notifies it.
+    onlineIdsAtStart = new Set();
     startElectionMock.mockImplementation((d) => {
       deps = d;
+      // Snapshot what the driver would see on its initial, synchronous
+      // evaluation — the real driver evaluates before startElection returns.
+      onlineIdsAtStart = new Set(d.onlineIds());
       d.subscribe(notify);
       return { stop };
     });
@@ -89,6 +94,15 @@ describe('DocService — host-election wiring', () => {
     expect(startElectionMock).toHaveBeenCalledOnce();
     expect(deps.myId()).toBe('p-host');
     expect(deps.projection()?.settings.hostParticipantId).toBe('p-host');
+  });
+
+  it('sees the local peer as online on its very first evaluation', () => {
+    // Awareness is seeded before attach, so the driver's synchronous initial
+    // evaluation cannot mistake a present host for an absent one and arm a
+    // debounce against it.
+    svc.createSession(SESSION);
+
+    expect(onlineIdsAtStart).toContain('p-host');
   });
 
   it('notifies the driver on a projection rebuild', () => {
