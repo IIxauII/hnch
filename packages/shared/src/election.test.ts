@@ -1,8 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { DocProjection } from './doc-projection.js';
 import type { ParticipantSnapshot } from './doc-projection.js';
-import { evaluateElection, resolvePromotion } from './election.js';
+import {
+  evaluateElection,
+  onlineIdsFrom,
+  resolvePromotion,
+  startElection,
+  HOST_ABSENCE_ELECTION_DEBOUNCE_MS,
+} from './election.js';
 
 // ---------------------------------------------------------------------------
 // Minimal projection builder — the election fns only read
@@ -194,4 +200,320 @@ describe('resolvePromotion', () => {
       expect(result).toEqual(c.expected);
     });
   }
+});
+
+describe('onlineIdsFrom', () => {
+  it('collects string participantIds from awareness states', () => {
+    const states = new Map<number, unknown>([
+      [1, { participantId: 'host' }],
+      [2, { participantId: 'peer-a' }],
+    ]);
+    expect(onlineIdsFrom(states)).toEqual(new Set(['host', 'peer-a']));
+  });
+
+  it('skips entries with a missing participantId', () => {
+    const states = new Map<number, unknown>([
+      [1, { participantId: 'host' }],
+      [2, {}],
+      [3, { cursor: { x: 1 } }],
+    ]);
+    expect(onlineIdsFrom(states)).toEqual(new Set(['host']));
+  });
+
+  it('skips entries whose participantId is not a string', () => {
+    const states = new Map<number, unknown>([
+      [1, { participantId: 42 }],
+      [2, { participantId: null }],
+      [3, { participantId: ['peer-a'] }],
+      [4, { participantId: 'peer-b' }],
+    ]);
+    expect(onlineIdsFrom(states)).toEqual(new Set(['peer-b']));
+  });
+
+  it('skips non-object states and returns an empty set for no states', () => {
+    expect(
+      onlineIdsFrom(
+        new Map<number, unknown>([
+          [1, null],
+          [2, 'peer-a'],
+        ]),
+      ),
+    ).toEqual(new Set());
+    expect(onlineIdsFrom(new Map<number, unknown>())).toEqual(new Set());
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Driver behaviour — fake deps + fake timers. No Y.Doc, no framework.
+// ---------------------------------------------------------------------------
+
+function makeDeps(init: {
+  hostId: string;
+  participants: ParticipantSnapshot[];
+  online: string[];
+  myId?: string | null;
+}) {
+  let currentProjection: DocProjection | null = projection(init.hostId, init.participants);
+  let online: ReadonlySet<string> = new Set(init.online);
+  let myId: string | null = init.myId === undefined ? 'peer-a' : init.myId;
+  let notify: (() => void) | null = null;
+
+  const promote = vi.fn<[string], void>();
+  const unsubscribed = vi.fn();
+
+  const deps = {
+    projection: () => currentProjection,
+    onlineIds: () => online,
+    myId: () => myId,
+    subscribe: (cb: () => void) => {
+      notify = cb;
+      return () => {
+        notify = null;
+        unsubscribed();
+      };
+    },
+    promote,
+  };
+
+  /** Apply a change and fire the driver's notification, as an adapter would. */
+  function change(next: {
+    hostId?: string;
+    participants?: ParticipantSnapshot[];
+    online?: string[];
+    myId?: string | null;
+    projection?: null;
+  }): void {
+    if (next.projection === null) {
+      currentProjection = null;
+    } else if (next.hostId !== undefined || next.participants !== undefined) {
+      currentProjection = projection(
+        next.hostId ?? currentProjection?.settings.hostParticipantId ?? init.hostId,
+        next.participants ?? [...(currentProjection?.participants ?? [])],
+      );
+    }
+    if (next.online !== undefined) online = new Set(next.online);
+    if (next.myId !== undefined) myId = next.myId;
+    notify?.();
+  }
+
+  return { deps, promote, unsubscribed, change };
+}
+
+const ROSTER = [participant('host'), participant('peer-a'), participant('peer-b')];
+
+describe('startElection', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.clearAllMocks();
+  });
+
+  it('host online and active → nothing is armed', () => {
+    const { deps, promote } = makeDeps({
+      hostId: 'host',
+      participants: ROSTER,
+      online: ['host', 'peer-a', 'peer-b'],
+    });
+
+    const handle = startElection(deps);
+    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS * 2);
+
+    expect(promote).not.toHaveBeenCalled();
+    handle.stop();
+  });
+
+  it('host absent at construction → initial evaluation arms the debounce', () => {
+    const { deps, promote } = makeDeps({
+      hostId: 'host',
+      participants: ROSTER,
+      online: ['peer-a', 'peer-b'],
+    });
+
+    const handle = startElection(deps);
+
+    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS - 1);
+    expect(promote).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    expect(promote).toHaveBeenCalledExactlyOnceWith('peer-a');
+
+    handle.stop();
+  });
+
+  it('host drops after construction → promotes the lex-lowest eligible peer', () => {
+    const { deps, promote, change } = makeDeps({
+      hostId: 'host',
+      participants: ROSTER,
+      online: ['host', 'peer-a', 'peer-b'],
+      myId: 'peer-a',
+    });
+
+    const handle = startElection(deps);
+    change({ online: ['peer-a', 'peer-b'] });
+
+    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS);
+    expect(promote).toHaveBeenCalledExactlyOnceWith('peer-a');
+
+    handle.stop();
+  });
+
+  it('host returns online and active before the debounce elapses → cancelled', () => {
+    const { deps, promote, change } = makeDeps({
+      hostId: 'host',
+      participants: ROSTER,
+      online: ['host', 'peer-a', 'peer-b'],
+    });
+
+    const handle = startElection(deps);
+    change({ online: ['peer-a', 'peer-b'] });
+    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS - 1);
+
+    change({ online: ['host', 'peer-a', 'peer-b'] });
+    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS * 2);
+
+    expect(promote).not.toHaveBeenCalled();
+    handle.stop();
+  });
+
+  it('a different host goes missing mid-debounce → the timer re-keys to it', () => {
+    const { deps, promote, change } = makeDeps({
+      hostId: 'host',
+      participants: ROSTER,
+      online: ['peer-a', 'peer-b'],
+    });
+
+    const handle = startElection(deps); // armed for 'host'
+
+    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS - 1);
+    // A promotion lands elsewhere: 'peer-b' is now host, and also absent.
+    change({ hostId: 'peer-b', online: ['peer-a'] });
+
+    // The original window elapses — the re-keyed timer must not have fired yet.
+    vi.advanceTimersByTime(1);
+    expect(promote).not.toHaveBeenCalled();
+
+    // The full window from the re-key does fire.
+    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS - 1);
+    expect(promote).toHaveBeenCalledExactlyOnceWith('peer-a');
+
+    handle.stop();
+  });
+
+  it('caller is not the winner → stands down without writing', () => {
+    const { deps, promote } = makeDeps({
+      hostId: 'host',
+      participants: ROSTER,
+      online: ['peer-a', 'peer-b'],
+      myId: 'peer-b',
+    });
+
+    const handle = startElection(deps);
+    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS);
+
+    expect(promote).not.toHaveBeenCalled();
+    handle.stop();
+  });
+
+  it('no eligible peers when the debounce fires → no promotion', () => {
+    const { deps, promote, change } = makeDeps({
+      hostId: 'host',
+      participants: ROSTER,
+      online: ['host', 'peer-a'],
+    });
+
+    const handle = startElection(deps);
+    change({ online: [] });
+    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS);
+
+    expect(promote).not.toHaveBeenCalled();
+    handle.stop();
+  });
+
+  it('kicked-but-lingering host is ineligible → election runs on a participants-only change', () => {
+    // Awareness never changes: the host stays "online" throughout. Only the
+    // participants map moves. This is the drift that made the CLI sit with a
+    // dead host — the driver must re-evaluate on it.
+    const { deps, promote, change } = makeDeps({
+      hostId: 'host',
+      participants: ROSTER,
+      online: ['host', 'peer-a', 'peer-b'],
+    });
+
+    const handle = startElection(deps);
+    change({
+      participants: [participant('host', 1000), participant('peer-a'), participant('peer-b')],
+    });
+
+    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS);
+    expect(promote).toHaveBeenCalledExactlyOnceWith('peer-a');
+
+    handle.stop();
+  });
+
+  it('kicked-but-lingering peer neither wins nor blocks', () => {
+    const { deps, promote } = makeDeps({
+      hostId: 'host',
+      // 'peer-a' is lex-lowest but was kicked; its awareness entry lingers.
+      participants: [participant('host'), participant('peer-a', 1000), participant('peer-b')],
+      online: ['peer-a', 'peer-b'],
+      myId: 'peer-b',
+    });
+
+    const handle = startElection(deps);
+    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS);
+
+    expect(promote).toHaveBeenCalledExactlyOnceWith('peer-b');
+    handle.stop();
+  });
+
+  it('projection going null cancels an armed timer', () => {
+    const { deps, promote, change } = makeDeps({
+      hostId: 'host',
+      participants: ROSTER,
+      online: ['peer-a', 'peer-b'],
+    });
+
+    const handle = startElection(deps);
+    change({ projection: null });
+    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS * 2);
+
+    expect(promote).not.toHaveBeenCalled();
+    handle.stop();
+  });
+
+  it('own id going null cancels an armed timer', () => {
+    const { deps, promote, change } = makeDeps({
+      hostId: 'host',
+      participants: ROSTER,
+      online: ['peer-a', 'peer-b'],
+    });
+
+    const handle = startElection(deps);
+    change({ myId: null });
+    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS * 2);
+
+    expect(promote).not.toHaveBeenCalled();
+    handle.stop();
+  });
+
+  it('stop() clears an armed timer and unsubscribes', () => {
+    const { deps, promote, unsubscribed, change } = makeDeps({
+      hostId: 'host',
+      participants: ROSTER,
+      online: ['peer-a', 'peer-b'],
+    });
+
+    const handle = startElection(deps);
+    handle.stop();
+
+    expect(unsubscribed).toHaveBeenCalledOnce();
+
+    change({ online: ['peer-a'] }); // notify is detached — must be inert
+    vi.advanceTimersByTime(HOST_ABSENCE_ELECTION_DEBOUNCE_MS * 2);
+
+    expect(promote).not.toHaveBeenCalled();
+  });
 });
