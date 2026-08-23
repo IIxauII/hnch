@@ -1,16 +1,60 @@
 /**
- * Unit tests for CLI host-election.ts (ADR-0010).
+ * Host-election behaviour as the CLI drives it (ADR-0010).
  *
- * Uses a real Y.Doc + real Awareness instance with fake timers.
- * Awareness states are injected directly (no WS transport) to keep
- * tests synchronous and deterministic.
+ * The driver lives in `@hnch/shared`; this suite exercises it through a
+ * doc + awareness adapter matching `session.ts`'s wiring, with a real
+ * Y.Doc, a real Awareness instance, and fake timers. Awareness states are
+ * injected directly (no WS transport) to keep tests synchronous and
+ * deterministic.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as Y from 'yjs';
 import { Awareness } from 'y-protocols/awareness';
-import { patchSettings, upsertParticipant, leaveSession, DOC_SETTINGS_KEY } from '@hnch/shared';
-import { startElection, HOST_ABSENCE_ELECTION_DEBOUNCE_MS } from './host-election.js';
+import {
+  patchSettings,
+  upsertParticipant,
+  leaveSession,
+  onlineIdsFrom,
+  projectDoc,
+  startElection as startSharedElection,
+  DOC_META_KEY,
+  DOC_PARTICIPANTS_KEY,
+  DOC_ROUNDS_KEY,
+  DOC_SETTINGS_KEY,
+  HOST_ABSENCE_ELECTION_DEBOUNCE_MS,
+  type ElectionHandle,
+} from '@hnch/shared';
+
+/**
+ * Mirror of `session.ts`'s adapter: notify the driver on any doc change and
+ * any awareness change, promote by patching the settings map.
+ */
+function startElection(doc: Y.Doc, awareness: Awareness, myId: string): ElectionHandle {
+  const containers = [
+    doc.getMap(DOC_META_KEY),
+    doc.getMap(DOC_SETTINGS_KEY),
+    doc.getMap(DOC_PARTICIPANTS_KEY),
+    doc.getArray(DOC_ROUNDS_KEY),
+  ];
+
+  return startSharedElection({
+    projection: () => projectDoc(doc),
+    onlineIds: () => onlineIdsFrom(awareness.getStates()),
+    myId: () => myId,
+    subscribe(cb) {
+      for (const c of containers) c.observeDeep(cb);
+      awareness.on('change', cb);
+      return () => {
+        for (const c of containers) c.unobserveDeep(cb);
+        awareness.off('change', cb);
+      };
+    },
+    promote(winnerId) {
+      patchSettings(doc, { hostParticipantId: winnerId });
+    },
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -59,7 +103,7 @@ function seedParticipants(doc: Y.Doc, ids: string[]): void {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('startElection (ADR-0010)', () => {
+describe('host election, CLI wiring (ADR-0010)', () => {
   let doc: Y.Doc;
   let awareness: Awareness;
 

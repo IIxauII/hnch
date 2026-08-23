@@ -25,6 +25,8 @@ import {
   participantRole,
   shouldAutoReveal,
   onlineIdsFrom,
+  startElection,
+  type ElectionHandle,
   endSessionForEveryone as endSessionMutation,
   FIBONACCI_SCALE,
   type DocProjection,
@@ -35,7 +37,6 @@ import {
 import { randomUUID } from 'node:crypto';
 import { mintRoom, resolveRoom, patchRoomAccess } from './relay-api.js';
 import { connect, type SyncConnection, type SyncStatus } from './sync.js';
-import { startElection, type ElectionHandle } from './host-election.js';
 
 export interface CreateSessionOptions {
   readonly participantId: string;
@@ -227,9 +228,6 @@ export function wireSession(opts: WireOptions): SessionHandle {
     },
   });
 
-  // Wire host election
-  const election: ElectionHandle = startElection(doc, awareness, participantId);
-
   // Observe doc changes
   const observeHandler = (): void => {
     changeCallbacks.forEach((cb) => cb());
@@ -242,6 +240,26 @@ export function wireSession(opts: WireOptions): SessionHandle {
   function getOnlineIds(): Set<string> {
     return onlineIdsFrom(awareness.getStates());
   }
+
+  // Wire host election. The driver (debounce, missing-host state, promotion
+  // decision) lives in `@hnch/shared`; this is the adapter. It re-uses the
+  // doc-change fan-out above, so no new Yjs observer is introduced.
+  const election: ElectionHandle = startElection({
+    projection: () => projectDoc(doc),
+    onlineIds: getOnlineIds,
+    myId: () => participantId,
+    subscribe(cb) {
+      changeCallbacks.add(cb);
+      awareness.on('change', cb);
+      return (): void => {
+        changeCallbacks.delete(cb);
+        awareness.off('change', cb);
+      };
+    },
+    promote(winnerId) {
+      patchSettings(doc, { hostParticipantId: winnerId });
+    },
+  });
 
   // Unanimous auto-reveal: when every online voter has a numeric vote, reveal
   // automatically. The who-counts decision (active roster ∩ online ∩ non-viewer,

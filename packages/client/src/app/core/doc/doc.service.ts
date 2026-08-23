@@ -34,12 +34,14 @@ import {
   revealCurrentRound as revealCurrentRoundCommand,
   setAvatarColor as setAvatarColorY,
   setAgendaItemState as setAgendaItemStateY,
+  startElection,
   skipCurrentRound as skipCurrentRoundCommand,
   updateAgendaItemFields as updateAgendaItemFieldsY,
   upsertParticipant as upsertParticipantY,
   type AgendaItem,
   type AppendAgendaItemInit,
   type DocProjection,
+  type ElectionHandle,
   type InitDocInit,
   type JoinCredentials,
   type JoinRejectionReason,
@@ -59,6 +61,7 @@ import { IndexeddbPersistence } from 'y-indexeddb';
 
 import { environment } from '../../../environments/environment';
 import { AppPreferenceService } from '../app-preference.service';
+import { ParticipantIdService } from '../participant-id.service';
 import { ToastService } from '../../services/toast.service';
 import { createSyncProvider, type SyncProvider, type SyncStatus } from './sync-provider';
 
@@ -152,6 +155,7 @@ export interface ConnectOptions {
 export class DocService {
   private readonly appPrefs = inject(AppPreferenceService);
   private readonly toastService = inject(ToastService);
+  private readonly participantIdService = inject(ParticipantIdService);
 
   // ---------------------------------------------------------------------------
   // Private Yjs + sync state
@@ -194,6 +198,14 @@ export class DocService {
   readonly endingSessionLocally: WritableSignal<boolean> = signal(false);
   private awareness: Awareness | null = null;
   private awarenessOff: (() => void) | null = null;
+  /**
+   * Session-scoped host-election handle (ADR-0010). Started in
+   * {@link attach}, stopped in {@link detach} — deliberately *not*
+   * app-lifetime, so a doc-less app arms no timers.
+   */
+  private electionHandle: ElectionHandle | null = null;
+  /** The driver's change callback while an election handle is live. */
+  private electionNotify: (() => void) | null = null;
   private readonly onlineParticipantIdsSignal: WritableSignal<ReadonlySet<string>> = signal<
     ReadonlySet<string>
   >(new Set());
@@ -206,9 +218,9 @@ export class DocService {
 
   /**
    * Full live projection snapshot, or `null` when no session is live.
-   * Consumed by `HostElectionService` to drive the shared election
-   * decision functions (ADR-0048) — the single source supplies the live
-   * projection; the intersection with awareness happens inside `@hnch/shared`.
+   * Also feeds the shared host-election driver started in {@link attach}
+   * (ADR-0048) — this service supplies the live projection; the
+   * intersection with awareness happens inside `@hnch/shared`.
    */
   readonly projectionSnapshot: Signal<DocProjection | null> = this.projection.asReadonly();
 
@@ -767,6 +779,7 @@ export class DocService {
   private attach(doc: Y.Doc): void {
     this.doc = doc;
     this.rebuildProjection();
+    this.startElectionDriver();
 
     const rebuild = (): void => this.rebuildProjection();
     const meta = doc.getMap(DOC_META_KEY);
@@ -791,6 +804,8 @@ export class DocService {
   }
 
   private detach(): void {
+    this.electionHandle?.stop();
+    this.electionHandle = null;
     for (const off of this.observers) off();
     this.observers = [];
   }
@@ -798,6 +813,32 @@ export class DocService {
   private rebuildProjection(): void {
     if (!this.doc) return;
     this.projection.set(projectDoc(this.doc));
+    // Synchronous notify — the driver is a plain callback, not an effect(),
+    // so nothing has to be flushed for an election to re-evaluate.
+    this.electionNotify?.();
+  }
+
+  /**
+   * Wire the shared host-election driver to this session (ADR-0010,
+   * ADR-0048). The rule, the 5 s debounce, and the missing-host state all
+   * live in `@hnch/shared`; this is the adapter. It is notified on every
+   * projection rebuild *and* every awareness change — a kicked host sets
+   * `leftAt` without touching awareness, and vice versa.
+   */
+  private startElectionDriver(): void {
+    this.electionHandle?.stop();
+    this.electionHandle = startElection({
+      projection: () => this.projection(),
+      onlineIds: () => this.onlineParticipantIdsSignal(),
+      myId: () => this.participantIdService.id(),
+      subscribe: (cb) => {
+        this.electionNotify = cb;
+        return (): void => {
+          this.electionNotify = null;
+        };
+      },
+      promote: (winnerId) => this.updateSettings({ hostParticipantId: winnerId }),
+    });
   }
 
   /**
@@ -817,6 +858,7 @@ export class DocService {
 
     const refresh = (): void => {
       this.onlineParticipantIdsSignal.set(onlineIdsFrom(awareness.getStates()));
+      this.electionNotify?.();
     };
 
     awareness.on('change', refresh);
