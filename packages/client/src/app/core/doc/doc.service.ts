@@ -24,6 +24,7 @@ import {
   joinDoc,
   leaveSession as leaveSessionY,
   nextPendingAgendaItem as nextPendingAgendaItemFromProjection,
+  onlineIdsFrom,
   participantRole,
   patchSettings,
   projectDoc,
@@ -815,12 +816,7 @@ export class DocService {
     awareness.setLocalStateField(AWARENESS_PARTICIPANT_ID_FIELD, participantId);
 
     const refresh = (): void => {
-      const next = new Set<string>();
-      for (const state of awareness.getStates().values()) {
-        const value = (state as Record<string, unknown>)[AWARENESS_PARTICIPANT_ID_FIELD];
-        if (typeof value === 'string') next.add(value);
-      }
-      this.onlineParticipantIdsSignal.set(next);
+      this.onlineParticipantIdsSignal.set(onlineIdsFrom(awareness.getStates()));
     };
 
     awareness.on('change', refresh);

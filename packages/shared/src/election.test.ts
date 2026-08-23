@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { DocProjection } from './doc-projection.js';
 import type { ParticipantSnapshot } from './doc-projection.js';
-import { evaluateElection, resolvePromotion } from './election.js';
+import { evaluateElection, onlineIdsFrom, resolvePromotion } from './election.js';
 
 // ---------------------------------------------------------------------------
 // Minimal projection builder — the election fns only read
@@ -194,4 +194,45 @@ describe('resolvePromotion', () => {
       expect(result).toEqual(c.expected);
     });
   }
+});
+
+describe('onlineIdsFrom', () => {
+  it('collects string participantIds from awareness states', () => {
+    const states = new Map<number, unknown>([
+      [1, { participantId: 'host' }],
+      [2, { participantId: 'peer-a' }],
+    ]);
+    expect(onlineIdsFrom(states)).toEqual(new Set(['host', 'peer-a']));
+  });
+
+  it('skips entries with a missing participantId', () => {
+    const states = new Map<number, unknown>([
+      [1, { participantId: 'host' }],
+      [2, {}],
+      [3, { cursor: { x: 1 } }],
+    ]);
+    expect(onlineIdsFrom(states)).toEqual(new Set(['host']));
+  });
+
+  it('skips entries whose participantId is not a string', () => {
+    const states = new Map<number, unknown>([
+      [1, { participantId: 42 }],
+      [2, { participantId: null }],
+      [3, { participantId: ['peer-a'] }],
+      [4, { participantId: 'peer-b' }],
+    ]);
+    expect(onlineIdsFrom(states)).toEqual(new Set(['peer-b']));
+  });
+
+  it('skips non-object states and returns an empty set for no states', () => {
+    expect(
+      onlineIdsFrom(
+        new Map<number, unknown>([
+          [1, null],
+          [2, 'peer-a'],
+        ]),
+      ),
+    ).toEqual(new Set());
+    expect(onlineIdsFrom(new Map<number, unknown>())).toEqual(new Set());
+  });
 });

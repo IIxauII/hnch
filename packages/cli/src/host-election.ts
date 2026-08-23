@@ -14,6 +14,7 @@ import {
   DOC_PARTICIPANTS_KEY,
   DOC_SETTINGS_KEY,
   evaluateElection,
+  onlineIdsFrom,
   patchSettings,
   projectDoc,
   resolvePromotion,
@@ -35,12 +36,7 @@ export function startElection(doc: Y.Doc, awareness: Awareness, myId: string): E
   let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
 
   function getOnlineIds(): Set<string> {
-    const ids = new Set<string>();
-    awareness.getStates().forEach((state) => {
-      const pid = (state as Record<string, unknown>)['participantId'];
-      if (typeof pid === 'string') ids.add(pid);
-    });
-    return ids;
+    return onlineIdsFrom(awareness.getStates());
   }
 
   function cancelDebounce(): void {

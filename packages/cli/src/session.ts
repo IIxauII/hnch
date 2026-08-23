@@ -24,6 +24,7 @@ import {
   upsertParticipant,
   participantRole,
   shouldAutoReveal,
+  onlineIdsFrom,
   endSessionForEveryone as endSessionMutation,
   FIBONACCI_SCALE,
   type DocProjection,
@@ -239,12 +240,7 @@ export function wireSession(opts: WireOptions): SessionHandle {
   doc.getArray('rounds').observeDeep(observeHandler);
 
   function getOnlineIds(): Set<string> {
-    const ids = new Set<string>();
-    awareness.getStates().forEach((state) => {
-      const pid = (state as Record<string, unknown>)['participantId'];
-      if (typeof pid === 'string') ids.add(pid);
-    });
-    return ids;
+    return onlineIdsFrom(awareness.getStates());
   }
 
   // Unanimous auto-reveal: when every online voter has a numeric vote, reveal
