@@ -114,6 +114,42 @@ If the change shifts user-visible behavior or product scope, update the relevant
 - `docs/roadmap.md` — phased plan and exit bars.
 - `docs/angular.md` / `docs/ionic.md` — client coding conventions.
 
+## Code-quality tooling
+
+Three tools, split by what each can actually parse:
+
+| Tool | Job | Config |
+|---|---|---|
+| **Biome 2.x** | Format TS/JS/JSON/MD, repo-wide | `biome.json` |
+| **Oxlint 1.x** | Lint every package | `.oxlintrc.json` |
+| **`@angular-eslint/template-*`** | Lint Angular `.html` only | `packages/client/eslint.config.mjs` |
+| **lefthook 2.x** | Pre-commit hooks | `lefthook.yml` |
+
+It is three and not one because Biome 2.x has no Angular HTML support and Oxlint has no Angular plugin. Collapse to Biome (or drop angular-eslint) the moment either ships Angular HTML coverage; re-enable the `@angular-eslint/template/i18n` rules if we ever go multi-locale.
+
+Root commands: `pnpm format` / `pnpm format:check`, `pnpm lint` / `pnpm lint:fix`, `pnpm typecheck`. Each runs in ~100-150 ms over the tree. Every package has `typecheck` + `lint` + `format:check`, so the CI matrix has uniform per-package visibility.
+
+### Oxlint calibration
+
+- `correctness` / `suspicious` / `perf` → **error**
+- `pedantic` / `nursery` → **warn**
+- `restriction` / `style` → **off**
+- `no-async-await` → warn, as a soft RxJS-preference nudge
+
+Errors gate; warnings do not. The warning count is a tracked baseline, not silence — cleanup is opportunistic. Putting `restriction` + `pedantic` at error level was tried and produced ~3000 errors fighting idiomatic patterns (async/await, optional chaining, `undefined`, `!`-assertion); rejected.
+
+### TypeScript strictness
+
+`tsconfig.base.json` runs `strict` plus `exactOptionalPropertyTypes`, `useUnknownInCatchVariables`, `noUnusedLocals`, `noUnusedParameters`, `allowUnusedLabels: false`, `allowUnreachableCode: false`.
+
+`exactOptionalPropertyTypes` is the one that bites: `field?: T` and `field?: T | undefined` stop being interchangeable, so call sites that conflated them need narrowing.
+
+`lib` is `ES2023` in `cli` / `client` / `relay` / `shared` — required because `oxlint --fix` rewrites to `Array#toSorted` / `Array#toReversed`. Bump to ES2024+ only when the Node engine minimum moves past 22.
+
+### Pre-commit hooks
+
+lefthook auto-installs on `pnpm install`, so a fresh clone gets hooks with no manual step. It runs on **staged files only** (sub-second). Bypass with `LEFTHOOK=0 git commit` — it is a fast-feedback guard, not a security boundary. CI remains the source of truth.
+
 ## Pre-push checklist
 
 - [ ] Branched from `main`.

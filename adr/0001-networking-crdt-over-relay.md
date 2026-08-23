@@ -8,7 +8,6 @@
 - Real-time state sync needed across ≤20 peers per session on web, iOS, Android.
 - Product principles: privacy, offline tolerance, low ops cost, no accounts.
 - Domain: short-lived estimation sessions, low message volume, partition-tolerant.
-- Long-form trade-off study in [`../networking-analysis.md`](../networking-analysis.md).
 
 ## Decision
 

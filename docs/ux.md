@@ -10,6 +10,7 @@ UX decisions touching architecture cross-linked to governing ADR in [`adr/`](../
 
 1. [User flows](#1-user-flows)
 2. [Interaction patterns](#2-interaction-patterns)
+3. [Desktop surface adaptation](#3-desktop-surface-adaptation)
 
 ---
 
@@ -320,3 +321,32 @@ Common toasts: host handoff ("Alice is now hosting"), link copied ("Invite link 
 | Host handoff toast | `notification`, `Warning` |
 
 Haptics fire via `@capacitor/haptics` on native; web = no-ops (safe stub).
+
+---
+
+## 3. Desktop surface adaptation
+
+The web PWA is a production surface, so desktop has to meet the same quality bar as mobile. One codebase, no fork: the same components render in a different *surface mode* driven by breakpoint. Surface mode is a configuration delta, never a behavior change — component tests are viewport-agnostic.
+
+**Breakpoint.** `md` (768px) pivot, ANDed with `(pointer: fine)`. Touch laptops keep the mobile UX; desktop means 768px+ *and* a fine pointer. Central refs: `packages/client/src/theme/_breakpoints.scss` (SCSS map) and `packages/client/src/app/core/breakpoints.ts` (TS mirror) — keep the two in sync.
+
+**Modals.** Mobile = half-sheet, `breakpoints: [0, 0.6, 0.95]`. Desktop = centered dialog via the `.modal-centered` global class in `global.scss` (sized through `::part(content)` CSS vars, no drag handle, width capped ≤480px, max-height 80vh). Always open through `SurfaceService.openModal()` rather than `ModalController` directly.
+
+**Menus.** Mobile = `ActionSheetController` overlay. Desktop = `PopoverController` anchored to its trigger, which fixes the Fitts's-law problem of a top-right gear opening a bottom-anchored sheet. Shared `<app-menu-popover>` replaces per-call-site button arrays; route through `SurfaceService.openSheetOrPopover()`.
+
+**CTA bars.** Mobile = sticky `ion-footer`. Desktop = pure-CSS `position: static` swap, so the footer reflows into the document as an inline CTA row. No JS, no portal.
+
+**Page width caps.** `<ion-grid fixed>` plus a per-page SCSS mixin — no wrapper component, and no implicit inheritance, so each page opts in explicitly.
+
+| Page | Max width |
+|---|---|
+| Onboarding | 480px |
+| Join | 480px |
+| Home | 560px |
+| Estimating | 640px |
+| Settings | 720px |
+| Lobby | 800px |
+
+**Accessibility.** Hover styles go inside `@media (hover: hover)`. Every interactive element carries a `:focus-visible` ring. Modal focus trap must be verified on desktop.
+
+**Out of scope.** Native iOS/Android layout is untouched — native clients stay pure mobile. `ion-split-pane` is deferred: current Lobby density (room code, share + QR rows, 1–8 participants, one round) would look sparse next to a capped centered column. Revisit when round history shows 3+ entries inline; a Lobby side rail is a structural change and needs its own ADR.
