@@ -37,6 +37,7 @@ import type {
 } from './doc.js';
 import { keyBetween } from './fractional-index.js';
 import { terminalState } from './round-status.js';
+import { canEnterTerminal } from './round-transitions.js';
 
 // ---------------------------------------------------------------------------
 // Snapshot shape
@@ -751,6 +752,23 @@ export function currentRound(projection: DocProjection): Round | null {
   for (let i = rounds.length - 1; i >= 0; i -= 1) {
     const r = rounds[i]!;
     if (r.status !== 'discarded') return r;
+  }
+  return null;
+}
+
+/**
+ * Active round = last round whose resolved `status` is non-terminal
+ * (`'pending'` or `'voting'`). Unlike `currentRound()`, there is **no anchor
+ * fallback**: once every round is terminal this returns `null`, full stop.
+ * `currentRound()` answers "what should the Lobby results view show";
+ * `activeRound()` answers "is there a round open to vote on right now" —
+ * effectively `currentRound()`'s first loop without its fallback loop.
+ */
+export function activeRound(projection: DocProjection): Round | null {
+  const { rounds } = projection;
+  for (let i = rounds.length - 1; i >= 0; i -= 1) {
+    const r = rounds[i]!;
+    if (canEnterTerminal(r.status)) return r;
   }
   return null;
 }

@@ -5,16 +5,16 @@ import type { Scale } from '@hnch/shared';
 interface Props {
   scale: Scale;
   selected?: string | undefined;
-  onSelect: (card: string) => void;
-  onClear: () => void;
+  onToggleCurrentVote: (card: string) => void;
+  onClearCurrentVote: () => void;
   disabled?: boolean | undefined;
 }
 
 export function CardPicker({
   scale,
   selected,
-  onSelect,
-  onClear,
+  onToggleCurrentVote,
+  onClearCurrentVote,
   disabled,
 }: Props): React.ReactElement {
   const [cursor, setCursor] = useState(0);
@@ -27,14 +27,9 @@ export function CardPicker({
     } else if (key.rightArrow) {
       setCursor((c) => Math.min(scale.cards.length - 1, c + 1));
     } else if (key.return) {
-      const card = scale.cards[cursor]!;
-      if (card === selected) {
-        onClear();
-      } else {
-        onSelect(card);
-      }
+      onToggleCurrentVote(scale.cards[cursor]!);
     } else if (key.backspace || key.delete) {
-      onClear();
+      onClearCurrentVote();
     }
   });
 

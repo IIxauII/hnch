@@ -13,9 +13,9 @@
  */
 
 import { TestBed } from '@angular/core/testing';
-import { signal } from '@angular/core';
+import { signal, computed } from '@angular/core';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import type { Round } from '@hnch/shared';
+import { canEnterTerminal, type Round } from '@hnch/shared';
 
 vi.mock('@ionic/angular/standalone', async () => {
   const { Component: Comp } = await import('@angular/core');
@@ -163,8 +163,16 @@ async function mount(opts: MountOpts = {}) {
   const roster = opts.participants ?? [{ id: 'me', joinedAt: 0 }];
   const onlineIds = opts.onlineIds ?? new Set<string>();
 
+  // activeRound mirrors the shared `activeRound()` projection: the round
+  // when it's still pending/voting, else null — no anchor fallback.
+  const activeRoundSig = computed(() => {
+    const r = currentRoundSig();
+    return r && canEnterTerminal(r.status) ? r : null;
+  });
+
   const docService = {
     currentRound: currentRoundSig.asReadonly(),
+    activeRound: activeRoundSig,
     rounds: roundsSig.asReadonly(),
     onlineParticipants: signal([]).asReadonly(),
     onlineParticipantIds: signal(onlineIds).asReadonly(),
@@ -174,8 +182,8 @@ async function mount(opts: MountOpts = {}) {
     roomCode: signal('ZZZZZZ').asReadonly(),
     meta: signal({ roomUuid: 'uuid' }).asReadonly(),
     syncStatus: signal('idle').asReadonly(),
-    castVote: vi.fn(),
-    clearVote: vi.fn(),
+    toggleCurrentVote: vi.fn().mockReturnValue({ applied: true, effect: 'cast' }),
+    clearCurrentVote: vi.fn().mockReturnValue({ applied: true, effect: 'cleared' }),
     revealCurrentRound,
     skipCurrentRound,
     discardCurrentRound,
@@ -380,7 +388,9 @@ describe('EstimatingPage — keyboard gate: roundActive', () => {
   it('skips vote when round is terminal (revealed)', async () => {
     await mount({ isHost: true, initialRound: terminalRound('revealed') });
     const DocService = (await import('../core/doc/doc.service')).DocService;
-    const ds = TestBed.inject(DocService) as unknown as { castVote: ReturnType<typeof vi.fn> };
+    const ds = TestBed.inject(DocService) as unknown as {
+      toggleCurrentVote: ReturnType<typeof vi.fn>;
+    };
     const event = new KeyboardEvent('keydown', {
       bubbles: true,
       cancelable: true,
@@ -388,13 +398,15 @@ describe('EstimatingPage — keyboard gate: roundActive', () => {
       code: 'Digit1',
     });
     document.dispatchEvent(event);
-    expect(ds.castVote).not.toHaveBeenCalled();
+    expect(ds.toggleCurrentVote).not.toHaveBeenCalled();
   });
 
   it('passes gate and casts vote when host + active (voting) round', async () => {
     await mount({ isHost: true, initialRound: votingRound() });
     const DocService = (await import('../core/doc/doc.service')).DocService;
-    const ds = TestBed.inject(DocService) as unknown as { castVote: ReturnType<typeof vi.fn> };
+    const ds = TestBed.inject(DocService) as unknown as {
+      toggleCurrentVote: ReturnType<typeof vi.fn>;
+    };
     const event = new KeyboardEvent('keydown', {
       bubbles: true,
       cancelable: true,
@@ -402,7 +414,7 @@ describe('EstimatingPage — keyboard gate: roundActive', () => {
       code: 'Digit1',
     });
     document.dispatchEvent(event);
-    expect(ds.castVote).toHaveBeenCalled();
+    expect(ds.toggleCurrentVote).toHaveBeenCalled();
   });
 });
 
@@ -574,5 +586,63 @@ describe('EstimatingPage — auto-reveal effect', () => {
     TestBed.flushEffects();
     expect(revealCurrentRound).not.toHaveBeenCalled();
     expect(haptic.notificationSuccess).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// card grid / abstain-button visibility — mirrors the `@else if (activeRound();
+// as activeR)` branch. Success criterion: the card grid is gone as soon as
+// the round is terminal, with no interactive frame in between.
+// ---------------------------------------------------------------------------
+
+describe('EstimatingPage — card grid visibility follows activeRound', () => {
+  it('active (voting) round → card grid and abstain button are rendered', async () => {
+    const { fixture } = await mount({ initialRound: votingRound() });
+    fixture.detectChanges();
+    const cards = fixture.nativeElement.querySelectorAll('.card');
+    const abstainBtn = fixture.nativeElement.querySelector('.abstain-btn');
+    expect(cards.length).toBe(votingRound().scale.cards.length);
+    expect(abstainBtn).not.toBeNull();
+  });
+
+  it('terminal (skipped) round → no card elements and no abstain button', async () => {
+    const { fixture } = await mount({ initialRound: terminalRound('skipped') });
+    fixture.detectChanges();
+    const cards = fixture.nativeElement.querySelectorAll('.card');
+    const abstainBtn = fixture.nativeElement.querySelector('.abstain-btn');
+    expect(cards.length).toBe(0);
+    expect(abstainBtn).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// onCardTap / onAbstain — applied:false suppresses the haptic (mirrors the
+// keydown-gate coverage in estimating.page.keyboard.test.ts).
+// ---------------------------------------------------------------------------
+
+describe('EstimatingPage — vote-command applied:false suppresses haptics', () => {
+  type CardTapInternals = { onCardTap(card: string): void };
+  type AbstainInternals = { onAbstain(): void };
+
+  it('onCardTap: applied:false (not-a-voter) → no haptic', async () => {
+    const { fixture, haptic } = await mount({ initialRound: votingRound() });
+    const DocService = (await import('../core/doc/doc.service')).DocService;
+    const ds = TestBed.inject(DocService) as unknown as {
+      toggleCurrentVote: ReturnType<typeof vi.fn>;
+    };
+    ds.toggleCurrentVote.mockReturnValue({ applied: false, reason: 'not-a-voter' });
+    (fixture.componentInstance as unknown as CardTapInternals).onCardTap('1');
+    expect(haptic.impactLight).not.toHaveBeenCalled();
+  });
+
+  it('onAbstain: applied:false (not-a-voter) → no haptic', async () => {
+    const { fixture, haptic } = await mount({ initialRound: votingRound() });
+    const DocService = (await import('../core/doc/doc.service')).DocService;
+    const ds = TestBed.inject(DocService) as unknown as {
+      toggleCurrentVote: ReturnType<typeof vi.fn>;
+    };
+    ds.toggleCurrentVote.mockReturnValue({ applied: false, reason: 'not-a-voter' });
+    (fixture.componentInstance as unknown as AbstainInternals).onAbstain();
+    expect(haptic.impactLight).not.toHaveBeenCalled();
   });
 });

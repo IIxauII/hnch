@@ -3,17 +3,18 @@ export * from './auth.js';
 export * from './auto-reveal.js';
 export * from './avatar-palette.js';
 export * from './doc.js';
-// doc-projection is re-exported by name (not `export *`) so the raw terminal
-// writers `revealRound` / `skipRound` / `discardRound` stay internal to the
-// package: `round-commands` is their sole caller and the single terminal seam
-// consumers see (#472 Phase 3). They remain `export`ed from doc-projection so
-// round-commands and the colocated writer tests can import them by path.
+// doc-projection is re-exported by name (not `export *`) so the raw writers
+// stay internal to the package, each behind the one seam consumers see:
+//   - `revealRound` / `skipRound` / `discardRound` → `round-commands` (#472)
+//   - `castVote` / `clearVote`                     → `vote-commands`  (#504)
+// In both cases the command module is the sole caller and the only surface
+// consumers get. The writers remain `export`ed from doc-projection so those
+// command modules and the colocated writer tests can import them by path.
 export {
+  activeRound,
   agendaArray,
   appendAgendaItem,
   appendRound,
-  castVote,
-  clearVote,
   consumeAgendaItem,
   currentRound,
   DOC_AGENDA_KEY,
@@ -61,3 +62,4 @@ export * from './round-export.js';
 export * from './round-stats.js';
 export * from './round-transitions.js';
 export * from './scales.js';
+export * from './vote-commands.js';

@@ -26,7 +26,7 @@ _Avoid_: resolveTerminal, getRoundState
 
 **active** (round):
 A round whose `status` is non-terminal (`pending | voting`) — still open to votes and to a terminal transition. The complement of a terminal round. Named by the `round-transitions` module: `canEnterTerminal(status)` is "is active"; `isTerminalStatus(status)` is its complement. Both writers (terminal-mutex guard, via `terminalState`) and readers (UI affordances, pre-mutation gates in client + CLI) branch on this one split instead of re-spelling `'pending' || 'voting'`.
-_Avoid_: open, live, current (`current` is the active-round **selector** `currentRound`, not the status predicate)
+_Avoid_: open, live, current (the selector for this predicate is `activeRound`; `current` names the *anchor* selector `currentRound`, which falls back to the last non-discarded round and so must never gate a write)
 
 ## Round commands (writer side)
 

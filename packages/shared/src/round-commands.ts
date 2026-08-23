@@ -43,7 +43,7 @@ type Clock = () => number;
  * active round to mutate, or the `TerminalResult` failure the command should
  * return unchanged.
  */
-function activeRound(doc: Y.Doc): { round: Round } | TerminalResult {
+function activeRoundOrRefusal(doc: Y.Doc): { round: Round } | TerminalResult {
   const round = currentRound(projectDoc(doc));
   if (!round) return { applied: false, reason: 'no-current-round' };
   if (!canEnterTerminal(round.status)) return { applied: false, reason: 'already-terminal' };
@@ -52,7 +52,7 @@ function activeRound(doc: Y.Doc): { round: Round } | TerminalResult {
 
 /** Reveal the current round. No-op (typed reason) when none is active. */
 export function revealCurrentRound(doc: Y.Doc, clock: Clock = Date.now): TerminalResult {
-  const sel = activeRound(doc);
+  const sel = activeRoundOrRefusal(doc);
   if ('applied' in sel) return sel;
   const at = clock();
   revealRound(doc, sel.round.id, at);
@@ -61,7 +61,7 @@ export function revealCurrentRound(doc: Y.Doc, clock: Clock = Date.now): Termina
 
 /** Skip the current round (ADR-0040). No-op (typed reason) when none is active. */
 export function skipCurrentRound(doc: Y.Doc, clock: Clock = Date.now): TerminalResult {
-  const sel = activeRound(doc);
+  const sel = activeRoundOrRefusal(doc);
   if ('applied' in sel) return sel;
   const at = clock();
   skipRound(doc, sel.round.id, at);
@@ -78,7 +78,7 @@ export function discardCurrentRound(
   by: string,
   clock: Clock = Date.now,
 ): TerminalResult {
-  const sel = activeRound(doc);
+  const sel = activeRoundOrRefusal(doc);
   if ('applied' in sel) return sel;
   const at = clock();
   discardRound(doc, sel.round.id, at, by);
