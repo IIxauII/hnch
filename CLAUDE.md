@@ -26,3 +26,19 @@ Repo supports parallel git worktrees with per-worktree port isolation (`CLIENT_P
 ## Commit conventions
 
 Commit style, required PR scopes (incl. multi-package comma scopes), screenshots flow, release flow, and pre-push checklist all live in [CONTRIBUTING.md](CONTRIBUTING.md). Read it before committing or opening a PR.
+
+## Agent skills
+
+Per-repo config the engineering skills read. Edit these files directly to change behaviour.
+
+### Issue tracker
+
+GitHub Issues on `IIxauII/hnch`, via the `gh` CLI. See [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md).
+
+### Triage labels
+
+The five canonical roles, each label string equal to its name. See [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md).
+
+### Domain docs
+
+Single-context: root `CONTEXT.md` + ADRs in `adr/`. See [`docs/agents/domain.md`](docs/agents/domain.md).
