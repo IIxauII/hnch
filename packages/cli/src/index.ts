@@ -18,6 +18,7 @@ import { loadConfig, readConfig, updateConfig } from './config.js';
 import { createSession, joinSession, wireSession } from './session.js';
 import { resolveRoom } from './relay-api.js';
 import {
+  AWARENESS_PARTICIPANT_ID_FIELD,
   BUILTIN_SCALES,
   hashPassword,
   joinDoc,
@@ -313,7 +314,7 @@ async function resumeEntry(
     ...(config.avatarColor !== undefined && { avatarColor: config.avatarColor }),
   });
 
-  awareness.setLocalStateField('participantId', config.participantId);
+  awareness.setLocalStateField(AWARENESS_PARTICIPANT_ID_FIELD, config.participantId);
 
   let hadWrongPassword = false;
   let hadRoomFull = false;

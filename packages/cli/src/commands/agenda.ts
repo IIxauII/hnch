@@ -13,6 +13,7 @@
 import * as Y from 'yjs';
 import { Awareness } from 'y-protocols/awareness';
 import {
+  AWARENESS_PARTICIPANT_ID_FIELD,
   joinDoc,
   projectDoc,
   appendAgendaItem,
@@ -66,7 +67,7 @@ async function openAgendaConnection(
     displayName: opts.displayName,
   });
 
-  awareness.setLocalStateField('participantId', opts.participantId);
+  awareness.setLocalStateField(AWARENESS_PARTICIPANT_ID_FIELD, opts.participantId);
 
   const session = wireSession({
     doc,

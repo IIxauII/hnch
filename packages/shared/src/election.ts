@@ -1,12 +1,25 @@
 /**
- * Host-election decision functions (ADR-0010, ADR-0048).
+ * Host election — rule *and* driver (ADR-0010, ADR-0048).
  *
  * Single source of truth for the host-election state machine, consumed by
- * both the Angular client (`HostElectionService`) and the Ink CLI
- * (`startElection`) per ADR-0021 parity. These are pure decision functions:
- * they read the shared `DocProjection` + raw awareness set and return the
- * action a driver must take. The debounce timer, `missingHostId` state, and
- * the doc write all live in each driver — never here.
+ * both the Angular client and the Ink CLI per ADR-0021 parity. This module
+ * owns three things:
+ *
+ *  1. The pure decision functions {@link evaluateElection} and
+ *     {@link resolvePromotion} — given a projection and an awareness set,
+ *     what should happen?
+ *  2. The driver {@link startElection} — the debounce timer, the
+ *     `missingHostId` state, the evaluation switch, and the decision to
+ *     promote. Consumers supply five framework-free callbacks; no `Y.Doc`,
+ *     `Awareness`, or Angular primitive crosses that seam.
+ *  3. {@link onlineIdsFrom}, the awareness→participantId extraction both
+ *     consumers feed the driver with.
+ *
+ * *When* to re-evaluate is part of the rule, not adapter business: both
+ * adapters subscribe the driver to any projection change plus any awareness
+ * change. That axis is exactly where the two hand-transcribed drivers
+ * previously drifted — a kicked host (`leftAt` set, awareness entry
+ * lingering) is a participants-map change and nothing else.
  *
  * Eligible peer set = **online ∩ active** (ADR-0048): the awareness set
  * intersected with non-`leftAt` participants. A kicked-but-lingering peer
@@ -25,6 +38,34 @@ import { isActiveParticipant } from './doc.js';
  * feel leaderless.
  */
 export const HOST_ABSENCE_ELECTION_DEBOUNCE_MS = 5_000;
+
+/**
+ * Awareness field name carrying a peer's `participantId`. The awareness
+ * channel is a client-side transport detail — the relay is content-blind
+ * (ADR-0001) and never reads it — but both clients must agree on the key,
+ * and the writers must agree with {@link onlineIdsFrom}, so it is named
+ * once here and imported at every read and write site.
+ */
+export const AWARENESS_PARTICIPANT_ID_FIELD = 'participantId';
+
+/**
+ * Extract the set of online participantIds from a raw awareness state map
+ * (`Awareness.getStates()`).
+ *
+ * Entries with a missing or non-string `participantId` are skipped: a peer
+ * that has connected but not yet published its local state is not online for
+ * election purposes. Single-sourced so a rename of the presence field cannot
+ * half-land across the CLI and the client.
+ */
+export function onlineIdsFrom(states: ReadonlyMap<number, unknown>): Set<string> {
+  const ids = new Set<string>();
+  for (const state of states.values()) {
+    if (typeof state !== 'object' || state === null) continue;
+    const value = (state as Record<string, unknown>)[AWARENESS_PARTICIPANT_ID_FIELD];
+    if (typeof value === 'string') ids.add(value);
+  }
+  return ids;
+}
 
 /**
  * The action a driver must take after re-evaluating the election on an
@@ -114,4 +155,112 @@ export function resolvePromotion(
   if (winner !== myId) return { promote: false };
 
   return { promote: true, winner };
+}
+
+// ---------------------------------------------------------------------------
+// Driver
+// ---------------------------------------------------------------------------
+
+/**
+ * The five callbacks a consumer supplies to drive an election. Deliberately
+ * framework-free: the client passes signal reads, the CLI passes closures
+ * over its `Y.Doc` and `Awareness`, and neither leaks its transport here.
+ */
+export interface ElectionDeps {
+  /** Live doc snapshot, or `null` when no session is attached. */
+  projection(): DocProjection | null;
+  /** Raw awareness set; intersected with the active set internally. */
+  onlineIds(): ReadonlySet<string>;
+  /** This peer's participantId, or `null` before it has resolved. */
+  myId(): string | null;
+  /**
+   * Register `cb` to fire on *any* projection change and *any* awareness
+   * change. Returns an unsubscribe function.
+   */
+  subscribe(cb: () => void): () => void;
+  /** Write the promotion. Only ever called on the winning peer. */
+  promote(winnerId: string): void;
+}
+
+export interface ElectionHandle {
+  /** Cancel any armed debounce and unsubscribe. Idempotent per consumer. */
+  stop(): void;
+}
+
+/**
+ * Start watching for host absence and elect a replacement when needed.
+ *
+ * Evaluates once synchronously on construction, then on every notification
+ * from {@link ElectionDeps.subscribe}. When the current host is absent, a
+ * {@link HOST_ABSENCE_ELECTION_DEBOUNCE_MS} timer is armed against that
+ * specific host id; a *different* host going missing mid-debounce re-keys
+ * the timer, and the host returning online-and-active cancels it.
+ *
+ * A `null` projection or a `null` own id cancels any armed timer and resets
+ * the missing-host state — a pending election must not survive teardown of
+ * the session it belongs to.
+ */
+export function startElection(deps: ElectionDeps): ElectionHandle {
+  /** The host id the current debounce was armed for, or `null`. */
+  let missingHostId: string | null = null;
+  let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  function cancelDebounce(): void {
+    if (debounceTimeout !== null) {
+      clearTimeout(debounceTimeout);
+      debounceTimeout = null;
+    }
+    missingHostId = null;
+  }
+
+  function tryPromote(): void {
+    debounceTimeout = null;
+    const cachedMissing = missingHostId;
+    missingHostId = null;
+
+    const projection = deps.projection();
+    const myId = deps.myId();
+    if (!projection || myId === null) return;
+
+    // Only the winner writes — every other peer stands down when it sees the
+    // doc update. If two peers compute different winners (awareness drift),
+    // Yjs merges deterministically and the loser re-reads (ADR-0010).
+    const result = resolvePromotion(projection, deps.onlineIds(), myId, cachedMissing);
+    if (result.promote) deps.promote(result.winner);
+  }
+
+  function evaluate(): void {
+    const projection = deps.projection();
+    if (!projection || deps.myId() === null) {
+      // No live session (or no identity yet) — nothing to elect against, and
+      // an armed timer would fire against a session we have already left.
+      cancelDebounce();
+      return;
+    }
+
+    const result = evaluateElection(projection, deps.onlineIds(), { missingHostId });
+
+    switch (result.kind) {
+      case 'cancel':
+        cancelDebounce();
+        break;
+      case 'start-debounce':
+        cancelDebounce();
+        missingHostId = result.hostId;
+        debounceTimeout = setTimeout(tryPromote, HOST_ABSENCE_ELECTION_DEBOUNCE_MS);
+        break;
+      case 'none':
+        break;
+    }
+  }
+
+  const unsubscribe = deps.subscribe(evaluate);
+  evaluate();
+
+  return {
+    stop(): void {
+      cancelDebounce();
+      unsubscribe();
+    },
+  };
 }
