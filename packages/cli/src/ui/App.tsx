@@ -2,9 +2,16 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
 import type { SessionHandle } from '../session.js';
 import type { SyncStatus } from '../sync.js';
-import type { DocProjection, Round, Scale, PresetOverrides, CustomScale } from '@hnch/shared';
+import type {
+  DocProjection,
+  Round,
+  Scale,
+  PresetOverrides,
+  CustomScale,
+  RosterResult,
+} from '@hnch/shared';
 import {
-  appendAgendaItem,
+  addItem as addAgendaItem,
   canEnterTerminal,
   currentRound,
   isTerminalStatus,
@@ -25,6 +32,18 @@ import { Lobby } from './Lobby.js';
 import { exportResultsToClipboard } from './lobby-helpers.js';
 import { Voting } from './Voting.js';
 import { useTransientNotice } from './hooks/useTransientNotice.js';
+
+/**
+ * Human copy for a roster refusal the TUI can hit. `'self-target'` is not
+ * reachable from the handoff affordance (the list excludes you), but the
+ * union is one per module, so it gets a sentence rather than a cast.
+ */
+const HANDOFF_REFUSAL: Record<Extract<RosterResult, { applied: false }>['reason'], string> = {
+  'not-host': 'only the current host can hand off',
+  'not-found': 'that participant is not in the session',
+  'not-online': 'that participant is offline',
+  'self-target': 'you already hold host',
+};
 
 interface Props {
   session: SessionHandle;
@@ -300,10 +319,11 @@ export function App({
 
   const handleHandoffHost = useCallback(
     (targetId: string) => {
-      try {
-        session.handoffHost(targetId);
-      } catch (err) {
-        console.error(`Handoff failed: ${err instanceof Error ? err.message : String(err)}`);
+      // The shared roster command refuses rather than throwing, so the TUI
+      // branches on the reason instead of catching to stay alive (#507).
+      const result = session.handoffHost(targetId);
+      if (!result.applied) {
+        console.error(`Handoff failed: ${HANDOFF_REFUSAL[result.reason]}`);
       }
     },
     [session],
@@ -384,10 +404,11 @@ export function App({
         return;
       }
 
-      appendAgendaItem(session.doc, {
+      // The shared command stamps `createdAt` and refuses an item with
+      // neither field — the guard above already covers that case (#507).
+      addAgendaItem(session.doc, {
         ...(pendingAgendaTitle !== undefined && { title: pendingAgendaTitle }),
         ...(normalizedTicket !== undefined && { ticketId: normalizedTicket }),
-        createdAt: Date.now(),
       });
       setPendingAgendaTitle(undefined);
     },

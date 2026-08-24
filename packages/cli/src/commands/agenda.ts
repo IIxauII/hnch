@@ -14,12 +14,14 @@ import * as Y from 'yjs';
 import { Awareness } from 'y-protocols/awareness';
 import {
   AWARENESS_PARTICIPANT_ID_FIELD,
+  addItem,
+  cancelItem,
   joinDoc,
+  moveItem,
   projectDoc,
-  appendAgendaItem,
-  setAgendaItemState,
-  reorderAgendaItem,
+  skipItem,
   type AgendaItem,
+  type AgendaResult,
 } from '@hnch/shared';
 import { loadConfig } from '../config.js';
 import { readEntries } from '../last-session.js';
@@ -47,6 +49,22 @@ export function agendaItemLabel(item: AgendaItem): string {
   return `${marker} ${label}`;
 }
 
+/**
+ * Human copy for an agenda command's refusal. The commands return a reason
+ * rather than throwing (#507), so the one-shot subcommands print the same
+ * sentence for the same cause instead of surfacing a writer's error string.
+ */
+function agendaRefusal(reason: Extract<AgendaResult, { applied: false }>['reason']): string {
+  switch (reason) {
+    case 'not-found':
+      return 'no agenda item with that id';
+    case 'not-pending':
+      return 'the item is no longer pending — a peer may have skipped, cancelled or estimated it';
+    case 'invalid-fields':
+      return 'an agenda item needs at least one of --title or --ticket';
+  }
+}
+
 interface AgendaConnectionOpts {
   relayUrl: string;
   participantId: string;
@@ -65,6 +83,7 @@ async function openAgendaConnection(
   joinDoc(doc, {
     participantId: opts.participantId,
     displayName: opts.displayName,
+    joinedAt: Date.now(),
   });
 
   awareness.setLocalStateField(AWARENESS_PARTICIPANT_ID_FIELD, opts.participantId);
@@ -152,17 +171,21 @@ export async function handleAgendaAdd(argv: {
   });
 
   try {
-    const id = appendAgendaItem(doc, {
+    // The command stamps `createdAt` — no hand-rolled clock at the call site.
+    const result = addItem(doc, {
       ...(argv.title?.trim() ? { title: argv.title.trim() } : {}),
       ...(argv.ticket?.trim() ? { ticketId: argv.ticket.trim() } : {}),
       ...(argv.description?.trim() ? { description: argv.description.trim() } : {}),
-      createdAt: Date.now(),
     });
+    if (!result.applied) {
+      console.error(`Add failed: ${agendaRefusal(result.reason)}`);
+      process.exit(1);
+    }
     // Allow write to propagate
     await new Promise<void>((resolve) => {
       setTimeout(resolve, 300);
     });
-    console.log(`Added agenda item: ${id}`);
+    console.log(`Added agenda item: ${result.id}`);
   } finally {
     disconnect();
   }
@@ -224,14 +247,15 @@ export async function handleAgendaSkip(argv: { id: string }): Promise<void> {
   });
 
   try {
-    setAgendaItemState(doc, argv.id, 'skipped', { timestamp: Date.now() });
+    const result = skipItem(doc, argv.id);
+    if (!result.applied) {
+      console.error(`Skip failed: ${agendaRefusal(result.reason)}`);
+      process.exit(1);
+    }
     await new Promise<void>((resolve) => {
       setTimeout(resolve, 300);
     });
     console.log(`Skipped agenda item: ${argv.id}`);
-  } catch (err) {
-    console.error(`Skip failed: ${err instanceof Error ? err.message : String(err)}`);
-    process.exit(1);
   } finally {
     disconnect();
   }
@@ -258,14 +282,15 @@ export async function handleAgendaCancel(argv: { id: string }): Promise<void> {
   });
 
   try {
-    setAgendaItemState(doc, argv.id, 'cancelled', { timestamp: Date.now() });
+    const result = cancelItem(doc, argv.id);
+    if (!result.applied) {
+      console.error(`Cancel failed: ${agendaRefusal(result.reason)}`);
+      process.exit(1);
+    }
     await new Promise<void>((resolve) => {
       setTimeout(resolve, 300);
     });
     console.log(`Cancelled agenda item: ${argv.id}`);
-  } catch (err) {
-    console.error(`Cancel failed: ${err instanceof Error ? err.message : String(err)}`);
-    process.exit(1);
   } finally {
     disconnect();
   }
@@ -296,14 +321,15 @@ export async function handleAgendaMv(argv: {
   });
 
   try {
-    reorderAgendaItem(doc, argv.id, argv.before, argv.after);
+    const result = moveItem(doc, argv.id, argv.before, argv.after);
+    if (!result.applied) {
+      console.error(`Move failed: ${agendaRefusal(result.reason)}`);
+      process.exit(1);
+    }
     await new Promise<void>((resolve) => {
       setTimeout(resolve, 300);
     });
     console.log(`Reordered agenda item: ${argv.id}`);
-  } catch (err) {
-    console.error(`Move failed: ${err instanceof Error ? err.message : String(err)}`);
-    process.exit(1);
   } finally {
     disconnect();
   }

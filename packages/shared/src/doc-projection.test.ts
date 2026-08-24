@@ -19,7 +19,6 @@ import {
   appendRound,
   castVote,
   clearVote,
-  consumeAgendaItem,
   currentRound,
   discardRound,
   DOC_META_KEY,
@@ -311,7 +310,12 @@ describe('initDoc avatarColor plumbing (ADR-0043)', () => {
 describe('joinDoc avatarColor plumbing (ADR-0043)', () => {
   it('writes avatarColor on the joining participant when provided', () => {
     const doc = new Y.Doc();
-    joinDoc(doc, { participantId: 'p-joiner', displayName: 'B', avatarColor: 'green' });
+    joinDoc(doc, {
+      participantId: 'p-joiner',
+      displayName: 'B',
+      joinedAt: 1_700_000_001_000,
+      avatarColor: 'green',
+    });
     const snap = projectDoc(doc);
     const joiner = snap.participants.find((p) => p.id === 'p-joiner');
     expect(joiner?.avatarColor).toBe('green');
@@ -319,9 +323,18 @@ describe('joinDoc avatarColor plumbing (ADR-0043)', () => {
 
   it('preserves prior avatarColor on rejoin when init omits the field', () => {
     const doc = new Y.Doc();
-    joinDoc(doc, { participantId: 'p-joiner', displayName: 'B', avatarColor: 'green' });
+    joinDoc(doc, {
+      participantId: 'p-joiner',
+      displayName: 'B',
+      joinedAt: 1_700_000_001_000,
+      avatarColor: 'green',
+    });
     // Re-join (e.g. after leave) with no color in init.
-    joinDoc(doc, { participantId: 'p-joiner', displayName: 'B (again)' });
+    joinDoc(doc, {
+      participantId: 'p-joiner',
+      displayName: 'B (again)',
+      joinedAt: 1_700_000_001_000,
+    });
     const joiner = projectDoc(doc).participants.find((p) => p.id === 'p-joiner');
     expect(joiner?.avatarColor).toBe('green');
     expect(joiner?.displayName).toBe('B (again)');
@@ -982,14 +995,10 @@ describe('participant role projection round-trip', () => {
 // ---------------------------------------------------------------------------
 
 describe('endSessionForEveryone', () => {
-  it('writes sessionEndedAt to meta projection', () => {
+  it('writes the caller-supplied endedAt to meta projection', () => {
     const { doc } = seedDoc();
-    const before = Date.now();
-    endSessionForEveryone(doc);
-    const after = Date.now();
-    const snap = projectDoc(doc);
-    expect(snap.meta.sessionEndedAt).toBeGreaterThanOrEqual(before);
-    expect(snap.meta.sessionEndedAt).toBeLessThanOrEqual(after);
+    endSessionForEveryone(doc, 1_700_000_500_000);
+    expect(projectDoc(doc).meta.sessionEndedAt).toBe(1_700_000_500_000);
   });
 
   it('sessionEndedAt is undefined when not set', () => {
@@ -998,13 +1007,12 @@ describe('endSessionForEveryone', () => {
     expect(snap.meta.sessionEndedAt).toBeUndefined();
   });
 
-  it('is idempotent — second call overwrites with a new timestamp', () => {
+  it('is idempotent — second call overwrites with the newer timestamp', () => {
     const { doc } = seedDoc();
-    endSessionForEveryone(doc);
-    const first = projectDoc(doc).meta.sessionEndedAt!;
-    endSessionForEveryone(doc);
-    const second = projectDoc(doc).meta.sessionEndedAt!;
-    expect(second).toBeGreaterThanOrEqual(first);
+    endSessionForEveryone(doc, 1_700_000_500_000);
+    expect(projectDoc(doc).meta.sessionEndedAt).toBe(1_700_000_500_000);
+    endSessionForEveryone(doc, 1_700_000_600_000);
+    expect(projectDoc(doc).meta.sessionEndedAt).toBe(1_700_000_600_000);
   });
 });
 
@@ -1053,28 +1061,24 @@ describe('isActiveParticipant', () => {
 // ---------------------------------------------------------------------------
 
 describe('leaveSession', () => {
-  it('sets leftAt and removedBy=selfId on the participant record', () => {
+  it('sets the caller-supplied leftAt and removedBy=selfId on the record', () => {
     const { doc } = seedDoc();
-    const before = Date.now();
-    leaveSession(doc, 'p-host');
-    const after = Date.now();
-    const snap = projectDoc(doc);
-    const p = snap.participants[0]!;
-    expect(p.leftAt).toBeGreaterThanOrEqual(before);
-    expect(p.leftAt).toBeLessThanOrEqual(after);
+    leaveSession(doc, 'p-host', 1_700_000_500_000);
+    const p = projectDoc(doc).participants[0]!;
+    expect(p.leftAt).toBe(1_700_000_500_000);
     expect(p.removedBy).toBe('p-host');
   });
 
   it('marks the participant as inactive after leave', () => {
     const { doc } = seedDoc();
-    leaveSession(doc, 'p-host');
+    leaveSession(doc, 'p-host', 1_700_000_500_000);
     const p = projectDoc(doc).participants[0]!;
     expect(isActiveParticipant(p)).toBe(false);
   });
 
   it('is a no-op when participant record is missing', () => {
     const { doc } = seedDoc();
-    expect(() => leaveSession(doc, 'nonexistent-id')).not.toThrow();
+    expect(() => leaveSession(doc, 'nonexistent-id', 1_700_000_500_000)).not.toThrow();
     const snap = projectDoc(doc);
     expect(snap.participants).toHaveLength(1);
     expect(snap.participants[0]!.leftAt).toBeUndefined();
@@ -1087,7 +1091,7 @@ describe('leaveSession', () => {
       txCount += 1;
     };
     doc.on('afterTransaction', handler);
-    leaveSession(doc, 'p-host');
+    leaveSession(doc, 'p-host', 1_700_000_500_000);
     doc.off('afterTransaction', handler);
     expect(txCount).toBe(1);
   });
@@ -1098,23 +1102,19 @@ describe('leaveSession', () => {
 // ---------------------------------------------------------------------------
 
 describe('removeParticipant', () => {
-  it('sets leftAt and removedBy=hostId on the target record', () => {
+  it('sets the caller-supplied leftAt and removedBy=hostId on the target record', () => {
     const { doc } = seedDoc();
     upsertParticipant(doc, 'p-bob', { displayName: 'Bob', joinedAt: 1_700_000_001_000 });
-    const before = Date.now();
-    removeParticipant(doc, 'p-host', 'p-bob');
-    const after = Date.now();
-    const snap = projectDoc(doc);
-    const bob = snap.participants.find((p) => p.id === 'p-bob')!;
-    expect(bob.leftAt).toBeGreaterThanOrEqual(before);
-    expect(bob.leftAt).toBeLessThanOrEqual(after);
+    removeParticipant(doc, 'p-host', 'p-bob', 1_700_000_500_000);
+    const bob = projectDoc(doc).participants.find((p) => p.id === 'p-bob')!;
+    expect(bob.leftAt).toBe(1_700_000_500_000);
     expect(bob.removedBy).toBe('p-host');
   });
 
   it('marks the target as inactive after kick', () => {
     const { doc } = seedDoc();
     upsertParticipant(doc, 'p-bob', { displayName: 'Bob', joinedAt: 1_700_000_001_000 });
-    removeParticipant(doc, 'p-host', 'p-bob');
+    removeParticipant(doc, 'p-host', 'p-bob', 1_700_000_500_000);
     const bob = projectDoc(doc).participants.find((p) => p.id === 'p-bob')!;
     expect(isActiveParticipant(bob)).toBe(false);
   });
@@ -1122,14 +1122,14 @@ describe('removeParticipant', () => {
   it('does not touch the host record', () => {
     const { doc } = seedDoc();
     upsertParticipant(doc, 'p-bob', { displayName: 'Bob', joinedAt: 1_700_000_001_000 });
-    removeParticipant(doc, 'p-host', 'p-bob');
+    removeParticipant(doc, 'p-host', 'p-bob', 1_700_000_500_000);
     const host = projectDoc(doc).participants.find((p) => p.id === 'p-host')!;
     expect(isActiveParticipant(host)).toBe(true);
   });
 
   it('is a no-op when targetId === hostId (self-kick must use leaveSession)', () => {
     const { doc } = seedDoc();
-    removeParticipant(doc, 'p-host', 'p-host');
+    removeParticipant(doc, 'p-host', 'p-host', 1_700_000_500_000);
     const host = projectDoc(doc).participants[0]!;
     expect(host.leftAt).toBeUndefined();
     expect(host.removedBy).toBeUndefined();
@@ -1137,7 +1137,9 @@ describe('removeParticipant', () => {
 
   it('is a no-op when target record is missing', () => {
     const { doc } = seedDoc();
-    expect(() => removeParticipant(doc, 'p-host', 'nonexistent-id')).not.toThrow();
+    expect(() =>
+      removeParticipant(doc, 'p-host', 'nonexistent-id', 1_700_000_500_000),
+    ).not.toThrow();
   });
 });
 
@@ -1148,10 +1150,10 @@ describe('removeParticipant', () => {
 describe('joinDoc re-join clears leftAt / removedBy', () => {
   it('clears leftAt and removedBy when participant re-joins after leave', () => {
     const { doc } = seedDoc();
-    leaveSession(doc, 'p-host');
+    leaveSession(doc, 'p-host', 1_700_000_500_000);
     expect(projectDoc(doc).participants[0]!.leftAt).toBeDefined();
 
-    joinDoc(doc, { participantId: 'p-host', displayName: 'Alice' });
+    joinDoc(doc, { participantId: 'p-host', displayName: 'Alice', joinedAt: 1_700_000_001_000 });
     const snap = projectDoc(doc);
     const p = snap.participants[0]!;
     expect(p.leftAt).toBeUndefined();
@@ -1162,10 +1164,10 @@ describe('joinDoc re-join clears leftAt / removedBy', () => {
   it('clears leftAt and removedBy when participant re-joins after kick', () => {
     const { doc } = seedDoc();
     upsertParticipant(doc, 'p-bob', { displayName: 'Bob', joinedAt: 1_700_000_001_000 });
-    removeParticipant(doc, 'p-host', 'p-bob');
+    removeParticipant(doc, 'p-host', 'p-bob', 1_700_000_500_000);
     expect(projectDoc(doc).participants.find((p) => p.id === 'p-bob')!.leftAt).toBeDefined();
 
-    joinDoc(doc, { participantId: 'p-bob', displayName: 'Bob' });
+    joinDoc(doc, { participantId: 'p-bob', displayName: 'Bob', joinedAt: 1_700_000_001_000 });
     const bob = projectDoc(doc).participants.find((p) => p.id === 'p-bob')!;
     expect(bob.leftAt).toBeUndefined();
     expect(bob.removedBy).toBeUndefined();
@@ -1173,21 +1175,21 @@ describe('joinDoc re-join clears leftAt / removedBy', () => {
 
   it('preserves joinedAt on re-join', () => {
     const { doc, init } = seedDoc();
-    leaveSession(doc, 'p-host');
-    joinDoc(doc, { participantId: 'p-host', displayName: 'Alice' });
+    leaveSession(doc, 'p-host', 1_700_000_500_000);
+    joinDoc(doc, { participantId: 'p-host', displayName: 'Alice', joinedAt: 1_700_000_001_000 });
     const p = projectDoc(doc).participants[0]!;
     expect(p.joinedAt).toBe(init.createdAt);
   });
 
-  it('creates a new record with joinedAt when participant is new', () => {
+  it('creates a new record with the caller-supplied joinedAt', () => {
     const { doc } = seedDoc();
-    const before = Date.now();
-    joinDoc(doc, { participantId: 'p-new', displayName: 'New Person' });
-    const after = Date.now();
-    const snap = projectDoc(doc);
-    const p = snap.participants.find((pp) => pp.id === 'p-new')!;
-    expect(p.joinedAt).toBeGreaterThanOrEqual(before);
-    expect(p.joinedAt).toBeLessThanOrEqual(after);
+    joinDoc(doc, {
+      participantId: 'p-new',
+      displayName: 'New Person',
+      joinedAt: 1_700_000_001_000,
+    });
+    const p = projectDoc(doc).participants.find((pp) => pp.id === 'p-new')!;
+    expect(p.joinedAt).toBe(1_700_000_001_000);
     expect(p.leftAt).toBeUndefined();
   });
 });
@@ -1212,7 +1214,7 @@ describe('auto-reveal denominator excludes left voters', () => {
     appendRound(doc, { id: 'r1', createdAt: 10, createdBy: 'p-a' });
 
     // p-c leaves without voting.
-    leaveSession(doc, 'p-c');
+    leaveSession(doc, 'p-c', 1_700_000_500_000);
 
     // p-a and p-b vote.
     castVote(doc, 'r1', 'p-a', '5');
@@ -1294,8 +1296,8 @@ describe('concurrent leaveSession + removeParticipant converge (ADR-0036 §7)', 
     Y.applyUpdate(docB, initialUpdate);
 
     // Concurrent writes: target leaves on docA, host kicks target on docB.
-    leaveSession(docA, 'p-target');
-    removeParticipant(docB, 'p-host', 'p-target');
+    leaveSession(docA, 'p-target', 1_700_000_500_000);
+    removeParticipant(docB, 'p-host', 'p-target', 1_700_000_500_000);
 
     // Exchange updates — each doc sees the other's write.
     Y.applyUpdate(docB, Y.encodeStateAsUpdate(docA));
@@ -1537,7 +1539,7 @@ describe('updateAgendaItemFields', () => {
 
   it('allows update when item is consumed', () => {
     const { doc, id } = makeItemDoc();
-    consumeAgendaItem(doc, id, 'round-1', 1_000);
+    setAgendaItemState(doc, id, 'consumed', { consumedByRoundId: 'round-1', timestamp: 1_000 });
     updateAgendaItemFields(doc, id, { description: 'Post-consume edit' });
     const item = projectDoc(doc).agenda.find((a) => a.id === id)!;
     expect(item.description).toBe('Post-consume edit');
@@ -1610,18 +1612,31 @@ describe('setAgendaItemState', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Agenda — consumeAgendaItem
+// Agenda — consuming an item (ADR-0045)
 // ---------------------------------------------------------------------------
 
-describe('consumeAgendaItem', () => {
+describe('setAgendaItemState — consume', () => {
   it('sets state=consumed, consumedAt, consumedByRoundId atomically', () => {
     const { doc } = seedDoc();
     const id = appendAgendaItem(doc, { title: 'X', createdAt: 1 });
-    consumeAgendaItem(doc, id, 'round-42', 1_700_000_002_000);
+    setAgendaItemState(doc, id, 'consumed', {
+      consumedByRoundId: 'round-42',
+      timestamp: 1_700_000_002_000,
+    });
     const item = projectDoc(doc).agenda.find((a) => a.id === id)!;
     expect(item.state).toBe('consumed');
     expect(item.consumedAt).toBe(1_700_000_002_000);
     expect(item.consumedByRoundId).toBe('round-42');
+  });
+
+  it('throws rather than reaching for the ambient clock when timestamp is omitted', () => {
+    const { doc } = seedDoc();
+    const id = appendAgendaItem(doc, { title: 'X', createdAt: 1 });
+    expect(() => setAgendaItemState(doc, id, 'consumed', { consumedByRoundId: 'r1' })).toThrow(
+      /timestamp is required/i,
+    );
+    // Refused write leaves the item untouched.
+    expect(projectDoc(doc).agenda.find((a) => a.id === id)!.state).toBe('pending');
   });
 });
 
@@ -1651,7 +1666,7 @@ describe('reorderAgendaItem', () => {
   it('rejects reorder of consumed item', () => {
     const { doc } = seedDoc();
     const id = appendAgendaItem(doc, { title: 'X', createdAt: 1 });
-    consumeAgendaItem(doc, id, 'r1', 1);
+    setAgendaItemState(doc, id, 'consumed', { consumedByRoundId: 'r1', timestamp: 1 });
     expect(() => reorderAgendaItem(doc, id, null, null)).toThrow(/consumed|pending/i);
   });
 
@@ -1700,7 +1715,7 @@ describe('appendRound with agendaItemId', () => {
     const { doc } = seedDoc();
     const agendaId = appendAgendaItem(doc, { title: 'Story', createdAt: 1 });
     appendRound(doc, { id: 'r1', createdAt: 2, createdBy: 'p-host', agendaItemId: agendaId });
-    consumeAgendaItem(doc, agendaId, 'r1', 2);
+    setAgendaItemState(doc, agendaId, 'consumed', { consumedByRoundId: 'r1', timestamp: 2 });
 
     // Re-vote: pass parent's agendaItemId unchanged.
     appendRound(doc, {
@@ -1751,7 +1766,7 @@ describe('nextPendingAgendaItem', () => {
     const { doc } = seedDoc();
     const idA = appendAgendaItem(doc, { title: 'A', createdAt: 1 });
     const idB = appendAgendaItem(doc, { title: 'B', createdAt: 2 });
-    consumeAgendaItem(doc, idA, 'r1', 100);
+    setAgendaItemState(doc, idA, 'consumed', { consumedByRoundId: 'r1', timestamp: 100 });
     const next = nextPendingAgendaItem(projectDoc(doc));
     expect(next!.id).toBe(idB);
   });
@@ -1787,7 +1802,7 @@ describe('agenda projection sort', () => {
     const idC = appendAgendaItem(doc, { title: 'Consumed', createdAt: 2 });
     const idS = appendAgendaItem(doc, { title: 'Skipped', createdAt: 3 });
     const idX = appendAgendaItem(doc, { title: 'Cancelled', createdAt: 4 });
-    consumeAgendaItem(doc, idC, 'r1', 100);
+    setAgendaItemState(doc, idC, 'consumed', { consumedByRoundId: 'r1', timestamp: 100 });
     setAgendaItemState(doc, idS, 'skipped');
     setAgendaItemState(doc, idX, 'cancelled');
     const snap = projectDoc(doc);

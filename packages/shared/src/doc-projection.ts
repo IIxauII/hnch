@@ -334,6 +334,13 @@ export interface JoinDocInit {
   readonly participantId: string;
   readonly displayName: string;
   /**
+   * Unix milliseconds stamped as `joinedAt` when the participant record is
+   * created. Required: no writer in this package reaches for the ambient
+   * clock, so every timestamp in the doc is traceable to a caller (#507).
+   * Ignored on re-join — an existing record keeps its original `joinedAt`.
+   */
+  readonly joinedAt: number;
+  /**
    * Optional avatar color wire value (ADR-0043). When provided, written
    * on join so peers see this user's color immediately. Pre-validated
    * by the caller via `parseAvatarColor`.
@@ -358,7 +365,7 @@ export function joinDoc(doc: Y.Doc, init: JoinDocInit): void {
     const target = existing ?? new Y.Map<unknown>();
     target.set('displayName', init.displayName);
     if (existing === undefined) {
-      target.set('joinedAt', Date.now());
+      target.set('joinedAt', init.joinedAt);
     }
     if (init.avatarColor !== undefined) {
       target.set('avatarColor', init.avatarColor);
@@ -377,10 +384,25 @@ export function joinDoc(doc: Y.Doc, init: JoinDocInit): void {
 // ---------------------------------------------------------------------------
 
 /**
+ * The settings a caller outside this package may patch. Excludes
+ * `hostParticipantId`: host changes are a *roster* act with rules attached
+ * (handoff needs authority + an online target; election needs neither), so
+ * they can only be expressed through `roster-commands` (#507). Narrowing the
+ * public parameter type turns that routing from a convention into a
+ * guarantee — a stray `patchSettings(doc, { hostParticipantId })` no longer
+ * typechecks.
+ */
+export type PublicSettingsPatch = Partial<Omit<Settings, 'hostParticipantId'>>;
+
+/**
  * Shallow-merge patch into `settings`. `undefined` values explicitly
  * delete the key.
+ *
+ * Full-width (host field included) and therefore **package-internal** — the
+ * roster commands are its only privileged caller. Everyone else goes through
+ * `patchSettings`.
  */
-export function patchSettings(doc: Y.Doc, patch: Partial<Settings>): void {
+export function patchSettingsInternal(doc: Y.Doc, patch: Partial<Settings>): void {
   doc.transact(() => {
     const s = settingsMap(doc);
     for (const [k, v] of Object.entries(patch)) {
@@ -391,6 +413,15 @@ export function patchSettings(doc: Y.Doc, patch: Partial<Settings>): void {
       }
     }
   });
+}
+
+/**
+ * Public settings writer. Shallow-merges `patch` into `settings`;
+ * `undefined` values explicitly delete the key. Cannot express a host
+ * change — see `PublicSettingsPatch`.
+ */
+export function patchSettings(doc: Y.Doc, patch: PublicSettingsPatch): void {
+  patchSettingsInternal(doc, patch);
 }
 
 /**
@@ -681,13 +712,16 @@ export function discardRound(
 }
 
 /**
- * Mark the session as ended by writing `sessionEndedAt` to meta. Only the
- * host should call this. Idempotent — concurrent writes merge harmlessly
- * (last-write-wins on a Y.Map key is fine for a monotonic timestamp).
+ * Mark the session as ended by writing `sessionEndedAt` to meta. Idempotent —
+ * concurrent writes merge harmlessly (last-write-wins on a Y.Map key is fine
+ * for a monotonic timestamp).
+ *
+ * Ungated: the host rule lives in `roster-commands`' `endSession`, which is
+ * this writer's only caller.
  */
-export function endSessionForEveryone(doc: Y.Doc): void {
+export function endSessionForEveryone(doc: Y.Doc, endedAt: number): void {
   doc.transact(() => {
-    metaMap(doc).set('sessionEndedAt', Date.now());
+    metaMap(doc).set('sessionEndedAt', endedAt);
   });
 }
 
@@ -700,12 +734,12 @@ export function endSessionForEveryone(doc: Y.Doc): void {
  * Tab-close / network drop do NOT call this — they are handled by Yjs
  * awareness. Only intentional "Leave Session" actions route here.
  */
-export function leaveSession(doc: Y.Doc, selfId: string): void {
+export function leaveSession(doc: Y.Doc, selfId: string, leftAt: number): void {
   const pMap = participantsMap(doc);
   const record = pMap.get(selfId);
   if (!record) return;
   doc.transact(() => {
-    record.set('leftAt', Date.now());
+    record.set('leftAt', leftAt);
     record.set('removedBy', selfId);
   });
 }
@@ -717,16 +751,22 @@ export function leaveSession(doc: Y.Doc, selfId: string): void {
  * No-op when `targetId === hostId` — the host kicking themselves must route
  * through `leaveSession` instead. No-op if the target record is missing.
  *
- * No host-validity check is performed here; the UI gates on `isHost()`
- * exactly as the End-Session control does per ADR-0023.
+ * No host-validity check is performed here: the authority gate lives in
+ * `roster-commands`' `kick`, which is this writer's only caller, and which
+ * turns both no-ops above into typed refusals.
  */
-export function removeParticipant(doc: Y.Doc, hostId: string, targetId: string): void {
+export function removeParticipant(
+  doc: Y.Doc,
+  hostId: string,
+  targetId: string,
+  leftAt: number,
+): void {
   if (targetId === hostId) return;
   const pMap = participantsMap(doc);
   const record = pMap.get(targetId);
   if (!record) return;
   doc.transact(() => {
-    record.set('leftAt', Date.now());
+    record.set('leftAt', leftAt);
     record.set('removedBy', hostId);
   });
 }
@@ -914,6 +954,11 @@ export function updateAgendaItemFields(
  */
 export interface SetAgendaItemStateOpts {
   readonly consumedByRoundId?: string;
+  /**
+   * Unix milliseconds written to `consumedAt`. Required when `state` is
+   * `'consumed'` and ignored otherwise — `'skipped'` and `'cancelled'`
+   * persist no timestamp. There is no ambient-clock fallback (#507).
+   */
   readonly timestamp?: number;
 }
 
@@ -925,8 +970,15 @@ export interface SetAgendaItemStateOpts {
  * - `consumed` → `consumed` (idempotent)
  * - All other transitions are rejected.
  *
- * When transitioning to `consumed`, writes `consumedAt` (from `opts.timestamp`
- * or `Date.now()`) and `consumedByRoundId` (when provided).
+ * When transitioning to `consumed`, writes `consumedAt` from
+ * `opts.timestamp` — required for that state, and throws when absent rather
+ * than reaching for the ambient clock — plus `consumedByRoundId` (when
+ * provided). `'skipped'` and `'cancelled'` persist no timestamp.
+ *
+ * Note that consumption in production does *not* run through here: it happens
+ * inside `maybeConsumeLinkedAgendaItem` at round terminal, in the same
+ * transaction as the reveal/skip write (ADR-0045). The `'consumed'` branch
+ * below is the writer's transition table staying complete, not a live path.
  */
 export function setAgendaItemState(
   doc: Y.Doc,
@@ -951,27 +1003,19 @@ export function setAgendaItemState(
     );
   }
 
+  if (state === 'consumed' && opts.timestamp === undefined) {
+    throw new Error(`setAgendaItemState: timestamp is required when consuming item ${id}`);
+  }
+
   doc.transact(() => {
     item.set('state', state);
     if (state === 'consumed') {
-      item.set('consumedAt', opts.timestamp ?? Date.now());
+      item.set('consumedAt', opts.timestamp);
       if (opts.consumedByRoundId !== undefined) {
         item.set('consumedByRoundId', opts.consumedByRoundId);
       }
     }
   });
-}
-
-/**
- * Convenience wrapper: mark an agenda item as consumed by a specific round.
- */
-export function consumeAgendaItem(
-  doc: Y.Doc,
-  id: string,
-  roundId: string,
-  timestamp: number,
-): void {
-  setAgendaItemState(doc, id, 'consumed', { consumedByRoundId: roundId, timestamp });
 }
 
 /**
