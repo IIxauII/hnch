@@ -11,17 +11,13 @@
 
 import React from 'react';
 import { render } from 'ink-testing-library';
-import { act } from 'react';
+import { press, renderInk } from '../test-harness.js';
 import { describe, expect, it, vi } from 'vitest';
 import type { Scale } from '@hnch/shared';
 
 import { CardPicker } from './CardPicker.js';
 
 const SCALE: Scale = { id: 'fibonacci', cards: ['1', '3', '5', '8'] };
-
-async function flush(): Promise<void> {
-  await new Promise((r) => setImmediate(r));
-}
 
 // ---------------------------------------------------------------------------
 // Rendering
@@ -65,82 +61,57 @@ describe('CardPicker — rendering', () => {
 describe('CardPicker — keyboard interactions', () => {
   it('enter at cursor=0 (default) calls onToggleCurrentVote with the first card', async () => {
     const onToggleCurrentVote = vi.fn();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <CardPicker
         scale={SCALE}
         onToggleCurrentVote={onToggleCurrentVote}
         onClearCurrentVote={vi.fn()}
       />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('\r');
-      await flush();
-    });
+    await press(stdin, '\r');
     expect(onToggleCurrentVote).toHaveBeenCalledWith('1');
   });
 
   it('right arrow moves cursor: enter then toggles second card', async () => {
     const onToggleCurrentVote = vi.fn();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <CardPicker
         scale={SCALE}
         onToggleCurrentVote={onToggleCurrentVote}
         onClearCurrentVote={vi.fn()}
       />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('\x1b[C'); // right arrow
-      await flush();
-    });
-    await act(async () => {
-      stdin.write('\r');
-      await flush();
-    });
+    await press(stdin, '\x1b[C'); // right arrow
+    await press(stdin, '\r');
     expect(onToggleCurrentVote).toHaveBeenCalledWith('3');
   });
 
   it('left arrow at cursor=0 is clamped: enter still toggles first card', async () => {
     const onToggleCurrentVote = vi.fn();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <CardPicker
         scale={SCALE}
         onToggleCurrentVote={onToggleCurrentVote}
         onClearCurrentVote={vi.fn()}
       />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('\x1b[D'); // left arrow — already at 0, clamps
-      await flush();
-    });
-    await act(async () => {
-      stdin.write('\r');
-      await flush();
-    });
+    await press(stdin, '\x1b[D'); // left arrow — already at 0, clamps
+    await press(stdin, '\r');
     expect(onToggleCurrentVote).toHaveBeenCalledWith('1');
   });
 
   it('multiple right arrows move cursor to third card', async () => {
     const onToggleCurrentVote = vi.fn();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <CardPicker
         scale={SCALE}
         onToggleCurrentVote={onToggleCurrentVote}
         onClearCurrentVote={vi.fn()}
       />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('\x1b[C'); // right
-      stdin.write('\x1b[C'); // right → cursor at index 2
-      await flush();
-    });
-    await act(async () => {
-      stdin.write('\r');
-      await flush();
-    });
+    await press(stdin, '\x1b[C'); // right
+    await press(stdin, '\x1b[C'); // right → cursor at index 2
+    await press(stdin, '\r');
     expect(onToggleCurrentVote).toHaveBeenCalledWith('5');
   });
 
@@ -148,7 +119,7 @@ describe('CardPicker — keyboard interactions', () => {
     const onToggleCurrentVote = vi.fn();
     const onClearCurrentVote = vi.fn();
     // selected='1' is cards[0]; cursor starts at 0
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <CardPicker
         scale={SCALE}
         selected="1"
@@ -156,11 +127,7 @@ describe('CardPicker — keyboard interactions', () => {
         onClearCurrentVote={onClearCurrentVote}
       />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('\r');
-      await flush();
-    });
+    await press(stdin, '\r');
     // Enter always emits toggle intent — cast-vs-clear is the shared command's
     // call, not this component's.
     expect(onToggleCurrentVote).toHaveBeenCalledWith('1');
@@ -169,7 +136,7 @@ describe('CardPicker — keyboard interactions', () => {
 
   it('backspace calls onClearCurrentVote', async () => {
     const onClearCurrentVote = vi.fn();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <CardPicker
         scale={SCALE}
         selected="3"
@@ -177,17 +144,13 @@ describe('CardPicker — keyboard interactions', () => {
         onClearCurrentVote={onClearCurrentVote}
       />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('\x7f'); // backspace
-      await flush();
-    });
+    await press(stdin, '\x7f'); // backspace
     expect(onClearCurrentVote).toHaveBeenCalledOnce();
   });
 
   it('disabled=true ignores input: onToggleCurrentVote not called', async () => {
     const onToggleCurrentVote = vi.fn();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <CardPicker
         scale={SCALE}
         onToggleCurrentVote={onToggleCurrentVote}
@@ -195,18 +158,14 @@ describe('CardPicker — keyboard interactions', () => {
         disabled
       />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('\x1b[C'); // right arrow
-      stdin.write('\r'); // enter
-      await flush();
-    });
+    await press(stdin, '\x1b[C'); // right arrow
+    await press(stdin, '\r'); // enter
     expect(onToggleCurrentVote).not.toHaveBeenCalled();
   });
 
   it('disabled=true ignores backspace: onClearCurrentVote not called', async () => {
     const onClearCurrentVote = vi.fn();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <CardPicker
         scale={SCALE}
         selected="1"
@@ -215,11 +174,7 @@ describe('CardPicker — keyboard interactions', () => {
         disabled
       />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('\x7f');
-      await flush();
-    });
+    await press(stdin, '\x7f');
     expect(onClearCurrentVote).not.toHaveBeenCalled();
   });
 });

@@ -10,14 +10,10 @@
 
 import React from 'react';
 import { render } from 'ink-testing-library';
-import { act } from 'react';
+import { press, renderInk } from '../test-harness.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import { HostActionsMenu } from './HostActionsMenu.js';
-
-async function flush(): Promise<void> {
-  await new Promise((r) => setImmediate(r));
-}
 
 // ---------------------------------------------------------------------------
 // Rendering
@@ -47,23 +43,15 @@ describe('HostActionsMenu — rendering', () => {
 describe('HostActionsMenu — keyboard interactions', () => {
   it('Enter calls onPick with "end-session"', async () => {
     const onPick = vi.fn();
-    const { stdin } = render(<HostActionsMenu onPick={onPick} onClose={vi.fn()} />);
-    await flush();
-    await act(async () => {
-      stdin.write('\r'); // Enter on first (only) item
-      await flush();
-    });
+    const { stdin } = await renderInk(<HostActionsMenu onPick={onPick} onClose={vi.fn()} />);
+    await press(stdin, '\r'); // Enter on first (only) item
     expect(onPick).toHaveBeenCalledWith('end-session');
   });
 
   it('Escape calls onClose', async () => {
     const onClose = vi.fn();
-    const { stdin } = render(<HostActionsMenu onPick={vi.fn()} onClose={onClose} />);
-    await flush();
-    await act(async () => {
-      stdin.write('\x1b'); // ESC
-      await flush();
-    });
+    const { stdin } = await renderInk(<HostActionsMenu onPick={vi.fn()} onClose={onClose} />);
+    await press(stdin, '\x1b'); // ESC
     expect(onClose).toHaveBeenCalledOnce();
   });
 });

@@ -6,8 +6,7 @@
  * called with the trimmed args.
  */
 
-import { render } from 'ink-testing-library';
-import { act } from 'react';
+import { press, renderInk } from './test-harness.js';
 import * as Y from 'yjs';
 import { Awareness } from 'y-protocols/awareness';
 import { describe, expect, it, vi } from 'vitest';
@@ -71,41 +70,21 @@ function makeSession(): {
   return { session, newRound };
 }
 
-async function flush(): Promise<void> {
-  await new Promise((r) => setImmediate(r));
-}
-
 describe('App — round-start two-step prompt (issue #109)', () => {
   it('runs title → ticketId → session.newRound("Auth", "PROJ-42")', async () => {
     const { session, newRound } = makeSession();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <App session={session} participantId="host" displayName="Host" accessMode="open" />,
     );
-    await flush();
 
     // s: open title prompt
-    await act(async () => {
-      stdin.write('s');
-      await flush();
-    });
+    await press(stdin, 's');
     // Type "Auth" + Enter to advance to ticketId step
-    await act(async () => {
-      stdin.write('Auth');
-      await flush();
-    });
-    await act(async () => {
-      stdin.write('\r');
-      await flush();
-    });
+    await press(stdin, 'Auth');
+    await press(stdin, '\r');
     // Type "PROJ-42" + Enter to fire newRound
-    await act(async () => {
-      stdin.write('PROJ-42');
-      await flush();
-    });
-    await act(async () => {
-      stdin.write('\r');
-      await flush();
-    });
+    await press(stdin, 'PROJ-42');
+    await press(stdin, '\r');
 
     // No agenda item pending → agendaItemId is undefined (third arg)
     expect(newRound).toHaveBeenCalledWith('Auth', 'PROJ-42', undefined);
@@ -113,62 +92,35 @@ describe('App — round-start two-step prompt (issue #109)', () => {
 
   it('skipping both prompts (Enter, Enter) calls newRound(undefined, undefined)', async () => {
     const { session, newRound } = makeSession();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <App session={session} participantId="host" displayName="Host" accessMode="open" />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('s');
-      await flush();
-    });
-    await act(async () => {
-      stdin.write('\r');
-      await flush();
-    });
-    await act(async () => {
-      stdin.write('\r');
-      await flush();
-    });
+    await press(stdin, 's');
+    await press(stdin, '\r');
+    await press(stdin, '\r');
 
     expect(newRound).toHaveBeenCalledWith(undefined, undefined, undefined);
   });
 
   it('Esc on ticketId prompt cancels the flow without calling newRound', async () => {
     const { session, newRound } = makeSession();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <App session={session} participantId="host" displayName="Host" accessMode="open" />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('s');
-      await flush();
-    });
-    await act(async () => {
-      stdin.write('Auth\r'); // submit title
-      await flush();
-    });
-    await act(async () => {
-      stdin.write(''); // Esc on ticketId prompt
-      await flush();
-    });
+    await press(stdin, 's');
+    await press(stdin, 'Auth\r'); // submit title
+    await press(stdin, ''); // Esc on ticketId prompt
 
     expect(newRound).not.toHaveBeenCalled();
   });
 
   it('Esc on title prompt cancels without entering ticketId step', async () => {
     const { session, newRound } = makeSession();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <App session={session} participantId="host" displayName="Host" accessMode="open" />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('s');
-      await flush();
-    });
-    await act(async () => {
-      stdin.write(''); // Esc on title prompt
-      await flush();
-    });
+    await press(stdin, 's');
+    await press(stdin, ''); // Esc on title prompt
 
     expect(newRound).not.toHaveBeenCalled();
   });

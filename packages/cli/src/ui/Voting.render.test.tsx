@@ -3,7 +3,7 @@
  */
 
 import { render } from 'ink-testing-library';
-import { act } from 'react';
+import { press, renderInk } from './test-harness.js';
 import { describe, expect, it, vi } from 'vitest';
 import { ABSTAIN_SENTINEL } from '@hnch/shared';
 import type { DocProjection, Round, Scale } from '@hnch/shared';
@@ -63,20 +63,12 @@ function baseProps(overrides: {
   };
 }
 
-async function flush(): Promise<void> {
-  await new Promise((r) => setImmediate(r));
-}
-
 // Exercises: ui/Voting:Voting
 describe('Voting — [a] abstain keybind interaction', () => {
   it('pressing a as voter calls onToggleCurrentVote with ABSTAIN_SENTINEL', async () => {
     const onToggleCurrentVote = vi.fn();
-    const { stdin } = render(<Voting {...baseProps({ onToggleCurrentVote })} />);
-    await flush();
-    await act(async () => {
-      stdin.write('a');
-      await flush();
-    });
+    const { stdin } = await renderInk(<Voting {...baseProps({ onToggleCurrentVote })} />);
+    await press(stdin, 'a');
     expect(onToggleCurrentVote).toHaveBeenCalledWith(ABSTAIN_SENTINEL);
   });
 
@@ -84,14 +76,10 @@ describe('Voting — [a] abstain keybind interaction', () => {
     const onToggleCurrentVote = vi.fn();
     const onClearCurrentVote = vi.fn();
     const round = makeRound({ votes: { host: ABSTAIN_SENTINEL } });
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <Voting {...baseProps({ onToggleCurrentVote, onClearCurrentVote, round })} />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('a');
-      await flush();
-    });
+    await press(stdin, 'a');
     // [a] always emits a single toggle call — the shared command decides
     // cast vs. clear, not the Voting screen.
     expect(onToggleCurrentVote).toHaveBeenCalledWith(ABSTAIN_SENTINEL);
@@ -100,12 +88,10 @@ describe('Voting — [a] abstain keybind interaction', () => {
 
   it('viewer pressing a does NOT call onToggleCurrentVote', async () => {
     const onToggleCurrentVote = vi.fn();
-    const { stdin } = render(<Voting {...baseProps({ myRole: 'viewer', onToggleCurrentVote })} />);
-    await flush();
-    await act(async () => {
-      stdin.write('a');
-      await flush();
-    });
+    const { stdin } = await renderInk(
+      <Voting {...baseProps({ myRole: 'viewer', onToggleCurrentVote })} />,
+    );
+    await press(stdin, 'a');
     expect(onToggleCurrentVote).not.toHaveBeenCalled();
   });
 });

@@ -10,7 +10,7 @@
  */
 
 import { render } from 'ink-testing-library';
-import { act } from 'react';
+import { press, renderInk } from '../test-harness.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CustomScale, Scale } from '@hnch/shared';
 
@@ -101,7 +101,7 @@ describe('ScalePicker — custom scale label rendering', () => {
   });
 
   it('delete-confirm prompt names the custom scale by its label', async () => {
-    const { lastFrame, stdin, rerender } = render(
+    const { lastFrame, stdin, rerender } = await renderInk(
       <ScalePicker
         scales={[CUSTOM_SCALE]}
         selectedScaleId={CUSTOM.id}
@@ -112,12 +112,7 @@ describe('ScalePicker — custom scale label rendering', () => {
         onClose={noop}
       />,
     );
-    // Wait one tick so useInput's effect attaches to stdin before writing.
-    await new Promise((r) => setImmediate(r));
-    await act(async () => {
-      stdin.write('d');
-      await new Promise((r) => setImmediate(r));
-    });
+    await press(stdin, 'd');
     rerender(
       <ScalePicker
         scales={[CUSTOM_SCALE]}
