@@ -2,17 +2,18 @@
  * Tests for the unanimous auto-reveal predicate (ADR-0018, ADR-0020,
  * ADR-0036, ADR-0041).
  *
- * This is the single test surface for the rule — the client and CLI no longer
- * own a copy. Every filter the predicate applies (active roster, online,
- * role, abstain denominator, terminal guard) is exercised here.
+ * This is the single test surface for the rule *and* the driver — the client
+ * and CLI no longer own a copy of either. Every filter the predicate applies
+ * (active roster, online, role, abstain denominator, terminal guard) is
+ * exercised here, as is the driver's re-evaluation contract.
  */
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ABSTAIN_SENTINEL } from './abstain.js';
-import { shouldAutoReveal } from './auto-reveal.js';
-import type { RoundStatus } from './doc.js';
-import type { ParticipantSnapshot } from './doc-projection.js';
+import { shouldAutoReveal, startAutoReveal } from './auto-reveal.js';
+import type { Round, RoundStatus } from './doc.js';
+import type { DocProjection, ParticipantSnapshot } from './doc-projection.js';
 
 /** Build a participant snapshot with sensible defaults (active voter). */
 function participant(
@@ -121,5 +122,235 @@ describe('shouldAutoReveal', () => {
     expect(shouldAutoReveal(round({ v1: '5' }, 'discarded'), [voter('v1')], new Set(['v1']))).toBe(
       false,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Driver
+// ---------------------------------------------------------------------------
+
+/**
+ * Minimal projection builder — the driver only reads `participants` and
+ * `rounds` (via `currentRound`).
+ */
+function projection(rounds: Round[], participants: ParticipantSnapshot[]): DocProjection {
+  return {
+    meta: {} as DocProjection['meta'],
+    settings: {
+      defaultScale: [] as unknown as DocProjection['settings']['defaultScale'],
+    } as DocProjection['settings'],
+    participants,
+    rounds,
+    agenda: [],
+  };
+}
+
+/** A projection round: `currentRound` reads `status`, the predicate reads `votes`. */
+function projRound(
+  id: string,
+  votes: Record<string, string>,
+  status: RoundStatus = 'voting',
+): Round {
+  return {
+    id,
+    scale: { id: 'fibonacci', cards: ['1', '2', '3', '5', '8'] },
+    votes,
+    createdAt: 0,
+    createdBy: 'v1',
+    status,
+  };
+}
+
+/** Stand up a driver against mutable state, as an adapter would. */
+function makeDeps(init: {
+  rounds: Round[];
+  participants: ParticipantSnapshot[];
+  online: string[];
+}) {
+  let current: DocProjection | null = projection(init.rounds, init.participants);
+  let online: ReadonlySet<string> = new Set(init.online);
+  let notify: (() => void) | null = null;
+
+  const reveal = vi.fn();
+  const unsubscribed = vi.fn();
+
+  const deps = {
+    projection: () => current,
+    onlineIds: () => online,
+    subscribe: (cb: () => void) => {
+      notify = cb;
+      return () => {
+        notify = null;
+        unsubscribed();
+      };
+    },
+    reveal,
+  };
+
+  /** Apply a change and fire the driver's notification, as an adapter would. */
+  function change(next: {
+    rounds?: Round[];
+    participants?: ParticipantSnapshot[];
+    online?: string[];
+    projection?: null;
+  }): void {
+    if (next.projection === null) {
+      current = null;
+    } else if (next.rounds !== undefined || next.participants !== undefined) {
+      current = projection(
+        next.rounds ?? [...(current?.rounds ?? [])],
+        next.participants ?? [...(current?.participants ?? [])],
+      );
+    }
+    if (next.online !== undefined) online = new Set(next.online);
+    notify?.();
+  }
+
+  return { deps, reveal, unsubscribed, change };
+}
+
+const PAIR = [voter('v1'), voter('v2')];
+
+describe('startAutoReveal', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('unanimity already present at construction → reveals on the initial evaluation', () => {
+    const { deps, reveal } = makeDeps({
+      rounds: [projRound('r1', { v1: '5', v2: '8' })],
+      participants: PAIR,
+      online: ['v1', 'v2'],
+    });
+
+    const handle = startAutoReveal(deps);
+
+    expect(reveal).toHaveBeenCalledOnce();
+    handle.stop();
+  });
+
+  it('a missing vote holds the reveal until the last vote lands', () => {
+    const { deps, reveal, change } = makeDeps({
+      rounds: [projRound('r1', { v1: '5' })],
+      participants: PAIR,
+      online: ['v1', 'v2'],
+    });
+
+    const handle = startAutoReveal(deps);
+    expect(reveal).not.toHaveBeenCalled();
+
+    change({ rounds: [projRound('r1', { v1: '5', v2: '8' })] });
+
+    expect(reveal).toHaveBeenCalledOnce();
+    handle.stop();
+  });
+
+  it('an awareness-only change can fire the reveal — the doc never moves', () => {
+    // v2 is online and has not voted, so v1's vote is not yet unanimous.
+    // v2 dropping out of awareness shrinks the denominator to {v1}, which
+    // is already satisfied. This is why `subscribe` must cover awareness.
+    const { deps, reveal, change } = makeDeps({
+      rounds: [projRound('r1', { v1: '5' })],
+      participants: PAIR,
+      online: ['v1', 'v2'],
+    });
+
+    const handle = startAutoReveal(deps);
+    expect(reveal).not.toHaveBeenCalled();
+
+    change({ online: ['v1'] });
+
+    expect(reveal).toHaveBeenCalledOnce();
+    handle.stop();
+  });
+
+  it('a kicked-but-lingering voter neither blocks nor fires twice (participants-only change)', () => {
+    // Awareness never changes: v2 stays "online" throughout. Only the
+    // participants map moves — the same drift axis election.ts warns about.
+    const { deps, reveal, change } = makeDeps({
+      rounds: [projRound('r1', { v1: '5' })],
+      participants: PAIR,
+      online: ['v1', 'v2'],
+    });
+
+    const handle = startAutoReveal(deps);
+    expect(reveal).not.toHaveBeenCalled();
+
+    change({ participants: [voter('v1'), left('v2')] });
+
+    expect(reveal).toHaveBeenCalledOnce();
+    handle.stop();
+  });
+
+  it('does not re-fire once the round is revealed', () => {
+    const { deps, reveal, change } = makeDeps({
+      rounds: [projRound('r1', { v1: '5', v2: '8' })],
+      participants: PAIR,
+      online: ['v1', 'v2'],
+    });
+
+    const handle = startAutoReveal(deps);
+    expect(reveal).toHaveBeenCalledOnce();
+
+    // The write lands and comes back through the projection, as it would
+    // via the adapter's doc observer. The predicate's terminal guard is the
+    // only thing stopping a second call — the driver keeps no dedupe state.
+    change({ rounds: [projRound('r1', { v1: '5', v2: '8' }, 'revealed')] });
+    change({ rounds: [projRound('r1', { v1: '5', v2: '8' }, 'revealed')] });
+
+    expect(reveal).toHaveBeenCalledOnce();
+    handle.stop();
+  });
+
+  it('evaluates the current round, so a fresh round after a terminal one is picked up', () => {
+    const { deps, reveal, change } = makeDeps({
+      rounds: [projRound('r1', { v1: '5', v2: '8' }, 'revealed')],
+      participants: PAIR,
+      online: ['v1', 'v2'],
+    });
+
+    const handle = startAutoReveal(deps);
+    expect(reveal).not.toHaveBeenCalled();
+
+    change({
+      rounds: [
+        projRound('r1', { v1: '5', v2: '8' }, 'revealed'),
+        projRound('r2', { v1: '3', v2: '3' }),
+      ],
+    });
+
+    expect(reveal).toHaveBeenCalledOnce();
+    handle.stop();
+  });
+
+  it('a null projection is inert', () => {
+    const { deps, reveal, change } = makeDeps({
+      rounds: [projRound('r1', { v1: '5' })],
+      participants: PAIR,
+      online: ['v1', 'v2'],
+    });
+
+    const handle = startAutoReveal(deps);
+    change({ projection: null });
+
+    expect(reveal).not.toHaveBeenCalled();
+    handle.stop();
+  });
+
+  it('stop() unsubscribes and later notifications are inert', () => {
+    const { deps, reveal, unsubscribed, change } = makeDeps({
+      rounds: [projRound('r1', { v1: '5' })],
+      participants: PAIR,
+      online: ['v1', 'v2'],
+    });
+
+    const handle = startAutoReveal(deps);
+    handle.stop();
+
+    expect(unsubscribed).toHaveBeenCalledOnce();
+
+    change({ rounds: [projRound('r1', { v1: '5', v2: '8' })] });
+
+    expect(reveal).not.toHaveBeenCalled();
   });
 });

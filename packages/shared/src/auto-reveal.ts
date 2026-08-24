@@ -1,9 +1,21 @@
 /**
- * Unanimous auto-reveal predicate (ADR-0018) — the single, deep owner of the
- * "who counts toward the unanimous denominator?" decision.
+ * Unanimous auto-reveal — rule *and* driver (ADR-0018).
  *
- * Both the Angular client and the CLI call this with raw, unfiltered inputs;
- * the predicate itself applies every filter the rule depends on:
+ * This module owns two things:
+ *
+ *  1. The pure predicate {@link shouldAutoReveal} — the single, deep owner of
+ *     the "who counts toward the unanimous denominator?" decision.
+ *  2. The driver {@link startAutoReveal} — when to re-evaluate, and the call
+ *     to reveal. Consumers supply four framework-free callbacks; no `Y.Doc`,
+ *     `Awareness`, or Angular primitive crosses that seam.
+ *
+ * *When* to re-evaluate is part of the rule, not adapter business. Keeping
+ * the driver here is what stops the two surfaces drifting on that axis — the
+ * CLI previously polled `projectDoc` every 250 ms behind a per-round dedupe
+ * Set while the client re-derived the same thing inside an Angular `effect`,
+ * scoped to the Estimating page's lifetime rather than the session's.
+ *
+ * The predicate itself applies every filter the rule depends on:
  *
  *  - active roster (`isActiveParticipant`, ADR-0036) — a kicked-but-still-
  *    connected (`leftAt`) participant is excluded from the denominator;
@@ -20,7 +32,7 @@
 
 import { isAbstainVote } from './abstain.js';
 import { isActiveParticipant, participantRole, type Round } from './doc.js';
-import type { ParticipantSnapshot } from './doc-projection.js';
+import { currentRound, type DocProjection, type ParticipantSnapshot } from './doc-projection.js';
 
 /**
  * Returns `true` when the current round should auto-reveal: at least one
@@ -56,4 +68,83 @@ export function shouldAutoReveal(
   const denominator = onlineVoterIds.size - abstainCount;
   if (denominator <= 0) return false; // all online voters abstained — host must reveal manually
   return numericCount >= denominator;
+}
+
+// ---------------------------------------------------------------------------
+// Driver
+// ---------------------------------------------------------------------------
+
+/**
+ * The four callbacks a consumer supplies to drive auto-reveal. Deliberately
+ * framework-free, mirroring {@link ElectionDeps}: the client passes signal
+ * reads, the CLI passes closures over its `Y.Doc` and `Awareness`, and
+ * neither leaks its transport here.
+ */
+export interface AutoRevealDeps {
+  /** Live doc snapshot, or `null` when no session is attached. */
+  projection(): DocProjection | null;
+  /**
+   * Raw awareness set. Passed through to {@link shouldAutoReveal}, which
+   * applies the active / role / abstain filters itself.
+   */
+  onlineIds(): ReadonlySet<string>;
+  /**
+   * Register `cb` to fire on *any* projection change and *any* awareness
+   * change. Returns an unsubscribe function.
+   *
+   * Both axes are required. A vote landing is a rounds change; a voter
+   * dropping out of awareness shrinks the denominator and can flip the
+   * predicate true without the doc moving at all.
+   */
+  subscribe(cb: () => void): () => void;
+  /**
+   * Fire the reveal — in practice `revealCurrentRound(doc)`. Consumers that
+   * want the outcome (haptics, a bump counter) read the command's own
+   * `TerminalResult` inside this closure; the driver has no use for it.
+   */
+  reveal(): void;
+}
+
+export interface AutoRevealHandle {
+  /** Unsubscribe. Idempotent per consumer. */
+  stop(): void;
+}
+
+/**
+ * Start watching for unanimity and reveal the current round when it arrives
+ * (ADR-0018).
+ *
+ * Evaluates once synchronously on construction, then on every notification
+ * from {@link AutoRevealDeps.subscribe}. There is no timer and no per-round
+ * bookkeeping: {@link shouldAutoReveal}'s terminal guard already returns
+ * `false` the moment `revealedAt` is stamped, so a second write cannot
+ * occur and nothing has to be remembered between evaluations.
+ *
+ * Every peer runs this independently and any peer may write — ADR-0018
+ * deliberately assigns no host authority, and Yjs merges the concurrent
+ * `revealedAt` writes idempotently.
+ *
+ * The round it evaluates is `currentRound(projection)` — the same selector
+ * `revealCurrentRound` uses internally, so the predicate and the command
+ * can never disagree about which round is in play.
+ */
+export function startAutoReveal(deps: AutoRevealDeps): AutoRevealHandle {
+  function evaluate(): void {
+    const projection = deps.projection();
+    if (!projection) return;
+
+    const round = currentRound(projection);
+    if (shouldAutoReveal(round, projection.participants, deps.onlineIds())) {
+      deps.reveal();
+    }
+  }
+
+  const unsubscribe = deps.subscribe(evaluate);
+  evaluate();
+
+  return {
+    stop(): void {
+      unsubscribe();
+    },
+  };
 }
