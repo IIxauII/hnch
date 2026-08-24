@@ -37,3 +37,17 @@ _Avoid_: terminalAction, roundAction, mutation (for the command specifically)
 **TerminalResult**:
 The return of a round command: `{ applied: true; at } | { applied: false; reason: 'no-current-round' | 'already-terminal' }`. Lets a caller branch on whether the transition actually fired — e.g. suppress haptics or celebration on a no-op — without re-spelling the gate. Replaces the previous throw-on-illegal-transition behavior; a lost race (two peers terminating the same round) no-ops instead of throwing.
 _Avoid_: CommandResult, RevealResult, void (the command never returns bare void)
+
+## Session drivers
+
+**driver**:
+A shared module that owns *when* a rule re-evaluates, not just what the rule says — `startElection` in `election` and `startAutoReveal` in `auto-reveal`. Each takes framework-free callbacks (`projection`, `onlineIds`, `subscribe`, plus the rule's own sink) and returns a handle with `stop()`; no `Y.Doc`, `Awareness`, or Angular primitive crosses that seam. Client and CLI supply adapters, nothing more. Naming a driver separately from its predicate matters because the re-evaluation axis is exactly where two hand-wired copies drift.
+_Avoid_: watcher, observer (Yjs owns that word), loop, poller (a driver is subscription-fed, never polls), service
+
+**auto-reveal driver**:
+The `startAutoReveal` half of the `auto-reveal` module: subscribes to projection *and* awareness changes, applies `shouldAutoReveal` to `currentRound`, and calls the adapter's `reveal()`. Session-scoped in both surfaces — a peer counts toward the unanimous denominator regardless of which screen it is on, so it checks regardless too. Holds no per-round state: the predicate's terminal guard makes a dedupe set unnecessary. Every peer runs one and any peer may write (ADR-0018 assigns no host authority).
+_Avoid_: autoRevealWatcher, revealPoller, unanimityService
+
+**autoRevealCount**:
+The client-side monotonic counter `DocService` bumps when its auto-reveal driver's write actually applies. An edge signal, not a timestamp — two reveals in the same millisecond must still notify, and there is nothing to reset. The Estimating page keys its success haptic off it, which is how device feedback stays out of the doc layer.
+_Avoid_: lastAutoRevealAt, autoRevealed, revealSignal

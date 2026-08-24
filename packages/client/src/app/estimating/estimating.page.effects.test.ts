@@ -126,7 +126,7 @@ interface MountOpts {
   isHost?: boolean;
   /** Roster (defaults to a single active 'me'). */
   participants?: { id: string; joinedAt?: number }[];
-  /** Online participant ids (defaults to empty — suppresses auto-reveal). */
+  /** Online participant ids. */
   onlineIds?: Set<string>;
 }
 
@@ -145,6 +145,9 @@ async function mount(opts: MountOpts = {}) {
 
   const currentRoundSig = signal<Round | null | undefined>(round);
   const roundsSig = signal<Round[]>(rounds);
+  // The driver is session-scoped in DocService now; the page only watches
+  // this counter. Tests bump it to stand in for an auto-reveal landing.
+  const autoRevealCountSig = signal(0);
   const navigate = vi.fn().mockResolvedValue(true);
   // Terminal commands return a TerminalResult; the page branches on `applied`.
   // Default to applied:true (active round); tests override to simulate no-ops.
@@ -182,6 +185,7 @@ async function mount(opts: MountOpts = {}) {
     roomCode: signal('ZZZZZZ').asReadonly(),
     meta: signal({ roomUuid: 'uuid' }).asReadonly(),
     syncStatus: signal('idle').asReadonly(),
+    autoRevealCount: autoRevealCountSig.asReadonly(),
     toggleCurrentVote: vi.fn().mockReturnValue({ applied: true, effect: 'cast' }),
     clearCurrentVote: vi.fn().mockReturnValue({ applied: true, effect: 'cleared' }),
     revealCurrentRound,
@@ -239,6 +243,7 @@ async function mount(opts: MountOpts = {}) {
     haptic,
     currentRoundSig,
     roundsSig,
+    autoRevealCountSig,
   };
 }
 
@@ -562,29 +567,54 @@ describe('EstimatingPage — skip-round action', () => {
 });
 
 // ---------------------------------------------------------------------------
-// auto-reveal effect — unanimous votes route through revealCurrentRound,
-// haptic fires only on result.applied
+// auto-reveal feedback effect — the rule and its driver are session-scoped in
+// DocService (shared `startAutoReveal`); this page only fires the haptic off
+// the counter the driver bumps. Rule coverage: shared/src/auto-reveal.test.ts;
+// wiring coverage: core/doc/doc.service.auto-reveal.test.ts.
 // ---------------------------------------------------------------------------
 
-describe('EstimatingPage — auto-reveal effect', () => {
-  it('unanimous online votes → revealCurrentRound + success haptic on applied', async () => {
+describe('EstimatingPage — auto-reveal feedback effect', () => {
+  it('counter bump → success haptic', async () => {
+    const { haptic, autoRevealCountSig } = await mount({ initialRound: votingRound() });
+    TestBed.flushEffects();
+    expect(haptic.notificationSuccess).not.toHaveBeenCalled();
+
+    autoRevealCountSig.set(1);
+    TestBed.flushEffects();
+
+    expect(haptic.notificationSuccess).toHaveBeenCalledOnce();
+  });
+
+  it('the page never drives the reveal itself', async () => {
     const round: Round = { ...votingRound(), votes: { me: '5' } };
-    const { revealCurrentRound, haptic } = await mount({
+    const { revealCurrentRound } = await mount({
       initialRound: round,
       participants: [{ id: 'me', joinedAt: 0 }],
       onlineIds: new Set(['me']),
     });
     TestBed.flushEffects();
-    expect(revealCurrentRound).toHaveBeenCalled();
-    expect(haptic.notificationSuccess).toHaveBeenCalled();
+
+    // Unanimous by the shared predicate — but the page holds no copy of the
+    // rule, so mounting it must not write anything.
+    expect(revealCurrentRound).not.toHaveBeenCalled();
   });
 
-  it('not unanimous (no online voters) → does not reveal', async () => {
-    const { revealCurrentRound, haptic } = await mount({
-      initialRound: votingRound(),
-    });
+  it('mounting after an earlier auto-reveal does not re-fire the haptic', async () => {
+    // A peer that navigates into Estimating mid-session inherits a non-zero
+    // counter; the effect's initial run must be inert.
+    const { haptic, autoRevealCountSig } = await mount({ initialRound: votingRound() });
+    autoRevealCountSig.set(3);
     TestBed.flushEffects();
-    expect(revealCurrentRound).not.toHaveBeenCalled();
+    haptic.notificationSuccess.mockClear();
+
+    TestBed.flushEffects();
+
+    expect(haptic.notificationSuccess).not.toHaveBeenCalled();
+  });
+
+  it('no bump → no haptic', async () => {
+    const { haptic } = await mount({ initialRound: votingRound() });
+    TestBed.flushEffects();
     expect(haptic.notificationSuccess).not.toHaveBeenCalled();
   });
 });
