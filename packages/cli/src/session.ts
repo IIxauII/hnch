@@ -24,7 +24,8 @@ import {
   hashPassword,
   upsertParticipant,
   participantRole,
-  shouldAutoReveal,
+  startAutoReveal,
+  type AutoRevealHandle,
   onlineIdsFrom,
   AWARENESS_PARTICIPANT_ID_FIELD,
   startElection,
@@ -272,22 +273,26 @@ export function wireSession(opts: WireOptions): SessionHandle {
     },
   });
 
-  // Unanimous auto-reveal: when every online voter has a numeric vote, reveal
-  // automatically. The who-counts decision (active roster ∩ online ∩ non-viewer,
-  // abstainers excluded, terminal guard) lives entirely in the shared
-  // `shouldAutoReveal` predicate — both clients call it with raw inputs so the
-  // rule can't drift (ADR-0018 / ADR-0020 / ADR-0036 / ADR-0041).
-  const revealedByAuto = new Set<string>();
-  const autoRevealInterval = setInterval(() => {
-    const projection = projectDoc(doc);
-    const round = currentRound(projection);
-    if (!round || revealedByAuto.has(round.id)) return;
-
-    if (shouldAutoReveal(round, projection.participants, getOnlineIds())) {
-      revealedByAuto.add(round.id);
+  // Unanimous auto-reveal. The rule *and* the driver (when to re-evaluate,
+  // the terminal guard that makes a dedupe set unnecessary) live in
+  // `@hnch/shared`; this is the adapter. It re-uses the doc-change fan-out
+  // above plus awareness, so no new observer and no poll loop is introduced
+  // (ADR-0018 / ADR-0020 / ADR-0036 / ADR-0041).
+  const autoReveal: AutoRevealHandle = startAutoReveal({
+    projection: () => projectDoc(doc),
+    onlineIds: getOnlineIds,
+    subscribe(cb) {
+      changeCallbacks.add(cb);
+      awareness.on('change', cb);
+      return (): void => {
+        changeCallbacks.delete(cb);
+        awareness.off('change', cb);
+      };
+    },
+    reveal() {
       revealCurrentRound(doc);
-    }
-  }, 250);
+    },
+  });
 
   // Track host changes: record initial value, fire callback only on actual changes
   let lastHostId = doc.getMap('settings').get('hostParticipantId') as string | undefined;
@@ -464,7 +469,7 @@ export function wireSession(opts: WireOptions): SessionHandle {
     disconnect() {
       if (disposed) return;
       disposed = true;
-      clearInterval(autoRevealInterval);
+      autoReveal.stop();
       election.stop();
       doc.getMap('meta').unobserveDeep(observeHandler);
       doc.getMap('settings').unobserveDeep(observeHandler);

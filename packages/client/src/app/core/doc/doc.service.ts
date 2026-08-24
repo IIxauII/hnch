@@ -35,6 +35,7 @@ import {
   revealCurrentRound as revealCurrentRoundCommand,
   setAvatarColor as setAvatarColorY,
   setAgendaItemState as setAgendaItemStateY,
+  startAutoReveal,
   startElection,
   skipCurrentRound as skipCurrentRoundCommand,
   toggleCurrentVote as toggleCurrentVoteCommand,
@@ -43,6 +44,7 @@ import {
   type AgendaItem,
   type AppendAgendaItemInit,
   type DocProjection,
+  type AutoRevealHandle,
   type ElectionHandle,
   type InitDocInit,
   type JoinCredentials,
@@ -199,11 +201,22 @@ export class DocService {
    * app-lifetime, so a doc-less app arms no timers.
    */
   private electionHandle: ElectionHandle | null = null;
-  /** The driver's change callback while an election handle is live. */
-  private electionNotify: (() => void) | null = null;
+  /**
+   * Session-scoped unanimous auto-reveal handle (ADR-0018). Started and
+   * stopped alongside {@link electionHandle}: the rule applies for the whole
+   * session, not just while the Estimating page happens to be mounted.
+   */
+  private autoRevealHandle: AutoRevealHandle | null = null;
+  /**
+   * Change callbacks of every live shared driver. One fan-out, so there is a
+   * single place deciding what counts as a change — the axis two hand-wired
+   * drivers would otherwise drift on.
+   */
+  private readonly driverNotifiers = new Set<() => void>();
   private readonly onlineParticipantIdsSignal: WritableSignal<ReadonlySet<string>> = signal<
     ReadonlySet<string>
   >(new Set());
+  private readonly autoRevealCountSignal: WritableSignal<number> = signal(0);
 
   // ---------------------------------------------------------------------------
   // Public signals
@@ -285,6 +298,16 @@ export class DocService {
     const snap = this.projection();
     return snap ? activeRoundFromProjection(snap) : null;
   });
+
+  /**
+   * Monotonic count of unanimous auto-reveals this session has written
+   * (ADR-0018). A counter rather than a timestamp: two auto-reveals landing
+   * in the same millisecond must still notify, and there is nothing to reset.
+   *
+   * Consumers use it purely as an edge signal — the Estimating page fires its
+   * success haptic on a change. Device feedback stays out of the doc layer.
+   */
+  readonly autoRevealCount: Signal<number> = this.autoRevealCountSignal.asReadonly();
 
   /**
    * The relay-assigned 6-character room code (ADR-0008). `null` before
@@ -816,6 +839,7 @@ export class DocService {
     this.doc = doc;
     this.rebuildProjection();
     this.startElectionDriver();
+    this.startAutoRevealDriver();
 
     const rebuild = (): void => this.rebuildProjection();
     const meta = doc.getMap(DOC_META_KEY);
@@ -842,6 +866,8 @@ export class DocService {
   private detach(): void {
     this.electionHandle?.stop();
     this.electionHandle = null;
+    this.autoRevealHandle?.stop();
+    this.autoRevealHandle = null;
     for (const off of this.observers) off();
     this.observers = [];
   }
@@ -849,9 +875,9 @@ export class DocService {
   private rebuildProjection(): void {
     if (!this.doc) return;
     this.projection.set(projectDoc(this.doc));
-    // Synchronous notify — the driver is a plain callback, not an effect(),
-    // so nothing has to be flushed for an election to re-evaluate.
-    this.electionNotify?.();
+    // Synchronous notify — the drivers are plain callbacks, not effect()s,
+    // so nothing has to be flushed for them to re-evaluate.
+    this.notifyDrivers();
   }
 
   /**
@@ -871,14 +897,49 @@ export class DocService {
       projection: () => this.projection(),
       onlineIds: () => this.onlineParticipantIdsSignal(),
       myId: () => this.participantIdService.id(),
-      subscribe: (cb) => {
-        this.electionNotify = cb;
-        return (): void => {
-          this.electionNotify = null;
-        };
-      },
+      subscribe: (cb) => this.subscribeDriver(cb),
       promote: (winnerId) => this.updateSettings({ hostParticipantId: winnerId }),
     });
+  }
+
+  /**
+   * Wire the shared unanimous auto-reveal driver to this session (ADR-0018).
+   * The predicate, the re-evaluation contract, and the terminal guard that
+   * makes per-round bookkeeping unnecessary all live in `@hnch/shared`; this
+   * is the adapter.
+   *
+   * Session-scoped rather than page-scoped: ADR-0018 has every peer check
+   * independently, and the predicate counts an online voter toward the
+   * denominator regardless of which screen it is on — so it would be
+   * incoherent for such a peer to count but not check.
+   */
+  private startAutoRevealDriver(): void {
+    this.autoRevealHandle?.stop();
+    this.autoRevealHandle = startAutoReveal({
+      projection: () => this.projection(),
+      onlineIds: () => this.onlineParticipantIdsSignal(),
+      subscribe: (cb) => this.subscribeDriver(cb),
+      reveal: () => {
+        // Bump only when the write actually landed — a lost race no-ops, and
+        // the Estimating page keys its haptic off this counter.
+        if (this.revealCurrentRound().applied) {
+          this.autoRevealCountSignal.update((n) => n + 1);
+        }
+      },
+    });
+  }
+
+  /** Register a shared driver's change callback. Returns its unsubscribe. */
+  private subscribeDriver(cb: () => void): () => void {
+    this.driverNotifiers.add(cb);
+    return (): void => {
+      this.driverNotifiers.delete(cb);
+    };
+  }
+
+  /** Fan a change out to every live driver. */
+  private notifyDrivers(): void {
+    for (const notify of this.driverNotifiers) notify();
   }
 
   /**
@@ -898,7 +959,7 @@ export class DocService {
 
     const refresh = (): void => {
       this.onlineParticipantIdsSignal.set(onlineIdsFrom(awareness.getStates()));
-      this.electionNotify?.();
+      this.notifyDrivers();
     };
 
     awareness.on('change', refresh);

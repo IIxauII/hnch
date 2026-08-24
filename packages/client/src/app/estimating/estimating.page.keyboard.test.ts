@@ -133,6 +133,7 @@ async function mountEstimating(opts: MountOptions = {}) {
     roomCode: signal('AAAAAA').asReadonly(),
     meta: signal({ roomUuid: 'uuid' }).asReadonly(),
     syncStatus: signal('idle').asReadonly(),
+    autoRevealCount: signal(0).asReadonly(),
     toggleCurrentVote,
     clearCurrentVote,
     revealCurrentRound: vi.fn(),

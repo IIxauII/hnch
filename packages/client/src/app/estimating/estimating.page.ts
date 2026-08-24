@@ -18,7 +18,6 @@ import {
   isAbstainVote,
   isTerminalStatus,
   participantRole,
-  shouldAutoReveal,
   type ParticipantSnapshot,
 } from '@hnch/shared';
 import {
@@ -495,18 +494,19 @@ export class EstimatingPage {
       }
     });
 
-    // Unanimous auto-reveal: when all online voters have voted,
-    // write `revealedAt`. Guard: require at least 1 online voter (ADR-0018).
+    // Unanimous auto-reveal feedback (ADR-0018). The rule and its driver are
+    // session-scoped in `DocService` via the shared `startAutoReveal` — this
+    // page only supplies the device feedback, keyed off the monotonic counter
+    // the driver bumps when a reveal actually lands. Seeding the tracker at
+    // construction means the effect's initial run is inert, so mounting the
+    // page after an earlier auto-reveal does not re-fire; and a lost race
+    // never bumps the counter, so there is no spurious feedback either.
+    let lastAutoRevealCount = this.docService.autoRevealCount();
     effect(() => {
-      const round = this.docService.currentRound();
-      const participants = this.docService.participants();
-      const onlineIds = this.docService.onlineParticipantIds();
-      if (shouldAutoReveal(round, participants, onlineIds)) {
-        // Route through the shared command; haptic fires only when the reveal
-        // actually applied (a lost race no-ops, so no spurious feedback).
-        if (this.docService.revealCurrentRound().applied) {
-          this.haptic.notificationSuccess();
-        }
+      const count = this.docService.autoRevealCount();
+      if (count !== lastAutoRevealCount) {
+        lastAutoRevealCount = count;
+        this.haptic.notificationSuccess();
       }
     });
   }
