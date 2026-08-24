@@ -34,15 +34,16 @@ import { Voting } from './Voting.js';
 import { useTransientNotice } from './hooks/useTransientNotice.js';
 
 /**
- * Human copy for a roster refusal the TUI can hit. `'self-target'` is not
- * reachable from the handoff affordance (the list excludes you), but the
- * union is one per module, so it gets a sentence rather than a cast.
+ * Human copy for a roster refusal the handoff affordance can hit. The union
+ * is one per module rather than one per command, so `'self-target'` — a
+ * `kick`-only reason — appears here too; it gets a sentence describing *this*
+ * act rather than a cast, but `handoffHost` never returns it.
  */
 const HANDOFF_REFUSAL: Record<Extract<RosterResult, { applied: false }>['reason'], string> = {
   'not-host': 'only the current host can hand off',
   'not-found': 'that participant is not in the session',
   'not-online': 'that participant is offline',
-  'self-target': 'you already hold host',
+  'self-target': 'you cannot hand off to yourself',
 };
 
 interface Props {
@@ -91,6 +92,7 @@ export function App({
   const [shareOpen, setShareOpen] = useState(false);
   const shareNotice = useTransientNotice(3000);
   const exportNotice = useTransientNotice(3000);
+  const agendaNotice = useTransientNotice(3000);
 
   useEffect(() => {
     const unsub1 = session.onChange(() => {
@@ -404,15 +406,22 @@ export function App({
         return;
       }
 
-      // The shared command stamps `createdAt` and refuses an item with
-      // neither field — the guard above already covers that case (#507).
-      addAgendaItem(session.doc, {
+      // The shared command stamps `createdAt`. Its one refusal reason here is
+      // `'invalid-fields'`, which the guard above already covers — but the
+      // result is reported rather than dropped, so this path keeps parity with
+      // the mobile form and the one-shot `hnch agenda add` instead of eating
+      // the user's typing if that guard and the command ever disagree (#507).
+      const result = addAgendaItem(session.doc, {
         ...(pendingAgendaTitle !== undefined && { title: pendingAgendaTitle }),
         ...(normalizedTicket !== undefined && { ticketId: normalizedTicket }),
       });
+      if (!result.applied) {
+        agendaNotice.show('Add failed — an agenda item needs a title or a ticket id');
+        return;
+      }
       setPendingAgendaTitle(undefined);
     },
-    [session.doc, pendingAgendaTitle],
+    [session.doc, pendingAgendaTitle, agendaNotice],
   );
 
   const handleAgendaAddTicketIdCancel = useCallback(() => {
@@ -449,6 +458,12 @@ export function App({
           <Text color={exportNotice.notice.startsWith('Clipboard write failed') ? 'red' : 'green'}>
             {exportNotice.notice}
           </Text>
+        </Box>
+      )}
+
+      {agendaNotice.notice && (
+        <Box paddingX={1}>
+          <Text color="red">{agendaNotice.notice}</Text>
         </Box>
       )}
 
