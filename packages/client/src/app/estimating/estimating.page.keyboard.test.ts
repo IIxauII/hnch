@@ -8,7 +8,7 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import type { Round } from '@hnch/shared';
+import { canEnterTerminal, type Round } from '@hnch/shared';
 
 vi.mock('@ionic/angular/standalone', async () => {
   const { Component: Comp } = await import('@angular/core');
@@ -92,7 +92,9 @@ interface MountOptions {
 }
 
 async function mountEstimating(opts: MountOptions = {}) {
-  const round = opts.round === null ? null : (opts.round ?? FIB_ROUND);
+  // Deep-copy so per-test mutation (myVote injection below) never leaks
+  // into FIB_ROUND or any other caller's round object across tests.
+  const round = opts.round === null ? null : structuredClone(opts.round ?? FIB_ROUND);
 
   const { DocService } = await import('../core/doc/doc.service');
   const { ParticipantIdService } = await import('../core/participant-id.service');
@@ -103,12 +105,17 @@ async function mountEstimating(opts: MountOptions = {}) {
   const { Router } = await import('@angular/router');
   const { AlertController } = await import('@ionic/angular/standalone');
 
-  const castVote = vi.fn();
-  const clearVote = vi.fn();
+  const toggleCurrentVote = vi.fn().mockReturnValue({ applied: true, effect: 'cast' });
+  const clearCurrentVote = vi.fn().mockReturnValue({ applied: true, effect: 'cleared' });
   const impactLight = vi.fn();
+
+  // activeRound mirrors the shared `activeRound()` projection: the round
+  // when it's still pending/voting, else null — no anchor fallback.
+  const activeRoundValue = round && canEnterTerminal(round.status) ? round : null;
 
   const docService = {
     currentRound: signal(round).asReadonly(),
+    activeRound: signal(activeRoundValue).asReadonly(),
     rounds: signal([round].filter(Boolean) as Round[]).asReadonly(),
     onlineParticipants: signal([]).asReadonly(),
     onlineParticipantIds: signal(new Set<string>()).asReadonly(),
@@ -126,8 +133,8 @@ async function mountEstimating(opts: MountOptions = {}) {
     roomCode: signal('AAAAAA').asReadonly(),
     meta: signal({ roomUuid: 'uuid' }).asReadonly(),
     syncStatus: signal('idle').asReadonly(),
-    castVote,
-    clearVote,
+    toggleCurrentVote,
+    clearCurrentVote,
     revealCurrentRound: vi.fn(),
     skipCurrentRound: vi.fn(),
     leaveSession: vi.fn(),
@@ -182,7 +189,7 @@ async function mountEstimating(opts: MountOptions = {}) {
   const { EstimatingPage } = await import('./estimating.page');
   const fixture = TestBed.createComponent(EstimatingPage);
   fixture.detectChanges();
-  return { fixture, castVote, clearVote, impactLight };
+  return { fixture, toggleCurrentVote, clearCurrentVote, impactLight };
 }
 
 function dispatchKey(init: Partial<KeyboardEventInit> & { code?: string; key?: string }) {
@@ -207,9 +214,9 @@ describe('EstimatingPage — keyboard handler (issue #154)', () => {
   });
 
   it('Digit1 casts the first card', async () => {
-    const { castVote, impactLight } = await mountEstimating();
+    const { toggleCurrentVote, impactLight } = await mountEstimating();
     dispatchKey({ code: 'Digit1', key: '1' });
-    expect(castVote).toHaveBeenCalledWith('r1', 'me', '0');
+    expect(toggleCurrentVote).toHaveBeenCalledWith('me', '0');
     expect(impactLight).toHaveBeenCalled();
   });
 
@@ -223,79 +230,108 @@ describe('EstimatingPage — keyboard handler (issue #154)', () => {
       scale: { id: 'linear', cards: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'] },
       votes: {},
     };
-    const { castVote } = await mountEstimating({ round: linearRound });
+    const { toggleCurrentVote } = await mountEstimating({ round: linearRound });
     dispatchKey({ code: 'Digit0', key: '0' });
-    expect(castVote).toHaveBeenCalledWith('r1', 'me', '10');
+    expect(toggleCurrentVote).toHaveBeenCalledWith('me', '10');
   });
 
-  it('Re-pressing the digit bound to current vote clears it', async () => {
-    const { clearVote, castVote } = await mountEstimating({ myVote: '0' });
+  it('Re-pressing the digit bound to current vote calls toggleCurrentVote with the same card', async () => {
+    // The toggle rule (cast vs. clear) now lives in @hnch/shared's
+    // vote-commands.toggleCurrentVote — the keyboard resolver just reports
+    // 'cast' with the card at that index, same card or not.
+    const { toggleCurrentVote } = await mountEstimating({ myVote: '0' });
     dispatchKey({ code: 'Digit1', key: '1' });
-    expect(clearVote).toHaveBeenCalledWith('r1', 'me');
-    expect(castVote).not.toHaveBeenCalled();
+    expect(toggleCurrentVote).toHaveBeenCalledWith('me', '0');
   });
 
   it('Modifier-held digit is a no-op (defers to browser)', async () => {
-    const { castVote } = await mountEstimating();
+    const { toggleCurrentVote } = await mountEstimating();
     dispatchKey({ code: 'Digit1', key: '1', ctrlKey: true });
-    expect(castVote).not.toHaveBeenCalled();
+    expect(toggleCurrentVote).not.toHaveBeenCalled();
   });
 
   it('Skips when focus is inside an INPUT', async () => {
-    const { castVote } = await mountEstimating();
+    const { toggleCurrentVote } = await mountEstimating();
     const input = document.createElement('input');
     document.body.appendChild(input);
     input.focus();
     try {
       dispatchKey({ code: 'Digit1', key: '1' });
-      expect(castVote).not.toHaveBeenCalled();
+      expect(toggleCurrentVote).not.toHaveBeenCalled();
     } finally {
       input.remove();
     }
   });
 
   it('Skips when an ion-popover overlay is open above the page', async () => {
-    const { castVote } = await mountEstimating();
+    const { toggleCurrentVote } = await mountEstimating();
     const overlay = document.createElement('ion-popover');
     document.body.appendChild(overlay);
     try {
       dispatchKey({ code: 'Digit1', key: '1' });
-      expect(castVote).not.toHaveBeenCalled();
+      expect(toggleCurrentVote).not.toHaveBeenCalled();
     } finally {
       overlay.remove();
     }
   });
 
   it('Skips when no round is active', async () => {
-    const { castVote } = await mountEstimating({ round: null });
+    const { toggleCurrentVote } = await mountEstimating({ round: null });
     dispatchKey({ code: 'Digit1', key: '1' });
-    expect(castVote).not.toHaveBeenCalled();
+    expect(toggleCurrentVote).not.toHaveBeenCalled();
   });
 
   it('Skips when local user is a viewer', async () => {
-    const { castVote } = await mountEstimating({ isViewer: true });
+    const { toggleCurrentVote } = await mountEstimating({ isViewer: true });
     dispatchKey({ code: 'Digit1', key: '1' });
-    expect(castVote).not.toHaveBeenCalled();
+    expect(toggleCurrentVote).not.toHaveBeenCalled();
   });
 
   it('Skips when the round is already revealed', async () => {
     const revealedRound: Round = { ...FIB_ROUND, status: 'revealed', terminalAt: 1000 };
-    const { castVote } = await mountEstimating({ round: revealedRound });
+    const { toggleCurrentVote } = await mountEstimating({ round: revealedRound });
     dispatchKey({ code: 'Digit1', key: '1' });
-    expect(castVote).not.toHaveBeenCalled();
+    expect(toggleCurrentVote).not.toHaveBeenCalled();
+  });
+
+  it('Skips when the round is already skipped', async () => {
+    const skippedRound: Round = { ...FIB_ROUND, status: 'skipped', terminalAt: 1000 };
+    const { toggleCurrentVote } = await mountEstimating({ round: skippedRound });
+    dispatchKey({ code: 'Digit1', key: '1' });
+    expect(toggleCurrentVote).not.toHaveBeenCalled();
+  });
+
+  it('Skips when the round is already discarded', async () => {
+    const discardedRound: Round = { ...FIB_ROUND, status: 'discarded', terminalAt: 1000 };
+    const { toggleCurrentVote } = await mountEstimating({ round: discardedRound });
+    dispatchKey({ code: 'Digit1', key: '1' });
+    expect(toggleCurrentVote).not.toHaveBeenCalled();
+  });
+
+  it('applied:false (not-a-voter) suppresses haptic and leaves focus cursor unmoved', async () => {
+    const { fixture, toggleCurrentVote, impactLight } = await mountEstimating();
+    toggleCurrentVote.mockReturnValue({ applied: false, reason: 'not-a-voter' });
+    const page = fixture.componentInstance as unknown as {
+      focusedIndex: () => number | undefined;
+    };
+    const focusBefore = page.focusedIndex();
+    dispatchKey({ code: 'Digit1', key: '1' });
+    expect(toggleCurrentVote).toHaveBeenCalledWith('me', '0');
+    expect(impactLight).not.toHaveBeenCalled();
+    expect(page.focusedIndex()).toBe(focusBefore);
   });
 
   it('ArrowRight does not cast (focus only)', async () => {
-    const { castVote, clearVote } = await mountEstimating();
+    const { toggleCurrentVote, clearCurrentVote } = await mountEstimating();
     dispatchKey({ key: 'ArrowRight' });
-    expect(castVote).not.toHaveBeenCalled();
-    expect(clearVote).not.toHaveBeenCalled();
+    expect(toggleCurrentVote).not.toHaveBeenCalled();
+    expect(clearCurrentVote).not.toHaveBeenCalled();
   });
 
   it('Letter key is a no-op', async () => {
-    const { castVote } = await mountEstimating();
+    const { toggleCurrentVote } = await mountEstimating();
     dispatchKey({ key: 'a', code: 'KeyA' });
-    expect(castVote).not.toHaveBeenCalled();
+    expect(toggleCurrentVote).not.toHaveBeenCalled();
   });
 
   it('Digit beyond scale length is a no-op (T-shirt 5 cards, Digit6)', async () => {
@@ -305,8 +341,8 @@ describe('EstimatingPage — keyboard handler (issue #154)', () => {
       scale: { id: 't-shirt', cards: ['XS', 'S', 'M', 'L', 'XL'] },
       votes: {},
     };
-    const { castVote } = await mountEstimating({ round: tshirtRound });
+    const { toggleCurrentVote } = await mountEstimating({ round: tshirtRound });
     dispatchKey({ code: 'Digit6', key: '6' });
-    expect(castVote).not.toHaveBeenCalled();
+    expect(toggleCurrentVote).not.toHaveBeenCalled();
   });
 });

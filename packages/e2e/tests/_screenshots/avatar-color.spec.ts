@@ -9,7 +9,7 @@
  * Writes PNGs into docs/screenshots/<SHA>/ (SHA defaults to `local`).
  */
 import path from 'node:path';
-import { test, type BrowserContext, type Page } from '@playwright/test';
+import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import { resolveOutDir } from './_helpers/out-dir';
 
 import {
@@ -21,6 +21,7 @@ import {
   ESTIMATING,
   expandRoundStartSheet,
   clickRoundStartSubmit,
+  fillRoomCode,
 } from '../fixtures/helpers';
 
 const OUT_DIR = resolveOutDir('theming');
@@ -63,10 +64,33 @@ async function pickPaletteOption(page: Page, label: string): Promise<void> {
   await page.waitForTimeout(200);
 }
 
-async function createSession(page: Page): Promise<void> {
+async function createSession(page: Page): Promise<string> {
   await page.locator(HOME.createCard).click();
   await page.waitForURL(/\/lobby/);
   await page.locator(LOBBY.participantList).waitFor({ state: 'visible' });
+  const codeEl = page.locator(LOBBY.roomCode);
+  await codeEl.waitFor({ state: 'visible' });
+  const code = (await codeEl.textContent()) ?? '';
+  return code.replaceAll(/[^A-Z0-9]/gi, '');
+}
+
+/**
+ * Join an existing session as a second, silent voter — present so the
+ * denominator in `shouldAutoReveal` (packages/shared/src/auto-reveal.ts) is
+ * 2, not 1. Without this, the host's single vote in step 4 satisfies
+ * unanimous auto-reveal immediately and the card grid (bound to
+ * `activeRound()`) unmounts before the selected-card screenshot can be taken.
+ * This voter never casts a vote itself — it just needs to stay connected
+ * (present in awareness) through step 4.
+ */
+async function joinAsSecondVoter(page: Page, code: string, name: string): Promise<void> {
+  await page.goto(`${BASE_URL}/home`);
+  await page.waitForURL(/\/onboarding/);
+  await onboard(page, name);
+  await page.goto(`${BASE_URL}/join`);
+  await fillRoomCode(page, code);
+  await page.locator('ion-button:has-text("Join")').first().click();
+  await page.waitForURL(/\/lobby/);
 }
 
 async function captureSet(
@@ -76,6 +100,10 @@ async function captureSet(
   tag: string,
 ): Promise<void> {
   const { ctx, page } = await freshContext(browser, viewport, colorScheme);
+  // Second, silent voter — joins right before step 4 so the host's single
+  // vote can't unanimously auto-reveal (see joinAsSecondVoter doc comment).
+  // Uses the same viewport/scheme as the host; it's never screenshotted itself.
+  const { ctx: voterCtx, page: voterPage } = await freshContext(browser, viewport, colorScheme);
   try {
     // 1 — settings with avatar color picker (default state, deterministic seed).
     await page.goto(`${BASE_URL}/home`);
@@ -91,8 +119,13 @@ async function captureSet(
     // 3 — lobby with the chosen color on the host avatar.
     await page.goto(`${BASE_URL}/home`);
     await page.waitForURL(/\/home/);
-    await createSession(page);
+    const code = await createSession(page);
     await shot(page, `03-lobby-pink-avatar-${tag}`);
+
+    // Second voter joins now, after the solo-host lobby shot above, so that
+    // shot keeps its original single-avatar composition.
+    await joinAsSecondVoter(voterPage, code, 'Sam');
+    await page.locator(LOBBY.participantItems).nth(1).waitFor({ state: 'visible' });
 
     // 4 — estimating with self-vote dot colored.
     const startBtn = page
@@ -105,11 +138,18 @@ async function captureSet(
     await clickRoundStartSubmit(page);
     await page.locator(ESTIMATING.cardGrid).waitFor({ state: 'visible' });
     await page.waitForTimeout(400);
+    // Guard the exact race: app-avatar-vote-row is bound to
+    // onlineVoterParticipants() (estimating.page.ts), the same signal
+    // shouldAutoReveal reads for its denominator. Asserting 2 dots here
+    // — right before the host votes — confirms the co-voter is counted,
+    // rather than relying on the earlier lobby-roster wait as a proxy.
+    await expect(page.locator(ESTIMATING.voteDots)).toHaveCount(2, { timeout: 15_000 });
     await page.locator(ESTIMATING.card('5')).first().click();
     await page.locator(ESTIMATING.selectedCard).first().waitFor({ state: 'visible' });
     await page.waitForTimeout(300);
     await shot(page, `04-estimating-pink-dot-${tag}`);
   } finally {
+    await voterCtx.close();
     await ctx.close();
   }
 }

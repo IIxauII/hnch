@@ -14,6 +14,7 @@ import {
 // directly from its internal module to exercise the tie-break unit tests.
 import { terminalState } from './round-status.js';
 import {
+  activeRound,
   appendAgendaItem,
   appendRound,
   castVote,
@@ -446,6 +447,12 @@ describe('castVote / clearVote', () => {
   // Pre-skip votes stay in the doc (suppressed in UI); post-skip votes are
   // also written (castVote guards on revealedAt only). This test pins that
   // contract so an accidental skippedAt guard would be caught.
+  //
+  // This is the *raw writer* contract, deliberately narrow. The product-level
+  // gate — "a terminated round refuses votes", widened from revealed to all
+  // three terminal states — lives one layer up in `vote-commands.ts`, which
+  // selects `activeRound` and never hands a terminal round to these writers.
+  // Do not widen the guard here; see `vote-commands.test.ts` for that gate.
   it('castVote succeeds on a skipped round (only revealedAt blocks, not skippedAt)', () => {
     const { doc } = seedDoc();
     appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
@@ -702,6 +709,54 @@ describe('currentRound', () => {
     revealRound(doc, 'r2', 20);
 
     expect(currentRound(projectDoc(doc))!.id).toBe('r2');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// activeRound
+// ---------------------------------------------------------------------------
+
+describe('activeRound', () => {
+  it('returns null for empty rounds', () => {
+    const { doc } = seedDoc();
+    expect(activeRound(projectDoc(doc))).toBeNull();
+  });
+
+  it('selects the last non-terminal round when a terminal round precedes it', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    revealRound(doc, 'r1', 10);
+    appendRound(doc, { id: 'r2', createdAt: 2, createdBy: 'p-host' });
+    expect(activeRound(projectDoc(doc))!.id).toBe('r2');
+  });
+
+  it('selects the last non-terminal round when a terminal round follows it', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    appendRound(doc, { id: 'r2', createdAt: 2, createdBy: 'p-host' });
+    discardRound(doc, 'r2', 20, 'p-host');
+    expect(activeRound(projectDoc(doc))!.id).toBe('r1');
+  });
+
+  it('returns null when every round is terminal, across all three terminal kinds', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    revealRound(doc, 'r1', 10);
+    appendRound(doc, { id: 'r2', createdAt: 2, createdBy: 'p-host' });
+    skipRound(doc, 'r2', 20);
+    appendRound(doc, { id: 'r3', createdAt: 3, createdBy: 'p-host' });
+    discardRound(doc, 'r3', 30, 'p-host');
+    expect(activeRound(projectDoc(doc))).toBeNull();
+  });
+
+  it('diverges from currentRound when every round is terminal: activeRound is null, currentRound falls back to the anchor', () => {
+    const { doc } = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host' });
+    revealRound(doc, 'r1', 10);
+    const snap = projectDoc(doc);
+
+    expect(activeRound(snap)).toBeNull();
+    expect(currentRound(snap)!.id).toBe('r1');
   });
 });
 

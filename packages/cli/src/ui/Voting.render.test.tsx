@@ -37,8 +37,8 @@ const noop = (): void => {};
 function baseProps(overrides: {
   myRole?: 'voter' | 'viewer';
   round?: Round;
-  onVote?: ReturnType<typeof vi.fn>;
-  onClearVote?: ReturnType<typeof vi.fn>;
+  onToggleCurrentVote?: ReturnType<typeof vi.fn>;
+  onClearCurrentVote?: ReturnType<typeof vi.fn>;
 }) {
   return {
     projection: PROJECTION,
@@ -51,8 +51,8 @@ function baseProps(overrides: {
     roomCode: 'ABC123',
     shareOpen: false,
     settingsOpen: false,
-    onVote: overrides.onVote ?? vi.fn(),
-    onClearVote: overrides.onClearVote ?? vi.fn(),
+    onToggleCurrentVote: overrides.onToggleCurrentVote ?? vi.fn(),
+    onClearCurrentVote: overrides.onClearCurrentVote ?? vi.fn(),
     onReveal: noop,
     onSkip: noop,
     onToggleRole: noop,
@@ -69,38 +69,44 @@ async function flush(): Promise<void> {
 
 // Exercises: ui/Voting:Voting
 describe('Voting — [a] abstain keybind interaction', () => {
-  it('pressing a as voter calls onVote with ABSTAIN_SENTINEL', async () => {
-    const onVote = vi.fn();
-    const { stdin } = render(<Voting {...baseProps({ onVote })} />);
+  it('pressing a as voter calls onToggleCurrentVote with ABSTAIN_SENTINEL', async () => {
+    const onToggleCurrentVote = vi.fn();
+    const { stdin } = render(<Voting {...baseProps({ onToggleCurrentVote })} />);
     await flush();
     await act(async () => {
       stdin.write('a');
       await flush();
     });
-    expect(onVote).toHaveBeenCalledWith(ABSTAIN_SENTINEL);
+    expect(onToggleCurrentVote).toHaveBeenCalledWith(ABSTAIN_SENTINEL);
   });
 
-  it('pressing a while already abstained calls onClearVote (toggle-off)', async () => {
-    const onClearVote = vi.fn();
+  it('pressing a while already abstained still calls onToggleCurrentVote (toggle collapses cast/clear)', async () => {
+    const onToggleCurrentVote = vi.fn();
+    const onClearCurrentVote = vi.fn();
     const round = makeRound({ votes: { host: ABSTAIN_SENTINEL } });
-    const { stdin } = render(<Voting {...baseProps({ onClearVote, round })} />);
+    const { stdin } = render(
+      <Voting {...baseProps({ onToggleCurrentVote, onClearCurrentVote, round })} />,
+    );
     await flush();
     await act(async () => {
       stdin.write('a');
       await flush();
     });
-    expect(onClearVote).toHaveBeenCalledOnce();
+    // [a] always emits a single toggle call — the shared command decides
+    // cast vs. clear, not the Voting screen.
+    expect(onToggleCurrentVote).toHaveBeenCalledWith(ABSTAIN_SENTINEL);
+    expect(onClearCurrentVote).not.toHaveBeenCalled();
   });
 
-  it('viewer pressing a does NOT call onVote', async () => {
-    const onVote = vi.fn();
-    const { stdin } = render(<Voting {...baseProps({ myRole: 'viewer', onVote })} />);
+  it('viewer pressing a does NOT call onToggleCurrentVote', async () => {
+    const onToggleCurrentVote = vi.fn();
+    const { stdin } = render(<Voting {...baseProps({ myRole: 'viewer', onToggleCurrentVote })} />);
     await flush();
     await act(async () => {
       stdin.write('a');
       await flush();
     });
-    expect(onVote).not.toHaveBeenCalled();
+    expect(onToggleCurrentVote).not.toHaveBeenCalled();
   });
 });
 

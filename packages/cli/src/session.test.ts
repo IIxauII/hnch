@@ -86,8 +86,8 @@ describe('session integration', () => {
     );
 
     // Both vote
-    host.vote('5');
-    joiner.vote('8');
+    host.toggleCurrentVote('5');
+    joiner.toggleCurrentVote('8');
 
     // Wait for both votes to be visible to both clients.
     await vi.waitFor(
@@ -163,7 +163,7 @@ describe('session integration', () => {
 
     // Start round, vote, reveal
     const round1Id = host.newRound('Story 1');
-    host.vote('3');
+    host.toggleCurrentVote('3');
 
     await vi.waitFor(
       () => {
@@ -277,7 +277,7 @@ describe('session integration', () => {
       { timeout: SYNC_TIMEOUT },
     );
 
-    host.vote('5');
+    host.toggleCurrentVote('5');
 
     await vi.waitFor(
       () => {
@@ -522,6 +522,67 @@ describe('session integration', () => {
     host.disconnect();
   });
 
+  it('toggleCurrentVote after a skip is refused and leaves the round untouched (closes the CLI defect)', async () => {
+    const host = await createSession({
+      participantId: 'host-post-skip-vote',
+      displayName: 'Alice',
+      relayUrl,
+      defaultScale: FIBONACCI_SCALE,
+    });
+
+    const roundId = host.newRound('Skip then vote');
+    await vi.waitFor(
+      () => expect(host.projection().rounds.find((x) => x.id === roundId)).toBeDefined(),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    host.skip();
+    await vi.waitFor(
+      () => expect(host.projection().rounds.find((x) => x.id === roundId)?.status).toBe('skipped'),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    // A keypress arriving after the skip must be refused, not recorded
+    // against the round that just went terminal.
+    const result = host.toggleCurrentVote('5');
+    expect(result).toEqual({ applied: false, reason: 'no-active-round' });
+
+    const round = host.projection().rounds.find((x) => x.id === roundId);
+    expect(round?.votes['host-post-skip-vote']).toBeUndefined();
+
+    host.disconnect();
+  });
+
+  it('toggleCurrentVote after a discard is refused and leaves the round untouched (closes the CLI defect)', async () => {
+    const host = await createSession({
+      participantId: 'host-post-discard-vote',
+      displayName: 'Alice',
+      relayUrl,
+      defaultScale: FIBONACCI_SCALE,
+    });
+
+    const roundId = host.newRound('Discard then vote');
+    await vi.waitFor(
+      () => expect(host.projection().rounds.find((x) => x.id === roundId)).toBeDefined(),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    host.discardCurrentRound();
+    await vi.waitFor(
+      () =>
+        expect(host.projection().rounds.find((x) => x.id === roundId)?.status).toBe('discarded'),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    const result = host.toggleCurrentVote('5');
+    expect(result).toEqual({ applied: false, reason: 'no-active-round' });
+
+    const round = host.projection().rounds.find((x) => x.id === roundId);
+    expect(round?.votes['host-post-discard-vote']).toBeUndefined();
+
+    host.disconnect();
+  });
+
   it('unanimous vote auto-reveals without a manual reveal call', async () => {
     const host = await createSession({
       participantId: 'host-auto',
@@ -538,7 +599,7 @@ describe('session integration', () => {
 
     // Single online voter casts a numeric vote — unanimity. No host.reveal():
     // the 250ms auto-reveal interval must fire the terminal transition itself.
-    host.vote('5');
+    host.toggleCurrentVote('5');
 
     await vi.waitFor(
       () => expect(host.projection().rounds.find((x) => x.id === roundId)?.status).toBe('revealed'),

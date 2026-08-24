@@ -234,15 +234,15 @@ export function App({
     setEditingRoundId(null);
   }, []);
 
-  const handleVote = useCallback(
+  const handleToggleCurrentVote = useCallback(
     (card: string) => {
-      session.vote(card);
+      session.toggleCurrentVote(card);
     },
     [session],
   );
 
-  const handleClearVote = useCallback(() => {
-    session.unvote();
+  const handleClearCurrentVote = useCallback(() => {
+    session.clearCurrentVote();
   }, [session]);
 
   const handleReveal = useCallback(() => {
@@ -512,8 +512,8 @@ export function App({
           myId={participantId}
           myRole={myRole}
           elapsedMs={elapsedMs}
-          onVote={handleVote}
-          onClearVote={handleClearVote}
+          onToggleCurrentVote={handleToggleCurrentVote}
+          onClearCurrentVote={handleClearCurrentVote}
           onReveal={handleReveal}
           onSkip={handleSkip}
           onDiscard={handleDiscard}
