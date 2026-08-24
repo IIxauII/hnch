@@ -643,7 +643,12 @@ export class DocService {
    * `parseAvatarColor` first — bad input is the writer's bug, not the
    * reader's problem.
    *
-   * No-op when no session is active.
+   * Unlike its siblings this does **not** `requireDoc`: the Settings page is
+   * reachable with no session, and picking a colour there must persist the
+   * preference locally rather than throw. That case reports the same
+   * `'not-found'` the command itself returns for an absent participant — with
+   * no doc there is likewise no record to recolour, so the two collapse
+   * honestly onto one reason.
    */
   setAvatarColor(participantId: string, color: string): RosterResult {
     if (this.doc === null) return { applied: false, reason: 'not-found' };

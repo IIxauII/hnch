@@ -61,6 +61,11 @@ function agendaRefusal(reason: Extract<AgendaResult, { applied: false }>['reason
     case 'not-pending':
       return 'the item is no longer pending — a peer may have skipped, cancelled or estimated it';
     case 'invalid-fields':
+      // Rarely reached: `handleAgendaAdd` rejects a blank title+ticket up front
+      // so it never opens a relay connection just to be refused. The arm stays
+      // because the union is one per module, not one per command, and an
+      // exhaustive switch is what keeps a future reason from silently
+      // returning undefined here.
       return 'an agenda item needs at least one of --title or --ticket';
   }
 }

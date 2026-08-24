@@ -859,13 +859,27 @@ export interface AppendAgendaItemInit {
 }
 
 /**
+ * An agenda item must carry at least one of `{title, ticketId}` with text in
+ * it — the ADR-0042 rule that stops an item from becoming an unidentifiable
+ * blank row. Exported by path (not on the barrel) so `agenda-commands` can
+ * apply it as a *refusal* while the two writers below keep applying it as a
+ * defensive `throw`: one spelling of the rule, two enforcement styles.
+ */
+export function hasAgendaItemIdentity(
+  title: string | undefined,
+  ticketId: string | undefined,
+): boolean {
+  return Boolean(title?.trim()) || Boolean(ticketId?.trim());
+}
+
+/**
  * Append a new agenda item to the doc. Validates that at least one of
  * `{title, ticketId}` is non-empty. Generates a UUID, assigns a `sortKey`
  * after the last pending item, sets state to `'pending'` and source to
  * `'manual'` (unless overridden). Returns the new item's id.
  */
 export function appendAgendaItem(doc: Y.Doc, init: AppendAgendaItemInit): string {
-  if (!init.title?.trim() && !init.ticketId?.trim()) {
+  if (!hasAgendaItemIdentity(init.title, init.ticketId)) {
     throw new Error('appendAgendaItem: at least one of {title, ticketId} is required');
   }
 
@@ -936,7 +950,7 @@ export function updateAgendaItemFields(
   const newTicketId =
     patch.ticketId !== undefined ? patch.ticketId : (item.get('ticketId') as string | undefined);
 
-  if (!newTitle?.trim() && !newTicketId?.trim()) {
+  if (!hasAgendaItemIdentity(newTitle, newTicketId)) {
     throw new Error(
       'updateAgendaItemFields: at least one of {title, ticketId} must remain non-empty',
     );

@@ -79,6 +79,24 @@ function findParticipant(doc: Y.Doc, id: string): ParticipantSnapshot | undefine
   return projectDoc(doc).participants.find((p) => p.id === id);
 }
 
+/**
+ * One projection for the commands that need to read both the host field and
+ * a participant record. `projectDoc` walks the whole doc, so the gated
+ * commands take a single snapshot and answer both questions from it rather
+ * than projecting once per question.
+ */
+function readRoster(
+  doc: Y.Doc,
+  actorId: string,
+  targetId: string,
+): { isHost: boolean; target: ParticipantSnapshot | undefined } {
+  const projection = projectDoc(doc);
+  return {
+    isHost: projection.settings.hostParticipantId === actorId,
+    target: projection.participants.find((p) => p.id === targetId),
+  };
+}
+
 /** `true` when `actorId` currently holds host authority. */
 function isHost(doc: Y.Doc, actorId: string): boolean {
   return projectDoc(doc).settings.hostParticipantId === actorId;
@@ -172,9 +190,10 @@ export function kick(
   targetId: string,
   clock: Clock = Date.now,
 ): RosterResult {
-  if (!isHost(doc, hostId)) return { applied: false, reason: 'not-host' };
+  const roster = readRoster(doc, hostId, targetId);
+  if (!roster.isHost) return { applied: false, reason: 'not-host' };
   if (targetId === hostId) return { applied: false, reason: 'self-target' };
-  if (!findParticipant(doc, targetId)) return { applied: false, reason: 'not-found' };
+  if (!roster.target) return { applied: false, reason: 'not-found' };
 
   const at = clock();
   removeParticipant(doc, hostId, targetId, at);
@@ -194,8 +213,9 @@ export function handoffHost(
   targetId: string,
   onlineIds: ReadonlySet<string>,
 ): RosterResult {
-  if (!isHost(doc, actorId)) return { applied: false, reason: 'not-host' };
-  if (!findParticipant(doc, targetId)) return { applied: false, reason: 'not-found' };
+  const roster = readRoster(doc, actorId, targetId);
+  if (!roster.isHost) return { applied: false, reason: 'not-host' };
+  if (!roster.target) return { applied: false, reason: 'not-found' };
   if (!onlineIds.has(targetId)) return { applied: false, reason: 'not-online' };
 
   patchSettingsInternal(doc, { hostParticipantId: targetId });

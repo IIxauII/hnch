@@ -373,3 +373,65 @@ describe('endSession', () => {
     expect(result.at).toBeLessThanOrEqual(after);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Departed participants (ADR-0036 tombstones)
+//
+// `projectDoc` keeps departed participants in `participants` — the record
+// survives so past rounds can still resolve a name — so every command here
+// can still find one. These tests pin what that means today rather than
+// asserting a departure gate: #507 asked for no such rule, and the raw
+// writers behaved this way before the commands existed. The `kick` case is
+// the one with teeth, and is called out as a follow-up candidate.
+// ---------------------------------------------------------------------------
+
+describe('commands against a departed participant', () => {
+  it('rename still applies — the record outlives the departure', () => {
+    const doc = seedDoc();
+    leave(doc, 'p-bob', FIXED);
+
+    expect(rename(doc, 'p-bob', 'Robert')).toEqual({ applied: true });
+    expect(participant(doc, 'p-bob').displayName).toBe('Robert');
+    // Departure is untouched by the rename.
+    expect(participant(doc, 'p-bob').leftAt).toBe(1_700_000_900_000);
+  });
+
+  it('recolor and toggleRole still apply, leaving leftAt intact', () => {
+    const doc = seedDoc();
+    leave(doc, 'p-bob', FIXED);
+
+    expect(recolor(doc, 'p-bob', 'green')).toEqual({ applied: true });
+    expect(toggleRole(doc, 'p-bob')).toEqual({ applied: true });
+
+    const bob = participant(doc, 'p-bob');
+    expect(bob.avatarColor).toBe('green');
+    expect(participantRole(bob)).toBe('viewer');
+    expect(isActiveParticipant(bob)).toBe(false);
+  });
+
+  it('kick reports applied for an already-departed target and rewrites removedBy', () => {
+    const doc = seedDoc();
+    leave(doc, 'p-bob', FIXED);
+    expect(participant(doc, 'p-bob').removedBy).toBe('p-bob');
+
+    // Known wart, inherited from the raw writer and deliberately left as-is by
+    // #507: kicking someone who already left succeeds and recasts their own
+    // exit as a host removal in the ADR-0036 record. Pinned here so a future
+    // departure gate is a visible, intentional change to this assertion.
+    expect(kick(doc, 'p-host', 'p-bob', () => 1_700_000_950_000)).toEqual({
+      applied: true,
+      at: 1_700_000_950_000,
+    });
+    expect(participant(doc, 'p-bob').removedBy).toBe('p-host');
+  });
+
+  it('handoffHost still refuses a departed target that is offline', () => {
+    const doc = seedDoc();
+    leave(doc, 'p-bob', FIXED);
+
+    expect(handoffHost(doc, 'p-host', 'p-bob', new Set(['p-host']))).toEqual({
+      applied: false,
+      reason: 'not-online',
+    });
+  });
+});

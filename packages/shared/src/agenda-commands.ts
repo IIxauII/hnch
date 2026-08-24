@@ -31,6 +31,7 @@ import type * as Y from 'yjs';
 import type { AgendaItem } from './doc.js';
 import {
   appendAgendaItem,
+  hasAgendaItemIdentity,
   projectDoc,
   reorderAgendaItem,
   setAgendaItemState,
@@ -92,11 +93,6 @@ export interface EditItemPatch {
   readonly description?: string;
 }
 
-/** `true` when at least one of the two identifying fields carries text. */
-function hasIdentity(title: string | undefined, ticketId: string | undefined): boolean {
-  return Boolean(title?.trim()) || Boolean(ticketId?.trim());
-}
-
 /** Select an agenda item from the projection, or the refusal to return. */
 function itemOrRefusal(doc: Y.Doc, id: string): AgendaItem | AgendaResult {
   const item = projectDoc(doc).agenda.find((i) => i.id === id);
@@ -104,7 +100,30 @@ function itemOrRefusal(doc: Y.Doc, id: string): AgendaItem | AgendaResult {
   return item;
 }
 
-/** Narrow the `itemOrRefusal` union without repeating the discriminant. */
+/**
+ * Select an item that must still be `pending` — the shared precondition of
+ * skip, cancel and reorder. Returns the item, or the refusal to hand back
+ * unchanged (`'not-found'` when it is gone, `'not-pending'` when a peer
+ * already skipped, cancelled or estimated it).
+ */
+function pendingItemOrRefusal(doc: Y.Doc, id: string): AgendaItem | AgendaResult {
+  const sel = itemOrRefusal(doc, id);
+  if (isRefusal(sel)) return sel;
+  if (sel.state !== 'pending') return { applied: false, reason: 'not-pending' };
+  return sel;
+}
+
+/**
+ * `true` when an item's fields are frozen. Deliberately *not* the complement
+ * of `state === 'pending'`: a `consumed` item stays editable, so a typo in a
+ * story that has already been estimated can still be fixed. Only the two
+ * states that end an item's life without estimating it freeze its text.
+ */
+function isFrozen(item: AgendaItem): boolean {
+  return item.state === 'skipped' || item.state === 'cancelled';
+}
+
+/** Narrow the selector unions without repeating the discriminant. */
 function isRefusal(sel: AgendaItem | AgendaResult): sel is AgendaResult {
   return 'applied' in sel;
 }
@@ -115,7 +134,7 @@ function isRefusal(sel: AgendaItem | AgendaResult): sel is AgendaResult {
  * text. Returns the new item's id and the stamped clock value.
  */
 export function addItem(doc: Y.Doc, init: AddItemInit, clock: Clock = Date.now): AgendaResult {
-  if (!hasIdentity(init.title, init.ticketId)) {
+  if (!hasAgendaItemIdentity(init.title, init.ticketId)) {
     return { applied: false, reason: 'invalid-fields' };
   }
   const at = clock();
@@ -127,21 +146,21 @@ export function addItem(doc: Y.Doc, init: AddItemInit, clock: Clock = Date.now):
  * Patch `title`, `ticketId` and/or `description` on an existing item.
  *
  * Refuses with `'not-found'` when the item is gone, `'not-pending'` when it
- * is frozen (`skipped` or `cancelled`), and `'invalid-fields'` when the patch
- * would leave both identifying fields empty. The first two are the lost-race
- * cases the raw writer used to throw on: a peer skipped or cancelled the item
- * while the host had the edit form open.
+ * is frozen (see `isFrozen` — `'not-pending'` is the union's nearest member,
+ * and edit's eligibility rule is *wider* than skip/cancel/reorder's: a
+ * `consumed` item still edits), and `'invalid-fields'` when the patch would
+ * leave both identifying fields empty. The first two are the lost-race cases
+ * the raw writer used to throw on: a peer skipped or cancelled the item while
+ * the host had the edit form open.
  */
 export function editItem(doc: Y.Doc, id: string, patch: EditItemPatch): AgendaResult {
   const sel = itemOrRefusal(doc, id);
   if (isRefusal(sel)) return sel;
-  if (sel.state === 'skipped' || sel.state === 'cancelled') {
-    return { applied: false, reason: 'not-pending' };
-  }
+  if (isFrozen(sel)) return { applied: false, reason: 'not-pending' };
 
   const nextTitle = patch.title !== undefined ? patch.title : sel.title;
   const nextTicketId = patch.ticketId !== undefined ? patch.ticketId : sel.ticketId;
-  if (!hasIdentity(nextTitle, nextTicketId)) {
+  if (!hasAgendaItemIdentity(nextTitle, nextTicketId)) {
     return { applied: false, reason: 'invalid-fields' };
   }
 
@@ -155,9 +174,8 @@ export function editItem(doc: Y.Doc, id: string, patch: EditItemPatch): AgendaRe
  * been consumed, skipped or cancelled. Persists no timestamp.
  */
 export function skipItem(doc: Y.Doc, id: string): AgendaResult {
-  const sel = itemOrRefusal(doc, id);
+  const sel = pendingItemOrRefusal(doc, id);
   if (isRefusal(sel)) return sel;
-  if (sel.state !== 'pending') return { applied: false, reason: 'not-pending' };
 
   setAgendaItemState(doc, id, 'skipped');
   return { applied: true, id };
@@ -169,9 +187,8 @@ export function skipItem(doc: Y.Doc, id: string): AgendaResult {
  * Persists no timestamp.
  */
 export function cancelItem(doc: Y.Doc, id: string): AgendaResult {
-  const sel = itemOrRefusal(doc, id);
+  const sel = pendingItemOrRefusal(doc, id);
   if (isRefusal(sel)) return sel;
-  if (sel.state !== 'pending') return { applied: false, reason: 'not-pending' };
 
   setAgendaItemState(doc, id, 'cancelled');
   return { applied: true, id };
@@ -192,9 +209,8 @@ export function moveItem(
   before?: string | null,
   after?: string | null,
 ): AgendaResult {
-  const sel = itemOrRefusal(doc, id);
+  const sel = pendingItemOrRefusal(doc, id);
   if (isRefusal(sel)) return sel;
-  if (sel.state !== 'pending') return { applied: false, reason: 'not-pending' };
 
   reorderAgendaItem(doc, id, before, after);
   return { applied: true, id };
