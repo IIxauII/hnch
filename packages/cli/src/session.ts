@@ -12,8 +12,9 @@ import {
   joinDoc,
   projectDoc,
   currentRound,
-  castVote,
-  clearVote,
+  toggleCurrentVote,
+  clearCurrentVote,
+  type VoteResult,
   revealCurrentRound,
   skipCurrentRound,
   discardCurrentRound as discardCurrentRoundCommand,
@@ -76,10 +77,19 @@ export interface SessionHandle {
   /** Online participant IDs from awareness. */
   onlineIds(): Set<string>;
 
-  /** Cast a vote on the current round. */
-  vote(card: string): void;
-  /** Clear vote on the current round. */
-  unvote(): void;
+  /**
+   * Cast, change, or clear a vote on the active round, applying the toggle
+   * rule (re-selecting the recorded card clears it). Refuses with a typed
+   * `VoteResult` when the round is terminal (revealed/skipped/discarded) or
+   * the caller is not a voter.
+   */
+  toggleCurrentVote(card: string): VoteResult;
+  /**
+   * Clear this participant's vote on the active round. Gated on the round
+   * being active only — not on voter role — so a voter who flips to viewer
+   * mid-round can still withdraw a vote already in the tally.
+   */
+  clearCurrentVote(): VoteResult;
   /** Reveal the current round (host only). */
   reveal(): void;
   /** Skip the current round (host only). */
@@ -313,14 +323,12 @@ export function wireSession(opts: WireOptions): SessionHandle {
 
     onlineIds: getOnlineIds,
 
-    vote(card: string) {
-      const round = currentRound(projectDoc(doc));
-      if (round) castVote(doc, round.id, participantId, card);
+    toggleCurrentVote(card: string) {
+      return toggleCurrentVote(doc, participantId, card);
     },
 
-    unvote() {
-      const round = currentRound(projectDoc(doc));
-      if (round) clearVote(doc, round.id, participantId);
+    clearCurrentVote() {
+      return clearCurrentVote(doc, participantId);
     },
 
     reveal() {

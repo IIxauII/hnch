@@ -10,8 +10,12 @@
  * Decisions (per plan):
  *  - Digits 1–9 map to card index 0–8; Digit0 maps to index 9. No-op when
  *    the index is out of range for short scales.
- *  - Re-pressing the digit bound to the current vote clears it (mirrors
- *    tap-to-deselect, AC4).
+ *  - Re-pressing the digit bound to the current vote still clears it, as
+ *    observed behaviour (mirrors tap-to-deselect, AC4) — but the toggle
+ *    rule itself no longer lives here. This resolver only reports intent
+ *    (`'cast'`); `@hnch/shared`'s `vote-commands.toggleCurrentVote` is the
+ *    single place that decides cast vs. clear by comparing against the
+ *    vote already on record.
  *  - Arrow keys shift a transient focus cursor only; Enter/Space on a
  *    focused card commits.
  *  - Any modifier (Ctrl/Meta/Alt) is treated as a browser/OS shortcut
@@ -19,7 +23,6 @@
  */
 export type KeyAction =
   | { kind: 'cast'; card: string; index: number }
-  | { kind: 'clear' }
   | { kind: 'focus'; index: number }
   | { kind: 'noop' };
 
@@ -61,7 +64,6 @@ export function resolveKeyboardCardAction(
     const index = digit === 0 ? 9 : digit - 1;
     if (index >= cards.length) return { kind: 'noop' };
     const card = cards[index]!;
-    if (myVote === card) return { kind: 'clear' };
     return { kind: 'cast', card, index };
   }
 
@@ -86,7 +88,6 @@ export function resolveKeyboardCardAction(
     if (idx === undefined) return { kind: 'noop' };
     if (idx < 0 || idx >= cards.length) return { kind: 'noop' };
     const card = cards[idx]!;
-    if (myVote === card) return { kind: 'clear' };
     return { kind: 'cast', card, index: idx };
   }
 

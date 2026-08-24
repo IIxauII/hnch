@@ -17,8 +17,8 @@ interface Props {
   roomCode: string;
   shareOpen: boolean;
   settingsOpen: boolean;
-  onVote: (card: string) => void;
-  onClearVote: () => void;
+  onToggleCurrentVote: (card: string) => void;
+  onClearCurrentVote: () => void;
   onReveal: () => void;
   onSkip: () => void;
   onDiscard: () => void;
@@ -47,8 +47,8 @@ export function Voting({
   roomCode,
   shareOpen,
   settingsOpen,
-  onVote,
-  onClearVote,
+  onToggleCurrentVote,
+  onClearCurrentVote,
   onReveal,
   onSkip,
   onDiscard,
@@ -72,11 +72,7 @@ export function Voting({
         return;
       }
       if (myRole === 'voter' && (input === 'a' || input === 'A')) {
-        if (isAbstained) {
-          onClearVote();
-        } else {
-          onVote(ABSTAIN_SENTINEL);
-        }
+        onToggleCurrentVote(ABSTAIN_SENTINEL);
         return;
       }
       if (isHost && (input === 'r' || input === 'R')) {
@@ -143,8 +139,8 @@ export function Voting({
             <CardPicker
               scale={round.scale}
               selected={isAbstained ? undefined : myVote}
-              onSelect={onVote}
-              onClear={onClearVote}
+              onToggleCurrentVote={onToggleCurrentVote}
+              onClearCurrentVote={onClearCurrentVote}
               disabled={confirmingQuit || isAbstained}
             />
           </Box>

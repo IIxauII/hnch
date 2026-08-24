@@ -200,7 +200,7 @@ import { resolveKeyboardCardAction, shouldHandleKeyEvent } from './estimating.ke
           <p class="observer-notice" role="status" aria-live="polite">
             You're observing this round
           </p>
-        } @else {
+        } @else if (activeRound(); as activeR) {
           <h2 class="section">Pick your estimate</h2>
 
           <div
@@ -209,7 +209,7 @@ import { resolveKeyboardCardAction, shouldHandleKeyEvent } from './estimating.ke
             role="group"
             aria-label="Choose your estimate"
           >
-            @for (card of round.scale.cards; track card; let i = $index) {
+            @for (card of activeR.scale.cards; track card; let i = $index) {
               <ion-card
                 #cardEl
                 button
@@ -403,6 +403,7 @@ export class EstimatingPage {
   private readonly alertCtrl = inject(AlertController);
 
   protected readonly currentRound = this.docService.currentRound;
+  protected readonly activeRound = this.docService.activeRound;
   protected readonly onlineParticipants = this.docService.onlineParticipants;
 
   // Tracks the last uuid written to the cache so the effect does not
@@ -671,14 +672,8 @@ export class EstimatingPage {
 
   protected onCardTap(card: string): void {
     const id = this.myId();
-    const round = this.currentRound();
-    if (!id || !round) return;
-
-    if (this.myVote() === card) {
-      this.docService.clearVote(round.id, id);
-    } else {
-      this.docService.castVote(round.id, id, card);
-    }
+    if (!id) return;
+    if (!this.docService.toggleCurrentVote(id, card).applied) return;
     this.haptic.impactLight();
   }
 
@@ -735,14 +730,10 @@ export class EstimatingPage {
 
     switch (action.kind) {
       case 'cast':
-        this.docService.castVote(round.id, id, action.card);
+        if (!this.docService.toggleCurrentVote(id, action.card).applied) return;
         this.focusedIndex.set(action.index);
         this.haptic.impactLight();
         queueMicrotask(() => this.focusCardAt(action.index));
-        break;
-      case 'clear':
-        this.docService.clearVote(round.id, id);
-        this.haptic.impactLight();
         break;
       case 'focus':
         this.focusedIndex.set(action.index);
@@ -759,14 +750,8 @@ export class EstimatingPage {
 
   protected onAbstain(): void {
     const id = this.myId();
-    const round = this.currentRound();
-    if (!id || !round) return;
-    // Toggle: if already abstained, clear; otherwise write sentinel.
-    if (this.isAbstained()) {
-      this.docService.clearVote(round.id, id);
-    } else {
-      this.docService.castVote(round.id, id, ABSTAIN_SENTINEL);
-    }
+    if (!id) return;
+    if (!this.docService.toggleCurrentVote(id, ABSTAIN_SENTINEL).applied) return;
     this.haptic.impactLight();
   }
 

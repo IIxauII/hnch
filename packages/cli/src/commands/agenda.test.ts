@@ -163,8 +163,6 @@ vi.mock('../session.js', async () => {
           return () => {};
         },
         onHostChange: () => () => {},
-        vote: vi.fn(),
-        unvote: vi.fn(),
         reveal: vi.fn(),
         skip: vi.fn(),
         newRound: vi.fn(),
