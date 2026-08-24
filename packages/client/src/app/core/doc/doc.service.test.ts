@@ -21,20 +21,24 @@ import { computed, signal, type Signal, type WritableSignal } from '@angular/cor
 import {
   appendRound,
   clearCurrentVote as clearCurrentVoteCommand,
-  endSessionForEveryone,
+  endSession as endSessionCommand,
   initDoc,
   isActiveParticipant,
   joinDoc,
-  leaveSession,
+  kick as kickCommand,
+  leave as leaveCommand,
   patchRoundDescriptor,
   patchSettings,
   projectDoc,
-  removeParticipant,
+  promoteHost as promoteHostCommand,
+  rename as renameCommand,
   revealCurrentRound as revealCurrentRoundCommand,
   skipCurrentRound as skipCurrentRoundCommand,
   toggleCurrentVote as toggleCurrentVoteCommand,
-  upsertParticipant,
+  toggleRole as toggleRoleCommand,
   type DocProjection,
+  type PublicSettingsPatch,
+  type RosterResult,
   type Round,
   type Scale,
   type VoteResult,
@@ -125,7 +129,11 @@ class DocServiceHarness {
   joinSession(params: { participantId: string; displayName: string; roomCode?: string }): void {
     if (this.doc !== null) throw new Error('session already active');
     const doc = new Y.Doc();
-    joinDoc(doc, { participantId: params.participantId, displayName: params.displayName });
+    joinDoc(doc, {
+      participantId: params.participantId,
+      displayName: params.displayName,
+      joinedAt: NOW,
+    });
     this.attach(doc);
     this.roomCodeSignal.set(params.roomCode ?? null);
     this.initAwareness(doc, params.participantId);
@@ -143,18 +151,36 @@ class DocServiceHarness {
     this.onlineParticipantIdsSignal.set(new Set());
   }
 
-  endSessionForEveryone(): void {
-    this.endingSessionLocally.set(true);
-    if (!this.doc) throw new Error('no session');
-    endSessionForEveryone(this.doc);
+  endSessionForEveryone(actorId: string, clock?: () => number): RosterResult {
+    const result = endSessionCommand(this.requireDoc(), actorId, clock);
+    if (result.applied) this.endingSessionLocally.set(true);
+    return result;
   }
 
-  updateSettings(patch: Parameters<typeof patchSettings>[1]): void {
+  updateSettings(patch: PublicSettingsPatch): void {
     patchSettings(this.requireDoc(), patch);
   }
 
-  upsertParticipant(id: string, value: Parameters<typeof upsertParticipant>[2]): void {
-    upsertParticipant(this.requireDoc(), id, value);
+  promoteHost(winnerId: string): RosterResult {
+    return promoteHostCommand(this.requireDoc(), winnerId);
+  }
+
+  renameParticipant(id: string, displayName: string): RosterResult {
+    return renameCommand(this.requireDoc(), id, displayName);
+  }
+
+  toggleRole(id: string): RosterResult {
+    return toggleRoleCommand(this.requireDoc(), id);
+  }
+
+  /**
+   * Test-only roster seeding. Production never writes a *peer's* record —
+   * peers arrive through their own `joinDoc` — so there is no roster command
+   * for it and the raw writer is package-internal. `joinDoc` is the public
+   * seam that mints a record, so the harness uses it directly.
+   */
+  seedParticipant(id: string, params: { displayName: string; joinedAt: number }): void {
+    joinDoc(this.requireDoc(), { participantId: id, ...params });
   }
 
   startRound(opts: { title?: string; now?: () => number } = {}): string {
@@ -184,12 +210,12 @@ class DocServiceHarness {
     skipCurrentRoundCommand(this.requireDoc(), () => now);
   }
 
-  leaveSession(selfId: string): void {
-    leaveSession(this.requireDoc(), selfId);
+  leaveSession(selfId: string): RosterResult {
+    return leaveCommand(this.requireDoc(), selfId);
   }
 
-  removeParticipant(hostId: string, targetId: string): void {
-    removeParticipant(this.requireDoc(), hostId, targetId);
+  removeParticipant(hostId: string, targetId: string): RosterResult {
+    return kickCommand(this.requireDoc(), hostId, targetId);
   }
 
   updateRoundDescriptor(roundId: string, fields: { title?: string; description?: string }): void {
@@ -425,7 +451,7 @@ describe('DocService — endSession', () => {
 
   it('endingSessionLocally resets to false', () => {
     h.createSession(makeInit());
-    h.endSessionForEveryone();
+    h.endSessionForEveryone('p-host');
     expect(h.endingSessionLocally()).toBe(true);
     h.endSession();
     expect(h.endingSessionLocally()).toBe(false);
@@ -462,15 +488,18 @@ describe('DocService — updateSettings', () => {
     expect(h.settings()?.defaultScale.id).toBe('t-shirt');
   });
 
-  it('patches hostParticipantId', () => {
-    h.updateSettings({ hostParticipantId: 'p-joiner' });
+  it('cannot express a host change — promoteHost is the seam for that', () => {
+    h.promoteHost('p-joiner');
     expect(h.settings()?.hostParticipantId).toBe('p-joiner');
   });
 });
 
 // ---------------------------------------------------------------------------
 
-describe('DocService — upsertParticipant', () => {
+// Wiring only: the rename / role rules themselves are pinned once in
+// `@hnch/shared`'s roster-commands.test.ts (#507). What these assert is that
+// a call reaches the command and the projection signals see its effect.
+describe('DocService — roster command wiring', () => {
   let h: DocServiceHarness;
 
   beforeEach(() => {
@@ -481,26 +510,26 @@ describe('DocService — upsertParticipant', () => {
     h.endSession();
   });
 
-  it('adds a second participant', () => {
-    h.upsertParticipant('p-joiner', { displayName: 'Joiner', joinedAt: NOW + 1 });
-    expect(h.participants()).toHaveLength(2);
+  it('renameParticipant reaches the command and the projection reflects it', () => {
+    expect(h.renameParticipant('p-host', 'New Name')).toEqual({ applied: true });
+    expect(h.participants().find((p) => p.id === 'p-host')?.displayName).toBe('New Name');
   });
 
-  it('updates displayName of existing participant', () => {
-    h.upsertParticipant('p-host', { displayName: 'New Name', joinedAt: NOW });
-    const me = h.participants().find((p) => p.id === 'p-host');
-    expect(me?.displayName).toBe('New Name');
+  it('renameParticipant propagates a refusal instead of throwing', () => {
+    expect(h.renameParticipant('p-ghost', 'Nobody')).toEqual({
+      applied: false,
+      reason: 'not-found',
+    });
   });
 
-  it('sets role on participant', () => {
-    h.upsertParticipant('p-joiner', { displayName: 'Joiner', joinedAt: NOW + 1, role: 'viewer' });
-    const joiner = h.participants().find((p) => p.id === 'p-joiner');
-    expect(joiner?.role).toBe('viewer');
+  it('toggleRole reaches the command and the projection reflects it', () => {
+    expect(h.toggleRole('p-host')).toEqual({ applied: true });
+    expect(h.participants().find((p) => p.id === 'p-host')?.role).toBe('viewer');
   });
 
   it('participants sorted by joinedAt', () => {
-    h.upsertParticipant('p-late', { displayName: 'Late', joinedAt: NOW + 1000 });
-    h.upsertParticipant('p-early', { displayName: 'Early', joinedAt: NOW - 1 });
+    h.seedParticipant('p-late', { displayName: 'Late', joinedAt: NOW + 1000 });
+    h.seedParticipant('p-early', { displayName: 'Early', joinedAt: NOW - 1 });
     const ids = h.participants().map((p) => p.id);
     expect(ids.indexOf('p-early')).toBeLessThan(ids.indexOf('p-host'));
   });
@@ -609,21 +638,28 @@ describe('DocService — endSessionForEveryone', () => {
     if (h.hasSession()) h.endSession();
   });
 
-  it('sets endingSessionLocally to true', () => {
+  it('sets endingSessionLocally to true once the command applies', () => {
     expect(h.endingSessionLocally()).toBe(false);
-    h.endSessionForEveryone();
+    h.endSessionForEveryone('p-host');
     expect(h.endingSessionLocally()).toBe(true);
   });
 
+  it('leaves endingSessionLocally false when the host gate refuses', () => {
+    h.seedParticipant('p-joiner', { displayName: 'Joiner', joinedAt: NOW + 1 });
+    expect(h.endSessionForEveryone('p-joiner')).toEqual({ applied: false, reason: 'not-host' });
+    expect(h.endingSessionLocally()).toBe(false);
+    expect(h.meta()?.sessionEndedAt).toBeUndefined();
+  });
+
   it('writes sessionEndedAt to meta', () => {
-    h.endSessionForEveryone();
+    h.endSessionForEveryone('p-host');
     expect(h.meta()?.sessionEndedAt).toBeDefined();
     expect(typeof h.meta()?.sessionEndedAt).toBe('number');
   });
 
   it('sessionEndedAt is a recent timestamp', () => {
     const before = Date.now();
-    h.endSessionForEveryone();
+    h.endSessionForEveryone('p-host');
     const after = Date.now();
     const meta = h.meta();
     const ts = meta?.sessionEndedAt;
@@ -633,9 +669,9 @@ describe('DocService — endSessionForEveryone', () => {
   });
 
   it('calling endSessionForEveryone twice produces valid timestamps', () => {
-    h.endSessionForEveryone();
+    h.endSessionForEveryone('p-host');
     const first = h.meta()?.sessionEndedAt;
-    h.endSessionForEveryone();
+    h.endSessionForEveryone('p-host');
     // Second call updates the timestamp (LWW merge); both values are valid numbers
     expect(typeof h.meta()?.sessionEndedAt).toBe('number');
     // Value may equal or exceed first
@@ -654,7 +690,7 @@ describe('DocService — endSessionForEveryone', () => {
     remote.mergeFrom(h.getDoc());
 
     // Host ends session
-    h.endSessionForEveryone();
+    h.endSessionForEveryone('p-host');
 
     // Merge host update into remote
     remote.mergeFrom(h.getDoc());
@@ -669,7 +705,7 @@ describe('DocService — endSessionForEveryone', () => {
     remote.mergeFrom(h.getDoc());
 
     // Remote harness did NOT call endSessionForEveryone() itself
-    h.endSessionForEveryone();
+    h.endSessionForEveryone('p-host');
     remote.mergeFrom(h.getDoc());
 
     expect(remote.endingSessionLocally()).toBe(false);
@@ -690,9 +726,9 @@ describe('DocService — projection signal updates reactively', () => {
     h.endSession();
   });
 
-  it('computed participants() reflects upsert without manual rebuild', () => {
+  it('computed participants() reflects a new peer without manual rebuild', () => {
     expect(h.participants()).toHaveLength(1);
-    h.upsertParticipant('p-2', { displayName: 'P2', joinedAt: NOW + 1 });
+    h.seedParticipant('p-2', { displayName: 'P2', joinedAt: NOW + 1 });
     expect(h.participants()).toHaveLength(2);
   });
 
@@ -806,7 +842,7 @@ describe('DocService — activeParticipants / onlineParticipants / offlinePartic
     h = makeHarness();
     h.createSession(makeInit({ participantId: 'p-host', displayName: 'Host' }));
     // Add a second participant
-    h.upsertParticipant('p-joiner', { displayName: 'Joiner', joinedAt: NOW + 1 });
+    h.seedParticipant('p-joiner', { displayName: 'Joiner', joinedAt: NOW + 1 });
   });
 
   afterEach(() => {
@@ -837,7 +873,7 @@ describe('DocService — activeParticipants / onlineParticipants / offlinePartic
     // p-joiner is in online set (awareness) but we soft-delete them
     h.leaveSession('p-joiner');
     // onlineParticipants filters through activeParticipants, so p-joiner is excluded
-    // awareness has p-host (local); p-joiner was added by upsert but has no separate Awareness
+    // awareness has p-host (local); p-joiner was seeded but has no separate Awareness
     expect(h.onlineParticipants().every((p) => !p.leftAt)).toBe(true);
   });
 

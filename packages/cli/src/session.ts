@@ -22,15 +22,18 @@ import {
   patchRoundDescriptor,
   patchSettings,
   hashPassword,
-  upsertParticipant,
-  participantRole,
+  endSession as endSessionCommand,
+  handoffHost as handoffHostCommand,
+  promoteHost as promoteHostCommand,
+  rename as renameCommand,
+  toggleRole as toggleRoleCommand,
+  type RosterResult,
   startAutoReveal,
   type AutoRevealHandle,
   onlineIdsFrom,
   AWARENESS_PARTICIPANT_ID_FIELD,
   startElection,
   type ElectionHandle,
-  endSessionForEveryone as endSessionMutation,
   FIBONACCI_SCALE,
   type DocProjection,
   type Scale,
@@ -111,16 +114,23 @@ export interface SessionHandle {
   updateName(name: string | undefined): void;
   /** Update the default estimation scale. */
   updateScale(scale: Scale): void;
-  /** Update this participant's display name. */
-  updateDisplayName(name: string): void;
+  /** Update this participant's display name. Preserves role and avatar colour. */
+  updateDisplayName(name: string): RosterResult;
   /** Update room access mode (open or password-protected). */
   updateAccess(mode: 'open' | 'password', password?: string): Promise<void>;
-  /** Hand off host to target participant (host only, target must be online). */
-  handoffHost(targetId: string): void;
+  /**
+   * Hand off host to a target participant. Refuses with a typed
+   * `RosterResult` — `'not-host'`, `'not-found'`, or `'not-online'` — rather
+   * than throwing, so the TUI branches instead of catching (#507).
+   */
+  handoffHost(targetId: string): RosterResult;
   /** Toggle this participant's role between voter and viewer. */
-  toggleRole(): void;
-  /** End the session for all participants (host only). */
-  endSessionForEveryone(): void;
+  toggleRole(): RosterResult;
+  /**
+   * End the session for all participants. Refuses with `'not-host'` rather
+   * than throwing.
+   */
+  endSessionForEveryone(): RosterResult;
 
   /** Subscribe to doc changes. Returns unsubscribe fn. */
   onChange(cb: () => void): () => void;
@@ -188,6 +198,7 @@ export async function joinSession(opts: JoinSessionOptions): Promise<SessionHand
   joinDoc(doc, {
     participantId: opts.participantId,
     displayName: opts.displayName,
+    joinedAt: Date.now(),
     ...(opts.avatarColor !== undefined && { avatarColor: opts.avatarColor }),
   });
 
@@ -269,7 +280,7 @@ export function wireSession(opts: WireOptions): SessionHandle {
       };
     },
     promote(winnerId) {
-      patchSettings(doc, { hostParticipantId: winnerId });
+      promoteHostCommand(doc, winnerId);
     },
   });
 
@@ -398,10 +409,7 @@ export function wireSession(opts: WireOptions): SessionHandle {
     },
 
     updateDisplayName(name: string) {
-      const projection = projectDoc(doc);
-      const participant = projection.participants.find((p) => p.id === participantId);
-      const joinedAt = participant?.joinedAt ?? Date.now();
-      upsertParticipant(doc, participantId, { displayName: name, joinedAt });
+      return renameCommand(doc, participantId, name);
     },
 
     async updateAccess(mode: 'open' | 'password', password?: string) {
@@ -416,39 +424,15 @@ export function wireSession(opts: WireOptions): SessionHandle {
     },
 
     handoffHost(targetId: string) {
-      if (!this.isHost()) {
-        throw new Error('Only the current host can hand off');
-      }
-      const onlineIds = getOnlineIds();
-      if (!onlineIds.has(targetId)) {
-        throw new Error('Target participant is not online');
-      }
-      const projection = projectDoc(doc);
-      const targetExists = projection.participants.some((p) => p.id === targetId);
-      if (!targetExists) {
-        throw new Error('Target participant does not exist');
-      }
-      patchSettings(doc, { hostParticipantId: targetId });
+      return handoffHostCommand(doc, participantId, targetId, getOnlineIds());
     },
 
     toggleRole() {
-      const projection = projectDoc(doc);
-      const participant = projection.participants.find((p) => p.id === participantId);
-      const currentRoleValue = participantRole(participant ?? {});
-      const newRole: 'voter' | 'viewer' = currentRoleValue === 'viewer' ? 'voter' : 'viewer';
-      const joinedAt = participant?.joinedAt ?? Date.now();
-      upsertParticipant(doc, participantId, {
-        displayName: participant?.displayName ?? '',
-        joinedAt,
-        role: newRole,
-      });
+      return toggleRoleCommand(doc, participantId);
     },
 
     endSessionForEveryone() {
-      if (!this.isHost()) {
-        throw new Error('Only the current host can end the session');
-      }
-      endSessionMutation(doc);
+      return endSessionCommand(doc, participantId);
     },
 
     onChange(cb: () => void) {

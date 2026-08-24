@@ -100,7 +100,7 @@ import {
   AgendaItemFormSheetComponent,
   type AgendaItemFormSubmission,
 } from '../agenda/agenda-item-form.sheet';
-import type { AgendaItem } from '@hnch/shared';
+import type { AgendaItem, AgendaResult } from '@hnch/shared';
 
 /**
  * Lobby — ux.md §5.4 host variant.
@@ -1300,10 +1300,22 @@ export class LobbyPage implements OnDestroy {
     this.editingAgendaItem.set(null);
   }
 
+  /**
+   * Submit the add / edit agenda form.
+   *
+   * A refusal **leaves the modal open**. Vote and round refusals are
+   * invisible because the affordance disappears along with them; an agenda
+   * refusal happens with the form still on screen and the user waiting for
+   * something, so dismissing it would silently eat their typing. The common
+   * case is a lost race — a peer skipped or cancelled the item while this
+   * form was open (#507). No toast: that surface does not exist elsewhere in
+   * the app.
+   */
   protected onAgendaFormSubmit(submission: AgendaItemFormSubmission): void {
     const mode = this.agendaFormMode();
+    let result: AgendaResult;
     if (mode === 'add') {
-      this.docService.appendAgendaItem({
+      result = this.docService.appendAgendaItem({
         ...(submission.title !== null && { title: submission.title }),
         ...(submission.ticketId !== null && { ticketId: submission.ticketId }),
         ...(submission.description !== null && { description: submission.description }),
@@ -1311,7 +1323,7 @@ export class LobbyPage implements OnDestroy {
     } else {
       const item = this.editingAgendaItem();
       if (!item) return;
-      this.docService.updateAgendaItemFields(item.id, {
+      result = this.docService.updateAgendaItemFields(item.id, {
         ...(submission.title !== null ? { title: submission.title } : { title: '' }),
         ...(submission.ticketId !== null ? { ticketId: submission.ticketId } : { ticketId: '' }),
         ...(submission.description !== null
@@ -1319,19 +1331,23 @@ export class LobbyPage implements OnDestroy {
           : { description: '' }),
       });
     }
+    if (!result.applied) return;
+
     this.agendaFormOpen.set(false);
     this.editingAgendaItem.set(null);
     this.haptic.impactLight();
   }
 
   protected onAgendaSkip(id: string): void {
-    this.haptic.impactMedium();
-    this.docService.skipAgendaItem(id);
+    if (this.docService.skipAgendaItem(id).applied) {
+      this.haptic.impactMedium();
+    }
   }
 
   protected onAgendaCancel(id: string): void {
-    this.haptic.impactMedium();
-    this.docService.cancelAgendaItem(id);
+    if (this.docService.cancelAgendaItem(id).applied) {
+      this.haptic.impactMedium();
+    }
   }
 
   protected onAgendaReorderUp(id: string): void {
@@ -1340,8 +1356,9 @@ export class LobbyPage implements OnDestroy {
     if (idx <= 0) return;
     const before = idx >= 2 ? items[idx - 2]!.sortKey : null;
     const after = items[idx - 1]!.sortKey;
-    this.docService.reorderAgendaItem(id, before, after);
-    this.haptic.impactLight();
+    if (this.docService.reorderAgendaItem(id, before, after).applied) {
+      this.haptic.impactLight();
+    }
   }
 
   protected onAgendaReorderDown(id: string): void {
@@ -1350,8 +1367,9 @@ export class LobbyPage implements OnDestroy {
     if (idx < 0 || idx >= items.length - 1) return;
     const before = items[idx + 1]!.sortKey;
     const after = idx + 2 < items.length ? items[idx + 2]!.sortKey : null;
-    this.docService.reorderAgendaItem(id, before, after);
-    this.haptic.impactLight();
+    if (this.docService.reorderAgendaItem(id, before, after).applied) {
+      this.haptic.impactLight();
+    }
   }
 
   protected async openActionSheet(event: Event): Promise<void> {
@@ -1413,8 +1431,13 @@ export class LobbyPage implements OnDestroy {
           text: 'End session',
           role: 'destructive',
           handler: () => {
-            this.haptic.impactHeavy();
-            this.docService.endSessionForEveryone();
+            const selfId = this.myId();
+            if (!selfId) return;
+            // The shared roster command applies the host gate underneath
+            // ADR-0023's UI gate; a refusal fires no haptic (#507).
+            if (this.docService.endSessionForEveryone(selfId).applied) {
+              this.haptic.impactHeavy();
+            }
           },
         },
       ],
@@ -1593,8 +1616,9 @@ export class LobbyPage implements OnDestroy {
   }
 
   /**
-   * Handoff tap handler. Shows confirmation dialog, and on confirm calls
-   * updateSettings to transfer host to the target participant.
+   * Handoff tap handler. Shows a confirmation dialog, and on confirm routes
+   * through the shared roster command, which applies the host gate and
+   * refuses a target who is not online (#507).
    */
   protected async onHandoffTap(participantId: string, displayName: string): Promise<void> {
     const alert = await this.alertCtrl.create({
@@ -1605,8 +1629,11 @@ export class LobbyPage implements OnDestroy {
         {
           text: 'Confirm',
           handler: () => {
-            this.haptic.impactMedium();
-            this.docService.updateSettings({ hostParticipantId: participantId });
+            const selfId = this.myId();
+            if (!selfId) return;
+            if (this.docService.handoffHost(selfId, participantId).applied) {
+              this.haptic.impactMedium();
+            }
           },
         },
       ],
@@ -1659,10 +1686,10 @@ export class LobbyPage implements OnDestroy {
           text: 'Remove',
           role: 'destructive',
           handler: () => {
-            this.haptic.impactHeavy();
             const hostId = this.myId();
-            if (hostId) {
-              this.docService.removeParticipant(hostId, participantId);
+            if (!hostId) return;
+            if (this.docService.removeParticipant(hostId, participantId).applied) {
+              this.haptic.impactHeavy();
             }
           },
         },

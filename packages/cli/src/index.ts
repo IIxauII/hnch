@@ -311,6 +311,7 @@ async function resumeEntry(
   joinDoc(doc, {
     participantId: config.participantId,
     displayName: config.displayName,
+    joinedAt: Date.now(),
     ...(config.avatarColor !== undefined && { avatarColor: config.avatarColor }),
   });
 

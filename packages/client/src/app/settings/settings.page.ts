@@ -468,16 +468,12 @@ export class SettingsPage {
     this.displayName.set(newName);
     void this.displayNameService.setDisplayName(newName);
 
-    // If mid-session, propagate to peers via the Yjs doc.
+    // If mid-session, propagate to peers via the Yjs doc. The shared roster
+    // command does the read-modify-write that preserves role, avatar colour
+    // and joinedAt, and refuses when there is no record to rename (#507).
     const myId = this.participantIdService.id();
     if (myId && this.docService.hasSession()) {
-      const existing = this.docService.participants().find((p) => p.id === myId);
-      if (existing) {
-        this.docService.upsertParticipant(myId, {
-          displayName: newName,
-          joinedAt: existing.joinedAt,
-        });
-      }
+      this.docService.renameParticipant(myId, newName);
     }
   }
 
