@@ -3,8 +3,9 @@
  * refactor/round-status-projection branch — lines flagged by codecov/patch.
  *
  * Covers:
- *  - autoNav effect: terminal round → router.navigate to lobby
- *  - discardRecovery effect: entry round transitions to 'discarded' → navigate
+ *  - autoNav effect: wiring only — the screen signal drives the navigation.
+ *    The rule itself lives in the shared `screenFor` selector and is tested
+ *    there against plain projections (issue #508).
  *  - showBackChevron computed: non-host + terminal round → true
  *  - backChevronLabel computed: host + active round → discard label
  *  - keyboard-gate roundActive: host + active round passes gate
@@ -15,7 +16,7 @@
 import { TestBed } from '@angular/core/testing';
 import { signal, computed } from '@angular/core';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { canEnterTerminal, type Round } from '@hnch/shared';
+import { canEnterTerminal, type Round, type Screen } from '@hnch/shared';
 
 vi.mock('@ionic/angular/standalone', async () => {
   const { Component: Comp } = await import('@angular/core');
@@ -120,6 +121,12 @@ function terminalRound(status: 'revealed' | 'skipped' | 'discarded', id = 'r1'):
 interface MountOpts {
   /** Initial currentRound value. */
   initialRound?: Round | null;
+  /**
+   * Initial `DocService.screen` value. Defaults to the screen the initial
+   * round implies; pass `null` explicitly to stand in for a page that mounted
+   * before the projection arrived.
+   */
+  initialScreen?: Screen | null;
   /** Initial rounds array. */
   initialRounds?: Round[];
   /** Whether 'me' is the host. */
@@ -145,6 +152,15 @@ async function mount(opts: MountOpts = {}) {
 
   const currentRoundSig = signal<Round | null | undefined>(round);
   const roundsSig = signal<Round[]>(rounds);
+  // `DocService.screen` mirrors the shared `screenFor()` selector, plus the
+  // pre-load `null`. The page reads it and nothing else to decide routing.
+  const screenSig = signal<Screen | null>(
+    opts.initialScreen !== undefined
+      ? opts.initialScreen
+      : round && canEnterTerminal(round.status)
+        ? 'estimating'
+        : 'lobby',
+  );
   // The driver is session-scoped in DocService now; the page only watches
   // this counter. Tests bump it to stand in for an auto-reveal landing.
   const autoRevealCountSig = signal(0);
@@ -176,6 +192,7 @@ async function mount(opts: MountOpts = {}) {
   const docService = {
     currentRound: currentRoundSig.asReadonly(),
     activeRound: activeRoundSig,
+    screen: screenSig.asReadonly(),
     rounds: roundsSig.asReadonly(),
     onlineParticipants: signal([]).asReadonly(),
     onlineParticipantIds: signal(onlineIds).asReadonly(),
@@ -243,6 +260,7 @@ async function mount(opts: MountOpts = {}) {
     haptic,
     currentRoundSig,
     roundsSig,
+    screenSig,
     autoRevealCountSig,
   };
 }
@@ -251,73 +269,42 @@ async function mount(opts: MountOpts = {}) {
 // autoNav effect
 // ---------------------------------------------------------------------------
 
-describe('EstimatingPage — autoNav effect', () => {
+describe('EstimatingPage — autoNav effect (wiring)', () => {
   beforeEach(() => {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   });
 
-  it('does NOT navigate when round is null', async () => {
-    const { navigate } = await mount({ initialRound: null });
+  it('does NOT navigate while the screen is estimating', async () => {
+    const { navigate } = await mount({ initialScreen: 'estimating' });
     TestBed.flushEffects();
     expect(navigate).not.toHaveBeenCalled();
   });
 
-  it('does NOT navigate when round status is voting', async () => {
-    const { navigate } = await mount({ initialRound: votingRound() });
+  it('navigates to lobby, replacing the URL, when the screen flips to lobby', async () => {
+    const { navigate, screenSig } = await mount({ initialScreen: 'estimating' });
+    TestBed.flushEffects();
+    screenSig.set('lobby');
+    TestBed.flushEffects();
+    expect(navigate).toHaveBeenCalledWith(['/lobby', 'ZZZZZZ'], { replaceUrl: true });
+  });
+
+  // The pre-load guard. The selector structurally cannot catch a missing one:
+  // a page admitted by the session-resume guard's timeout path mounts with no
+  // projection, and treating that as "no active round" would silently bounce
+  // every slow-connection peer to Lobby.
+  it('does NOT navigate while the screen is null (projection not yet loaded)', async () => {
+    const { navigate } = await mount({ initialScreen: null, initialRound: null });
     TestBed.flushEffects();
     expect(navigate).not.toHaveBeenCalled();
   });
 
-  it('navigates to lobby when round becomes revealed', async () => {
-    const { navigate, currentRoundSig } = await mount({ initialRound: votingRound() });
-    currentRoundSig.set(terminalRound('revealed'));
-    TestBed.flushEffects();
-    expect(navigate).toHaveBeenCalledWith(['/lobby', 'ZZZZZZ'], { replaceUrl: true });
-  });
-
-  it('navigates to lobby when round becomes skipped', async () => {
-    const { navigate, currentRoundSig } = await mount({ initialRound: votingRound() });
-    currentRoundSig.set(terminalRound('skipped'));
-    TestBed.flushEffects();
-    expect(navigate).toHaveBeenCalledWith(['/lobby', 'ZZZZZZ'], { replaceUrl: true });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// discardRecovery effect
-// ---------------------------------------------------------------------------
-
-describe('EstimatingPage — discardRecovery effect', () => {
-  beforeEach(() => {
-    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-  });
-
-  it('navigates to lobby when entry round transitions to discarded in rounds array', async () => {
-    const initial = votingRound('r-entry');
-    const { navigate, currentRoundSig, roundsSig } = await mount({
-      initialRound: initial,
-      initialRounds: [initial],
-    });
-    TestBed.flushEffects();
-
-    // Simulate host discarding: currentRound() returns null (discarded excluded),
-    // but rounds[] still contains the discarded round.
-    const discarded = terminalRound('discarded', 'r-entry');
-    currentRoundSig.set(null);
-    roundsSig.set([discarded]);
-    TestBed.flushEffects();
-
-    expect(navigate).toHaveBeenCalledWith(['/lobby', 'ZZZZZZ'], { replaceUrl: true });
-  });
-
-  it('does NOT navigate when entry round is still voting (not discarded)', async () => {
-    const initial = votingRound('r-active');
-    const { navigate } = await mount({
-      initialRound: initial,
-      initialRounds: [initial],
-    });
+  it('navigates once the screen resolves to lobby after a null pre-load', async () => {
+    const { navigate, screenSig } = await mount({ initialScreen: null, initialRound: null });
     TestBed.flushEffects();
     expect(navigate).not.toHaveBeenCalled();
+    screenSig.set('lobby');
+    TestBed.flushEffects();
+    expect(navigate).toHaveBeenCalledWith(['/lobby', 'ZZZZZZ'], { replaceUrl: true });
   });
 });
 
