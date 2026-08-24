@@ -20,8 +20,7 @@
 import { computed, signal, type Signal, type WritableSignal } from '@angular/core';
 import {
   appendRound,
-  castVote,
-  clearVote,
+  clearCurrentVote as clearCurrentVoteCommand,
   endSessionForEveryone,
   initDoc,
   isActiveParticipant,
@@ -33,10 +32,12 @@ import {
   removeParticipant,
   revealCurrentRound as revealCurrentRoundCommand,
   skipCurrentRound as skipCurrentRoundCommand,
+  toggleCurrentVote as toggleCurrentVoteCommand,
   upsertParticipant,
   type DocProjection,
   type Round,
   type Scale,
+  type VoteResult,
 } from '@hnch/shared';
 import { Awareness } from 'y-protocols/awareness';
 import * as Y from 'yjs';
@@ -167,12 +168,12 @@ class DocServiceHarness {
     return id;
   }
 
-  castVote(roundId: string, participantId: string, card: string): void {
-    castVote(this.requireDoc(), roundId, participantId, card);
+  toggleCurrentVote(participantId: string, card: string): VoteResult {
+    return toggleCurrentVoteCommand(this.requireDoc(), participantId, card);
   }
 
-  clearVote(roundId: string, participantId: string): void {
-    clearVote(this.requireDoc(), roundId, participantId);
+  clearCurrentVote(participantId: string): VoteResult {
+    return clearCurrentVoteCommand(this.requireDoc(), participantId);
   }
 
   revealCurrentRound(now = Date.now()): void {
@@ -507,7 +508,7 @@ describe('DocService — upsertParticipant', () => {
 
 // ---------------------------------------------------------------------------
 
-describe('DocService — startRound / castVote / clearVote / revealRound', () => {
+describe('DocService — startRound / toggleCurrentVote / clearCurrentVote / revealRound', () => {
   let h: DocServiceHarness;
   let roundId: string;
 
@@ -535,21 +536,29 @@ describe('DocService — startRound / castVote / clearVote / revealRound', () =>
     expect(r.createdAt).toBe(NOW);
   });
 
-  it('castVote adds vote to round', () => {
-    h.castVote(roundId, 'p-host', '5');
-    const votes = h.rounds()[0]?.votes;
-    expect(votes?.['p-host']).toBe('5');
+  it('toggleCurrentVote casts a vote', () => {
+    const result = h.toggleCurrentVote('p-host', '5');
+    expect(result).toEqual({ applied: true, effect: 'cast' });
+    expect(h.rounds()[0]?.votes['p-host']).toBe('5');
   });
 
-  it('castVote overwrites prior vote', () => {
-    h.castVote(roundId, 'p-host', '5');
-    h.castVote(roundId, 'p-host', '8');
+  it('toggleCurrentVote with a different card overwrites the prior vote', () => {
+    h.toggleCurrentVote('p-host', '5');
+    h.toggleCurrentVote('p-host', '8');
     expect(h.rounds()[0]?.votes['p-host']).toBe('8');
   });
 
-  it('clearVote removes the vote', () => {
-    h.castVote(roundId, 'p-host', '5');
-    h.clearVote(roundId, 'p-host');
+  it('toggleCurrentVote with the same card clears it', () => {
+    h.toggleCurrentVote('p-host', '5');
+    const result = h.toggleCurrentVote('p-host', '5');
+    expect(result).toEqual({ applied: true, effect: 'cleared' });
+    expect(h.rounds()[0]?.votes['p-host']).toBeUndefined();
+  });
+
+  it('clearCurrentVote removes the vote', () => {
+    h.toggleCurrentVote('p-host', '5');
+    const result = h.clearCurrentVote('p-host');
+    expect(result).toEqual({ applied: true, effect: 'cleared' });
     expect(h.rounds()[0]?.votes['p-host']).toBeUndefined();
   });
 
@@ -559,9 +568,10 @@ describe('DocService — startRound / castVote / clearVote / revealRound', () =>
     expect(h.rounds()[0]?.terminalAt).toBe(NOW + 5000);
   });
 
-  it('castVote is no-op after reveal', () => {
+  it('toggleCurrentVote is refused after reveal', () => {
     h.revealCurrentRound(NOW + 5000);
-    h.castVote(roundId, 'p-host', '13');
+    const result = h.toggleCurrentVote('p-host', '13');
+    expect(result).toEqual({ applied: false, reason: 'no-active-round' });
     // Vote must not appear after reveal
     expect(h.rounds()[0]?.votes['p-host']).toBeUndefined();
   });
@@ -745,7 +755,7 @@ describe('DocService — multi-peer merge via Y.Doc', () => {
     const roundId = host.startRound({ now: () => NOW });
     joiner.mergeFrom(host.getDoc());
 
-    host.castVote(roundId, 'p-host', '5');
+    host.toggleCurrentVote('p-host', '5');
     joiner.mergeFrom(host.getDoc());
 
     const round = joiner.rounds().find((r: Round) => r.id === roundId);

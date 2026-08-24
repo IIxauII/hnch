@@ -81,7 +81,7 @@ describe('resolveKeyboardCardAction', () => {
       expect(r).toEqual({ kind: 'noop' });
     });
 
-    it('re-pressing digit bound to current vote → clear', () => {
+    it('re-pressing digit bound to current vote → cast the same card (toggle rule lives in @hnch/shared)', () => {
       const r = resolveKeyboardCardAction(
         ev({ code: 'Digit4', key: '4' }),
         FIB,
@@ -89,7 +89,7 @@ describe('resolveKeyboardCardAction', () => {
         undefined,
         false,
       );
-      expect(r).toEqual({ kind: 'clear' });
+      expect(r).toEqual({ kind: 'cast', card: '3', index: 3 });
     });
 
     it('pressing a different digit while voted → cast new card', () => {
@@ -182,9 +182,9 @@ describe('resolveKeyboardCardAction', () => {
       expect(r).toEqual({ kind: 'cast', card: '2', index: 2 });
     });
 
-    it('Enter on focused card matching myVote → clear', () => {
+    it('Enter on focused card matching myVote → cast the same card (toggle rule lives in @hnch/shared)', () => {
       const r = resolveKeyboardCardAction(ev({ key: 'Enter' }), FIB, '2', 2, true);
-      expect(r).toEqual({ kind: 'clear' });
+      expect(r).toEqual({ kind: 'cast', card: '2', index: 2 });
     });
 
     it('Enter when activeElement is NOT a card → noop', () => {
@@ -194,8 +194,10 @@ describe('resolveKeyboardCardAction', () => {
 
     it('Enter on card, focus unset, but myVote set → cast at vote index', () => {
       const r = resolveKeyboardCardAction(ev({ key: 'Enter' }), FIB, '3', undefined, true);
-      // re-pressing yields clear
-      expect(r).toEqual({ kind: 'clear' });
+      // Re-pressing the already-voted card still resolves to 'cast' — the
+      // toggle rule (clears when it matches the vote on record) now lives
+      // in @hnch/shared's vote-commands.toggleCurrentVote.
+      expect(r).toEqual({ kind: 'cast', card: '3', index: 3 });
     });
 
     it('Enter on card, focus unset and no vote → noop (ambiguous target)', () => {

@@ -13,7 +13,7 @@
  *     --project=chromium --workers=1 --reporter=list tests/_screenshots/capture.spec.ts
  */
 import path from 'node:path';
-import { test, type BrowserContext, type Page } from '@playwright/test';
+import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import { resolveOutDir } from './_helpers/out-dir';
 import {
   BASE_URL,
@@ -30,6 +30,7 @@ import {
   CONNECTION_CHIP,
   expandRoundStartSheet,
   clickRoundStartSubmit,
+  fillRoomCode,
 } from '../fixtures/helpers';
 
 const OUT_DIR = resolveOutDir('baseline');
@@ -87,6 +88,34 @@ async function closeOverlay(page: Page): Promise<void> {
   await page.waitForTimeout(300);
 }
 
+/**
+ * Join an existing session as a second voter — present only so the host's
+ * lone vote in the "estimating with card 5 selected" scene can't unanimously
+ * auto-reveal (packages/shared/src/auto-reveal.ts: numeric votes >= online
+ * voter count). Without a second voter the card grid — bound to
+ * `activeRound()` — unmounts in the same tick the round goes `revealed`,
+ * before `ESTIMATING.selectedCard` ever renders. Call `castCoVote` right
+ * after the selected-card shot to let the pre-existing auto-reveal-driven
+ * flow (navigate to /lobby, results section) continue unchanged.
+ */
+async function joinAsCoVoter(page: Page, code: string, name: string): Promise<void> {
+  await page.goto(`${BASE_URL}/home`);
+  await page.waitForURL(/\/onboarding/);
+  await page.locator(ONBOARDING.nameInput).locator('input').fill(name);
+  await page.locator(ONBOARDING.continueBtn).click();
+  await page.waitForURL(/\/(home|lobby|estimating)/);
+  if (page.url().includes('/home')) {
+    await page.goto(`${BASE_URL}/join`);
+    await fillRoomCode(page, code);
+    await page.locator(JOIN.joinBtn).click();
+    await page.waitForURL(/\/(lobby|estimating)/);
+  }
+}
+
+async function castCoVote(page: Page, value: string): Promise<void> {
+  await page.locator(ESTIMATING.card(value)).first().click();
+}
+
 test.describe.configure({ mode: 'serial' });
 
 // Opt-in via env var so normal `playwright test` runs skip this spec.
@@ -96,6 +125,13 @@ test.describe('screenshot capture', () => {
   test('desktop 1440 @all @layout @theming @home', async ({ browser }) => {
     test.setTimeout(240_000);
     const { ctx, page } = await freshContext(browser, { width: 1440, height: 900 });
+    // Co-voter — joins after step 06 so the host's lone vote in step 14
+    // can't unanimously auto-reveal before the card-selected shot. See
+    // joinAsCoVoter doc comment. Never itself screenshotted.
+    const { ctx: coVoterCtx, page: coVoterPage } = await freshContext(browser, {
+      width: 1440,
+      height: 900,
+    });
     try {
       // 01 — onboarding (pre-onboard)
       await gotoFresh(page, '/home');
@@ -130,6 +166,18 @@ test.describe('screenshot capture', () => {
       // Wait for participant list to render
       await page.locator(LOBBY.participantList).waitFor({ state: 'visible' });
       await shot(page, '06-lobby-1440');
+
+      // Co-voter joins now — after the solo-host lobby shot above so it
+      // keeps its original single-participant composition. Present only to
+      // hold the auto-reveal denominator at 2 once voting starts, so the
+      // host's lone vote in step 14 can't unanimously auto-reveal before
+      // the card-selected shot. See joinAsCoVoter doc comment.
+      // Waiting for the second roster row on the HOST page (not just the
+      // co-voter's own navigation) confirms Yjs awareness has propagated
+      // before the round starts — otherwise the host's vote below could
+      // still race an awareness update that hasn't landed yet.
+      await joinAsCoVoter(coVoterPage, code, 'Sam');
+      await page.locator(LOBBY.participantItems).nth(1).waitFor({ state: 'visible' });
 
       // 07 — session-settings sheet (open via subtitle)
       await page.locator(LOBBY.subtitleHostBtn).click();
@@ -187,13 +235,22 @@ test.describe('screenshot capture', () => {
       await page.waitForTimeout(600);
       await shot(page, '13-estimating-1440');
 
+      // Guard the exact race: app-avatar-vote-row is bound to
+      // onlineVoterParticipants() (estimating.page.ts), the same signal
+      // shouldAutoReveal reads for its denominator. Asserting 2 dots here
+      // — right before the host votes — confirms the co-voter is counted,
+      // rather than relying on the earlier lobby-roster wait as a proxy.
+      await expect(page.locator(ESTIMATING.voteDots)).toHaveCount(2, { timeout: 15_000 });
+
       // 14 — estimating with card 5 selected
       await page.locator(ESTIMATING.card('5')).first().click();
       await page.locator(ESTIMATING.selectedCard).first().waitFor({ state: 'visible' });
       await page.waitForTimeout(400);
       await shot(page, '14-estimating-card-selected');
 
-      // Single-voter unanimous auto-reveal → navigates to /lobby
+      // Co-voter now casts a vote too, so the pre-existing auto-reveal flow
+      // (2 online voters, both numeric) fires and navigates to /lobby as before.
+      await castCoVote(coVoterPage, '3');
       await page.waitForURL(/\/lobby/, { timeout: 10_000 });
       await page.locator(LOBBY.resultsSection).waitFor({ state: 'visible' });
       await page.waitForTimeout(500);
@@ -257,6 +314,7 @@ test.describe('screenshot capture', () => {
 
       void code;
     } finally {
+      await coVoterCtx.close();
       await ctx.close();
     }
   });

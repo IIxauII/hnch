@@ -7,11 +7,11 @@ import {
   type WritableSignal,
 } from '@angular/core';
 import {
+  activeRound as activeRoundFromProjection,
   AWARENESS_PARTICIPANT_ID_FIELD,
   appendAgendaItem as appendAgendaItemY,
   appendRound as appendRoundY,
-  castVote as castVoteY,
-  clearVote as clearVoteY,
+  clearCurrentVote as clearCurrentVoteCommand,
   currentRound as currentRoundFromProjection,
   discardCurrentRound as discardCurrentRoundCommand,
   DOC_AGENDA_KEY,
@@ -37,6 +37,7 @@ import {
   setAgendaItemState as setAgendaItemStateY,
   startElection,
   skipCurrentRound as skipCurrentRoundCommand,
+  toggleCurrentVote as toggleCurrentVoteCommand,
   updateAgendaItemFields as updateAgendaItemFieldsY,
   upsertParticipant as upsertParticipantY,
   type AgendaItem,
@@ -54,6 +55,7 @@ import {
   type Settings,
   type TerminalResult,
   type UpdateAgendaItemFieldsInit,
+  type VoteResult,
 } from '@hnch/shared';
 import { Capacitor } from '@capacitor/core';
 import { Awareness } from 'y-protocols/awareness';
@@ -267,6 +269,21 @@ export class DocService {
   readonly currentRound: Signal<Round | null> = computed(() => {
     const snap = this.projection();
     return snap ? currentRoundFromProjection(snap) : null;
+  });
+
+  /**
+   * The active round — last round with status `'pending'` or `'voting'`,
+   * or `null` when every round is terminal. Unlike {@link currentRound},
+   * there is no anchor fallback to the last non-discarded round: that
+   * fallback is exactly what let votes land on a round that had just been
+   * revealed, skipped, or discarded (the seam `toggleCurrentVote` /
+   * `clearCurrentVote` close). `currentRound` answers "what should Lobby
+   * show"; `activeRound` answers "is there a round still open to vote on
+   * right now" — bind vote-surface visibility to this, not `currentRound`.
+   */
+  readonly activeRound: Signal<Round | null> = computed(() => {
+    const snap = this.projection();
+    return snap ? activeRoundFromProjection(snap) : null;
   });
 
   /**
@@ -632,12 +649,34 @@ export class DocService {
     patchRoundDescriptorY(this.requireDoc('updateRoundDescriptor'), roundId, fields);
   }
 
-  castVote(roundId: string, participantId: string, card: string): void {
-    castVoteY(this.requireDoc('castVote'), roundId, participantId, card);
+  /**
+   * Cast, change, or clear the caller's vote on the active round via the
+   * shared `vote-commands` seam. No round id — the command selects
+   * `activeRound` internally and applies the toggle rule (re-selecting the
+   * card already on record clears it) plus the voter-role gate. Returns a
+   * `VoteResult` so callers branch on `applied` (e.g. suppress haptics on a
+   * refusal) instead of re-spelling the gate.
+   */
+  toggleCurrentVote(participantId: string, card: string): VoteResult {
+    return toggleCurrentVoteCommand(this.requireDoc('toggleCurrentVote'), participantId, card);
   }
 
-  clearVote(roundId: string, participantId: string): void {
-    clearVoteY(this.requireDoc('clearVote'), roundId, participantId);
+  /**
+   * Clear the caller's vote on the active round via the shared command.
+   * Gated on the active round only — not on voter role — so a participant
+   * who flips voter → viewer mid-round can still withdraw a vote already
+   * sitting in the tally. See `toggleCurrentVote`.
+   *
+   * **No production caller yet, deliberately.** The Estimating page renders
+   * no card grid and no abstain button for a viewer, so the role-flip escape
+   * this exemption exists for is not reachable from the UI today; the CLI's
+   * only clear path (Backspace/Delete in `CardPicker`) is likewise hidden
+   * from viewers. This is the seam a future "withdraw my vote" affordance
+   * binds to — keep it rather than inlining `toggleCurrentVote` at that
+   * point, since clearing must stay ungated on role.
+   */
+  clearCurrentVote(participantId: string): VoteResult {
+    return clearCurrentVoteCommand(this.requireDoc('clearCurrentVote'), participantId);
   }
 
   /**
