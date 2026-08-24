@@ -116,6 +116,9 @@ async function mountEstimating(opts: MountOptions = {}) {
   const docService = {
     currentRound: signal(round).asReadonly(),
     activeRound: signal(activeRoundValue).asReadonly(),
+    // `DocService.screen` mirrors the shared `screenFor()` selector: an
+    // active round means Estimating, otherwise Lobby (issue #508).
+    screen: signal(activeRoundValue ? ('estimating' as const) : ('lobby' as const)).asReadonly(),
     rounds: signal([round].filter(Boolean) as Round[]).asReadonly(),
     onlineParticipants: signal([]).asReadonly(),
     onlineParticipantIds: signal(new Set<string>()).asReadonly(),

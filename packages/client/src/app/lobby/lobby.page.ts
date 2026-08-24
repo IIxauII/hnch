@@ -14,7 +14,6 @@ import { CelebrationService } from '../core/celebration.service';
 import { Router } from '@angular/router';
 import { Share } from '@capacitor/share';
 import {
-  canEnterTerminal,
   formatRoomCode,
   formatRoundLabel,
   getScaleLabel,
@@ -1184,18 +1183,20 @@ export class LobbyPage implements OnDestroy {
       this.celebration.setRound(round);
     });
 
-    // Auto-navigate to Estimating when a round starts. Covers
-    // non-host clients who are sitting on the Lobby when the host
-    // taps "Start Round" — without this, only the host's click
-    // handler navigates. Guard: do not nav for terminal rounds (skipped
-    // rounds briefly appear as currentRound before the projection updates).
+    // Auto-navigate to Estimating whenever this peer no longer belongs on
+    // Lobby (issue #508). Covers non-host clients sitting here when the host
+    // taps "Start Round" — without this, only the host's click handler
+    // navigates. The rule lives in the shared `screenFor` selector; this is
+    // the adapter, and unlike Estimating's it pushes rather than replaces.
+    //
+    // `null` means the projection has not arrived yet (slow-network resume);
+    // stay on the screen the URL asked for.
     effect(() => {
-      const round = this.docService.currentRound();
-      if (round && canEnterTerminal(round.status)) {
-        const code = this.docService.roomCode();
-        assertRoomCode(code, 'lobby.autoNav');
-        void this.router.navigate(['/estimating', code]);
-      }
+      const screen = this.docService.screen();
+      if (screen === null || screen === 'lobby') return;
+      const code = this.docService.roomCode();
+      assertRoomCode(code, 'lobby.autoNav');
+      void this.router.navigate(['/estimating', code]);
     });
 
     // WS rejection handler — covers all reasons a joiner can be rejected

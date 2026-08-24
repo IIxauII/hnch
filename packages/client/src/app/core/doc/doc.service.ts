@@ -35,6 +35,7 @@ import {
   revealCurrentRound as revealCurrentRoundCommand,
   setAvatarColor as setAvatarColorY,
   setAgendaItemState as setAgendaItemStateY,
+  screenFor,
   startAutoReveal,
   startElection,
   skipCurrentRound as skipCurrentRoundCommand,
@@ -54,6 +55,7 @@ import {
   type ParticipantSnapshot,
   type Round,
   type Scale,
+  type Screen,
   type Settings,
   type TerminalResult,
   type UpdateAgendaItemFieldsInit,
@@ -297,6 +299,22 @@ export class DocService {
   readonly activeRound: Signal<Round | null> = computed(() => {
     const snap = this.projection();
     return snap ? activeRoundFromProjection(snap) : null;
+  });
+
+  /**
+   * The screen this peer belongs on, or `null` while no projection has
+   * arrived yet (issue #508). The rule itself is the shared `screenFor`
+   * selector, which is total on a projection; the null encoding is this
+   * adapter's job and it is load-bearing rather than defensive. The
+   * session-resume guard has a timeout path that admits an in-session route
+   * on a slow network and lets the WebSocket reconnect in the background, so
+   * a page genuinely can mount with no doc. A navigation effect that read a
+   * missing projection as "no active round" would bounce those peers to
+   * Lobby; `null` means "don't know yet, stay put".
+   */
+  readonly screen: Signal<Screen | null> = computed(() => {
+    const snap = this.projection();
+    return snap ? screenFor(snap) : null;
   });
 
   /**

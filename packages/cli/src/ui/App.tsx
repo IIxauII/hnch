@@ -10,6 +10,7 @@ import {
   isTerminalStatus,
   nextPendingAgendaItem,
   participantRole,
+  screenFor,
 } from '@hnch/shared';
 import clipboard from 'clipboardy';
 import { shareCode, shareUrl, shareNpxCommand } from '../share.js';
@@ -32,15 +33,6 @@ interface Props {
   accessMode: 'open' | 'password' | 'invite';
   presetOverrides?: PresetOverrides | undefined;
   customScales?: CustomScale[] | undefined;
-}
-
-type Screen = 'lobby' | 'voting';
-
-function deriveScreen(projection: DocProjection): Screen {
-  const round = currentRound(projection);
-  if (!round) return 'lobby';
-  if (isTerminalStatus(round.status)) return 'lobby';
-  return 'voting';
 }
 
 export function App({
@@ -150,7 +142,10 @@ export function App({
     { isActive: confirmingQuit },
   );
 
-  const screen = deriveScreen(projection);
+  // The screen rule is shared with the mobile client (issue #508); the Ink
+  // component names below describe views, not screens — `Voting` renders what
+  // the shared union calls `estimating`.
+  const screen = screenFor(projection);
 
   const round = currentRound(projection);
   const isHost = projection.settings.hostParticipantId === participantId;
@@ -503,7 +498,7 @@ export function App({
           onAgendaAddTicketIdSubmit={handleAgendaAddTicketIdSubmit}
           onAgendaAddTicketIdCancel={handleAgendaAddTicketIdCancel}
         />
-      ) : screen === 'voting' && round ? (
+      ) : screen === 'estimating' && round ? (
         <Voting
           projection={projection}
           round={round}

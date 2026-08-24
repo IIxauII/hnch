@@ -8,7 +8,7 @@ import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { CustomScale, ParticipantSnapshot, Round, Scale } from '@hnch/shared';
+import type { CustomScale, ParticipantSnapshot, Round, Scale, Screen } from '@hnch/shared';
 
 import { buildCopyRoomCodeToast, buildResultsHeading, isParticipantViewer } from './lobby-helpers';
 
@@ -244,6 +244,7 @@ async function mountLobby(scale: Scale | undefined, customs: CustomScale[]) {
           meta: signal(undefined).asReadonly(),
           syncStatus: signal('disconnected').asReadonly(),
           currentRound: signal(undefined).asReadonly(),
+          screen: signal('lobby').asReadonly(),
           lastRejection: signal(null).asReadonly(),
           rounds: signal([]).asReadonly(),
           participants: signal([]).asReadonly(),
@@ -321,6 +322,7 @@ describe('LobbyPage — onRoundStart forwards ticketId', () => {
             meta: signal(undefined).asReadonly(),
             syncStatus: signal('disconnected').asReadonly(),
             currentRound: signal(undefined).asReadonly(),
+            screen: signal('lobby').asReadonly(),
             lastRejection: signal(null).asReadonly(),
             rounds: signal([]).asReadonly(),
             participants: signal([]).asReadonly(),
@@ -484,6 +486,7 @@ async function mountLobbySubtitleAffordance(opts: { isHost: boolean; subtitle: s
           meta: signal(undefined).asReadonly(),
           syncStatus: signal('disconnected').asReadonly(),
           currentRound: signal(undefined).asReadonly(),
+          screen: signal('lobby').asReadonly(),
           lastRejection: signal(null).asReadonly(),
           rounds: signal([]).asReadonly(),
           participants: signal([]).asReadonly(),
@@ -598,6 +601,7 @@ describe('LobbyPage — onCopyRoomCode', () => {
             meta: signal(undefined).asReadonly(),
             syncStatus: signal('disconnected').asReadonly(),
             currentRound: signal(undefined).asReadonly(),
+            screen: signal('lobby').asReadonly(),
             lastRejection: signal(null).asReadonly(),
             rounds: signal([]).asReadonly(),
             participants: signal([]).asReadonly(),
@@ -709,6 +713,7 @@ describe('LobbyPage — openParticipantActions', () => {
             meta: signal(undefined).asReadonly(),
             syncStatus: signal('disconnected').asReadonly(),
             currentRound: signal(undefined).asReadonly(),
+            screen: signal('lobby').asReadonly(),
             lastRejection: signal(null).asReadonly(),
             rounds: signal([]).asReadonly(),
             participants: signal([]).asReadonly(),
@@ -837,6 +842,7 @@ describe('LobbyPage — ngOnDestroy', () => {
             meta: signal(undefined).asReadonly(),
             syncStatus: signal('disconnected').asReadonly(),
             currentRound: signal(undefined).asReadonly(),
+            screen: signal('lobby').asReadonly(),
             lastRejection: signal(null).asReadonly(),
             rounds: signal([]).asReadonly(),
             participants: signal([]).asReadonly(),
@@ -940,6 +946,7 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
             meta: signal(undefined).asReadonly(),
             syncStatus: signal('disconnected').asReadonly(),
             currentRound: signal(undefined).asReadonly(),
+            screen: signal('lobby').asReadonly(),
             lastRejection: signal(null).asReadonly(),
             rounds: signal([]).asReadonly(),
             participants: signal([]).asReadonly(),
@@ -1029,6 +1036,7 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
             meta: signal(undefined).asReadonly(),
             syncStatus: signal('disconnected').asReadonly(),
             currentRound: signal(undefined).asReadonly(),
+            screen: signal('lobby').asReadonly(),
             lastRejection: signal(null).asReadonly(),
             rounds: signal([]).asReadonly(),
             participants: signal([]).asReadonly(),
@@ -1123,6 +1131,7 @@ describe('LobbyPage — terminal-round computeds (status)', () => {
             meta: signal(undefined).asReadonly(),
             syncStatus: signal('disconnected').asReadonly(),
             currentRound: signal(undefined).asReadonly(),
+            screen: signal('lobby').asReadonly(),
             lastRejection: signal(null).asReadonly(),
             rounds: signal(rounds).asReadonly(),
             participants: signal([]).asReadonly(),
@@ -1201,13 +1210,15 @@ describe('LobbyPage — terminal-round computeds (status)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// LobbyPage autoNav effect (~line 1189): navigates to /estimating when
-// currentRound status is 'pending' or 'voting'; does NOT navigate for
-// terminal rounds (revealed/skipped/discarded).
+// LobbyPage autoNav effect: wiring only — the `DocService.screen` signal
+// drives the navigation. The rule itself is the shared `screenFor` selector
+// and is tested there against plain projections (issue #508). What is
+// asserted here is the destination, the history behaviour (a push, not a
+// replace — unlike Estimating's), and the pre-load `null` guard.
 // ---------------------------------------------------------------------------
 
-describe('LobbyPage — autoNav effect: navigate on active round', () => {
-  async function mountWithCurrentRound(round: Round | null | undefined) {
+describe('LobbyPage — autoNav effect (wiring)', () => {
+  async function mountWithScreen(screen: Screen | null) {
     const { Router } = await import('@angular/router');
     const { DocService } = await import('../core/doc/doc.service');
     const { HapticService } = await import('../core/haptic.service');
@@ -1220,6 +1231,7 @@ describe('LobbyPage — autoNav effect: navigate on active round', () => {
     const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     const navigate = vi.fn().mockResolvedValue(true);
+    const screenSig = signal<Screen | null>(screen);
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
@@ -1232,9 +1244,10 @@ describe('LobbyPage — autoNav effect: navigate on active round', () => {
             roomCode: signal('LOBBY1').asReadonly(),
             meta: signal(undefined).asReadonly(),
             syncStatus: signal('disconnected').asReadonly(),
-            currentRound: signal(round).asReadonly(),
+            currentRound: signal(undefined).asReadonly(),
+            screen: screenSig.asReadonly(),
             lastRejection: signal(null).asReadonly(),
-            rounds: signal(round ? [round] : []).asReadonly(),
+            rounds: signal([]).asReadonly(),
             participants: signal([]).asReadonly(),
             activeParticipants: signal([]).asReadonly(),
             onlineParticipantIds: signal(new Set()).asReadonly(),
@@ -1279,58 +1292,36 @@ describe('LobbyPage — autoNav effect: navigate on active round', () => {
     const { LobbyPage } = await import('./lobby.page');
     const fixture = TestBed.createComponent(LobbyPage);
     // Do NOT call detectChanges — the effect fires synchronously at construction.
-    return { fixture, navigate };
+    return { fixture, navigate, screenSig };
   }
 
-  function activeRound(status: 'pending' | 'voting'): Round {
-    return {
-      id: 'lobby-nav-r',
-      createdAt: 0,
-      createdBy: 'host',
-      status,
-      scale: { id: 'fibonacci', cards: ['1', '2', '3'] },
-      votes: {},
-    };
-  }
-
-  function terminalRound(status: 'revealed' | 'skipped' | 'discarded'): Round {
-    return {
-      id: 'lobby-nav-r',
-      createdAt: 0,
-      createdBy: 'host',
-      status,
-      terminalAt: 9999,
-      scale: { id: 'fibonacci', cards: ['1', '2', '3'] },
-      votes: {},
-    };
-  }
-
-  it('navigates to /estimating when currentRound status is voting', async () => {
-    const { navigate } = await mountWithCurrentRound(activeRound('voting'));
+  it('navigates to /estimating, pushing a history entry, when the screen is estimating', async () => {
+    const { navigate } = await mountWithScreen('estimating');
     TestBed.flushEffects();
     expect(navigate).toHaveBeenCalledWith(['/estimating', 'LOBBY1']);
   });
 
-  it('navigates to /estimating when currentRound status is pending', async () => {
-    const { navigate } = await mountWithCurrentRound(activeRound('pending'));
+  it('navigates when the screen flips to estimating mid-session', async () => {
+    const { navigate, screenSig } = await mountWithScreen('lobby');
+    TestBed.flushEffects();
+    expect(navigate).not.toHaveBeenCalled();
+    screenSig.set('estimating');
     TestBed.flushEffects();
     expect(navigate).toHaveBeenCalledWith(['/estimating', 'LOBBY1']);
   });
 
-  it('does NOT navigate when currentRound is null', async () => {
-    const { navigate } = await mountWithCurrentRound(null);
+  it('does NOT navigate while the screen is lobby', async () => {
+    const { navigate } = await mountWithScreen('lobby');
     TestBed.flushEffects();
     expect(navigate).not.toHaveBeenCalled();
   });
 
-  it('does NOT navigate when currentRound status is revealed (terminal)', async () => {
-    const { navigate } = await mountWithCurrentRound(terminalRound('revealed'));
-    TestBed.flushEffects();
-    expect(navigate).not.toHaveBeenCalled();
-  });
-
-  it('does NOT navigate when currentRound status is skipped (terminal)', async () => {
-    const { navigate } = await mountWithCurrentRound(terminalRound('skipped'));
+  // The pre-load guard: a peer admitted by the session-resume guard's timeout
+  // path mounts before the doc syncs. Reading that as "no active round" would
+  // be harmless here, but the symmetric guard on Estimating is not — keep both
+  // adapters honest about what `null` means.
+  it('does NOT navigate while the screen is null (projection not yet loaded)', async () => {
+    const { navigate } = await mountWithScreen(null);
     TestBed.flushEffects();
     expect(navigate).not.toHaveBeenCalled();
   });
