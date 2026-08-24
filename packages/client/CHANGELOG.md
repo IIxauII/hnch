@@ -1,3 +1,10 @@
+# [1.44.0](https://github.com/IIxauII/hnch/compare/client-v1.43.0...client-v1.44.0) (2026-08-24)
+
+
+### Features
+
+* **shared,client,cli,e2e,docs:** refuse votes on terminated rounds via shared vote-commands seam ([#505](https://github.com/IIxauII/hnch/issues/505)) ([9b0643b](https://github.com/IIxauII/hnch/commit/9b0643b70060251f043e33837f5bd92466f7c13b))
+
 # [1.43.0](https://github.com/IIxauII/hnch/compare/client-v1.42.0...client-v1.43.0) (2026-06-15)
 
 
