@@ -9,14 +9,10 @@
 
 import React from 'react';
 import { render } from 'ink-testing-library';
-import { act } from 'react';
+import { press, renderInk } from '../test-harness.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import { CustomScaleEditor } from './CustomScaleEditor.js';
-
-async function flush(): Promise<void> {
-  await new Promise((r) => setImmediate(r));
-}
 
 // ---------------------------------------------------------------------------
 // Title rendering
@@ -47,28 +43,22 @@ describe('CustomScaleEditor — title', () => {
 
 describe('CustomScaleEditor — validation', () => {
   it('submitting empty name shows the validation error message', async () => {
-    const { lastFrame, stdin } = render(<CustomScaleEditor onSave={vi.fn()} onCancel={vi.fn()} />);
-    await flush();
-    await act(async () => {
-      stdin.write('\r'); // submit with empty name → handleNameSubmit fires
-      await flush();
-    });
+    const { lastFrame, stdin } = await renderInk(
+      <CustomScaleEditor onSave={vi.fn()} onCancel={vi.fn()} />,
+    );
+    await press(stdin, '\r'); // submit with empty name → handleNameSubmit fires
     expect(lastFrame() ?? '').toContain('Name must be 1-40 characters');
   });
 
   it('submitting a name longer than 40 chars shows the validation error', async () => {
-    const { lastFrame, stdin } = render(
+    const { lastFrame, stdin } = await renderInk(
       <CustomScaleEditor
         initialName={'x'.repeat(41)} // initialName > 40 chars seeds the state
         onSave={vi.fn()}
         onCancel={vi.fn()}
       />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('\r');
-      await flush();
-    });
+    await press(stdin, '\r');
     expect(lastFrame() ?? '').toContain('Name must be 1-40 characters');
   });
 });
@@ -80,12 +70,8 @@ describe('CustomScaleEditor — validation', () => {
 describe('CustomScaleEditor — cancel', () => {
   it('escape while in name-editing mode calls onCancel', async () => {
     const onCancel = vi.fn();
-    const { stdin } = render(<CustomScaleEditor onSave={vi.fn()} onCancel={onCancel} />);
-    await flush();
-    await act(async () => {
-      stdin.write('\x1b');
-      await flush();
-    });
+    const { stdin } = await renderInk(<CustomScaleEditor onSave={vi.fn()} onCancel={onCancel} />);
+    await press(stdin, '\x1b');
     expect(onCancel).toHaveBeenCalledOnce();
   });
 });

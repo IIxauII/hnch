@@ -12,17 +12,13 @@
 
 import React from 'react';
 import { render } from 'ink-testing-library';
-import { act } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { shareCode, shareUrl, shareNpxCommand } from '../../share.js';
+import { press, renderInk } from '../test-harness.js';
 
 import { SharePicker } from './SharePicker.js';
 
 const ROOM_CODE = 'ABC123';
-
-async function flush(): Promise<void> {
-  await new Promise((r) => setImmediate(r));
-}
 
 // ---------------------------------------------------------------------------
 // Rendering — detail values match share helper output
@@ -75,44 +71,29 @@ describe('SharePicker — rendering', () => {
 describe('SharePicker — keyboard interactions', () => {
   it('Enter on the first item calls onPick with "code"', async () => {
     const onPick = vi.fn();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <SharePicker roomCode={ROOM_CODE} onPick={onPick} onClose={vi.fn()} />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('\r'); // Enter on first item (Copy code)
-      await flush();
-    });
+    await press(stdin, '\r'); // Enter on first item (Copy code)
     expect(onPick).toHaveBeenCalledWith('code');
   });
 
   it('Down + Enter calls onPick with "url"', async () => {
     const onPick = vi.fn();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <SharePicker roomCode={ROOM_CODE} onPick={onPick} onClose={vi.fn()} />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('\x1b[B'); // down arrow → "Copy share link"
-      await flush();
-    });
-    await act(async () => {
-      stdin.write('\r');
-      await flush();
-    });
+    await press(stdin, '\x1b[B'); // down arrow → "Copy share link"
+    await press(stdin, '\r');
     expect(onPick).toHaveBeenCalledWith('url');
   });
 
   it('Escape calls onClose', async () => {
     const onClose = vi.fn();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <SharePicker roomCode={ROOM_CODE} onPick={vi.fn()} onClose={onClose} />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('\x1b'); // ESC
-      await flush();
-    });
+    await press(stdin, '\x1b'); // ESC
     expect(onClose).toHaveBeenCalledOnce();
   });
 });

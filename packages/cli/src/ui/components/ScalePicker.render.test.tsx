@@ -13,7 +13,7 @@
 
 import React from 'react';
 import { render } from 'ink-testing-library';
-import { act } from 'react';
+import { press, renderInk } from '../test-harness.js';
 import { describe, expect, it, vi } from 'vitest';
 import type { CustomScale, Scale } from '@hnch/shared';
 
@@ -23,10 +23,6 @@ const FIB: Scale = { id: 'fibonacci', cards: ['1', '2', '3', '5', '8'] };
 const LINEAR: Scale = { id: 'linear', cards: ['1', '2', '3', '4', '5'] };
 const CUSTOM: CustomScale = { id: 'custom-team', label: 'Team Points', cards: ['S', 'M', 'L'] };
 const CUSTOM_SCALE: Scale = { id: CUSTOM.id, cards: CUSTOM.cards };
-
-async function flush(): Promise<void> {
-  await new Promise((r) => setImmediate(r));
-}
 
 // ---------------------------------------------------------------------------
 // Empty state
@@ -106,7 +102,7 @@ describe('ScalePicker — browsing render', () => {
 describe('ScalePicker — navigation', () => {
   it('down arrow moves cursor to the second scale: space then selects it', async () => {
     const onSelect = vi.fn();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <ScalePicker
         scales={[FIB, CUSTOM_SCALE]}
         selectedScaleId=""
@@ -116,21 +112,14 @@ describe('ScalePicker — navigation', () => {
         onClose={vi.fn()}
       />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('\x1b[B'); // down arrow
-      await flush();
-    });
-    await act(async () => {
-      stdin.write(' '); // space — selects cursor item
-      await flush();
-    });
+    await press(stdin, '\x1b[B'); // down arrow
+    await press(stdin, ' '); // space — selects cursor item
     expect(onSelect).toHaveBeenCalledWith(CUSTOM.id);
   });
 
   it('up arrow at cursor=0 wraps to the last scale', async () => {
     const onSelect = vi.fn();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <ScalePicker
         scales={[FIB, LINEAR, CUSTOM_SCALE]}
         selectedScaleId=""
@@ -140,15 +129,8 @@ describe('ScalePicker — navigation', () => {
         onClose={vi.fn()}
       />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('\x1b[A'); // up arrow from index 0 → wraps to last (CUSTOM_SCALE)
-      await flush();
-    });
-    await act(async () => {
-      stdin.write(' ');
-      await flush();
-    });
+    await press(stdin, '\x1b[A'); // up arrow from index 0 → wraps to last (CUSTOM_SCALE)
+    await press(stdin, ' ');
     expect(onSelect).toHaveBeenCalledWith(CUSTOM.id);
   });
 });
@@ -161,7 +143,7 @@ describe('ScalePicker — navigation', () => {
 describe('ScalePicker — selection', () => {
   it('space key calls onSelect with the cursor scale id', async () => {
     const onSelect = vi.fn();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <ScalePicker
         scales={[FIB]}
         selectedScaleId=""
@@ -170,17 +152,13 @@ describe('ScalePicker — selection', () => {
         onClose={vi.fn()}
       />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write(' ');
-      await flush();
-    });
+    await press(stdin, ' ');
     expect(onSelect).toHaveBeenCalledWith(FIB.id);
   });
 
   it('enter on a custom (non-builtin) scale calls onSelect', async () => {
     const onSelect = vi.fn();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <ScalePicker
         scales={[CUSTOM_SCALE]}
         selectedScaleId=""
@@ -190,17 +168,13 @@ describe('ScalePicker — selection', () => {
         onClose={vi.fn()}
       />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('\r');
-      await flush();
-    });
+    await press(stdin, '\r');
     expect(onSelect).toHaveBeenCalledWith(CUSTOM.id);
   });
 
   it('escape calls onClose', async () => {
     const onClose = vi.fn();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <ScalePicker
         scales={[FIB]}
         selectedScaleId=""
@@ -209,11 +183,7 @@ describe('ScalePicker — selection', () => {
         onClose={onClose}
       />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('\x1b');
-      await flush();
-    });
+    await press(stdin, '\x1b');
     expect(onClose).toHaveBeenCalledOnce();
   });
 });
@@ -226,7 +196,7 @@ describe('ScalePicker — selection', () => {
 describe('ScalePicker — delete-confirm flow', () => {
   it('"y" confirms the delete and calls onCustomScaleDelete with the scale id', async () => {
     const onDelete = vi.fn();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <ScalePicker
         scales={[CUSTOM_SCALE]}
         selectedScaleId=""
@@ -237,21 +207,14 @@ describe('ScalePicker — delete-confirm flow', () => {
         onClose={vi.fn()}
       />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('d'); // trigger confirming-delete
-      await flush();
-    });
-    await act(async () => {
-      stdin.write('y');
-      await flush();
-    });
+    await press(stdin, 'd'); // trigger confirming-delete
+    await press(stdin, 'y');
     expect(onDelete).toHaveBeenCalledWith(CUSTOM.id);
   });
 
   it('"n" cancels the delete without calling onCustomScaleDelete', async () => {
     const onDelete = vi.fn();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <ScalePicker
         scales={[CUSTOM_SCALE]}
         selectedScaleId=""
@@ -262,21 +225,14 @@ describe('ScalePicker — delete-confirm flow', () => {
         onClose={vi.fn()}
       />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('d');
-      await flush();
-    });
-    await act(async () => {
-      stdin.write('n');
-      await flush();
-    });
+    await press(stdin, 'd');
+    await press(stdin, 'n');
     expect(onDelete).not.toHaveBeenCalled();
   });
 
   it('escape in delete-confirm returns to browsing without deleting', async () => {
     const onDelete = vi.fn();
-    const { lastFrame, stdin } = render(
+    const { lastFrame, stdin } = await renderInk(
       <ScalePicker
         scales={[CUSTOM_SCALE]}
         selectedScaleId=""
@@ -287,15 +243,8 @@ describe('ScalePicker — delete-confirm flow', () => {
         onClose={vi.fn()}
       />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('d');
-      await flush();
-    });
-    await act(async () => {
-      stdin.write('\x1b');
-      await flush();
-    });
+    await press(stdin, 'd');
+    await press(stdin, '\x1b');
     expect(onDelete).not.toHaveBeenCalled();
     // browsing UI is restored — scale name is visible again
     expect(lastFrame() ?? '').toContain('Team Points');

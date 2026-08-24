@@ -9,7 +9,7 @@
  */
 
 import { render } from 'ink-testing-library';
-import { act } from 'react';
+import { press, renderInk } from './test-harness.js';
 import { describe, expect, it, vi } from 'vitest';
 import { ABSTAIN_SENTINEL } from '@hnch/shared';
 import type { AgendaItem, DocProjection, Round, Scale } from '@hnch/shared';
@@ -189,15 +189,11 @@ describe('Lobby render — issue #111 patch lines', () => {
   it('legend shows [x] Export when canExport=true and triggers handler on x press', async () => {
     const r1 = makeRound({ id: 'r1', revealedAt: 1000, votes: { host: '5' } });
     const onExportResults = vi.fn();
-    const { lastFrame, stdin } = render(
+    const { lastFrame, stdin } = await renderInk(
       <Lobby {...baseProps([r1], r1)} canExport={true} onExportResults={onExportResults} />,
     );
     expect(lastFrame() ?? '').toContain('[x] Export');
-    await new Promise((r) => setImmediate(r));
-    await act(async () => {
-      stdin.write('x');
-      await new Promise((r) => setImmediate(r));
-    });
+    await press(stdin, 'x');
     expect(onExportResults).toHaveBeenCalledOnce();
   });
 
@@ -259,15 +255,11 @@ describe('Lobby render — issue #111 patch lines', () => {
   it('legend omits [x] Export and ignores x press when canExport=false', async () => {
     const r1 = makeRound({ id: 'r1', revealedAt: 1000, votes: { host: '5' } });
     const onExportResults = vi.fn();
-    const { lastFrame, stdin } = render(
+    const { lastFrame, stdin } = await renderInk(
       <Lobby {...baseProps([r1], r1)} canExport={false} onExportResults={onExportResults} />,
     );
     expect(lastFrame() ?? '').not.toContain('[x] Export');
-    await new Promise((r) => setImmediate(r));
-    await act(async () => {
-      stdin.write('x');
-      await new Promise((r) => setImmediate(r));
-    });
+    await press(stdin, 'x');
     expect(onExportResults).not.toHaveBeenCalled();
   });
 
