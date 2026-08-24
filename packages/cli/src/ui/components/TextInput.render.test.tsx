@@ -11,14 +11,10 @@
 
 import React from 'react';
 import { render } from 'ink-testing-library';
-import { act } from 'react';
+import { press, renderInk } from '../test-harness.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import { TextInput } from './TextInput.js';
-
-async function flush(): Promise<void> {
-  await new Promise((r) => setImmediate(r));
-}
 
 // ---------------------------------------------------------------------------
 // Rendering
@@ -76,73 +72,55 @@ describe('TextInput — display', () => {
 describe('TextInput — keyboard callbacks', () => {
   it('calls onChange with value + typed char on printable input', async () => {
     const onChange = vi.fn();
-    const { stdin } = render(<TextInput value="ab" onChange={onChange} onSubmit={vi.fn()} />);
-    await flush();
-    await act(async () => {
-      stdin.write('c');
-      await flush();
-    });
+    const { stdin } = await renderInk(
+      <TextInput value="ab" onChange={onChange} onSubmit={vi.fn()} />,
+    );
+    await press(stdin, 'c');
     expect(onChange).toHaveBeenCalledWith('abc');
   });
 
   it('calls onChange with value minus last char on backspace', async () => {
     const onChange = vi.fn();
-    const { stdin } = render(<TextInput value="hello" onChange={onChange} onSubmit={vi.fn()} />);
-    await flush();
-    await act(async () => {
-      stdin.write('\x7f'); // DEL / backspace code
-      await flush();
-    });
+    const { stdin } = await renderInk(
+      <TextInput value="hello" onChange={onChange} onSubmit={vi.fn()} />,
+    );
+    await press(stdin, '\x7f'); // DEL / backspace code
     expect(onChange).toHaveBeenCalledWith('hell');
   });
 
   it('calls onSubmit with current value on enter', async () => {
     const onSubmit = vi.fn();
-    const { stdin } = render(<TextInput value="done" onChange={vi.fn()} onSubmit={onSubmit} />);
-    await flush();
-    await act(async () => {
-      stdin.write('\r');
-      await flush();
-    });
+    const { stdin } = await renderInk(
+      <TextInput value="done" onChange={vi.fn()} onSubmit={onSubmit} />,
+    );
+    await press(stdin, '\r');
     expect(onSubmit).toHaveBeenCalledWith('done');
   });
 
   it('calls onCancel on escape', async () => {
     const onCancel = vi.fn();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <TextInput value="x" onChange={vi.fn()} onSubmit={vi.fn()} onCancel={onCancel} />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('\x1b'); // ESC
-      await flush();
-    });
+    await press(stdin, '\x1b'); // ESC
     expect(onCancel).toHaveBeenCalledOnce();
   });
 
   it('ignores printable input when isActive=false', async () => {
     const onChange = vi.fn();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <TextInput value="" onChange={onChange} onSubmit={vi.fn()} isActive={false} />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('a');
-      await flush();
-    });
+    await press(stdin, 'a');
     expect(onChange).not.toHaveBeenCalled();
   });
 
   it('ignores enter when isActive=false', async () => {
     const onSubmit = vi.fn();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <TextInput value="val" onChange={vi.fn()} onSubmit={onSubmit} isActive={false} />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('\r');
-      await flush();
-    });
+    await press(stdin, '\r');
     expect(onSubmit).not.toHaveBeenCalled();
   });
 });
