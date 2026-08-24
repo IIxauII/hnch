@@ -26,7 +26,17 @@ _Avoid_: resolveTerminal, getRoundState
 
 **active** (round):
 A round whose `status` is non-terminal (`pending | voting`) — still open to votes and to a terminal transition. The complement of a terminal round. Named by the `round-transitions` module: `canEnterTerminal(status)` is "is active"; `isTerminalStatus(status)` is its complement. Both writers (terminal-mutex guard, via `terminalState`) and readers (UI affordances, pre-mutation gates in client + CLI) branch on this one split instead of re-spelling `'pending' || 'voting'`.
-_Avoid_: open, live, current (the selector for this predicate is `activeRound`; `current` names the *anchor* selector `currentRound`, which falls back to the last non-discarded round and so must never gate a write)
+_Avoid_: open, live, current (the selector for this predicate is `activeRound`; `current` names the *anchor* selector `currentRound`, which falls back to the last non-discarded round and so must never gate a **write**, a **navigation**, or a **UI affordance**. Its one legitimate reader is the results anchor — "what should the Lobby results view show". Anywhere else the anchor fallback is a blind spot: when the round in question is the only one in the session, a terminal transition to `discarded` is invisible to it.)
+
+## Screen selection
+
+**screen** (`Screen`):
+Which of a surface's in-session screens a peer belongs on: `'lobby' | 'estimating'`. One word across three vocabularies that used to disagree — the client's routes (`/lobby`, `/estimating`), its last-session cache (`lastScreen`), and the CLI's two views. Both surfaces are adapters over this one union; neither re-derives it.
+_Avoid_: view, page, route, **voting** (the CLI's old spelling — it collides with the `RoundStatus` member `'voting'`, which is a different idea entirely: a round's lifecycle state, not a destination)
+
+**screenFor**:
+The selector in the `screen-for` module that answers the screen question from a projection: an `activeRound` means `'estimating'`, otherwise `'lobby'`. Total on a projection — no null, no `loading` member, no options bag. Because it delegates to `activeRound` rather than the anchor selector, a session whose only round is discarded resolves to Lobby with no recovery effect anywhere. A peer with no projection yet is not a screen question; that pre-load `null` belongs to the consuming adapter (client: `DocService.screen`), not to the rule.
+_Avoid_: deriveScreen, currentScreen, resolveScreen
 
 ## Round commands (writer side)
 

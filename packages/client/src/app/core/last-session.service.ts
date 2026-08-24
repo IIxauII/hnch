@@ -6,15 +6,20 @@ import {
   migrateLastSessionCache,
   pruneLastSessionEntries,
   type LastSessionEntry,
+  type Screen,
 } from '@hnch/shared';
 
 export const LAST_SESSION_KEY = 'hnch.lastSession';
 
 /**
  * The screens that count as "inside a session" for route restoration
- * (ADR-0022, ADR-0044). Matches the current in-session route set.
+ * (ADR-0022, ADR-0044). An alias of the shared `Screen` union so the cache,
+ * the routes, and both surfaces speak one word (issue #508) — same two
+ * members, so no cache migration and the structural validation on read is
+ * unaffected. The field itself stays a client-only extension on the cache
+ * entry; the shared entry shape deliberately excludes it.
  */
-export type LastSessionScreen = 'lobby' | 'estimating';
+export type LastSessionScreen = Screen;
 
 /**
  * Mobile-extended last-session entry. Adds `lastScreen` for route
