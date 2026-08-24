@@ -444,39 +444,21 @@ export class EstimatingPage {
       }
     });
 
-    // Auto-navigate to Lobby when round reaches a terminal state (revealed
-    // or skipped) — covers unanimous auto-reveal, host manual reveal, and
-    // host skip. Scoped to this component's lifetime.
+    // Auto-navigate to Lobby whenever this peer no longer belongs on
+    // Estimating (issue #508). The rule lives in the shared `screenFor`
+    // selector; this is the adapter. It covers every way the round can close
+    // — unanimous auto-reveal, host manual reveal, host skip, and host
+    // discard, including the discard of a session's only round, which the
+    // old anchor-selector effect structurally could not see.
+    //
+    // `null` means the projection has not arrived yet (slow-network resume);
+    // stay on the screen the URL asked for rather than bouncing to Lobby.
     effect(() => {
-      const round = this.docService.currentRound();
-      if (round !== null && round !== undefined && isTerminalStatus(round.status)) {
-        const activeCode = this.docService.roomCode();
-        assertRoomCode(activeCode, 'estimating.autoNav');
-        void this.router.navigate(['/lobby', activeCode], { replaceUrl: true });
-      }
-    });
-
-    // Discard recovery: when the host writes `discardedAt` on the round this
-    // peer is currently looking at, navigate back to Lobby. The active-round
-    // projection (`currentRound()`) excludes discarded rounds, so the
-    // primary auto-nav effect above does NOT see this transition when the
-    // discarded round was the only one in the session. Looks at the raw
-    // rounds array against the entry-round id captured at mount. See ADR
-    // superseding ADR-0013.
-    let entryRoundId: string | undefined;
-    effect(() => {
-      const round = this.docService.currentRound();
-      if (entryRoundId === undefined && round !== null && round !== undefined) {
-        entryRoundId = round.id;
-        return;
-      }
-      if (entryRoundId === undefined) return;
-      const tracked = this.docService.rounds().find((r) => r.id === entryRoundId);
-      if (tracked !== undefined && tracked.status === 'discarded') {
-        const activeCode = this.docService.roomCode();
-        assertRoomCode(activeCode, 'estimating.discardRecovery');
-        void this.router.navigate(['/lobby', activeCode], { replaceUrl: true });
-      }
+      const screen = this.docService.screen();
+      if (screen === null || screen === 'estimating') return;
+      const activeCode = this.docService.roomCode();
+      assertRoomCode(activeCode, 'estimating.autoNav');
+      void this.router.navigate(['/lobby', activeCode], { replaceUrl: true });
     });
 
     // Clear the transient keyboard focus cursor when the round changes
