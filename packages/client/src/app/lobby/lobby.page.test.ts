@@ -5,10 +5,18 @@
  */
 
 import { TestBed } from '@angular/core/testing';
-import { signal } from '@angular/core';
+import { signal, type WritableSignal } from '@angular/core';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { CustomScale, ParticipantSnapshot, Round, Scale, Screen } from '@hnch/shared';
+import type {
+  AgendaItem,
+  AgendaResult,
+  CustomScale,
+  ParticipantSnapshot,
+  Round,
+  Scale,
+  Screen,
+} from '@hnch/shared';
 
 import { buildCopyRoomCodeToast, buildResultsHeading, isParticipantViewer } from './lobby-helpers';
 
@@ -1324,5 +1332,164 @@ describe('LobbyPage — autoNav effect (wiring)', () => {
     const { navigate } = await mountWithScreen(null);
     TestBed.flushEffects();
     expect(navigate).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Agenda form submit — the one deliberate UX consequence of #507.
+//
+// Wiring only: the gate that produces the refusal is pinned in
+// `@hnch/shared`'s agenda-commands.test.ts. What matters here is client
+// behaviour — an edit that refuses (a peer cancelled the item while this form
+// was open) must leave the modal on screen rather than dismissing it and
+// eating the user's typing.
+// ---------------------------------------------------------------------------
+
+describe('LobbyPage — agenda form refusal keeps the modal open', () => {
+  async function mountWithAgendaResult(result: AgendaResult) {
+    const { Router } = await import('@angular/router');
+    const { DocService } = await import('../core/doc/doc.service');
+    const { HapticService } = await import('../core/haptic.service');
+    const { ParticipantIdService } = await import('../core/participant-id.service');
+    const { LastSessionService } = await import('../core/last-session.service');
+    const { ScalePreferenceService } = await import('../core/scale-preference.service');
+    const { SurfaceService } = await import('../core/surface.service');
+    const { ToastService } = await import('../services/toast.service');
+    const { ExportService } = await import('../core/export.service');
+    const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
+
+    const updateAgendaItemFields = vi.fn().mockReturnValue(result);
+    const appendAgendaItem = vi.fn().mockReturnValue(result);
+    const impactLight = vi.fn();
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: Router, useValue: { navigate: vi.fn().mockResolvedValue(true) } },
+        {
+          provide: DocService,
+          useValue: {
+            settings: signal(undefined).asReadonly(),
+            roomCode: signal('ABC123').asReadonly(),
+            meta: signal(undefined).asReadonly(),
+            syncStatus: signal('disconnected').asReadonly(),
+            currentRound: signal(undefined).asReadonly(),
+            screen: signal('lobby').asReadonly(),
+            lastRejection: signal(null).asReadonly(),
+            rounds: signal([]).asReadonly(),
+            participants: signal([]).asReadonly(),
+            activeParticipants: signal([]).asReadonly(),
+            onlineParticipantIds: signal(new Set()).asReadonly(),
+            agenda: signal([]).asReadonly(),
+            pendingAgenda: signal([]).asReadonly(),
+            nextPendingAgendaItem: signal(null).asReadonly(),
+            appendAgendaItem,
+            updateAgendaItemFields,
+            endSession: vi.fn(),
+          },
+        },
+        { provide: HapticService, useValue: { impactLight } },
+        { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
+        { provide: LastSessionService, useValue: { record: vi.fn() } },
+        { provide: ScalePreferenceService, useValue: { customScales: signal([]).asReadonly() } },
+        {
+          provide: SurfaceService,
+          useValue: {
+            mode: signal('mobile').asReadonly(),
+            sheetBreakpoints: () => [0, 0.5, 1],
+            initialSheetBreakpoint: () => 0.5,
+            sheetBreakpointsFull: () => [0, 0.6, 1],
+            initialSheetBreakpointFull: () => 1,
+          },
+        },
+        { provide: ToastService, useValue: { show: vi.fn(), error: vi.fn() } },
+        { provide: ExportService, useValue: { export: vi.fn() } },
+        {
+          provide: AlertController,
+          useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
+        },
+        {
+          provide: PopoverController,
+          useValue: {
+            create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }),
+            dismiss: vi.fn().mockResolvedValue(true),
+          },
+        },
+      ],
+    });
+
+    const { LobbyPage } = await import('./lobby.page');
+    const fixture = TestBed.createComponent(LobbyPage);
+    return { fixture, updateAgendaItemFields, appendAgendaItem, impactLight };
+  }
+
+  type Internals = {
+    agendaFormMode: WritableSignal<'add' | 'edit'>;
+    agendaFormOpen: WritableSignal<boolean>;
+    editingAgendaItem: WritableSignal<AgendaItem | null>;
+    onAgendaFormSubmit(s: {
+      title: string | null;
+      ticketId: string | null;
+      description: string | null;
+    }): void;
+  };
+
+  const ITEM: AgendaItem = {
+    id: 'item-1',
+    title: 'Login form',
+    state: 'pending',
+    source: 'manual',
+    sortKey: 'a0',
+    createdAt: 1,
+  };
+
+  function openEditForm(fixture: { componentInstance: unknown }): Internals {
+    const internals = fixture.componentInstance as Internals;
+    internals.agendaFormMode.set('edit');
+    internals.editingAgendaItem.set(ITEM);
+    internals.agendaFormOpen.set(true);
+    return internals;
+  }
+
+  it('leaves the modal open and fires no haptic when the edit refuses', async () => {
+    const { fixture, impactLight } = await mountWithAgendaResult({
+      applied: false,
+      reason: 'not-pending',
+    });
+    const internals = openEditForm(fixture);
+
+    internals.onAgendaFormSubmit({ title: 'Signup form', ticketId: null, description: null });
+
+    expect(internals.agendaFormOpen()).toBe(true);
+    expect(internals.editingAgendaItem()).toEqual(ITEM);
+    expect(impactLight).not.toHaveBeenCalled();
+  });
+
+  it('closes the modal when the edit applies', async () => {
+    const { fixture, impactLight } = await mountWithAgendaResult({
+      applied: true,
+      id: 'item-1',
+    });
+    const internals = openEditForm(fixture);
+
+    internals.onAgendaFormSubmit({ title: 'Signup form', ticketId: null, description: null });
+
+    expect(internals.agendaFormOpen()).toBe(false);
+    expect(internals.editingAgendaItem()).toBeNull();
+    expect(impactLight).toHaveBeenCalled();
+  });
+
+  it('leaves the add form open when the add refuses', async () => {
+    const { fixture } = await mountWithAgendaResult({
+      applied: false,
+      reason: 'invalid-fields',
+    });
+    const internals = fixture.componentInstance as Internals;
+    internals.agendaFormMode.set('add');
+    internals.agendaFormOpen.set(true);
+
+    internals.onAgendaFormSubmit({ title: null, ticketId: null, description: null });
+
+    expect(internals.agendaFormOpen()).toBe(true);
   });
 });

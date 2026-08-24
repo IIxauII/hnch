@@ -48,6 +48,28 @@ _Avoid_: terminalAction, roundAction, mutation (for the command specifically)
 The return of a round command: `{ applied: true; at } | { applied: false; reason: 'no-current-round' | 'already-terminal' }`. Lets a caller branch on whether the transition actually fired — e.g. suppress haptics or celebration on a no-op — without re-spelling the gate. Replaces the previous throw-on-illegal-transition behavior; a lost race (two peers terminating the same round) no-ops instead of throwing.
 _Avoid_: CommandResult, RevealResult, void (the command never returns bare void)
 
+## Agenda and roster commands (writer side)
+
+**agenda command**:
+A shared writer-side action on a pre-session agenda item — `addItem` / `editItem` / `skipItem` / `cancelItem` / `moveItem` in the `agenda-commands` module. Same shape as a round command: take the doc, apply the gate, stamp the injectable clock where a timestamp is actually persisted, delegate to the low-level `doc-projection` writer. Short-named because the module is the noun. Carries **no authority gate** — no host rule exists on agenda edits, and the Lobby gates its affordances itself. Consumption is not a command: an item becomes `consumed` inside the round-terminal writer (ADR-0045), with no caller-driven act to gate.
+_Avoid_: agendaMutation, agendaAction, addAgendaItem (on the command specifically — the writer owns that name)
+
+**roster command**:
+A shared writer-side action on who is in a session, what they are called, and who is in charge — `rename` / `recolor` / `toggleRole` / `leave` / `kick` / `handoffHost` / `promoteHost` / `endSession` in the `roster-commands` module. `kick`, `handoffHost` and `endSession` gate on host authority; the rest act on the caller's own record. After deepening, every host write goes through this module — which is what `patchSettings`' narrowed public parameter type enforces (see `PublicSettingsPatch`).
+_Avoid_: participantCommand, memberCommand, rosterMutation
+
+**handoffHost vs. promoteHost**:
+Two names for one doc write, deliberately kept apart. `handoffHost` is a host *delegating*: it needs authority and an online target, because handing the room to someone who cannot act on it strands it. `promoteHost` is a leaderless room *repairing itself*: the ADR-0048 election has already picked a winner and there is by definition no current host to authorise the write, so it is ungated. Naming them apart is what allows the gate to exist on one and not the other.
+_Avoid_: setHost, transferHost, becomeHost (all three collapse the distinction the gate depends on)
+
+**AgendaResult**:
+The return of an agenda command: `{ applied: true; id; at? } | { applied: false; reason: 'not-found' | 'not-pending' | 'invalid-fields' }`. `at` is optional because only `addItem` persists a timestamp. The refusals replace throw-on-illegal-state: a host editing an item a peer just cancelled has lost a race, not written a bug, and the client keeps the edit modal open on `applied: false` rather than dismissing it.
+_Avoid_: AgendaCommandResult, ItemResult, void
+
+**RosterResult**:
+The return of a roster command: `{ applied: true; at? } | { applied: false; reason: 'not-found' | 'not-host' | 'not-online' | 'self-target' }`. `at` is present only where a timestamp is persisted (`leave` / `kick` write `leftAt`; `endSession` writes `sessionEndedAt`). Each command documents the subset of reasons it can actually return — the union is one per module, matching `TerminalResult`, not one per command.
+_Avoid_: ParticipantResult, HostResult, boolean
+
 ## Session drivers
 
 **driver**:

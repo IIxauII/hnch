@@ -15,8 +15,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as Y from 'yjs';
 import { Awareness } from 'y-protocols/awareness';
 import {
-  patchSettings,
-  upsertParticipant,
+  joinDoc,
+  promoteHost,
   startElection,
   DOC_SETTINGS_KEY,
   type ElectionDeps,
@@ -62,8 +62,8 @@ describe('CLI host-election wiring', () => {
     vi.clearAllMocks();
     doc = new Y.Doc();
     awareness = new Awareness(doc);
-    patchSettings(doc, { hostParticipantId: 'host-1' });
-    upsertParticipant(doc, 'host-1', { displayName: 'Host', joinedAt: 0 });
+    promoteHost(doc, 'host-1');
+    joinDoc(doc, { participantId: 'host-1', displayName: 'Host', joinedAt: 0 });
 
     notify = vi.fn();
     // Capture the deps the adapter hands to the shared driver, and swap the
@@ -91,7 +91,7 @@ describe('CLI host-election wiring', () => {
 
     // A participants-map write and nothing else — no awareness or settings
     // event. This is the kicked-host shape (ADR-0036).
-    upsertParticipant(doc, 'peer-b', { displayName: 'Peer B', joinedAt: 0 });
+    joinDoc(doc, { participantId: 'peer-b', displayName: 'Peer B', joinedAt: 0 });
 
     expect(notify).toHaveBeenCalled();
     session.disconnect();
@@ -124,7 +124,7 @@ describe('CLI host-election wiring', () => {
     session.disconnect();
     notify.mockClear();
 
-    upsertParticipant(doc, 'peer-b', { displayName: 'Peer B', joinedAt: 0 });
+    joinDoc(doc, { participantId: 'peer-b', displayName: 'Peer B', joinedAt: 0 });
     awareness.emit('change', [{ added: [], updated: [], removed: [] }, 'test']);
 
     expect(notify).not.toHaveBeenCalled();

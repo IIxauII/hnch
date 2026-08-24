@@ -130,7 +130,7 @@ describe('role gate', () => {
   it('toggleCurrentVote refuses a participant who left the session with not-a-voter', () => {
     const doc = seedWithRound();
     upsertParticipant(doc, 'p-bob', { displayName: 'Bob', joinedAt: 1 });
-    leaveSession(doc, 'p-bob');
+    leaveSession(doc, 'p-bob', 1_700_000_500_000);
     const result = toggleCurrentVote(doc, 'p-bob', '5');
     expect(result).toEqual({ applied: false, reason: 'not-a-voter' });
     expect(projectDoc(doc).rounds[0]!.votes).toEqual({});
@@ -139,7 +139,7 @@ describe('role gate', () => {
   it('toggleCurrentVote refuses a participant removed by the host with not-a-voter', () => {
     const doc = seedWithRound();
     upsertParticipant(doc, 'p-bob', { displayName: 'Bob', joinedAt: 1 });
-    removeParticipant(doc, 'p-host', 'p-bob');
+    removeParticipant(doc, 'p-host', 'p-bob', 1_700_000_500_000);
     const result = toggleCurrentVote(doc, 'p-bob', '5');
     expect(result).toEqual({ applied: false, reason: 'not-a-voter' });
     expect(projectDoc(doc).rounds[0]!.votes).toEqual({});
@@ -241,7 +241,7 @@ describe('clearCurrentVote — role-flip mid-round', () => {
     toggleCurrentVote(doc, 'p-bob', '5');
     expect(projectDoc(doc).rounds[0]!.votes).toEqual({ 'p-bob': '5' });
 
-    removeParticipant(doc, 'p-host', 'p-bob');
+    removeParticipant(doc, 'p-host', 'p-bob', 1_700_000_500_000);
 
     expect(toggleCurrentVote(doc, 'p-bob', '8')).toEqual({
       applied: false,

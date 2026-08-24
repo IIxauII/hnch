@@ -373,7 +373,7 @@ describe('session integration', () => {
     host.disconnect();
   });
 
-  it('endSessionForEveryone throws if caller is not host', async () => {
+  it('endSessionForEveryone refuses with not-host if caller is not host', async () => {
     const host = await createSession({
       participantId: 'host-es-guard',
       displayName: 'Alice',
@@ -397,10 +397,10 @@ describe('session integration', () => {
       { timeout: SYNC_TIMEOUT },
     );
 
-    // Joiner is not host — must throw
-    expect(() => joiner.endSessionForEveryone()).toThrow(
-      'Only the current host can end the session',
-    );
+    // Joiner is not host — the shared roster command refuses, it does not
+    // throw, so a mis-tap in the TUI is not an exception (#507).
+    expect(joiner.endSessionForEveryone()).toEqual({ applied: false, reason: 'not-host' });
+    expect(host.projection().meta.sessionEndedAt).toBeUndefined();
 
     host.disconnect();
     joiner.disconnect();
