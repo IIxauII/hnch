@@ -873,8 +873,13 @@ export class EstimatingPage {
           text: 'End session',
           role: 'destructive',
           handler: () => {
-            this.haptic.impactHeavy();
-            this.docService.endSessionForEveryone();
+            const selfId = this.myId();
+            if (!selfId) return;
+            // The shared roster command applies the host gate underneath
+            // ADR-0023's UI gate; a refusal fires no haptic (#507).
+            if (this.docService.endSessionForEveryone(selfId).applied) {
+              this.haptic.impactHeavy();
+            }
           },
         },
       ],

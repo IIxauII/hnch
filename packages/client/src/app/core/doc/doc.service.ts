@@ -8,9 +8,10 @@ import {
 } from '@angular/core';
 import {
   activeRound as activeRoundFromProjection,
+  addItem as addAgendaItemCommand,
   AWARENESS_PARTICIPANT_ID_FIELD,
-  appendAgendaItem as appendAgendaItemY,
   appendRound as appendRoundY,
+  cancelItem as cancelAgendaItemCommand,
   clearCurrentVote as clearCurrentVoteCommand,
   currentRound as currentRoundFromProjection,
   discardCurrentRound as discardCurrentRoundCommand,
@@ -19,31 +20,34 @@ import {
   DOC_PARTICIPANTS_KEY,
   DOC_ROUNDS_KEY,
   DOC_SETTINGS_KEY,
-  endSessionForEveryone as endSessionForEveryoneY,
+  editItem as editAgendaItemCommand,
+  endSession as endSessionCommand,
+  handoffHost as handoffHostCommand,
   initDoc,
   isActiveParticipant,
   joinDoc,
-  leaveSession as leaveSessionY,
+  kick as kickCommand,
+  leave as leaveCommand,
+  moveItem as moveAgendaItemCommand,
   nextPendingAgendaItem as nextPendingAgendaItemFromProjection,
   onlineIdsFrom,
-  participantRole,
   patchSettings,
   projectDoc,
   patchRoundDescriptor as patchRoundDescriptorY,
-  reorderAgendaItem as reorderAgendaItemY,
-  removeParticipant as removeParticipantY,
+  promoteHost as promoteHostCommand,
+  recolor as recolorCommand,
+  rename as renameCommand,
   revealCurrentRound as revealCurrentRoundCommand,
-  setAvatarColor as setAvatarColorY,
-  setAgendaItemState as setAgendaItemStateY,
   screenFor,
+  skipItem as skipAgendaItemCommand,
   startAutoReveal,
   startElection,
   skipCurrentRound as skipCurrentRoundCommand,
   toggleCurrentVote as toggleCurrentVoteCommand,
-  updateAgendaItemFields as updateAgendaItemFieldsY,
-  upsertParticipant as upsertParticipantY,
+  toggleRole as toggleRoleCommand,
+  type AddItemInit,
   type AgendaItem,
-  type AppendAgendaItemInit,
+  type AgendaResult,
   type DocProjection,
   type AutoRevealHandle,
   type ElectionHandle,
@@ -51,14 +55,15 @@ import {
   type JoinCredentials,
   type JoinRejectionReason,
   type Meta,
-  type Participant,
   type ParticipantSnapshot,
   type Round,
   type Scale,
   type Screen,
+  type EditItemPatch,
+  type PublicSettingsPatch,
+  type RosterResult,
   type Settings,
   type TerminalResult,
-  type UpdateAgendaItemFieldsInit,
   type VoteResult,
 } from '@hnch/shared';
 import { Capacitor } from '@capacitor/core';
@@ -469,6 +474,7 @@ export class DocService {
     joinDoc(doc, {
       participantId: init.participantId,
       displayName: init.displayName,
+      joinedAt: Date.now(),
       ...(init.avatarColor !== undefined && { avatarColor: init.avatarColor }),
     });
 
@@ -613,12 +619,22 @@ export class DocService {
   // Mutations (delegate straight to the pure helpers)
   // ---------------------------------------------------------------------------
 
-  updateSettings(patch: Partial<Settings>): void {
+  /**
+   * Patch session settings. `PublicSettingsPatch` excludes
+   * `hostParticipantId` by construction — host changes go through
+   * {@link handoffHost} / the election adapter's `promoteHost`, which is
+   * where the rules live (#507).
+   */
+  updateSettings(patch: PublicSettingsPatch): void {
     patchSettings(this.requireDoc('updateSettings'), patch);
   }
 
-  upsertParticipant(id: string, value: Participant): void {
-    upsertParticipantY(this.requireDoc('upsertParticipant'), id, value);
+  /**
+   * Rename a participant, preserving role, avatar color and `joinedAt`.
+   * Delegates to the shared roster command.
+   */
+  renameParticipant(participantId: string, displayName: string): RosterResult {
+    return renameCommand(this.requireDoc('renameParticipant'), participantId, displayName);
   }
 
   /**
@@ -627,27 +643,21 @@ export class DocService {
    * `parseAvatarColor` first — bad input is the writer's bug, not the
    * reader's problem.
    *
-   * No-op when no session is active.
+   * Unlike its siblings this does **not** `requireDoc`: the Settings page is
+   * reachable with no session, and picking a colour there must persist the
+   * preference locally rather than throw. That case reports the same
+   * `'not-found'` the command itself returns for an absent participant — with
+   * no doc there is likewise no record to recolour, so the two collapse
+   * honestly onto one reason.
    */
-  setAvatarColor(participantId: string, color: string): void {
-    if (this.doc === null) return;
-    setAvatarColorY(this.doc, participantId, color);
+  setAvatarColor(participantId: string, color: string): RosterResult {
+    if (this.doc === null) return { applied: false, reason: 'not-found' };
+    return recolorCommand(this.doc, participantId, color);
   }
 
-  /**
-   * Flip a participant's role between `'voter'` and `'viewer'`.
-   * Reads the current participant snapshot to preserve all other fields.
-   */
-  toggleRole(participantId: string): void {
-    const participant = this.participants().find((p) => p.id === participantId);
-    if (!participant) return;
-    const currentRole = participantRole(participant);
-    const nextRole = currentRole === 'voter' ? 'viewer' : 'voter';
-    upsertParticipantY(this.requireDoc('toggleRole'), participantId, {
-      displayName: participant.displayName,
-      joinedAt: participant.joinedAt,
-      role: nextRole,
-    });
+  /** Flip a participant's role between `'voter'` and `'viewer'`. */
+  toggleRole(participantId: string): RosterResult {
+    return toggleRoleCommand(this.requireDoc('toggleRole'), participantId);
   }
 
   /**
@@ -748,13 +758,30 @@ export class DocService {
   }
 
   /**
+   * Hand host authority to another participant. The shared command applies
+   * the host gate and the online-target rule; awareness is this service's to
+   * supply, so the page passes ids only.
+   */
+  handoffHost(actorId: string, targetId: string): RosterResult {
+    return handoffHostCommand(
+      this.requireDoc('handoffHost'),
+      actorId,
+      targetId,
+      this.onlineParticipantIdsSignal(),
+    );
+  }
+
+  /**
    * Write `sessionEndedAt` to meta, broadcasting session termination to all
    * peers. Sets `endingSessionLocally` so `SessionEndService` can distinguish
-   * this local trigger from a remote one.
+   * this local trigger from a remote one — but only once the shared host gate
+   * has actually applied the write, or a refused mis-tap would leave the
+   * end-session banner armed for a session that is still running.
    */
-  endSessionForEveryone(): void {
-    this.endingSessionLocally.set(true);
-    endSessionForEveryoneY(this.requireDoc('endSessionForEveryone'));
+  endSessionForEveryone(actorId: string): RosterResult {
+    const result = endSessionCommand(this.requireDoc('endSessionForEveryone'), actorId);
+    if (result.applied) this.endingSessionLocally.set(true);
+    return result;
   }
 
   /**
@@ -762,16 +789,17 @@ export class DocService {
    * Call before tearing down the local session so the mutation reaches
    * peers before the WS closes.
    */
-  leaveSession(selfId: string): void {
-    leaveSessionY(this.requireDoc('leaveSession'), selfId);
+  leaveSession(selfId: string): RosterResult {
+    return leaveCommand(this.requireDoc('leaveSession'), selfId);
   }
 
   /**
    * Host kick — soft-deletes the target participant's record (ADR-0036).
-   * No-op when `targetId === hostId`. UI must gate on `isHost()`.
+   * Refuses a non-host, a self-target (the leave path is the route), and a
+   * missing target. UI still gates on `isHost()`; this is the floor under it.
    */
-  removeParticipant(hostId: string, targetId: string): void {
-    removeParticipantY(this.requireDoc('removeParticipant'), hostId, targetId);
+  removeParticipant(hostId: string, targetId: string): RosterResult {
+    return kickCommand(this.requireDoc('removeParticipant'), hostId, targetId);
   }
 
   // ---------------------------------------------------------------------------
@@ -779,45 +807,40 @@ export class DocService {
   // ---------------------------------------------------------------------------
 
   /**
-   * Append a new agenda item. Validates that at least one of `{title, ticketId}`
-   * is non-empty. Returns the new item's id.
-   * UI should gate on `isHost()` — service calls through unconditionally.
+   * Append a new agenda item. The command stamps `createdAt` and validates
+   * that at least one of `{title, ticketId}` is non-empty; the result carries
+   * the new item's id. UI gates on `isHost()` — agenda commands carry no
+   * authority rule of their own.
    */
-  appendAgendaItem(init: Omit<AppendAgendaItemInit, 'createdAt'>): string {
-    return appendAgendaItemY(this.requireDoc('appendAgendaItem'), {
-      ...init,
-      createdAt: Date.now(),
-    });
+  appendAgendaItem(init: AddItemInit): AgendaResult {
+    return addAgendaItemCommand(this.requireDoc('appendAgendaItem'), init);
   }
 
   /**
-   * Patch editable fields (title, ticketId, description) on a pending agenda item.
-   * Throws when item is not found or state is skipped/cancelled.
+   * Patch editable fields (title, ticketId, description) on an agenda item.
+   * Refuses rather than throwing when a peer cancelled or skipped the item
+   * first — callers keep their edit form open on `applied: false`.
    */
-  updateAgendaItemFields(id: string, patch: UpdateAgendaItemFieldsInit): void {
-    updateAgendaItemFieldsY(this.requireDoc('updateAgendaItemFields'), id, patch);
+  updateAgendaItemFields(id: string, patch: EditItemPatch): AgendaResult {
+    return editAgendaItemCommand(this.requireDoc('updateAgendaItemFields'), id, patch);
   }
 
-  /**
-   * Soft-delete an agenda item (state → 'cancelled').
-   */
-  cancelAgendaItem(id: string): void {
-    setAgendaItemStateY(this.requireDoc('cancelAgendaItem'), id, 'cancelled');
+  /** Soft-delete an agenda item (state → 'cancelled'). */
+  cancelAgendaItem(id: string): AgendaResult {
+    return cancelAgendaItemCommand(this.requireDoc('cancelAgendaItem'), id);
   }
 
-  /**
-   * Skip an agenda item without creating a round (state → 'skipped').
-   */
-  skipAgendaItem(id: string): void {
-    setAgendaItemStateY(this.requireDoc('skipAgendaItem'), id, 'skipped');
+  /** Skip an agenda item without creating a round (state → 'skipped'). */
+  skipAgendaItem(id: string): AgendaResult {
+    return skipAgendaItemCommand(this.requireDoc('skipAgendaItem'), id);
   }
 
   /**
    * Reorder a pending agenda item. `before` / `after` are the sortKeys of the
    * adjacent items; pass null/undefined for the list boundaries.
    */
-  reorderAgendaItem(id: string, before?: string | null, after?: string | null): void {
-    reorderAgendaItemY(this.requireDoc('reorderAgendaItem'), id, before, after);
+  reorderAgendaItem(id: string, before?: string | null, after?: string | null): AgendaResult {
+    return moveAgendaItemCommand(this.requireDoc('reorderAgendaItem'), id, before, after);
   }
 
   /**
@@ -916,7 +939,9 @@ export class DocService {
       onlineIds: () => this.onlineParticipantIdsSignal(),
       myId: () => this.participantIdService.id(),
       subscribe: (cb) => this.subscribeDriver(cb),
-      promote: (winnerId) => this.updateSettings({ hostParticipantId: winnerId }),
+      promote: (winnerId) => {
+        promoteHostCommand(this.requireDoc('promoteHost'), winnerId);
+      },
     });
   }
 

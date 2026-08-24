@@ -2,9 +2,16 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
 import type { SessionHandle } from '../session.js';
 import type { SyncStatus } from '../sync.js';
-import type { DocProjection, Round, Scale, PresetOverrides, CustomScale } from '@hnch/shared';
+import type {
+  DocProjection,
+  Round,
+  Scale,
+  PresetOverrides,
+  CustomScale,
+  RosterResult,
+} from '@hnch/shared';
 import {
-  appendAgendaItem,
+  addItem as addAgendaItem,
   canEnterTerminal,
   currentRound,
   isTerminalStatus,
@@ -25,6 +32,19 @@ import { Lobby } from './Lobby.js';
 import { exportResultsToClipboard } from './lobby-helpers.js';
 import { Voting } from './Voting.js';
 import { useTransientNotice } from './hooks/useTransientNotice.js';
+
+/**
+ * Human copy for a roster refusal the handoff affordance can hit. The union
+ * is one per module rather than one per command, so `'self-target'` — a
+ * `kick`-only reason — appears here too; it gets a sentence describing *this*
+ * act rather than a cast, but `handoffHost` never returns it.
+ */
+const HANDOFF_REFUSAL: Record<Extract<RosterResult, { applied: false }>['reason'], string> = {
+  'not-host': 'only the current host can hand off',
+  'not-found': 'that participant is not in the session',
+  'not-online': 'that participant is offline',
+  'self-target': 'you cannot hand off to yourself',
+};
 
 interface Props {
   session: SessionHandle;
@@ -72,6 +92,7 @@ export function App({
   const [shareOpen, setShareOpen] = useState(false);
   const shareNotice = useTransientNotice(3000);
   const exportNotice = useTransientNotice(3000);
+  const agendaNotice = useTransientNotice(3000);
 
   useEffect(() => {
     const unsub1 = session.onChange(() => {
@@ -300,10 +321,11 @@ export function App({
 
   const handleHandoffHost = useCallback(
     (targetId: string) => {
-      try {
-        session.handoffHost(targetId);
-      } catch (err) {
-        console.error(`Handoff failed: ${err instanceof Error ? err.message : String(err)}`);
+      // The shared roster command refuses rather than throwing, so the TUI
+      // branches on the reason instead of catching to stay alive (#507).
+      const result = session.handoffHost(targetId);
+      if (!result.applied) {
+        console.error(`Handoff failed: ${HANDOFF_REFUSAL[result.reason]}`);
       }
     },
     [session],
@@ -384,14 +406,22 @@ export function App({
         return;
       }
 
-      appendAgendaItem(session.doc, {
+      // The shared command stamps `createdAt`. Its one refusal reason here is
+      // `'invalid-fields'`, which the guard above already covers — but the
+      // result is reported rather than dropped, so this path keeps parity with
+      // the mobile form and the one-shot `hnch agenda add` instead of eating
+      // the user's typing if that guard and the command ever disagree (#507).
+      const result = addAgendaItem(session.doc, {
         ...(pendingAgendaTitle !== undefined && { title: pendingAgendaTitle }),
         ...(normalizedTicket !== undefined && { ticketId: normalizedTicket }),
-        createdAt: Date.now(),
       });
+      if (!result.applied) {
+        agendaNotice.show('Add failed — an agenda item needs a title or a ticket id');
+        return;
+      }
       setPendingAgendaTitle(undefined);
     },
-    [session.doc, pendingAgendaTitle],
+    [session.doc, pendingAgendaTitle, agendaNotice],
   );
 
   const handleAgendaAddTicketIdCancel = useCallback(() => {
@@ -428,6 +458,12 @@ export function App({
           <Text color={exportNotice.notice.startsWith('Clipboard write failed') ? 'red' : 'green'}>
             {exportNotice.notice}
           </Text>
+        </Box>
+      )}
+
+      {agendaNotice.notice && (
+        <Box paddingX={1}>
+          <Text color="red">{agendaNotice.notice}</Text>
         </Box>
       )}
 

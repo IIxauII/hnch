@@ -4,7 +4,7 @@
  * The driver's behaviour lives in `@hnch/shared` and is tested there with
  * fake deps and fake timers. What can only be verified here is that this
  * adapter connects the driver to the right sources and sink: the projection
- * rebuild, the awareness handler, `updateSettings`, and a handle whose life
+ * rebuild, the awareness handler, `promoteHost`, and a handle whose life
  * is scoped to the session rather than to the app.
  *
  * Uses the real service (prior art: doc.service.terminal.test.ts) — the
@@ -111,7 +111,7 @@ describe('DocService — host-election wiring', () => {
 
     // A participants-map write and nothing else — no awareness event. This is
     // the kicked-host shape (ADR-0036).
-    svc.upsertParticipant('peer-b', { displayName: 'Peer B', joinedAt: 0 });
+    svc.renameParticipant('p-host', 'Renamed Host');
 
     expect(notify).toHaveBeenCalled();
   });
@@ -128,7 +128,7 @@ describe('DocService — host-election wiring', () => {
     expect(deps.onlineIds()).toContain('peer-b');
   });
 
-  it('promoting reaches updateSettings', () => {
+  it('promoting reaches the promoteHost command', () => {
     svc.createSession(SESSION);
 
     deps.promote('peer-b');
