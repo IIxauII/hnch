@@ -10,15 +10,11 @@
 
 import React from 'react';
 import { render } from 'ink-testing-library';
-import { act } from 'react';
+import { press, renderInk } from '../test-harness.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import { MenuList } from './MenuList.js';
 import type { MenuItem } from './MenuList.js';
-
-async function flush(): Promise<void> {
-  await new Promise((r) => setImmediate(r));
-}
 
 const ITEMS: MenuItem[] = [
   { label: 'Alpha', value: 'a' },
@@ -63,27 +59,16 @@ describe('MenuList — rendering', () => {
 describe('MenuList — keyboard interactions', () => {
   it('enter on default cursor calls onSelect with the first non-disabled item', async () => {
     const onSelect = vi.fn();
-    const { stdin } = render(<MenuList items={ITEMS} onSelect={onSelect} />);
-    await flush();
-    await act(async () => {
-      stdin.write('\r');
-      await flush();
-    });
+    const { stdin } = await renderInk(<MenuList items={ITEMS} onSelect={onSelect} />);
+    await press(stdin, '\r');
     expect(onSelect).toHaveBeenCalledWith('a');
   });
 
   it('down arrow moves cursor: enter then selects the second item', async () => {
     const onSelect = vi.fn();
-    const { stdin } = render(<MenuList items={ITEMS} onSelect={onSelect} />);
-    await flush();
-    await act(async () => {
-      stdin.write('\x1b[B'); // down arrow
-      await flush();
-    });
-    await act(async () => {
-      stdin.write('\r');
-      await flush();
-    });
+    const { stdin } = await renderInk(<MenuList items={ITEMS} onSelect={onSelect} />);
+    await press(stdin, '\x1b[B'); // down arrow
+    await press(stdin, '\r');
     expect(onSelect).toHaveBeenCalledWith('b');
   });
 
@@ -96,16 +81,9 @@ describe('MenuList — keyboard interactions', () => {
       { label: 'C', value: 'c', disabled: true },
       { label: 'D', value: 'd' },
     ];
-    const { stdin } = render(<MenuList items={items} onSelect={onSelect} />);
-    await flush();
-    await act(async () => {
-      stdin.write('\x1b[B'); // down
-      await flush();
-    });
-    await act(async () => {
-      stdin.write('\r');
-      await flush();
-    });
+    const { stdin } = await renderInk(<MenuList items={items} onSelect={onSelect} />);
+    await press(stdin, '\x1b[B'); // down
+    await press(stdin, '\r');
     expect(onSelect).toHaveBeenCalledWith('d');
   });
 
@@ -118,16 +96,9 @@ describe('MenuList — keyboard interactions', () => {
       { label: 'B', value: 'b', disabled: true },
       { label: 'C', value: 'c' },
     ];
-    const { stdin } = render(<MenuList items={items} onSelect={onSelect} />);
-    await flush();
-    await act(async () => {
-      stdin.write('\x1b[A'); // up
-      await flush();
-    });
-    await act(async () => {
-      stdin.write('\r');
-      await flush();
-    });
+    const { stdin } = await renderInk(<MenuList items={items} onSelect={onSelect} />);
+    await press(stdin, '\x1b[A'); // up
+    await press(stdin, '\r');
     expect(onSelect).toHaveBeenCalledWith('c');
   });
 
@@ -137,24 +108,18 @@ describe('MenuList — keyboard interactions', () => {
       { label: 'First', value: 'f', disabled: true },
       { label: 'Second', value: 's' },
     ];
-    const { stdin } = render(<MenuList items={items} onSelect={onSelect} />);
-    await flush();
-    await act(async () => {
-      stdin.write('\r');
-      await flush();
-    });
+    const { stdin } = await renderInk(<MenuList items={items} onSelect={onSelect} />);
+    await press(stdin, '\r');
     // first non-disabled is 'Second'
     expect(onSelect).toHaveBeenCalledWith('s');
   });
 
   it('escape calls onClose', async () => {
     const onClose = vi.fn();
-    const { stdin } = render(<MenuList items={ITEMS} onSelect={vi.fn()} onClose={onClose} />);
-    await flush();
-    await act(async () => {
-      stdin.write('\x1b'); // ESC
-      await flush();
-    });
+    const { stdin } = await renderInk(
+      <MenuList items={ITEMS} onSelect={vi.fn()} onClose={onClose} />,
+    );
+    await press(stdin, '\x1b'); // ESC
     expect(onClose).toHaveBeenCalledOnce();
   });
 });

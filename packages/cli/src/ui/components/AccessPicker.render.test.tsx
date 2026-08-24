@@ -10,14 +10,10 @@
 
 import React from 'react';
 import { render } from 'ink-testing-library';
-import { act } from 'react';
+import { press, renderInk } from '../test-harness.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AccessPicker } from './AccessPicker.js';
-
-async function flush(): Promise<void> {
-  await new Promise((r) => setImmediate(r));
-}
 
 // ---------------------------------------------------------------------------
 // Initial rendering by mode
@@ -89,7 +85,7 @@ describe('AccessPicker — initial rendering', () => {
 describe('AccessPicker — keyboard interactions', () => {
   it('right arrow + Enter from "open" mode calls onModeChange("password")', async () => {
     const onModeChange = vi.fn();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <AccessPicker
         mode="open"
         password=""
@@ -97,21 +93,14 @@ describe('AccessPicker — keyboard interactions', () => {
         onPasswordChange={vi.fn()}
       />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('\x1b[C'); // right arrow → cursor moves to password (index 1)
-      await flush();
-    });
-    await act(async () => {
-      stdin.write('\r'); // Enter — confirms new mode
-      await flush();
-    });
+    await press(stdin, '\x1b[C'); // right arrow → cursor moves to password (index 1)
+    await press(stdin, '\r'); // Enter — confirms new mode
     expect(onModeChange).toHaveBeenCalledWith('password');
   });
 
   it('left arrow + Enter from "password" mode calls onModeChange("open")', async () => {
     const onModeChange = vi.fn();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <AccessPicker
         mode="password"
         password=""
@@ -119,21 +108,14 @@ describe('AccessPicker — keyboard interactions', () => {
         onPasswordChange={vi.fn()}
       />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('\x1b[D'); // left arrow → cursor moves to open (index 0)
-      await flush();
-    });
-    await act(async () => {
-      stdin.write('\r'); // Enter — confirms new mode
-      await flush();
-    });
+    await press(stdin, '\x1b[D'); // left arrow → cursor moves to open (index 0)
+    await press(stdin, '\r'); // Enter — confirms new mode
     expect(onModeChange).toHaveBeenCalledWith('open');
   });
 
   it('Enter without moving cursor in "open" mode does not call onModeChange', async () => {
     const onModeChange = vi.fn();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <AccessPicker
         mode="open"
         password=""
@@ -141,17 +123,13 @@ describe('AccessPicker — keyboard interactions', () => {
         onPasswordChange={vi.fn()}
       />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('\r'); // Enter on cursor=0, mode='open' → newMode === mode → no call
-      await flush();
-    });
+    await press(stdin, '\r'); // Enter on cursor=0, mode='open' → newMode === mode → no call
     expect(onModeChange).not.toHaveBeenCalled();
   });
 
   it('Escape calls onClose', async () => {
     const onClose = vi.fn();
-    const { stdin } = render(
+    const { stdin } = await renderInk(
       <AccessPicker
         mode="open"
         password=""
@@ -160,11 +138,7 @@ describe('AccessPicker — keyboard interactions', () => {
         onClose={onClose}
       />,
     );
-    await flush();
-    await act(async () => {
-      stdin.write('\x1b'); // ESC
-      await flush();
-    });
+    await press(stdin, '\x1b'); // ESC
     expect(onClose).toHaveBeenCalledOnce();
   });
 });
