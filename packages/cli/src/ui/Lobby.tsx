@@ -1,16 +1,19 @@
 import React, { useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { isAbstainVote, isConsensus, isTerminalStatus, nextPendingAgendaItem } from '@hnch/shared';
+import {
+  formatRoundElapsed,
+  formatRoundStats,
+  isAbstainVote,
+  isConsensus,
+  isTerminalStatus,
+  nextPendingAgendaItem,
+  roundStatsFor,
+} from '@hnch/shared';
 import { ParticipantList } from './components/ParticipantList.js';
 import { HostActionsMenu } from './components/HostActionsMenu.js';
 import { SharePicker } from './components/SharePicker.js';
 import { TextInput } from './components/TextInput.js';
-import {
-  buildResultsHeader,
-  compactRoundSummary,
-  computeStats,
-  formatElapsed,
-} from './lobby-helpers.js';
+import { buildResultsHeader, compactRoundSummary } from './lobby-helpers.js';
 import type { AgendaItem, DocProjection, Round } from '@hnch/shared';
 
 interface Props {
@@ -285,14 +288,11 @@ export function Lobby({
       {pastRounds.length > 0 && (
         <Box flexDirection="column">
           <Text dimColor>── History ──</Text>
-          {pastRounds.map((r) => {
-            const roundNum = rounds.indexOf(r) + 1;
-            return (
-              <Text key={r.id} dimColor>
-                {compactRoundSummary(r, roundNum, rounds)}
-              </Text>
-            );
-          })}
+          {pastRounds.map((r) => (
+            <Text key={r.id} dimColor>
+              {compactRoundSummary(r, rounds)}
+            </Text>
+          ))}
         </Box>
       )}
 
@@ -473,8 +473,7 @@ interface ResultsSectionProps {
 }
 
 function ResultsSection({ projection, round, rounds }: ResultsSectionProps): React.ReactElement {
-  const roundNum = rounds.indexOf(round) + 1;
-  const header = buildResultsHeader(round, roundNum, rounds);
+  const header = buildResultsHeader(round, rounds);
 
   if (round.status === 'skipped') {
     return (
@@ -484,15 +483,13 @@ function ResultsSection({ projection, round, rounds }: ResultsSectionProps): Rea
     );
   }
 
-  const stats = computeStats(round.votes);
+  // Statistics and elapsed come from the shared round-presentation module, so
+  // the terminal and the mobile client describe a round with the same words
+  // (issue #509). Categorical scales get a real row instead of dashes.
+  const stats = formatRoundStats(roundStatsFor(round));
   const nameMap = new Map(projection.participants.map((p) => [p.id, p.displayName]));
 
-  const elapsed =
-    round.timerStartedAt !== undefined &&
-    round.status === 'revealed' &&
-    round.terminalAt !== undefined
-      ? formatElapsed(round.timerStartedAt, round.terminalAt)
-      : null;
+  const elapsed = formatRoundElapsed(round);
 
   const entries = Object.entries(round.votes);
   const numericVotes = entries.filter(([, v]) => !isAbstainVote(v));
@@ -542,18 +539,31 @@ function ResultsSection({ projection, round, rounds }: ResultsSectionProps): Rea
           ))}
       </Box>
 
-      <Box gap={2}>
-        <Text>
-          Avg: <Text bold>{stats.average}</Text>
-        </Text>
-        <Text>
-          Med: <Text bold>{stats.median}</Text>
-        </Text>
-        <Text>
-          Agreement: <Text bold>{stats.agreement}</Text>
-        </Text>
-        {elapsed !== null && <Text dimColor>⏱ {elapsed}</Text>}
-      </Box>
+      {(stats !== null || elapsed !== null) && (
+        <Box gap={2}>
+          {stats?.kind === 'numeric' && (
+            <Text>
+              Avg: <Text bold>{stats.mean}</Text>
+            </Text>
+          )}
+          {stats?.kind === 'numeric' && (
+            <Text>
+              Med: <Text bold>{stats.median}</Text>
+            </Text>
+          )}
+          {stats?.kind === 'categorical' && (
+            <Text>
+              Most common: <Text bold>{stats.mode}</Text>
+            </Text>
+          )}
+          {stats !== null && (
+            <Text>
+              Spread: <Text bold>{stats.spread}</Text>
+            </Text>
+          )}
+          {elapsed !== null && <Text dimColor>⏱ {elapsed}</Text>}
+        </Box>
+      )}
     </Box>
   );
 }
