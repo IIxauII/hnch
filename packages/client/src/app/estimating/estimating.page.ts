@@ -638,11 +638,13 @@ export class EstimatingPage {
     return parseTicketIdHref(this.currentRound()?.ticketId);
   });
 
+  // A live ticker has no terminal timestamp, so it calls the duration
+  // primitive directly rather than `formatRoundElapsed`. Clamping is
+  // `formatElapsed`'s job and only its job — no call-site clamp here.
   protected readonly elapsedLabel = computed<string | null>(() => {
     const round = this.docService.currentRound();
     if (!round || round.timerStartedAt === undefined) return null;
-    const elapsed = this.timerTick.now() - round.timerStartedAt;
-    return formatElapsed(Math.max(0, elapsed));
+    return formatElapsed(this.timerTick.now() - round.timerStartedAt);
   });
 
   protected onToggleRole(): void {

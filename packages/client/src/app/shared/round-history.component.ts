@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 import {
-  formatElapsed,
+  formatRoundElapsed,
   formatRoundLabel,
   isTerminalStatus,
   resolveRoundLineage,
@@ -195,12 +195,7 @@ export class RoundHistoryComponent {
       }
 
       const summary = buildVoteSummary(round.votes, round.scale.cards);
-      const elapsed =
-        round.status === 'revealed' &&
-        round.terminalAt !== undefined &&
-        round.timerStartedAt !== undefined
-          ? formatElapsed(round.terminalAt - round.timerStartedAt)
-          : null;
+      const elapsed = formatRoundElapsed(round);
 
       return {
         roundId: round.id,

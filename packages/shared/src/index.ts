@@ -51,7 +51,6 @@ export {
   type PublicSettingsPatch,
 } from './doc-projection.js';
 export * from './election.js';
-export * from './format-round-label.js';
 export * from './fractional-index.js';
 export * from './format-time.js';
 export * from './health.js';
@@ -63,7 +62,7 @@ export * from './room-code.js';
 export * from './roster-commands.js';
 export * from './round-commands.js';
 export * from './round-export.js';
-export * from './round-stats.js';
+export * from './round-presentation.js';
 export * from './round-transitions.js';
 export * from './scales.js';
 export * from './screen-for.js';

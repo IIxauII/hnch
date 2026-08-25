@@ -4,9 +4,10 @@
  */
 
 import {
+  formatRoundElapsed,
+  formatRoundPosition,
   isAbstainVote,
   isTerminalStatus,
-  resolveRoundLineage,
   roundsToMarkdown,
 } from '@hnch/shared';
 import type { DocProjection, Round } from '@hnch/shared';
@@ -43,88 +44,26 @@ export async function exportResultsToClipboard(
 }
 
 /**
- * Format the `Round …` label, surfacing re-vote chain position when
- * the round is a re-vote (issue #111 AC#7). Falls back to a plain
- * `Round N` for chain roots / standalone rounds.
- */
-export function formatRoundLabel(
-  round: Round,
-  roundNum: number,
-  allRounds: readonly Round[],
-): string {
-  const lineage = resolveRoundLineage(round.id, allRounds);
-  if (lineage === null) return `Round ${roundNum}`;
-  return `Round ${lineage.depth}/${lineage.total} [re-vote]`;
-}
-
-/**
  * Compose the bold header text shown above ResultsSection in the Lobby —
- * `<label><title?><ticket?> — Results` or `… — Skipped`. Extracted as a
- * pure helper so the JSX in Lobby.tsx is a single binding and the
- * composition is unit-testable.
+ * `<position><title?><ticket?> — Results` or `… — Skipped`. CLI-local: it
+ * encodes a terminal header register and has no second consumer. The chain
+ * position itself comes from shared (`formatRoundPosition`).
  */
-export function buildResultsHeader(
-  round: Round,
-  roundNum: number,
-  allRounds: readonly Round[],
-): string {
-  const label = formatRoundLabel(round, roundNum, allRounds);
+export function buildResultsHeader(round: Round, allRounds: readonly Round[]): string {
+  const position = formatRoundPosition(round, allRounds);
   const title = round.title ? ` — ${round.title}` : '';
   const ticket = round.ticketId ? ` [${round.ticketId}]` : '';
   const suffix = round.status === 'skipped' ? ' — Skipped' : ' — Results';
-  return `${label}${title}${ticket}${suffix}`;
+  return `${position}${title}${ticket}${suffix}`;
 }
 
-export function computeStats(votes: Record<string, string>): {
-  average: string;
-  median: string;
-  agreement: string;
-} {
-  const values = Object.values(votes)
-    .filter((v) => !isAbstainVote(v))
-    .map((v) => parseFloat(v))
-    .filter((n) => !isNaN(n))
-    .toSorted((a, b) => a - b);
-
-  if (values.length === 0) {
-    return { average: '-', median: '-', agreement: '-' };
-  }
-
-  const sum = values.reduce((a, b) => a + b, 0);
-  const avg = sum / values.length;
-  const mid = Math.floor(values.length / 2);
-  const med = values.length % 2 === 0 ? (values[mid - 1]! + values[mid]!) / 2 : values[mid]!;
-
-  // Agreement = % of voters who picked the most common value.
-  // Abstainers excluded from denominator — they opted out of numeric voting.
-  const allVotes = Object.values(votes).filter((v) => !isAbstainVote(v));
-  const counts = new Map<string, number>();
-  for (const v of allVotes) {
-    counts.set(v, (counts.get(v) ?? 0) + 1);
-  }
-  const maxCount = Math.max(...counts.values());
-  const agr = allVotes.length > 0 ? Math.round((maxCount / allVotes.length) * 100) : 0;
-
-  return {
-    average: avg.toFixed(1),
-    median: med.toFixed(1),
-    agreement: `${agr}%`,
-  };
-}
-
-export function formatElapsed(startMs: number, endMs: number): string {
-  const secs = Math.floor((endMs - startMs) / 1000);
-  const min = Math.floor(secs / 60);
-  const sec = secs % 60;
-  return `${min}:${sec.toString().padStart(2, '0')}`;
-}
-
-export function compactRoundSummary(
-  round: Round,
-  roundNum: number,
-  allRounds: readonly Round[] = [],
-): string {
-  const label = formatRoundLabel(round, roundNum, allRounds);
+/**
+ * One-line history row for the Lobby — CLI-local by design: it encodes a
+ * terminal row register (`card×count` tally, inline abstain count) with no
+ * second consumer. Chain position and elapsed come from shared.
+ */
+export function compactRoundSummary(round: Round, allRounds: readonly Round[]): string {
+  const label = formatRoundPosition(round, allRounds);
 
   if (round.status === 'skipped') {
     const title = round.title ? ` ${round.title}` : '';
@@ -148,12 +87,8 @@ export function compactRoundSummary(
 
   const title = round.title ? ` ${round.title}` : '';
   const ticket = round.ticketId ? ` [${round.ticketId}]` : '';
-  const elapsed =
-    round.timerStartedAt !== undefined &&
-    round.status === 'revealed' &&
-    round.terminalAt !== undefined
-      ? ` — ${formatElapsed(round.timerStartedAt, round.terminalAt)}`
-      : '';
+  const elapsedLabel = formatRoundElapsed(round);
+  const elapsed = elapsedLabel !== null ? ` — ${elapsedLabel}` : '';
 
   return `${label}:${title}${ticket} — ${tally || '(no votes)'}${abstainSuffix}${elapsed}`;
 }

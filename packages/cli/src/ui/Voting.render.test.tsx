@@ -37,6 +37,7 @@ const noop = (): void => {};
 function baseProps(overrides: {
   myRole?: 'voter' | 'viewer';
   round?: Round;
+  elapsedMs?: number;
   onToggleCurrentVote?: ReturnType<typeof vi.fn>;
   onClearCurrentVote?: ReturnType<typeof vi.fn>;
 }) {
@@ -47,7 +48,7 @@ function baseProps(overrides: {
     isHost: true,
     myId: 'host',
     myRole: (overrides.myRole ?? 'voter') as 'voter' | 'viewer',
-    elapsedMs: undefined,
+    elapsedMs: overrides.elapsedMs,
     roomCode: 'ABC123',
     shareOpen: false,
     settingsOpen: false,
@@ -120,5 +121,23 @@ describe('Voting — [a] abstain rendering', () => {
     const round = makeRound({ votes: { host: ABSTAIN_SENTINEL } });
     const { lastFrame } = render(<Voting {...baseProps({ round })} />);
     expect(lastFrame() ?? '').not.toContain('hnch_abstain');
+  });
+});
+
+// The voting timer's elapsed value is raw wall-clock arithmetic against the
+// host's `timerStartedAt`, so a peer whose clock lags the host's gets a
+// negative number. Clamping is the shared formatter's job (issue #509).
+// Exercises: ui/Voting:Voting
+describe('Voting — elapsed timer', () => {
+  it('renders M:SS for a positive elapsed value', () => {
+    const { lastFrame } = render(<Voting {...baseProps({ elapsedMs: 90_000 })} />);
+    expect(lastFrame() ?? '').toContain('1:30');
+  });
+
+  it('renders 0:00 rather than -1:-1 when the host clock runs ahead of ours', () => {
+    const { lastFrame } = render(<Voting {...baseProps({ elapsedMs: -5_000 })} />);
+    const frame = lastFrame() ?? '';
+    expect(frame).toContain('0:00');
+    expect(frame).not.toContain('-1:-1');
   });
 });

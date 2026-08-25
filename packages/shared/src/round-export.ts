@@ -1,7 +1,6 @@
 import type { Participant, Round } from './doc.js';
 import { isAbstainVote } from './abstain.js';
-import { computeRoundStats } from './round-stats.js';
-import { formatElapsed } from './format-time.js';
+import { formatRoundElapsed, formatRoundStats, roundStatsFor } from './round-presentation.js';
 import { isLikelyUrl } from './is-likely-url.js';
 
 /** Escape pipe characters in Markdown table cell content. */
@@ -123,24 +122,21 @@ function buildVoteTable(round: Round, nameById: ReadonlyMap<string, string>): st
 }
 
 function buildStatsLine(round: Round): string {
-  const filteredVotes = Object.fromEntries(
-    Object.entries(round.votes).filter(([, v]) => !isAbstainVote(v)),
-  );
-  const stats = computeRoundStats(filteredVotes, round.scale);
-  const elapsed =
-    round.timerStartedAt != null && round.status === 'revealed' && round.terminalAt != null
-      ? formatElapsed(round.terminalAt - round.timerStartedAt)
-      : null;
+  // Statistics and elapsed both come from the round-presentation module, so an
+  // export is a record of what the session saw rather than a second opinion
+  // about it (issue #509).
+  const stats = formatRoundStats(roundStatsFor(round));
+  const elapsed = formatRoundElapsed(round);
 
   const parts: string[] = [];
 
   if (stats?.kind === 'numeric') {
-    parts.push(`Avg ${stats.mean.toFixed(1)} · Med ${stats.median}`);
+    parts.push(`Avg ${stats.mean} · Med ${stats.median}`);
   } else if (stats?.kind === 'categorical') {
     parts.push(`Most common: ${stats.mode}`);
   }
 
-  if (elapsed != null) {
+  if (elapsed !== null) {
     parts.push(`Elapsed ${elapsed}`);
   }
 

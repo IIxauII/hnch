@@ -1,13 +1,19 @@
-import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import {
-  computeRoundStats,
-  formatElapsed,
+  formatRoundElapsed,
+  formatRoundStats,
   isAbstainVote,
   isActiveParticipant,
   isConsensus,
+  roundStatsFor,
 } from '@hnch/shared';
-import type { ParticipantSnapshot, Round, RoundStats, SpreadLabel } from '@hnch/shared';
+import type {
+  ParticipantSnapshot,
+  Round,
+  RoundStats,
+  RoundStatsDisplay,
+  SpreadLabel,
+} from '@hnch/shared';
 import { IonChip, IonItemGroup, IonLabel } from '@ionic/angular/standalone';
 
 /**
@@ -37,7 +43,7 @@ interface VoteGroup {
  */
 @Component({
   selector: 'app-vote-results',
-  imports: [DecimalPipe, IonChip, IonItemGroup, IonLabel],
+  imports: [IonChip, IonItemGroup, IonLabel],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @for (group of voteGroups(); track group.card; let i = $index; let first = $first) {
@@ -102,24 +108,24 @@ interface VoteGroup {
       </ion-item-group>
     }
 
-    @if (stats(); as s) {
+    @if (statsDisplay(); as s) {
       <div class="stats" role="region" aria-label="Round statistics">
         @switch (s.kind) {
           @case ('numeric') {
             <span class="stat">
               <span class="stat-label">Avg</span>
-              <strong class="stat-value">{{ s.mean | number:'1.1-1' }}</strong>
+              <strong class="stat-value">{{ s.mean }}</strong>
             </span>
             <span class="stat">
               <span class="stat-label">Med</span>
-              <strong class="stat-value">{{ s.median | number:'1.0-0' }}</strong>
+              <strong class="stat-value">{{ s.median }}</strong>
             </span>
             <ion-chip
-              [color]="spreadColor(s.spread)"
+              [color]="spreadColor(stats()!.spread)"
               class="spread-chip"
-              [attr.aria-label]="'Consensus level: ' + spreadDisplay(s.spread)"
+              [attr.aria-label]="'Consensus level: ' + s.spread"
             >
-              <ion-label>{{ spreadDisplay(s.spread) }}</ion-label>
+              <ion-label>{{ s.spread }}</ion-label>
             </ion-chip>
           }
           @case ('categorical') {
@@ -128,11 +134,11 @@ interface VoteGroup {
               <strong class="stat-value">{{ s.mode }}</strong>
             </span>
             <ion-chip
-              [color]="spreadColor(s.spread)"
+              [color]="spreadColor(stats()!.spread)"
               class="spread-chip"
-              [attr.aria-label]="'Consensus level: ' + spreadDisplay(s.spread)"
+              [attr.aria-label]="'Consensus level: ' + s.spread"
             >
-              <ion-label>{{ spreadDisplay(s.spread) }}</ion-label>
+              <ion-label>{{ s.spread }}</ion-label>
             </ion-chip>
           }
         }
@@ -417,32 +423,18 @@ export class VoteResultsComponent {
     return out;
   });
 
-  /**
-   * Elapsed voting time (revealedAt - timerStartedAt), or null if either
-   * timestamp is absent.
-   */
-  readonly elapsedLabel = computed<string | null>(() => {
-    const round = this.round();
-    if (
-      round.status !== 'revealed' ||
-      round.terminalAt === undefined ||
-      round.timerStartedAt === undefined
-    ) {
-      return null;
-    }
-    return formatElapsed(round.terminalAt - round.timerStartedAt);
-  });
+  /** Elapsed voting time, or null when the round has no knowable duration. */
+  readonly elapsedLabel = computed<string | null>(() => formatRoundElapsed(this.round()));
 
   /**
-   * Stats computed via shared util. Abstain-sentinel votes are stripped before
-   * the call so they don't skew spread calculations or surface 'hnch_abstain'
-   * as a mode string in the UI (ADR-0041 §2).
+   * Stats for the round. Abstain stripping lives behind `roundStatsFor`, so
+   * the sentinel can neither surface as a mode nor skew the spread
+   * (ADR-0041 §2).
    */
-  readonly stats = computed<RoundStats>(() => {
-    const r = this.round();
-    const votes = Object.fromEntries(Object.entries(r.votes).filter(([, v]) => !isAbstainVote(v)));
-    return computeRoundStats(votes, r.scale);
-  });
+  readonly stats = computed<RoundStats>(() => roundStatsFor(this.round()));
+
+  /** Display strings for the stat row — shared with the CLI and the export. */
+  readonly statsDisplay = computed<RoundStatsDisplay>(() => formatRoundStats(this.stats()));
 
   /** "N votes" / "1 vote" — used inside group headers. */
   voteCountLabel(n: number): string {
@@ -459,11 +451,13 @@ export class VoteResultsComponent {
     return (count / this.totalVoted()) * 100;
   }
 
+  /**
+   * Ionic colour for the spread chip. Deliberately *not* part of the shared
+   * round-presentation module — Ionic colour names are surface vocabulary,
+   * not presentation-neutral (issue #509). Called only from inside the
+   * `@if (statsDisplay(); as s)` block, where `stats()` is non-null.
+   */
   protected spreadColor(s: SpreadLabel): 'success' | 'warning' | 'danger' {
     return s === 'unanimous' ? 'success' : s === 'close' ? 'warning' : 'danger';
-  }
-
-  protected spreadDisplay(s: SpreadLabel): string {
-    return s === 'unanimous' ? 'Unanimous' : s === 'close' ? 'Close' : 'Spread';
   }
 }
