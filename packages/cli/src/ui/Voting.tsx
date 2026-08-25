@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text, useInput } from 'ink';
-import { ABSTAIN_SENTINEL, isAbstainVote } from '@hnch/shared';
+import { ABSTAIN_SENTINEL, formatElapsed, isAbstainVote } from '@hnch/shared';
 import { ParticipantList } from './components/ParticipantList.js';
 import { CardPicker } from './components/CardPicker.js';
 import { SharePicker } from './components/SharePicker.js';
@@ -27,13 +27,6 @@ interface Props {
   onSetShareOpen: (open: boolean) => void;
   onOpenSettings: () => void;
   confirmingQuit: boolean;
-}
-
-function formatElapsed(ms: number): string {
-  const secs = Math.floor(ms / 1000);
-  const min = Math.floor(secs / 60);
-  const sec = secs % 60;
-  return `${min}:${sec.toString().padStart(2, '0')}`;
 }
 
 export function Voting({

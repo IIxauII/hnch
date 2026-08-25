@@ -43,7 +43,15 @@ Each round can have optional metadata — title, description, ticket ID, or any 
 After reveal, each round displays:
 
 - **Visual highlighting** of vote distribution (clustering vs. spread)
-- **Average & median** of numeric votes
+- **Average & median** of numeric votes — or the **most common card** on categorical
+  scales such as T-shirt and Risk
+- A **consensus label** — `Unanimous`, `Close`, or `Spread`
+- **Elapsed time**, for rounds that reached a reveal
+
+Every surface — the mobile client, the CLI, and the Markdown export — reads these
+from one shared *round presentation* module, so a round is described the same way
+wherever it is shown. Rounds with no votes, or where everyone abstained, show no
+statistics at all rather than empty ones.
 
 ### Re-voting
 
