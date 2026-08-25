@@ -35,7 +35,6 @@ export type InviteToken = string;
  * Wire format per ADR-0016:
  *   - `deviceId` → `did` query param on the WS upgrade URL (always).
  *   - `passwordHash` → `pw` query param (password-protected rooms only).
- *   - `inviteToken` → `inv` query param (invite-only rooms only).
  *   - `roomCode` is resolved to a UUID via `GET /rooms/:code` ahead of
  *     the WS upgrade, so it does not appear on the WS URL itself.
  */
@@ -44,8 +43,6 @@ export interface JoinCredentials {
   roomCode: string;
   /** Required for password-protected rooms. */
   passwordHash?: PasswordHash;
-  /** Required for invite-only rooms. */
-  inviteToken?: InviteToken;
   /** The joiner's device ID (ADR-0005). Also serves as the session's participantId. */
   deviceId: string;
 }

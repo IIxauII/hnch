@@ -38,6 +38,7 @@ import type * as Y from 'yjs';
 
 import { participantRole, type Participant } from './doc.js';
 import {
+  clearLeftStatus,
   endSessionForEveryone,
   leaveSession,
   patchSettingsInternal,
@@ -175,6 +176,22 @@ export function leave(doc: Y.Doc, selfId: string, clock: Clock = Date.now): Rost
   const at = clock();
   leaveSession(doc, selfId, at);
   return { applied: true, at };
+}
+
+/**
+ * The inverse of {@link leave}: a participant who is back clears their own
+ * `leftAt` / `removedBy` so the roster counts them again (ADR-0036 §6).
+ *
+ * Both surfaces call this from `connectToRelay`'s `onSynced` hook, and the
+ * timing is the rule: run before the relay snapshot has applied and the
+ * snapshot's `leftAt` simply lands on top. Refuses with `'not-found'`;
+ * `applied: true` covers "was already active", which is the same outcome.
+ */
+export function rejoin(doc: Y.Doc, selfId: string): RosterResult {
+  if (!findParticipant(doc, selfId)) return { applied: false, reason: 'not-found' };
+
+  clearLeftStatus(doc, selfId);
+  return { applied: true };
 }
 
 /**

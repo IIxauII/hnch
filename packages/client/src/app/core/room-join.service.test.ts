@@ -13,14 +13,11 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 vi.mock('@ionic/angular/standalone', () => ({}));
 
 const mockResolveRoom = vi.fn();
-vi.mock('./relay/relay-api', () => ({
+// `resolveRoom` and `RelayRejectionError` come from `@hnch/shared`; stub just
+// those two and leave the rest of the barrel real.
+vi.mock('@hnch/shared', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@hnch/shared')>()),
   resolveRoom: (...args: unknown[]) => mockResolveRoom(...args),
-  RelayRejectionError: class RelayRejectionError extends Error {
-    constructor(public readonly reason: string) {
-      super(`relay rejected: ${reason}`);
-      this.name = 'RelayRejectionError';
-    }
-  },
 }));
 
 vi.mock('@capacitor/preferences', () => ({
@@ -40,12 +37,6 @@ vi.mock('y-indexeddb', () => ({
     whenSynced: Promise.resolve(),
     destroy: vi.fn(),
   })),
-}));
-
-vi.mock('./sync-provider', () => ({
-  createSyncProvider: vi.fn().mockReturnValue({
-    disconnect: vi.fn(),
-  }),
 }));
 
 // ---------------------------------------------------------------------------
@@ -89,11 +80,11 @@ type RejoinDepsOverrides = {
 // ---------------------------------------------------------------------------
 
 describe('rejoinRoom', () => {
-  let RelayRejectionError: typeof import('./relay/relay-api').RelayRejectionError;
+  let RelayRejectionError: typeof import('@hnch/shared').RelayRejectionError;
 
   beforeEach(async () => {
     vi.resetAllMocks();
-    const api = await import('./relay/relay-api');
+    const api = await import('@hnch/shared');
     RelayRejectionError = api.RelayRejectionError;
   });
 

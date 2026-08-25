@@ -25,8 +25,10 @@ import {
 // The adapter under test is inside `wireSession`, which opens a relay socket
 // on construction. Stub the transport — this suite is about the doc, not the
 // wire (relay-backed session behaviour is covered by session.test.ts).
-vi.mock('./sync.js', () => ({
-  connect: vi.fn(() => ({
+vi.mock('@hnch/shared', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@hnch/shared')>()),
+  connectToRelay: vi.fn(() => ({
+    awareness: undefined,
     disconnect: vi.fn(),
     updateCredentials: vi.fn(),
   })),

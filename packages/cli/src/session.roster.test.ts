@@ -23,8 +23,10 @@ import {
   promoteHost,
 } from '@hnch/shared';
 
-vi.mock('./sync.js', () => ({
-  connect: vi.fn(() => ({
+vi.mock('@hnch/shared', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@hnch/shared')>()),
+  connectToRelay: vi.fn(() => ({
+    awareness: undefined,
     disconnect: vi.fn(),
     updateCredentials: vi.fn(),
   })),

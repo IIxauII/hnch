@@ -11,8 +11,16 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { createCodePool } from '../../relay/src/code-pool.js';
 import { createRoomStore } from '../../relay/src/room-store.js';
 import { createRelayServer } from '../../relay/src/server.js';
-import { createSession, joinSession } from './session.js';
-import { FIBONACCI_SCALE, TSHIRT_SCALE } from '@hnch/shared';
+import { createSession, joinSession, wireSession } from './session.js';
+import * as Y from 'yjs';
+import { Awareness } from 'y-protocols/awareness';
+import {
+  AWARENESS_PARTICIPANT_ID_FIELD,
+  FIBONACCI_SCALE,
+  joinDoc,
+  leave,
+  TSHIRT_SCALE,
+} from '@hnch/shared';
 
 let server: Server;
 let port: number;
@@ -606,6 +614,78 @@ describe('session integration', () => {
       { timeout: SYNC_TIMEOUT },
     );
 
+    host.disconnect();
+  });
+
+  // -------------------------------------------------------------------------
+  // ADR-0036 §6 — a rejoining participant comes back active
+  // -------------------------------------------------------------------------
+
+  /**
+   * Build a joiner the way `hnch resume` does — the CLI's rejoin path calls
+   * `wireSession` directly, so the flag under test is the one it passes.
+   */
+  function rejoin(roomUuid: string, roomCode: string) {
+    const doc = new Y.Doc();
+    const awareness = new Awareness(doc);
+    joinDoc(doc, { participantId: 'rejoiner', displayName: 'Bob', joinedAt: Date.now() });
+    awareness.setLocalStateField(AWARENESS_PARTICIPANT_ID_FIELD, 'rejoiner');
+    return wireSession({
+      doc,
+      awareness,
+      roomCode,
+      roomUuid,
+      participantId: 'rejoiner',
+      relayUrl,
+      clearLeftStatusOnSync: true,
+    });
+  }
+
+  it('clears a stale leftAt after the snapshot syncs on rejoin', async () => {
+    const host = await createSession({
+      participantId: 'host-rejoin',
+      displayName: 'Alice',
+      relayUrl,
+      defaultScale: FIBONACCI_SCALE,
+    });
+
+    const first = await joinSession({
+      participantId: 'rejoiner',
+      displayName: 'Bob',
+      relayUrl,
+      roomCode: host.roomCode,
+    });
+    await vi.waitFor(
+      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(2),
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    // Bob leaves deliberately — the host sees the soft-delete.
+    leave(first.doc, 'rejoiner');
+    await vi.waitFor(
+      () => {
+        const bob = host.projection().participants.find((p) => p.id === 'rejoiner');
+        expect(bob).toBeDefined();
+        expect(bob?.leftAt).toBeDefined();
+      },
+      { timeout: SYNC_TIMEOUT },
+    );
+    first.disconnect();
+
+    const second = rejoin(host.roomUuid, host.roomCode);
+
+    // The clear rides a higher Lamport clock than the snapshot's `leftAt`,
+    // so the host sees Bob active again rather than greyed out.
+    await vi.waitFor(
+      () => {
+        const bob = host.projection().participants.find((p) => p.id === 'rejoiner');
+        expect(bob).toBeDefined();
+        expect(bob?.leftAt).toBeUndefined();
+      },
+      { timeout: SYNC_TIMEOUT },
+    );
+
+    second.disconnect();
     host.disconnect();
   });
 });
