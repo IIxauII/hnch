@@ -1,5 +1,8 @@
 import { computed, Injectable, signal, type Signal } from '@angular/core';
 import { Preferences } from '@capacitor/preferences';
+import { relayHttpToWsUrl } from '@hnch/shared';
+
+import { environment } from '../../environments/environment';
 
 /**
  * App-wide preference persistence — relay URL override, default session name, default password flag.
@@ -34,14 +37,35 @@ export class AppPreferenceService {
 
   /**
    * Computed relay WebSocket URL derived from relayHttpUrl.
-   * Transforms http → ws, https → wss. Returns undefined when no override is set;
-   * consumers should fall back to environment.relayWsUrl.
+   * Returns undefined when no override is set; consumers wanting the
+   * effective value read {@link resolvedRelayWsUrl} instead.
    */
   readonly relayWsUrl: Signal<string | undefined> = computed(() => {
     const httpUrl = this.relayHttpUrlSignal();
     if (!httpUrl) return;
-    return httpUrl.replace(/^https?:\/\//, (match) => (match === 'https://' ? 'wss://' : 'ws://'));
+    return relayHttpToWsUrl(httpUrl);
   });
+
+  /**
+   * The relay HTTP URL every call site should actually use: the override
+   * when one is set, the environment default otherwise. Expressed once
+   * here so a new relay call site cannot forget the fallback.
+   *
+   * {@link relayHttpUrl} stays the raw override — Settings needs an empty
+   * field to keep reading as "using the default".
+   */
+  readonly resolvedRelayHttpUrl: Signal<string> = computed(
+    () => this.relayHttpUrlSignal() ?? environment.relayHttpUrl,
+  );
+
+  /**
+   * The effective relay WebSocket URL — the override transformed to its
+   * ws form, or the environment default. `relay-client` derives ws from
+   * http on its own, so this is for consumers that need the URL itself.
+   */
+  readonly resolvedRelayWsUrl: Signal<string> = computed(
+    () => this.relayWsUrl() ?? environment.relayWsUrl,
+  );
 
   private loading: Promise<void> | null = null;
 

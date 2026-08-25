@@ -745,6 +745,28 @@ export function leaveSession(doc: Y.Doc, selfId: string, leftAt: number): void {
 }
 
 /**
+ * Clear `leftAt` and `removedBy` on the caller's own record — the inverse of
+ * {@link leaveSession} (ADR-0036 §6). No-op if the record is missing or the
+ * participant is already active.
+ *
+ * Deleting rather than overwriting is deliberate: absence is what the
+ * projection reads as "active", and a delete applied *after* the relay
+ * snapshot carries a higher Lamport clock than the snapshot's
+ * `set('leftAt', …)`, so it wins the LWW merge. Both surfaces call this from
+ * their first-sync hook, which is the only moment that ordering is
+ * guaranteed.
+ */
+export function clearLeftStatus(doc: Y.Doc, selfId: string): void {
+  const pMap = participantsMap(doc);
+  const record = pMap.get(selfId);
+  if (!record || !record.has('leftAt')) return;
+  doc.transact(() => {
+    record.delete('leftAt');
+    record.delete('removedBy');
+  });
+}
+
+/**
  * Remove a participant by host action (kick). Sets `leftAt` and `removedBy`
  * (equal to `hostId`) on the target's record (ADR-0036).
  *

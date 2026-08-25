@@ -8,7 +8,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { hashPassword, type Scale } from '@hnch/shared';
+import { hashPassword, patchRoomAccess, type Scale } from '@hnch/shared';
 import {
   IonButton,
   IonButtons,
@@ -27,11 +27,9 @@ import {
 import { addIcons } from 'ionicons';
 import { chevronForwardOutline } from 'ionicons/icons';
 
-import { environment } from '../../environments/environment';
 import { AppPreferenceService } from '../core/app-preference.service';
 import { DocService } from '../core/doc/doc.service';
 import { SurfaceService } from '../core/surface.service';
-import { patchRoomAccess } from '../core/relay/relay-api';
 import { ToastService } from '../services/toast.service';
 import {
   AccessPickerSheetComponent,
@@ -270,17 +268,13 @@ export class SessionSettingsSheetComponent {
     try {
       if (selection.mode === 'password' && selection.password) {
         const hash = await hashPassword(selection.password, roomUuid);
-        await patchRoomAccess(
-          this.appPrefs.relayHttpUrl() ?? environment.relayHttpUrl,
-          roomUuid,
-          hash,
-        );
+        await patchRoomAccess(this.appPrefs.resolvedRelayHttpUrl(), roomUuid, hash);
+        // Our own socket still carries the old `pw`; re-handshake so the
+        // rotation does not lock this client out on its next reconnect.
+        this.docService.updateCredentials(hash);
       } else if (selection.mode === 'open') {
-        await patchRoomAccess(
-          this.appPrefs.relayHttpUrl() ?? environment.relayHttpUrl,
-          roomUuid,
-          null,
-        );
+        await patchRoomAccess(this.appPrefs.resolvedRelayHttpUrl(), roomUuid, null);
+        this.docService.updateCredentials(null);
       }
       // 'invite' mode is a no-op per ADR-0017 (dropped from v1).
     } catch {

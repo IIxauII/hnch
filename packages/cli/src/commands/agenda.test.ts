@@ -114,7 +114,10 @@ vi.mock('../last-session.js', () => ({
   readEntries: () => mockReadEntries(),
 }));
 
-vi.mock('../relay-api.js', () => ({
+// `resolveRoom` now lives in `@hnch/shared`; stub just that one export and
+// leave the rest of the barrel real — these handlers use it heavily.
+vi.mock('@hnch/shared', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@hnch/shared')>()),
   resolveRoom: async () => ({ uuid: 'uuid-001', accessMode: 'open' }),
 }));
 

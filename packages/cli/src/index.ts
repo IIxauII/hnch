@@ -16,13 +16,14 @@ import * as Y from 'yjs';
 import { Awareness } from 'y-protocols/awareness';
 import { loadConfig, readConfig, updateConfig } from './config.js';
 import { createSession, joinSession, wireSession } from './session.js';
-import { resolveRoom } from './relay-api.js';
 import {
   AWARENESS_PARTICIPANT_ID_FIELD,
   BUILTIN_SCALES,
   hashPassword,
   joinDoc,
   parseAvatarColor,
+  RelayRejectionError,
+  resolveRoom,
   resolveScale,
 } from '@hnch/shared';
 import { normalizeAndValidateRoomCode } from './room-code-input.js';
@@ -287,8 +288,7 @@ async function resumeEntry(
   try {
     resolved = await resolveRoom(config.relayUrl, entry.roomCode);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (message.includes('Room not found')) {
+    if (err instanceof RelayRejectionError && err.reason === 'unknown-room') {
       removeEntry(entry.roomUuid);
       return await onSessionExpired({ clearLastSession, logger: console, exit: process.exit });
     }
@@ -329,6 +329,9 @@ async function resumeEntry(
     participantId: config.participantId,
     relayUrl: config.relayUrl,
     passwordHash: entry.passwordHash,
+    // `hnch resume` is a rejoin: if this participant left the room earlier,
+    // the snapshot still carries their `leftAt` (ADR-0036 §6).
+    clearLeftStatusOnSync: true,
     onRejection(reason) {
       if (reason === 'unknown-room') {
         removeEntry(entry.roomUuid);

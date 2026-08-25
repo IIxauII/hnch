@@ -1,14 +1,12 @@
 import { effect, inject, Injectable, Injector } from '@angular/core';
 import type { JoinRejectionReason } from '@hnch/shared';
-import { normalizeRoomCode } from '@hnch/shared';
+import { normalizeRoomCode, RelayRejectionError, resolveRoom } from '@hnch/shared';
 
-import { environment } from '../../environments/environment';
 import { AppPreferenceService } from './app-preference.service';
 import { AvatarColorService } from './avatar-color.service';
 import { DisplayNameService } from './display-name.service';
 import { DocService } from './doc/doc.service';
 import { ParticipantIdService } from './participant-id.service';
-import { RelayRejectionError, resolveRoom } from './relay/relay-api';
 
 export type JoinOutcome = 'connected' | 'timeout' | JoinRejectionReason;
 
@@ -32,7 +30,8 @@ export type RejoinOutcome =
  * can be tested without Angular DI overhead.
  */
 export interface RejoinDeps {
-  relayHttpUrl: string | null | undefined;
+  /** Resolved relay HTTP URL — override folded in by the caller. */
+  relayHttpUrl: string;
   getDisplayName: () => Promise<string | null>;
   getParticipantId: () => Promise<string>;
   /** Avatar color wire value (ADR-0043). Null = "no value set yet". */
@@ -63,7 +62,7 @@ export async function rejoinRoom(
 
   let resolved: { uuid: string; accessMode: string };
   try {
-    resolved = await resolveRoom(deps.relayHttpUrl ?? environment.relayHttpUrl, code);
+    resolved = await resolveRoom(deps.relayHttpUrl, code);
   } catch (err) {
     if (err instanceof RelayRejectionError && err.reason === 'unknown-room') {
       return { type: 'unknown-room' };
@@ -181,7 +180,7 @@ export class RoomJoinService {
 
   private makeDeps(): RejoinDeps {
     return {
-      relayHttpUrl: this.appPrefs.relayHttpUrl(),
+      relayHttpUrl: this.appPrefs.resolvedRelayHttpUrl(),
       getDisplayName: () => this.displayNameService.getDisplayName(),
       getParticipantId: () => this.participantIdService.getOrCreateId(),
       getAvatarColor: () => this.avatarColorService.value(),

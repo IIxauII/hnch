@@ -46,11 +46,11 @@ Curated list of bugs, technical-debt items, features, and improvements. Updated 
 
 ---
 
-### 2.4 Add regression test for sync-provider `online`-reset path
+### 2.4 Add regression test for relay-client `online`-reset path
 
-ADR-0025 §5 notes that the reconnect logic resets the backoff timer when the browser fires the `online` event. There is currently no test that exercises this path: the sync provider's `online` listener calls `provider.connect()`, but no unit/integration test verifies the timer is reset and a new connection is attempted.
+ADR-0025 §5 notes that the reconnect logic resets the backoff timer when the browser fires the `online` event. There was no test exercising this path: the `online` listener forces the stale socket shut so a fresh connect is scheduled, but nothing verified a reconnect was attempted.
 
-**Fix:** add a test to `sync-provider.test.ts` (or a new `sync-provider.reconnect.test.ts`) that simulates the `online` event on a disconnected provider and asserts that a reconnect attempt fires.
+**RESOLVED** (issue #514) — the handler moved into `@hnch/shared`'s `relay-client` when both surfaces' sync wrappers merged, and `relay-client.test.ts` now covers it: `offline` reports `disconnected` without a socket close, `online` forces a fresh socket, the listeners detach on `disconnect()`, and the whole path is inert when `window` is undefined.
 
 ---
 

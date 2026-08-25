@@ -36,6 +36,7 @@ import {
   patchRoundDescriptor as patchRoundDescriptorY,
   promoteHost as promoteHostCommand,
   recolor as recolorCommand,
+  rejoin as rejoinRoster,
   rename as renameCommand,
   revealCurrentRound as revealCurrentRoundCommand,
   screenFor,
@@ -71,11 +72,10 @@ import { Awareness } from 'y-protocols/awareness';
 import * as Y from 'yjs';
 import { IndexeddbPersistence } from 'y-indexeddb';
 
-import { environment } from '../../../environments/environment';
 import { AppPreferenceService } from '../app-preference.service';
 import { ParticipantIdService } from '../participant-id.service';
 import { ToastService } from '../../services/toast.service';
-import { createSyncProvider, type SyncProvider, type SyncStatus } from './sync-provider';
+import { connectToRelay, type RelayConnection, type SyncStatus } from '@hnch/shared';
 
 /**
  * Caller-facing init for {@link DocService.createSession}. Mirrors the
@@ -128,11 +128,12 @@ export interface StartRoundInit {
 }
 
 /**
- * Options for {@link DocService.connect}. `wsBaseUrl` defaults to the
- * environment-configured relay URL; tests may override it.
+ * Options for {@link DocService.connect}. `httpBaseUrl` defaults to the
+ * resolved relay URL (override, else environment); tests may override it.
+ * `relay-client` derives the WebSocket URL from it.
  */
 export interface ConnectOptions {
-  readonly wsBaseUrl?: string;
+  readonly httpBaseUrl?: string;
   /** Override room UUID — required when joining via {@link DocService.joinSession} since meta hasn't synced yet. */
   readonly roomUuid?: string;
 }
@@ -172,11 +173,11 @@ export class DocService {
     null,
   );
   private readonly roomCodeSignal: WritableSignal<string | null> = signal<string | null>(null);
-  private provider: SyncProvider | null = null;
+  private provider: RelayConnection | null = null;
   /**
    * Set in joinSession, consumed by the next connectWithPersistence call,
-   * cleared immediately after. Used to gate the post-sync clearOwnLeftStatus
-   * callback (ADR-0036 §6 LWW fix).
+   * cleared immediately after. Used to gate the post-sync `rejoin` roster
+   * write (ADR-0036 §6 LWW fix).
    */
   private joinParticipantId: string | null = null;
   private readonly syncStatusSignal: WritableSignal<SyncStatus | 'offline'> = signal<
@@ -184,8 +185,12 @@ export class DocService {
   >('offline');
   private readonly lastRejectionSignal: WritableSignal<JoinRejectionReason | null> =
     signal<JoinRejectionReason | null>(null);
-  /** Flips to true on the first `connected` event; resets on endSession. */
-  private readonly hasEverConnectedSignal: WritableSignal<boolean> = signal(false);
+  /**
+   * Mirrors `relay-client`'s derived reconnecting state. It owns the
+   * derivation (first-connect gate, permanent rejection, manual teardown);
+   * this service only holds the last value it pushed.
+   */
+  private readonly reconnectingSignal: WritableSignal<boolean> = signal(false);
   /**
    * Flips to true after the relay sends its first sync_step_2 and y-websocket
    * fires `onSynced`. Resets on `endSession`. Used by
@@ -354,16 +359,6 @@ export class DocService {
     this.lastRejectionSignal.asReadonly();
 
   /**
-   * True while the provider is attempting to reconnect after a transient
-   * disconnect (network drop, no relay-issued close code). False when
-   * connected, permanently rejected (`lastRejection` is set), or no
-   * provider is active (`syncStatus === 'offline'`).
-   *
-   * Components should show a reconnecting indicator when this is truthy.
-   * `'connecting'` is included because y-websocket re-emits it on each
-   * retry attempt; `'offline'` is excluded because that means no provider.
-   */
-  /**
    * True once the relay has completed its first sync (y-websocket `onSynced`).
    * Resets to false on `endSession`. Consumers should not act on `leftAt`
    * transitions observed before this is true — those came from the snapshot
@@ -371,14 +366,15 @@ export class DocService {
    */
   readonly hasFirstSyncCompleted: Signal<boolean> = this.hasFirstSyncCompletedSignal.asReadonly();
 
-  readonly reconnecting: Signal<boolean> = computed(() => {
-    const s = this.syncStatusSignal();
-    return (
-      this.hasEverConnectedSignal() &&
-      (s === 'disconnected' || s === 'connecting') &&
-      this.lastRejectionSignal() === null
-    );
-  });
+  /**
+   * True while the connection is retrying after a transient disconnect
+   * (network drop, no relay-issued close code). False before the first
+   * successful connect, while connected, once permanently rejected, and
+   * during a manual teardown.
+   *
+   * Components should show a reconnecting indicator when this is truthy.
+   */
+  readonly reconnecting: Signal<boolean> = this.reconnectingSignal.asReadonly();
 
   /**
    * Set of participantIds that are currently online per awareness
@@ -507,17 +503,16 @@ export class DocService {
     // first `status` event fires.
     this.syncStatusSignal.set('connecting');
 
-    // Use AppPreferenceService relay URL override if set; fallback to environment default.
-    const wsUrl = opts.wsBaseUrl ?? this.appPrefs.relayWsUrl() ?? environment.relayWsUrl;
+    const httpUrl = opts.httpBaseUrl ?? this.appPrefs.resolvedRelayHttpUrl();
 
-    void this.connectWithPersistence(doc, roomUuid, wsUrl, credentials, this.joinParticipantId);
+    void this.connectWithPersistence(doc, roomUuid, httpUrl, credentials, this.joinParticipantId);
     this.joinParticipantId = null;
   }
 
   private async connectWithPersistence(
     doc: Y.Doc,
     roomUuid: string,
-    wsUrl: string,
+    httpBaseUrl: string,
     credentials: JoinCredentials,
     joinParticipantId: string | null = null,
   ): Promise<void> {
@@ -529,18 +524,20 @@ export class DocService {
       await this.persistence.whenSynced;
     }
 
-    this.provider = createSyncProvider({
-      wsBaseUrl: wsUrl,
+    this.provider = connectToRelay({
+      httpBaseUrl,
       roomUuid,
       doc,
       credentials,
       ...(this.awareness !== null && { awareness: this.awareness }),
-      toastService: this.toastService,
-      onStatusChange: (status) => {
-        this.syncStatusSignal.set(status);
-        if (status === 'connected') this.hasEverConnectedSignal.set(true);
-      },
+      onStatusChange: (status) => this.syncStatusSignal.set(status),
       onRejectionChange: (reason) => this.lastRejectionSignal.set(reason),
+      onReconnectingChange: (reconnecting) => this.reconnectingSignal.set(reconnecting),
+      // The throttle (3 transient closes inside 60 s) lives in `relay-client`;
+      // the toast is surface-side, so only the copy is decided here.
+      onRepeatRejection: () => {
+        void this.toastService.error('Trouble reaching the room — retrying.');
+      },
       // ADR-0036 §6 LWW fix: flip `hasFirstSyncCompleted` before clearing any
       // stale `leftAt`/`removedBy` so that `ParticipantRemovalService` can
       // distinguish snapshot-apply observations from live host kicks. When this
@@ -550,7 +547,7 @@ export class DocService {
       onSynced: () => {
         this.hasFirstSyncCompletedSignal.set(true);
         if (joinParticipantId !== null) {
-          this.clearOwnLeftStatus(joinParticipantId);
+          rejoinRoster(doc, joinParticipantId);
         }
       },
     });
@@ -579,6 +576,17 @@ export class DocService {
   }
 
   /**
+   * Re-handshake the live socket with a new password hash, without tearing
+   * the session down (ADR-0017). Called after the host rotates the room
+   * password so this client's own connection stops carrying the stale `pw`
+   * and survives its next reconnect. Pass `null` when the room reverts to
+   * open. No-op when the hash is unchanged or no connection is attached.
+   */
+  updateCredentials(passwordHash: string | null): void {
+    this.provider?.updateCredentials({ passwordHash });
+  }
+
+  /**
    * Close the sync connection without tearing down the session. Used
    * when the client wants to drop the socket but keep viewing local
    * state; {@link endSession} calls this automatically.
@@ -586,11 +594,13 @@ export class DocService {
   disconnect(): void {
     if (this.provider === null) {
       this.syncStatusSignal.set('offline');
+      this.reconnectingSignal.set(false);
       return;
     }
     this.provider.disconnect();
     this.provider = null;
     this.syncStatusSignal.set('offline');
+    this.reconnectingSignal.set(false);
   }
 
   /**
@@ -609,7 +619,6 @@ export class DocService {
     this.projection.set(null);
     this.roomCodeSignal.set(null);
     this.lastRejectionSignal.set(null);
-    this.hasEverConnectedSignal.set(false);
     this.hasFirstSyncCompletedSignal.set(false);
     this.endingSessionLocally.set(false);
     this.joinParticipantId = null;
@@ -841,29 +850,6 @@ export class DocService {
    */
   reorderAgendaItem(id: string, before?: string | null, after?: string | null): AgendaResult {
     return moveAgendaItemCommand(this.requireDoc('reorderAgendaItem'), id, before, after);
-  }
-
-  /**
-   * Clear `leftAt` and `removedBy` on the local participant's record after
-   * the relay snapshot has synced (ADR-0036 §6 LWW fix).
-   *
-   * Called from the `onSynced` hook in `connectWithPersistence` — at that
-   * point the relay's ops are already applied to the doc, so this delete
-   * carries a higher Lamport clock than the snapshot's `set('leftAt', ...)`
-   * and wins the LWW merge. The participant transitions back to active.
-   *
-   * No-op when the doc is not active or the participant has no `leftAt`.
-   */
-  private clearOwnLeftStatus(selfId: string): void {
-    const doc = this.doc;
-    if (!doc) return;
-    const participantsMap = doc.getMap(DOC_PARTICIPANTS_KEY) as Y.Map<Y.Map<unknown>>;
-    const me = participantsMap.get(selfId);
-    if (!me || !me.has('leftAt')) return;
-    doc.transact(() => {
-      me.delete('leftAt');
-      me.delete('removedBy');
-    });
   }
 
   // ---------------------------------------------------------------------------

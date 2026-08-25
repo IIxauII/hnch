@@ -81,8 +81,12 @@ A shared writer-side action on a pre-session agenda item — `addItem` / `editIt
 _Avoid_: agendaMutation, agendaAction, addAgendaItem (on the command specifically — the writer owns that name)
 
 **roster command**:
-A shared writer-side action on who is in a session, what they are called, and who is in charge — `rename` / `recolor` / `toggleRole` / `leave` / `kick` / `handoffHost` / `promoteHost` / `endSession` in the `roster-commands` module. `kick`, `handoffHost` and `endSession` gate on host authority; the rest act on the caller's own record. After deepening, every host write goes through this module — which is what `patchSettings`' narrowed public parameter type enforces (see `PublicSettingsPatch`).
+A shared writer-side action on who is in a session, what they are called, and who is in charge — `rename` / `recolor` / `toggleRole` / `leave` / `rejoin` / `kick` / `handoffHost` / `promoteHost` / `endSession` in the `roster-commands` module. `kick`, `handoffHost` and `endSession` gate on host authority; the rest act on the caller's own record. After deepening, every host write goes through this module — which is what `patchSettings`' narrowed public parameter type enforces (see `PublicSettingsPatch`).
 _Avoid_: participantCommand, memberCommand, rosterMutation
+
+**leave vs. rejoin**:
+Two halves of one departure. `leave` stamps `leftAt` / `removedBy` so the roster stops counting a participant; `rejoin` deletes both so it counts them again. Deleting rather than stamping an "active" flag is what makes `rejoin` win: absence is what the projection reads as active, and a delete applied after the relay snapshot outranks the snapshot's `set('leftAt', …)` in the LWW merge (ADR-0036 §6). That is why both surfaces call it from `connectToRelay`'s `onSynced` and nowhere else.
+_Avoid_: unleave, restore, reactivate, clearLeftAt (names the field, not the act)
 
 **handoffHost vs. promoteHost**:
 Two names for one doc write, deliberately kept apart. `handoffHost` is a host *delegating*: it needs authority and an online target, because handing the room to someone who cannot act on it strands it. `promoteHost` is a leaderless room *repairing itself*: the ADR-0048 election has already picked a winner and there is by definition no current host to authorise the write, so it is ungated. Naming them apart is what allows the gate to exist on one and not the other.
@@ -99,7 +103,7 @@ _Avoid_: ParticipantResult, HostResult, boolean
 ## Session drivers
 
 **driver**:
-A shared module that owns *when* a rule re-evaluates, not just what the rule says — `startElection` in `election` and `startAutoReveal` in `auto-reveal`. Each takes framework-free callbacks (`projection`, `onlineIds`, `subscribe`, plus the rule's own sink) and returns a handle with `stop()`; no `Y.Doc`, `Awareness`, or Angular primitive crosses that seam. Client and CLI supply adapters, nothing more. Naming a driver separately from its predicate matters because the re-evaluation axis is exactly where two hand-wired copies drift.
+A shared module that owns *when* a rule re-evaluates, not just what the rule says — `startElection` in `election` and `startAutoReveal` in `auto-reveal`. Each takes framework-free callbacks (`projection`, `onlineIds`, `subscribe`, plus the rule's own sink) and returns a handle with `stop()`. Because a driver is fed a *reading* of the doc rather than the doc itself, no `Y.Doc`, `Awareness`, or Angular primitive crosses **a driver's** seam — a rule about drivers specifically, not a blanket rule for shared modules: `relay-client` takes a `Y.Doc` precisely because it owns a connection rather than a re-evaluation rule. Client and CLI supply adapters, nothing more. Naming a driver separately from its predicate matters because the re-evaluation axis is exactly where two hand-wired copies drift.
 _Avoid_: watcher, observer (Yjs owns that word), loop, poller (a driver is subscription-fed, never polls), service
 
 **auto-reveal driver**:
@@ -109,3 +113,21 @@ _Avoid_: autoRevealWatcher, revealPoller, unanimityService
 **autoRevealCount**:
 The client-side monotonic counter `DocService` bumps when its auto-reveal driver's write actually applies. An edge signal, not a timestamp — two reveals in the same millisecond must still notify, and there is nothing to reset. The Estimating page keys its success haptic off it, which is how device feedback stays out of the doc layer.
 _Avoid_: lastAutoRevealAt, autoRevealed, revealSignal
+
+## Relay contract
+
+**relay-client**:
+The shared module that owns the entire relay contract: the three HTTP routes (`mintRoom`, `resolveRoom`, `patchRoomAccess`) and the WebSocket handshake behind `connectToRelay`. Both surfaces import it directly and neither keeps a copy — the point of naming it is that a change to how a client talks to the relay has exactly one place to land. Not a *driver*: a driver owns when a rule re-evaluates and is handed a reading of the doc, whereas `relay-client` owns a connection and is handed the `Y.Doc` itself, which is its whole job. Framework-free all the same — state leaves through callbacks, and no `ToastService`, signal, or Ink primitive crosses the seam.
+_Avoid_: relay-api, sync-provider, relay service, transport (each named only half of what this owns)
+
+**connectToRelay**:
+The handshake half of `relay-client`. Takes an **http** base URL and derives the `ws://`/`wss://` form itself, so the transform exists once rather than in each surface's URL config. Returns a handle with `updateCredentials()` and `disconnect()`; everything observable — status, rejection reason, the derived reconnecting flag, the repeat-rejection throttle, the one-shot first sync — leaves through callbacks, because the client mirrors them into signals and the CLI is callback-native, and a getter would give two ways to read one state.
+_Avoid_: createSyncProvider, connect, openSocket
+
+**onSynced**:
+`connectToRelay`'s one-shot callback, fired the first time the relay's Yjs snapshot has applied. The timing is the contract: a write made from here carries a Lamport clock higher than anything in the snapshot, which is what lets `rejoin` win the LWW merge (ADR-0036 §6). Never fires on a later reconnect — "first sync of this connection" is the only moment that guarantees the ordering.
+_Avoid_: onConnected (a different moment), onReady, onFirstUpdate
+
+**resolvedRelayHttpUrl**:
+The client preference that folds the user's relay override together with the environment default — the URL every relay call site actually uses. Kept distinct from the raw `relayHttpUrl` override, which stays undefined when unset so the Settings field can still read as "using the default". Expressing the fold once is what stops a new relay call site from silently ignoring a self-hosted relay.
+_Avoid_: relayUrl, effectiveRelayUrl, getRelayUrl

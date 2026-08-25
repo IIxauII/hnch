@@ -20,12 +20,12 @@ import {
   moveItem,
   projectDoc,
   skipItem,
+  resolveRoom,
   type AgendaItem,
   type AgendaResult,
 } from '@hnch/shared';
 import { loadConfig } from '../config.js';
 import { readEntries } from '../last-session.js';
-import { resolveRoom } from '../relay-api.js';
 import { wireSession } from '../session.js';
 
 // ---------------------------------------------------------------------------
