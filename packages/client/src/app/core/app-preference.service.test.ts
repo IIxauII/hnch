@@ -1,11 +1,14 @@
 /**
  * Unit tests for AppPreferenceService.
  *
- * Covers load, set, clear, and computed relayWsUrl logic.
+ * Covers load, set, clear, the computed relayWsUrl transform, and the
+ * resolved* signals that fold in the environment default.
  * Mocks Capacitor Preferences to keep tests hermetic.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { environment } from '../../environments/environment';
 
 // ---------------------------------------------------------------------------
 // Mock Capacitor Preferences
@@ -241,6 +244,39 @@ describe('AppPreferenceService', () => {
 
       await svc.setRelayUrl(undefined);
       expect(svc.relayWsUrl()).toBeUndefined();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // resolved* computed signals — the override-or-default fold, expressed once
+  // -------------------------------------------------------------------------
+
+  describe('resolvedRelayHttpUrl / resolvedRelayWsUrl', () => {
+    it('falls back to the environment defaults when no override is set', async () => {
+      mockPreferences.get.mockResolvedValue({ value: null });
+      const svc = await createService();
+
+      expect(svc.resolvedRelayHttpUrl()).toBe(environment.relayHttpUrl);
+      expect(svc.resolvedRelayWsUrl()).toBe(environment.relayWsUrl);
+    });
+
+    it('prefers the override, in both its http and ws forms', async () => {
+      mockPreferences.get.mockResolvedValue({ value: null });
+      mockPreferences.set.mockResolvedValue();
+      const svc = await createService();
+
+      await svc.setRelayUrl('https://relay.example.com');
+
+      expect(svc.resolvedRelayHttpUrl()).toBe('https://relay.example.com');
+      expect(svc.resolvedRelayWsUrl()).toBe('wss://relay.example.com');
+    });
+
+    it('leaves the raw override untouched, so Settings still reads empty', async () => {
+      mockPreferences.get.mockResolvedValue({ value: null });
+      const svc = await createService();
+
+      expect(svc.relayHttpUrl()).toBeUndefined();
+      expect(svc.resolvedRelayHttpUrl()).toBe(environment.relayHttpUrl);
     });
   });
 });

@@ -130,8 +130,6 @@ packages/cli/
     commands/
       agenda.ts               — hnch agenda subcommand handlers
     session.ts                — createSession / joinSession / wireSession / reconnect
-    sync.ts                   — y-websocket provider setup
-    relay-api.ts              — HTTP client for GET /rooms/:code and POST /rooms
     config.ts                 — config read/write helpers
     last-session.ts           — last-session cache read/write
     room-code-input.ts        — room-code parsing / formatting helpers
@@ -155,4 +153,4 @@ packages/cli/
 pnpm --filter @xauyxau/hnch test
 ```
 
-Unit tests are spread across `src/*.test.ts` files (`session`, `session.election`, `config`, `last-session`, `relay-api`, `room-code-input`, `session-end-observer`, `session-expired`, `share`, `sync`), `src/commands/agenda.test.ts`, and `src/ui/components/settings.test.ts`. A terminal-level e2e harness (node-pty + vitest, covering `create`/`join`/`resume` against a live relay) is planned but not yet implemented — see `docs/backlog.md` §5.2.
+Unit tests are spread across `src/*.test.ts` files (`session`, `session.election`, `session.rejoin`, `session.roster`, `config`, `last-session`, `room-code-input`, `session-end-observer`, `session-expired`, `share`), `src/commands/agenda.test.ts`, and `src/ui/components/settings.test.ts`. A terminal-level e2e harness (node-pty + vitest, covering `create`/`join`/`resume` against a live relay) is planned but not yet implemented — see `docs/backlog.md` §5.2.

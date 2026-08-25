@@ -11,7 +11,8 @@ export * from './doc.js';
 //   - `appendAgendaItem` / `updateAgendaItemFields`
 //     / `setAgendaItemState` / `reorderAgendaItem`  → `agenda-commands` (#507)
 //   - `upsertParticipant` / `setAvatarColor`
-//     / `leaveSession` / `removeParticipant`
+//     / `leaveSession` / `clearLeftStatus`
+//     / `removeParticipant`
 //     / `endSessionForEveryone`                     → `roster-commands` (#507)
 // In every case the command module is the sole caller and the only surface
 // consumers get. The writers remain `export`ed from doc-projection so those
@@ -58,6 +59,7 @@ export * from './is-likely-url.js';
 export * from './last-session.js';
 export * from './lineage.js';
 export * from './password.js';
+export * from './relay-client.js';
 export * from './room-code.js';
 export * from './roster-commands.js';
 export * from './round-commands.js';

@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, signal, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
-import { hashPassword } from '@hnch/shared';
+import { hashPassword, mintRoom, patchRoomAccess } from '@hnch/shared';
 import {
   IonButton,
   IonButtons,
@@ -26,7 +26,6 @@ import {
   settingsOutline,
 } from 'ionicons/icons';
 
-import { environment } from '../../environments/environment';
 import { AppPreferenceService } from '../core/app-preference.service';
 import { AvatarColorService } from '../core/avatar-color.service';
 import { SurfaceService } from '../core/surface.service';
@@ -37,7 +36,6 @@ import type { ClientLastSessionEntry } from '../core/last-session.service';
 import { LastSessionService } from '../core/last-session.service';
 import { ParticipantIdService } from '../core/participant-id.service';
 import { ScalePreferenceService } from '../core/scale-preference.service';
-import { mintRoom, patchRoomAccess } from '../core/relay/relay-api';
 import { assertRoomCode, RoomJoinService } from '../core/room-join.service';
 import { JumpBackInBannerComponent, type JumpBackInSummary } from './jump-back-in-banner.component';
 import { RecentRoomsListComponent } from './recent-rooms-list.component';
@@ -303,7 +301,7 @@ export class HomePage {
         // we introduce a local-session cache we do this eagerly; if
         // the relay is unreachable the promise rejects and we bail.
         // Use AppPreferenceService relay URL override, fallback to environment default.
-        mintRoom(this.appPrefs.relayHttpUrl() ?? environment.relayHttpUrl),
+        mintRoom(this.appPrefs.resolvedRelayHttpUrl()),
       ]);
 
       // Tear down any leftover session (e.g. back-nav from a prior
@@ -529,7 +527,7 @@ export class HomePage {
       // If password is non-empty, hash and apply it
       if (password.trim()) {
         const hash = await hashPassword(password, uuid);
-        await patchRoomAccess(this.appPrefs.relayHttpUrl() ?? environment.relayHttpUrl, uuid, hash);
+        await patchRoomAccess(this.appPrefs.resolvedRelayHttpUrl(), uuid, hash);
       }
       // If empty password, room stays in open mode (created that way by default)
 

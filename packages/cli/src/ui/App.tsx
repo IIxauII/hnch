@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
 import type { SessionHandle } from '../session.js';
-import type { SyncStatus } from '../sync.js';
 import type {
   DocProjection,
   Round,
@@ -9,6 +8,7 @@ import type {
   PresetOverrides,
   CustomScale,
   RosterResult,
+  SyncStatus,
 } from '@hnch/shared';
 import {
   addItem as addAgendaItem,
