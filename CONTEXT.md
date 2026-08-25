@@ -38,6 +38,32 @@ _Avoid_: view, page, route, **voting** (the CLI's old spelling — it collides w
 The selector in the `screen-for` module that answers the screen question from a projection: an `activeRound` means `'estimating'`, otherwise `'lobby'`. Total on a projection — no null, no `loading` member, no options bag. Because it delegates to `activeRound` rather than the anchor selector, a session whose only round is discarded resolves to Lobby with no recovery effect anywhere. A peer with no projection yet is not a screen question; that pre-load `null` belongs to the consuming adapter (client: `DocService.screen`), not to the rule.
 _Avoid_: deriveScreen, currentScreen, resolveScreen
 
+## Round presentation (reader side)
+
+**round presentation**:
+The shared `round-presentation` module — the one place that turns a **Round** into display text. It owns the round's name, its chain position, its statistics and their wording, and its elapsed time (guard included). Client, CLI, and Markdown export each *bind* strings from it; none of them derives one. Concentrating the rules is what makes surface drift impossible rather than merely unlikely — the negative-timer defect (#509) existed only because the CLI held a private copy of a formatter that had clamped in shared since the day it was written. A new surface binds this module; it does not reimplement it.
+_Avoid_: roundFormatters, display utils, roundView, per-surface formatter
+
+**formatRoundLabel**:
+A round's *identity* as one string: `"PROJ-42 · Auth migration"` from `ticketId` and `title`, or `null` when it has neither (the caller picks the placeholder). Answers "what is this round called".
+_Avoid_: roundTitle, roundName, and — emphatically — using this name for chain position, which is what the CLI's private helper used to do
+
+**formatRoundPosition**:
+A round's *position* in its re-vote chain as one string: `"Round 1"`, or `"Round 2/3 [re-vote]"` for a re-vote. A different question from `formatRoundLabel` and therefore a different word; the two shared a name across packages until #509 and a reader could not tell from an import which they were getting. The ordinal is derived from the round's index in the rounds array — no caller passes one. The client's round history deliberately keeps its own ordinal-plus-badge split rather than binding this string, because its template styles the two independently; `formatRoundPosition` is the *string* form of the same idea.
+_Avoid_: formatRoundLabel (the collision this name exists to end), roundOrdinal, lineageLabel
+
+**roundStatsFor vs. computeRoundStats**:
+`computeRoundStats(votes, scale)` is the raw statistics primitive and takes no view on abstentions — ADR-0041 leaves that to its caller. `roundStatsFor(round)` *is* that caller: it strips abstain votes, then delegates. Every surface calls the latter, so the sentinel can never surface as a mode and never skews a spread; the primitive stays on the barrel because scale behaviour is worth testing without a whole Round. A round with no votes and a round where everyone abstained both come back `null` — an absence of estimates, not an estimate.
+_Avoid_: roundStats (ambiguous about which of the two), filterAbstain-then-compute at a call site
+
+**formatRoundStats**:
+The display form of `RoundStats` — same discriminant, every field a string ready to bind, `null` in / `null` out. Mean and median both carry one decimal place so the numbers on a surface read as one set. The spread *word* (`Unanimous` / `Close` / `Spread`) lives here; the spread *colour* does not — Ionic colour names are surface vocabulary and stay in the client component.
+_Avoid_: statsViewModel, formatStats, spreadDisplay (the client's retired private helper)
+
+**formatRoundElapsed**:
+How long a round took, as `M:SS`, or `null` when it has no knowable duration — the `timerStartedAt` / `status` / `terminalAt` guard that used to be spelled at four call sites. Distinct from `formatElapsed(ms)` in `format-time`, which is the duration *primitive* and the single clamp point: live tickers call that directly because a ticking display has no terminal timestamp to hand a Round-shaped function. Clamping is the primitive's job and only its job — no call site clamps.
+_Avoid_: elapsedLabel (that is a surface's binding, not the rule), roundDuration, formatElapsed (the primitive keeps that name)
+
 ## Round commands (writer side)
 
 **round command**:

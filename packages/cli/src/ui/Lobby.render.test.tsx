@@ -1,9 +1,11 @@
 /**
  * Render tests for Lobby.tsx covering the patch lines added by issue #111:
- *  - `pastRounds.map(... compactRoundSummary(r, roundNum, rounds))` (history row)
- *  - `const header = buildResultsHeader(round, roundNum, rounds)` + the two
+ *  - `pastRounds.map(... compactRoundSummary(r, rounds))` (history row)
+ *  - `const header = buildResultsHeader(round, rounds)` + the two
  *     `<Text bold>{header}</Text>` bindings in ResultsSection (revealed +
  *     skipped branches).
+ *
+ * …plus the stat row's adoption of shared round presentation (issue #509).
  *
  * Mounts with ink-testing-library and asserts header / history content.
  */
@@ -35,6 +37,18 @@ function resolveTerminal(
   const rank = { revealed: 0, skipped: 1, discarded: 2 };
   c.sort((a, b) => a.at - b.at || rank[a.status] - rank[b.status]);
   return c[0]!;
+}
+
+/**
+ * Strip ANSI styling so an assertion can span a `<Text bold>` boundary —
+ * Ink wraps the bold stat value in escape codes mid-string.
+ */
+function plain(frame: string): string {
+  const esc = String.fromCharCode(27);
+  return frame
+    .split(esc)
+    .map((part, i) => (i === 0 ? part : part.replace(/^\[[0-9;]*m/, '')))
+    .join('');
 }
 
 function makeRound(
@@ -172,6 +186,67 @@ describe('Lobby render — issue #111 patch lines', () => {
     const frame = lastFrame() ?? '';
     // No timerStartedAt → elapsed branch is null → no time string
     expect(frame).not.toContain('1:30');
+  });
+
+  it('ResultsSection clamps a negative elapsed to 0:00 (host clock ahead of ours)', () => {
+    const r1 = makeRound({
+      id: 'r1',
+      revealedAt: 5_000,
+      timerStartedAt: 10_000,
+      votes: { host: '5' },
+    });
+    const { lastFrame } = render(<Lobby {...baseProps([r1], r1)} />);
+    expect(lastFrame() ?? '').toContain('0:00');
+  });
+
+  it('ResultsSection stat row is Avg / Med / Spread on a numeric scale', () => {
+    const r1 = makeRound({ id: 'r1', revealedAt: 1000, votes: { host: '5', p2: '5' } });
+    const { lastFrame } = render(<Lobby {...baseProps([r1], r1)} />);
+    const frame = lastFrame() ?? '';
+    expect(plain(frame)).toContain('Avg: 5.0');
+    expect(plain(frame)).toContain('Med: 5.0');
+    expect(plain(frame)).toContain('Spread: Unanimous');
+    // Agreement percentage is retired, not relocated (issue #509).
+    expect(frame).not.toContain('Agreement');
+  });
+
+  it('ResultsSection stat row is Most common / Spread on a categorical scale', () => {
+    const tshirt: Scale = { id: 'tshirt', cards: ['XS', 'S', 'M', 'L', 'XL'] };
+    const r1 = makeRound({
+      id: 'r1',
+      revealedAt: 1000,
+      scale: tshirt,
+      votes: { host: 'M', p2: 'M', p3: 'L' },
+    });
+    const { lastFrame } = render(<Lobby {...baseProps([r1], r1)} />);
+    const frame = lastFrame() ?? '';
+    expect(plain(frame)).toContain('Most common: M');
+    expect(plain(frame)).toContain('Spread: Close');
+    // The dead `- / - / -` row on non-numeric scales is gone.
+    expect(frame).not.toContain('Avg:');
+    expect(frame).not.toContain('- / -');
+  });
+
+  it('ResultsSection hides the stat row entirely when nobody voted', () => {
+    const r1 = makeRound({ id: 'r1', revealedAt: 1000 });
+    const { lastFrame } = render(<Lobby {...baseProps([r1], r1)} />);
+    const frame = lastFrame() ?? '';
+    expect(frame).not.toContain('Avg:');
+    expect(frame).not.toContain('Spread:');
+    expect(frame).not.toContain('Most common:');
+  });
+
+  it('ResultsSection hides the stat row when every voter abstained', () => {
+    const r1 = makeRound({
+      id: 'r1',
+      revealedAt: 1000,
+      votes: { host: ABSTAIN_SENTINEL, p2: ABSTAIN_SENTINEL },
+    });
+    const { lastFrame } = render(<Lobby {...baseProps([r1], r1)} />);
+    const frame = lastFrame() ?? '';
+    expect(frame).not.toContain('Avg:');
+    expect(frame).not.toContain('Spread:');
+    expect(frame).not.toContain('hnch_abstain');
   });
 
   it('renders ticket ID prompt block when roundTicketIdPromptActive is true (issue #109)', () => {

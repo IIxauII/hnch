@@ -268,6 +268,36 @@ describe('VoteResultsComponent — TestBed rendering', () => {
     expect(el.querySelector('ion-chip.spread-chip')).toBeNull();
   });
 
+  it('median carries one decimal place, matching mean and export (issue #509)', async () => {
+    const round = makeRound({ votes: { p1: '5', p2: '5' } });
+    const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
+    const fixture = await mountVoteResults(round, participants);
+    const el = fixture.nativeElement as HTMLElement;
+    const values = Array.from(el.querySelectorAll('.stats .stat-value')).map((n) =>
+      n.textContent?.trim(),
+    );
+    expect(values).toEqual(['5.0', '5.0']);
+  });
+
+  it('fractional mean and median both render to one decimal (issue #509)', async () => {
+    const round = makeRound({ votes: { p1: '5', p2: '8' } });
+    const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
+    const fixture = await mountVoteResults(round, participants);
+    const el = fixture.nativeElement as HTMLElement;
+    const values = Array.from(el.querySelectorAll('.stats .stat-value')).map((n) =>
+      n.textContent?.trim(),
+    );
+    expect(values).toEqual(['6.5', '6.5']);
+  });
+
+  it('all-abstain round renders no stats block at all (issue #509)', async () => {
+    const round = makeRound({ votes: { p1: ABSTAIN_SENTINEL, p2: ABSTAIN_SENTINEL } });
+    const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
+    const fixture = await mountVoteResults(round, participants);
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.stats')).toBeNull();
+  });
+
   it('numeric chip carries aria-label too (issue #157 AC #7)', async () => {
     const round = makeRound({ votes: { p1: '5', p2: '5' } });
     const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];

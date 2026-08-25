@@ -92,6 +92,24 @@ describe('roundsToMarkdown', () => {
     expect(result).toContain('Elapsed 1:30');
   });
 
+  it('whole-number median exports with one decimal, matching every surface (issue #509)', () => {
+    const round = makeRound({
+      id: 'r1',
+      votes: { p1: '5', p2: '5' },
+      timerStartedAt: 0,
+      revealedAt: 30_000,
+    });
+    const result = roundsToMarkdown({
+      rounds: [round],
+      participants: new Map([
+        ['p1', makeParticipant('Alice')],
+        ['p2', makeParticipant('Bob')],
+      ]),
+    });
+
+    expect(result).toContain('Avg 5.0 · Med 5.0');
+  });
+
   it('single revealed round, T-shirt scale → Most common line, no avg/med', () => {
     const round = makeRound({
       id: 'r1',
