@@ -1,3 +1,10 @@
+## [1.16.1](https://github.com/IIxauII/hnch/compare/cli-v1.16.0...cli-v1.16.1) (2026-08-25)
+
+
+### Bug Fixes
+
+* **shared,client,cli,docs:** one relay-client module for both surfaces ([#515](https://github.com/IIxauII/hnch/issues/515)) ([9a3945b](https://github.com/IIxauII/hnch/commit/9a3945bd8899d1e1d7e9b3a8812dcbdb5a830d9b))
+
 # [1.16.0](https://github.com/IIxauII/hnch/compare/cli-v1.15.0...cli-v1.16.0) (2026-08-24)
 
 
