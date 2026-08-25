@@ -9,7 +9,7 @@
 - Drops happen: bad Wi-Fi, sleep/wake, network change, relay restart. Must reconnect + resume sync.
 - y-websocket already ships truncated exponential backoff (30 s ceiling).
 - Chromium quirk: in offline mode the OS reports network up before the existing socket tears down. y-websocket's `connect()` no-ops when `ws !== null` → reconnect never fires. Failure mode: socket "connected", no messages flow, frozen session.
-- Without ADR, `online`-handler workaround at `packages/client/src/app/core/doc/sync-provider.ts:209-224` looks like a bug a future contributor will rip out.
+- Without ADR, the `online`-handler workaround in `packages/shared/src/relay-client.ts` (`onOnline`, inside `connectToRelay`) looks like a bug a future contributor will rip out.
 
 ## Decision
 

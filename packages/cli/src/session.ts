@@ -39,10 +39,16 @@ import {
   type Scale,
   type Round,
   type JoinRejectionReason,
+  connectToRelay,
+  mintRoom,
+  resolveRoom,
+  patchRoomAccess,
+  rejoin as rejoinRoster,
+  type RelayConnection,
+  type SyncStatus,
 } from '@hnch/shared';
 import { randomUUID } from 'node:crypto';
-import { mintRoom, resolveRoom, patchRoomAccess } from './relay-api.js';
-import { connect, type SyncConnection, type SyncStatus } from './sync.js';
+import WebSocket from 'ws';
 
 export interface CreateSessionOptions {
   readonly participantId: string;
@@ -213,6 +219,9 @@ export async function joinSession(opts: JoinSessionOptions): Promise<SessionHand
     relayUrl: opts.relayUrl,
     passwordHash,
     onRejection: opts.onRejection,
+    // This client is rejoining a room it may have left before — clear the
+    // stale `leftAt` once the relay snapshot has applied (ADR-0036 §6).
+    clearLeftStatusOnSync: true,
   });
 }
 
@@ -225,6 +234,12 @@ export interface WireOptions {
   relayUrl: string;
   passwordHash?: string | undefined;
   onRejection?: ((reason: JoinRejectionReason) => void) | undefined;
+  /**
+   * Clear this participant's stale `leftAt` / `removedBy` once the relay
+   * snapshot has synced (ADR-0036 §6). Set when rejoining a room, not when
+   * minting one — a fresh room has no prior record to clear.
+   */
+  clearLeftStatusOnSync?: boolean | undefined;
 }
 
 export function wireSession(opts: WireOptions): SessionHandle {
@@ -235,20 +250,39 @@ export function wireSession(opts: WireOptions): SessionHandle {
   const hostChangeCallbacks = new Set<(newHostId: string) => void>();
 
   // Connect to relay
-  const conn: SyncConnection = connect({
-    wsBaseUrl: opts.relayUrl,
+  const conn: RelayConnection = connectToRelay({
+    httpBaseUrl: opts.relayUrl,
     roomUuid: opts.roomUuid,
     doc,
-    deviceId: participantId,
-    passwordHash: opts.passwordHash,
+    credentials: {
+      roomCode: opts.roomCode,
+      deviceId: participantId,
+      ...(opts.passwordHash !== undefined && { passwordHash: opts.passwordHash }),
+    },
     awareness,
+    WebSocketPolyfill: WebSocket as unknown as typeof globalThis.WebSocket,
     onStatusChange(status) {
       statusCallbacks.forEach((cb) => cb(status));
     },
-    onRejection(reason) {
+    onRejectionChange(reason) {
+      if (reason === null) return;
       console.error(`Connection rejected: ${reason}`);
       opts.onRejection?.(reason);
     },
+    // Repeated transient closes are worth surfacing — otherwise "still
+    // retrying" and "hung" look identical from the terminal.
+    onRepeatRejection() {
+      console.error('Trouble reaching the room — retrying.');
+    },
+    // The post-sync timing is the rule, not an optimisation: the relay's ops
+    // are already applied when `onSynced` fires, so `rejoin`'s delete outranks
+    // the snapshot's `leftAt` in the LWW merge (ADR-0036 §6). The refusal is
+    // ignored on purpose — no record means nothing to clear.
+    ...(opts.clearLeftStatusOnSync === true && {
+      onSynced: () => {
+        rejoinRoster(doc, participantId);
+      },
+    }),
   });
 
   // Observe doc changes

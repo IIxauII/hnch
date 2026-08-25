@@ -20,6 +20,7 @@ import {
   leave,
   promoteHost,
   recolor,
+  rejoin,
   rename,
   toggleRole,
 } from './roster-commands.js';
@@ -194,6 +195,54 @@ describe('leave', () => {
     if (!result.applied) throw new Error('unreachable');
     expect(result.at).toBeGreaterThanOrEqual(before);
     expect(result.at).toBeLessThanOrEqual(after);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// rejoin
+// ---------------------------------------------------------------------------
+
+describe('rejoin', () => {
+  it('clears leftAt and removedBy so the roster counts the caller again', () => {
+    const doc = seedDoc();
+    leave(doc, 'p-bob', FIXED);
+
+    expect(rejoin(doc, 'p-bob')).toEqual({ applied: true });
+
+    const bob = participant(doc, 'p-bob');
+    expect(bob.leftAt).toBeUndefined();
+    expect(bob.removedBy).toBeUndefined();
+    expect(isActiveParticipant(bob)).toBe(true);
+  });
+
+  it('undoes a host kick too — the record does not remember who wrote it', () => {
+    const doc = seedDoc();
+    kick(doc, 'p-host', 'p-bob', FIXED);
+
+    expect(rejoin(doc, 'p-bob')).toEqual({ applied: true });
+    expect(isActiveParticipant(participant(doc, 'p-bob'))).toBe(true);
+  });
+
+  it('applies as a no-op when the caller is already active', () => {
+    const doc = seedDoc();
+
+    expect(rejoin(doc, 'p-bob')).toEqual({ applied: true });
+    expect(participant(doc, 'p-bob').displayName).toBe('Bob');
+  });
+
+  it('refuses with not-found when the participant has no record', () => {
+    const doc = seedDoc();
+    expect(rejoin(doc, 'p-ghost')).toEqual({ applied: false, reason: 'not-found' });
+  });
+
+  it('leaves other participants alone', () => {
+    const doc = seedDoc();
+    leave(doc, 'p-bob', FIXED);
+    leave(doc, 'p-host', FIXED);
+
+    rejoin(doc, 'p-bob');
+
+    expect(isActiveParticipant(participant(doc, 'p-host'))).toBe(false);
   });
 });
 

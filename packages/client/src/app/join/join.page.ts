@@ -8,6 +8,8 @@ import {
   isValidRoomCode,
   normalizeRoomCode,
   parseInviteContent,
+  RelayRejectionError,
+  resolveRoom,
   type JoinRejectionReason,
 } from '@hnch/shared';
 import {
@@ -31,7 +33,6 @@ import {
 import { addIcons } from 'ionicons';
 import { qrCodeOutline } from 'ionicons/icons';
 
-import { environment } from '../../environments/environment';
 import { AppPreferenceService } from '../core/app-preference.service';
 import { AvatarColorService } from '../core/avatar-color.service';
 import { DisplayNameService } from '../core/display-name.service';
@@ -39,7 +40,6 @@ import { DocService } from '../core/doc/doc.service';
 import { LastSessionService } from '../core/last-session.service';
 import { ParticipantIdService } from '../core/participant-id.service';
 import { type QrScanErrorReason, QrScannerService } from '../core/qr-scanner.service';
-import { RelayRejectionError, resolveRoom } from '../core/relay/relay-api';
 import { ToastService } from '../services/toast.service';
 import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.component';
 
@@ -359,10 +359,7 @@ export class JoinPage {
       // skip the resolve step and go straight to connect.
       let uuid = this.resolvedUuid;
       if (uuid === null) {
-        const resolved = await resolveRoom(
-          this.appPrefs.relayHttpUrl() ?? environment.relayHttpUrl,
-          code,
-        );
+        const resolved = await resolveRoom(this.appPrefs.resolvedRelayHttpUrl(), code);
         uuid = resolved.uuid;
 
         if (resolved.accessMode === 'password') {

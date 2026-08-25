@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import type { SyncStatus } from '../../sync.js';
+import type { SyncStatus } from '@hnch/shared';
 
 interface Props {
   roomCode: string;
