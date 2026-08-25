@@ -32,7 +32,7 @@ export class SessionEndService {
       const sessionEndedAt = meta?.sessionEndedAt;
 
       if (sessionEndedAt === undefined || sessionEndedAt === null) {
-        // Session ended locally (endSession()) or no session — reset tracker.
+        // Session ended locally (teardown()) or no session — reset tracker.
         this.handledAt = null;
         return;
       }
@@ -45,7 +45,7 @@ export class SessionEndService {
   }
 
   private async handleSessionEnd(createdBy: string | undefined): Promise<void> {
-    // Guard: effect may re-run after endSession() nulls the projection.
+    // Guard: effect may re-run after teardown() nulls the projection.
     // If the session is already torn down, do nothing.
     if (!this.docService.hasSession()) return;
 
@@ -66,7 +66,7 @@ export class SessionEndService {
     }
 
     const uuid = this.docService.meta()?.roomUuid;
-    this.docService.endSession();
+    this.docService.teardown();
 
     try {
       if (uuid) {

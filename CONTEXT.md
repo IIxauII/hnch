@@ -74,6 +74,14 @@ _Avoid_: terminalAction, roundAction, mutation (for the command specifically)
 The return of a round command: `{ applied: true; at } | { applied: false; reason: 'no-current-round' | 'already-terminal' }`. Lets a caller branch on whether the transition actually fired — e.g. suppress haptics or celebration on a no-op — without re-spelling the gate. Replaces the previous throw-on-illegal-transition behavior; a lost race (two peers terminating the same round) no-ops instead of throwing.
 _Avoid_: CommandResult, RevealResult, void (the command never returns bare void)
 
+**startRound**:
+The one *opening* act in `round-commands`, and the only member of the family that is not a terminal transition. It owns the round id, the timestamp from the injectable clock, and the host attribution read from `settings.hostParticipantId` — the sixty lines both surfaces used to hand-roll, twice, with two different names (`DocService.startRound`, the CLI's `newRound` + `revote`). A **re-vote is `startRound` with a `parentRoundId`**, not a second code path. Descriptor fields are deliberately *not* inherited from the parent: what a round says is a decision of the surface that has the parent in hand, and hiding it as a rule would make the two paths differ again the moment one of them wanted to override a field. The low-level `appendRound` writer went package-internal when this landed, so the barrel offers one way to append a round.
+_Avoid_: newRound, createRound, revote (the last names a *parameter*, not an act)
+
+**RoundResult**:
+The return of `startRound`: `{ applied: true; id; at } | { applied: false; reason: 'no-session' | 'no-host' }`. `id` and `at` are carried so a caller that navigates to the new round need not re-read the doc for them. The two refusals are the two states with nothing to attribute a round to — `'no-host'` for a joiner whose settings have not synced (which used to throw), `'no-session'` for the unbound adapter, which has no doc at all. Joins `TerminalResult` / `AgendaResult` / `RosterResult` as the fourth member of the family; a command in this codebase never throws on a state a peer could have raced it into.
+_Avoid_: StartRoundResult, AppendResult, string (the bare id the old client forward returned)
+
 ## Agenda and roster commands (writer side)
 
 **agenda command**:
@@ -82,6 +90,8 @@ _Avoid_: agendaMutation, agendaAction, addAgendaItem (on the command specificall
 
 **roster command**:
 A shared writer-side action on who is in a session, what they are called, and who is in charge — `rename` / `recolor` / `toggleRole` / `leave` / `rejoin` / `kick` / `handoffHost` / `promoteHost` / `endSession` in the `roster-commands` module. `kick`, `handoffHost` and `endSession` gate on host authority; the rest act on the caller's own record. After deepening, every host write goes through this module — which is what `patchSettings`' narrowed public parameter type enforces (see `PublicSettingsPatch`).
+
+Seven of the nine are on the **session commands** set. `promoteHost` and `rejoin` are held back on purpose: `promoteHost` is ungated, and sitting it beside the gated `handoffHost` invites the call site that erases the distinction the gate depends on; `rejoin`'s contract is *called at first sync, for the merge ordering*, and a bound member would advertise it as callable at any time. Both keep their direct call sites in the adapters that own them. Note also that `endSession` here means "end it for everyone" — a doc write — and is a different act from the client's local `teardown`, which destroys the local doc and writes nothing. The client member was renamed when the set adopted the shared name, because one object cannot carry both meanings.
 _Avoid_: participantCommand, memberCommand, rosterMutation
 
 **leave vs. rejoin**:
@@ -99,6 +109,26 @@ _Avoid_: AgendaCommandResult, ItemResult, void
 **RosterResult**:
 The return of a roster command: `{ applied: true; at? } | { applied: false; reason: 'not-found' | 'not-host' | 'not-online' | 'self-target' }`. `at` is present only where a timestamp is persisted (`leave` / `kick` write `leftAt`; `endSession` writes `sessionEndedAt`). Each command documents the subset of reasons it can actually return — the union is one per module, matching `TerminalResult`, not one per command.
 _Avoid_: ParticipantResult, HostResult, boolean
+
+## Session commands (the bound writer seam)
+
+**session commands** (`SessionCommands`):
+The whole UI-facing writer seam as one interface — eighteen flat members, each named exactly as its underlying **round** / **vote** / **agenda** / **roster** command is named, each returning that command's typed result. It is what both surfaces reach every writer act through: `DocService.commands` on the client, `SessionHandle.commands` on the CLI. Adding a command to `@hnch/shared` makes it available on both surfaces with no further edit — that property is the whole reason the module exists. Before it, every writer act was spelled three times, and the two forwards were the easy step to forget; forgetting one was silent, because the surface simply lacked the affordance.
+
+Flat rather than grouped by module: grouping would re-introduce the width the seam removes, since a caller would learn four group names *and* their members, and those group names would drift from the module names the moment a command moved. Two acts stay off the set deliberately — see **roster command**. So do session-settings patching and round-descriptor patching, which are not commands: `patchSettings` carries its own gate in its narrowed parameter type, and a descriptor patch has no rule to concentrate.
+_Avoid_: writer API, mutations, DocCommands, commands facade
+
+**bindSessionCommands**:
+The binder — takes a session's context and returns its command set. Binding is what makes the ids disappear from the call sites: `toggleCurrentVote(card)`, `kick(targetId)`, `handoffHost(targetId)`, `endSession()`. A member acting on the caller loses its actor parameter entirely; a member acting on a *target* keeps the target and loses the actor; `handoffHost` additionally loses its online-set parameter, so a call site cannot forget the liveness rule. The context binds `participantId` **by value** because it is immutable for a session's life, and `onlineIds` **by getter** because the online set changes continuously — the same rule the **drivers** follow, that a module is fed a reading rather than a live primitive.
+_Avoid_: createCommands, makeSessionApi, commandFactory
+
+**UNBOUND_SESSION_COMMANDS**:
+The second adapter of the same interface, for a surface with no session. It refuses every member using reasons the result types already carry — no current round for the terminal acts, no active round for the votes, not found for the agenda and roster acts, no session for `startRound`. Nothing is invented, so **a session that has not started is not a special case anywhere**: no caller grows a null check it did not already have, and picking an avatar colour on a sessionless Settings page refuses honestly instead of throwing. A real adapter rather than a hypothetical one — the client holds it before a session is attached and after teardown, and both surfaces' tests spread it as a fake rather than hand-rolling writer stubs that drift.
+_Avoid_: NullCommands, noopCommands, EMPTY_COMMANDS
+
+**teardown** (client):
+`DocService`'s local session teardown — destroy the doc, stop the drivers, drop the command set, write nothing. Named apart from the `endSession` roster command, which means the opposite kind of act: a doc write that ends the session for every peer. Dropping the set here is load-bearing rather than tidy, and so is rebinding on a second session: a set left bound to a destroyed doc is a late call that writes where it should refuse.
+_Avoid_: endSession (the collision this rename exists to end), destroy, close, reset
 
 ## Session drivers
 

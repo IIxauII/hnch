@@ -4,7 +4,7 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { describe, expect, it, vi } from 'vitest';
-import type { CustomScale, Scale } from '@hnch/shared';
+import { UNBOUND_SESSION_COMMANDS, type CustomScale, type Scale } from '@hnch/shared';
 
 import { ACCENTS } from '../core/accent.tokens';
 import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.helpers';
@@ -168,7 +168,10 @@ async function mountSettings(scale: Scale, customs: CustomScale[]) {
           setValue: vi.fn().mockResolvedValue(undefined),
         },
       },
-      { provide: DocService, useValue: { hasSession: signal(false), setAvatarColor: vi.fn() } },
+      {
+        provide: DocService,
+        useValue: { hasSession: signal(false), commands: UNBOUND_SESSION_COMMANDS },
+      },
       {
         provide: DisplayNameService,
         useValue: {
@@ -212,7 +215,7 @@ interface AvatarHarness {
 async function mountSettingsWithAvatar(initial: string | null = null): Promise<{
   fixture: ReturnType<typeof TestBed.createComponent>;
   avatar: AvatarHarness;
-  setAvatarColor: ReturnType<typeof vi.fn>;
+  recolor: ReturnType<typeof vi.fn>;
   hasSession: ReturnType<typeof signal<boolean>>;
 }> {
   const { AccentService } = await import('../core/accent.service');
@@ -226,7 +229,7 @@ async function mountSettingsWithAvatar(initial: string | null = null): Promise<{
   const { SurfaceService } = await import('../core/surface.service');
 
   const valueSig = signal<string | null>(initial);
-  const setAvatarColorMock = vi.fn();
+  const recolorMock = vi.fn();
   const avatar: AvatarHarness = {
     setValue: vi.fn().mockImplementation(async (wire: string) => {
       valueSig.set(wire);
@@ -247,7 +250,10 @@ async function mountSettingsWithAvatar(initial: string | null = null): Promise<{
       },
       {
         provide: DocService,
-        useValue: { hasSession: hasSessionSig.asReadonly(), setAvatarColor: setAvatarColorMock },
+        useValue: {
+          hasSession: hasSessionSig.asReadonly(),
+          commands: { ...UNBOUND_SESSION_COMMANDS, recolor: recolorMock },
+        },
       },
       {
         provide: DisplayNameService,
@@ -281,7 +287,7 @@ async function mountSettingsWithAvatar(initial: string | null = null): Promise<{
 
   const { SettingsPage } = await import('./settings.page');
   const fixture = TestBed.createComponent(SettingsPage);
-  return { fixture, avatar, setAvatarColor: setAvatarColorMock, hasSession: hasSessionSig };
+  return { fixture, avatar, recolor: recolorMock, hasSession: hasSessionSig };
 }
 
 interface AvatarMethods {
@@ -332,13 +338,13 @@ describe('SettingsPage — avatar color picker (ADR-0043)', () => {
   });
 
   it('publishes into the doc when a session is active', async () => {
-    const { fixture, avatar, setAvatarColor, hasSession } = await mountSettingsWithAvatar('blue');
+    const { fixture, avatar, recolor, hasSession } = await mountSettingsWithAvatar('blue');
     hasSession.set(true);
     avatarApi(fixture).onAvatarSelectChanged('red');
     // Allow the chained `then` inside persistAvatarColor to settle.
     await new Promise((r) => setTimeout(r, 0));
     expect(avatar.setValue).toHaveBeenCalledWith('red');
-    expect(setAvatarColor).toHaveBeenCalledWith('me', 'red');
+    expect(recolor).toHaveBeenCalledWith('red');
   });
 
   it('ignores invalid select values', async () => {
@@ -377,7 +383,10 @@ describe('SettingsPage — themeIconName (issue #251)', () => {
             setValue: vi.fn().mockResolvedValue(undefined),
           },
         },
-        { provide: DocService, useValue: { hasSession: signal(false), setAvatarColor: vi.fn() } },
+        {
+          provide: DocService,
+          useValue: { hasSession: signal(false), commands: UNBOUND_SESSION_COMMANDS },
+        },
         {
           provide: DisplayNameService,
           useValue: {

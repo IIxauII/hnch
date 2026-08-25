@@ -307,7 +307,7 @@ export class HomePage {
       // Tear down any leftover session (e.g. back-nav from a prior
       // flow that bailed early) so createSession's single-session
       // invariant holds.
-      this.docService.endSession();
+      this.docService.teardown();
       const defaultSessionName = this.appPrefs.defaultSessionName();
       const avatarColor = this.avatarColorService.value();
       this.docService.createSession({
@@ -423,7 +423,7 @@ export class HomePage {
       // Relay has forgotten this room (ADR-0012's TTL lapsed or the
       // server restarted). Mark banner as stale instead of immediately
       // clearing — it renders dimmed and a second tap clears it.
-      this.docService.endSession();
+      this.docService.teardown();
       if (this.recentEntries().length === 1) {
         this.jumpBackInStale.set(true);
       } else {
@@ -446,7 +446,7 @@ export class HomePage {
 
     if (outcome.type === 'rejected') {
       // Phase-5 rejection reasons land here once enforcement is on.
-      this.docService.endSession();
+      this.docService.teardown();
       await this.toast(rejectionCopy(outcome.reason));
       return;
     }

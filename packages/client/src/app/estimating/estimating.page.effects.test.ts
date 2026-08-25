@@ -16,7 +16,7 @@
 import { TestBed } from '@angular/core/testing';
 import { signal, computed } from '@angular/core';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { canEnterTerminal, type Round, type Screen } from '@hnch/shared';
+import { canEnterTerminal, UNBOUND_SESSION_COMMANDS, type Round, type Screen } from '@hnch/shared';
 
 vi.mock('@ionic/angular/standalone', async () => {
   const { Component: Comp } = await import('@angular/core');
@@ -203,16 +203,19 @@ async function mount(opts: MountOpts = {}) {
     meta: signal({ roomUuid: 'uuid' }).asReadonly(),
     syncStatus: signal('idle').asReadonly(),
     autoRevealCount: autoRevealCountSig.asReadonly(),
-    toggleCurrentVote: vi.fn().mockReturnValue({ applied: true, effect: 'cast' }),
-    clearCurrentVote: vi.fn().mockReturnValue({ applied: true, effect: 'cleared' }),
-    revealCurrentRound,
-    skipCurrentRound,
-    discardCurrentRound,
-    leaveSession: vi.fn(),
+    commands: {
+      ...UNBOUND_SESSION_COMMANDS,
+      toggleCurrentVote: vi.fn().mockReturnValue({ applied: true, effect: 'cast' }),
+      clearCurrentVote: vi.fn().mockReturnValue({ applied: true, effect: 'cleared' }),
+      revealCurrentRound,
+      skipCurrentRound,
+      discardCurrentRound,
+      leave: vi.fn(),
+      toggleRole: vi.fn(),
+    },
     flushUpdates: vi.fn().mockResolvedValue(undefined),
-    endSession: vi.fn(),
+    teardown: vi.fn(),
     endSessionForEveryone: vi.fn(),
-    toggleRole: vi.fn(),
   };
 
   TestBed.resetTestingModule();
@@ -381,7 +384,7 @@ describe('EstimatingPage — keyboard gate: roundActive', () => {
     await mount({ isHost: true, initialRound: terminalRound('revealed') });
     const DocService = (await import('../core/doc/doc.service')).DocService;
     const ds = TestBed.inject(DocService) as unknown as {
-      toggleCurrentVote: ReturnType<typeof vi.fn>;
+      commands: { toggleCurrentVote: ReturnType<typeof vi.fn> };
     };
     const event = new KeyboardEvent('keydown', {
       bubbles: true,
@@ -390,14 +393,14 @@ describe('EstimatingPage — keyboard gate: roundActive', () => {
       code: 'Digit1',
     });
     document.dispatchEvent(event);
-    expect(ds.toggleCurrentVote).not.toHaveBeenCalled();
+    expect(ds.commands.toggleCurrentVote).not.toHaveBeenCalled();
   });
 
   it('passes gate and casts vote when host + active (voting) round', async () => {
     await mount({ isHost: true, initialRound: votingRound() });
     const DocService = (await import('../core/doc/doc.service')).DocService;
     const ds = TestBed.inject(DocService) as unknown as {
-      toggleCurrentVote: ReturnType<typeof vi.fn>;
+      commands: { toggleCurrentVote: ReturnType<typeof vi.fn> };
     };
     const event = new KeyboardEvent('keydown', {
       bubbles: true,
@@ -406,7 +409,7 @@ describe('EstimatingPage — keyboard gate: roundActive', () => {
       code: 'Digit1',
     });
     document.dispatchEvent(event);
-    expect(ds.toggleCurrentVote).toHaveBeenCalled();
+    expect(ds.commands.toggleCurrentVote).toHaveBeenCalled();
   });
 });
 
@@ -426,7 +429,7 @@ describe('EstimatingPage — softExit', () => {
     });
     const page = fixture.componentInstance as unknown as Internals;
     page.softExit();
-    expect(discardCurrentRound).toHaveBeenCalledWith('me');
+    expect(discardCurrentRound).toHaveBeenCalledWith();
     expect(navigate).toHaveBeenCalledWith(['/lobby', 'ZZZZZZ']);
   });
 
@@ -438,7 +441,7 @@ describe('EstimatingPage — softExit', () => {
     discardCurrentRound.mockReturnValue({ applied: false, reason: 'already-terminal' });
     const page = fixture.componentInstance as unknown as Internals;
     page.softExit();
-    expect(discardCurrentRound).toHaveBeenCalledWith('me');
+    expect(discardCurrentRound).toHaveBeenCalledWith();
     expect(navigate).toHaveBeenCalledWith(['/lobby', 'ZZZZZZ']);
   });
 
@@ -645,9 +648,9 @@ describe('EstimatingPage — vote-command applied:false suppresses haptics', () 
     const { fixture, haptic } = await mount({ initialRound: votingRound() });
     const DocService = (await import('../core/doc/doc.service')).DocService;
     const ds = TestBed.inject(DocService) as unknown as {
-      toggleCurrentVote: ReturnType<typeof vi.fn>;
+      commands: { toggleCurrentVote: ReturnType<typeof vi.fn> };
     };
-    ds.toggleCurrentVote.mockReturnValue({ applied: false, reason: 'not-a-voter' });
+    ds.commands.toggleCurrentVote.mockReturnValue({ applied: false, reason: 'not-a-voter' });
     (fixture.componentInstance as unknown as CardTapInternals).onCardTap('1');
     expect(haptic.impactLight).not.toHaveBeenCalled();
   });
@@ -656,9 +659,9 @@ describe('EstimatingPage — vote-command applied:false suppresses haptics', () 
     const { fixture, haptic } = await mount({ initialRound: votingRound() });
     const DocService = (await import('../core/doc/doc.service')).DocService;
     const ds = TestBed.inject(DocService) as unknown as {
-      toggleCurrentVote: ReturnType<typeof vi.fn>;
+      commands: { toggleCurrentVote: ReturnType<typeof vi.fn> };
     };
-    ds.toggleCurrentVote.mockReturnValue({ applied: false, reason: 'not-a-voter' });
+    ds.commands.toggleCurrentVote.mockReturnValue({ applied: false, reason: 'not-a-voter' });
     (fixture.componentInstance as unknown as AbstainInternals).onAbstain();
     expect(haptic.impactLight).not.toHaveBeenCalled();
   });
