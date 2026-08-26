@@ -1,14 +1,14 @@
 /**
  * Pure helpers backing the two-step round-start prompt flow in App.tsx
  * (issue #109). Extracted so the title/ticketId trimming logic and the
- * resulting `session.newRound(...)` argument shape are unit-testable
- * without spinning up the full Ink App component.
+ * resulting `session.commands.startRound(...)` argument shape are
+ * unit-testable without spinning up the full Ink App component.
  *
  * Extended in issue #153 (agenda pre-fill): if a next pending agenda item is
  * provided, `buildNewRoundPreFill` returns pre-populated prompt values so the
  * user's prompts open with the item's data already filled in. On confirm,
  * `buildNewRoundArgs` also returns the `agendaItemId` so the caller can pass
- * it to `session.newRound(...)` and the agenda item gets consumed.
+ * it to `session.commands.startRound(...)` and the agenda item gets consumed.
  */
 
 import type { AgendaItem } from '@hnch/shared';
@@ -44,7 +44,7 @@ export function buildRoundPreFill(nextPending: AgendaItem | null): {
 
 /**
  * Resolve the final `(title, ticketId, agendaItemId)` triple for
- * `session.newRound(...)` from the two raw prompt inputs.
+ * `session.commands.startRound(...)` from the two raw prompt inputs.
  * Whitespace-only input collapses to `undefined`.
  */
 export function buildNewRoundArgs(

@@ -52,7 +52,7 @@ function makeDocService(
     meta: vi.fn().mockReturnValue({ roomUuid: 'uuid-test' }),
     syncStatus: vi.fn().mockReturnValue(overrides.syncStatus ?? 'offline'),
     lastRejection: vi.fn().mockReturnValue(overrides.lastRejection ?? null),
-    endSession: vi.fn(),
+    teardown: vi.fn(),
     joinSession: vi.fn(),
     connect: vi.fn(),
   };
@@ -158,7 +158,7 @@ describe('rejoinRoom', () => {
     const result = await rejoinRoom('ABC123', deps);
 
     expect(result.type).toBe('connected');
-    expect(docService.endSession).toHaveBeenCalled();
+    expect(docService.teardown).toHaveBeenCalled();
     // Must use joinSession (not createSession) to avoid host-attribution race
     expect(docService.joinSession).toHaveBeenCalledWith(
       expect.objectContaining({ roomCode: 'ABC123' }),

@@ -16,7 +16,7 @@
 import { TestBed } from '@angular/core/testing';
 import { signal, computed } from '@angular/core';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { canEnterTerminal, type Round, type Screen } from '@hnch/shared';
+import { canEnterTerminal, UNBOUND_SESSION_COMMANDS, type Round, type Screen } from '@hnch/shared';
 
 vi.mock('@ionic/angular/standalone', async () => {
   const { Component: Comp } = await import('@angular/core');
@@ -135,6 +135,8 @@ interface MountOpts {
   participants?: { id: string; joinedAt?: number }[];
   /** Online participant ids. */
   onlineIds?: Set<string>;
+  /** Own participant id; `null` stands in for a page mounted before it exists. */
+  myId?: string | null;
 }
 
 async function mount(opts: MountOpts = {}) {
@@ -178,6 +180,15 @@ async function mount(opts: MountOpts = {}) {
     notificationSuccess: vi.fn(),
   };
 
+  // Alert configs the page hands to AlertController, so a test can run the
+  // handler on a named button without rendering the dialog.
+  const alerts: { buttons: { text: string; role?: string; handler?: () => void }[] }[] = [];
+  const lastSession = {
+    record: vi.fn().mockResolvedValue(undefined),
+    clear: vi.fn().mockResolvedValue(undefined),
+    removeByUuid: vi.fn().mockResolvedValue(undefined),
+    clearAll: vi.fn().mockResolvedValue(undefined),
+  };
   const hostId = opts.isHost === false ? 'other-host' : 'me';
   const roster = opts.participants ?? [{ id: 'me', joinedAt: 0 }];
   const onlineIds = opts.onlineIds ?? new Set<string>();
@@ -203,33 +214,31 @@ async function mount(opts: MountOpts = {}) {
     meta: signal({ roomUuid: 'uuid' }).asReadonly(),
     syncStatus: signal('idle').asReadonly(),
     autoRevealCount: autoRevealCountSig.asReadonly(),
-    toggleCurrentVote: vi.fn().mockReturnValue({ applied: true, effect: 'cast' }),
-    clearCurrentVote: vi.fn().mockReturnValue({ applied: true, effect: 'cleared' }),
-    revealCurrentRound,
-    skipCurrentRound,
-    discardCurrentRound,
-    leaveSession: vi.fn(),
+    commands: {
+      ...UNBOUND_SESSION_COMMANDS,
+      toggleCurrentVote: vi.fn().mockReturnValue({ applied: true, effect: 'cast' }),
+      clearCurrentVote: vi.fn().mockReturnValue({ applied: true, effect: 'cleared' }),
+      revealCurrentRound,
+      skipCurrentRound,
+      discardCurrentRound,
+      leave: vi.fn(),
+      toggleRole: vi.fn(),
+    },
     flushUpdates: vi.fn().mockResolvedValue(undefined),
-    endSession: vi.fn(),
+    teardown: vi.fn(),
     endSessionForEveryone: vi.fn(),
-    toggleRole: vi.fn(),
   };
 
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [
       { provide: DocService, useValue: docService },
-      { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
-      { provide: HapticService, useValue: haptic },
       {
-        provide: LastSessionService,
-        useValue: {
-          record: vi.fn().mockResolvedValue(undefined),
-          clear: vi.fn().mockResolvedValue(undefined),
-          removeByUuid: vi.fn().mockResolvedValue(undefined),
-          clearAll: vi.fn().mockResolvedValue(undefined),
-        },
+        provide: ParticipantIdService,
+        useValue: { id: signal(opts.myId === undefined ? 'me' : opts.myId).asReadonly() },
       },
+      { provide: HapticService, useValue: haptic },
+      { provide: LastSessionService, useValue: lastSession },
       { provide: TimerTickService, useValue: { now: () => 0 } },
       {
         provide: SurfaceService,
@@ -241,7 +250,14 @@ async function mount(opts: MountOpts = {}) {
       { provide: Router, useValue: { navigate } },
       {
         provide: AlertController,
-        useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn() }) },
+        useValue: {
+          create: vi
+            .fn()
+            .mockImplementation((cfg: { buttons: { text: string; handler?: () => void }[] }) => {
+              alerts.push(cfg);
+              return Promise.resolve({ present: vi.fn() });
+            }),
+        },
       },
     ],
   });
@@ -258,6 +274,9 @@ async function mount(opts: MountOpts = {}) {
     discardCurrentRound,
     openSheetOrPopover,
     haptic,
+    docService,
+    lastSession,
+    alerts,
     currentRoundSig,
     roundsSig,
     screenSig,
@@ -381,7 +400,7 @@ describe('EstimatingPage — keyboard gate: roundActive', () => {
     await mount({ isHost: true, initialRound: terminalRound('revealed') });
     const DocService = (await import('../core/doc/doc.service')).DocService;
     const ds = TestBed.inject(DocService) as unknown as {
-      toggleCurrentVote: ReturnType<typeof vi.fn>;
+      commands: { toggleCurrentVote: ReturnType<typeof vi.fn> };
     };
     const event = new KeyboardEvent('keydown', {
       bubbles: true,
@@ -390,14 +409,14 @@ describe('EstimatingPage — keyboard gate: roundActive', () => {
       code: 'Digit1',
     });
     document.dispatchEvent(event);
-    expect(ds.toggleCurrentVote).not.toHaveBeenCalled();
+    expect(ds.commands.toggleCurrentVote).not.toHaveBeenCalled();
   });
 
   it('passes gate and casts vote when host + active (voting) round', async () => {
     await mount({ isHost: true, initialRound: votingRound() });
     const DocService = (await import('../core/doc/doc.service')).DocService;
     const ds = TestBed.inject(DocService) as unknown as {
-      toggleCurrentVote: ReturnType<typeof vi.fn>;
+      commands: { toggleCurrentVote: ReturnType<typeof vi.fn> };
     };
     const event = new KeyboardEvent('keydown', {
       bubbles: true,
@@ -406,7 +425,7 @@ describe('EstimatingPage — keyboard gate: roundActive', () => {
       code: 'Digit1',
     });
     document.dispatchEvent(event);
-    expect(ds.toggleCurrentVote).toHaveBeenCalled();
+    expect(ds.commands.toggleCurrentVote).toHaveBeenCalled();
   });
 });
 
@@ -426,7 +445,7 @@ describe('EstimatingPage — softExit', () => {
     });
     const page = fixture.componentInstance as unknown as Internals;
     page.softExit();
-    expect(discardCurrentRound).toHaveBeenCalledWith('me');
+    expect(discardCurrentRound).toHaveBeenCalledWith();
     expect(navigate).toHaveBeenCalledWith(['/lobby', 'ZZZZZZ']);
   });
 
@@ -438,7 +457,7 @@ describe('EstimatingPage — softExit', () => {
     discardCurrentRound.mockReturnValue({ applied: false, reason: 'already-terminal' });
     const page = fixture.componentInstance as unknown as Internals;
     page.softExit();
-    expect(discardCurrentRound).toHaveBeenCalledWith('me');
+    expect(discardCurrentRound).toHaveBeenCalledWith();
     expect(navigate).toHaveBeenCalledWith(['/lobby', 'ZZZZZZ']);
   });
 
@@ -645,9 +664,9 @@ describe('EstimatingPage — vote-command applied:false suppresses haptics', () 
     const { fixture, haptic } = await mount({ initialRound: votingRound() });
     const DocService = (await import('../core/doc/doc.service')).DocService;
     const ds = TestBed.inject(DocService) as unknown as {
-      toggleCurrentVote: ReturnType<typeof vi.fn>;
+      commands: { toggleCurrentVote: ReturnType<typeof vi.fn> };
     };
-    ds.toggleCurrentVote.mockReturnValue({ applied: false, reason: 'not-a-voter' });
+    ds.commands.toggleCurrentVote.mockReturnValue({ applied: false, reason: 'not-a-voter' });
     (fixture.componentInstance as unknown as CardTapInternals).onCardTap('1');
     expect(haptic.impactLight).not.toHaveBeenCalled();
   });
@@ -656,10 +675,129 @@ describe('EstimatingPage — vote-command applied:false suppresses haptics', () 
     const { fixture, haptic } = await mount({ initialRound: votingRound() });
     const DocService = (await import('../core/doc/doc.service')).DocService;
     const ds = TestBed.inject(DocService) as unknown as {
-      toggleCurrentVote: ReturnType<typeof vi.fn>;
+      commands: { toggleCurrentVote: ReturnType<typeof vi.fn> };
     };
-    ds.toggleCurrentVote.mockReturnValue({ applied: false, reason: 'not-a-voter' });
+    ds.commands.toggleCurrentVote.mockReturnValue({ applied: false, reason: 'not-a-voter' });
     (fixture.componentInstance as unknown as AbstainInternals).onAbstain();
     expect(haptic.impactLight).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// `docService.commands` call sites (#516)
+//
+// After the writer seam moved into `@hnch/shared` these handlers are thin
+// adapters over the bound command set: fire the haptic only on `applied`, and
+// bail before the command when there is no participant id to act as. The rules
+// themselves are covered in `packages/shared`.
+// ---------------------------------------------------------------------------
+
+/** Action-sheet / alert item as the page declares it. */
+interface SheetItem {
+  text: string;
+  role?: string;
+  handler?: () => void;
+}
+
+/** Run the handler on the last-created alert's button labelled `text`. */
+function tapAlertButton(alerts: { buttons: SheetItem[] }[], text: string): void {
+  const cfg = alerts.at(-1);
+  expect(cfg, 'no alert was created').toBeDefined();
+  const button = cfg!.buttons.find((b) => b.text === text);
+  expect(button, `no "${text}" button on the alert`).toBeDefined();
+  button!.handler?.();
+}
+
+/** Open the ⋯ sheet and run the handler on the item labelled `text`. */
+async function tapSheetItem(
+  fixture: { componentInstance: unknown },
+  openSheetOrPopover: { mock: { calls: unknown[][] } },
+  text: string,
+): Promise<void> {
+  await (fixture.componentInstance as { openActionSheet(e: Event): Promise<void> }).openActionSheet(
+    new Event('click'),
+  );
+  const [opts] = openSheetOrPopover.mock.calls.at(-1) as [{ items: SheetItem[] }];
+  const item = opts.items.find((i) => i.text === text);
+  expect(item, `no "${text}" item in the action sheet`).toBeDefined();
+  item!.handler?.();
+}
+
+describe('EstimatingPage — onToggleRole', () => {
+  type Internals = { onToggleRole(): void };
+
+  it('fires the haptic and reaches the bound toggleRole command', async () => {
+    const { fixture, docService, haptic } = await mount();
+    (fixture.componentInstance as unknown as Internals).onToggleRole();
+
+    expect(haptic.impactLight).toHaveBeenCalledTimes(1);
+    expect(docService.commands.toggleRole).toHaveBeenCalledTimes(1);
+  });
+
+  it('does nothing before the participant id exists', async () => {
+    const { fixture, docService, haptic } = await mount({ myId: null });
+    (fixture.componentInstance as unknown as Internals).onToggleRole();
+
+    expect(docService.commands.toggleRole).not.toHaveBeenCalled();
+    expect(haptic.impactLight).not.toHaveBeenCalled();
+  });
+});
+
+describe('EstimatingPage — leaveSession', () => {
+  it('writes the soft-delete, flushes, tears down, and drops the cached entry', async () => {
+    const { fixture, docService, lastSession, alerts, navigate, haptic, openSheetOrPopover } =
+      await mount();
+
+    await tapSheetItem(fixture, openSheetOrPopover, 'Leave session');
+    tapAlertButton(alerts, 'Leave');
+    await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith(['/home']));
+
+    expect(haptic.impactHeavy).toHaveBeenCalled();
+    expect(docService.commands.leave).toHaveBeenCalledTimes(1);
+    expect(docService.flushUpdates).toHaveBeenCalledTimes(1);
+    expect(docService.teardown).toHaveBeenCalledTimes(1);
+    expect(lastSession.removeByUuid).toHaveBeenCalledWith('uuid');
+    expect(lastSession.clearAll).not.toHaveBeenCalled();
+  });
+
+  it('skips the soft-delete and the flush when there is no participant id', async () => {
+    const { fixture, docService, alerts, navigate, openSheetOrPopover } = await mount({
+      myId: null,
+    });
+
+    await tapSheetItem(fixture, openSheetOrPopover, 'Leave session');
+    tapAlertButton(alerts, 'Leave');
+    await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith(['/home']));
+
+    expect(docService.commands.leave).not.toHaveBeenCalled();
+    expect(docService.flushUpdates).not.toHaveBeenCalled();
+    expect(docService.teardown).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('EstimatingPage — confirmEndSession', () => {
+  it('fires a heavy haptic when the host gate lets the end through', async () => {
+    const { fixture, docService, alerts, haptic, openSheetOrPopover } = await mount({
+      isHost: true,
+    });
+    docService.endSessionForEveryone.mockReturnValue({ applied: true });
+
+    await tapSheetItem(fixture, openSheetOrPopover, 'End session for everyone');
+    tapAlertButton(alerts, 'End session');
+
+    expect(docService.endSessionForEveryone).toHaveBeenCalledTimes(1);
+    expect(haptic.impactHeavy).toHaveBeenCalledTimes(1);
+  });
+
+  it('fires no haptic when the shared host gate refuses underneath the UI gate', async () => {
+    const { fixture, docService, alerts, haptic, openSheetOrPopover } = await mount({
+      isHost: true,
+    });
+    docService.endSessionForEveryone.mockReturnValue({ applied: false, reason: 'not-host' });
+
+    await tapSheetItem(fixture, openSheetOrPopover, 'End session for everyone');
+    tapAlertButton(alerts, 'End session');
+
+    expect(haptic.impactHeavy).not.toHaveBeenCalled();
   });
 });

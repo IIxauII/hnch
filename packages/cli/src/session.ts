@@ -12,22 +12,12 @@ import {
   joinDoc,
   projectDoc,
   currentRound,
-  toggleCurrentVote,
-  clearCurrentVote,
-  type VoteResult,
-  revealCurrentRound,
-  skipCurrentRound,
-  discardCurrentRound as discardCurrentRoundCommand,
-  appendRound,
   patchRoundDescriptor,
   patchSettings,
   hashPassword,
-  endSession as endSessionCommand,
-  handoffHost as handoffHostCommand,
   promoteHost as promoteHostCommand,
-  rename as renameCommand,
-  toggleRole as toggleRoleCommand,
-  type RosterResult,
+  bindSessionCommands,
+  type SessionCommands,
   startAutoReveal,
   type AutoRevealHandle,
   onlineIdsFrom,
@@ -47,7 +37,6 @@ import {
   type RelayConnection,
   type SyncStatus,
 } from '@hnch/shared';
-import { randomUUID } from 'node:crypto';
 import WebSocket from 'ws';
 
 export interface CreateSessionOptions {
@@ -77,6 +66,20 @@ export interface SessionHandle {
   readonly awareness: Awareness;
   readonly roomCode: string;
   readonly roomUuid: string;
+  /**
+   * The whole UI-facing writer seam, bound once to this doc and this
+   * participant (#516). Eleven forwards used to re-spell each command's name
+   * under this handle; `reveal(): void` / `skip(): void` /
+   * `discardCurrentRound(): void` went further and discarded the
+   * `TerminalResult` those commands return, so a lost race (someone else
+   * terminated the round first) was indistinguishable from a successful
+   * write on this surface. Reaching the command directly through `commands`
+   * puts that result back within reach of every call site — the TUI still
+   * ignores it where it has nothing to gate (no router, no haptics; a
+   * re-render already arrives via the doc-change subscription), but the
+   * information is no longer thrown away by the handle itself.
+   */
+  readonly commands: SessionCommands;
 
   /** Get current projection snapshot. */
   projection(): DocProjection;
@@ -87,56 +90,14 @@ export interface SessionHandle {
   /** Online participant IDs from awareness. */
   onlineIds(): Set<string>;
 
-  /**
-   * Cast, change, or clear a vote on the active round, applying the toggle
-   * rule (re-selecting the recorded card clears it). Refuses with a typed
-   * `VoteResult` when the round is terminal (revealed/skipped/discarded) or
-   * the caller is not a voter.
-   */
-  toggleCurrentVote(card: string): VoteResult;
-  /**
-   * Clear this participant's vote on the active round. Gated on the round
-   * being active only — not on voter role — so a voter who flips to viewer
-   * mid-round can still withdraw a vote already in the tally.
-   */
-  clearCurrentVote(): VoteResult;
-  /** Reveal the current round (host only). */
-  reveal(): void;
-  /** Skip the current round (host only). */
-  skip(): void;
-  /**
-   * Discard the active round (host only). Writes `discardedAt`/`discardedBy`
-   * tombstone; linked agenda item (if any) stays `pending`. No-op when no
-   * active round exists.
-   */
-  discardCurrentRound(): void;
-  /** Start a new round. Optionally linked to an agenda item. */
-  newRound(title?: string, ticketId?: string, agendaItemId?: string): string;
-  /** Re-vote: start new round linked to current. */
-  revote(): string;
   /** Update a round's title and/or description. */
   updateRoundDescriptor(roundId: string, fields: { title?: string; description?: string }): void;
   /** Update the room name. Pass undefined to remove. */
   updateName(name: string | undefined): void;
   /** Update the default estimation scale. */
   updateScale(scale: Scale): void;
-  /** Update this participant's display name. Preserves role and avatar colour. */
-  updateDisplayName(name: string): RosterResult;
   /** Update room access mode (open or password-protected). */
   updateAccess(mode: 'open' | 'password', password?: string): Promise<void>;
-  /**
-   * Hand off host to a target participant. Refuses with a typed
-   * `RosterResult` — `'not-host'`, `'not-found'`, or `'not-online'` — rather
-   * than throwing, so the TUI branches instead of catching (#507).
-   */
-  handoffHost(targetId: string): RosterResult;
-  /** Toggle this participant's role between voter and viewer. */
-  toggleRole(): RosterResult;
-  /**
-   * End the session for all participants. Refuses with `'not-host'` rather
-   * than throwing.
-   */
-  endSessionForEveryone(): RosterResult;
 
   /** Subscribe to doc changes. Returns unsubscribe fn. */
   onChange(cb: () => void): () => void;
@@ -298,6 +259,11 @@ export function wireSession(opts: WireOptions): SessionHandle {
     return onlineIdsFrom(awareness.getStates());
   }
 
+  // The whole writer seam, bound once for this session (#516). `onlineIds`
+  // is threaded as the getter itself, not a snapshot, so `handoffHost` reads
+  // the live online set at call time rather than the set at wiring time.
+  const commands = bindSessionCommands({ doc, participantId, onlineIds: getOnlineIds });
+
   // Wire host election. The driver (debounce, missing-host state, promotion
   // decision) lives in `@hnch/shared`; this is the adapter. It re-uses the
   // doc-change fan-out above, so no new Yjs observer is introduced.
@@ -335,7 +301,7 @@ export function wireSession(opts: WireOptions): SessionHandle {
       };
     },
     reveal() {
-      revealCurrentRound(doc);
+      commands.revealCurrentRound();
     },
   });
 
@@ -357,6 +323,7 @@ export function wireSession(opts: WireOptions): SessionHandle {
     awareness,
     roomCode: opts.roomCode,
     roomUuid: opts.roomUuid,
+    commands,
 
     projection() {
       return projectDoc(doc);
@@ -373,60 +340,6 @@ export function wireSession(opts: WireOptions): SessionHandle {
 
     onlineIds: getOnlineIds,
 
-    toggleCurrentVote(card: string) {
-      return toggleCurrentVote(doc, participantId, card);
-    },
-
-    clearCurrentVote() {
-      return clearCurrentVote(doc, participantId);
-    },
-
-    reveal() {
-      revealCurrentRound(doc);
-    },
-
-    skip() {
-      skipCurrentRound(doc);
-    },
-
-    newRound(title?: string, ticketId?: string, agendaItemId?: string) {
-      const id = randomUUID();
-      const now = Date.now();
-      // Agenda consume is deferred to round-terminal (reveal/skip) inside the
-      // shared writers. Host discard via back-chevron leaves the linked item
-      // pending. See ADR superseding ADR-0042.
-      appendRound(doc, {
-        id,
-        createdAt: now,
-        createdBy: participantId,
-        ...(title !== undefined && { title }),
-        ...(ticketId !== undefined && { ticketId }),
-        ...(agendaItemId !== undefined && { agendaItemId }),
-      });
-      return id;
-    },
-
-    discardCurrentRound() {
-      discardCurrentRoundCommand(doc, participantId);
-    },
-
-    revote() {
-      const round = currentRound(projectDoc(doc));
-      const id = randomUUID();
-      appendRound(doc, {
-        id,
-        createdAt: Date.now(),
-        createdBy: participantId,
-        ...(round?.id !== undefined && { parentRoundId: round.id }),
-        ...(round?.title !== undefined && { title: round.title }),
-        ...(round?.description !== undefined && { description: round.description }),
-        ...(round?.ticketId !== undefined && { ticketId: round.ticketId }),
-        // Re-vote inherits agendaItemId from parent (ADR-0042: no new consumption)
-        ...(round?.agendaItemId !== undefined && { agendaItemId: round.agendaItemId }),
-      });
-      return id;
-    },
-
     updateRoundDescriptor(roundId: string, fields: { title?: string; description?: string }) {
       patchRoundDescriptor(doc, roundId, fields);
     },
@@ -442,10 +355,6 @@ export function wireSession(opts: WireOptions): SessionHandle {
       patchSettings(doc, { defaultScale: scale });
     },
 
-    updateDisplayName(name: string) {
-      return renameCommand(doc, participantId, name);
-    },
-
     async updateAccess(mode: 'open' | 'password', password?: string) {
       let passwordHash: string | null = null;
       if (mode === 'password') {
@@ -455,18 +364,6 @@ export function wireSession(opts: WireOptions): SessionHandle {
       await patchRoomAccess(relayUrl, roomUuid, passwordHash);
       // Update stored credentials so reconnect uses new passwordHash
       conn.updateCredentials({ passwordHash });
-    },
-
-    handoffHost(targetId: string) {
-      return handoffHostCommand(doc, participantId, targetId, getOnlineIds());
-    },
-
-    toggleRole() {
-      return toggleRoleCommand(doc, participantId);
-    },
-
-    endSessionForEveryone() {
-      return endSessionCommand(doc, participantId);
     },
 
     onChange(cb: () => void) {
