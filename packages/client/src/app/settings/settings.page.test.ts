@@ -216,6 +216,8 @@ async function mountSettingsWithAvatar(initial: string | null = null): Promise<{
   fixture: ReturnType<typeof TestBed.createComponent>;
   avatar: AvatarHarness;
   recolor: ReturnType<typeof vi.fn>;
+  rename: ReturnType<typeof vi.fn>;
+  setDisplayName: ReturnType<typeof vi.fn>;
   hasSession: ReturnType<typeof signal<boolean>>;
 }> {
   const { AccentService } = await import('../core/accent.service');
@@ -230,6 +232,8 @@ async function mountSettingsWithAvatar(initial: string | null = null): Promise<{
 
   const valueSig = signal<string | null>(initial);
   const recolorMock = vi.fn();
+  const renameMock = vi.fn();
+  const setDisplayNameMock = vi.fn().mockResolvedValue(undefined);
   const avatar: AvatarHarness = {
     setValue: vi.fn().mockImplementation(async (wire: string) => {
       valueSig.set(wire);
@@ -252,14 +256,14 @@ async function mountSettingsWithAvatar(initial: string | null = null): Promise<{
         provide: DocService,
         useValue: {
           hasSession: hasSessionSig.asReadonly(),
-          commands: { ...UNBOUND_SESSION_COMMANDS, recolor: recolorMock },
+          commands: { ...UNBOUND_SESSION_COMMANDS, recolor: recolorMock, rename: renameMock },
         },
       },
       {
         provide: DisplayNameService,
         useValue: {
           getDisplayName: vi.fn().mockResolvedValue('Host'),
-          setDisplayName: vi.fn().mockResolvedValue(undefined),
+          setDisplayName: setDisplayNameMock,
         },
       },
       { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
@@ -287,7 +291,14 @@ async function mountSettingsWithAvatar(initial: string | null = null): Promise<{
 
   const { SettingsPage } = await import('./settings.page');
   const fixture = TestBed.createComponent(SettingsPage);
-  return { fixture, avatar, recolor: recolorMock, hasSession: hasSessionSig };
+  return {
+    fixture,
+    avatar,
+    recolor: recolorMock,
+    rename: renameMock,
+    setDisplayName: setDisplayNameMock,
+    hasSession: hasSessionSig,
+  };
 }
 
 interface AvatarMethods {
@@ -466,5 +477,44 @@ describe('SettingsPage — scaleLabel (default scale)', () => {
       fixture.componentInstance as unknown as { scaleLabel: () => string }
     ).scaleLabel();
     expect(label).toBe('Fibonacci');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Display-name save — `commands.rename` with no session guard (#507, #516)
+//
+// The unbound adapter refuses honestly when no session is live, so the page
+// calls the command unconditionally rather than branching on `hasSession()`.
+// ---------------------------------------------------------------------------
+
+interface DisplayNameMethods {
+  displayName: ReturnType<typeof signal<string>>;
+  onNameSaved(name: string): void;
+}
+
+function displayNameApi(fixture: { componentInstance: unknown }): DisplayNameMethods {
+  return fixture.componentInstance as unknown as DisplayNameMethods;
+}
+
+describe('SettingsPage — display name save', () => {
+  it('persists locally and publishes the rename into the doc', async () => {
+    const { fixture, rename, setDisplayName } = await mountSettingsWithAvatar();
+    const page = displayNameApi(fixture);
+
+    page.onNameSaved('Ada');
+
+    expect(page.displayName()).toBe('Ada');
+    expect(setDisplayName).toHaveBeenCalledWith('Ada');
+    expect(rename).toHaveBeenCalledWith('Ada');
+  });
+
+  it('still calls the command with no session — the unbound adapter refuses', async () => {
+    const { fixture, hasSession } = await mountSettingsWithAvatar();
+    hasSession.set(false);
+    const page = displayNameApi(fixture);
+
+    // `UNBOUND_SESSION_COMMANDS.rename` is what answers here in a real
+    // sessionless page; the point is that the call site has no guard to skip.
+    expect(() => page.onNameSaved('Ada')).not.toThrow();
   });
 });

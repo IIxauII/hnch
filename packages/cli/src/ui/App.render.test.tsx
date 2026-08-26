@@ -11,15 +11,20 @@ import * as Y from 'yjs';
 import { Awareness } from 'y-protocols/awareness';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { DocProjection, Round, Scale } from '@hnch/shared';
+import { ABSTAIN_SENTINEL, type DocProjection, type Round, type Scale } from '@hnch/shared';
 import type { SessionHandle } from '../session.js';
 import { App } from './App.js';
 
 const SCALE: Scale = { id: 'fibonacci', cards: ['1', '2', '3', '5', '8'] };
 
-function makeProjection(rounds: readonly Round[] = []): DocProjection {
+function makeProjection(
+  rounds: readonly Round[] = [],
+  participants: DocProjection['participants'] = [
+    { id: 'host', displayName: 'Host', joinedAt: 0, role: 'voter' },
+  ],
+): DocProjection {
   return {
-    participants: [{ id: 'host', displayName: 'Host', joinedAt: 0, role: 'voter' }],
+    participants: [...participants],
     settings: {
       hostParticipantId: 'host',
       defaultScale: SCALE,
@@ -30,7 +35,15 @@ function makeProjection(rounds: readonly Round[] = []): DocProjection {
   };
 }
 
-function makeSession(overrides: { current?: Round | null; rounds?: readonly Round[] } = {}): {
+function makeSession(
+  overrides: {
+    current?: Round | null;
+    rounds?: readonly Round[];
+    participants?: DocProjection['participants'];
+    onlineIds?: Set<string>;
+    isHost?: boolean;
+  } = {},
+): {
   session: SessionHandle;
   startRound: ReturnType<typeof vi.fn>;
 } {
@@ -63,10 +76,10 @@ function makeSession(overrides: { current?: Round | null; rounds?: readonly Roun
       handoffHost: vi.fn(() => ({ applied: true })),
       endSession: vi.fn(() => ({ applied: true })),
     },
-    projection: () => makeProjection(overrides.rounds ?? []),
+    projection: () => makeProjection(overrides.rounds ?? [], overrides.participants),
     current: () => overrides.current ?? null,
-    isHost: () => true,
-    onlineIds: () => new Set(['host']),
+    isHost: () => overrides.isHost ?? true,
+    onlineIds: () => overrides.onlineIds ?? new Set(['host']),
     updateRoundDescriptor: vi.fn(),
     updateName: vi.fn(),
     updateScale: vi.fn(),
@@ -166,5 +179,147 @@ describe('App — re-vote inherits parent round descriptor (ADR-0013 / #516)', (
       ticketId: 'PROJ-9',
       agendaItemId: 'agenda-1',
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Bound command call sites (#516)
+//
+// `SessionHandle` no longer carries per-act forwards — App reaches the whole
+// writer seam through `session.commands`. These press the keys that reach each
+// callback so the wiring itself is pinned; the rules live in `@hnch/shared`.
+// ---------------------------------------------------------------------------
+
+const VOTING_ROUND: Round = {
+  id: 'r-active',
+  createdAt: 0,
+  createdBy: 'host',
+  scale: SCALE,
+  status: 'voting',
+  votes: {},
+};
+
+function mountVoting(isHost = true) {
+  return makeSession({ current: VOTING_ROUND, rounds: [VOTING_ROUND], isHost });
+}
+
+describe('App — Voting keys reach the bound commands', () => {
+  it('Enter on the card picker casts the card under the cursor', async () => {
+    const { session } = mountVoting();
+    const { stdin } = await renderInk(
+      <App session={session} participantId="host" displayName="Host" accessMode="open" />,
+    );
+
+    await press(stdin, '\r');
+
+    expect(session.commands.toggleCurrentVote).toHaveBeenCalledWith('1');
+  });
+
+  it('a casts the abstain sentinel', async () => {
+    const { session } = mountVoting();
+    const { stdin } = await renderInk(
+      <App session={session} participantId="host" displayName="Host" accessMode="open" />,
+    );
+
+    await press(stdin, 'a');
+
+    expect(session.commands.toggleCurrentVote).toHaveBeenCalledWith(ABSTAIN_SENTINEL);
+  });
+
+  it('backspace clears the vote', async () => {
+    const { session } = mountVoting();
+    const { stdin } = await renderInk(
+      <App session={session} participantId="host" displayName="Host" accessMode="open" />,
+    );
+
+    await press(stdin, '\x7f');
+
+    expect(session.commands.clearCurrentVote).toHaveBeenCalledTimes(1);
+  });
+
+  it('r reveals, s skips and d discards for the host', async () => {
+    const { session } = mountVoting();
+    const { stdin } = await renderInk(
+      <App session={session} participantId="host" displayName="Host" accessMode="open" />,
+    );
+
+    await press(stdin, 'r');
+    await press(stdin, 's');
+    await press(stdin, 'd');
+
+    expect(session.commands.revealCurrentRound).toHaveBeenCalledTimes(1);
+    expect(session.commands.skipCurrentRound).toHaveBeenCalledTimes(1);
+    expect(session.commands.discardCurrentRound).toHaveBeenCalledTimes(1);
+  });
+
+  it('w flips the caller between voter and viewer', async () => {
+    const { session } = mountVoting();
+    const { stdin } = await renderInk(
+      <App session={session} participantId="host" displayName="Host" accessMode="open" />,
+    );
+
+    await press(stdin, 'w');
+
+    expect(session.commands.toggleRole).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('App — Lobby handoff reaches the bound command', () => {
+  const ROSTER: DocProjection['participants'] = [
+    { id: 'host', displayName: 'Host', joinedAt: 0, role: 'voter' },
+    { id: 'ada', displayName: 'Ada', joinedAt: 1, role: 'voter' },
+  ];
+
+  it('h → 1 → y hands host authority to the picked participant', async () => {
+    const { session } = makeSession({
+      participants: ROSTER,
+      onlineIds: new Set(['host', 'ada']),
+    });
+    const { stdin } = await renderInk(
+      <App session={session} participantId="host" displayName="Host" accessMode="open" />,
+    );
+
+    await press(stdin, 'h');
+    await press(stdin, '1');
+    await press(stdin, 'y');
+
+    expect(session.commands.handoffHost).toHaveBeenCalledWith('ada');
+  });
+
+  it('reports the refusal reason instead of throwing when the command refuses', async () => {
+    const { session } = makeSession({
+      participants: ROSTER,
+      onlineIds: new Set(['host', 'ada']),
+    });
+    (session.commands.handoffHost as ReturnType<typeof vi.fn>).mockReturnValue({
+      applied: false,
+      reason: 'not-online',
+    });
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { stdin } = await renderInk(
+      <App session={session} participantId="host" displayName="Host" accessMode="open" />,
+    );
+
+    await press(stdin, 'h');
+    await press(stdin, '1');
+    await press(stdin, 'y');
+
+    expect(consoleError).toHaveBeenCalledWith(expect.stringContaining('Handoff failed'));
+    consoleError.mockRestore();
+  });
+});
+
+describe('App — Lobby host menu reaches endSession', () => {
+  it('m → Enter → y ends the session for everyone', async () => {
+    const { session } = makeSession();
+    const { stdin } = await renderInk(
+      <App session={session} participantId="host" displayName="Host" accessMode="open" />,
+    );
+
+    await press(stdin, 'm');
+    await press(stdin, '\r');
+    await press(stdin, 'y');
+
+    expect(session.commands.endSession).toHaveBeenCalledTimes(1);
   });
 });
