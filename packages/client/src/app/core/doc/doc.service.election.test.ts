@@ -7,7 +7,7 @@
  * rebuild, the awareness handler, `promoteHost`, and a handle whose life
  * is scoped to the session rather than to the app.
  *
- * Uses the real service (prior art: doc.service.terminal.test.ts) — the
+ * Uses the real service (prior art: doc.service.auto-reveal.test.ts) — the
  * hand-rolled harness in doc.service.test.ts cannot exercise the service's
  * own wiring. `@ionic/angular/standalone` is mocked so the ESM-only
  * `@ionic/core` chain never loads under vitest.
@@ -83,7 +83,7 @@ describe('DocService — host-election wiring', () => {
   });
 
   afterEach(() => {
-    svc.endSession();
+    svc.teardown();
   });
 
   it('starts a session-scoped driver on attach, with the live projection and own id', () => {
@@ -111,7 +111,7 @@ describe('DocService — host-election wiring', () => {
 
     // A participants-map write and nothing else — no awareness event. This is
     // the kicked-host shape (ADR-0036).
-    svc.renameParticipant('p-host', 'Renamed Host');
+    svc.commands.rename('Renamed Host');
 
     expect(notify).toHaveBeenCalled();
   });
@@ -140,7 +140,7 @@ describe('DocService — host-election wiring', () => {
     svc.createSession(SESSION);
     expect(stop).not.toHaveBeenCalled();
 
-    svc.endSession();
+    svc.teardown();
 
     expect(stop).toHaveBeenCalledOnce();
   });

@@ -2,8 +2,13 @@ import { describe, it, expect } from 'vitest';
 import * as Y from 'yjs';
 
 import { FIBONACCI_SCALE } from './doc.js';
-import { appendRound, initDoc, projectDoc } from './doc-projection.js';
-import { revealCurrentRound, skipCurrentRound, discardCurrentRound } from './round-commands.js';
+import { appendRound, initDoc, joinDoc, projectDoc } from './doc-projection.js';
+import {
+  discardCurrentRound,
+  revealCurrentRound,
+  skipCurrentRound,
+  startRound,
+} from './round-commands.js';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -30,6 +35,93 @@ function seedWithRound(): Y.Doc {
 }
 
 const FIXED = () => 1_700_000_900_000;
+
+// ---------------------------------------------------------------------------
+// startRound
+// ---------------------------------------------------------------------------
+
+describe('startRound', () => {
+  it('applies: mints an id, stamps the clock into createdAt/timerStartedAt, attributes the host', () => {
+    const doc = seedDoc();
+    const result = startRound(doc, {}, FIXED);
+    expect(result.applied).toBe(true);
+    if (!result.applied) throw new Error('unreachable');
+
+    const round = projectDoc(doc).rounds[0]!;
+    // The id in the result is the id that landed in the projection.
+    expect(round.id).toBe(result.id);
+    expect(result.at).toBe(1_700_000_900_000);
+    expect(round.createdAt).toBe(1_700_000_900_000);
+    expect(round.timerStartedAt).toBe(1_700_000_900_000);
+    // createdBy comes from settings.hostParticipantId, not a caller-supplied id —
+    // there is no actor parameter on this command at all.
+    expect(round.createdBy).toBe('p-host');
+  });
+
+  it('carries descriptor fields when supplied', () => {
+    const doc = seedDoc();
+    startRound(
+      doc,
+      { title: 'Story A', description: 'Some detail', ticketId: 'T-1', agendaItemId: 'a-1' },
+      FIXED,
+    );
+
+    const round = projectDoc(doc).rounds[0]!;
+    expect(round.title).toBe('Story A');
+    expect(round.description).toBe('Some detail');
+    expect(round.ticketId).toBe('T-1');
+    expect(round.agendaItemId).toBe('a-1');
+  });
+
+  it('leaves descriptor fields absent when omitted', () => {
+    const doc = seedDoc();
+    startRound(doc, {}, FIXED);
+
+    const round = projectDoc(doc).rounds[0]!;
+    expect(round.title).toBeUndefined();
+    expect(round.description).toBeUndefined();
+    expect(round.ticketId).toBeUndefined();
+    expect(round.agendaItemId).toBeUndefined();
+  });
+
+  it('links parentRoundId for a re-vote, without inheriting the parent’s descriptor fields', () => {
+    const doc = seedDoc();
+    appendRound(doc, { id: 'r1', createdAt: 1, createdBy: 'p-host', title: 'Parent title' });
+
+    const result = startRound(doc, { parentRoundId: 'r1' }, FIXED);
+    expect(result.applied).toBe(true);
+    if (!result.applied) throw new Error('unreachable');
+
+    const revote = projectDoc(doc).rounds[1]!;
+    expect(revote.parentRoundId).toBe('r1');
+    // Bare `startRound(doc, { parentRoundId })` does not carry the parent's
+    // title over — a caller that wants it passes it explicitly.
+    expect(revote.title).toBeUndefined();
+  });
+
+  it('refuses with no-host and writes nothing when settings.hostParticipantId is unset', () => {
+    // A joiner whose settings have not synced yet: joinDoc writes only the
+    // participant record, never settings/meta, so hostParticipantId is unset.
+    const doc = new Y.Doc();
+    joinDoc(doc, { participantId: 'p-joiner', displayName: 'Joiner', joinedAt: 1 });
+
+    const result = startRound(doc, {}, FIXED);
+    expect(result).toEqual({ applied: false, reason: 'no-host' });
+    expect(projectDoc(doc).rounds).toHaveLength(0);
+  });
+
+  it('defaults the clock to Date.now when none is injected', () => {
+    const doc = seedDoc();
+    const before = Date.now();
+    const result = startRound(doc);
+    const after = Date.now();
+
+    expect(result.applied).toBe(true);
+    if (!result.applied) throw new Error('unreachable');
+    expect(result.at).toBeGreaterThanOrEqual(before);
+    expect(result.at).toBeLessThanOrEqual(after);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // revealCurrentRound

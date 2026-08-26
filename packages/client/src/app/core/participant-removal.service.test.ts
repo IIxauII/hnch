@@ -44,7 +44,7 @@ function makeDocMock(_selfId: string) {
     _hasSessionSignal: hasSessionSignal,
     hasFirstSyncCompleted: hasFirstSyncCompletedSignal.asReadonly(),
     _hasFirstSyncCompletedSignal: hasFirstSyncCompletedSignal,
-    endSession: vi.fn(),
+    teardown: vi.fn(),
     meta: vi.fn(() => ({ roomUuid: 'test-uuid' })),
   };
 }
@@ -111,7 +111,7 @@ describe('ParticipantRemovalService', () => {
     vi.clearAllMocks();
   });
 
-  it('kick (leftAt set, removedBy !== self) triggers toast + nav + endSession exactly once', async () => {
+  it('kick (leftAt set, removedBy !== self) triggers toast + nav + teardown exactly once', async () => {
     setup();
 
     // Host kicks us
@@ -121,7 +121,7 @@ describe('ParticipantRemovalService', () => {
 
     await flushAll();
 
-    expect(docMock.endSession).toHaveBeenCalledOnce();
+    expect(docMock.teardown).toHaveBeenCalledOnce();
     expect(lastSessionMock.removeByUuid).toHaveBeenCalledWith('test-uuid');
     expect(toastMock.info).toHaveBeenCalledOnce();
     expect(toastMock.info).toHaveBeenCalledWith('Removed by host');
@@ -140,7 +140,7 @@ describe('ParticipantRemovalService', () => {
 
     await flushAll();
 
-    expect(docMock.endSession).toHaveBeenCalledOnce();
+    expect(docMock.teardown).toHaveBeenCalledOnce();
     expect(lastSessionMock.clearAll).toHaveBeenCalledOnce();
     expect(lastSessionMock.removeByUuid).not.toHaveBeenCalled();
   });
@@ -154,7 +154,7 @@ describe('ParticipantRemovalService', () => {
 
     await flushAll();
 
-    expect(docMock.endSession).not.toHaveBeenCalled();
+    expect(docMock.teardown).not.toHaveBeenCalled();
     expect(toastMock.info).not.toHaveBeenCalled();
     expect(routerMock.navigate).not.toHaveBeenCalled();
   });
@@ -177,7 +177,7 @@ describe('ParticipantRemovalService', () => {
     docMock._participantsSignal.set([{ ...kicked }]);
     await flushAll();
 
-    expect(docMock.endSession).toHaveBeenCalledOnce();
+    expect(docMock.teardown).toHaveBeenCalledOnce();
     expect(toastMock.info).toHaveBeenCalledOnce();
   });
 
@@ -192,7 +192,7 @@ describe('ParticipantRemovalService', () => {
     TestBed.inject(ParticipantRemovalService);
     await flushAll();
 
-    expect(docMock.endSession).not.toHaveBeenCalled();
+    expect(docMock.teardown).not.toHaveBeenCalled();
     expect(toastMock.info).not.toHaveBeenCalled();
     expect(routerMock.navigate).not.toHaveBeenCalled();
   });
@@ -202,7 +202,7 @@ describe('ParticipantRemovalService', () => {
     TestBed.inject(ParticipantRemovalService);
     await flushAll();
 
-    expect(docMock.endSession).not.toHaveBeenCalled();
+    expect(docMock.teardown).not.toHaveBeenCalled();
     expect(toastMock.info).not.toHaveBeenCalled();
   });
 
@@ -218,7 +218,7 @@ describe('ParticipantRemovalService', () => {
 
     await flushAll();
 
-    expect(docMock.endSession).not.toHaveBeenCalled();
+    expect(docMock.teardown).not.toHaveBeenCalled();
     expect(toastMock.info).not.toHaveBeenCalled();
     expect(routerMock.navigate).not.toHaveBeenCalled();
   });
@@ -248,7 +248,7 @@ describe('ParticipantRemovalService', () => {
     ]);
     await flushAll();
 
-    expect(docMock.endSession).toHaveBeenCalledOnce();
+    expect(docMock.teardown).toHaveBeenCalledOnce();
     expect(toastMock.info).toHaveBeenCalledWith('Removed by host');
     expect(routerMock.navigate).toHaveBeenCalledWith(['/home']);
   });

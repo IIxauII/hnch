@@ -386,7 +386,7 @@ export class JoinPage {
         : undefined;
 
       const avatarColor = this.avatarColorService.value();
-      this.docService.endSession();
+      this.docService.teardown();
       this.docService.joinSession({
         participantId,
         displayName: displayName ?? '',

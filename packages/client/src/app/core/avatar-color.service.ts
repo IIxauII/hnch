@@ -17,7 +17,7 @@ const PREF_KEY = 'hnch.avatarColor';
  * from the very first session.
  *
  * The chosen value is published into the Yjs participant record via
- * `DocService.joinSession` / `createSession` / `setAvatarColor`. This
+ * `DocService.joinSession` / `createSession` / `commands.recolor`. This
  * service owns local storage only — no doc writes.
  *
  * Pre-warmed at bootstrap by an `APP_INITIALIZER` so screens can read
@@ -61,7 +61,7 @@ export class AvatarColorService {
    * first and reject malformed input rather than writing garbage.
    *
    * Returns the value actually persisted so the caller (settings UI)
-   * can also publish it via `DocService.setAvatarColor`.
+   * can also publish it via `DocService.commands.recolor`.
    */
   async setValue(wire: string): Promise<string> {
     if (parseAvatarColor(wire) === null) {

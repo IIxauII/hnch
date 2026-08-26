@@ -86,7 +86,7 @@ describe('DocService — auto-reveal wiring', () => {
   });
 
   afterEach(() => {
-    svc.endSession();
+    svc.teardown();
   });
 
   it('starts a session-scoped driver on attach, with the live projection', () => {
@@ -111,8 +111,8 @@ describe('DocService — auto-reveal wiring', () => {
     notify.mockClear();
 
     // A vote landing is a rounds write and nothing else — no awareness event.
-    svc.startRound({}, { now: () => NOW });
-    svc.toggleCurrentVote('p-host', '5');
+    svc.commands.startRound({});
+    svc.commands.toggleCurrentVote('5');
 
     expect(notify).toHaveBeenCalled();
   });
@@ -133,7 +133,7 @@ describe('DocService — auto-reveal wiring', () => {
 
   it('revealing reaches the round and bumps the counter', () => {
     svc.createSession(SESSION);
-    svc.startRound({}, { now: () => NOW });
+    svc.commands.startRound({});
     expect(svc.autoRevealCount()).toBe(0);
 
     deps.reveal();
@@ -144,7 +144,7 @@ describe('DocService — auto-reveal wiring', () => {
 
   it('a reveal that does not apply leaves the counter alone', () => {
     svc.createSession(SESSION);
-    svc.startRound({}, { now: () => NOW });
+    svc.commands.startRound({});
 
     deps.reveal();
     expect(svc.autoRevealCount()).toBe(1);
@@ -160,7 +160,7 @@ describe('DocService — auto-reveal wiring', () => {
     svc.createSession(SESSION);
     expect(stop).not.toHaveBeenCalled();
 
-    svc.endSession();
+    svc.teardown();
 
     expect(stop).toHaveBeenCalledOnce();
   });

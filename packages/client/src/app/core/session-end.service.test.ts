@@ -34,7 +34,7 @@ function makeDocMock() {
     _metaSignal: metaSignal,
     hasSession: vi.fn(() => true),
     endingSessionLocally: vi.fn(() => false),
-    endSession: vi.fn(),
+    teardown: vi.fn(),
     participants: vi.fn(() => []),
     settings: vi.fn(() => null),
   };
@@ -88,10 +88,10 @@ describe('SessionEndService', () => {
     TestBed.resetTestingModule();
   });
 
-  it('happy path: endSession → clearAll → toast → navigate in order', async () => {
+  it('happy path: teardown → clearAll → toast → navigate in order', async () => {
     const callOrder: string[] = [];
-    docMock.endSession.mockImplementation(() => {
-      callOrder.push('endSession');
+    docMock.teardown.mockImplementation(() => {
+      callOrder.push('teardown');
     });
     lastSessionMock.clearAll.mockImplementation(async () => {
       callOrder.push('clear');
@@ -113,7 +113,7 @@ describe('SessionEndService', () => {
 
     await flushAll();
 
-    expect(callOrder).toEqual(['endSession', 'clear', 'toast', 'navigate']);
+    expect(callOrder).toEqual(['teardown', 'clear', 'toast', 'navigate']);
   });
 
   it('failure path: clearAll() rejects → warn logged, toast + navigate still called', async () => {
@@ -121,8 +121,8 @@ describe('SessionEndService', () => {
     const clearError = new Error('Storage failed');
     const callOrder: string[] = [];
 
-    docMock.endSession.mockImplementation(() => {
-      callOrder.push('endSession');
+    docMock.teardown.mockImplementation(() => {
+      callOrder.push('teardown');
     });
     lastSessionMock.clearAll.mockImplementation(async () => {
       callOrder.push('clear-attempt');

@@ -8,14 +8,19 @@ import { TestBed } from '@angular/core/testing';
 import { signal, type WritableSignal } from '@angular/core';
 import { describe, expect, it, vi } from 'vitest';
 
+import { UNBOUND_SESSION_COMMANDS } from '@hnch/shared';
 import type {
   AgendaItem,
   AgendaResult,
   CustomScale,
+  JoinRejectionReason,
   ParticipantSnapshot,
+  RosterResult,
   Round,
+  RoundResult,
   Scale,
   Screen,
+  SessionCommands,
 } from '@hnch/shared';
 
 import { buildCopyRoomCodeToast, buildResultsHeading, isParticipantViewer } from './lobby-helpers';
@@ -261,7 +266,8 @@ async function mountLobby(scale: Scale | undefined, customs: CustomScale[]) {
           agenda: signal([]).asReadonly(),
           pendingAgenda: signal([]).asReadonly(),
           nextPendingAgendaItem: signal(null).asReadonly(),
-          endSession: vi.fn(),
+          commands: UNBOUND_SESSION_COMMANDS,
+          teardown: vi.fn(),
         },
       },
       { provide: HapticService, useValue: { impactLight: vi.fn() } },
@@ -339,8 +345,8 @@ describe('LobbyPage — onRoundStart forwards ticketId', () => {
             agenda: signal([]).asReadonly(),
             pendingAgenda: signal([]).asReadonly(),
             nextPendingAgendaItem: signal(null).asReadonly(),
-            startRound,
-            endSession: vi.fn(),
+            commands: { ...UNBOUND_SESSION_COMMANDS, startRound },
+            teardown: vi.fn(),
           },
         },
         { provide: HapticService, useValue: { impactLight: vi.fn() } },
@@ -503,7 +509,8 @@ async function mountLobbySubtitleAffordance(opts: { isHost: boolean; subtitle: s
           agenda: signal([]).asReadonly(),
           pendingAgenda: signal([]).asReadonly(),
           nextPendingAgendaItem: signal(null).asReadonly(),
-          endSession: vi.fn(),
+          commands: UNBOUND_SESSION_COMMANDS,
+          teardown: vi.fn(),
           hasSession: signal(false).asReadonly(),
         },
       },
@@ -618,7 +625,8 @@ describe('LobbyPage — onCopyRoomCode', () => {
             agenda: signal([]).asReadonly(),
             pendingAgenda: signal([]).asReadonly(),
             nextPendingAgendaItem: signal(null).asReadonly(),
-            endSession: vi.fn(),
+            commands: UNBOUND_SESSION_COMMANDS,
+            teardown: vi.fn(),
           },
         },
         { provide: HapticService, useValue: { impactLight: vi.fn() } },
@@ -730,7 +738,8 @@ describe('LobbyPage — openParticipantActions', () => {
             agenda: signal([]).asReadonly(),
             pendingAgenda: signal([]).asReadonly(),
             nextPendingAgendaItem: signal(null).asReadonly(),
-            endSession: vi.fn(),
+            commands: UNBOUND_SESSION_COMMANDS,
+            teardown: vi.fn(),
           },
         },
         { provide: HapticService, useValue: { impactLight: vi.fn() } },
@@ -859,7 +868,8 @@ describe('LobbyPage — ngOnDestroy', () => {
             agenda: signal([]).asReadonly(),
             pendingAgenda: signal([]).asReadonly(),
             nextPendingAgendaItem: signal(null).asReadonly(),
-            endSession: vi.fn(),
+            commands: UNBOUND_SESSION_COMMANDS,
+            teardown: vi.fn(),
           },
         },
         { provide: HapticService, useValue: { impactLight: vi.fn() } },
@@ -959,7 +969,8 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
             rounds: signal([]).asReadonly(),
             participants: signal([]).asReadonly(),
             onlineIds: signal(new Set()).asReadonly(),
-            endSession: vi.fn(),
+            commands: UNBOUND_SESSION_COMMANDS,
+            teardown: vi.fn(),
           },
         },
         { provide: HapticService, useValue: { impactLight: vi.fn() } },
@@ -1049,7 +1060,8 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
             rounds: signal([]).asReadonly(),
             participants: signal([]).asReadonly(),
             onlineIds: signal(new Set()).asReadonly(),
-            endSession: vi.fn(),
+            commands: UNBOUND_SESSION_COMMANDS,
+            teardown: vi.fn(),
           },
         },
         { provide: HapticService, useValue: { impactLight: vi.fn() } },
@@ -1148,7 +1160,8 @@ describe('LobbyPage — terminal-round computeds (status)', () => {
             agenda: signal([]).asReadonly(),
             pendingAgenda: signal([]).asReadonly(),
             nextPendingAgendaItem: signal(null).asReadonly(),
-            endSession: vi.fn(),
+            commands: UNBOUND_SESSION_COMMANDS,
+            teardown: vi.fn(),
           },
         },
         { provide: HapticService, useValue: { impactLight: vi.fn() } },
@@ -1262,7 +1275,8 @@ describe('LobbyPage — autoNav effect (wiring)', () => {
             agenda: signal([]).asReadonly(),
             pendingAgenda: signal([]).asReadonly(),
             nextPendingAgendaItem: signal(null).asReadonly(),
-            endSession: vi.fn(),
+            commands: UNBOUND_SESSION_COMMANDS,
+            teardown: vi.fn(),
           },
         },
         { provide: HapticService, useValue: { impactLight: vi.fn() } },
@@ -1383,9 +1397,12 @@ describe('LobbyPage — agenda form refusal keeps the modal open', () => {
             agenda: signal([]).asReadonly(),
             pendingAgenda: signal([]).asReadonly(),
             nextPendingAgendaItem: signal(null).asReadonly(),
-            appendAgendaItem,
-            updateAgendaItemFields,
-            endSession: vi.fn(),
+            commands: {
+              ...UNBOUND_SESSION_COMMANDS,
+              addItem: appendAgendaItem,
+              editItem: updateAgendaItemFields,
+            },
+            teardown: vi.fn(),
           },
         },
         { provide: HapticService, useValue: { impactLight } },
@@ -1491,5 +1508,612 @@ describe('LobbyPage — agenda form refusal keeps the modal open', () => {
     internals.onAgendaFormSubmit({ title: null, ticketId: null, description: null });
 
     expect(internals.agendaFormOpen()).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// `docService.commands` call sites (#516)
+//
+// The refactor that moved the writer seam into `@hnch/shared` left these
+// handlers as thin adapters: read the bound command's typed result, fire the
+// haptic only when it applied, navigate only when it applied. That branch is
+// the whole behaviour worth pinning here — the rules themselves are covered in
+// `packages/shared`, so nothing below asserts on doc state.
+//
+// The two `startRound` refusal branches are why this section exists.
+// `startRound` refuses (rather than throwing) when the room has no host to
+// attribute the round to, and both Lobby call sites must stay put rather than
+// navigate to an Estimating page with no round on it.
+// ---------------------------------------------------------------------------
+
+/** An `ion-alert` button as the page declares it. */
+interface AlertButton {
+  text: string;
+  role?: string;
+  handler?: () => void;
+}
+
+/** The Lobby members the command tests reach through, all `protected`. */
+interface CommandInternals {
+  onToggleRole(): void;
+  onRoundStart(s: {
+    title: string | null;
+    ticketId: string | null;
+    description: string | null;
+    agendaItemId?: string;
+  }): Promise<void>;
+  onRevote(): Promise<void>;
+  onAgendaSkip(id: string): void;
+  onAgendaCancel(id: string): void;
+  onAgendaReorderUp(id: string): void;
+  onAgendaReorderDown(id: string): void;
+  confirmEndSession(): Promise<void>;
+  confirmLeave(): Promise<void>;
+  onHandoffTap(participantId: string, displayName: string): Promise<void>;
+  onRemoveTap(participantId: string, displayName: string): Promise<void>;
+}
+
+const APPLIED_ROSTER: RosterResult = { applied: true };
+const REFUSED_ROSTER: RosterResult = { applied: false, reason: 'not-host' };
+const APPLIED_AGENDA: AgendaResult = { applied: true, id: 'item-1' };
+const REFUSED_AGENDA: AgendaResult = { applied: false, reason: 'not-pending' };
+const APPLIED_ROUND: RoundResult = { applied: true, id: 'round-2', at: 1_000 };
+const REFUSED_ROUND: RoundResult = { applied: false, reason: 'no-host' };
+
+function makeRevealedRound(over: Partial<Round> = {}): Round {
+  return { id: 'round-1', status: 'revealed', createdAt: 1, votes: {}, ...over } as Round;
+}
+
+function makePendingItem(id: string, sortKey: string): AgendaItem {
+  return { id, title: id, state: 'pending', source: 'manual', sortKey, createdAt: 1 };
+}
+
+interface CommandMountOptions {
+  /** Overrides folded over `UNBOUND_SESSION_COMMANDS`. */
+  commands?: Partial<SessionCommands>;
+  /** Result of `DocService.endSessionForEveryone` — not a bound command. */
+  endSessionForEveryone?: RosterResult;
+  /** Own participant id; `null` mounts a page with no identity yet. */
+  myId?: string | null;
+  pendingAgenda?: AgendaItem[];
+  rounds?: Round[];
+  /** `meta().roomUuid`; omitted exercises the `clearAll` leave branch. */
+  roomUuid?: string;
+  lastRejection?: WritableSignal<JoinRejectionReason | null>;
+}
+
+async function mountForCommands(opts: CommandMountOptions = {}) {
+  const { Router } = await import('@angular/router');
+  const { DocService } = await import('../core/doc/doc.service');
+  const { HapticService } = await import('../core/haptic.service');
+  const { ParticipantIdService } = await import('../core/participant-id.service');
+  const { LastSessionService } = await import('../core/last-session.service');
+  const { ScalePreferenceService } = await import('../core/scale-preference.service');
+  const { SurfaceService } = await import('../core/surface.service');
+  const { ToastService } = await import('../services/toast.service');
+  const { ExportService } = await import('../core/export.service');
+  const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
+
+  const commands = { ...UNBOUND_SESSION_COMMANDS, ...opts.commands };
+  const haptic = { impactLight: vi.fn(), impactMedium: vi.fn(), impactHeavy: vi.fn() };
+  const navigate = vi.fn().mockResolvedValue(true);
+  const endSessionForEveryone = vi
+    .fn()
+    .mockReturnValue(opts.endSessionForEveryone ?? APPLIED_ROSTER);
+  const teardown = vi.fn();
+  const flushUpdates = vi.fn().mockResolvedValue(undefined);
+  const toastError = vi.fn().mockResolvedValue(undefined);
+  const lastSession = {
+    record: vi.fn(),
+    removeByUuid: vi.fn().mockResolvedValue(undefined),
+    clearAll: vi.fn().mockResolvedValue(undefined),
+  };
+  const alerts: { buttons: AlertButton[] }[] = [];
+
+  TestBed.resetTestingModule();
+  TestBed.configureTestingModule({
+    providers: [
+      { provide: Router, useValue: { navigate } },
+      {
+        provide: DocService,
+        useValue: {
+          settings: signal(undefined).asReadonly(),
+          roomCode: signal('ABC123').asReadonly(),
+          meta: signal(
+            opts.roomUuid === undefined ? undefined : { roomUuid: opts.roomUuid },
+          ).asReadonly(),
+          syncStatus: signal('disconnected').asReadonly(),
+          currentRound: signal(undefined).asReadonly(),
+          screen: signal('lobby').asReadonly(),
+          lastRejection: (opts.lastRejection ?? signal(null)).asReadonly(),
+          rounds: signal(opts.rounds ?? []).asReadonly(),
+          participants: signal([]).asReadonly(),
+          activeParticipants: signal([]).asReadonly(),
+          onlineParticipantIds: signal(new Set()).asReadonly(),
+          agenda: signal(opts.pendingAgenda ?? []).asReadonly(),
+          pendingAgenda: signal(opts.pendingAgenda ?? []).asReadonly(),
+          nextPendingAgendaItem: signal(null).asReadonly(),
+          commands,
+          endSessionForEveryone,
+          teardown,
+          flushUpdates,
+        },
+      },
+      { provide: HapticService, useValue: haptic },
+      {
+        provide: ParticipantIdService,
+        useValue: { id: signal(opts.myId === undefined ? 'me' : opts.myId).asReadonly() },
+      },
+      { provide: LastSessionService, useValue: lastSession },
+      { provide: ScalePreferenceService, useValue: { customScales: signal([]).asReadonly() } },
+      {
+        provide: SurfaceService,
+        useValue: {
+          mode: signal('mobile').asReadonly(),
+          sheetBreakpoints: () => [0, 0.5, 1],
+          initialSheetBreakpoint: () => 0.5,
+          sheetBreakpointsFull: () => [0, 0.6, 1],
+          initialSheetBreakpointFull: () => 1,
+        },
+      },
+      { provide: ToastService, useValue: { show: vi.fn(), error: toastError } },
+      { provide: ExportService, useValue: { export: vi.fn() } },
+      {
+        provide: AlertController,
+        useValue: {
+          create: vi.fn().mockImplementation((cfg: { buttons: AlertButton[] }) => {
+            alerts.push(cfg);
+            return Promise.resolve({ present: vi.fn(), dismiss: vi.fn() });
+          }),
+        },
+      },
+      {
+        provide: PopoverController,
+        useValue: {
+          create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }),
+          dismiss: vi.fn().mockResolvedValue(true),
+        },
+      },
+    ],
+  });
+
+  const { LobbyPage } = await import('./lobby.page');
+  const fixture = TestBed.createComponent(LobbyPage);
+  const page = fixture.componentInstance as unknown as CommandInternals;
+  return {
+    fixture,
+    page,
+    commands,
+    haptic,
+    navigate,
+    endSessionForEveryone,
+    teardown,
+    flushUpdates,
+    toastError,
+    lastSession,
+    alerts,
+  };
+}
+
+/** Run the handler on the last-created alert's button whose label is `text`. */
+function tapAlertButton(alerts: { buttons: AlertButton[] }[], text: string): void {
+  const cfg = alerts.at(-1);
+  expect(cfg, 'no alert was created').toBeDefined();
+  const button = cfg!.buttons.find((b) => b.text === text);
+  expect(button, `no "${text}" button on the alert`).toBeDefined();
+  button!.handler?.();
+}
+
+describe('LobbyPage — onToggleRole', () => {
+  it('fires the haptic and reaches the bound toggleRole command', async () => {
+    const toggleRole = vi.fn().mockReturnValue(APPLIED_ROSTER);
+    const { page, haptic } = await mountForCommands({ commands: { toggleRole } });
+
+    page.onToggleRole();
+
+    expect(haptic.impactLight).toHaveBeenCalledTimes(1);
+    expect(toggleRole).toHaveBeenCalledTimes(1);
+  });
+
+  it('does nothing before the participant id exists', async () => {
+    const toggleRole = vi.fn().mockReturnValue(APPLIED_ROSTER);
+    const { page, haptic } = await mountForCommands({ myId: null, commands: { toggleRole } });
+
+    page.onToggleRole();
+
+    expect(toggleRole).not.toHaveBeenCalled();
+    expect(haptic.impactLight).not.toHaveBeenCalled();
+  });
+});
+
+describe('LobbyPage — onRoundStart refusal', () => {
+  it('stays on Lobby when startRound refuses (no host to attribute the round to)', async () => {
+    const startRound = vi.fn().mockReturnValue(REFUSED_ROUND);
+    const { page, navigate } = await mountForCommands({ commands: { startRound } });
+
+    await page.onRoundStart({ title: 'Auth', ticketId: null, description: null });
+
+    expect(startRound).toHaveBeenCalledTimes(1);
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('navigates to Estimating when startRound applies', async () => {
+    const startRound = vi.fn().mockReturnValue(APPLIED_ROUND);
+    const { fixture, page, navigate } = await mountForCommands({ commands: { startRound } });
+    // The mocked ion-modal stub carries no dismiss(); give the viewChild slot
+    // one so the applied path can run to the navigation.
+    Object.defineProperty(fixture.componentInstance, 'modalRef', {
+      value: () => ({ dismiss: vi.fn().mockResolvedValue(undefined) }),
+      configurable: true,
+    });
+
+    await page.onRoundStart({ title: 'Auth', ticketId: null, description: null });
+
+    expect(navigate).toHaveBeenCalledWith(['/estimating', 'ABC123']);
+  });
+});
+
+describe('LobbyPage — onRevote', () => {
+  const PARENT = makeRevealedRound({
+    id: 'round-1',
+    title: 'Auth',
+    description: 'the login form',
+    ticketId: 'PROJ-42',
+    agendaItemId: 'item-1',
+  });
+
+  it('carries the parent descriptor and agenda item onto the re-vote', async () => {
+    const startRound = vi.fn().mockReturnValue(APPLIED_ROUND);
+    const { page, navigate } = await mountForCommands({
+      rounds: [PARENT],
+      commands: { startRound },
+    });
+
+    await page.onRevote();
+
+    expect(startRound).toHaveBeenCalledWith({
+      parentRoundId: 'round-1',
+      title: 'Auth',
+      description: 'the login form',
+      ticketId: 'PROJ-42',
+      agendaItemId: 'item-1',
+    });
+    expect(navigate).toHaveBeenCalledWith(['/estimating', 'ABC123']);
+  });
+
+  it('omits descriptor fields the parent does not carry', async () => {
+    const startRound = vi.fn().mockReturnValue(APPLIED_ROUND);
+    const { page } = await mountForCommands({
+      rounds: [makeRevealedRound()],
+      commands: { startRound },
+    });
+
+    await page.onRevote();
+
+    expect(startRound).toHaveBeenCalledWith({ parentRoundId: 'round-1' });
+  });
+
+  it('stays on Lobby when the re-vote refuses', async () => {
+    const startRound = vi.fn().mockReturnValue(REFUSED_ROUND);
+    const { page, navigate } = await mountForCommands({
+      rounds: [PARENT],
+      commands: { startRound },
+    });
+
+    await page.onRevote();
+
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when there is no revealed round to re-vote on', async () => {
+    const startRound = vi.fn().mockReturnValue(APPLIED_ROUND);
+    const { page, navigate } = await mountForCommands({ commands: { startRound } });
+
+    await page.onRevote();
+
+    expect(startRound).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+});
+
+describe('LobbyPage — agenda item acts', () => {
+  it('onAgendaSkip fires a medium haptic when the skip applies', async () => {
+    const skipItem = vi.fn().mockReturnValue(APPLIED_AGENDA);
+    const { page, haptic } = await mountForCommands({ commands: { skipItem } });
+
+    page.onAgendaSkip('item-1');
+
+    expect(skipItem).toHaveBeenCalledWith('item-1');
+    expect(haptic.impactMedium).toHaveBeenCalledTimes(1);
+  });
+
+  it('onAgendaSkip fires no haptic when the skip refuses', async () => {
+    const skipItem = vi.fn().mockReturnValue(REFUSED_AGENDA);
+    const { page, haptic } = await mountForCommands({ commands: { skipItem } });
+
+    page.onAgendaSkip('item-1');
+
+    expect(haptic.impactMedium).not.toHaveBeenCalled();
+  });
+
+  it('onAgendaCancel fires a medium haptic when the cancel applies', async () => {
+    const cancelItem = vi.fn().mockReturnValue(APPLIED_AGENDA);
+    const { page, haptic } = await mountForCommands({ commands: { cancelItem } });
+
+    page.onAgendaCancel('item-1');
+
+    expect(cancelItem).toHaveBeenCalledWith('item-1');
+    expect(haptic.impactMedium).toHaveBeenCalledTimes(1);
+  });
+
+  it('onAgendaCancel fires no haptic when the cancel refuses', async () => {
+    const cancelItem = vi.fn().mockReturnValue(REFUSED_AGENDA);
+    const { page, haptic } = await mountForCommands({ commands: { cancelItem } });
+
+    page.onAgendaCancel('item-1');
+
+    expect(haptic.impactMedium).not.toHaveBeenCalled();
+  });
+});
+
+describe('LobbyPage — agenda reorder', () => {
+  const ITEMS = [
+    makePendingItem('a', 'a0'),
+    makePendingItem('b', 'a1'),
+    makePendingItem('c', 'a2'),
+  ];
+
+  it('reorder up passes the two neighbouring sortKeys and fires a light haptic', async () => {
+    const moveItem = vi.fn().mockReturnValue(APPLIED_AGENDA);
+    const { page, haptic } = await mountForCommands({
+      pendingAgenda: ITEMS,
+      commands: { moveItem },
+    });
+
+    page.onAgendaReorderUp('c');
+
+    expect(moveItem).toHaveBeenCalledWith('c', 'a0', 'a1');
+    expect(haptic.impactLight).toHaveBeenCalledTimes(1);
+  });
+
+  it('reorder up to the head passes a null lower bound', async () => {
+    const moveItem = vi.fn().mockReturnValue(APPLIED_AGENDA);
+    const { page } = await mountForCommands({ pendingAgenda: ITEMS, commands: { moveItem } });
+
+    page.onAgendaReorderUp('b');
+
+    expect(moveItem).toHaveBeenCalledWith('b', null, 'a0');
+  });
+
+  it('reorder up is a no-op for the first item', async () => {
+    const moveItem = vi.fn().mockReturnValue(APPLIED_AGENDA);
+    const { page } = await mountForCommands({ pendingAgenda: ITEMS, commands: { moveItem } });
+
+    page.onAgendaReorderUp('a');
+
+    expect(moveItem).not.toHaveBeenCalled();
+  });
+
+  it('reorder down passes the two neighbouring sortKeys and fires a light haptic', async () => {
+    const moveItem = vi.fn().mockReturnValue(APPLIED_AGENDA);
+    const { page, haptic } = await mountForCommands({
+      pendingAgenda: ITEMS,
+      commands: { moveItem },
+    });
+
+    page.onAgendaReorderDown('a');
+
+    expect(moveItem).toHaveBeenCalledWith('a', 'a1', 'a2');
+    expect(haptic.impactLight).toHaveBeenCalledTimes(1);
+  });
+
+  it('reorder down to the tail passes a null upper bound', async () => {
+    const moveItem = vi.fn().mockReturnValue(APPLIED_AGENDA);
+    const { page } = await mountForCommands({ pendingAgenda: ITEMS, commands: { moveItem } });
+
+    page.onAgendaReorderDown('b');
+
+    expect(moveItem).toHaveBeenCalledWith('b', 'a2', null);
+  });
+
+  it('reorder down is a no-op for the last item', async () => {
+    const moveItem = vi.fn().mockReturnValue(APPLIED_AGENDA);
+    const { page } = await mountForCommands({ pendingAgenda: ITEMS, commands: { moveItem } });
+
+    page.onAgendaReorderDown('c');
+
+    expect(moveItem).not.toHaveBeenCalled();
+  });
+
+  it('reorder fires no haptic when the move refuses', async () => {
+    const moveItem = vi.fn().mockReturnValue(REFUSED_AGENDA);
+    const { page, haptic } = await mountForCommands({
+      pendingAgenda: ITEMS,
+      commands: { moveItem },
+    });
+
+    page.onAgendaReorderDown('a');
+
+    expect(haptic.impactLight).not.toHaveBeenCalled();
+  });
+});
+
+describe('LobbyPage — confirmEndSession', () => {
+  it('fires a heavy haptic when the host gate lets the end through', async () => {
+    const { page, haptic, endSessionForEveryone, alerts } = await mountForCommands({
+      endSessionForEveryone: APPLIED_ROSTER,
+    });
+
+    await page.confirmEndSession();
+    tapAlertButton(alerts, 'End session');
+
+    expect(endSessionForEveryone).toHaveBeenCalledTimes(1);
+    expect(haptic.impactHeavy).toHaveBeenCalledTimes(1);
+  });
+
+  it('fires no haptic when the shared host gate refuses underneath the UI gate', async () => {
+    const { page, haptic, alerts } = await mountForCommands({
+      endSessionForEveryone: REFUSED_ROSTER,
+    });
+
+    await page.confirmEndSession();
+    tapAlertButton(alerts, 'End session');
+
+    expect(haptic.impactHeavy).not.toHaveBeenCalled();
+  });
+
+  it('does not reach the command before the participant id exists', async () => {
+    const { page, endSessionForEveryone, alerts } = await mountForCommands({ myId: null });
+
+    await page.confirmEndSession();
+    tapAlertButton(alerts, 'End session');
+
+    expect(endSessionForEveryone).not.toHaveBeenCalled();
+  });
+});
+
+describe('LobbyPage — leaveSession', () => {
+  it('writes the soft-delete, flushes, tears down, and drops the cached entry', async () => {
+    const leave = vi.fn().mockReturnValue(APPLIED_ROSTER);
+    const { page, teardown, flushUpdates, lastSession, navigate, alerts, haptic } =
+      await mountForCommands({ roomUuid: 'uuid-1', commands: { leave } });
+
+    await page.confirmLeave();
+    tapAlertButton(alerts, 'Leave');
+    await vi.waitFor(() => expect(navigate).toHaveBeenCalled());
+
+    expect(haptic.impactHeavy).toHaveBeenCalledTimes(1);
+    expect(leave).toHaveBeenCalledTimes(1);
+    expect(flushUpdates).toHaveBeenCalledTimes(1);
+    expect(teardown).toHaveBeenCalledTimes(1);
+    expect(lastSession.removeByUuid).toHaveBeenCalledWith('uuid-1');
+    expect(lastSession.clearAll).not.toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith(['/home']);
+  });
+
+  it('clears every cached entry when the doc carries no roomUuid', async () => {
+    const { page, lastSession, navigate, alerts } = await mountForCommands({
+      commands: { leave: vi.fn().mockReturnValue(APPLIED_ROSTER) },
+    });
+
+    await page.confirmLeave();
+    tapAlertButton(alerts, 'Leave');
+    await vi.waitFor(() => expect(navigate).toHaveBeenCalled());
+
+    expect(lastSession.clearAll).toHaveBeenCalledTimes(1);
+    expect(lastSession.removeByUuid).not.toHaveBeenCalled();
+  });
+
+  it('skips the soft-delete and the flush when there is no participant id', async () => {
+    const leave = vi.fn().mockReturnValue(APPLIED_ROSTER);
+    const { page, teardown, flushUpdates, navigate, alerts } = await mountForCommands({
+      myId: null,
+      commands: { leave },
+    });
+
+    await page.confirmLeave();
+    tapAlertButton(alerts, 'Leave');
+    await vi.waitFor(() => expect(navigate).toHaveBeenCalled());
+
+    expect(leave).not.toHaveBeenCalled();
+    expect(flushUpdates).not.toHaveBeenCalled();
+    expect(teardown).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('LobbyPage — onHandoffTap', () => {
+  it('fires a medium haptic when the handoff applies', async () => {
+    const handoffHost = vi.fn().mockReturnValue(APPLIED_ROSTER);
+    const { page, haptic, alerts } = await mountForCommands({ commands: { handoffHost } });
+
+    await page.onHandoffTap('them', 'Ada');
+    tapAlertButton(alerts, 'Confirm');
+
+    expect(handoffHost).toHaveBeenCalledWith('them');
+    expect(haptic.impactMedium).toHaveBeenCalledTimes(1);
+  });
+
+  it('fires no haptic when the target is offline and the command refuses', async () => {
+    const handoffHost = vi
+      .fn()
+      .mockReturnValue({ applied: false, reason: 'not-online' } satisfies RosterResult);
+    const { page, haptic, alerts } = await mountForCommands({ commands: { handoffHost } });
+
+    await page.onHandoffTap('them', 'Ada');
+    tapAlertButton(alerts, 'Confirm');
+
+    expect(haptic.impactMedium).not.toHaveBeenCalled();
+  });
+
+  it('does not reach the command before the participant id exists', async () => {
+    const handoffHost = vi.fn().mockReturnValue(APPLIED_ROSTER);
+    const { page, alerts } = await mountForCommands({ myId: null, commands: { handoffHost } });
+
+    await page.onHandoffTap('them', 'Ada');
+    tapAlertButton(alerts, 'Confirm');
+
+    expect(handoffHost).not.toHaveBeenCalled();
+  });
+});
+
+describe('LobbyPage — onRemoveTap', () => {
+  it('fires a heavy haptic when the kick applies', async () => {
+    const kick = vi.fn().mockReturnValue(APPLIED_ROSTER);
+    const { page, haptic, alerts } = await mountForCommands({ commands: { kick } });
+
+    await page.onRemoveTap('them', 'Ada');
+    tapAlertButton(alerts, 'Remove');
+
+    expect(kick).toHaveBeenCalledWith('them');
+    expect(haptic.impactHeavy).toHaveBeenCalledTimes(1);
+  });
+
+  it('fires no haptic when the host gate refuses the kick', async () => {
+    const kick = vi.fn().mockReturnValue(REFUSED_ROSTER);
+    const { page, haptic, alerts } = await mountForCommands({ commands: { kick } });
+
+    await page.onRemoveTap('them', 'Ada');
+    tapAlertButton(alerts, 'Remove');
+
+    expect(haptic.impactHeavy).not.toHaveBeenCalled();
+  });
+
+  it('does not reach the command before the participant id exists', async () => {
+    const kick = vi.fn().mockReturnValue(APPLIED_ROSTER);
+    const { page, alerts } = await mountForCommands({ myId: null, commands: { kick } });
+
+    await page.onRemoveTap('them', 'Ada');
+    tapAlertButton(alerts, 'Remove');
+
+    expect(kick).not.toHaveBeenCalled();
+  });
+});
+
+describe('LobbyPage — WS rejection while on Lobby', () => {
+  it('tears the session down, toasts, and routes back to Join on wrong-password', async () => {
+    const lastRejection = signal<JoinRejectionReason | null>(null);
+    const { fixture, teardown, toastError, navigate } = await mountForCommands({ lastRejection });
+    fixture.detectChanges();
+
+    lastRejection.set('wrong-password');
+    fixture.detectChanges();
+
+    await vi.waitFor(() => expect(navigate).toHaveBeenCalled());
+    expect(teardown).toHaveBeenCalledTimes(1);
+    expect(toastError).toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith(['/join'], { queryParams: { code: 'ABC123' } });
+  });
+
+  it('routes Home for a rejection that is not a password mismatch', async () => {
+    const lastRejection = signal<JoinRejectionReason | null>(null);
+    const { fixture, teardown, navigate } = await mountForCommands({ lastRejection });
+    fixture.detectChanges();
+
+    lastRejection.set('room-full');
+    fixture.detectChanges();
+
+    await vi.waitFor(() => expect(navigate).toHaveBeenCalled());
+    expect(teardown).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledWith(['/home']);
   });
 });

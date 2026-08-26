@@ -32,7 +32,7 @@ export class ParticipantRemovalService {
    * Previous `leftAt` value from the last effect run, using a sentinel
    * to distinguish "never observed" from "observed as undefined".
    *
-   * - `'unset'` — the effect has never run for this session (or reset after endSession).
+   * - `'unset'` — the effect has never run for this session (or reset after teardown).
    * - `undefined` — last emission had `leftAt === undefined` (no kick recorded).
    * - `number` — last emission had `leftAt` set to this timestamp.
    *
@@ -109,7 +109,7 @@ export class ParticipantRemovalService {
     if (!this.docService.hasSession()) return;
 
     const uuid = this.docService.meta()?.roomUuid;
-    this.docService.endSession();
+    this.docService.teardown();
 
     try {
       if (uuid) {

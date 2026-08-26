@@ -8,47 +8,29 @@ import {
 } from '@angular/core';
 import {
   activeRound as activeRoundFromProjection,
-  addItem as addAgendaItemCommand,
   AWARENESS_PARTICIPANT_ID_FIELD,
-  appendRound as appendRoundY,
-  cancelItem as cancelAgendaItemCommand,
-  clearCurrentVote as clearCurrentVoteCommand,
+  bindSessionCommands,
   currentRound as currentRoundFromProjection,
-  discardCurrentRound as discardCurrentRoundCommand,
   DOC_AGENDA_KEY,
   DOC_META_KEY,
   DOC_PARTICIPANTS_KEY,
   DOC_ROUNDS_KEY,
   DOC_SETTINGS_KEY,
-  editItem as editAgendaItemCommand,
-  endSession as endSessionCommand,
-  handoffHost as handoffHostCommand,
   initDoc,
   isActiveParticipant,
   joinDoc,
-  kick as kickCommand,
-  leave as leaveCommand,
-  moveItem as moveAgendaItemCommand,
   nextPendingAgendaItem as nextPendingAgendaItemFromProjection,
   onlineIdsFrom,
   patchSettings,
   projectDoc,
   patchRoundDescriptor as patchRoundDescriptorY,
   promoteHost as promoteHostCommand,
-  recolor as recolorCommand,
   rejoin as rejoinRoster,
-  rename as renameCommand,
-  revealCurrentRound as revealCurrentRoundCommand,
   screenFor,
-  skipItem as skipAgendaItemCommand,
   startAutoReveal,
   startElection,
-  skipCurrentRound as skipCurrentRoundCommand,
-  toggleCurrentVote as toggleCurrentVoteCommand,
-  toggleRole as toggleRoleCommand,
-  type AddItemInit,
+  UNBOUND_SESSION_COMMANDS,
   type AgendaItem,
-  type AgendaResult,
   type DocProjection,
   type AutoRevealHandle,
   type ElectionHandle,
@@ -60,12 +42,10 @@ import {
   type Round,
   type Scale,
   type Screen,
-  type EditItemPatch,
   type PublicSettingsPatch,
   type RosterResult,
+  type SessionCommands,
   type Settings,
-  type TerminalResult,
-  type VoteResult,
 } from '@hnch/shared';
 import { Capacitor } from '@capacitor/core';
 import { Awareness } from 'y-protocols/awareness';
@@ -115,19 +95,6 @@ export interface CreateSessionInit {
 }
 
 /**
- * Shape of `startRound()`'s input. `parentRoundId` is set on re-votes
- * (ADR-0013); `agendaItemId` is set when started from an agenda item (ADR-0042).
- */
-export interface StartRoundInit {
-  readonly title?: string;
-  readonly description?: string;
-  readonly ticketId?: string;
-  readonly parentRoundId?: string;
-  /** ID of the agenda item this round was started from (ADR-0042). */
-  readonly agendaItemId?: string;
-}
-
-/**
  * Options for {@link DocService.connect}. `httpBaseUrl` defaults to the
  * resolved relay URL (override, else environment); tests may override it.
  * `relay-client` derives the WebSocket URL from it.
@@ -167,6 +134,13 @@ export class DocService {
   // ---------------------------------------------------------------------------
 
   private doc: Y.Doc | null = null;
+  /**
+   * The writer seam bound to the live session, or `null` before {@link attach}
+   * and after {@link detach}. Backs the public {@link commands} getter — never
+   * read directly outside it, so a stale set bound to a destroyed doc can
+   * never leak past the null check.
+   */
+  private boundCommands: SessionCommands | null = null;
   private persistence: IndexeddbPersistence | null = null;
   private observers: Array<() => void> = [];
   private readonly projection: WritableSignal<DocProjection | null> = signal<DocProjection | null>(
@@ -193,7 +167,7 @@ export class DocService {
   private readonly reconnectingSignal: WritableSignal<boolean> = signal(false);
   /**
    * Flips to true after the relay sends its first sync_step_2 and y-websocket
-   * fires `onSynced`. Resets on `endSession`. Used by
+   * fires `onSynced`. Resets on `teardown`. Used by
    * `ParticipantRemovalService` to gate kick handling: any `leftAt` observed
    * before this flips came in via the snapshot apply (prior kick), not a live
    * host action on this connection.
@@ -360,7 +334,7 @@ export class DocService {
 
   /**
    * True once the relay has completed its first sync (y-websocket `onSynced`).
-   * Resets to false on `endSession`. Consumers should not act on `leftAt`
+   * Resets to false on `teardown`. Consumers should not act on `leftAt`
    * transitions observed before this is true — those came from the snapshot
    * apply, not a live host action on this connection (ADR-0036 §6).
    */
@@ -409,12 +383,32 @@ export class DocService {
   });
 
   // ---------------------------------------------------------------------------
+  // Writer seam (#516)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * The whole UI-facing writer seam — every act a peer can take against the
+   * live session, bound once in {@link attach}. `UNBOUND_SESSION_COMMANDS`
+   * before a session exists and after {@link teardown}, so no consumer
+   * branches on `hasSession()` to reach a writer; every member just refuses
+   * honestly instead.
+   *
+   * A getter rather than a signal: writers are not reactive state. Backed by
+   * {@link boundCommands} rather than exposed directly, so a second session
+   * rebinding (or {@link teardown} clearing it) can never leave a stale set —
+   * bound to a doc that no longer exists — reachable from here.
+   */
+  get commands(): SessionCommands {
+    return this.boundCommands ?? UNBOUND_SESSION_COMMANDS;
+  }
+
+  // ---------------------------------------------------------------------------
   // Lifecycle
   // ---------------------------------------------------------------------------
 
   /**
    * Seed a fresh `Y.Doc` with the provided init. Throws if a session
-   * is already live — callers must call {@link endSession} first to
+   * is already live — callers must call {@link teardown} first to
    * keep the single-session invariant explicit.
    *
    * Returns the room UUID (either minted here or passed in).
@@ -444,7 +438,7 @@ export class DocService {
     // evaluation reads the online set. Seeding the local peer beforehand means
     // the driver never sees a present host as absent (ADR-0010).
     this.initAwareness(doc, init.participantId);
-    this.attach(doc);
+    this.attach(doc, init.participantId);
     this.roomCodeSignal.set(init.roomCode ?? null);
     return roomUuid;
   }
@@ -476,7 +470,7 @@ export class DocService {
 
     // Awareness before attach — see the note in `createSession`.
     this.initAwareness(doc, init.participantId);
-    this.attach(doc);
+    this.attach(doc, init.participantId);
     this.roomCodeSignal.set(init.roomCode ?? null);
     // Store so connectWithPersistence can schedule the post-sync leftAt clear
     // (ADR-0036 §6 LWW fix — delete must run after relay snapshot merges).
@@ -589,7 +583,7 @@ export class DocService {
   /**
    * Close the sync connection without tearing down the session. Used
    * when the client wants to drop the socket but keep viewing local
-   * state; {@link endSession} calls this automatically.
+   * state; {@link teardown} calls this automatically.
    */
   disconnect(): void {
     if (this.provider === null) {
@@ -607,8 +601,16 @@ export class DocService {
    * Tear down the active session. Unobserves all observers, destroys
    * the `Y.Doc`, and nulls the projection so `hasSession()` flips back
    * to `false`. Idempotent — safe to call when no session is active.
+   *
+   * Named apart from the roster command it shares a session with — this
+   * means the opposite kind of act. `endSession` (via {@link commands}) ends
+   * the session *for everyone*, a write every peer observes; `teardown`
+   * destroys only the local doc and writes nothing. `detach` drops
+   * {@link boundCommands} as part of this, so a call that lands after
+   * teardown refuses through {@link UNBOUND_SESSION_COMMANDS} instead of
+   * reaching a destroyed doc (#516).
    */
-  endSession(): void {
+  teardown(): void {
     this.disconnect();
     this.persistence?.destroy();
     this.persistence = null;
@@ -625,231 +627,46 @@ export class DocService {
   }
 
   // ---------------------------------------------------------------------------
-  // Mutations (delegate straight to the pure helpers)
+  // Mutations carrying client behaviour (#516)
   // ---------------------------------------------------------------------------
+  //
+  // Everything else a peer can write goes through `commands`, bound once in
+  // `attach`. The three members below stay named because each carries
+  // behaviour beyond a `requireDoc` — see each doc comment for why.
 
   /**
    * Patch session settings. `PublicSettingsPatch` excludes
    * `hostParticipantId` by construction — host changes go through
-   * {@link handoffHost} / the election adapter's `promoteHost`, which is
-   * where the rules live (#507).
+   * `commands.handoffHost` / the election adapter's `promoteHost`, which is
+   * where the rules live (#507). Its own narrowed parameter type is its
+   * gate, which is why it stays a forward rather than joining the bound set.
    */
   updateSettings(patch: PublicSettingsPatch): void {
     patchSettings(this.requireDoc('updateSettings'), patch);
   }
 
   /**
-   * Rename a participant, preserving role, avatar color and `joinedAt`.
-   * Delegates to the shared roster command.
+   * Patch a round's `title` / `description`. Not a command — there is no
+   * rule to apply, so it stays a plain forward alongside `updateSettings`.
    */
-  renameParticipant(participantId: string, displayName: string): RosterResult {
-    return renameCommand(this.requireDoc('renameParticipant'), participantId, displayName);
-  }
-
-  /**
-   * Write the caller's chosen avatar color to their participant record
-   * (ADR-0043). Caller is responsible for sanitizing via
-   * `parseAvatarColor` first — bad input is the writer's bug, not the
-   * reader's problem.
-   *
-   * Unlike its siblings this does **not** `requireDoc`: the Settings page is
-   * reachable with no session, and picking a colour there must persist the
-   * preference locally rather than throw. That case reports the same
-   * `'not-found'` the command itself returns for an absent participant — with
-   * no doc there is likewise no record to recolour, so the two collapse
-   * honestly onto one reason.
-   */
-  setAvatarColor(participantId: string, color: string): RosterResult {
-    if (this.doc === null) return { applied: false, reason: 'not-found' };
-    return recolorCommand(this.doc, participantId, color);
-  }
-
-  /** Flip a participant's role between `'voter'` and `'viewer'`. */
-  toggleRole(participantId: string): RosterResult {
-    return toggleRoleCommand(this.requireDoc('toggleRole'), participantId);
-  }
-
-  /**
-   * Append a round to the session. `scale` is inherited from
-   * `settings.defaultScale` inside the pure helper; we only need to
-   * decide `id`, `createdBy`, `createdAt`. `createdBy` comes from the
-   * current `hostParticipantId` — in Phase 2 that's always you, but
-   * this keeps the attribution honest once Phase 3 adds joiners.
-   */
-  startRound(descriptor: StartRoundInit, opts: { now?: () => number } = {}): string {
-    const doc = this.requireDoc('startRound');
-    const settings = this.settings();
-    const createdBy = settings?.hostParticipantId;
-    if (!createdBy) {
-      throw new Error('DocService.startRound: no hostParticipantId in settings');
-    }
-    const id = crypto.randomUUID();
-    const now = opts.now ?? (() => Date.now());
-    const timestamp = now();
-    appendRoundY(doc, {
-      id,
-      createdAt: timestamp,
-      createdBy,
-      ...(descriptor.title !== undefined && { title: descriptor.title }),
-      ...(descriptor.description !== undefined && {
-        description: descriptor.description,
-      }),
-      ...(descriptor.ticketId !== undefined && { ticketId: descriptor.ticketId }),
-      ...(descriptor.parentRoundId !== undefined && {
-        parentRoundId: descriptor.parentRoundId,
-      }),
-      ...(descriptor.agendaItemId !== undefined && {
-        agendaItemId: descriptor.agendaItemId,
-      }),
-    });
-    return id;
-  }
-
   updateRoundDescriptor(roundId: string, fields: { title?: string; description?: string }): void {
     patchRoundDescriptorY(this.requireDoc('updateRoundDescriptor'), roundId, fields);
   }
 
   /**
-   * Cast, change, or clear the caller's vote on the active round via the
-   * shared `vote-commands` seam. No round id — the command selects
-   * `activeRound` internally and applies the toggle rule (re-selecting the
-   * card already on record clears it) plus the voter-role gate. Returns a
-   * `VoteResult` so callers branch on `applied` (e.g. suppress haptics on a
-   * refusal) instead of re-spelling the gate.
-   */
-  toggleCurrentVote(participantId: string, card: string): VoteResult {
-    return toggleCurrentVoteCommand(this.requireDoc('toggleCurrentVote'), participantId, card);
-  }
-
-  /**
-   * Clear the caller's vote on the active round via the shared command.
-   * Gated on the active round only — not on voter role — so a participant
-   * who flips voter → viewer mid-round can still withdraw a vote already
-   * sitting in the tally. See `toggleCurrentVote`.
-   *
-   * **No production caller yet, deliberately.** The Estimating page renders
-   * no card grid and no abstain button for a viewer, so the role-flip escape
-   * this exemption exists for is not reachable from the UI today; the CLI's
-   * only clear path (Backspace/Delete in `CardPicker`) is likewise hidden
-   * from viewers. This is the seam a future "withdraw my vote" affordance
-   * binds to — keep it rather than inlining `toggleCurrentVote` at that
-   * point, since clearing must stay ungated on role.
-   */
-  clearCurrentVote(participantId: string): VoteResult {
-    return clearCurrentVoteCommand(this.requireDoc('clearCurrentVote'), participantId);
-  }
-
-  /**
-   * Reveal the current round via the shared `round-commands` seam. No-arg —
-   * the command selects `currentRound` and applies the terminal-legality gate
-   * internally. Returns a `TerminalResult` so callers branch on `applied`
-   * (e.g. suppress haptics on a lost race) instead of re-spelling the gate.
-   */
-  revealCurrentRound(opts: { now?: () => number } = {}): TerminalResult {
-    const clock = opts.now ?? Date.now;
-    return revealCurrentRoundCommand(this.requireDoc('revealCurrentRound'), clock);
-  }
-
-  /** Skip the current round via the shared command. See `revealCurrentRound`. */
-  skipCurrentRound(): TerminalResult {
-    return skipCurrentRoundCommand(this.requireDoc('skipCurrentRound'));
-  }
-
-  /**
-   * Host back-chevron discard of the current round. Writes `discardedAt` +
-   * `discardedBy` — distinct from reveal/skip, leaves any linked agenda item
-   * `pending` and excludes the round from `currentRound()` and history
-   * projections. UI must gate on `isHost()`; the command does not enforce
-   * host authority (matches the reveal/skip surface).
-   */
-  discardCurrentRound(discardedBy: string): TerminalResult {
-    return discardCurrentRoundCommand(this.requireDoc('discardCurrentRound'), discardedBy);
-  }
-
-  /**
-   * Hand host authority to another participant. The shared command applies
-   * the host gate and the online-target rule; awareness is this service's to
-   * supply, so the page passes ids only.
-   */
-  handoffHost(actorId: string, targetId: string): RosterResult {
-    return handoffHostCommand(
-      this.requireDoc('handoffHost'),
-      actorId,
-      targetId,
-      this.onlineParticipantIdsSignal(),
-    );
-  }
-
-  /**
    * Write `sessionEndedAt` to meta, broadcasting session termination to all
-   * peers. Sets `endingSessionLocally` so `SessionEndService` can distinguish
-   * this local trigger from a remote one — but only once the shared host gate
-   * has actually applied the write, or a refused mis-tap would leave the
-   * end-session banner armed for a session that is still running.
+   * peers, via `commands.endSession()`. Sets `endingSessionLocally` so
+   * `SessionEndService` can distinguish this local trigger from a remote one
+   * — but only once the shared host gate has actually applied the write, or
+   * a refused mis-tap would leave the end-session banner armed for a session
+   * that is still running. This is the one act that is genuinely not a
+   * forward, which is why it keeps its name rather than folding into
+   * `commands`.
    */
-  endSessionForEveryone(actorId: string): RosterResult {
-    const result = endSessionCommand(this.requireDoc('endSessionForEveryone'), actorId);
+  endSessionForEveryone(): RosterResult {
+    const result = this.commands.endSession();
     if (result.applied) this.endingSessionLocally.set(true);
     return result;
-  }
-
-  /**
-   * Voluntary leave — soft-deletes own participant record (ADR-0036).
-   * Call before tearing down the local session so the mutation reaches
-   * peers before the WS closes.
-   */
-  leaveSession(selfId: string): RosterResult {
-    return leaveCommand(this.requireDoc('leaveSession'), selfId);
-  }
-
-  /**
-   * Host kick — soft-deletes the target participant's record (ADR-0036).
-   * Refuses a non-host, a self-target (the leave path is the route), and a
-   * missing target. UI still gates on `isHost()`; this is the floor under it.
-   */
-  removeParticipant(hostId: string, targetId: string): RosterResult {
-    return kickCommand(this.requireDoc('removeParticipant'), hostId, targetId);
-  }
-
-  // ---------------------------------------------------------------------------
-  // Agenda mutations (ADR-0042)
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Append a new agenda item. The command stamps `createdAt` and validates
-   * that at least one of `{title, ticketId}` is non-empty; the result carries
-   * the new item's id. UI gates on `isHost()` — agenda commands carry no
-   * authority rule of their own.
-   */
-  appendAgendaItem(init: AddItemInit): AgendaResult {
-    return addAgendaItemCommand(this.requireDoc('appendAgendaItem'), init);
-  }
-
-  /**
-   * Patch editable fields (title, ticketId, description) on an agenda item.
-   * Refuses rather than throwing when a peer cancelled or skipped the item
-   * first — callers keep their edit form open on `applied: false`.
-   */
-  updateAgendaItemFields(id: string, patch: EditItemPatch): AgendaResult {
-    return editAgendaItemCommand(this.requireDoc('updateAgendaItemFields'), id, patch);
-  }
-
-  /** Soft-delete an agenda item (state → 'cancelled'). */
-  cancelAgendaItem(id: string): AgendaResult {
-    return cancelAgendaItemCommand(this.requireDoc('cancelAgendaItem'), id);
-  }
-
-  /** Skip an agenda item without creating a round (state → 'skipped'). */
-  skipAgendaItem(id: string): AgendaResult {
-    return skipAgendaItemCommand(this.requireDoc('skipAgendaItem'), id);
-  }
-
-  /**
-   * Reorder a pending agenda item. `before` / `after` are the sortKeys of the
-   * adjacent items; pass null/undefined for the list boundaries.
-   */
-  reorderAgendaItem(id: string, before?: string | null, after?: string | null): AgendaResult {
-    return moveAgendaItemCommand(this.requireDoc('reorderAgendaItem'), id, before, after);
   }
 
   // ---------------------------------------------------------------------------
@@ -862,8 +679,15 @@ export class DocService {
    * granularity" risk in plan §7) for why that's acceptable at Phase 2
    * scale.
    */
-  private attach(doc: Y.Doc): void {
+  private attach(doc: Y.Doc, participantId: string): void {
     this.doc = doc;
+    // Bind the writer seam before the drivers start — the auto-reveal
+    // driver's `reveal()` adapter reaches it immediately below (#516).
+    this.boundCommands = bindSessionCommands({
+      doc,
+      participantId,
+      onlineIds: () => this.onlineParticipantIdsSignal(),
+    });
     this.rebuildProjection();
     this.startElectionDriver();
     this.startAutoRevealDriver();
@@ -897,6 +721,10 @@ export class DocService {
     this.autoRevealHandle = null;
     for (const off of this.observers) off();
     this.observers = [];
+    // Drop the bound set so a late call after leaving refuses through
+    // `UNBOUND_SESSION_COMMANDS` rather than writing to a destroyed doc; a
+    // second session rebinds a fresh set in `attach` (#516).
+    this.boundCommands = null;
   }
 
   private rebuildProjection(): void {
@@ -951,7 +779,7 @@ export class DocService {
       reveal: () => {
         // Bump only when the write actually landed — a lost race no-ops, and
         // the Estimating page keys its haptic off this counter.
-        if (this.revealCurrentRound().applied) {
+        if (this.commands.revealCurrentRound().applied) {
           this.autoRevealCountSignal.update((n) => n + 1);
         }
       },

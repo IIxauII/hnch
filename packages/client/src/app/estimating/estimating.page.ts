@@ -648,16 +648,14 @@ export class EstimatingPage {
   });
 
   protected onToggleRole(): void {
-    const id = this.myId();
-    if (!id) return;
+    if (!this.myId()) return;
     this.haptic.impactLight();
-    this.docService.toggleRole(id);
+    this.docService.commands.toggleRole();
   }
 
   protected onCardTap(card: string): void {
-    const id = this.myId();
-    if (!id) return;
-    if (!this.docService.toggleCurrentVote(id, card).applied) return;
+    if (!this.myId()) return;
+    if (!this.docService.commands.toggleCurrentVote(card).applied) return;
     this.haptic.impactLight();
   }
 
@@ -673,7 +671,6 @@ export class EstimatingPage {
   @HostListener('document:keydown', ['$event'])
   protected onDocumentKeydown(event: KeyboardEvent): void {
     const round = this.currentRound();
-    const id = this.myId();
     const gateOk = shouldHandleKeyEvent({
       defaultPrevented: event.defaultPrevented,
       activeElement: document.activeElement,
@@ -683,7 +680,7 @@ export class EstimatingPage {
       roundActive: !!round && canEnterTerminal(round.status),
       isViewer: this.isViewer(),
     });
-    if (!gateOk || !round || !id) return;
+    if (!gateOk || !round || !this.myId()) return;
 
     const active = document.activeElement;
     const cardRefs = this.cardEls?.toArray() ?? [];
@@ -714,7 +711,7 @@ export class EstimatingPage {
 
     switch (action.kind) {
       case 'cast':
-        if (!this.docService.toggleCurrentVote(id, action.card).applied) return;
+        if (!this.docService.commands.toggleCurrentVote(action.card).applied) return;
         this.focusedIndex.set(action.index);
         this.haptic.impactLight();
         queueMicrotask(() => this.focusCardAt(action.index));
@@ -733,14 +730,13 @@ export class EstimatingPage {
   }
 
   protected onAbstain(): void {
-    const id = this.myId();
-    if (!id) return;
-    if (!this.docService.toggleCurrentVote(id, ABSTAIN_SENTINEL).applied) return;
+    if (!this.myId()) return;
+    if (!this.docService.commands.toggleCurrentVote(ABSTAIN_SENTINEL).applied) return;
     this.haptic.impactLight();
   }
 
   protected async onReveal(): Promise<void> {
-    if (!this.docService.revealCurrentRound().applied) return;
+    if (!this.docService.commands.revealCurrentRound().applied) return;
     this.haptic.impactMedium();
     const code = this.docService.roomCode();
     assertRoomCode(code, 'estimating.onReveal');
@@ -761,8 +757,7 @@ export class EstimatingPage {
   protected softExit(): void {
     const code = this.docService.roomCode();
     assertRoomCode(code, 'estimating.softExit');
-    const myId = this.myId();
-    if (this.isHost() && myId && this.docService.discardCurrentRound(myId).applied) {
+    if (this.isHost() && this.docService.commands.discardCurrentRound().applied) {
       this.haptic.impactLight();
     }
     void this.router.navigate(['/lobby', code]);
@@ -841,15 +836,14 @@ export class EstimatingPage {
   }
 
   private async leaveSession(): Promise<void> {
-    const selfId = this.myId();
-    if (selfId) {
+    if (this.myId()) {
       // Write the soft-delete before disconnecting so peers see the removal (ADR-0036).
-      this.docService.leaveSession(selfId);
+      this.docService.commands.leave();
       // Flush the Yjs update through the WebSocket before closing (best-effort, 500 ms cap).
       await this.docService.flushUpdates();
     }
     const uuid = this.docService.meta()?.roomUuid;
-    this.docService.endSession();
+    this.docService.teardown();
     // Destructive leave — remove entry so Jump-back-in banner does not reappear (ADR-0044).
     if (uuid) {
       await this.lastSessionService.removeByUuid(uuid);
@@ -860,7 +854,7 @@ export class EstimatingPage {
   }
 
   private onSkip(): void {
-    if (this.docService.skipCurrentRound().applied) {
+    if (this.docService.commands.skipCurrentRound().applied) {
       this.haptic.impactHeavy();
     }
   }
@@ -875,11 +869,10 @@ export class EstimatingPage {
           text: 'End session',
           role: 'destructive',
           handler: () => {
-            const selfId = this.myId();
-            if (!selfId) return;
+            if (!this.myId()) return;
             // The shared roster command applies the host gate underneath
             // ADR-0023's UI gate; a refusal fires no haptic (#507).
-            if (this.docService.endSessionForEveryone(selfId).applied) {
+            if (this.docService.endSessionForEveryone().applied) {
               this.haptic.impactHeavy();
             }
           },

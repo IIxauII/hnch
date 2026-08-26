@@ -64,10 +64,10 @@ describe('CLI roster command wiring', () => {
     promoteHost(doc, 'peer-a');
   });
 
-  it('updateDisplayName reaches rename and returns the typed result', () => {
+  it('rename reaches the command with this peer as the subject', () => {
     const session = wire(doc, awareness);
 
-    expect(session.updateDisplayName('Alicia')).toEqual({ applied: true });
+    expect(session.commands.rename('Alicia')).toEqual({ applied: true });
     expect(projectDoc(doc).participants.find((p) => p.id === 'peer-a')?.displayName).toBe('Alicia');
 
     session.disconnect();
@@ -76,7 +76,7 @@ describe('CLI roster command wiring', () => {
   it('toggleRole reaches the command with this peer as the subject', () => {
     const session = wire(doc, awareness);
 
-    expect(session.toggleRole()).toEqual({ applied: true });
+    expect(session.commands.toggleRole()).toEqual({ applied: true });
     const me = projectDoc(doc).participants.find((p) => p.id === 'peer-a')!;
     expect(participantRole(me)).toBe('viewer');
 
@@ -87,7 +87,7 @@ describe('CLI roster command wiring', () => {
     const session = wire(doc, awareness);
     markOnline(awareness, 7, 'peer-b');
 
-    expect(session.handoffHost('peer-b')).toEqual({ applied: true });
+    expect(session.commands.handoffHost('peer-b')).toEqual({ applied: true });
     expect(projectDoc(doc).settings.hostParticipantId).toBe('peer-b');
 
     session.disconnect();
@@ -97,7 +97,10 @@ describe('CLI roster command wiring', () => {
     const session = wire(doc, awareness);
     // Nobody published awareness for peer-b.
 
-    expect(session.handoffHost('peer-b')).toEqual({ applied: false, reason: 'not-online' });
+    expect(session.commands.handoffHost('peer-b')).toEqual({
+      applied: false,
+      reason: 'not-online',
+    });
     expect(projectDoc(doc).settings.hostParticipantId).toBe('peer-a');
 
     session.disconnect();
@@ -108,26 +111,26 @@ describe('CLI roster command wiring', () => {
     const session = wire(doc, awareness);
     markOnline(awareness, 7, 'peer-b');
 
-    expect(session.handoffHost('peer-b')).toEqual({ applied: false, reason: 'not-host' });
+    expect(session.commands.handoffHost('peer-b')).toEqual({ applied: false, reason: 'not-host' });
 
     session.disconnect();
   });
 
-  it('endSessionForEveryone reaches the command with this peer as the actor', () => {
+  it('endSession reaches the command with this peer as the actor', () => {
     const session = wire(doc, awareness);
 
-    const result = session.endSessionForEveryone();
+    const result = session.commands.endSession();
     expect(result.applied).toBe(true);
     expect(projectDoc(doc).meta.sessionEndedAt).toBeTypeOf('number');
 
     session.disconnect();
   });
 
-  it('endSessionForEveryone propagates not-host rather than throwing', () => {
+  it('endSession propagates not-host rather than throwing', () => {
     promoteHost(doc, 'peer-b');
     const session = wire(doc, awareness);
 
-    expect(session.endSessionForEveryone()).toEqual({ applied: false, reason: 'not-host' });
+    expect(session.commands.endSession()).toEqual({ applied: false, reason: 'not-host' });
     expect(projectDoc(doc).meta.sessionEndedAt).toBeUndefined();
 
     session.disconnect();
