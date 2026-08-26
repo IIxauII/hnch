@@ -117,7 +117,7 @@ import type { AgendaItem, AgendaResult } from '@hnch/shared';
  * The Lobby owns the session's lifetime (plan §3.10): leaving here
  * — either via the top-left back control or the ⋯ → "Leave
  * session" entry — prompts an `ion-alert` confirmation per ux.md
- * §2 "Destructive actions" and calls `docService.endSession()`
+ * §2 "Destructive actions" and calls `docService.teardown()`
  * before popping to Home. The native `ion-back-button` would pop
  * without running our confirmation, so we render a custom back
  * chevron that routes through the same handler.
@@ -951,10 +951,9 @@ export class LobbyPage implements OnDestroy {
 
   /** Toggle own voter↔viewer role. Wired to the self-row chip. */
   protected onToggleRole(): void {
-    const id = this.myId();
-    if (!id) return;
+    if (!this.myId()) return;
     this.haptic.impactLight();
-    this.docService.toggleRole(id);
+    this.docService.commands.toggleRole();
   }
 
   /**
@@ -1208,7 +1207,7 @@ export class LobbyPage implements OnDestroy {
       if (reason === null) return;
       const code = this.roomCode();
       void (async () => {
-        this.docService.endSession();
+        this.docService.teardown();
         await this.toastService.error(rejectionCopy(reason));
         if (reason === 'wrong-password') {
           await this.router.navigate(['/join'], { queryParams: { code } });
@@ -1244,12 +1243,20 @@ export class LobbyPage implements OnDestroy {
     // `round-commands` seam.
     // Host back-chevron discard leaves the linked item `pending` so it can be
     // re-started. See ADR superseding ADR-0042.
-    this.docService.startRound({
-      ...(submission.title !== null && { title: submission.title }),
-      ...(submission.ticketId !== null && { ticketId: submission.ticketId }),
-      ...(submission.description !== null && { description: submission.description }),
-      ...(submission.agendaItemId !== undefined && { agendaItemId: submission.agendaItemId }),
-    });
+    // `startRound` refuses rather than throws when the room has no host to
+    // attribute the round to — a joiner whose settings have not synced yet is
+    // exactly that state (#516). Stay put with the sheet open: dismissing and
+    // navigating would land the host on Estimating with no round to estimate.
+    if (
+      !this.docService.commands.startRound({
+        ...(submission.title !== null && { title: submission.title }),
+        ...(submission.ticketId !== null && { ticketId: submission.ticketId }),
+        ...(submission.description !== null && { description: submission.description }),
+        ...(submission.agendaItemId !== undefined && { agendaItemId: submission.agendaItemId }),
+      }).applied
+    ) {
+      return;
+    }
 
     await this.modalRef()?.dismiss();
     this.roundStartOpen.set(false);
@@ -1271,13 +1278,18 @@ export class LobbyPage implements OnDestroy {
 
     // Inherit agendaItemId from parent round (ADR-0042 re-vote rule).
     // No agenda item state mutation on re-vote.
-    this.docService.startRound({
-      parentRoundId: round.id,
-      ...(round.title !== undefined && { title: round.title }),
-      ...(round.description !== undefined && { description: round.description }),
-      ...(round.ticketId !== undefined && { ticketId: round.ticketId }),
-      ...(round.agendaItemId !== undefined && { agendaItemId: round.agendaItemId }),
-    });
+    // Same refusal branch as `onRoundStart` — no host, no round, no navigation.
+    if (
+      !this.docService.commands.startRound({
+        parentRoundId: round.id,
+        ...(round.title !== undefined && { title: round.title }),
+        ...(round.description !== undefined && { description: round.description }),
+        ...(round.ticketId !== undefined && { ticketId: round.ticketId }),
+        ...(round.agendaItemId !== undefined && { agendaItemId: round.agendaItemId }),
+      }).applied
+    ) {
+      return;
+    }
     const code = this.docService.roomCode();
     assertRoomCode(code, 'lobby.onRevote');
     await this.router.navigate(['/estimating', code]);
@@ -1315,7 +1327,7 @@ export class LobbyPage implements OnDestroy {
     const mode = this.agendaFormMode();
     let result: AgendaResult;
     if (mode === 'add') {
-      result = this.docService.appendAgendaItem({
+      result = this.docService.commands.addItem({
         ...(submission.title !== null && { title: submission.title }),
         ...(submission.ticketId !== null && { ticketId: submission.ticketId }),
         ...(submission.description !== null && { description: submission.description }),
@@ -1323,7 +1335,7 @@ export class LobbyPage implements OnDestroy {
     } else {
       const item = this.editingAgendaItem();
       if (!item) return;
-      result = this.docService.updateAgendaItemFields(item.id, {
+      result = this.docService.commands.editItem(item.id, {
         ...(submission.title !== null ? { title: submission.title } : { title: '' }),
         ...(submission.ticketId !== null ? { ticketId: submission.ticketId } : { ticketId: '' }),
         ...(submission.description !== null
@@ -1339,13 +1351,13 @@ export class LobbyPage implements OnDestroy {
   }
 
   protected onAgendaSkip(id: string): void {
-    if (this.docService.skipAgendaItem(id).applied) {
+    if (this.docService.commands.skipItem(id).applied) {
       this.haptic.impactMedium();
     }
   }
 
   protected onAgendaCancel(id: string): void {
-    if (this.docService.cancelAgendaItem(id).applied) {
+    if (this.docService.commands.cancelItem(id).applied) {
       this.haptic.impactMedium();
     }
   }
@@ -1356,7 +1368,7 @@ export class LobbyPage implements OnDestroy {
     if (idx <= 0) return;
     const before = idx >= 2 ? items[idx - 2]!.sortKey : null;
     const after = items[idx - 1]!.sortKey;
-    if (this.docService.reorderAgendaItem(id, before, after).applied) {
+    if (this.docService.commands.moveItem(id, before, after).applied) {
       this.haptic.impactLight();
     }
   }
@@ -1367,7 +1379,7 @@ export class LobbyPage implements OnDestroy {
     if (idx < 0 || idx >= items.length - 1) return;
     const before = items[idx + 1]!.sortKey;
     const after = idx + 2 < items.length ? items[idx + 2]!.sortKey : null;
-    if (this.docService.reorderAgendaItem(id, before, after).applied) {
+    if (this.docService.commands.moveItem(id, before, after).applied) {
       this.haptic.impactLight();
     }
   }
@@ -1431,11 +1443,10 @@ export class LobbyPage implements OnDestroy {
           text: 'End session',
           role: 'destructive',
           handler: () => {
-            const selfId = this.myId();
-            if (!selfId) return;
+            if (!this.myId()) return;
             // The shared roster command applies the host gate underneath
             // ADR-0023's UI gate; a refusal fires no haptic (#507).
-            if (this.docService.endSessionForEveryone(selfId).applied) {
+            if (this.docService.endSessionForEveryone().applied) {
               this.haptic.impactHeavy();
             }
           },
@@ -1597,15 +1608,14 @@ export class LobbyPage implements OnDestroy {
   }
 
   private async leaveSession(): Promise<void> {
-    const selfId = this.myId();
-    if (selfId) {
+    if (this.myId()) {
       // Write the soft-delete before disconnecting so peers see the removal (ADR-0036).
-      this.docService.leaveSession(selfId);
+      this.docService.commands.leave();
       // Flush the Yjs update through the WebSocket before closing (best-effort, 500 ms cap).
       await this.docService.flushUpdates();
     }
     const uuid = this.docService.meta()?.roomUuid;
-    this.docService.endSession();
+    this.docService.teardown();
     // Destructive leave — remove entry so Jump-back-in banner does not reappear (ADR-0044).
     if (uuid) {
       await this.lastSessionService.removeByUuid(uuid);
@@ -1629,9 +1639,8 @@ export class LobbyPage implements OnDestroy {
         {
           text: 'Confirm',
           handler: () => {
-            const selfId = this.myId();
-            if (!selfId) return;
-            if (this.docService.handoffHost(selfId, participantId).applied) {
+            if (!this.myId()) return;
+            if (this.docService.commands.handoffHost(participantId).applied) {
               this.haptic.impactMedium();
             }
           },
@@ -1686,9 +1695,8 @@ export class LobbyPage implements OnDestroy {
           text: 'Remove',
           role: 'destructive',
           handler: () => {
-            const hostId = this.myId();
-            if (!hostId) return;
-            if (this.docService.removeParticipant(hostId, participantId).applied) {
+            if (!this.myId()) return;
+            if (this.docService.commands.kick(participantId).applied) {
               this.haptic.impactHeavy();
             }
           },

@@ -5,13 +5,24 @@
  * Uses `vi.waitFor` instead of fixed sleeps so tests are as fast as the
  * underlying WS sync allows rather than being gated on a worst-case
  * duration baked in at write-time.
+ *
+ * The round/vote/roster *rules* — descriptor carry-over, `parentRoundId`
+ * linking, the terminal and active-round gates, the not-host refusal — are
+ * pinned once in `@hnch/shared`'s `round-commands.test.ts`,
+ * `vote-commands.test.ts` and `roster-commands.test.ts`; re-asserting them
+ * here through a real relay would test the same gate twice while adding
+ * nothing about the wire. What stays here is what only a real relay can
+ * show: doc state actually propagating over a live WebSocket between two
+ * independently-wired clients, and the CLI's own adapter-level wiring
+ * (auto-reveal, rejoin) that `session.election.test.ts` /
+ * `session.roster.test.ts` don't cover with a real socket.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { createCodePool } from '../../relay/src/code-pool.js';
 import { createRoomStore } from '../../relay/src/room-store.js';
 import { createRelayServer } from '../../relay/src/server.js';
-import { createSession, joinSession, wireSession } from './session.js';
+import { createSession, joinSession, wireSession, type SessionHandle } from './session.js';
 import * as Y from 'yjs';
 import { Awareness } from 'y-protocols/awareness';
 import {
@@ -20,6 +31,7 @@ import {
   joinDoc,
   leave,
   TSHIRT_SCALE,
+  type StartRoundInit,
 } from '@hnch/shared';
 
 let server: Server;
@@ -49,6 +61,18 @@ afterAll(async () => {
 
 /** Wait timeout for cross-client CRDT propagation over a local loopback relay. */
 const SYNC_TIMEOUT = 5_000;
+
+/**
+ * Start a round through the bound command seam and return its id. Every
+ * caller here is the session's own host, so a refusal would mean the test
+ * fixture is wrong, not the code under test — throwing surfaces that loudly
+ * instead of the id silently coming back `undefined`.
+ */
+function startRound(session: SessionHandle, init: StartRoundInit = {}): string {
+  const result = session.commands.startRound(init);
+  if (!result.applied) throw new Error(`startRound refused: ${result.reason}`);
+  return result.id;
+}
 
 describe('session integration', () => {
   it('create + join + vote + reveal', async () => {
@@ -85,7 +109,7 @@ describe('session integration', () => {
     );
 
     // Host starts a round
-    const roundId = host.newRound('Test Story');
+    const roundId = startRound(host, { title: 'Test Story' });
 
     // Wait until the round appears in the host projection.
     await vi.waitFor(
@@ -94,8 +118,8 @@ describe('session integration', () => {
     );
 
     // Both vote
-    host.toggleCurrentVote('5');
-    joiner.toggleCurrentVote('8');
+    host.commands.toggleCurrentVote('5');
+    joiner.commands.toggleCurrentVote('8');
 
     // Wait for both votes to be visible to both clients.
     await vi.waitFor(
@@ -116,7 +140,7 @@ describe('session integration', () => {
     );
 
     // Host reveals
-    host.reveal();
+    host.commands.revealCurrentRound();
     await vi.waitFor(
       () => expect(host.projection().rounds.find((x) => x.id === roundId)?.status).toBe('revealed'),
       { timeout: SYNC_TIMEOUT },
@@ -155,176 +179,6 @@ describe('session integration', () => {
 
     host.disconnect();
     joiner.disconnect();
-  });
-
-  it('new round and re-vote', async () => {
-    const host = await createSession({
-      participantId: 'host-rv',
-      displayName: 'Alice',
-      relayUrl,
-    });
-
-    await vi.waitFor(
-      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(1),
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    // Start round, vote, reveal
-    const round1Id = host.newRound('Story 1');
-    host.toggleCurrentVote('3');
-
-    await vi.waitFor(
-      () => {
-        const r = host.projection().rounds.find((x) => x.id === round1Id);
-        expect(r?.votes['host-rv']).toBe('3');
-      },
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    host.reveal();
-
-    await vi.waitFor(
-      () =>
-        expect(host.projection().rounds.find((x) => x.id === round1Id)?.status).toBe('revealed'),
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    // Re-vote should create new round linked to original
-    const round2Id = host.revote();
-
-    await vi.waitFor(
-      () => expect(host.projection().rounds.find((x) => x.id === round2Id)).toBeDefined(),
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    const round2 = host.projection().rounds.find((x) => x.id === round2Id);
-    expect(round2).toBeDefined();
-    expect(round2!.parentRoundId).toBe(round1Id);
-
-    host.disconnect();
-  });
-
-  it('newRound writes ticketId when provided and omits it when undefined', async () => {
-    const host = await createSession({
-      participantId: 'host-new-round-ticket',
-      displayName: 'Alice',
-      relayUrl,
-    });
-
-    await vi.waitFor(
-      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(1),
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    // Round with both title and ticketId
-    const r1 = host.newRound('Auth migration', 'PROJ-42');
-    // Round with ticketId only
-    const r2 = host.newRound(undefined, 'PROJ-77');
-    // Round with neither (skip prompts)
-    const r3 = host.newRound();
-
-    await vi.waitFor(
-      () => {
-        const p = host.projection();
-        expect(p.rounds.find((x) => x.id === r1)).toBeDefined();
-        expect(p.rounds.find((x) => x.id === r2)).toBeDefined();
-        expect(p.rounds.find((x) => x.id === r3)).toBeDefined();
-      },
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    const p = host.projection();
-    const round1 = p.rounds.find((x) => x.id === r1);
-    const round2 = p.rounds.find((x) => x.id === r2);
-    const round3 = p.rounds.find((x) => x.id === r3);
-
-    expect(round1?.title).toBe('Auth migration');
-    expect(round1?.ticketId).toBe('PROJ-42');
-    expect(round2?.title).toBeUndefined();
-    expect(round2?.ticketId).toBe('PROJ-77');
-    expect(round3?.title).toBeUndefined();
-    expect(round3?.ticketId).toBeUndefined();
-
-    host.disconnect();
-  });
-
-  it('revote inherits title, description, and ticketId from parent round', async () => {
-    const host = await createSession({
-      participantId: 'host-revote-inherit',
-      displayName: 'Alice',
-      relayUrl,
-    });
-
-    await vi.waitFor(
-      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(1),
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    // Start round with title, description, and ticketId
-    const round1Id = host.newRound('Story 2');
-
-    await vi.waitFor(
-      () => expect(host.projection().rounds.find((x) => x.id === round1Id)).toBeDefined(),
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    // Manually set description and ticketId on the parent round
-    const roundsArray = host.doc.getArray('rounds');
-    const roundsList = roundsArray.toArray() as any[];
-    const parentRound = roundsList.find((r: any) => r.get('id') === round1Id);
-    if (parentRound) {
-      parentRound.set('description', 'Some context about the story');
-      parentRound.set('ticketId', 'https://github.com/foo/bar/issues/1');
-    }
-
-    await vi.waitFor(
-      () => {
-        const r = host.projection().rounds.find((x) => x.id === round1Id);
-        expect(r?.ticketId).toBe('https://github.com/foo/bar/issues/1');
-      },
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    host.toggleCurrentVote('5');
-
-    await vi.waitFor(
-      () => {
-        const r = host.projection().rounds.find((x) => x.id === round1Id);
-        expect(r?.votes['host-revote-inherit']).toBe('5');
-      },
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    host.reveal();
-
-    await vi.waitFor(
-      () =>
-        expect(host.projection().rounds.find((x) => x.id === round1Id)?.status).toBe('revealed'),
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    // Re-vote should inherit title, description, and ticketId
-    const round2Id = host.revote();
-
-    await vi.waitFor(
-      () => expect(host.projection().rounds.find((x) => x.id === round2Id)).toBeDefined(),
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    const p = host.projection();
-    const round1 = p.rounds.find((x) => x.id === round1Id);
-    const round2 = p.rounds.find((x) => x.id === round2Id);
-
-    expect(round2).toBeDefined();
-    expect(round2!.title).toBe('Story 2');
-    expect(round2!.description).toBe('Some context about the story');
-    expect(round2!.ticketId).toBe('https://github.com/foo/bar/issues/1');
-    expect(round2!.title).toBe(round1!.title);
-    expect(round2!.description).toBe(round1!.description);
-    expect(round2!.ticketId).toBe(round1!.ticketId);
-    expect(round2!.parentRoundId).toBe(round1Id);
-
-    host.disconnect();
   });
 
   it('updateName sets and removes room name', async () => {
@@ -381,40 +235,7 @@ describe('session integration', () => {
     host.disconnect();
   });
 
-  it('endSessionForEveryone refuses with not-host if caller is not host', async () => {
-    const host = await createSession({
-      participantId: 'host-es-guard',
-      displayName: 'Alice',
-      relayUrl,
-    });
-
-    await vi.waitFor(
-      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(1),
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    const joiner = await joinSession({
-      participantId: 'joiner-es-guard',
-      displayName: 'Bob',
-      relayUrl,
-      roomCode: host.roomCode,
-    });
-
-    await vi.waitFor(
-      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(2),
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    // Joiner is not host — the shared roster command refuses, it does not
-    // throw, so a mis-tap in the TUI is not an exception (#507).
-    expect(joiner.endSessionForEveryone()).toEqual({ applied: false, reason: 'not-host' });
-    expect(host.projection().meta.sessionEndedAt).toBeUndefined();
-
-    host.disconnect();
-    joiner.disconnect();
-  });
-
-  it('endSessionForEveryone writes meta.sessionEndedAt and propagates to joiner', async () => {
+  it('endSession writes meta.sessionEndedAt and propagates to joiner', async () => {
     const host = await createSession({
       participantId: 'host-es',
       displayName: 'Alice',
@@ -442,7 +263,7 @@ describe('session integration', () => {
     expect(host.projection().meta.sessionEndedAt).toBeUndefined();
     expect(joiner.projection().meta.sessionEndedAt).toBeUndefined();
 
-    host.endSessionForEveryone();
+    host.commands.endSession();
 
     // Both sides should see sessionEndedAt set
     await vi.waitFor(() => expect(host.projection().meta.sessionEndedAt).toBeTypeOf('number'), {
@@ -480,14 +301,14 @@ describe('session integration', () => {
       { timeout: SYNC_TIMEOUT },
     );
 
-    const roundId = host.newRound('Skip me');
+    const roundId = startRound(host, { title: 'Skip me' });
 
     await vi.waitFor(
       () => expect(host.projection().rounds.find((x) => x.id === roundId)).toBeDefined(),
       { timeout: SYNC_TIMEOUT },
     );
 
-    host.skip();
+    host.commands.skipCurrentRound();
 
     await vi.waitFor(
       () => expect(host.projection().rounds.find((x) => x.id === roundId)?.status).toBe('skipped'),
@@ -503,94 +324,6 @@ describe('session integration', () => {
     joiner.disconnect();
   });
 
-  it('host discardCurrentRound tombstones the active round', async () => {
-    const host = await createSession({
-      participantId: 'host-discard',
-      displayName: 'Alice',
-      relayUrl,
-      defaultScale: FIBONACCI_SCALE,
-    });
-
-    const roundId = host.newRound('To discard');
-    await vi.waitFor(
-      () => expect(host.projection().rounds.find((x) => x.id === roundId)).toBeDefined(),
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    host.discardCurrentRound();
-
-    await vi.waitFor(
-      () =>
-        expect(host.projection().rounds.find((x) => x.id === roundId)?.status).toBe('discarded'),
-      { timeout: SYNC_TIMEOUT },
-    );
-    // Discarded rounds are tombstones — excluded from the active selector.
-    expect(host.current()).toBeNull();
-
-    host.disconnect();
-  });
-
-  it('toggleCurrentVote after a skip is refused and leaves the round untouched (closes the CLI defect)', async () => {
-    const host = await createSession({
-      participantId: 'host-post-skip-vote',
-      displayName: 'Alice',
-      relayUrl,
-      defaultScale: FIBONACCI_SCALE,
-    });
-
-    const roundId = host.newRound('Skip then vote');
-    await vi.waitFor(
-      () => expect(host.projection().rounds.find((x) => x.id === roundId)).toBeDefined(),
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    host.skip();
-    await vi.waitFor(
-      () => expect(host.projection().rounds.find((x) => x.id === roundId)?.status).toBe('skipped'),
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    // A keypress arriving after the skip must be refused, not recorded
-    // against the round that just went terminal.
-    const result = host.toggleCurrentVote('5');
-    expect(result).toEqual({ applied: false, reason: 'no-active-round' });
-
-    const round = host.projection().rounds.find((x) => x.id === roundId);
-    expect(round?.votes['host-post-skip-vote']).toBeUndefined();
-
-    host.disconnect();
-  });
-
-  it('toggleCurrentVote after a discard is refused and leaves the round untouched (closes the CLI defect)', async () => {
-    const host = await createSession({
-      participantId: 'host-post-discard-vote',
-      displayName: 'Alice',
-      relayUrl,
-      defaultScale: FIBONACCI_SCALE,
-    });
-
-    const roundId = host.newRound('Discard then vote');
-    await vi.waitFor(
-      () => expect(host.projection().rounds.find((x) => x.id === roundId)).toBeDefined(),
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    host.discardCurrentRound();
-    await vi.waitFor(
-      () =>
-        expect(host.projection().rounds.find((x) => x.id === roundId)?.status).toBe('discarded'),
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    const result = host.toggleCurrentVote('5');
-    expect(result).toEqual({ applied: false, reason: 'no-active-round' });
-
-    const round = host.projection().rounds.find((x) => x.id === roundId);
-    expect(round?.votes['host-post-discard-vote']).toBeUndefined();
-
-    host.disconnect();
-  });
-
   it('unanimous vote auto-reveals without a manual reveal call', async () => {
     const host = await createSession({
       participantId: 'host-auto',
@@ -599,15 +332,15 @@ describe('session integration', () => {
       defaultScale: FIBONACCI_SCALE,
     });
 
-    const roundId = host.newRound('Auto-reveal');
+    const roundId = startRound(host, { title: 'Auto-reveal' });
     await vi.waitFor(
       () => expect(host.projection().rounds.find((x) => x.id === roundId)).toBeDefined(),
       { timeout: SYNC_TIMEOUT },
     );
 
-    // Single online voter casts a numeric vote — unanimity. No host.reveal():
+    // Single online voter casts a numeric vote — unanimity. No manual reveal:
     // the 250ms auto-reveal interval must fire the terminal transition itself.
-    host.toggleCurrentVote('5');
+    host.commands.toggleCurrentVote('5');
 
     await vi.waitFor(
       () => expect(host.projection().rounds.find((x) => x.id === roundId)?.status).toBe('revealed'),

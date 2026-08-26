@@ -36,7 +36,7 @@ export interface RejoinDeps {
   getParticipantId: () => Promise<string>;
   /** Avatar color wire value (ADR-0043). Null = "no value set yet". */
   getAvatarColor: () => string | null;
-  docService: Pick<DocService, 'endSession' | 'joinSession' | 'connect'>;
+  docService: Pick<DocService, 'teardown' | 'joinSession' | 'connect'>;
   waitForJoinOutcome: (opts?: { timeoutMs?: number }) => Promise<JoinOutcome>;
 }
 
@@ -84,7 +84,7 @@ export async function rejoinRoom(
   ]);
 
   const avatarColor = deps.getAvatarColor();
-  deps.docService.endSession();
+  deps.docService.teardown();
   deps.docService.joinSession({
     participantId,
     displayName: displayName ?? '',
@@ -149,7 +149,7 @@ export class RoomJoinService {
   /**
    * In-flight rejoin promises keyed by normalized room code.
    * Prevents two rapid navigations to the same code from running
-   * parallel rejoins that race each other's `endSession` calls.
+   * parallel rejoins that race each other's `teardown` calls.
    */
   private readonly inFlightRejoins = new Map<string, Promise<RejoinOutcome>>();
 
@@ -185,7 +185,7 @@ export class RoomJoinService {
       getParticipantId: () => this.participantIdService.getOrCreateId(),
       getAvatarColor: () => this.avatarColorService.value(),
       docService: {
-        endSession: () => this.docService.endSession(),
+        teardown: () => this.docService.teardown(),
         joinSession: (init) => this.docService.joinSession(init),
         connect: (creds, opts) => this.docService.connect(creds, opts),
       },

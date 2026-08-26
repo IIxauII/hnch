@@ -468,13 +468,10 @@ export class SettingsPage {
     this.displayName.set(newName);
     void this.displayNameService.setDisplayName(newName);
 
-    // If mid-session, propagate to peers via the Yjs doc. The shared roster
-    // command does the read-modify-write that preserves role, avatar colour
-    // and joinedAt, and refuses when there is no record to rename (#507).
-    const myId = this.participantIdService.id();
-    if (myId && this.docService.hasSession()) {
-      this.docService.renameParticipant(myId, newName);
-    }
+    // Propagate to peers via the Yjs doc. `commands` is the unbound adapter
+    // when no session is live, so this refuses honestly rather than needing
+    // a session guard here (#507, #516).
+    this.docService.commands.rename(newName);
   }
 
   // ---------------------------------------------------------------------------
@@ -533,11 +530,10 @@ export class SettingsPage {
 
   private async persistAvatarColor(wire: string): Promise<void> {
     await this.avatarColorService.setValue(wire);
-    // Mid-session: publish into the participant record so peers see the change live.
-    const myId = this.participantIdService.id();
-    if (myId && this.docService.hasSession()) {
-      this.docService.setAvatarColor(myId, wire);
-    }
+    // Publish into the participant record so peers see the change live. The
+    // unbound adapter refuses honestly with no session, so no guard needed
+    // here (#516).
+    this.docService.commands.recolor(wire);
   }
 
   // ---------------------------------------------------------------------------

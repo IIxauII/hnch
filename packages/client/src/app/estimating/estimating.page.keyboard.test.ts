@@ -8,7 +8,7 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { canEnterTerminal, type Round } from '@hnch/shared';
+import { canEnterTerminal, UNBOUND_SESSION_COMMANDS, type Round } from '@hnch/shared';
 
 vi.mock('@ionic/angular/standalone', async () => {
   const { Component: Comp } = await import('@angular/core');
@@ -137,15 +137,18 @@ async function mountEstimating(opts: MountOptions = {}) {
     meta: signal({ roomUuid: 'uuid' }).asReadonly(),
     syncStatus: signal('idle').asReadonly(),
     autoRevealCount: signal(0).asReadonly(),
-    toggleCurrentVote,
-    clearCurrentVote,
-    revealCurrentRound: vi.fn(),
-    skipCurrentRound: vi.fn(),
-    leaveSession: vi.fn(),
+    commands: {
+      ...UNBOUND_SESSION_COMMANDS,
+      toggleCurrentVote,
+      clearCurrentVote,
+      revealCurrentRound: vi.fn(),
+      skipCurrentRound: vi.fn(),
+      leave: vi.fn(),
+      toggleRole: vi.fn(),
+    },
     flushUpdates: vi.fn().mockResolvedValue(undefined),
-    endSession: vi.fn(),
+    teardown: vi.fn(),
     endSessionForEveryone: vi.fn(),
-    toggleRole: vi.fn(),
   };
 
   // Inject a vote into the round if requested.
@@ -220,7 +223,7 @@ describe('EstimatingPage — keyboard handler (issue #154)', () => {
   it('Digit1 casts the first card', async () => {
     const { toggleCurrentVote, impactLight } = await mountEstimating();
     dispatchKey({ code: 'Digit1', key: '1' });
-    expect(toggleCurrentVote).toHaveBeenCalledWith('me', '0');
+    expect(toggleCurrentVote).toHaveBeenCalledWith('0');
     expect(impactLight).toHaveBeenCalled();
   });
 
@@ -236,7 +239,7 @@ describe('EstimatingPage — keyboard handler (issue #154)', () => {
     };
     const { toggleCurrentVote } = await mountEstimating({ round: linearRound });
     dispatchKey({ code: 'Digit0', key: '0' });
-    expect(toggleCurrentVote).toHaveBeenCalledWith('me', '10');
+    expect(toggleCurrentVote).toHaveBeenCalledWith('10');
   });
 
   it('Re-pressing the digit bound to current vote calls toggleCurrentVote with the same card', async () => {
@@ -245,7 +248,7 @@ describe('EstimatingPage — keyboard handler (issue #154)', () => {
     // 'cast' with the card at that index, same card or not.
     const { toggleCurrentVote } = await mountEstimating({ myVote: '0' });
     dispatchKey({ code: 'Digit1', key: '1' });
-    expect(toggleCurrentVote).toHaveBeenCalledWith('me', '0');
+    expect(toggleCurrentVote).toHaveBeenCalledWith('0');
   });
 
   it('Modifier-held digit is a no-op (defers to browser)', async () => {
@@ -320,7 +323,7 @@ describe('EstimatingPage — keyboard handler (issue #154)', () => {
     };
     const focusBefore = page.focusedIndex();
     dispatchKey({ code: 'Digit1', key: '1' });
-    expect(toggleCurrentVote).toHaveBeenCalledWith('me', '0');
+    expect(toggleCurrentVote).toHaveBeenCalledWith('0');
     expect(impactLight).not.toHaveBeenCalled();
     expect(page.focusedIndex()).toBe(focusBefore);
   });

@@ -210,7 +210,11 @@ export function App({
         ticketId,
         pendingAgendaItemId,
       );
-      session.newRound(title, normalizedTicketId, agendaItemId);
+      session.commands.startRound({
+        ...(title !== undefined && { title }),
+        ...(normalizedTicketId !== undefined && { ticketId: normalizedTicketId }),
+        ...(agendaItemId !== undefined && { agendaItemId }),
+      });
       setPendingRoundTitle(undefined);
       setPendingAgendaItemId(undefined);
     },
@@ -252,25 +256,25 @@ export function App({
 
   const handleToggleCurrentVote = useCallback(
     (card: string) => {
-      session.toggleCurrentVote(card);
+      session.commands.toggleCurrentVote(card);
     },
     [session],
   );
 
   const handleClearCurrentVote = useCallback(() => {
-    session.clearCurrentVote();
+    session.commands.clearCurrentVote();
   }, [session]);
 
   const handleReveal = useCallback(() => {
-    session.reveal();
+    session.commands.revealCurrentRound();
   }, [session]);
 
   const handleSkip = useCallback(() => {
-    session.skip();
+    session.commands.skipCurrentRound();
   }, [session]);
 
   const handleDiscard = useCallback(() => {
-    session.discardCurrentRound();
+    session.commands.discardCurrentRound();
   }, [session]);
 
   const handleNewRound = useCallback(() => {
@@ -282,11 +286,24 @@ export function App({
   }, [projection]);
 
   const handleRevote = useCallback(() => {
-    session.revote();
+    // `startRound` does not inherit descriptor fields from the parent — that
+    // is a caller decision, not a rule (#516) — so the re-vote carries them
+    // explicitly, mirroring the client's Lobby re-vote path. Agenda item id
+    // rides along too: re-vote does not consume a second agenda item
+    // (ADR-0042).
+    const parent = session.current();
+    if (!parent) return;
+    session.commands.startRound({
+      parentRoundId: parent.id,
+      ...(parent.title !== undefined && { title: parent.title }),
+      ...(parent.description !== undefined && { description: parent.description }),
+      ...(parent.ticketId !== undefined && { ticketId: parent.ticketId }),
+      ...(parent.agendaItemId !== undefined && { agendaItemId: parent.agendaItemId }),
+    });
   }, [session]);
 
   const handleToggleRole = useCallback(() => {
-    session.toggleRole();
+    session.commands.toggleRole();
   }, [session]);
 
   const handleChangeName = useCallback(
@@ -305,7 +322,7 @@ export function App({
 
   const handleChangeDisplayName = useCallback(
     (name: string) => {
-      session.updateDisplayName(name);
+      session.commands.rename(name);
       setDisplayNameLocal(name);
     },
     [session],
@@ -323,7 +340,7 @@ export function App({
     (targetId: string) => {
       // The shared roster command refuses rather than throwing, so the TUI
       // branches on the reason instead of catching to stay alive (#507).
-      const result = session.handoffHost(targetId);
+      const result = session.commands.handoffHost(targetId);
       if (!result.applied) {
         console.error(`Handoff failed: ${HANDOFF_REFUSAL[result.reason]}`);
       }
@@ -340,7 +357,7 @@ export function App({
   }, []);
 
   const handleEndSession = useCallback(() => {
-    session.endSessionForEveryone();
+    session.commands.endSession();
   }, [session]);
 
   const handleShare = useCallback(

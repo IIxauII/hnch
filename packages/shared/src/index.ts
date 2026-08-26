@@ -8,6 +8,7 @@ export * from './doc.js';
 // stay internal to the package, each behind the one seam consumers see:
 //   - `revealRound` / `skipRound` / `discardRound`  → `round-commands`  (#472)
 //   - `castVote` / `clearVote`                      → `vote-commands`   (#504)
+//   - `appendRound`                                → `round-commands`  (#516)
 //   - `appendAgendaItem` / `updateAgendaItemFields`
 //     / `setAgendaItemState` / `reorderAgendaItem`  → `agenda-commands` (#507)
 //   - `upsertParticipant` / `setAvatarColor`
@@ -29,7 +30,6 @@ export * from './doc.js';
 export {
   activeRound,
   agendaArray,
-  appendRound,
   currentRound,
   DOC_AGENDA_KEY,
   DOC_META_KEY,
@@ -43,7 +43,6 @@ export {
   patchRoundDescriptor,
   patchSettings,
   projectDoc,
-  type AppendRoundInit,
   type DocProjection,
   type InitDocInit,
   type JoinDocInit,
@@ -67,5 +66,6 @@ export * from './round-export.js';
 export * from './round-presentation.js';
 export * from './round-transitions.js';
 export * from './scales.js';
+export * from './session-commands.js';
 export * from './screen-for.js';
 export * from './vote-commands.js';
