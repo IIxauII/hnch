@@ -105,9 +105,11 @@ test.describe('Auto-reconnect after transient disconnect', () => {
     await expect(playerRowOnHost.locator('ion-note')).toHaveCount(0, { timeout: 4_000 });
     await expect(hostRowOnPlayer.locator('ion-note')).toHaveCount(0, { timeout: 4_000 });
 
-    // Past one election debounce, nothing has changed hands — and nothing
-    // did on the way there. Looked at once a second, not waited for: a
-    // retrying assertion would sit through a handover that is handed back.
+    // Past one election debounce, nothing has changed hands. Looked at once
+    // a second, not waited for: a retrying assertion would sit through a
+    // handover that is handed back. (A second is fine-grained enough for
+    // that — a handover takes the debounce, 5 s, to be taken back. It is
+    // not for a row that says "Offline" for a moment.)
     for (let i = 0; i < 6; i++) {
       await host.page.waitForTimeout(1_000);
       expect(await hostRowOnPlayer.locator(LOBBY.hostIcon).count(), `second ${i + 1}`).toBe(1);

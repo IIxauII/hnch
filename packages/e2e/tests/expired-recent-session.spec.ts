@@ -1,5 +1,11 @@
 import { test, expect } from './fixtures/app.fixture';
-import { BASE_URL, HOME, expectToast, rememberedSessionCodes } from './fixtures/helpers';
+import {
+  BASE_URL,
+  HOME,
+  expectToast,
+  rememberedSessionCodes,
+  watchForToast,
+} from './fixtures/helpers';
 
 const RELAY_HTTP_URL = `http://localhost:${process.env['RELAY_PORT'] ?? 1234}`;
 
@@ -36,6 +42,7 @@ test.describe('A session that expires while someone is in it', () => {
     await expect.poll(() => rememberedSessionCodes(player.page)).toContain(code);
 
     await evictRoom(await resolveRoomUuid(code));
+    const reconnected = await watchForToast(player.page, 'Reconnected');
 
     // The connection has to be opened again
     await player.page.context().setOffline(true);
@@ -45,14 +52,27 @@ test.describe('A session that expires while someone is in it', () => {
     await expectToast(player.page, "That session isn't active anymore", { timeout: 15_000 });
     await player.page.waitForURL(/\/home/, { timeout: 10_000 });
     await expect(player.page.locator(HOME.createCard)).toBeVisible();
-    await expect(player.page.locator('[data-testid="connection-status-banner"]')).toHaveCount(0);
+
+    // The wait ended, but not in a connection.
+    expect(await reconnected.seen()).toBe(false);
+
+    // The session can never be got into again: Home does not offer it. What
+    // is in the cache is what Home lists, whenever it gets to read it.
+    await expect.poll(() => rememberedSessionCodes(player.page)).not.toContain(code);
+    await player.page.reload();
+    await player.page.locator(HOME.createCard).waitFor({ state: 'visible' });
+    expect(await rememberedSessionCodes(player.page)).not.toContain(code);
+    await player.page.waitForTimeout(500);
+    await expect(player.page.locator(HOME.recentRow)).toHaveCount(0);
   });
 });
 
 test.describe('Expired recent session', () => {
   test('a session the relay has forgotten is dropped on the first tap', async ({ host }) => {
-    // Step 1: host creates session → LastSessionService.record() fires on lobby init.
+    // Step 1: host creates session. The Lobby records it once the session
+    // is joined — connected and in sync — which is after the code is shown.
     const code = await host.createSession();
+    await expect.poll(() => rememberedSessionCodes(host.page)).toContain(code);
 
     // Step 2: resolve UUID from relay before eviction.
     const uuid = await resolveRoomUuid(code);
@@ -89,6 +109,7 @@ test.describe('Expired recent session', () => {
     await host.page.waitForURL(/\/home/);
     await host.page.locator(HOME.createCard).waitFor({ state: 'visible' });
     expect(await rememberedSessionCodes(host.page)).not.toContain(code);
+    await host.page.waitForTimeout(500);
     await expect(rows).toHaveCount(0);
 
     // New session and Join session rows remain.

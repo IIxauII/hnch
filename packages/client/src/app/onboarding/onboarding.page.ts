@@ -14,6 +14,7 @@ import {
 
 import { DisplayNameService } from '../core/display-name.service';
 import { BrandMarkComponent } from '../shared/brand-mark.component';
+import { isComposingKey } from '../utils/composing-key';
 import { canContinue } from './onboarding.helpers';
 
 /**
@@ -69,7 +70,7 @@ import { canContinue } from './onboarding.helpers';
               enterkeyhint="done"
               maxlength="40"
               placeholder="Your name"
-              (keydown.enter)="submit()"
+              (keydown.enter)="composing($event) || submit()"
             ></ion-input>
           </ion-item>
         </ion-list>
@@ -138,6 +139,12 @@ export class OnboardingPage {
   protected readonly canContinue = computed(() => canContinue(this.rawValue()));
 
   protected readonly isSubmitting = signal(false);
+
+  /**
+   * For the Enter handler: the Enter that confirms a choice in an input
+   * method is part of typing the name, and continues nowhere.
+   */
+  protected readonly composing = isComposingKey;
 
   protected async submit(): Promise<void> {
     if (!this.canContinue() || this.isSubmitting()) {

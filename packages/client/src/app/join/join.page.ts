@@ -16,6 +16,7 @@ import {
   formatRoomCode,
   hashPassword,
   isValidRoomCode,
+  MAX_PASSWORD_LENGTH,
   normalizePassword,
   normalizeRoomCode,
   parseInviteContent,
@@ -48,17 +49,24 @@ import { DocService } from '../core/doc/doc.service';
 import { LastSessionService } from '../core/last-session.service';
 import { ParticipantIdService } from '../core/participant-id.service';
 import { QrScannerService } from '../core/qr-scanner.service';
-import { rejectionCopy, RELAY_UNREACHABLE_COPY } from '../core/relay-copy';
+import {
+  rejectionCopy,
+  RELAY_UNREACHABLE_COPY,
+  SESSION_OPEN_FAILED_COPY,
+} from '../core/relay-copy';
 import { RoomJoinService } from '../core/room-join.service';
+import { isSessionUrl } from '../core/session-rejection.service';
 import { ToastService } from '../services/toast.service';
 import { SegmentedCodeInputComponent } from '../shared/segmented-code-input.component';
 import { focusField } from '../utils/focus-field';
 import {
+  isJoinUrl,
   joinLinkAction,
   qrScanErrorCopy,
   shouldAutoSubmitDeepLink,
   shouldAutoSubmitTypedCode,
 } from './join.helpers';
+import { isComposingKey } from '../utils/composing-key';
 
 /**
  * Join session — ux.md §1.3.
@@ -129,9 +137,9 @@ import {
                 type="password"
                 autocomplete="off"
                 enterkeyhint="go"
-                maxlength="120"
+                [maxlength]="maxPasswordLength"
                 placeholder="Enter the session password"
-                (keydown.enter)="submit()"
+                (keydown.enter)="composing($event) || submit()"
               >
                 <ion-input-password-toggle slot="end" color="medium"></ion-input-password-toggle>
               </ion-input>
@@ -226,6 +234,15 @@ import {
   ],
 })
 export class JoinPage {
+  /**
+   * For the Enter handlers: the Enter that confirms a choice in an input
+   * method is part of typing, and commits nothing.
+   */
+  protected readonly composing = isComposingKey;
+
+  /** As long as a password gets, on every surface. */
+  protected readonly maxPasswordLength = MAX_PASSWORD_LENGTH;
+
   private readonly appPrefs = inject(AppPreferenceService);
   private readonly avatarColorService = inject(AvatarColorService);
   private readonly router = inject(Router);
@@ -285,6 +302,9 @@ export class JoinPage {
    * been entered at all. See {@link ionViewWillEnter}.
    */
   private lastNavigationId: number | null | undefined = undefined;
+
+  /** True between entering the page and leaving it. */
+  private entered = false;
 
   /**
    * True while this page is writing the code field itself (deep link, QR
@@ -369,31 +389,45 @@ export class JoinPage {
    *
    * On entering, not in the constructor: Ionic keeps the page in its stack,
    * and someone sent here a second time — by a session that turned them
-   * away, by another invite — enters the instance that is already there.
-   * Read from the router for the same reason: the route this instance was
-   * created with still says what it said then.
+   * away, by "Join session" on Home — enters the instance that is already
+   * there. Read from the router for the same reason: the route this
+   * instance was created with still says what it said then. The navigation
+   * is the one that has just finished, which is the one that led here.
    */
   ionViewWillEnter(): void {
+    this.entered = true;
+    // Entered ahead of the router — a swipe back. What the router says is
+    // about the page being left; this one is found as it was left.
+    const routerIsHere = isJoinUrl(this.router.url);
+    if (!routerIsHere) return;
+
     const params = this.router.parseUrl(this.router.url).queryParamMap;
     const codeParam = params.get('code');
-    const navigation = this.router.getCurrentNavigation() ?? this.router.lastSuccessfulNavigation;
+    const navigation = this.router.lastSuccessfulNavigation;
     const action = joinLinkAction({
       codeParam,
       navigation,
       lastNavigationId: this.lastNavigationId,
+      routerIsHere,
     });
-    this.lastNavigationId = navigation?.id ?? null;
-    if (action === 'none' || codeParam === null) return;
+    const entry = navigation?.id ?? null;
+    this.lastNavigationId = entry;
+    if (action === 'none') return;
+    if (action === 'reset') {
+      this.resetForm();
+      return;
+    }
+    if (codeParam === null) return;
 
     const code = normalizeRoomCode(codeParam);
     if (action === 'fill') {
-      // Back on the page: the code is here to be used, not used already.
-      if (this.normalizedCode() !== code) this.setCode(formatRoomCode(code));
+      // Back on the page. What is in the field stays; an empty field gets
+      // the link's code back — to be used, not used already.
+      if (this.normalizedCode().length === 0) this.setCode(formatRoomCode(code));
       return;
     }
 
     this.abandonAttempt();
-    this.isSubmitting.set(false);
     this.lastAttemptedCode = null;
     this.setCode(formatRoomCode(code));
 
@@ -408,6 +442,8 @@ export class JoinPage {
     // onboarding; after onboarding completes and the user lands back
     // here, getDisplayName() will resolve non-null.
     void this.displayNameService.getDisplayName().then((name) => {
+      // The page may have been left, or entered anew, while the name was read.
+      if (!this.entered || entry !== this.lastNavigationId) return;
       if (shouldAutoSubmitDeepLink(codeParam, name)) {
         void this.submit();
       }
@@ -419,19 +455,49 @@ export class JoinPage {
     if (this.normalizedCode().length === 0) this.codeInput()?.focus();
   }
 
-  /** Ionic keeps the page alive in the stack, so leaving is not destroying. */
+  /**
+   * Ionic keeps the page alive in the stack, so leaving is not destroying.
+   *
+   * On the way out — which a swipe that is let go of turns back from — only
+   * what can be started again is given up: the attempt.
+   */
   ionViewWillLeave(): void {
     this.abandonAttempt();
   }
 
   /**
-   * Give up on the attempt in flight: the user has left. A session the
-   * attempt had already begun to join is closed again — they did not get to
-   * see it, and must not turn up in its roster.
+   * Gone. What was typed to get in is not kept for whoever comes back to
+   * the page: the password is asked for again.
+   */
+  ionViewDidLeave(): void {
+    this.entered = false;
+    this.forgetPassword();
+  }
+
+  /**
+   * Give up on the attempt in flight: the user has left, or asked for
+   * something else. A session the attempt had already begun to join is
+   * closed again by the attempt itself, when it finds out — they did not get
+   * to see it, and must not turn up in its roster.
    */
   private abandonAttempt(): void {
     this.attempt?.abort();
     this.attempt = null;
+    this.isSubmitting.set(false);
+  }
+
+  private forgetPassword(): void {
+    this.passwordControl.reset();
+    this.resolvedUuid = null;
+    this.needsPassword.set(false);
+  }
+
+  /** The form as it is on a first visit. */
+  private resetForm(): void {
+    this.abandonAttempt();
+    this.lastAttemptedCode = null;
+    this.setCode('');
+    this.forgetPassword();
   }
 
   protected async submit(): Promise<void> {
@@ -444,21 +510,30 @@ export class JoinPage {
     this.attempt = attempt;
     // The epoch of the session this attempt opens, once it has opened one.
     let joinedEpoch: number | null = null;
+    // Whether the relay has been heard from: what goes wrong after that is
+    // not the relay being out of reach.
+    let relayAnswered = false;
     /**
      * True when the attempt has nothing left to act on: the page was left, or
-     * the code it was made for is no longer the one in the field.
+     * the code it was made for is no longer the one in the field. The field
+     * stays editable during an attempt — taking it away would take the focus
+     * and the keyboard with it.
      */
     const stale = (): boolean => attempt.signal.aborted || this.normalizedCode() !== code;
-    /** Close the session this attempt opened, if it is still the one held. */
-    const closeOwnSession = (): void => {
-      if (joinedEpoch !== null && this.docService.sessionEpoch() === joinedEpoch) {
-        this.docService.teardown();
-      }
+    /** True while the page's state is this attempt's to change. */
+    const current = (): boolean => this.attempt === attempt;
+    /**
+     * Close the session this attempt opened, if it is still the one held —
+     * unless someone is looking at it: a Lobby that was gone to while the
+     * attempt was under way has taken the session over.
+     */
+    const closeOwnSession = (evenIfShown = false): void => {
+      if (joinedEpoch === null || this.docService.sessionEpoch() !== joinedEpoch) return;
+      const url = this.router.url;
+      if (!evenIfShown && isSessionUrl(url) && url.includes(code)) return;
+      this.docService.teardown();
     };
 
-    // The code is what the attempt is about. It stays as it is until the
-    // attempt is over; the password field, once shown, is a new attempt.
-    this.codeControl.disable({ emitEvent: false });
     try {
       // Phase 1: resolve the code to get UUID + accessMode.
       // If we already resolved (user is submitting with a password),
@@ -466,6 +541,7 @@ export class JoinPage {
       let uuid = this.resolvedUuid;
       if (uuid === null) {
         const resolved = await resolveRoom(this.appPrefs.resolvedRelayHttpUrl(), code);
+        relayAnswered = true;
         if (stale()) return;
         uuid = resolved.uuid;
 
@@ -481,6 +557,7 @@ export class JoinPage {
         this.needsPassword.set(false);
         this.passwordControl.reset();
       }
+      relayAnswered = true;
 
       // Phase 2: connect with credentials.
       const [displayName, participantId] = await Promise.all([
@@ -515,21 +592,21 @@ export class JoinPage {
       // Stay here until the relay has said yes or no. A slow relay is not a
       // no: on a timeout go in, and let the Lobby show that it is connecting.
       const outcome = await this.roomJoinService.waitForJoinOutcome({ signal: attempt.signal });
-      if (outcome === 'superseded') {
-        // Left the page, or the session is gone (the host had already ended
-        // it). Whoever is responsible has taken over; nothing to say here.
+      if (outcome === 'superseded' || stale()) {
+        // Left the page, changed the code, or the session is gone (the host
+        // had already ended it). Whoever is responsible has taken over;
+        // nothing to say here.
         closeOwnSession();
         return;
       }
       if (outcome !== 'connected' && outcome !== 'timeout') {
-        await this.onRejected(outcome);
+        closeOwnSession(true);
+        await this.onRejected(outcome, current);
         return;
       }
 
-      // Keep the hash for the way back in (ADR-0044) — once the relay has
-      // accepted it. On a timeout it has not said anything yet.
-      if (passwordHash !== undefined && outcome === 'connected') {
-        await this.lastSessionService.rememberPasswordHash(uuid, passwordHash);
+      if (passwordHash !== undefined) {
+        await this.keepForTheWayBack(uuid, passwordHash, outcome === 'connected');
       }
       if (attempt.signal.aborted) {
         closeOwnSession();
@@ -537,31 +614,78 @@ export class JoinPage {
       }
       await this.router.navigate(['/lobby', code]);
     } catch (err) {
-      if (attempt.signal.aborted) {
-        closeOwnSession();
-        return;
-      }
+      // Whatever went wrong, the user did not get into the session.
+      closeOwnSession();
+      // Nor is there anything to tell them about a code they have left
+      // behind: the page, or the code that is in the field by now.
+      if (stale()) return;
       if (err instanceof RelayRejectionError) {
         await this.toast(rejectionCopy(err.reason));
+      } else if (relayAnswered) {
+        await this.toast(SESSION_OPEN_FAILED_COPY);
       } else {
         // Network failure or an unexpected 5xx — the relay wasn't reachable
         // enough to give us a decoded rejection reason.
         await this.toast(RELAY_UNREACHABLE_COPY);
       }
     } finally {
-      if (this.attempt === attempt) this.attempt = null;
-      this.codeControl.enable({ emitEvent: false });
-      this.isSubmitting.set(false);
+      // Only while the page's state is still this attempt's: leaving has
+      // reset it already, and a newer attempt may be under way.
+      if (current()) {
+        this.attempt = null;
+        this.isSubmitting.set(false);
+        this.submitWhatWasTypedMeanwhile(code);
+      }
+    }
+  }
+
+  /**
+   * The code was changed while an attempt for the old one was under way.
+   * That attempt has just ended without a word; the new code, if it is all
+   * there, is submitted as it would have been had it been typed now.
+   */
+  private submitWhatWasTypedMeanwhile(attemptedCode: string): void {
+    const code = this.normalizedCode();
+    if (code === attemptedCode) return;
+    if (
+      shouldAutoSubmitTypedCode({
+        codeIsValid: isValidRoomCode(code),
+        code,
+        lastAttemptedCode: this.lastAttemptedCode,
+        isSubmitting: this.isSubmitting(),
+      })
+    ) {
+      queueMicrotask(() => void this.submit());
+    }
+  }
+
+  /**
+   * Keep the hash for the way back in (ADR-0044). Once the relay has
+   * accepted it, in the entry; while it has not answered yet, on the side —
+   * the entry is only written once it has, and a refusal drops what was put
+   * aside. Not being able to keep it is no reason not to go in.
+   */
+  private async keepForTheWayBack(uuid: string, hash: string, accepted: boolean): Promise<void> {
+    try {
+      if (accepted) {
+        await this.lastSessionService.rememberPasswordHash(uuid, hash);
+      } else {
+        this.lastSessionService.setPendingPasswordHash(uuid, hash);
+      }
+    } catch (err) {
+      console.warn('Failed to cache the password hash:', err);
     }
   }
 
   /**
    * The relay turned the connection down. A wrong password is asked for
-   * again, code kept; anything else has nothing left to correct on this page.
+   * again, code kept; anything else has nothing left to correct on this
+   * page. `current` says whether the page is still the attempt's to change.
    */
-  private async onRejected(reason: JoinRejectionReason): Promise<void> {
-    this.docService.teardown();
+  private async onRejected(reason: JoinRejectionReason, current: () => boolean): Promise<void> {
+    if (!current()) return;
     await this.toast(rejectionCopy(reason));
+    if (!current()) return;
     if (reason === 'wrong-password') {
       this.passwordControl.reset();
       this.focusPasswordInput();

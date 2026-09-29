@@ -34,6 +34,8 @@ function makeDocMock() {
     _metaSignal: metaSignal,
     hasSession: vi.fn(() => true),
     endingSessionLocally: vi.fn(() => false),
+    // The UUID the relay issued. `meta().roomUuid` is the doc's word for it.
+    relayRoomUuid: vi.fn<() => string | null>(() => 'relay-uuid'),
     teardown: vi.fn(),
     participants: vi.fn(() => []),
     settings: vi.fn(() => null),
@@ -88,12 +90,12 @@ describe('SessionEndService', () => {
     TestBed.resetTestingModule();
   });
 
-  it('happy path: teardown → clearAll → toast → navigate in order', async () => {
+  it('happy path: teardown → forget the session → toast → navigate in order', async () => {
     const callOrder: string[] = [];
     docMock.teardown.mockImplementation(() => {
       callOrder.push('teardown');
     });
-    lastSessionMock.clearAll.mockImplementation(async () => {
+    lastSessionMock.removeByUuid.mockImplementation(async () => {
       callOrder.push('clear');
     });
     toastMock.info.mockImplementation(async () => {
@@ -108,7 +110,6 @@ describe('SessionEndService', () => {
     TestBed.inject(SessionEndService);
 
     // Drive a remote session-end: write sessionEndedAt into meta signal.
-    // No roomUuid → service calls clearAll().
     docMock._metaSignal.set({ sessionEndedAt: Date.now(), createdBy: 'host-1' });
 
     await flushAll();
@@ -116,7 +117,7 @@ describe('SessionEndService', () => {
     expect(callOrder).toEqual(['teardown', 'clear', 'toast', 'navigate']);
   });
 
-  it('failure path: clearAll() rejects → warn logged, toast + navigate still called', async () => {
+  it('failure path: the cache cannot be written → warn logged, toast + navigate still called', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const clearError = new Error('Storage failed');
     const callOrder: string[] = [];
@@ -124,7 +125,7 @@ describe('SessionEndService', () => {
     docMock.teardown.mockImplementation(() => {
       callOrder.push('teardown');
     });
-    lastSessionMock.clearAll.mockImplementation(async () => {
+    lastSessionMock.removeByUuid.mockImplementation(async () => {
       callOrder.push('clear-attempt');
       throw clearError;
     });
@@ -150,19 +151,32 @@ describe('SessionEndService', () => {
     warnSpy.mockRestore();
   });
 
-  it('calls removeByUuid when meta has roomUuid', async () => {
+  // The doc is writable by everyone in the session, its UUID included.
+  it('forgets the session by the UUID the relay issued, not the one in the doc', async () => {
     TestBed.inject(SessionEndService);
 
-    // Set roomUuid on meta before sessionEndedAt fires
     docMock._metaSignal.set({
       sessionEndedAt: Date.now(),
       createdBy: 'host-1',
-      roomUuid: 'room-uuid-42',
+      roomUuid: 'uuid-from-the-doc',
     });
 
     await flushAll();
 
-    expect(lastSessionMock.removeByUuid).toHaveBeenCalledWith('room-uuid-42');
+    expect(lastSessionMock.removeByUuid).toHaveBeenCalledExactlyOnceWith('relay-uuid');
+    expect(lastSessionMock.clearAll).not.toHaveBeenCalled();
+  });
+
+  it('forgets nothing else when there is no UUID to go by', async () => {
+    docMock.relayRoomUuid.mockReturnValue(null);
+    TestBed.inject(SessionEndService);
+
+    docMock._metaSignal.set({ sessionEndedAt: Date.now(), createdBy: 'host-1' });
+
+    await flushAll();
+
+    expect(docMock.teardown).toHaveBeenCalledOnce();
+    expect(lastSessionMock.removeByUuid).not.toHaveBeenCalled();
     expect(lastSessionMock.clearAll).not.toHaveBeenCalled();
   });
 

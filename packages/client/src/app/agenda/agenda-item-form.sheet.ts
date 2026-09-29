@@ -33,6 +33,7 @@ import {
 } from '@ionic/angular/standalone';
 import { map, startWith } from 'rxjs';
 
+import { isComposingKey } from '../utils/composing-key';
 import { focusField } from '../utils/focus-field';
 
 /**
@@ -246,7 +247,7 @@ export class AgendaItemFormSheetComponent implements OnInit {
    * The Enter that confirms an IME composition is part of typing, not a submit.
    */
   protected onEnter(event: Event): void {
-    if ((event as KeyboardEvent).isComposing) return;
+    if (isComposingKey(event)) return;
     this.submit();
   }
 

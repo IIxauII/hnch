@@ -55,6 +55,9 @@ function makeDocService(
     teardown: vi.fn(),
     joinSession: vi.fn(),
     connect: vi.fn(),
+    // The session the rejoin opens: the same one for as long as nothing
+    // else starts or ends one.
+    sessionEpoch: vi.fn().mockReturnValue(1),
   };
 }
 
@@ -190,6 +193,127 @@ describe('rejoinRoom', () => {
 
     const result = await rejoinRoom('ABC123', deps);
     expect(result.type).toBe('timeout');
+  });
+
+  // Codes are handed out again once a session has expired.
+  describe('a code that belongs to another session now', () => {
+    it('counts as the session being gone', async () => {
+      const { rejoinRoom, deps } = await buildDeps({
+        resolveResult: { uuid: 'uuid-of-a-stranger', accessMode: 'open' },
+      });
+
+      const result = await rejoinRoom('ABC123', deps, { expectedUuid: 'uuid-remembered' });
+
+      expect(result).toEqual({ type: 'unknown-room' });
+    });
+
+    it('is not walked into, and gets no password', async () => {
+      const { rejoinRoom, deps, docService } = await buildDeps({
+        resolveResult: { uuid: 'uuid-of-a-stranger', accessMode: 'password' },
+      });
+
+      await rejoinRoom('ABC123', deps, {
+        expectedUuid: 'uuid-remembered',
+        passwordHash: 'hash-for-the-old-session',
+      });
+
+      expect(docService.joinSession).not.toHaveBeenCalled();
+      expect(docService.connect).not.toHaveBeenCalled();
+      // A session running in the background is another one, and stays
+      expect(docService.teardown).not.toHaveBeenCalled();
+    });
+
+    it('is rejoined when it is still the session that is remembered', async () => {
+      const { rejoinRoom, deps, docService } = await buildDeps({
+        resolveResult: { uuid: 'uuid-remembered', accessMode: 'open' },
+      });
+
+      const result = await rejoinRoom('ABC123', deps, { expectedUuid: 'uuid-remembered' });
+
+      expect(result.type).toBe('connected');
+      expect(docService.connect).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('a session it opened and did not get into', () => {
+    it('is closed again when the relay turns it away', async () => {
+      const { rejoinRoom, deps, docService } = await buildDeps({
+        resolveResult: { uuid: 'uuid-open', accessMode: 'open' },
+        waitOutcome: 'room-full',
+      });
+
+      await rejoinRoom('ABC123', deps);
+
+      // Once to make room for the session, once to close it again
+      expect(docService.teardown).toHaveBeenCalledTimes(2);
+    });
+
+    it('is left alone when another session has taken its place', async () => {
+      const { rejoinRoom, deps, docService } = await buildDeps({
+        resolveResult: { uuid: 'uuid-open', accessMode: 'open' },
+        waitOutcome: 'room-full',
+      });
+      // Its own session first, somebody else's by the time the wait is over
+      docService.sessionEpoch.mockReturnValueOnce(1).mockReturnValue(2);
+
+      await rejoinRoom('ABC123', deps);
+
+      expect(docService.teardown).toHaveBeenCalledTimes(1);
+    });
+
+    it('is kept on a timeout: a slow relay is not a no', async () => {
+      const { rejoinRoom, deps, docService } = await buildDeps({
+        resolveResult: { uuid: 'uuid-open', accessMode: 'open' },
+        waitOutcome: 'timeout',
+      });
+
+      await rejoinRoom('ABC123', deps);
+
+      expect(docService.teardown).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('given up on', () => {
+    it('touches nothing when that happened while it was getting ready', async () => {
+      const { rejoinRoom, deps, docService } = await buildDeps({
+        resolveResult: { uuid: 'uuid-open', accessMode: 'open' },
+      });
+      const attempt = new AbortController();
+      attempt.abort();
+
+      const result = await rejoinRoom('ABC123', deps, { signal: attempt.signal });
+
+      expect(result).toEqual({ type: 'superseded' });
+      expect(docService.teardown).not.toHaveBeenCalled();
+      expect(docService.joinSession).not.toHaveBeenCalled();
+    });
+
+    it('closes the session it had opened when that happened during the wait', async () => {
+      const { rejoinRoom, deps, docService, waitForJoinOutcome } = await buildDeps({
+        resolveResult: { uuid: 'uuid-open', accessMode: 'open' },
+      });
+      const attempt = new AbortController();
+      waitForJoinOutcome.mockImplementation(async () => {
+        attempt.abort();
+        return 'superseded';
+      });
+
+      const result = await rejoinRoom('ABC123', deps, { signal: attempt.signal });
+
+      expect(result).toEqual({ type: 'superseded' });
+      expect(docService.teardown).toHaveBeenCalledTimes(2);
+    });
+
+    it('closes nothing when the session went away by itself', async () => {
+      const { rejoinRoom, deps, docService } = await buildDeps({
+        resolveResult: { uuid: 'uuid-open', accessMode: 'open' },
+        waitOutcome: 'superseded',
+      });
+
+      await rejoinRoom('ABC123', deps);
+
+      expect(docService.teardown).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('returns rejected with reason on WS rejection', async () => {

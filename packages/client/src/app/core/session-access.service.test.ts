@@ -20,6 +20,8 @@ const relay = vi.hoisted(() => ({
   unreachable: false,
   /** Set to hold the next answer back until the test lets it go. */
   hold: null as null | Promise<void>,
+  /** What the relay says the mode is after a change, whatever was asked for. */
+  answersWith: null as null | 'open' | 'password',
   lookups: [] as string[],
   patches: [] as { uuid: string; hash: string | null }[],
 }));
@@ -43,7 +45,7 @@ vi.mock('@hnch/shared', async (importOriginal) => {
       if (relay.hold !== null) await relay.hold;
       if (relay.unreachable) throw new Error('relay unreachable');
       relay.patches.push({ uuid, hash });
-      relay.accessMode = hash === null ? 'open' : 'password';
+      relay.accessMode = relay.answersWith ?? (hash === null ? 'open' : 'password');
       return { accessMode: relay.accessMode };
     },
   };
@@ -61,6 +63,7 @@ vi.mock('@capacitor/preferences', () => ({
 
 beforeEach(() => {
   relay.accessMode = 'open';
+  relay.answersWith = null;
   relay.uuid = 'uuid-1';
   relay.unreachable = false;
   relay.hold = null;
@@ -283,7 +286,7 @@ describe('SessionAccessService — setting a password', () => {
     expect(rememberPasswordHash).not.toHaveBeenCalled();
   });
 
-  it('shows what the relay answered, not what was asked for', async () => {
+  it('shows nothing of the change before the relay has answered', async () => {
     const { service } = await mount();
     const held = gate();
     relay.hold = held.promise;
@@ -294,6 +297,17 @@ describe('SessionAccessService — setting a password', () => {
     await change;
 
     expect(service.mode()).toBe('password');
+  });
+
+  // A relay that says something other than what it was asked: what it says
+  // is what it enforces.
+  it('shows what the relay answered, not what was asked for', async () => {
+    const { service } = await mount();
+    relay.answersWith = 'open';
+
+    await service.setPassword('hunter2');
+
+    expect(service.mode()).toBe('open');
   });
 
   it('is busy while the change is on its way, and not after', async () => {
@@ -358,7 +372,26 @@ describe('SessionAccessService — setting a password', () => {
   });
 
   it('leaves a session alone that came after the one it was changing', async () => {
-    const { service, sessionChanges, updateCredentials, rememberPasswordHash } = await mount();
+    const { service, sessionChanges, updateCredentials } = await mount();
+    const held = gate();
+    relay.hold = held.promise;
+    const change = service.setPassword('hunter2');
+
+    sessionChanges();
+    held.open();
+    const result = await change;
+
+    expect(result).toBe('applied');
+    expect(service.mode()).toBe('open');
+    expect(service.saving()).toBe(false);
+    expect(updateCredentials).not.toHaveBeenCalled();
+  });
+
+  // The relay has the password, whatever became of the session on this
+  // device. Without the hash the host is asked, on the way back in, for
+  // the password they have just set.
+  it('remembers the hash for a session that was left while it was being set', async () => {
+    const { service, sessionChanges, rememberPasswordHash } = await mount();
     const held = gate();
     relay.hold = held.promise;
     const change = service.setPassword('hunter2');
@@ -367,9 +400,32 @@ describe('SessionAccessService — setting a password', () => {
     held.open();
     await change;
 
-    expect(service.mode()).toBe('open');
-    expect(updateCredentials).not.toHaveBeenCalled();
-    expect(rememberPasswordHash).not.toHaveBeenCalled();
+    expect(rememberPasswordHash).toHaveBeenCalledExactlyOnceWith('uuid-1', 'hash(hunter2,uuid-1)');
+  });
+
+  it('does not let a change that ended late mark a newer one as done', async () => {
+    const { service, sessionChanges } = await mount();
+    const first = gate();
+    relay.hold = first.promise;
+    const early = service.setPassword('hunter2');
+    // Let it get as far as the relay, where it is held
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    sessionChanges();
+
+    // A change in the session that came after, still on its way
+    const second = gate();
+    relay.hold = second.promise;
+    const late = service.setPassword('another');
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    expect(service.saving()).toBe(true);
+
+    first.open();
+    await early;
+    expect(service.saving()).toBe(true);
+
+    second.open();
+    await late;
+    expect(service.saving()).toBe(false);
   });
 });
 

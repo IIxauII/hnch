@@ -57,7 +57,7 @@ statistics at all rather than empty ones.
 
 Re-votes are always allowed. A re-vote creates a *new* round with `parentRoundId` pointing at the previous round and title/metadata inherited by default, preserving the progression of estimates across rounds (e.g. 5 → 8 → 13) for retrospective value. The UI walks the parent chain to tell a re-vote from a fresh round: the mobile client marks it "Re-vote" beside the round's number, the CLI renders the chain position ("Round 2/3 [re-vote]").
 
-A round goes by one number: its place among the session's rounds that were not cancelled. A round the host cancels leaves no trace — no history entry, no number — so the round that replaces it takes the number it would have had. (The CLI's chain position for a re-vote counts within the chain, so there the same round reads "Round 2/3 [re-vote]".)
+A round goes by one number: its place among the session's rounds that were not cancelled. A round the host cancels leaves no trace — no history entry, no number — so the round that replaces it takes the number it would have had. (In its results and its history the CLI also gives a re-vote's position in its chain, which counts within the chain: there the same round reads "Round 2/3 [re-vote]".)
 
 Before a round's reveal, a user may change their vote any number of times by tapping a different card — only the selection at reveal time counts. This matches physical planning poker (you can flip your card back over before everyone shows).
 
@@ -104,7 +104,7 @@ A session is always ephemeral (per meeting) regardless of whether it was started
 
 Sessions are open by default (anyone with the link/code can join). Host can optionally enable:
 
-- **Password-protected** — on session creation, the host registers a password hash with the relay. Joiners submit their password as a hash; the relay compares and accepts or rejects at socket connect time.
+- **Password-protected** — on session creation, the host registers a password hash with the relay. Joiners submit their password as a hash; the relay compares and accepts or rejects at socket connect time. What is hashed is the password without the whitespace around it, in Unicode's NFC form — the same string wherever it is typed (see [ux.md](ux.md)).
 
 Access control is *relay-enforced*, not client-side. The relay holds a small amount of per-active-room metadata (password hash) but remains **content-blind** — it never parses session data, votes, or user identity. The password hash is opaque to the relay's semantics.
 

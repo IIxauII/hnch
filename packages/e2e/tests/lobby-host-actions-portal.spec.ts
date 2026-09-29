@@ -22,7 +22,7 @@
  */
 
 import { test, expect } from './fixtures/app.fixture';
-import { KICK_AFFORDANCE, LOBBY } from './fixtures/helpers';
+import { KICK_AFFORDANCE, LOBBY, watchForToast } from './fixtures/helpers';
 
 // ---------------------------------------------------------------------------
 // Helper: click the overflow button for a named participant (desktop)
@@ -111,6 +111,15 @@ test.describe('Desktop host-actions popover', () => {
     // The alert says what is about to happen, and its button says it again
     await expect(alert).toContainText('Make Player the host?');
 
+    // What everyone is told about it — and what nobody is: the host that
+    // was is still here, so nobody has disconnected.
+    const toldPlayer = await watchForToast(player.page, 'You are now the host');
+    const toldHost = await watchForToast(host.page, 'Player is now the host');
+    const alarms = [
+      await watchForToast(player.page, 'disconnected'),
+      await watchForToast(host.page, 'disconnected'),
+    ];
+
     // Confirm exactly once (guard against double-fire from popover→alert race)
     const confirmBtn = host.page.locator('ion-alert button:has-text("Make host")');
     await expect(confirmBtn).toHaveCount(1);
@@ -132,6 +141,10 @@ test.describe('Desktop host-actions popover', () => {
         hasText: LOBBY.startRoundBtn,
       }),
     ).toBeVisible({ timeout: 8_000 });
+
+    await expect.poll(() => toldPlayer.seen()).toBe(true);
+    await expect.poll(() => toldHost.seen()).toBe(true);
+    for (const alarm of alarms) expect(await alarm.seen()).toBe(false);
   });
 
   test('Popover dismisses on backdrop tap', async ({ host, player }) => {

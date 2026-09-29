@@ -50,6 +50,7 @@ import { ScalePickerSheetComponent } from '../session-settings/scale-picker.shee
 import { RelayUrlEditorSheetComponent } from './relay-url-editor.sheet';
 import { presentSheet } from '../utils/present-sheet';
 import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.helpers';
+import { isComposingKey } from '../utils/composing-key';
 
 /**
  * App Settings screen — device-level preferences, none of them synced.
@@ -114,7 +115,7 @@ import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.he
               autocomplete="name"
               enterkeyhint="done"
               (ionBlur)="onDisplayNameBlur()"
-              (keydown.enter)="onDisplayNameBlur()"
+              (keydown.enter)="composing($event) || onDisplayNameBlur()"
             ></ion-input>
           </ion-item>
           <ion-item>
@@ -150,7 +151,7 @@ import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.he
                 autocorrect="off"
                 spellcheck="false"
                 (ionBlur)="onAvatarHexBlur()"
-                (keydown.enter)="onAvatarHexBlur()"
+                (keydown.enter)="composing($event) || onAvatarHexBlur()"
               ></ion-input>
             </ion-item>
           }
@@ -216,7 +217,7 @@ import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.he
               autocapitalize="sentences"
               enterkeyhint="done"
               (ionBlur)="onDefaultSessionNameBlur()"
-              (keydown.enter)="onDefaultSessionNameBlur()"
+              (keydown.enter)="composing($event) || onDefaultSessionNameBlur()"
             ></ion-input>
           </ion-item>
           <ion-item>
@@ -371,6 +372,12 @@ import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.he
   ],
 })
 export class SettingsPage {
+  /**
+   * For the Enter handlers: the Enter that confirms a choice in an input
+   * method is part of typing, and commits nothing.
+   */
+  protected readonly composing = isComposingKey;
+
   private readonly displayNameService = inject(DisplayNameService);
   private readonly docService = inject(DocService);
   private readonly participantIdService = inject(ParticipantIdService);

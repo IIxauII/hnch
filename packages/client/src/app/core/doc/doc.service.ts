@@ -386,6 +386,15 @@ export class DocService {
   readonly relayRoomUuid: Signal<string | null> = this.relayRoomUuidSignal.asReadonly();
 
   /**
+   * True once the session has been got into: the socket is up *and* the
+   * relay's state has applied on it. The socket alone is not a verdict — the
+   * relay takes it before it turns a wrong password away (ADR-0035).
+   */
+  readonly joined: Signal<boolean> = computed(
+    () => this.syncStatusSignal() === 'connected' && this.relaySyncedSignal(),
+  );
+
+  /**
    * True once the relay has completed its first sync (y-websocket `onSynced`).
    * Resets to false on `teardown`. Consumers should not act on `leftAt`
    * transitions observed before this is true — those came from the snapshot
@@ -539,7 +548,11 @@ export class DocService {
    */
   connect(credentials: JoinCredentials, opts: ConnectOptions = {}): void {
     const doc = this.requireDoc('connect');
-    if (this.provider !== null) return;
+    // Connected, or about to be: the snapshot is loading and the socket opens
+    // when it has. A second one would never be closed.
+    if (this.provider !== null || this.credentials !== null) return;
+    // What the relay issued, handed in by whoever asked it. The doc's own
+    // word for it is only taken for a doc that has not been anywhere yet.
     const roomUuid = opts.roomUuid ?? this.meta()?.roomUuid;
     if (roomUuid === undefined) {
       throw new Error('DocService.connect: session has no roomUuid');
@@ -647,7 +660,8 @@ export class DocService {
    * the session down (ADR-0017). Called after the host rotates the room
    * password so this client's own connection stops carrying the stale `pw`
    * and survives its next reconnect. Pass `null` when the room reverts to
-   * open. No-op when the hash is unchanged or no connection is attached.
+   * open. No-op when the hash is unchanged. While the socket has not been
+   * opened yet — the snapshot is still loading — it opens with the new hash.
    */
   updateCredentials(passwordHash: string | null): void {
     if (this.credentials !== null) {
@@ -665,6 +679,9 @@ export class DocService {
    * state; {@link teardown} calls this automatically.
    */
   disconnect(): void {
+    // Also calls off a connection that was still on its way: the socket
+    // opens with credentials, and there are none now.
+    this.credentials = null;
     if (this.provider === null) {
       this.syncStatusSignal.set('offline');
       this.reconnectingSignal.set(false);

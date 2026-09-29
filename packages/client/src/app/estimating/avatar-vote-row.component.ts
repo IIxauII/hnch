@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 
 import { resolveAvatarColor, resolveAvatarInkColor, type ParticipantSnapshot } from '@hnch/shared';
 
-import { nameInitial } from '../shared/name-initial';
+import { avatarInitial } from '../shared/name-initial';
 
 @Component({
   selector: 'app-avatar-vote-row',
@@ -74,11 +74,15 @@ import { nameInitial } from '../shared/name-initial';
       .dot.voted {
         background: var(--avatar-color, var(--hnch-accent));
         border-color: var(--avatar-color, var(--hnch-accent));
-        border-color: color-mix(
-          in srgb,
-          var(--avatar-color, var(--hnch-accent)) 72%,
-          var(--hnch-text)
-        );
+      }
+      @supports (color: color-mix(in srgb, red, blue)) {
+        .dot.voted {
+          border-color: color-mix(
+            in srgb,
+            var(--avatar-color, var(--hnch-accent)) 72%,
+            var(--hnch-text)
+          );
+        }
       }
       .dot-initial {
         color: var(--hnch-muted);
@@ -149,7 +153,7 @@ export class AvatarVoteRowComponent {
   );
 
   protected initialOf(p: ParticipantSnapshot): string {
-    return nameInitial(p.displayName);
+    return avatarInitial(p.displayName);
   }
 
   /** Resolved avatar color (ADR-0043). Falls back to deterministic hash of `p.id`. */

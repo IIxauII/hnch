@@ -29,11 +29,12 @@ export interface SessionResumeGuardDeps {
     clearPasswordHash(roomUuid: string): Promise<void>;
     removeByUuid(roomUuid: string): Promise<void>;
     setPendingPasswordHash(roomUuid: string, passwordHash: string): void;
-    /** @deprecated back-compat — still used if no uuid available */
-    clearAll(): Promise<void>;
   };
   roomJoinService: {
-    rejoin(rawCode: string, opts?: { passwordHash?: string }): Promise<RejoinOutcome>;
+    rejoin(
+      rawCode: string,
+      opts?: { passwordHash?: string; expectedUuid?: string },
+    ): Promise<RejoinOutcome>;
   };
 }
 
@@ -90,7 +91,12 @@ export async function sessionResumeGuardLogic(
   const cached = entries.find((e) => normalizeRoomCode(e.roomCode) === code);
   const passwordHash = cached?.passwordHash;
 
-  const outcome = await roomJoinService.rejoin(rawCode, passwordHash ? { passwordHash } : {});
+  const outcome = await roomJoinService.rejoin(rawCode, {
+    ...(passwordHash ? { passwordHash } : {}),
+    // What the device remembers under this code, if anything. A code that
+    // has gone to another session since is not that session.
+    ...(cached ? { expectedUuid: cached.roomUuid } : {}),
+  });
 
   switch (outcome.type) {
     case 'connected':
@@ -118,11 +124,9 @@ export async function sessionResumeGuardLogic(
       return router.createUrlTree(['/join'], { queryParams: { code } });
 
     case 'unknown-room':
-      if (cached) {
-        await lastSessionService.removeByUuid(cached.roomUuid);
-      } else {
-        await lastSessionService.clearAll();
-      }
+      // Only the session that is gone. With no entry for it there is nothing
+      // to forget — the other sessions this device remembers are not it.
+      if (cached) await lastSessionService.removeByUuid(cached.roomUuid);
       return router.createUrlTree(['/home']);
 
     case 'rejected':

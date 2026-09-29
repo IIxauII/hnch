@@ -318,20 +318,45 @@ describe('AccentService', () => {
   it('keeps the surfaces it checks against in step with the stylesheet', async () => {
     const { ACCENT_TEXT_SURFACES } = await import('./accent.service');
     const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    // Vitest runs from the package root.
-    const css = readFileSync(resolve(process.cwd(), 'src/theme/variables.scss'), 'utf8');
+    const { fileURLToPath } = await import('node:url');
+    // By where this file is, not by where the tests were started from. As
+    // text: the URL of the test environment is not the one Node knows.
+    const read = (path: string): string =>
+      readFileSync(fileURLToPath(new URL(path, import.meta.url).href), 'utf8');
+    const css = read('../../theme/variables.scss');
+    const upper = (colors: readonly string[]): string[] => colors.map((c) => c.toUpperCase());
     const token = (name: string): string[] =>
-      [...css.matchAll(new RegExp(`--hnch-${name}:\\s*(#[0-9A-Fa-f]{6})`, 'gu'))].map((m) =>
-        m[1]!.toUpperCase(),
+      upper(
+        [...css.matchAll(new RegExp(`--hnch-${name}:\\s*(#[0-9A-Fa-f]{6})`, 'gu'))].map(
+          (m) => m[1]!,
+        ),
       );
 
     // Each token is declared twice: light first, dark second.
     const [lightBg, darkBg] = token('bg');
     const [lightCard, darkCard] = token('elev-1');
     const [lightOverlay, darkOverlay] = token('elev-2');
-    expect([...ACCENT_TEXT_SURFACES.light]).toEqual([lightBg, lightCard, lightOverlay]);
-    expect([...ACCENT_TEXT_SURFACES.dark]).toEqual([darkBg, darkCard, darkOverlay]);
+    expect(upper(ACCENT_TEXT_SURFACES.light)).toEqual([lightBg, lightCard, lightOverlay]);
+    expect(upper(ACCENT_TEXT_SURFACES.dark)).toEqual([darkBg, darkCard, darkOverlay]);
+  });
+
+  // Tuned to a little more than the minimum: see ACCENT_TEXT_TARGET_CONTRAST.
+  it('leaves a margin over the minimum, for every accent in both modes', async () => {
+    const { accessibleAccentText, worstAccentTextContrast, ACCENT_TEXT_TARGET_CONTRAST } =
+      await import('./accent.service');
+    const { ACCENTS, ACCENTS_DARK_OVERRIDE } = await import('./accent.tokens');
+
+    expect(ACCENT_TEXT_TARGET_CONTRAST).toBeGreaterThan(4.5);
+    for (const key of Object.keys(ACCENTS) as (keyof typeof ACCENTS)[]) {
+      for (const isDark of [false, true]) {
+        const base = isDark ? (ACCENTS_DARK_OVERRIDE[key] ?? ACCENTS[key]).base : ACCENTS[key].base;
+        const text = accessibleAccentText(base, isDark);
+        expect(
+          worstAccentTextContrast(text, isDark),
+          `${key} ${isDark ? 'dark' : 'light'}`,
+        ).toBeGreaterThanOrEqual(ACCENT_TEXT_TARGET_CONTRAST);
+      }
+    }
   });
 
   it('leaves a base that already passes untouched', async () => {

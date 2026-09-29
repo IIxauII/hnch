@@ -49,23 +49,30 @@ export type LastSessionCache = ClientLastSessionEntry;
  * TTL-aligned to ADR-0012's 24 h relay snapshot window.
  *
  * All mutations read–migrate–prune–write so the v1 single-object cache
- * is silently upgraded on first touch.
+ * is silently upgraded on first touch. They take turns ({@link inTurn}):
+ * each one writes back what it read, so two at once would undo each other.
  */
 @Injectable({ providedIn: 'root' })
 export class LastSessionService {
   /**
    * In-memory transient map from roomUuid → passwordHash, set by the
-   * join page / session-resume guard after a successful password-based
-   * join. Consumed (and cleared) by the first `recordJoin` call for
-   * that uuid, so the hash is persisted without the lobby/estimating
+   * join page / session-resume guard for a session that is being got into
+   * with a password. Consumed (and cleared) by the first `recordJoin` call
+   * for that uuid, so the hash is persisted without the lobby/estimating
    * pages needing to know about it.
    *
-   * Only ever holds a hash the relay has accepted, for a session that has
-   * no entry yet. Everything that gives a hash up ({@link clearPasswordHash},
-   * {@link removeByUuid}, {@link clearAll}) gives this up with it — a hash
-   * left waiting here would be written back by the next record.
+   * Holds a hash the relay has accepted, or one a connection is still being
+   * tried with (a join that went in on a timeout) — for a session that has
+   * no entry yet, or one whose entry gets the hash with its next record. A
+   * session is only recorded once it has been joined, so a hash the relay
+   * turns down never gets that far. Everything that gives a hash up
+   * ({@link clearPasswordHash}, {@link removeByUuid}, {@link clearAll})
+   * gives this up with it — a hash left waiting here would be written back
+   * by the next record.
    */
   private readonly pendingHashes = new Map<string, string>();
+  /** The change that is running, or the last one that ran. Never rejects. */
+  private turn: Promise<unknown> = Promise.resolve();
   /** @deprecated Use the module-level `LAST_SESSION_KEY` constant. */
   static readonly LAST_SESSION_KEY = LAST_SESSION_KEY;
   /** @deprecated Use `LAST_SESSION_TTL_MS` from `@hnch/shared`. */
@@ -133,6 +140,20 @@ export class LastSessionService {
     });
   }
 
+  /**
+   * Run `change` once everything asked for before it is done. Leaving and
+   * being refused can both reach the cache in the same moment, and the
+   * password sheet writes while the pages record: whichever wrote last would
+   * put back what the other had just taken out.
+   *
+   * A change that fails fails for its own caller only.
+   */
+  private inTurn<T>(change: () => Promise<T>): Promise<T> {
+    const result = this.turn.then(change);
+    this.turn = result.catch(() => undefined);
+    return result;
+  }
+
   // -------------------------------------------------------------------------
   // Public API
   // -------------------------------------------------------------------------
@@ -143,7 +164,11 @@ export class LastSessionService {
    * cache; clears the Preferences key if all entries expired (ADR-0044
    * decision §11).
    */
-  async list(opts: { now?: () => number } = {}): Promise<ClientLastSessionEntry[]> {
+  list(opts: { now?: () => number } = {}): Promise<ClientLastSessionEntry[]> {
+    return this.inTurn(() => this.listNow(opts));
+  }
+
+  private async listNow(opts: { now?: () => number }): Promise<ClientLastSessionEntry[]> {
     const now = opts.now?.() ?? Date.now();
     const migrated = await this.readCache();
     const pruned = pruneLastSessionEntries(migrated, now);
@@ -162,14 +187,19 @@ export class LastSessionService {
 
   /**
    * Store a password hash to be consumed by the next `recordJoin` for the
-   * given `roomUuid`. Called by the join page and session-resume guard after
-   * a successful password-based join so the hash reaches the cache without
-   * the lobby/estimating pages needing to know about it.
+   * given `roomUuid`. Called by the join page and session-resume guard for
+   * a session that is being got into with a password, so the hash reaches
+   * the cache without the lobby/estimating pages needing to know about it.
    *
    * The stored value is cleared on first use (see `recordJoin`).
+   *
+   * Takes its turn like the changes to the cache do, so that a hash given up
+   * just before this one was handed over does not take this one with it.
    */
   setPendingPasswordHash(roomUuid: string, passwordHash: string): void {
-    this.pendingHashes.set(roomUuid, passwordHash);
+    void this.inTurn(async () => {
+      this.pendingHashes.set(roomUuid, passwordHash);
+    });
   }
 
   /**
@@ -178,7 +208,7 @@ export class LastSessionService {
    * the payload provides one or a pending hash exists for this uuid.
    * Does not clobber to undefined. Enforces 5-entry cap via LRU eviction.
    */
-  async recordJoin(
+  recordJoin(
     payload: {
       roomCode: string;
       roomUuid: string;
@@ -186,6 +216,18 @@ export class LastSessionService {
       passwordHash?: string;
     },
     opts: { now?: () => number } = {},
+  ): Promise<void> {
+    return this.inTurn(() => this.recordJoinNow(payload, opts));
+  }
+
+  private async recordJoinNow(
+    payload: {
+      roomCode: string;
+      roomUuid: string;
+      lastScreen: LastSessionScreen;
+      passwordHash?: string;
+    },
+    opts: { now?: () => number },
   ): Promise<void> {
     const now = opts.now?.() ?? Date.now();
     const migrated = await this.readCache();
@@ -232,17 +274,19 @@ export class LastSessionService {
    * {@link setPendingPasswordHash} instead waits for the next record, and
    * with the socket staying up there may not be one until much later.
    */
-  async rememberPasswordHash(roomUuid: string, passwordHash: string): Promise<void> {
-    const migrated = await this.readCache();
-    const entries = { ...migrated.entries } as Record<string, ClientLastSessionEntry>;
-    const existing = entries[roomUuid];
-    if (!existing) {
-      this.pendingHashes.set(roomUuid, passwordHash);
-      return;
-    }
-    this.pendingHashes.delete(roomUuid);
-    entries[roomUuid] = { ...existing, passwordHash };
-    await this.writeCache(entries);
+  rememberPasswordHash(roomUuid: string, passwordHash: string): Promise<void> {
+    return this.inTurn(async () => {
+      const migrated = await this.readCache();
+      const entries = { ...migrated.entries } as Record<string, ClientLastSessionEntry>;
+      const existing = entries[roomUuid];
+      if (!existing) {
+        this.pendingHashes.set(roomUuid, passwordHash);
+        return;
+      }
+      this.pendingHashes.delete(roomUuid);
+      entries[roomUuid] = { ...existing, passwordHash };
+      await this.writeCache(entries);
+    });
   }
 
   /**
@@ -250,42 +294,48 @@ export class LastSessionService {
    * decision §6 — wrong-password/4002 handling). Keeps all other fields.
    * A hash still waiting to be recorded is dropped as well.
    */
-  async clearPasswordHash(roomUuid: string): Promise<void> {
-    this.pendingHashes.delete(roomUuid);
-    const migrated = await this.readCache();
-    const entries = { ...migrated.entries } as Record<string, ClientLastSessionEntry>;
+  clearPasswordHash(roomUuid: string): Promise<void> {
+    return this.inTurn(async () => {
+      this.pendingHashes.delete(roomUuid);
+      const migrated = await this.readCache();
+      const entries = { ...migrated.entries } as Record<string, ClientLastSessionEntry>;
 
-    const existing = entries[roomUuid];
-    if (!existing) return;
+      const existing = entries[roomUuid];
+      if (!existing) return;
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { passwordHash: _dropped, ...rest } = existing as ClientLastSessionEntry & {
-      passwordHash?: string;
-    };
-    entries[roomUuid] = rest as ClientLastSessionEntry;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { passwordHash: _dropped, ...rest } = existing as ClientLastSessionEntry & {
+        passwordHash?: string;
+      };
+      entries[roomUuid] = rest as ClientLastSessionEntry;
 
-    await this.writeCache(entries);
+      await this.writeCache(entries);
+    });
   }
 
   /**
    * Remove a single entry by UUID. Clears Preferences key entirely if
    * this was the last entry.
    */
-  async removeByUuid(roomUuid: string): Promise<void> {
-    this.pendingHashes.delete(roomUuid);
-    const migrated = await this.readCache();
-    const entries = { ...migrated.entries } as Record<string, ClientLastSessionEntry>;
+  removeByUuid(roomUuid: string): Promise<void> {
+    return this.inTurn(async () => {
+      this.pendingHashes.delete(roomUuid);
+      const migrated = await this.readCache();
+      const entries = { ...migrated.entries } as Record<string, ClientLastSessionEntry>;
 
-    if (!(roomUuid in entries)) return;
-    delete entries[roomUuid];
+      if (!(roomUuid in entries)) return;
+      delete entries[roomUuid];
 
-    await this.writeCache(entries);
+      await this.writeCache(entries);
+    });
   }
 
   /** Remove the Preferences key entirely. */
-  async clearAll(): Promise<void> {
-    this.pendingHashes.clear();
-    await Preferences.remove({ key: LAST_SESSION_KEY });
+  clearAll(): Promise<void> {
+    return this.inTurn(async () => {
+      this.pendingHashes.clear();
+      await Preferences.remove({ key: LAST_SESSION_KEY });
+    });
   }
 
   // -------------------------------------------------------------------------

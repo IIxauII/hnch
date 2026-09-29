@@ -16,13 +16,11 @@
  * Intentionally absent:
  *  - CSS token assertions — JSDOM does not evaluate CSS; source-text scanning
  *    is forbidden per the No-Simulation rule.
- *  - recentlyReconnected() toast timing — requires fake timers; the behavioral
- *    signal contract is captured by the falling-edge tests below.
  */
 
 // Exercises: connection-status-banner.component:ConnectionStatusBannerComponent
 
-import { NO_ERRORS_SCHEMA, signal } from '@angular/core';
+import { computed, NO_ERRORS_SCHEMA, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -42,20 +40,24 @@ function makeMockDocService(initial = false, initialStatus: BannerSyncStatus = '
   const reconnecting = signal(initial);
   const syncStatus = signal<BannerSyncStatus>(initialStatus);
   const lastRejection = signal<string | null>(null);
+  // As in DocService: the socket is up and the relay's state has applied.
+  const relaySynced = signal(initialStatus === 'connected');
   return {
     stub: {
       reconnecting: reconnecting.asReadonly(),
       syncStatus: syncStatus.asReadonly(),
       lastRejection: lastRejection.asReadonly(),
+      joined: computed(() => syncStatus() === 'connected' && relaySynced()),
     },
     setReconnecting: (v: boolean) => reconnecting.set(v),
     setStatus: (v: BannerSyncStatus) => syncStatus.set(v),
     setRejection: (v: string | null) => lastRejection.set(v),
+    setSynced: (v: boolean) => relaySynced.set(v),
   };
 }
 
 function mount(initial = false, initialStatus: BannerSyncStatus = 'connected') {
-  const { stub, setReconnecting, setStatus, setRejection } = makeMockDocService(
+  const { stub, setReconnecting, setStatus, setRejection, setSynced } = makeMockDocService(
     initial,
     initialStatus,
   );
@@ -66,11 +68,17 @@ function mount(initial = false, initialStatus: BannerSyncStatus = 'connected') {
   TestBed.overrideComponent(ConnectionStatusBannerComponent, { set: { imports: [] } });
   const fixture = TestBed.createComponent(ConnectionStatusBannerComponent);
   fixture.detectChanges();
-  return { fixture, setReconnecting, setStatus, setRejection };
+  return { fixture, setReconnecting, setStatus, setRejection, setSynced };
 }
 
 function getBanner(fixture: ReturnType<typeof mount>['fixture']): Element | null {
   return fixture.nativeElement.querySelector('[data-testid="connection-status-banner"]');
+}
+
+/** Whether the "Reconnected" toast is asked to be open. */
+function toastIsOpen(fixture: ReturnType<typeof mount>['fixture']): boolean {
+  const toast = fixture.nativeElement.querySelector('ion-toast') as { isOpen?: boolean } | null;
+  return toast?.isOpen === true;
 }
 
 afterEach(() => {
@@ -266,5 +274,115 @@ describe('ConnectionStatusBannerComponent — a connection the relay refused', (
     fixture.detectChanges();
 
     expect(getBanner(fixture)).toBeNull();
+  });
+});
+
+describe('ConnectionStatusBannerComponent — "Reconnected"', () => {
+  it('says so once the session has been got back into, for a moment', () => {
+    vi.useFakeTimers();
+    const { fixture, setReconnecting, setStatus, setSynced } = mount(true, 'disconnected');
+    expect(toastIsOpen(fixture)).toBe(false);
+
+    setStatus('connected');
+    setReconnecting(false);
+    setSynced(true);
+    fixture.detectChanges();
+    expect(toastIsOpen(fixture)).toBe(true);
+
+    vi.advanceTimersByTime(1500);
+    fixture.detectChanges();
+    expect(toastIsOpen(fixture)).toBe(false);
+  });
+
+  it('waits for the relay to bring the socket in sync', () => {
+    const { fixture, setReconnecting, setStatus, setSynced } = mount(true, 'disconnected');
+
+    setStatus('connected');
+    setReconnecting(false);
+    fixture.detectChanges();
+    expect(toastIsOpen(fixture)).toBe(false);
+
+    setSynced(true);
+    fixture.detectChanges();
+    expect(toastIsOpen(fixture)).toBe(true);
+  });
+
+  // The relay takes the socket, and then turns the password away that came
+  // with it: up for a moment, and never in sync.
+  it('says nothing about a socket the relay takes and then refuses', () => {
+    const { fixture, setReconnecting, setStatus, setRejection, setSynced } = mount(
+      true,
+      'disconnected',
+    );
+
+    setStatus('connected');
+    setReconnecting(false);
+    fixture.detectChanges();
+    setRejection('wrong-password');
+    setStatus('disconnected');
+    fixture.detectChanges();
+    expect(toastIsOpen(fixture)).toBe(false);
+
+    // Nor later, about something that was not waited for
+    setRejection(null);
+    setStatus('connected');
+    setSynced(true);
+    fixture.detectChanges();
+    expect(toastIsOpen(fixture)).toBe(false);
+  });
+
+  // The wait is over in both of these, but not because the connection is
+  // back: nothing has been reconnected.
+  it('says nothing when the wait ended in a refusal', () => {
+    const { fixture, setReconnecting, setRejection } = mount(true, 'disconnected');
+
+    setRejection('wrong-password');
+    setReconnecting(false);
+    fixture.detectChanges();
+
+    expect(toastIsOpen(fixture)).toBe(false);
+  });
+
+  it('says nothing when the session was left while it was reconnecting', () => {
+    const { fixture, setReconnecting, setStatus } = mount(true, 'connecting');
+
+    setStatus('offline');
+    setReconnecting(false);
+    fixture.detectChanges();
+
+    expect(toastIsOpen(fixture)).toBe(false);
+  });
+
+  it('says nothing about a first connection', () => {
+    const { fixture, setStatus, setSynced } = mount(false, 'connecting');
+
+    setStatus('connected');
+    setSynced(true);
+    fixture.detectChanges();
+
+    expect(toastIsOpen(fixture)).toBe(false);
+  });
+
+  it('says it again the next time', () => {
+    vi.useFakeTimers();
+    const { fixture, setReconnecting, setStatus, setSynced } = mount(true, 'disconnected');
+    const comeBack = (): void => {
+      setStatus('connected');
+      setReconnecting(false);
+      setSynced(true);
+      fixture.detectChanges();
+    };
+    comeBack();
+    vi.advanceTimersByTime(1500);
+    fixture.detectChanges();
+    expect(toastIsOpen(fixture)).toBe(false);
+
+    setSynced(false);
+    setStatus('disconnected');
+    setReconnecting(true);
+    fixture.detectChanges();
+    comeBack();
+
+    expect(toastIsOpen(fixture)).toBe(true);
   });
 });

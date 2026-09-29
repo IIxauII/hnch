@@ -23,6 +23,7 @@ import {
 
 import { focusField } from '../utils/focus-field';
 import { validateRelayUrl } from './relay-url-editor.helpers';
+import { isComposingKey } from '../utils/composing-key';
 
 /**
  * Relay URL editor half-sheet.
@@ -85,7 +86,7 @@ import { validateRelayUrl } from './relay-url-editor.helpers';
             spellcheck="false"
             enterkeyhint="done"
             placeholder="https://relay.example.com"
-            (keydown.enter)="onDone()"
+            (keydown.enter)="composing($event) || onDone()"
           ></ion-input>
         </ion-item>
       </ion-list>
@@ -118,6 +119,12 @@ import { validateRelayUrl } from './relay-url-editor.helpers';
   ],
 })
 export class RelayUrlEditorSheetComponent implements OnInit {
+  /**
+   * For the Enter handlers: the Enter that confirms a choice in an input
+   * method is part of typing, and commits nothing.
+   */
+  protected readonly composing = isComposingKey;
+
   /** Current relay URL override — pre-fills the input. */
   readonly currentUrl = input<string | undefined>();
 

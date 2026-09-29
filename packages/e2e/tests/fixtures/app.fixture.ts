@@ -5,6 +5,7 @@ import {
   HOME,
   JOIN,
   LOBBY,
+  ROUND_FIELD,
   ROUND_START,
   ESTIMATING,
   expectToast,
@@ -155,10 +156,10 @@ export class Participant {
     const modal = this.page.locator('app-round-start-sheet');
     await modal.waitFor({ state: 'visible' });
     if (title) {
-      await modal.locator('ion-input').first().locator('input').fill(title);
+      await modal.getByRole('textbox', { name: ROUND_FIELD.title }).fill(title);
     }
     if (ticketId) {
-      await modal.locator('ion-input').nth(1).locator('input').fill(ticketId);
+      await modal.getByRole('textbox', { name: ROUND_FIELD.ticketId }).fill(ticketId);
     }
     const startBtn = this.page.locator(ROUND_START.startBtn);
     await startBtn.waitFor({ state: 'visible' });
@@ -284,10 +285,10 @@ export class Participant {
     const modal = this.page.locator('app-round-start-sheet');
     await modal.waitFor({ state: 'visible' });
     if (title) {
-      await modal.locator('ion-input').first().locator('input').fill(title);
+      await modal.getByRole('textbox', { name: ROUND_FIELD.title }).fill(title);
     }
     if (ticketId) {
-      await modal.locator('ion-input').nth(1).locator('input').fill(ticketId);
+      await modal.getByRole('textbox', { name: ROUND_FIELD.ticketId }).fill(ticketId);
     }
     const startBtn = this.page.locator(ROUND_START.startBtn);
     await startBtn.waitFor({ state: 'visible' });

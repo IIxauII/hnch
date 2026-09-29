@@ -1043,7 +1043,7 @@ export class LobbyPage implements OnDestroy {
       const code = this.docService.roomCode();
       const uuid = this.docService.relayRoomUuid();
       // Up *and* synced: an open socket is not yet the relay saying yes.
-      const joined = this.docService.syncStatus() === 'connected' && this.docService.relaySynced();
+      const joined = this.docService.joined();
       if (!joined) {
         this.lastRecordedUuid = null;
         return;
@@ -1497,20 +1497,19 @@ export class LobbyPage implements OnDestroy {
   }
 
   private async leaveSession(): Promise<void> {
+    // The UUID the relay issued, which is what the entry was recorded under.
+    // Not the one in the doc: any participant can rewrite that. Read before
+    // anything is waited for — the session may be gone by the time it is over.
+    const uuid = this.docService.relayRoomUuid();
     if (this.myId()) {
       // Write the soft-delete before disconnecting so peers see the removal (ADR-0036).
       this.docService.commands.leave();
       // Flush the Yjs update through the WebSocket before closing (best-effort, 500 ms cap).
       await this.docService.flushUpdates();
     }
-    const uuid = this.docService.meta()?.roomUuid;
     this.docService.teardown();
     // Destructive leave — remove the entry, so Home does not offer the session again (ADR-0044).
-    if (uuid) {
-      await this.lastSessionService.removeByUuid(uuid);
-    } else {
-      await this.lastSessionService.clearAll();
-    }
+    if (uuid !== null) await this.lastSessionService.removeByUuid(uuid);
     await this.router.navigate(['/home']);
   }
 

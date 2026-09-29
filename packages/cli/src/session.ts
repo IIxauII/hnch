@@ -39,6 +39,7 @@ import {
   type SyncStatus,
 } from '@hnch/shared';
 import WebSocket from 'ws';
+import { validatePassword } from './password-validation.js';
 
 export interface CreateSessionOptions {
   readonly participantId: string;
@@ -47,6 +48,7 @@ export interface CreateSessionOptions {
   readonly sessionName?: string | undefined;
   readonly password?: string | undefined;
   readonly defaultScale?: Scale | undefined;
+  readonly onRejection?: ((reason: JoinRejectionReason) => void) | undefined;
   /** Avatar color wire value (ADR-0043). Pre-validated by caller. */
   readonly avatarColor?: string | undefined;
 }
@@ -68,6 +70,11 @@ export interface SessionHandle {
   readonly roomCode: string;
   readonly roomUuid: string;
   /**
+   * The hash the connection was first made with, for the caller to remember
+   * (ADR-0044). `undefined` for a session that was open at the time.
+   */
+  readonly passwordHash: string | undefined;
+  /**
    * The whole UI-facing writer seam, bound once to this doc and this
    * participant (#516). Eleven forwards used to re-spell each command's name
    * under this handle; `reveal(): void` / `skip(): void` /
@@ -88,6 +95,12 @@ export interface SessionHandle {
   current(): Round | null;
   /** Whether this client is the host. */
   isHost(): boolean;
+  /**
+   * Whether the session has been got into at least once: the relay's state
+   * has applied on a socket. A socket that is merely up says nothing — the
+   * relay takes it before it turns a wrong password away (ADR-0035).
+   */
+  hasJoined(): boolean;
   /** Online participant IDs from awareness. */
   onlineIds(): Set<string>;
 
@@ -147,6 +160,7 @@ export async function createSession(opts: CreateSessionOptions): Promise<Session
     participantId: opts.participantId,
     relayUrl: opts.relayUrl,
     passwordHash,
+    onRejection: opts.onRejection,
   });
 }
 
@@ -216,6 +230,8 @@ export function wireSession(opts: WireOptions): SessionHandle {
   // current socket. Until then this peer is the only one it can see, and a
   // rule that counts who is online (unanimous auto-reveal) must wait.
   let presenceTrusted = false;
+  // Set by the first sync, and for good.
+  let joined = false;
 
   // Connect to relay
   const conn: RelayConnection = connectToRelay({
@@ -246,6 +262,7 @@ export function wireSession(opts: WireOptions): SessionHandle {
     // was down reveals on the way back up, and nothing does on the way down.
     onSyncedChange(synced) {
       presenceTrusted = synced;
+      if (synced) joined = true;
       changeCallbacks.forEach((cb) => cb());
     },
     // The post-sync timing is the rule, not an optimisation: the relay's ops
@@ -338,6 +355,7 @@ export function wireSession(opts: WireOptions): SessionHandle {
     awareness,
     roomCode: opts.roomCode,
     roomUuid: opts.roomUuid,
+    passwordHash: opts.passwordHash,
     commands,
 
     projection() {
@@ -346,6 +364,10 @@ export function wireSession(opts: WireOptions): SessionHandle {
 
     current() {
       return currentRound(projectDoc(doc));
+    },
+
+    hasJoined() {
+      return joined;
     },
 
     isHost() {
@@ -373,10 +395,13 @@ export function wireSession(opts: WireOptions): SessionHandle {
     async updateAccess(mode: 'open' | 'password', password?: string) {
       let passwordHash: string | null = null;
       if (mode === 'password') {
-        if (password === undefined || normalizePassword(password) === '') {
-          throw new Error('Password required for password mode');
+        // Same rule as every other password entry point (`validatePassword`):
+        // blank after normalization or over the length cap both refuse.
+        const validated = validatePassword(password ?? '');
+        if (!validated.ok) {
+          throw new Error(validated.message);
         }
-        passwordHash = await hashPassword(password, roomUuid);
+        passwordHash = await hashPassword(validated.password, roomUuid);
       }
       await patchRoomAccess(relayUrl, roomUuid, passwordHash);
       // Update stored credentials so reconnect uses new passwordHash

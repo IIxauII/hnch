@@ -1,4 +1,4 @@
-import { computed, Injectable, signal, type Signal } from '@angular/core';
+import { computed, Injectable, signal, type Signal, type WritableSignal } from '@angular/core';
 import { Preferences } from '@capacitor/preferences';
 import {
   BUILTIN_SCALES,
@@ -111,11 +111,12 @@ export class ScalePreferenceService {
       current[scaleId] = disabled;
     }
 
-    this.presetOverridesSignal.set(current);
-    await Preferences.set({
-      key: ScalePreferenceService.PRESET_OVERRIDES_KEY,
-      value: JSON.stringify(current),
-    });
+    await this.store(
+      this.presetOverridesSignal,
+      current,
+      ScalePreferenceService.PRESET_OVERRIDES_KEY,
+      JSON.stringify(current),
+    );
   }
 
   /**
@@ -129,11 +130,7 @@ export class ScalePreferenceService {
     const id = `custom-${crypto.randomUUID()}`;
     const entry: CustomScale = { id, label, cards };
     const updated = [...this.customScalesSignal(), entry];
-    this.customScalesSignal.set(updated);
-    await Preferences.set({
-      key: ScalePreferenceService.CUSTOM_SCALES_KEY,
-      value: JSON.stringify(updated),
-    });
+    await this.storeCustomScales(updated);
     return id;
   }
 
@@ -149,11 +146,7 @@ export class ScalePreferenceService {
     const idx = current.findIndex((s) => s.id === id);
     if (idx === -1) return;
     const updated = current.map((s) => (s.id === id ? Object.assign({}, s, { label, cards }) : s));
-    this.customScalesSignal.set(updated);
-    await Preferences.set({
-      key: ScalePreferenceService.CUSTOM_SCALES_KEY,
-      value: JSON.stringify(updated),
-    });
+    await this.storeCustomScales(updated);
   }
 
   /**
@@ -167,11 +160,7 @@ export class ScalePreferenceService {
   async deleteCustomScale(id: string): Promise<void> {
     const updated = this.customScalesSignal().filter((s) => s.id !== id);
     if (updated.length === this.customScalesSignal().length) return;
-    this.customScalesSignal.set(updated);
-    await Preferences.set({
-      key: ScalePreferenceService.CUSTOM_SCALES_KEY,
-      value: JSON.stringify(updated),
-    });
+    await this.storeCustomScales(updated);
     if (this.defaultScaleIdSignal() === id) await this.setDefaultScaleId('fibonacci');
   }
 
@@ -180,11 +169,44 @@ export class ScalePreferenceService {
    * and the signal is updated so dependent screens react immediately.
    */
   async setDefaultScaleId(id: string): Promise<void> {
-    this.defaultScaleIdSignal.set(id);
-    await Preferences.set({
-      key: ScalePreferenceService.DEFAULT_SCALE_ID_KEY,
-      value: id,
-    });
+    await this.store(
+      this.defaultScaleIdSignal,
+      id,
+      ScalePreferenceService.DEFAULT_SCALE_ID_KEY,
+      id,
+    );
+  }
+
+  private storeCustomScales(scales: CustomScale[]): Promise<void> {
+    return this.store(
+      this.customScalesSignal,
+      scales,
+      ScalePreferenceService.CUSTOM_SCALES_KEY,
+      JSON.stringify(scales),
+    );
+  }
+
+  /**
+   * Show `next` and store it. Shown at once, so that the screen does not
+   * wait for the device; but what is shown has to be what is stored, or the
+   * next start of the app takes it back without a word. A write that fails
+   * takes the change back — unless something newer is shown by then — and
+   * fails for the caller, who can say so.
+   */
+  private async store<T>(
+    state: WritableSignal<T>,
+    next: T,
+    key: string,
+    value: string,
+  ): Promise<void> {
+    const before = state();
+    state.set(next);
+    try {
+      await Preferences.set({ key, value });
+    } catch (err) {
+      if (state() === next) state.set(before);
+      throw err;
+    }
   }
 
   private async load(): Promise<void> {
@@ -209,7 +231,12 @@ export class ScalePreferenceService {
     }
 
     if (defaultIdResult.value) {
-      this.defaultScaleIdSignal.set(defaultIdResult.value);
+      // A default that points at a scale that is no longer there is no
+      // default: `defaultScale` would resolve it to Fibonacci while the
+      // picker, which goes by the id, showed nothing checked.
+      const id = defaultIdResult.value;
+      const known = this.availableScales().some((s) => s.id === id);
+      this.defaultScaleIdSignal.set(known ? id : 'fibonacci');
     }
   }
 }

@@ -404,7 +404,7 @@ export const SCALE_DISPLAY_NAMES: Readonly<Record<string, string>> = {
 };
 
 /** What a custom scale is called where its own name is not known. */
-export const CUSTOM_SCALE_FALLBACK_LABEL = 'Custom scale';
+const CUSTOM_SCALE_FALLBACK_LABEL = 'Custom scale';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 

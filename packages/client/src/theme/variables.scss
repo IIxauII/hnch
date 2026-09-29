@@ -38,9 +38,8 @@
   --hnch-text-2:       #1C1C1E;
 
   // Muted text. `--hnch-muted` carries labels, so it clears WCAG AA (4.5:1)
-  // on every light surface and on a neutral chip (`--hnch-fill`, and
-  // `--hnch-fill-strong` while hovered) over the page or a card;
-  // `--hnch-muted-2` is for hairlines and glyphs only.
+  // on every light surface and on a neutral chip (`--hnch-fill`) over the
+  // page or a card; `--hnch-muted-2` is for hairlines and glyphs only.
   --hnch-muted:        rgba(60, 60, 67, 0.80);
   --hnch-muted-2:      rgba(60, 60, 67, 0.30);
 
@@ -50,7 +49,6 @@
 
   // Fill (input backgrounds, tinted hits)
   --hnch-fill:         rgba(120, 120, 128, 0.16);
-  --hnch-fill-strong:  rgba(120, 120, 128, 0.24);
 
   // Semantic — light
   // Values from ionic-screens.jsx:24–28
@@ -62,9 +60,9 @@
   // on white); these are the same hues darkened to clear AA on the page, a
   // card and an overlay — and on a chip tinted with the fill of the same
   // name, over the page or a card.
-  --hnch-success-text: #1C7739;
-  --hnch-warning-text: #955800;
-  --hnch-danger-text:  #BE2119;
+  --hnch-success-text: #1B7538;
+  --hnch-warning-text: #945700;
+  --hnch-danger-text:  #BA2018;
 
   // Ionic semantic color sets — wired to --hnch-* so toasts, badges, chips match.
   // shade = mix(#000, base, 12%); tint = mix(#fff, base, 10%) per Ionic color generator.
@@ -154,7 +152,6 @@
 
   // Fill
   --hnch-fill:         rgba(120, 120, 128, 0.32);
-  --hnch-fill-strong:  rgba(118, 118, 128, 0.40);
 
   // Semantic — dark
   --hnch-success:      #30D158;
@@ -217,8 +214,7 @@
 // Centralized here so per-component .scss can stay focused on layout.
 // Tokens resolve per mode via the :root / :root.ion-palette-dark cascade.
 // Component-scoped overrides (Angular view encapsulation) still win where
-// intentional (e.g. transparent toolbars in onboarding/CTA bar, accent-tinted
-// items in custom-scale-editor).
+// intentional (e.g. transparent toolbars in onboarding/CTA bar).
 // ---------------------------------------------------------------------------
 
 ion-card {

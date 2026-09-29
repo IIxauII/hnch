@@ -410,6 +410,19 @@ describe('Lobby render — cancelled rounds', () => {
     expect(frame).toContain('Round 1 — Results');
     expect(frame).not.toContain('History');
   });
+
+  it('shows the empty-session state when the only round in the session was cancelled', () => {
+    const cancelled = makeRound({ id: 'r1', discardedAt: 1000 });
+
+    // No round survives to be "current" either — same as a session that
+    // never started a round at all (App.tsx passes `null` in that case).
+    const { lastFrame } = render(<Lobby {...baseProps([cancelled], null)} />);
+    const frame = plain(lastFrame() ?? '');
+
+    expect(frame).toContain('Waiting for participants...');
+    expect(frame).toContain('No rounds started yet.');
+    expect(frame).not.toContain('Session');
+  });
 });
 
 // ---------------------------------------------------------------------------

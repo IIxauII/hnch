@@ -30,6 +30,63 @@ export async function expectToast(
   );
 }
 
+/** What {@link watchForToast} hands back. */
+export interface ToastWatch {
+  /**
+   * Whether the toast has been on screen at any time since the watch began.
+   * Throws when the watch is gone — the page was reloaded — rather than
+   * answer "no" for a page it has not been watching.
+   */
+  seen(): Promise<boolean>;
+}
+
+/**
+ * Watch the page for a toast, from now on. For a toast that must NOT be
+ * shown: `expectToast` can only wait for one, and a toast that came and went
+ * is not there to be found afterwards.
+ *
+ * The watch lives in the document: it sees navigation inside the app, and
+ * ends with a reload.
+ */
+export async function watchForToast(page: Page, message: string): Promise<ToastWatch> {
+  const key = `hnchToastWatch${Date.now()}${Math.floor(Math.random() * 1e6)}`;
+  await page.evaluate(
+    (watched: { slot: string; text: string }) => {
+      const watch = { seen: false };
+      (window as unknown as Record<string, { seen: boolean }>)[watched.slot] = watch;
+      const look = (): void => {
+        for (const toast of document.querySelectorAll('ion-toast:not(.overlay-hidden)')) {
+          const shown = (toast as unknown as { message?: string }).message ?? '';
+          if (shown.includes(watched.text)) watch.seen = true;
+        }
+      };
+      look();
+      new MutationObserver(look).observe(document.documentElement, {
+        attributeFilter: ['class'],
+        attributes: true,
+        childList: true,
+        subtree: true,
+      });
+    },
+    { slot: key, text: message },
+  );
+  return {
+    seen: async () => {
+      const watch = await page.evaluate(
+        (slot: string) =>
+          (window as unknown as Record<string, { seen: boolean } | undefined>)[slot] ?? null,
+        key,
+      );
+      if (watch === null) {
+        throw new Error(
+          `The watch for the toast "${message}" did not survive: the page was reloaded.`,
+        );
+      }
+      return watch.seen;
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // The sessions this device remembers
 // ---------------------------------------------------------------------------
@@ -132,7 +189,7 @@ export const LOBBY = {
   hostIcon: '.host-icon',
   /** Host-only ⋯ on another participant's row. */
   participantMenuBtn: 'ion-list.participants ion-button.participant-menu-btn',
-  /** Shown to everyone but the host, where the host has the round button. */
+  /** In the session card, for everyone but the host: who the round waits for. */
   waitingNote: 'app-lobby:not(.ion-page-hidden) .waiting-note',
   startRoundBtn: /Start round \d+/,
   /** Results section shown after a round is revealed */
@@ -171,20 +228,18 @@ export const QR_MODAL = {
 // ---------------------------------------------------------------------------
 /**
  * What the fields of the round form are called on screen — and therefore to
- * assistive tech: the label *is* the accessible name. Round-start and
- * round-edit share them. Use with `getByRole('textbox', { name })`.
+ * assistive tech: the label *is* the accessible name. The round-edit sheet
+ * has the same title field; a ticket ID is only asked for when a round is
+ * started. Use with `getByRole('textbox', { name })`.
  */
 export const ROUND_FIELD = {
   title: 'What are you estimating?',
   ticketId: 'Ticket ID',
-  description: 'Description',
 } as const;
 
 export const ROUND_START = {
   /** The round's title, addressed by its label. */
   titleInput: `app-round-start-sheet ion-input[label="${ROUND_FIELD.title}"]`,
-  /** Ticket ID input (optional tracker reference). */
-  ticketIdInput: `app-round-start-sheet ion-input[label="${ROUND_FIELD.ticketId}"]`,
   startBtn: 'app-round-start-sheet ion-button:has-text("Start")',
 } as const;
 

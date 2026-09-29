@@ -16,6 +16,7 @@ import {
   LOBBY,
   expectToast,
   fillRoomCode,
+  watchForToast,
 } from './fixtures/helpers';
 
 test.describe('Mid-session password change', () => {
@@ -32,12 +33,8 @@ test.describe('Mid-session password change', () => {
     await host.expectParticipantCount(2);
 
     // Host adds password while session is live
-    const patchDone = host.page.waitForResponse(
-      (res) => res.url().includes('/access') && res.request().method() === 'PATCH',
-    );
     await host.openSettings();
     await host.setPassword('midpass');
-    await patchDone;
     await host.closeSettings();
 
     // Late joiner must now provide the password to join
@@ -69,12 +66,8 @@ test.describe('Mid-session password change', () => {
     await host.expectParticipantCount(2);
     await player.expectParticipantCount(2);
 
-    const patchDone = host.page.waitForResponse(
-      (res) => res.url().includes('/access') && res.request().method() === 'PATCH',
-    );
     await host.openSettings();
     await host.setPassword('midpass');
-    await patchDone;
     await host.closeSettings();
 
     const hostRowOnPlayer = player.page.locator(KICK_AFFORDANCE.row('Host'));
@@ -121,16 +114,22 @@ test.describe('Mid-session password change', () => {
     await host.openSettings();
     await host.setPassword('midpass');
     await host.closeSettings();
+    const reconnected = await watchForToast(player.page, 'Reconnected');
 
     await player.page.context().setOffline(true);
     await player.page.waitForTimeout(1_000);
     await player.page.context().setOffline(false);
 
-    // Told why, and taken to where the password can be entered
-    await expectToast(player.page, "This session's password has changed", { timeout: 15_000 });
+    // Told what to do, and taken to where the password can be entered
+    await expectToast(player.page, "Enter this session's password to get back in.", {
+      timeout: 15_000,
+    });
     await player.page.waitForURL(new RegExp(`/join\\?code=${code}`, 'u'), { timeout: 10_000 });
     const pwInput = player.page.locator(JOIN.passwordInput).locator('input');
     await pwInput.waitFor({ state: 'visible', timeout: 5_000 });
+
+    // The wait ended, but not in a connection.
+    expect(await reconnected.seen()).toBe(false);
 
     // With it, they are back in
     await pwInput.fill('midpass');
@@ -147,12 +146,8 @@ test.describe('Mid-session password change', () => {
     const code = await host.createSession();
 
     // Host adds password mid-session
-    const patchDone = host.page.waitForResponse(
-      (res) => res.url().includes('/access') && res.request().method() === 'PATCH',
-    );
     await host.openSettings();
     await host.setPassword('correctpw');
-    await patchDone;
     await host.closeSettings();
 
     // Player tries to join with wrong password
@@ -188,21 +183,13 @@ test.describe('Mid-session password change', () => {
     const code = await host.createSession();
 
     // Set initial password
-    const firstPatch = host.page.waitForResponse(
-      (res) => res.url().includes('/access') && res.request().method() === 'PATCH',
-    );
     await host.openSettings();
     await host.setPassword('oldpassword');
-    await firstPatch;
     await host.closeSettings();
 
     // Change to a new password
-    const secondPatch = host.page.waitForResponse(
-      (res) => res.url().includes('/access') && res.request().method() === 'PATCH',
-    );
     await host.openSettings();
     await host.setPassword('newpassword');
-    await secondPatch;
     await host.closeSettings();
 
     // Joiner with old password is rejected — stays on join page
@@ -234,21 +221,13 @@ test.describe('Mid-session password change', () => {
     const code = await host.createSession();
 
     // Set password initially
-    const setPatch = host.page.waitForResponse(
-      (res) => res.url().includes('/access') && res.request().method() === 'PATCH',
-    );
     await host.openSettings();
     await host.setPassword('temppass');
-    await setPatch;
     await host.closeSettings();
 
     // Remove password while session is live
-    const removePatch = host.page.waitForResponse(
-      (res) => res.url().includes('/access') && res.request().method() === 'PATCH',
-    );
     await host.openSettings();
     await host.removePassword();
-    await removePatch;
     await host.closeSettings();
 
     // Player joins with no password — should succeed immediately

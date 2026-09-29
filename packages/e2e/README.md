@@ -53,7 +53,9 @@ The helper writes `mkdir -p` only when called — never at module import — so 
 
 ### Taking the shot
 
-Every spec's `shot()` waits for `pageSettled(page)` (`_helpers/settled.ts`) before it captures: exactly one page showing, fully in. Ionic keeps the page being left on screen while the new one slides in, and a shot taken then shows the two on top of each other. Call `shot()` once the content of the new page is known to be there — until then the one page showing is still the old one. A toast that should not be in the picture is waited out with `expect(page.locator('ion-toast:not(.overlay-hidden)')).toHaveCount(0)`; the first `ion-toast` in the page is the connection banner's own and is always hidden.
+A spec's `shot()` waits for `pageSettled(page)` (`_helpers/settled.ts`) before it captures: exactly one page showing, fully in. Ionic keeps the page being left on screen while the new one slides in, and a shot taken then shows the two on top of each other. Call `shot()` once the content of the new page is known to be there — until then the one page showing is still the old one. (A few specs wait a fixed moment instead: `reveal-transition.spec.ts`, which is there to catch the reveal *while* it moves, and the two phone form specs, `round-start-mobile.spec.ts` and `agenda-item-form-mobile.spec.ts`, which capture a sheet over a page that has not changed.)
+
+A toast that should not be in the picture is waited out with `expect(page.locator('ion-toast:not(.overlay-hidden)')).toHaveCount(0)`. Count the ones that are showing, never the elements: the Lobby and the round screen each carry an `ion-toast` of the connection banner's, which stays in the page and is hidden unless the connection has just come back.
 
 ### Local manual run
 

@@ -26,6 +26,7 @@ import {
   connectToRelay,
   mintRoom,
   patchRoomAccess,
+  RELAY_REQUEST_TIMEOUT_MS,
   relayHttpToWsUrl,
   RelayRejectionError,
   resolveRoom,
@@ -227,7 +228,7 @@ describe('resolveRoom', () => {
 
     await resolveRoom('http://relay.test', 'A B/C');
 
-    expect(fetchMock).toHaveBeenCalledWith('http://relay.test/rooms/A%20B%2FC');
+    expect(fetchMock).toHaveBeenCalledWith('http://relay.test/rooms/A%20B%2FC', expect.anything());
   });
 
   it('throws a typed RelayRejectionError carrying the 404 reason', async () => {
@@ -239,17 +240,46 @@ describe('resolveRoom', () => {
     });
   });
 
-  it('falls back to unknown-room when the 404 body is unparseable', async () => {
-    stubFetch({
-      status: 404,
-      json: async () => {
-        throw new Error('not json');
-      },
-    });
+  it('takes the relay at its word when it says the room is unknown', async () => {
+    stubFetch({ status: 404, json: async () => ({ reason: 'unknown-room' }) });
 
     await expect(resolveRoom('http://relay.test', 'ABC123')).rejects.toMatchObject({
+      name: 'RelayRejectionError',
       reason: 'unknown-room',
     });
+  });
+
+  // What answers a 404 may not be the relay: a proxy, a relay URL that
+  // points at something else. Callers forget a session when they are told it
+  // is unknown — and a reason ends up in front of the user, in the CLI as it
+  // came.
+  describe('a 404 that is not the relay speaking', () => {
+    const answers: Array<[string, () => Promise<unknown>]> = [
+      [
+        'gives a reason that is not one of the reasons there are',
+        async () => ({ reason: '\u001b[2J gone' }),
+      ],
+      ['gives none', async () => ({ error: 'not-found' })],
+      ['is not an object', async () => 'Not Found'],
+      [
+        'cannot be read',
+        async () => {
+          throw new Error('not json');
+        },
+      ],
+    ];
+
+    for (const [what, json] of answers) {
+      it(`is no verdict when it ${what}`, async () => {
+        stubFetch({ status: 404, json });
+
+        const err = await resolveRoom('http://relay.test', 'ABC123').catch((e: unknown) => e);
+
+        expect(err).toBeInstanceOf(Error);
+        expect(err).not.toBeInstanceOf(RelayRejectionError);
+        expect((err as Error).message).toBe('GET /rooms/:code failed: 404');
+      });
+    }
   });
 
   it('throws a generic Error on other non-ok statuses', async () => {
@@ -300,6 +330,56 @@ describe('patchRoomAccess', () => {
     await expect(patchRoomAccess('http://relay.test', 'u-1', null)).rejects.toThrow(
       'PATCH /rooms/:uuid/access failed: 403',
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A relay that does not answer
+// ---------------------------------------------------------------------------
+
+// `fetch` waits for as long as it takes. On a connection that went stale that
+// is minutes, with "Creating…" or "Joining…" on screen all the while.
+describe('a request the relay does not answer', () => {
+  /** A relay that takes the request and never answers it. */
+  function stubSilentRelay() {
+    const fetchMock = vi.fn(
+      (_url: string, init?: { signal?: AbortSignal }) =>
+        new Promise<never>((_resolve, reject) => {
+          const signal = init?.signal;
+          if (signal?.aborted) reject(signal.reason);
+          signal?.addEventListener('abort', () => reject(signal.reason));
+        }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  const requests: Array<[string, () => Promise<unknown>]> = [
+    ['mintRoom', () => mintRoom('http://relay.test')],
+    ['resolveRoom', () => resolveRoom('http://relay.test', 'ABC123')],
+    ['patchRoomAccess', () => patchRoomAccess('http://relay.test', 'u-1', 'hash-abc')],
+  ];
+
+  for (const [name, request] of requests) {
+    it(`${name} gives up after a while`, async () => {
+      // `AbortSignal.timeout` keeps its own time.
+      vi.useRealTimers();
+      const timeout = vi
+        .spyOn(AbortSignal, 'timeout')
+        .mockImplementation(() =>
+          AbortSignal.abort(new DOMException('took too long', 'TimeoutError')),
+        );
+      const fetchMock = stubSilentRelay();
+
+      await expect(request()).rejects.toMatchObject({ name: 'TimeoutError' });
+
+      expect(timeout).toHaveBeenCalledExactlyOnceWith(RELAY_REQUEST_TIMEOUT_MS);
+      expect(fetchMock).toHaveBeenCalledOnce();
+    });
+  }
+
+  it('waits long enough for a relay that is only slow', () => {
+    expect(RELAY_REQUEST_TIMEOUT_MS).toBeGreaterThanOrEqual(5_000);
   });
 });
 
@@ -491,7 +571,7 @@ describe('connectToRelay refusal before the upgrade', () => {
     const socketCount = sockets.length;
     await vi.advanceTimersByTimeAsync(30_000);
 
-    expect(fetchMock).toHaveBeenCalledWith('http://localhost:1234/rooms/ABC123');
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:1234/rooms/ABC123', expect.anything());
     expect(onRejectionChange).toHaveBeenLastCalledWith('wrong-password');
     expect(onReconnectingChange).toHaveBeenLastCalledWith(false);
     expect(sockets.length).toBe(socketCount);
@@ -511,6 +591,93 @@ describe('connectToRelay refusal before the upgrade', () => {
     expect(onRejectionChange).toHaveBeenLastCalledWith('unknown-room');
     expect(onReconnectingChange).toHaveBeenLastCalledWith(false);
     expect(sockets.length).toBe(socketCount);
+  });
+
+  // A proxy, a captive portal, a load balancer in the middle of a deploy:
+  // their 404 is about themselves. Ending the session on it would be final.
+  it('keeps retrying on a 404 that is not the relay saying so', async () => {
+    for (const body of [null, {}, { reason: 'not-found' }, { reason: 'room-full' }, 'Not Found']) {
+      stubFetch({ status: 404, json: async () => body });
+      const { onRejectionChange } = observed();
+      makeConnection({ onRejectionChange });
+      connectSuccessfully();
+      const socketCount = sockets.length;
+
+      latestSocket().simulateClose(1006);
+      await answered();
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      expect(onRejectionChange, JSON.stringify(body)).not.toHaveBeenCalledWith(expect.any(String));
+      expect(sockets.length, JSON.stringify(body)).toBeGreaterThan(socketCount);
+    }
+  });
+
+  it('keeps retrying on a 404 whose body cannot be read', async () => {
+    stubFetch({
+      status: 404,
+      json: async () => {
+        throw new SyntaxError('Unexpected token <');
+      },
+    });
+    const { onRejectionChange } = observed();
+    makeConnection({ onRejectionChange });
+    connectSuccessfully();
+
+    latestSocket().simulateClose(1006);
+    await answered();
+
+    expect(onRejectionChange).not.toHaveBeenCalledWith(expect.any(String));
+  });
+
+  it('keeps retrying on an answer that is not what the relay sends', async () => {
+    for (const body of [null, 'ok', {}, { accessMode: 'password' }, { uuid: 7 }]) {
+      stubFetch({ json: async () => body });
+      const { onRejectionChange } = observed();
+      makeConnection({ onRejectionChange });
+      connectSuccessfully();
+
+      latestSocket().simulateClose(1006);
+      await answered();
+
+      expect(onRejectionChange, JSON.stringify(body)).not.toHaveBeenCalledWith(expect.any(String));
+    }
+  });
+
+  // The host's socket is down when the host sets a password. The question
+  // went out before, without one; the answer comes back after, saying the
+  // session has one. It is about a connection that no longer exists.
+  it('drops an answer about credentials that have been replaced since', async () => {
+    let answer!: (value: unknown) => void;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise((resolve) => {
+            answer = resolve;
+          }),
+      ),
+    );
+    const { onRejectionChange } = observed();
+    const conn = makeConnection({ onRejectionChange });
+    connectSuccessfully();
+
+    latestSocket().simulateClose(1006);
+    await vi.advanceTimersByTimeAsync(0);
+    conn.updateCredentials({ passwordHash: 'hash' });
+    const socketCount = sockets.length;
+    answer({
+      ok: true,
+      status: 200,
+      json: async () => ({ uuid: 'room-uuid-test', accessMode: 'password' }),
+    });
+    await answered();
+
+    expect(onRejectionChange).not.toHaveBeenCalledWith(expect.any(String));
+    // The re-handshake goes on, with the password
+    expect(socketParams()['pw']).toBe('hash');
+    connectSuccessfully();
+    expect(sockets.length).toBe(socketCount);
+    expect(onRejectionChange).toHaveBeenLastCalledWith(null);
   });
 
   // Codes are handed out again once a session has expired.
@@ -664,6 +831,91 @@ describe('connectToRelay refusal before the upgrade', () => {
 
     expect(onRejectionChange).not.toHaveBeenCalledWith(expect.any(String));
     expect(onRejectionChange).toHaveBeenLastCalledWith(null);
+  });
+
+  it('asks one question at a time', async () => {
+    const fetchMock = vi.fn(() => new Promise(() => {}));
+    vi.stubGlobal('fetch', fetchMock);
+    makeConnection();
+    connectSuccessfully();
+
+    latestSocket().simulateClose(1006);
+    // Well past the interval, with sockets failing all the while
+    for (let i = 0; i < 4; i++) {
+      await vi.advanceTimersByTimeAsync(3_000);
+      latestSocket().simulateClose(1006);
+    }
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives the question a time limit', async () => {
+    const fetchMock = relayAnswers({ accessMode: 'open' });
+    makeConnection();
+    connectSuccessfully();
+
+    latestSocket().simulateClose(1006);
+    await answered();
+
+    const init = fetchMock.mock.calls[0]?.[1] as { signal?: AbortSignal } | undefined;
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  // A request on a connection that went stale can hang for minutes, and no
+  // second question goes out while the first is pending. The limit is what
+  // frees the slot.
+  it('asks again after a question that ran out of time', async () => {
+    // The limit, in the hands of the test: `AbortSignal.timeout` keeps time
+    // of its own.
+    const limits: AbortController[] = [];
+    vi.spyOn(AbortSignal, 'timeout').mockImplementation(() => {
+      const limit = new AbortController();
+      limits.push(limit);
+      return limit.signal;
+    });
+    // A relay that takes the question and never answers it
+    const fetchMock = vi.fn(
+      (_url: string, init?: { signal?: AbortSignal }) =>
+        new Promise<never>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+        }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const { onRejectionChange } = observed();
+    makeConnection({ onRejectionChange });
+    connectSuccessfully();
+
+    latestSocket().simulateClose(1006);
+    await answered();
+    // Sockets keep failing, and the question is still out
+    await vi.advanceTimersByTimeAsync(6_000);
+    latestSocket().simulateClose(1006);
+    await answered();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    limits[0]!.abort(new DOMException('The operation timed out.', 'TimeoutError'));
+    await answered();
+    await vi.advanceTimersByTimeAsync(6_000);
+    latestSocket().simulateClose(1006);
+    await answered();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(onRejectionChange).not.toHaveBeenCalledWith(expect.any(String));
+  });
+
+  it('is not kept from asking by a clock that was set back', async () => {
+    const fetchMock = relayAnswers({ accessMode: 'open' });
+    makeConnection();
+    connectSuccessfully();
+
+    latestSocket().simulateClose(1006);
+    await answered();
+    vi.setSystemTime(Date.now() - 3_600_000);
+    await vi.advanceTimersByTimeAsync(3_000);
+    latestSocket().simulateClose(1006);
+    await answered();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('says nothing after disconnect()', async () => {
@@ -992,6 +1244,24 @@ function reconnect(): void {
   connectSuccessfully();
 }
 
+describe('connectToRelay new credentials after a refusal', () => {
+  // What was refused was the connection as it was.
+  it('takes the refusal back and connects again', () => {
+    const onRejectionChange = vi.fn<(r: JoinRejectionReason | null) => void>();
+    const conn = makeConnection({ onRejectionChange });
+    connectSuccessfully();
+    latestSocket().simulateClose(JOIN_REJECTION_CLOSE_CODES['wrong-password']);
+    expect(onRejectionChange).toHaveBeenLastCalledWith('wrong-password');
+    const socketCount = sockets.length;
+
+    conn.updateCredentials({ passwordHash: 'the-new-one' });
+
+    expect(onRejectionChange).toHaveBeenLastCalledWith(null);
+    expect(sockets.length).toBe(socketCount + 1);
+    expect(socketParams()['pw']).toBe('the-new-one');
+  });
+});
+
 describe('connectToRelay re-handshake', () => {
   // Changing the password closes the socket and opens one with the new hash.
   // Nothing was lost, so nothing is announced as lost and found.
@@ -1004,6 +1274,22 @@ describe('connectToRelay re-handshake', () => {
     connectSuccessfully();
 
     expect(onReconnectingChange).not.toHaveBeenCalled();
+  });
+
+  // The socket was down already. Nothing was put down on purpose, and the
+  // outage is not over because the credentials changed during it.
+  it('does not hide an outage that was under way', () => {
+    const onReconnectingChange = vi.fn<(r: boolean) => void>();
+    const conn = makeConnection({ onReconnectingChange });
+    connectSuccessfully();
+    latestSocket().simulateClose(1006);
+    expect(onReconnectingChange).toHaveBeenLastCalledWith(true);
+
+    conn.updateCredentials({ passwordHash: 'new-hash' });
+
+    expect(onReconnectingChange).toHaveBeenLastCalledWith(true);
+    connectSuccessfully();
+    expect(onReconnectingChange).toHaveBeenLastCalledWith(false);
   });
 
   it('becomes a reconnect like any other once the new socket fails', () => {
@@ -1073,8 +1359,8 @@ describe('connectToRelay presence across a reconnect', () => {
     latestSocket().onmessage?.({ data: awarenessMessageFrom(peer) });
     first.disconnect();
 
-    // `disconnect` destroys the provider, not the awareness it was handed.
-    awareness.setLocalStateField('participantId', 'me');
+    // `disconnect` destroys the provider, not the awareness it was handed:
+    // what it said about itself is still there, at the clock it was said at.
     makeConnection({ doc, awareness });
     connectSuccessfully();
     latestSocket().onmessage?.({ data: awarenessMessageFrom(peer) });

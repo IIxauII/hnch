@@ -1,8 +1,9 @@
 // Exercises: shared/name-initial:nameInitial
+// Exercises: shared/name-initial:avatarInitial
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { nameInitial } from './name-initial';
+import { avatarInitial, nameInitial } from './name-initial';
 
 describe('nameInitial', () => {
   afterEach(() => {
@@ -47,9 +48,27 @@ describe('nameInitial', () => {
     expect(nameInitial('ölaf')).toBe('Ö');
   });
 
-  it('falls back to code points where there is no segmenter', () => {
+  // The segmenter is made once, when the module loads: it has to load
+  // without one.
+  it('falls back to code points where there is no segmenter', async () => {
     vi.stubGlobal('Intl', { ...Intl, Segmenter: undefined });
-    expect(nameInitial('😀 Sam')).toBe('😀');
-    expect(nameInitial('alice')).toBe('A');
+    vi.resetModules();
+    const without = await import('./name-initial');
+
+    expect(without.nameInitial('😀 Sam')).toBe('😀');
+    expect(without.nameInitial('alice')).toBe('A');
+  });
+});
+
+describe('avatarInitial', () => {
+  it('is the initial of the name', () => {
+    expect(avatarInitial('alice')).toBe('A');
+  });
+
+  it('is a question mark for somebody without a name', () => {
+    expect(avatarInitial('')).toBe('?');
+    expect(avatarInitial('   ')).toBe('?');
+    expect(avatarInitial(null)).toBe('?');
+    expect(avatarInitial(undefined)).toBe('?');
   });
 });

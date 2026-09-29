@@ -3,7 +3,7 @@
 import type { IonInput } from '@ionic/angular/standalone';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { focusField } from './focus-field';
+import { PRESENT_TIMEOUT_MS, focusField } from './focus-field';
 
 /** A field whose native input is `input`, there once `ready` resolves. */
 function fieldWith(input: HTMLInputElement, ready: Promise<void> = Promise.resolve()): IonInput {
@@ -79,7 +79,7 @@ describe('focusField', () => {
     const input = inputIn(sheet);
 
     const focused = focusField(fieldWith(input));
-    await vi.advanceTimersByTimeAsync(600);
+    await vi.advanceTimersByTimeAsync(PRESENT_TIMEOUT_MS);
     await focused;
 
     expect(document.activeElement).toBe(input);
@@ -93,10 +93,83 @@ describe('focusField', () => {
 
     const focused = focusField(fieldWith(input));
     sheet.remove();
-    await vi.advanceTimersByTimeAsync(600);
+    await vi.advanceTimersByTimeAsync(PRESENT_TIMEOUT_MS);
     await focused;
 
     expect(focus).not.toHaveBeenCalled();
+  });
+
+  // Cancel, or a tap on the backdrop, while the sheet is still on its way up:
+  // the field is still there while the sheet slides out again.
+  it('leaves a sheet alone that is being closed before it has opened', async () => {
+    const sheet = document.createElement('ion-modal');
+    document.body.append(sheet);
+    const input = inputIn(sheet);
+    const focus = vi.spyOn(input, 'focus');
+
+    const focused = focusField(fieldWith(input));
+    await vi.advanceTimersByTimeAsync(100);
+    sheet.dispatchEvent(new CustomEvent('willDismiss'));
+    await focused;
+    await vi.advanceTimersByTimeAsync(PRESENT_TIMEOUT_MS);
+
+    expect(focus).not.toHaveBeenCalled();
+  });
+
+  it('leaves the cursor where the user has put it in the meantime', async () => {
+    const sheet = document.createElement('ion-modal');
+    document.body.append(sheet);
+    const input = inputIn(sheet);
+    const other = inputIn(sheet);
+
+    const focused = focusField(fieldWith(input));
+    await vi.advanceTimersByTimeAsync(100);
+    other.focus();
+    sheet.dispatchEvent(new CustomEvent('didPresent'));
+    await focused;
+
+    expect(document.activeElement).toBe(other);
+  });
+
+  // An overlay takes the focus when it opens, and hands it to its first
+  // button. Neither is somebody typing.
+  it('takes the cursor from what the sheet focused by itself', async () => {
+    const sheet = document.createElement('ion-modal');
+    document.body.append(sheet);
+    const button = document.createElement('button');
+    sheet.append(button);
+    const input = inputIn(sheet);
+
+    const focused = focusField(fieldWith(input));
+    await vi.advanceTimersByTimeAsync(100);
+    button.focus();
+    sheet.dispatchEvent(new CustomEvent('didPresent'));
+    await focused;
+
+    expect(document.activeElement).toBe(input);
+  });
+
+  // A sheet that has been open for a while says nothing more about opening.
+  it('does not wait for a sheet it is told is open', async () => {
+    const sheet = document.createElement('ion-modal');
+    document.body.append(sheet);
+    const input = inputIn(sheet);
+
+    await focusField(fieldWith(input), { overlayIsOpen: true });
+
+    expect(document.activeElement).toBe(input);
+  });
+
+  it('still leaves the cursor where the user has put it, in a sheet that is open', async () => {
+    const sheet = document.createElement('ion-modal');
+    document.body.append(sheet);
+    const input = inputIn(sheet);
+    const other = inputIn(sheet);
+    other.focus();
+
+    await focusField(fieldWith(input), { overlayIsOpen: true });
+
+    expect(document.activeElement).toBe(other);
   });
 
   it('does nothing without a field', async () => {

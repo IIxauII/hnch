@@ -8,7 +8,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { getScaleLabel, normalizePassword, type Scale } from '@hnch/shared';
+import { getScaleLabel, MAX_PASSWORD_LENGTH, normalizePassword, type Scale } from '@hnch/shared';
 import {
   IonButton,
   IonButtons,
@@ -33,6 +33,7 @@ import { ToastService } from '../services/toast.service';
 import { ScalePickerSheetComponent } from './scale-picker.sheet';
 import { presentSheet } from '../utils/present-sheet';
 import { accessHint, passwordPlaceholder } from './session-settings.helpers';
+import { isComposingKey } from '../utils/composing-key';
 
 /**
  * Session settings half-sheet — host only.
@@ -95,7 +96,7 @@ import { accessHint, passwordPlaceholder } from './session-settings.helpers';
             autocapitalize="sentences"
             enterkeyhint="done"
             (ionBlur)="onSessionNameBlur()"
-            (keydown.enter)="onSessionNameBlur()"
+            (keydown.enter)="composing($event) || onSessionNameBlur()"
           ></ion-input>
         </ion-item>
         <ion-item button detail="true" [disabled]="!isHost()" (click)="openScalePicker()">
@@ -111,13 +112,13 @@ import { accessHint, passwordPlaceholder } from './session-settings.helpers';
             type="password"
             autocomplete="off"
             enterkeyhint="done"
-            maxlength="120"
+            [maxlength]="maxPasswordLength"
             [placeholder]="passwordPlaceholder()"
             [value]="passwordDraft()"
             [disabled]="!isHost() || savingAccess()"
             (ionInput)="passwordDraft.set($any($event.detail.value) ?? '')"
             (ionBlur)="onPasswordCommit()"
-            (keydown.enter)="onPasswordCommit()"
+            (keydown.enter)="composing($event) || onPasswordCommit()"
           >
             <ion-input-password-toggle slot="end" color="medium"></ion-input-password-toggle>
           </ion-input>
@@ -172,6 +173,15 @@ import { accessHint, passwordPlaceholder } from './session-settings.helpers';
   ],
 })
 export class SessionSettingsSheetComponent {
+  /**
+   * For the Enter handlers: the Enter that confirms a choice in an input
+   * method is part of typing, and commits nothing.
+   */
+  protected readonly composing = isComposingKey;
+
+  /** As long as a password gets, on every surface. */
+  protected readonly maxPasswordLength = MAX_PASSWORD_LENGTH;
+
   private readonly scalePrefs = inject(ScalePreferenceService);
   private readonly docService = inject(DocService);
   private readonly access = inject(SessionAccessService);

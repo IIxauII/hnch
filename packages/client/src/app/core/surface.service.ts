@@ -30,9 +30,11 @@ export interface SheetOrPopoverOptions {
  * Pivot condition: `(min-width: 768px) and (pointer: fine)`.
  * Fine-pointer check means touch laptops keep the mobile UX.
  *
- * Modals are inline `ion-modal`s in the page that owns them (ionic.md):
+ * Sheets are inline `ion-modal`s in the page that owns them (ionic.md):
  * they take their breakpoints from here and their desktop shape from the
- * `modal-centered` class. Menus are opened from here.
+ * `modal-centered` class. Menus are opened from here, in code, like alerts
+ * and toasts. (One sheet is made in code as well: the QR scanner's camera
+ * overlay, which belongs to a service, not to a page.)
  *
  * Pattern mirrors ThemeService: matchMedia subscription updates a signal.
  */

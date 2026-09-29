@@ -6,7 +6,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
-import { normalizePassword } from '@hnch/shared';
+import { MAX_PASSWORD_LENGTH, normalizePassword } from '@hnch/shared';
 import {
   IonButton,
   IonButtons,
@@ -22,6 +22,7 @@ import {
 } from '@ionic/angular/standalone';
 
 import { focusField } from '../utils/focus-field';
+import { isComposingKey } from '../utils/composing-key';
 
 /**
  * Password prompt half-sheet for the create flow, shown when the
@@ -78,9 +79,9 @@ import { focusField } from '../utils/focus-field';
             type="password"
             autocomplete="off"
             enterkeyhint="done"
-            maxlength="120"
+            [maxlength]="maxPasswordLength"
             placeholder="Leave blank for no password"
-            (keydown.enter)="onConfirm()"
+            (keydown.enter)="composing($event) || onConfirm()"
           >
             <ion-input-password-toggle slot="end" color="medium"></ion-input-password-toggle>
           </ion-input>
@@ -103,6 +104,15 @@ import { focusField } from '../utils/focus-field';
   ],
 })
 export class PasswordPromptSheetComponent {
+  /**
+   * For the Enter handlers: the Enter that confirms a choice in an input
+   * method is part of typing, and commits nothing.
+   */
+  protected readonly composing = isComposingKey;
+
+  /** As long as a password gets, on every surface. */
+  protected readonly maxPasswordLength = MAX_PASSWORD_LENGTH;
+
   /**
    * Emitted on Done. Passes the password string
    * (may be empty if user left field blank).

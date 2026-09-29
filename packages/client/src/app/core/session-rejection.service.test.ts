@@ -14,11 +14,14 @@ import type { JoinRejectionReason } from '@hnch/shared';
 import { Subject } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@ionic/angular/standalone', () => ({}));
+vi.mock('@ionic/angular/standalone', () => ({ NavController: class NavController {} }));
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false } }));
+
+import { NavController } from '@ionic/angular/standalone';
 
 import { DocService } from './doc/doc.service';
 import { LastSessionService } from './last-session.service';
+import { SessionAccessService } from './session-access.service';
 import { isSessionUrl, SessionRejectionService } from './session-rejection.service';
 import { ToastService } from '../services/toast.service';
 
@@ -48,22 +51,24 @@ function mount(startUrl: string) {
       relayRoomUuid.set(null);
     }),
   };
+  const saving = signal(false);
   const lastSession = {
     clearPasswordHash: vi.fn(async (uuid: string) => {
       calls.push(`clearPasswordHash:${uuid}`);
     }),
-    removeByUuid: vi.fn(async () => {}),
+    removeByUuid: vi.fn(async (uuid: string) => {
+      calls.push(`removeByUuid:${uuid}`);
+    }),
   };
   const toast = {
     error: vi.fn(async (message: string) => {
       calls.push(`toast:${message}`);
     }),
   };
-  const router = {
-    url: startUrl,
-    events: events.asObservable(),
-    navigate: vi.fn(async (commands: unknown[], extras?: unknown) => {
-      calls.push(`navigate:${JSON.stringify([commands, extras])}`);
+  const router = { url: startUrl, events: events.asObservable(), navigate: vi.fn() };
+  const nav = {
+    navigateRoot: vi.fn(async (commands: unknown[], extras?: unknown) => {
+      calls.push(`root:${JSON.stringify([commands, extras])}`);
       return true;
     }),
   };
@@ -76,6 +81,8 @@ function mount(startUrl: string) {
       { provide: LastSessionService, useValue: lastSession },
       { provide: ToastService, useValue: toast },
       { provide: Router, useValue: router },
+      { provide: NavController, useValue: nav },
+      { provide: SessionAccessService, useValue: { saving: saving.asReadonly() } },
     ],
   });
   TestBed.inject(SessionRejectionService);
@@ -85,8 +92,11 @@ function mount(startUrl: string) {
     lastSession,
     toast,
     router,
+    nav,
+    saving,
     calls,
     reject: (reason: JoinRejectionReason) => lastRejection.set(reason),
+    clearRejection: () => lastRejection.set(null),
     navigatedTo: (url: string) => events.next(new NavigationEnd(1, url, url)),
     noSession: () => {
       roomCode.set(null);
@@ -128,23 +138,26 @@ describe('SessionRejectionService', () => {
       expect(calls).toEqual([
         'teardown',
         'clearPasswordHash:uuid-1',
-        "toast:This session's password has changed.",
-        'navigate:[["/join"],{"queryParams":{"code":"ABC123"}}]',
+        'root:[["/join"],{"queryParams":{"code":"ABC123"},"replaceUrl":true}]',
+        "toast:Enter this session's password to get back in.",
       ]);
     });
 
     it('does the same from Estimating, which had no handler of its own', async () => {
-      const { reject, router, doc } = mount('/estimating/ABC123');
+      const { reject, nav, doc } = mount('/estimating/ABC123');
 
       reject('wrong-password');
       await flushAll();
 
       expect(doc.teardown).toHaveBeenCalledTimes(1);
-      expect(router.navigate).toHaveBeenCalledWith(['/join'], { queryParams: { code: 'ABC123' } });
+      expect(nav.navigateRoot).toHaveBeenCalledWith(['/join'], {
+        queryParams: { code: 'ABC123' },
+        replaceUrl: true,
+      });
     });
 
     it('still gets the user out when the cache cannot be written', async () => {
-      const { reject, lastSession, router } = mount('/lobby/ABC123');
+      const { reject, lastSession, nav } = mount('/lobby/ABC123');
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
       lastSession.clearPasswordHash.mockRejectedValue(new Error('storage is full'));
 
@@ -152,7 +165,10 @@ describe('SessionRejectionService', () => {
       await flushAll();
 
       expect(warn).toHaveBeenCalled();
-      expect(router.navigate).toHaveBeenCalledWith(['/join'], { queryParams: { code: 'ABC123' } });
+      expect(nav.navigateRoot).toHaveBeenCalledWith(['/join'], {
+        queryParams: { code: 'ABC123' },
+        replaceUrl: true,
+      });
     });
   });
 
@@ -165,11 +181,11 @@ describe('SessionRejectionService', () => {
 
       expect(calls).toEqual([
         'teardown',
+        'root:[["/home"],{"replaceUrl":true}]',
         'toast:This session is full (20 participants max).',
-        // `extras` is left out; JSON writes the missing argument as null.
-        'navigate:[["/home"],null]',
       ]);
       expect(lastSession.clearPasswordHash).not.toHaveBeenCalled();
+      expect(lastSession.removeByUuid).not.toHaveBeenCalled();
     });
 
     it('words it for someone who was in the session, not someone typing a code', async () => {
@@ -185,14 +201,14 @@ describe('SessionRejectionService', () => {
   // A refusal during a join attempt belongs to whoever is making the attempt.
   describe('away from a session screen', () => {
     it('leaves a refusal alone while the user is on Join', async () => {
-      const { reject, doc, toast, router } = mount('/join?code=ABC123');
+      const { reject, doc, toast, nav } = mount('/join?code=ABC123');
 
       reject('wrong-password');
       await flushAll();
 
       expect(doc.teardown).not.toHaveBeenCalled();
       expect(toast.error).not.toHaveBeenCalled();
-      expect(router.navigate).not.toHaveBeenCalled();
+      expect(nav.navigateRoot).not.toHaveBeenCalled();
     });
 
     it('leaves it alone on Home, where a rejoin reports for itself', async () => {
@@ -206,7 +222,7 @@ describe('SessionRejectionService', () => {
 
     // A join that timed out goes in anyway; the verdict arrives afterwards.
     it('takes it up once the user has arrived on a session screen', async () => {
-      const { reject, navigatedTo, doc, router } = mount('/join?code=ABC123');
+      const { reject, navigatedTo, doc, nav } = mount('/join?code=ABC123');
       reject('wrong-password');
       await flushAll();
       expect(doc.teardown).not.toHaveBeenCalled();
@@ -215,7 +231,96 @@ describe('SessionRejectionService', () => {
       await flushAll();
 
       expect(doc.teardown).toHaveBeenCalledTimes(1);
-      expect(router.navigate).toHaveBeenCalledWith(['/join'], { queryParams: { code: 'ABC123' } });
+      expect(nav.navigateRoot).toHaveBeenCalledWith(['/join'], {
+        queryParams: { code: 'ABC123' },
+        replaceUrl: true,
+      });
+    });
+  });
+
+  // ADR-0044: a session the relay no longer has is not one to offer again.
+  describe('a session that is gone', () => {
+    // Storage is slow, or stuck. The page that is showing has nothing to
+    // show: the way out does not wait.
+    it('does not keep the user on the dead page while the cache is written', async () => {
+      const { reject, lastSession, nav, toast } = mount('/lobby/ABC123');
+      lastSession.removeByUuid.mockImplementationOnce(() => new Promise<void>(() => {}));
+
+      reject('unknown-room');
+      await flushAll();
+
+      expect(lastSession.removeByUuid).toHaveBeenCalledExactlyOnceWith('uuid-1');
+      expect(nav.navigateRoot).toHaveBeenCalledWith(['/home'], { replaceUrl: true });
+      expect(toast.error).toHaveBeenCalledOnce();
+    });
+
+    it('is forgotten before Home is shown, which lists what is remembered', async () => {
+      const { reject, calls } = mount('/lobby/ABC123');
+
+      reject('unknown-room');
+      await flushAll();
+
+      expect(calls).toEqual([
+        'teardown',
+        'removeByUuid:uuid-1',
+        'root:[["/home"],{"replaceUrl":true}]',
+        "toast:That session isn't active anymore.",
+      ]);
+    });
+
+    it('still gets the user out when the cache cannot be written', async () => {
+      const { reject, lastSession, nav, toast } = mount('/estimating/ABC123');
+      lastSession.removeByUuid.mockRejectedValueOnce(new Error('storage'));
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      reject('unknown-room');
+      await flushAll();
+
+      expect(nav.navigateRoot).toHaveBeenCalledWith(['/home'], { replaceUrl: true });
+      expect(toast.error).toHaveBeenCalledOnce();
+      warn.mockRestore();
+    });
+  });
+
+  // The host is changing the password on this very device. The refusal is
+  // of the connection as it was; the one about to be made carries the new one.
+  describe('while the password is being changed from here', () => {
+    it('waits', async () => {
+      const { reject, saving, doc, nav } = mount('/lobby/ABC123');
+      saving.set(true);
+
+      reject('wrong-password');
+      await flushAll();
+
+      expect(doc.teardown).not.toHaveBeenCalled();
+      expect(nav.navigateRoot).not.toHaveBeenCalled();
+    });
+
+    it('has nothing left to do when the change took the refusal back', async () => {
+      const { reject, saving, doc, nav, clearRejection } = mount('/lobby/ABC123');
+      saving.set(true);
+      reject('wrong-password');
+      await flushAll();
+
+      clearRejection();
+      saving.set(false);
+      await flushAll();
+
+      expect(doc.teardown).not.toHaveBeenCalled();
+      expect(nav.navigateRoot).not.toHaveBeenCalled();
+    });
+
+    it('acts once the change has failed and the refusal stands', async () => {
+      const { reject, saving, doc, nav } = mount('/lobby/ABC123');
+      saving.set(true);
+      reject('wrong-password');
+      await flushAll();
+
+      saving.set(false);
+      await flushAll();
+
+      expect(doc.teardown).toHaveBeenCalledOnce();
+      expect(nav.navigateRoot).toHaveBeenCalledOnce();
     });
   });
 
@@ -241,13 +346,13 @@ describe('SessionRejectionService', () => {
   });
 
   it('goes Home for a wrong password when there is no code to ask again for', async () => {
-    const { reject, noSession, router, lastSession } = mount('/lobby/ABC123');
+    const { reject, noSession, nav, lastSession } = mount('/lobby/ABC123');
     noSession();
 
     reject('wrong-password');
     await flushAll();
 
     expect(lastSession.clearPasswordHash).not.toHaveBeenCalled();
-    expect(router.navigate).toHaveBeenCalledWith(['/home']);
+    expect(nav.navigateRoot).toHaveBeenCalledWith(['/home'], { replaceUrl: true });
   });
 });

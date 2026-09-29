@@ -1,5 +1,18 @@
-import { ChangeDetectionStrategy, Component, effect, input, output, signal } from '@angular/core';
+import {
+  afterNextRender,
+  ChangeDetectionStrategy,
+  Component,
+  effect,
+  inject,
+  input,
+  output,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
+import { SurfaceService } from '../core/surface.service';
+import { isComposingKey } from '../utils/composing-key';
+import { focusField } from '../utils/focus-field';
 import { buildRoundEditSubmission } from './round-edit.helpers';
 import {
   IonButton,
@@ -27,6 +40,10 @@ export interface RoundEditSubmission {
  *
  * A round that has a title keeps one: Save stays disabled while the title
  * field is blank.
+ *
+ * The cursor starts in the title where there is a keyboard to type with, as
+ * in the round-start sheet. On a phone the sheet opens as it is: bringing
+ * the keyboard up would cover the description that may be what is edited.
  */
 @Component({
   selector: 'app-round-edit-sheet',
@@ -67,6 +84,7 @@ export interface RoundEditSubmission {
       <ion-list inset="true" lines="inset">
         <ion-item>
           <ion-input
+            #titleField
             [formControl]="titleControl"
             label="What are you estimating?"
             labelPlacement="stacked"
@@ -114,7 +132,14 @@ export class RoundEditSheetComponent {
 
   protected readonly isSubmitting = signal(false);
 
+  private readonly surface = inject(SurfaceService);
+  private readonly titleField = viewChild<IonInput>('titleField');
+
   constructor() {
+    afterNextRender(() => {
+      if (this.surface.mode() === 'desktop') void focusField(this.titleField());
+    });
+
     effect(
       () => {
         const t = this.initialTitle();
@@ -131,7 +156,7 @@ export class RoundEditSheetComponent {
    * that confirms an IME composition is part of typing, not a submit.
    */
   protected onEnter(event: Event): void {
-    if ((event as KeyboardEvent).isComposing) return;
+    if (isComposingKey(event)) return;
     this.submit();
   }
 

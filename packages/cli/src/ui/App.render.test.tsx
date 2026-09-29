@@ -56,6 +56,8 @@ function makeSession(
     awareness,
     roomCode: 'ABC123',
     roomUuid: 'uuid-1',
+    passwordHash: undefined,
+    hasJoined: () => true,
     commands: {
       startRound,
       revealCurrentRound: vi.fn(() => ({ applied: true, at: 0 })),

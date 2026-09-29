@@ -134,7 +134,10 @@ export function formatRelativeTime(lastSeenAt: number, now: number): string {
 export class RecentRoomsListComponent {
   readonly entries = input.required<ClientLastSessionEntry[]>();
 
-  /** A rejoin is in flight: rows stop accepting taps until it settles. */
+  /**
+   * Home is busy getting into a session — this one, another of the list, or
+   * one it is creating: rows stop accepting taps until it settles.
+   */
   readonly busy = input<boolean>(false);
 
   readonly joinRequested = output<ClientLastSessionEntry>();

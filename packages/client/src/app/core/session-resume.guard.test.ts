@@ -64,9 +64,6 @@ function makeLastSessionService(
     clearPasswordHash: vi.fn().mockResolvedValue(undefined),
     removeByUuid: vi.fn().mockResolvedValue(undefined),
     setPendingPasswordHash: vi.fn(),
-    clearAll: vi.fn().mockResolvedValue(undefined),
-    // back-compat — not called by new guard, kept for type compat
-    clear: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -169,7 +166,12 @@ describe('sessionResumeGuardLogic', () => {
     );
 
     expect(result).toBe(true);
-    expect(roomJoinService.rejoin).toHaveBeenCalledWith('ABCDEF', { passwordHash: 'stored-hash' });
+    // With the hash, and with the UUID the device remembers the session by:
+    // a code that has gone to another session since is not that session.
+    expect(roomJoinService.rejoin).toHaveBeenCalledWith('ABCDEF', {
+      passwordHash: 'stored-hash',
+      expectedUuid: 'u1',
+    });
     expect(lastSessionService.setPendingPasswordHash).toHaveBeenCalledWith('u1', 'stored-hash');
   });
 
@@ -206,7 +208,6 @@ describe('sessionResumeGuardLogic', () => {
     expect(router.createUrlTree).toHaveBeenCalledWith(['/home']);
     expect(result).not.toBe(true);
     expect(lastSessionService.removeByUuid).not.toHaveBeenCalled();
-    expect(lastSessionService.clearAll).not.toHaveBeenCalled();
     expect(lastSessionService.setPendingPasswordHash).not.toHaveBeenCalled();
   });
 
@@ -247,7 +248,9 @@ describe('sessionResumeGuardLogic', () => {
     expect(result).toEqual(expect.objectContaining({ path: ['/home'] }));
   });
 
-  it('clearAll and redirects to /home on unknown-room with no matching entry', async () => {
+  // The session that is gone is not among the ones remembered: the others
+  // are not it, and stay.
+  it('forgets nothing and redirects to /home on unknown-room with no matching entry', async () => {
     const { sessionResumeGuardLogic } = await import('./session-resume.guard');
 
     const router = makeRouter();
@@ -260,7 +263,7 @@ describe('sessionResumeGuardLogic', () => {
       makeSegments('lobby', 'XYZ999'),
     );
 
-    expect(lastSessionService.clearAll).toHaveBeenCalled();
+    expect(lastSessionService.removeByUuid).not.toHaveBeenCalled();
     expect(router.createUrlTree).toHaveBeenCalledWith(['/home']);
   });
 
@@ -316,7 +319,6 @@ describe('sessionResumeGuardLogic', () => {
     );
 
     // network-error does NOT clear the cache so user can retry via banner
-    expect(lastSessionService.clearAll).not.toHaveBeenCalled();
     expect(lastSessionService.removeByUuid).not.toHaveBeenCalled();
     expect(router.createUrlTree).toHaveBeenCalledWith(['/home']);
   });
@@ -357,7 +359,7 @@ describe('sessionResumeGuardLogic', () => {
     );
 
     expect(roomJoinService.rejoin).not.toHaveBeenCalled();
-    expect(lastSessionService.clearAll).not.toHaveBeenCalled();
+    expect(lastSessionService.removeByUuid).not.toHaveBeenCalled();
     expect(router.createUrlTree).toHaveBeenCalledWith(['/home']);
     expect(result).toEqual(expect.objectContaining({ path: ['/home'] }));
   });

@@ -1,7 +1,7 @@
 /**
- * Pure helpers used by JoinPage (and by the pages that surface a join
- * rejection after the fact) — extracted so they can be unit-tested without
- * mounting the Ionic component graph. All exports are dependency-free.
+ * Pure helpers used by JoinPage — extracted so they can be unit-tested
+ * without mounting the Ionic component graph. All exports are
+ * dependency-free.
  */
 
 import type { QrScanErrorReason } from '../core/qr-scanner.service';
@@ -27,13 +27,14 @@ export interface JoinNavigation {
 }
 
 /**
- * What to do with the code in the link the Join page is entered with:
+ * What entering the Join page calls for:
  *
- *  - `'join'` — fill it in and try to join;
- *  - `'fill'` — fill it in and leave it at that;
+ *  - `'join'` — fill the link's code in and try to join;
+ *  - `'fill'` — put the link's code back, if the field is empty;
+ *  - `'reset'` — start over with an empty form;
  *  - `'none'` — the page is as it should be.
  */
-export type JoinLinkAction = 'join' | 'fill' | 'none';
+export type JoinLinkAction = 'join' | 'fill' | 'reset' | 'none';
 
 /**
  * Decide what entering the Join page with a link means.
@@ -48,20 +49,43 @@ export type JoinLinkAction = 'join' | 'fill' | 'none';
  *    Joining again would put the user straight back in the session they are
  *    backing out of; the code is put back in the field and left there.
  *
+ * Without a link, being sent here — "Join session" on Home — is a request
+ * for the form, not for what was last typed into it; going back to the page
+ * finds it as it was left.
+ *
  * `lastNavigationId` is the navigation the page last acted on, so that one
  * navigation is acted on once however often the page reports being entered.
+ *
+ * `routerIsHere` — the router has arrived on this page. It has not when the
+ * page is entered by a swipe back: Ionic runs the page transition first and
+ * the navigation after it, so the URL and the navigation are still those of
+ * the page being left, and say nothing about this one. The page is come
+ * back to as it was left.
  */
 export function joinLinkAction(input: {
   codeParam: string | null;
   navigation: JoinNavigation | null;
   lastNavigationId: number | null | undefined;
+  routerIsHere: boolean;
 }): JoinLinkAction {
-  if (!input.codeParam) return 'none';
+  if (!input.routerIsHere) return 'none';
   const { navigation } = input;
+  const first = input.lastNavigationId === undefined;
+  if (navigation !== null && navigation.id === input.lastNavigationId) return 'none';
+  const wentBack = navigation?.trigger === 'popstate';
+
+  if (!input.codeParam) {
+    // A page that has just been made is empty as it is.
+    return first || wentBack || navigation === null ? 'none' : 'reset';
+  }
   // Nothing to go by: the first entry was the link being followed.
-  if (navigation === null) return input.lastNavigationId === undefined ? 'join' : 'none';
-  if (navigation.id === input.lastNavigationId) return 'none';
-  return navigation.trigger === 'popstate' ? 'fill' : 'join';
+  if (navigation === null) return first ? 'join' : 'none';
+  return wentBack ? 'fill' : 'join';
+}
+
+/** True for the URL of the Join page, with or without a link's code on it. */
+export function isJoinUrl(url: string): boolean {
+  return /^\/join(?:[?#]|$)/u.test(url);
 }
 
 /**

@@ -139,6 +139,7 @@ async function mountEstimating(opts: MountOptions = {}) {
     meta: signal({ roomUuid: 'uuid' }).asReadonly(),
     syncStatus: signal('idle').asReadonly(),
     relaySynced: signal(false).asReadonly(),
+    joined: signal(false).asReadonly(),
     relayRoomUuid: signal(null).asReadonly(),
     autoRevealCount: signal(0).asReadonly(),
     commands: {

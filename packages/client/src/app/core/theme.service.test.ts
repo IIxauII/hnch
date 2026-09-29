@@ -169,12 +169,15 @@ describe('ThemeService', () => {
 
   it('uses the page background of each mode, as the stylesheet and index.html have it', async () => {
     const { readFileSync } = await import('node:fs');
-    const { resolve } = await import('node:path');
-    // Vitest runs from the package root.
-    const css = readFileSync(resolve(process.cwd(), 'src/theme/variables.scss'), 'utf8');
-    const html = readFileSync(resolve(process.cwd(), 'src/index.html'), 'utf8');
-    const [lightBg, darkBg] = [...css.matchAll(/--hnch-bg:\s*(#[0-9A-Fa-f]{6})/gu)].map(
-      (m) => m[1],
+    const { fileURLToPath } = await import('node:url');
+    // By where this file is, not by where the tests were started from. As
+    // text: the URL of the test environment is not the one Node knows.
+    const read = (path: string): string =>
+      readFileSync(fileURLToPath(new URL(path, import.meta.url).href), 'utf8');
+    const css = read('../../theme/variables.scss');
+    const html = read('../../index.html');
+    const [lightBg, darkBg] = [...css.matchAll(/--hnch-bg:\s*(#[0-9A-Fa-f]{6})/gu)].map((m) =>
+      m[1]!.toUpperCase(),
     );
     const tags = [...html.matchAll(/name="theme-color" media="([^"]+)" content="([^"]+)"/gu)];
 
@@ -182,8 +185,14 @@ describe('ThemeService', () => {
     const svc = await createService();
     await svc.ensureLoaded();
 
-    expect(chromeColors()).toEqual({ light: lightBg, dark: darkBg });
-    expect(tags.map((t) => [t[1]!.includes('dark') ? 'dark' : 'light', t[2]])).toEqual([
+    const { light, dark } = chromeColors();
+    expect({ light: light?.toUpperCase(), dark: dark?.toUpperCase() }).toEqual({
+      light: lightBg,
+      dark: darkBg,
+    });
+    expect(
+      tags.map((t) => [t[1]!.includes('dark') ? 'dark' : 'light', t[2]!.toUpperCase()]),
+    ).toEqual([
       ['light', lightBg],
       ['dark', darkBg],
     ]);

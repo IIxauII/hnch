@@ -70,12 +70,13 @@ describe('AvatarVoteRowComponent', () => {
     expect(initials).toEqual(['A', 'B']);
   });
 
-  it('empty/whitespace displayName: initial renders empty string', () => {
+  // As on the avatar: an empty dot reads as a glitch.
+  it('empty/whitespace displayName: the initial is a question mark', () => {
     const fixture = mount([makeParticipant('v1', '   '), makeParticipant('v2', '')], new Set());
     const initials = Array.from(fixture.nativeElement.querySelectorAll('.dot .dot-initial')).map(
       (el) => (el as HTMLElement).textContent,
     );
-    expect(initials).toEqual(['', '']);
+    expect(initials).toEqual(['?', '?']);
   });
 
   it('voted class applied to dot span so e2e .dot.voted selector still resolves', () => {

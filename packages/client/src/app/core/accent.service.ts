@@ -118,6 +118,13 @@ export const ACCENT_TINT_ALPHA = 0.16;
 /** WCAG AA minimum for body-size text. */
 export const ACCENT_TEXT_MIN_CONTRAST = 4.5;
 
+/**
+ * What the label color is tuned to. A little over the minimum: the tint is
+ * composited by the browser, which rounds every channel its own way, and a
+ * label tuned to 4.50 on paper can come out at 4.49 on screen.
+ */
+export const ACCENT_TEXT_TARGET_CONTRAST = 4.6;
+
 /** `fg` laid over `bg` at `alpha`, as the browser composites it. */
 export function blend(fg: string, bg: string, alpha: number): string {
   const channel = (hex: string, offset: number): number =>
@@ -154,8 +161,9 @@ export function worstAccentTextContrast(text: string, isDark: boolean): number {
  *
  * `base` is tuned to be a fill — Racing Green on a dark surface is 2.2:1, and
  * Amber on a light one is 1.4:1, so neither can carry a label. This walks the
- * base toward white (dark mode) or black (light mode) until it clears AA,
- * keeping the hue. A base that already passes comes back unchanged.
+ * base toward white (dark mode) or black (light mode) until it clears AA
+ * with a margin ({@link ACCENT_TEXT_TARGET_CONTRAST}), keeping the hue. A
+ * base that already does comes back unchanged.
  *
  * "Clears AA" counts the tinted chips too. A label that holds 4.5:1 on the
  * page does not hold it on the page tinted with 16% of itself: the tint
@@ -164,7 +172,7 @@ export function worstAccentTextContrast(text: string, isDark: boolean): number {
 export function accessibleAccentText(base: string, isDark: boolean): string {
   for (let pct = 0; pct <= 100; pct += 1) {
     const candidate = isDark ? tint(base, pct) : shade(base, pct);
-    if (worstAccentTextContrast(candidate, isDark) >= ACCENT_TEXT_MIN_CONTRAST) return candidate;
+    if (worstAccentTextContrast(candidate, isDark) >= ACCENT_TEXT_TARGET_CONTRAST) return candidate;
   }
   return isDark ? '#ffffff' : '#000000';
 }

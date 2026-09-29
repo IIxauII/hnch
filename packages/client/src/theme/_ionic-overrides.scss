@@ -38,20 +38,26 @@ ion-button:not(.in-buttons):not(.button-round) {
 }
 
 // Hover, focus and press are a wash of the label's own color, light enough
-// for the label to stay readable on it. All three opacities are spelled out:
-// iOS leaves some of them unset, and an unset opacity is 1 — a solid block
-// in the color of the label.
+// for the label to stay readable on it. `currentColor` is that color
+// whatever set it: the accent, or a `color` (the red of "Delete scale").
+// All three opacities are spelled out: iOS leaves some of them unset, and an
+// unset opacity is 1 — a solid block in the color of the label.
+//
+// Not for a button inside `ion-buttons` — the ones in a header. Ionic's own
+// rules for those outrank these (two classes to a class and a tag), and
+// give them what a toolbar button has on each platform: dimmed while
+// pressed on iOS, a ripple on Android.
 ion-button.button-clear,
 ion-button.button-outline {
   --color: var(--hnch-accent-text);
   --color-hover: var(--hnch-accent-text);
   --color-focused: var(--hnch-accent-text);
   --color-activated: var(--hnch-accent-text);
-  --background-hover: var(--hnch-accent-text);
+  --background-hover: currentColor;
   --background-hover-opacity: 0.06;
-  --background-focused: var(--hnch-accent-text);
+  --background-focused: currentColor;
   --background-focused-opacity: 0.12;
-  --background-activated: var(--hnch-accent-text);
+  --background-activated: currentColor;
   --background-activated-opacity: 0.12;
 }
 
@@ -63,6 +69,15 @@ ion-button.button-outline {
 // expecting a solid fill behind it.
 ion-button.button-outline.ion-color.ion-activated::part(native) {
   color: var(--ion-color-base);
+}
+
+// In a toolbar Ionic does fill it, in both modes, with the color of the
+// label — and takes the label's color from the toolbar's own variables,
+// which the app leaves unset. What is left is a pill with nothing on it.
+// The wash above is the press state here as well.
+ion-button.button-outline.in-toolbar:not(.ion-color).ion-activated::part(native) {
+  background: transparent;
+  color: var(--color-activated);
 }
 
 // `color="primary"` pins `--ion-color-base` with !important inside Ionic's
@@ -292,11 +307,17 @@ ion-toast {
   --max-width: 480px;
 }
 
+// The dismiss button is an icon the size of a letter.
+ion-toast::part(button) {
+  min-width: 44px;
+  min-height: 44px;
+}
+
 // ---------------------------------------------------------------------------
 // Desktop modal — centered dialog
-// Applied by the `modal-centered` class (SurfaceService.openModal, or
-// `cssClass` on an inline `ion-modal`). Lives here rather than in component
-// SCSS because ion-modal is portalled outside the component tree.
+// Applied by the `modal-centered` class (`cssClass` on an inline
+// `ion-modal`). Lives here rather than in component SCSS because ion-modal
+// is portalled outside the component tree.
 //
 // The query is SurfaceService's own pivot. On anything else — a tablet is
 // wide, but it is touched — the modal is a sheet, with a sheet's size and

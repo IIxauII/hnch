@@ -24,6 +24,10 @@ _Avoid_: revealedAt (on the projection side), endedAt, closedAt
 The internal helper that resolves `StoredRound`'s three raw terminal timestamps into one winner under the earliest-wins / reveal→skip→discard tie-break. After deepening, its only caller is `projectRound`; it is not part of the projection interface.
 _Avoid_: resolveTerminal, getRoundState
 
+**recorded** (round):
+A round that ended with something to show for it — `revealed` or `skipped` (`isRecordedStatus`). Terminal, and not a tombstone: a `discarded` round is terminal too, but it appears in no list, under no heading and in no export, and takes no **roundNumber** (ADR-0046). Whatever *lists* or *counts* finished rounds filters on this; `isTerminalStatus` answers a different question — whether a transition is still legal.
+_Avoid_: finished, completed, terminal (includes the tombstone), visible
+
 **active** (round):
 A round whose `status` is non-terminal (`pending | voting`) — still open to votes and to a terminal transition. The complement of a terminal round. Named by the `round-transitions` module: `canEnterTerminal(status)` is "is active"; `isTerminalStatus(status)` is its complement. Both writers (terminal-mutex guard, via `terminalState`) and readers (UI affordances, pre-mutation gates in client + CLI) branch on this one split instead of re-spelling `'pending' || 'voting'`.
 _Avoid_: open, live, current (the selector for this predicate is `activeRound`; `current` names the *anchor* selector `currentRound`, which falls back to the last non-discarded round and so must never gate a **write**, a **navigation**, or a **UI affordance**. Its one legitimate reader is the results anchor — "what should the Lobby results view show". Anywhere else the anchor fallback is a blind spot: when the round in question is the only one in the session, a terminal transition to `discarded` is invisible to it.)
@@ -49,11 +53,11 @@ A round's *identity* as one string: `"PROJ-42 · Auth migration"` from `ticketId
 _Avoid_: roundTitle, roundName, and — emphatically — using this name for chain position, which is what the CLI's private helper used to do
 
 **roundNumber**:
-The number a round goes by — its 1-based place among the session's rounds that were not discarded. One number per round, the same on every screen of the client and in the export: the Estimating title, the results heading, the history. (The CLI goes by it too, except for a re-vote, which it names by its place in its chain — see **formatRoundPosition**.) A discarded round is a tombstone (ADR-0046) and takes none, so the round that replaces a cancelled one gets the number it would have had; `nextRoundNumber` is what the next round will be called. Counting tombstones is what used to leave holes — cancel the first round and the session started at "Round 2".
+The number a round goes by — its 1-based place among the session's rounds that were not discarded. One number per round, the same on every screen of the client and in the export: the Estimating title, the results heading, the history. (The CLI goes by it too: it is the title of a round that is running. Only in its results and its history does the CLI name a re-vote by its place in its chain — see **formatRoundPosition**.) A discarded round is a tombstone (ADR-0046) and takes none, so the round that replaces a cancelled one gets the number it would have had; `nextRoundNumber` is what the next round will be called. Counting tombstones is what used to leave holes — cancel the first round and the session started at "Round 2".
 _Avoid_: round index, array position (`rounds.indexOf(round) + 1` counts tombstones), roundOrdinal
 
 **formatRoundPosition**:
-A round's *position* in its re-vote chain as one string: `"Round 1"`, or `"Round 2/3 [re-vote]"` for a re-vote. A different question from `formatRoundLabel` and therefore a different word; the two shared a name across packages until #509 and a reader could not tell from an import which they were getting. For a round that is not a re-vote the ordinal is the round's **roundNumber**; for a re-vote it is the depth in its chain, which is why the fifth round of a session can read "Round 2/3 [re-vote]" in the CLI and "Round 5 · Re-vote" in the client. No caller passes either. The client deliberately keeps its own number-plus-badge split rather than binding this string, because its templates style the two independently: the number is `roundNumber`, the badge reads "Re-vote". `formatRoundPosition` is the *string* form of the same idea.
+A round's *position* in its re-vote chain as one string: `"Round 1"`, or `"Round 2/3 [re-vote]"` for a re-vote. A different question from `formatRoundLabel` and therefore a different word; the two shared a name across packages until #509 and a reader could not tell from an import which they were getting. For a round that is not a re-vote the ordinal is the round's **roundNumber**; for a re-vote it is the depth in its chain, which is why the fifth round of a session can read "Round 2/3 [re-vote]" in the CLI's results and history, and "Round 5" with a "Re-vote" badge beside it in the client. No caller passes either. The client deliberately keeps its own number-plus-badge split rather than binding this string, because its templates style the two independently: the number is `roundNumber`, the badge reads "Re-vote". `formatRoundPosition` is the *string* form of the same idea.
 _Avoid_: formatRoundLabel (the collision this name exists to end), roundOrdinal, lineageLabel
 
 **roundStatsFor vs. computeRoundStats**:
@@ -61,7 +65,7 @@ _Avoid_: formatRoundLabel (the collision this name exists to end), roundOrdinal,
 _Avoid_: roundStats (ambiguous about which of the two), filterAbstain-then-compute at a call site
 
 **formatRoundStats**:
-The display form of `RoundStats` — same discriminant, every field a string ready to bind, `null` in / `null` out. Mean and median both carry one decimal place so the numbers on a surface read as one set. The spread *word* (`Unanimous` / `Close` / `Spread`) lives here; the spread *colour* does not — Ionic colour names are surface vocabulary and stay in the client component.
+The display form of `RoundStats` — same discriminant, every field a string ready to bind, `null` in / `null` out. Mean and median both carry one decimal place so the numbers on a surface read as one set. `mode` is the one field that can be `null` on a round that has stats: when the most common card is a tie (`modeTied`), no card is "the most common", and a surface shows none rather than the first of them. The spread *word* (`Unanimous` / `Close` / `Spread`) lives here; the spread *colour* does not — Ionic colour names are surface vocabulary and stay in the client component.
 _Avoid_: statsViewModel, formatStats, spreadDisplay (the client's retired private helper)
 
 **formatRoundElapsed**:
@@ -130,6 +134,18 @@ _Avoid_: createCommands, makeSessionApi, commandFactory
 The second adapter of the same interface, for a surface with no session. It refuses every member using reasons the result types already carry — no current round for the terminal acts, no active round for the votes, not found for the agenda and roster acts, no session for `startRound`. Nothing is invented, so **a session that has not started is not a special case anywhere**: no caller grows a null check it did not already have, and picking an avatar colour on a sessionless Settings page refuses honestly instead of throwing. A real adapter rather than a hypothetical one — the client holds it before a session is attached and after teardown, and both surfaces' tests spread it as a fake rather than hand-rolling writer stubs that drift.
 _Avoid_: NullCommands, noopCommands, EMPTY_COMMANDS
 
+**session epoch** (client):
+`DocService.sessionEpoch` — a number that changes every time the session the service holds starts or is torn down. The connection signals describe *whatever* session is current; something that waits on them across an `await` (a join in progress, a password change on its way to the relay) notes the epoch first and stops caring once it has moved. An attempt whose session is gone that way ends **superseded**: not a failure to report, and not the attempt's to clean up — whoever replaced the session owns what happens next.
+_Avoid_: session id (the session has one: its UUID), generation, version, cancelled (nothing was)
+
+**relayRoomUuid** (client):
+The UUID the socket is connected under, as the relay issued it — minted at creation, or resolved from the code on joining. What talks to the relay about *this* session goes by it: the password's salt, an access change, the entry in the local cache. Not `meta().roomUuid`: that one is read from the doc, and the doc is writable by every participant.
+_Avoid_: roomUuid (without saying which), doc uuid, session id
+
+**joined** (client):
+`DocService.joined` — the socket is up *and* the relay's state has applied on it. The moment a session counts as got into: the socket alone is not a verdict, since the relay takes it before it turns a wrong password away (ADR-0035). The pages record a session in the local cache once it is joined, and a join attempt waits for it.
+_Avoid_: connected (the socket's word), ready, synced (half of it)
+
 **teardown** (client):
 `DocService`'s local session teardown — destroy the doc, stop the drivers, drop the command set, write nothing. Named apart from the `endSession` roster command, which means the opposite kind of act: a doc write that ends the session for every peer. Dropping the set here is load-bearing rather than tidy, and so is rebinding on a second session: a set left bound to a destroyed doc is a late call that writes where it should refuse.
 _Avoid_: endSession (the collision this rename exists to end), destroy, close, reset
@@ -137,11 +153,11 @@ _Avoid_: endSession (the collision this rename exists to end), destroy, close, r
 ## Session drivers
 
 **driver**:
-A shared module that owns *when* a rule re-evaluates, not just what the rule says — `startElection` in `election` and `startAutoReveal` in `auto-reveal`. Each takes framework-free callbacks (`projection`, `onlineIds`, `subscribe`, plus the rule's own sink) and returns a handle with `stop()`. Because a driver is fed a *reading* of the doc rather than the doc itself, no `Y.Doc`, `Awareness`, or Angular primitive crosses **a driver's** seam — a rule about drivers specifically, not a blanket rule for shared modules: `relay-client` takes a `Y.Doc` precisely because it owns a connection rather than a re-evaluation rule. Client and CLI supply adapters, nothing more. Naming a driver separately from its predicate matters because the re-evaluation axis is exactly where two hand-wired copies drift.
+A shared module that owns *when* a rule re-evaluates, not just what the rule says — `startElection` in `election` and `startAutoReveal` in `auto-reveal`. Each takes framework-free callbacks (`projection`, `onlineIds`, `subscribe`, plus the rule's own sink — and, for auto-reveal, how far presence can be trusted) and returns a handle with `stop()`. Because a driver is fed a *reading* of the doc rather than the doc itself, no `Y.Doc`, `Awareness`, or Angular primitive crosses **a driver's** seam — a rule about drivers specifically, not a blanket rule for shared modules: `relay-client` takes a `Y.Doc` precisely because it owns a connection rather than a re-evaluation rule. Client and CLI supply adapters, nothing more. Naming a driver separately from its predicate matters because the re-evaluation axis is exactly where two hand-wired copies drift.
 _Avoid_: watcher, observer (Yjs owns that word), loop, poller (a driver is subscription-fed, never polls), service
 
 **auto-reveal driver**:
-The `startAutoReveal` half of the `auto-reveal` module: subscribes to projection *and* awareness changes, applies `shouldAutoReveal` to `currentRound`, and calls the adapter's `reveal()`. Session-scoped in both surfaces — a peer counts toward the unanimous denominator regardless of which screen it is on, so it checks regardless too. Holds no per-round state: the predicate's terminal guard makes a dedupe set unnecessary. Every peer runs one and any peer may write (ADR-0018 assigns no host authority).
+The `startAutoReveal` half of the `auto-reveal` module: subscribes to projection *and* awareness changes, applies `shouldAutoReveal` to `currentRound`, and calls the adapter's `reveal()`. Session-scoped in both surfaces — a peer counts toward the unanimous denominator regardless of which screen it is on, so it checks regardless too. Holds no per-round state: the predicate's terminal guard makes a dedupe set unnecessary. Every peer runs one and any peer may write (ADR-0018 assigns no host authority). It evaluates only while `presenceTrusted()` — the relay's state has applied on the current socket — because awareness is emptied by every dropped socket, and a peer that has voted would otherwise take itself for the whole room and reveal the round on a reload (ADR-0050). The one exception needs `selfId()`: a session with no other active participant has nobody to miscount, and reveals offline too.
 _Avoid_: autoRevealWatcher, revealPoller, unanimityService
 
 **autoRevealCount**:
@@ -155,8 +171,12 @@ The shared module that owns the entire relay contract: the three HTTP routes (`m
 _Avoid_: relay-api, sync-provider, relay service, transport (each named only half of what this owns)
 
 **connectToRelay**:
-The handshake half of `relay-client`. Takes an **http** base URL and derives the `ws://`/`wss://` form itself, so the transform exists once rather than in each surface's URL config. Returns a handle with `updateCredentials()` and `disconnect()`; everything observable — status, rejection reason, the derived reconnecting flag, the repeat-rejection throttle, the one-shot first sync — leaves through callbacks, because the client mirrors them into signals and the CLI is callback-native, and a getter would give two ways to read one state.
+The handshake half of `relay-client`. Takes an **http** base URL and derives the `ws://`/`wss://` form itself, so the transform exists once rather than in each surface's URL config. Returns a handle with `updateCredentials()` and `disconnect()`; everything observable — status, rejection reason, the derived reconnecting flag, the repeat-rejection throttle, the one-shot first sync, whether the current socket is in sync (`onSyncedChange`) — leaves through callbacks, because the client mirrors them into signals and the CLI is callback-native, and a getter would give two ways to read one state.
 _Avoid_: createSyncProvider, connect, openSocket
+
+**refusal lookup**:
+What `connectToRelay` does after a socket closed without a relay code: it asks `GET /rooms/:code` what the socket could not say. The relay turns two handshakes away before there is a socket to close with a reason — a room it does not have, a protected one asked for without a password — and a client sees those exactly like a dead link. An answer that is the relay's and says so ends the retrying with a rejection (`unknown-room`, `wrong-password`); anything else, silence included, is a dead link and is retried (ADR-0050).
+_Avoid_: health check (it asks about one room), probe, preflight (it comes after)
 
 **onSynced**:
 `connectToRelay`'s one-shot callback, fired the first time the relay's Yjs snapshot has applied. The timing is the contract: a write made from here carries a Lamport clock higher than anything in the snapshot, which is what lets `rejoin` win the LWW merge (ADR-0036 §6). Never fires on a later reconnect — "first sync of this connection" is the only moment that guarantees the ordering.

@@ -35,16 +35,21 @@ Form sheets (any sheet with a Cancel or primary-action button) place those actio
 - Primary action: `<ion-buttons slot="end">` with `strong="true"` and `color="primary"`.
 - `ion-title` centred between them.
 - A sheet with nothing to cancel has one button: Done, which is its primary action — on the right, `strong`, `color="primary"`.
+- A sheet that saves as it is edited (the custom-scale editor) has one button as well, and it stays where it is, on the right: Cancel until something has been saved, Done — `strong`, `color="primary"` — from then on. A button that changes sides is a button that is missed, and in `md` the title moves with one that leaves the start of the toolbar.
 
 The weight is what tells the two apart: a toolbar button is regular, a `strong` one semibold.
 
 **Rationale:** at the `0.6` initial breakpoint on a real phone, the `ion-footer` is pinned to the bottom of the full-height modal wrapper — which is translated ~40% below the visible sheet edge. An on-screen keyboard pushes it further. The footer is unreachable regardless of whether the sheet is dragged or a field is focused. The header is always visible at the top of the exposed sheet area and stays above the keyboard.
 
-The custom-scale editor already follows this pattern and serves as canonical prior art. A shared `SheetHeader` abstraction is explicitly deferred — the toolbar is hand-rolled inline in each sheet for now.
+A shared `SheetHeader` abstraction is explicitly deferred — the toolbar is hand-rolled inline in each sheet for now.
 
 ### Focus
 
-A sheet that exists to be typed into puts the cursor in its first field when it opens. Use `focusField(field)` (`app/utils/focus-field.ts`) from `afterNextRender`, not `field.setFocus()`: `setFocus()` does nothing on a field that has not rendered its native input yet, which a field that has just been created has not — and it fails without a word. `focusField` waits for the input, and for the sheet to finish opening.
+A sheet that exists to be typed into puts the cursor in its first field when it opens. Use `focusField(field)` (`app/utils/focus-field.ts`) from `afterNextRender`, not `field.setFocus()`: `setFocus()` does nothing on a field that has not rendered its native input yet, which a field that has just been created has not — and it fails without a word. `focusField` waits for the input, and for the sheet to finish opening; it leaves the field alone when the sheet is closed again before that, or when the cursor is in another of its fields by then.
+
+A form that mostly goes out as it is (the round forms) takes the cursor on the desktop surface only — `SurfaceService.mode() === 'desktop'` — so that it does not open under a keyboard on a phone. See [ux.md](ux.md#forms-open-ready-to-type).
+
+An Enter handler that submits asks `isComposingKey(event)` (`app/utils/composing-key.ts`) first: the Enter that picks a candidate in an input method is part of typing.
 
 ## Standalone component imports
 
@@ -65,12 +70,12 @@ Three global stylesheets, in this order (`angular.json`):
 1. `src/global.scss` — Ionic's own CSS.
 2. `src/theme/variables.scss` — tokens (below).
 3. `src/theme/components.scss` — what makes Ionic's components look like hnch. Loaded last, so it wins over Ionic's sheets by order. `!important` appears only where Ionic's own sheet uses it: the `--ion-color-*` pair of a component that carries a `color`. Two partials:
-   - `_ionic-overrides.scss` — one look for buttons, toolbars, chips, inputs, lists, alerts, action sheets, toasts and desktop modals across `ios` and `md` mode. Buttons are sentence case with a 12px radius in both modes (toolbar buttons keep Ionic's compact one, a `shape="round"` button stays round); hover, focus and press on a clear or outline button are a light wash of the label's own color; a disabled solid button is neutral, not a dimmed accent. Inset lists have no margin or padding of their own — what sits around a list spaces it. Toolbars are flat with a hairline.
-   - `_surfaces.scss` — the app's own building blocks: `.hnch-card` (+ `__header`, `__title`, `__body`), `.section-label`, `.icon-tile`, `.empty-state`, and the `ion-footer.cta-bar` > `.cta-inner` CTA bar.
+   - `_ionic-overrides.scss` — one look for buttons, toolbars, chips, inputs, lists, alerts, action sheets, toasts and desktop modals across `ios` and `md` mode. Buttons are sentence case with a 12px radius in both modes (toolbar buttons keep Ionic's compact one, a `shape="round"` button stays round); hover, focus and press on a clear or outline button are a light wash of the label's own color (the buttons of a header keep what Ionic gives a toolbar button: dimmed while pressed on iOS, a ripple on Android); a disabled solid button is neutral, not a dimmed accent. Inset lists have no margin or padding of their own — what sits around a list spaces it. Toolbars are flat with a hairline.
+   - `_surfaces.scss` — the app's own building blocks: `.hnch-card` (+ `__header`, `__title`, `__title-note`, `__body`), `.section-label`, `.card-label`, `.visually-hidden`, the ticket chip and its `.ticket-link`, `.icon-tile`, `.empty-state`, and the `ion-footer.cta-bar` > `.cta-inner` CTA bar.
 
 Reach for these before writing component SCSS; component styles keep to layout.
 
-**Overriding an Ionic component.** Most are shadowed: a rule on the host from outside outranks the `:host` rules inside, whatever their specificity. `ion-input`, `ion-textarea` and `ion-list` are not — they are scoped or plain, and what Ionic sets on them are ordinary rules with a class or two in them. A bare tag selector loses to those without any sign of it; select with the mode class (`ion-input.md, ion-input.ios`) or the classes Ionic's own rule has (`ion-list.list-inset.list-md`). When an override seems to do nothing, read the computed value.
+**Overriding an Ionic component.** Most are shadowed: a rule on the host from outside outranks the `:host` rules inside, whatever their specificity. `ion-input`, `ion-textarea` and `ion-list` are not, among others (`ion-label`, `ion-buttons`, `ion-alert`, `ion-action-sheet`) — they are scoped or plain, and what Ionic sets on them are ordinary rules with a class or two in them. A bare tag selector loses to those without any sign of it; select with the mode class (`ion-input.md, ion-input.ios`) or the classes Ionic's own rule has (`ion-list.list-inset.list-md`). When an override seems to do nothing, read the computed value.
 
 Mixins for component SCSS live in `theme/_a11y.scss`:
 
@@ -92,7 +97,7 @@ Single source of truth: `packages/client/src/theme/variables.scss`. Three layers
 
 ### Color on text
 
-A color that works as a fill does not necessarily work as text. Two sets of tokens keep the two uses apart. Every text token holds WCAG AA (4.5:1) where text is put: on the page, a card and an overlay (`--hnch-bg`, `--hnch-elev-1`, `--hnch-elev-2`), and on a chip tinted with the color of the same name over the page or a card. `--hnch-elev-3` is a pressed state, not a surface for text.
+A color that works as a fill does not necessarily work as text. Two sets of tokens keep the two uses apart. Every text token holds WCAG AA (4.5:1) where text is put: on the page, a card and an overlay (`--hnch-bg`, `--hnch-elev-1`, `--hnch-elev-2`), and on a chip tinted with the color of the same name over the page or a card. They are tuned to 4.6:1, a little over the minimum — the browser composites a tint and rounds each channel its own way. `--hnch-elev-3` is a pressed state, not a surface for text.
 
 | For | Fill | Text / icon / focus ring |
 |---|---|---|
@@ -102,9 +107,9 @@ A color that works as a fill does not necessarily work as text. Two sets of toke
 | Danger | `--ion-color-danger` | `--hnch-danger-text` |
 | Secondary text | — | `--hnch-muted` (`--hnch-muted-2` is for hairlines and glyphs only) |
 
-`--hnch-accent-text` is written at runtime by `AccentService`, next to the accent itself: it is the chosen accent, lightened or darkened just far enough to reach 4.5:1 on each of those surfaces and on its own 16% tint. Racing Green as-is is 2.2:1 on a dark card; blue that holds on the page does not hold on a chip tinted with blue. `accent.service.test.ts` checks every accent in both themes, and that the surfaces it checks against are the ones in `variables.scss`.
+`--hnch-accent-text` is written at runtime by `AccentService`, next to the accent itself: it is the chosen accent, lightened or darkened just far enough to reach 4.5:1 on each of those surfaces and on its own 16% tint. Racing Green as-is is 2.2:1 on a dark card; blue that holds on the page does not hold on a chip tinted with blue. `accent.service.test.ts` checks every accent in both themes, and that the surfaces it checks against are the ones in `variables.scss`; `theme/status-chip-contrast.test.ts` checks the three status labels on their chips.
 
-A chip's tint is 16% of its label's color. Do not deepen it for hover or press — that moves the background toward the label; draw a ring instead (the role switch does).
+An accent chip is tinted with 16% of its label's color; a status chip with its status *fill* — 16% of it, 18% for warning — under the darker label of the same name. Do not deepen a tint for hover or press — that moves the background toward the label; draw a ring instead (the role switch does).
 
 What the browser draws itself follows the app's theme, not the OS's: `color-scheme` is set with the theme in `variables.scss`, and `ThemeService` writes the `theme-color` of the browser chrome.
 
@@ -117,7 +122,7 @@ Direction-aware: dark mode steps lighter than bg toward `#FFF`; light mode steps
 | `--hnch-bg` | `#F2F2F7` | `#1C1C1E` | page background |
 | `--hnch-elev-1` | `#FFFFFF` | `#2C2C2E` | cards, items, lobby panels |
 | `--hnch-elev-2` | `#FAFAFB` | `#3A3A3C` | popovers, action sheets |
-| `--hnch-elev-3` | `#F5F5F7` | `#48484A` | active/pressed, nested modal |
+| `--hnch-elev-3` | `#F5F5F7` | `#48484A` | active/pressed |
 
 ### Shadows
 

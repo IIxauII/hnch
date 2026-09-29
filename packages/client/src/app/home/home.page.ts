@@ -7,7 +7,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { Router } from '@angular/router';
-import { hashPassword, mintRoom, normalizePassword, patchRoomAccess } from '@hnch/shared';
+import { mintRoom } from '@hnch/shared';
 import {
   IonButton,
   IonButtons,
@@ -36,6 +36,7 @@ import { ParticipantIdService } from '../core/participant-id.service';
 import { rejectionCopy, RELAY_UNREACHABLE_COPY } from '../core/relay-copy';
 import { ScalePreferenceService } from '../core/scale-preference.service';
 import { RoomJoinService } from '../core/room-join.service';
+import { SessionAccessService } from '../core/session-access.service';
 import { BrandMarkComponent } from '../shared/brand-mark.component';
 import { RecentRoomsListComponent } from './recent-rooms-list.component';
 import { PasswordPromptSheetComponent } from './password-prompt.sheet';
@@ -239,6 +240,7 @@ export class HomePage {
   private readonly participantIdService = inject(ParticipantIdService);
   private readonly scalePrefs = inject(ScalePreferenceService);
   private readonly lastSessionService = inject(LastSessionService);
+  private readonly access = inject(SessionAccessService);
   private readonly docService = inject(DocService);
   private readonly roomJoinService = inject(RoomJoinService);
 
@@ -337,10 +339,10 @@ export class HomePage {
       });
 
       // Open the sync connection so our own writes propagate.
-      this.docService.connect({
-        roomCode: minted.code,
-        deviceId: participantId,
-      });
+      this.docService.connect(
+        { roomCode: minted.code, deviceId: participantId },
+        { roomUuid: minted.uuid },
+      );
 
       // If defaultPassword is enabled, show password prompt; otherwise
       // navigate to lobby directly.
@@ -394,18 +396,18 @@ export class HomePage {
     // A password this device already entered rides along (ADR-0044), so
     // getting back into a protected session is one tap, same as a reload.
     const passwordHash = cache.passwordHash;
-    const outcome = await this.roomJoinService.rejoin(
-      cache.roomCode,
-      passwordHash ? { passwordHash } : {},
-    );
+    const outcome = await this.roomJoinService.rejoin(cache.roomCode, {
+      expectedUuid: cache.roomUuid,
+      ...(passwordHash ? { passwordHash } : {}),
+    });
 
     if (outcome.type === 'unknown-room') {
       // Relay has forgotten this room (ADR-0012's TTL lapsed or the
-      // server restarted). The entry can never work again — drop it.
-      this.docService.teardown();
+      // server restarted). The entry can never work again — drop it. A
+      // session still running in the background is another one, and stays.
       await this.lastSessionService.removeByUuid(cache.roomUuid);
       await this.loadEntriesFromCache();
-      await this.toast("That session isn't active anymore. Start a new one or join with a code.");
+      await this.toast(rejectionCopy('unknown-room', 'rejoin'));
       return;
     }
 
@@ -419,7 +421,6 @@ export class HomePage {
     }
 
     if (outcome.type === 'rejected') {
-      this.docService.teardown();
       if (outcome.reason === 'wrong-password') {
         // The host changed the password since we cached ours. Forget the
         // stale hash and hand over to Join, which asks for the new one.
@@ -486,19 +487,11 @@ export class HomePage {
    * the same as Skip — the room stays open, which is how it was created.
    */
   protected async onPasswordSubmitted(password: string): Promise<void> {
-    const uuid = this.pendingRoomUuid;
-    if (uuid !== null && normalizePassword(password) !== '') {
-      try {
-        const hash = await hashPassword(password, uuid);
-        await patchRoomAccess(this.appPrefs.resolvedRelayHttpUrl(), uuid, hash);
-        // Our own socket was opened before the password existed; re-handshake
-        // so this client is not locked out on its next reconnect, and cache
-        // the hash so the host's own way back in does not ask for it.
-        this.docService.updateCredentials(hash);
-        await this.lastSessionService.rememberPasswordHash(uuid, hash);
-      } catch {
-        await this.toast("Couldn't set the password. The session was created without one.");
-      }
+    // The same change the session's settings make later on, by the same
+    // means: the relay is told, the socket carries the password from then
+    // on, and the device remembers it for the host's own way back in.
+    if ((await this.access.setPassword(password)) === 'failed') {
+      await this.toast("Couldn't set the password. The session was created without one.");
     }
     await this.passwordModalRef()?.dismiss();
   }

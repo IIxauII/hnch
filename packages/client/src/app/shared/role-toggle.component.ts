@@ -51,6 +51,9 @@ import { eyeOutline, handLeftOutline } from 'ionicons/icons';
         --background-focused-opacity: 0;
         --background-hover-opacity: 0;
         --color: var(--hnch-accent-text);
+        /* The md ripple is a wash in the label's own color: the deeper tint
+           the ring is there to avoid. */
+        --ripple-color: transparent;
         --padding-end: 12px;
         --padding-start: 10px;
         min-height: 32px;

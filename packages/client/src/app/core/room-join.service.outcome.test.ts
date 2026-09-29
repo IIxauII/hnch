@@ -14,7 +14,7 @@
 
 // Exercises: core/room-join.service:RoomJoinService (waitForJoinOutcome)
 
-import { signal } from '@angular/core';
+import { computed, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -53,6 +53,7 @@ async function mount() {
         useValue: {
           syncStatus: syncStatus.asReadonly(),
           relaySynced: relaySynced.asReadonly(),
+          joined: computed(() => syncStatus() === 'connected' && relaySynced()),
           lastRejection: lastRejection.asReadonly(),
           sessionEpoch: sessionEpoch.asReadonly(),
         },

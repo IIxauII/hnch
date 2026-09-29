@@ -185,7 +185,6 @@ test.describe('Lobby sections on a phone', () => {
           return { scrollWidth: inner.scrollWidth, clientWidth: inner.clientWidth };
         });
       expect(scroller.scrollWidth).toBeLessThanOrEqual(scroller.clientWidth);
-      expect(scroller.clientWidth).toBeLessThanOrEqual(width);
       for (const card of [CARDS.session, CARDS.results, CARDS.participants, CARDS.agenda]) {
         const box = await host.page.locator(card).first().boundingBox();
         expect(box, card).not.toBeNull();

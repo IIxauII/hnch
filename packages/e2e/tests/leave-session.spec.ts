@@ -35,12 +35,14 @@ test.describe('Leave session flow', () => {
     await expect.poll(() => rememberedSessionCodes(host.page)).toEqual([]);
 
     // ...and a Home that has read that shows no rows, and no "Jump back in"
-    // heading over an empty list either.
+    // heading over an empty list either. The list is read after the page is
+    // up: looked at straight away, it is empty whatever is remembered.
     await host.page.reload();
     await host.page.locator(HOME.createCard).waitFor({ state: 'visible' });
+    expect(await rememberedSessionCodes(host.page)).toEqual([]);
+    await host.page.waitForTimeout(500);
     await expect(host.page.locator(HOME.recentRow)).toHaveCount(0);
     await expect(host.page.locator('app-home')).not.toContainText('Jump back in');
-    expect(await rememberedSessionCodes(host.page)).toEqual([]);
   });
 
   test('cancel on leave alert dismisses dialog without leaving', async ({ host }) => {

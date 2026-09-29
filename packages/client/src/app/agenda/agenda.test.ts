@@ -334,18 +334,8 @@ describe('AgendaItemFormSheetComponent — Enter', () => {
     expect(emitted).toHaveLength(0);
   });
 
-  // The key has to say what it does: labelled "next" it still submitted, and
-  // on iOS that key sends Enter.
-  it('labels the key for what it does', async () => {
-    const { AgendaItemFormSheetComponent } = await import('./agenda-item-form.sheet');
-    const template = (
-      AgendaItemFormSheetComponent as unknown as { ɵcmp: { consts: unknown[] } }
-    ).ɵcmp.consts
-      .flat(3)
-      .join(' ');
-    expect(template).toContain('enterkeyhint done');
-    expect(template).not.toContain('enterkeyhint next');
-  });
+  // That the key is labelled for what it does is asked of the rendered form,
+  // in e2e (form-focus.spec.ts).
 });
 
 describe('AgendaItemFormSheetComponent — validity and the submit latch', () => {
@@ -542,10 +532,10 @@ describe('AgendaPanelComponent — display helpers', () => {
     expect(comp.itemDisplayTitle(item)).toBe('PROJ-1');
   });
 
-  it('itemDisplayTitle returns (untitled) when both absent', async () => {
+  it('itemDisplayTitle names a story that has neither title nor ticket', async () => {
     const item = makeAgendaItem({ id: 'p1', sortKey: 'a0' });
     const comp = await mountPanelRaw([item]);
-    expect(comp.itemDisplayTitle(item)).toBe('(untitled)');
+    expect(comp.itemDisplayTitle(item)).toBe('Untitled story');
   });
 
   // A skipped round consumes its story too (ADR-0045), so "consumed" is

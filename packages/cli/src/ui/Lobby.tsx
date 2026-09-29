@@ -233,10 +233,12 @@ export function Lobby({
     { isActive: handoffMode === 'confirming' },
   );
 
-  const hasRounds = rounds.length > 0;
   // Rounds with something to show. A cancelled round is a tombstone
-  // (ADR-0046): it is listed nowhere and takes no number.
+  // (ADR-0046): it is listed nowhere, takes no number, and — same as a
+  // session with zero rounds at all — leaves nothing to head this screen
+  // "Session" for.
   const recordedRounds = rounds.filter((r) => isRecordedStatus(r.status));
+  const hasRounds = recordedRounds.length > 0;
 
   // Past rounds = all of them except the latest (shown in full)
   const pastRounds = currentRound !== null ? recordedRounds.slice(0, -1) : recordedRounds;

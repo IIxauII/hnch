@@ -271,6 +271,7 @@ async function mountLobby(scale: Scale | undefined, customs: CustomScale[]) {
           meta: signal(undefined).asReadonly(),
           syncStatus: signal('disconnected').asReadonly(),
           relaySynced: signal(false).asReadonly(),
+          joined: signal(false).asReadonly(),
           relayRoomUuid: signal(null).asReadonly(),
           currentRound: signal(undefined).asReadonly(),
           screen: signal('lobby').asReadonly(),
@@ -361,6 +362,7 @@ describe('LobbyPage — onRoundStart forwards ticketId', () => {
             meta: signal(undefined).asReadonly(),
             syncStatus: signal('disconnected').asReadonly(),
             relaySynced: signal(false).asReadonly(),
+            joined: signal(false).asReadonly(),
             relayRoomUuid: signal(null).asReadonly(),
             currentRound: signal(undefined).asReadonly(),
             screen: signal('lobby').asReadonly(),
@@ -536,6 +538,7 @@ async function mountLobbySubtitleAffordance(opts: { isHost: boolean; subtitle: s
           meta: signal(undefined).asReadonly(),
           syncStatus: signal('disconnected').asReadonly(),
           relaySynced: signal(false).asReadonly(),
+          joined: signal(false).asReadonly(),
           relayRoomUuid: signal(null).asReadonly(),
           currentRound: signal(undefined).asReadonly(),
           screen: signal('lobby').asReadonly(),
@@ -665,6 +668,7 @@ describe('LobbyPage — onCopyRoomCode', () => {
             meta: signal(undefined).asReadonly(),
             syncStatus: signal('disconnected').asReadonly(),
             relaySynced: signal(false).asReadonly(),
+            joined: signal(false).asReadonly(),
             relayRoomUuid: signal(null).asReadonly(),
             currentRound: signal(undefined).asReadonly(),
             screen: signal('lobby').asReadonly(),
@@ -792,6 +796,7 @@ describe('LobbyPage — openParticipantActions', () => {
             meta: signal(undefined).asReadonly(),
             syncStatus: signal('disconnected').asReadonly(),
             relaySynced: signal(false).asReadonly(),
+            joined: signal(false).asReadonly(),
             relayRoomUuid: signal(null).asReadonly(),
             currentRound: signal(undefined).asReadonly(),
             screen: signal('lobby').asReadonly(),
@@ -947,6 +952,7 @@ describe('LobbyPage — ngOnDestroy', () => {
             meta: signal(undefined).asReadonly(),
             syncStatus: signal('disconnected').asReadonly(),
             relaySynced: signal(false).asReadonly(),
+            joined: signal(false).asReadonly(),
             relayRoomUuid: signal(null).asReadonly(),
             currentRound: signal(undefined).asReadonly(),
             screen: signal('lobby').asReadonly(),
@@ -1064,6 +1070,7 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
             meta: signal(undefined).asReadonly(),
             syncStatus: signal('disconnected').asReadonly(),
             relaySynced: signal(false).asReadonly(),
+            joined: signal(false).asReadonly(),
             relayRoomUuid: signal(null).asReadonly(),
             currentRound: signal(undefined).asReadonly(),
             screen: signal('lobby').asReadonly(),
@@ -1166,6 +1173,7 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
             meta: signal(undefined).asReadonly(),
             syncStatus: signal('disconnected').asReadonly(),
             relaySynced: signal(false).asReadonly(),
+            joined: signal(false).asReadonly(),
             relayRoomUuid: signal(null).asReadonly(),
             currentRound: signal(undefined).asReadonly(),
             screen: signal('lobby').asReadonly(),
@@ -1273,6 +1281,7 @@ describe('LobbyPage — terminal-round computeds (status)', () => {
             meta: signal(undefined).asReadonly(),
             syncStatus: signal('disconnected').asReadonly(),
             relaySynced: signal(false).asReadonly(),
+            joined: signal(false).asReadonly(),
             relayRoomUuid: signal(null).asReadonly(),
             currentRound: signal(undefined).asReadonly(),
             screen: signal('lobby').asReadonly(),
@@ -1398,6 +1407,7 @@ describe('LobbyPage — autoNav effect (wiring)', () => {
             meta: signal(undefined).asReadonly(),
             syncStatus: signal('disconnected').asReadonly(),
             relaySynced: signal(false).asReadonly(),
+            joined: signal(false).asReadonly(),
             relayRoomUuid: signal(null).asReadonly(),
             currentRound: signal(undefined).asReadonly(),
             screen: screenSig.asReadonly(),
@@ -1531,6 +1541,7 @@ describe('LobbyPage — agenda form refusal keeps the modal open', () => {
             meta: signal(undefined).asReadonly(),
             syncStatus: signal('disconnected').asReadonly(),
             relaySynced: signal(false).asReadonly(),
+            joined: signal(false).asReadonly(),
             relayRoomUuid: signal(null).asReadonly(),
             currentRound: signal(undefined).asReadonly(),
             screen: signal('lobby').asReadonly(),
@@ -1730,7 +1741,10 @@ interface CommandMountOptions {
   myId?: string | null;
   pendingAgenda?: AgendaItem[];
   rounds?: Round[];
-  /** `meta().roomUuid`; omitted exercises the `clearAll` leave branch. */
+  /**
+   * The UUID the relay issued for the session. The doc carries another one
+   * (`meta().roomUuid`), to show which of the two a command goes by.
+   */
   roomUuid?: string;
   /** `settings().hostParticipantId`; own id is `'me'` unless `myId` says otherwise. */
   hostId?: string;
@@ -1800,12 +1814,11 @@ async function mountForCommands(opts: CommandMountOptions = {}) {
           settings: signal(settings).asReadonly(),
           roomCode: signal('ABC123').asReadonly(),
           hasSession: signal(true).asReadonly(),
-          meta: signal(
-            opts.roomUuid === undefined ? undefined : { roomUuid: opts.roomUuid },
-          ).asReadonly(),
+          meta: signal({ roomUuid: 'uuid-from-the-doc' }).asReadonly(),
           syncStatus: signal('disconnected').asReadonly(),
           relaySynced: signal(false).asReadonly(),
-          relayRoomUuid: signal(null).asReadonly(),
+          joined: signal(false).asReadonly(),
+          relayRoomUuid: signal(opts.roomUuid ?? null).asReadonly(),
           currentRound: signal(undefined).asReadonly(),
           screen: screen.asReadonly(),
           lastRejection: signal(null).asReadonly(),
@@ -2193,7 +2206,9 @@ describe('LobbyPage — leaveSession', () => {
     expect(navigate).toHaveBeenCalledWith(['/home']);
   });
 
-  it('clears every cached entry when the doc carries no roomUuid', async () => {
+  // The doc's own UUID is writable by everyone in the session: it must not
+  // decide which of this device's sessions is forgotten, let alone all.
+  it('forgets nothing else when there is no relay UUID to go by', async () => {
     const { page, lastSession, navigate, alerts } = await mountForCommands({
       commands: { leave: vi.fn().mockReturnValue(APPLIED_ROSTER) },
     });
@@ -2202,7 +2217,7 @@ describe('LobbyPage — leaveSession', () => {
     tapAlertButton(alerts, 'Leave');
     await vi.waitFor(() => expect(navigate).toHaveBeenCalled());
 
-    expect(lastSession.clearAll).toHaveBeenCalledTimes(1);
+    expect(lastSession.clearAll).not.toHaveBeenCalled();
     expect(lastSession.removeByUuid).not.toHaveBeenCalled();
   });
 

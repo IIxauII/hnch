@@ -42,7 +42,7 @@ test.describe('Skip round', () => {
     await expect(player.page.locator(LOBBY.revoteBtn)).not.toBeVisible();
   });
 
-  // Skip sits one row from "Session settings" and cannot be undone.
+  // Skip sits one row from "End session" and cannot be undone.
   test('skipping asks first, and cancelling leaves the round running', async ({ host, player }) => {
     const code = await host.createSession();
     await player.joinSession(code);
@@ -59,11 +59,15 @@ test.describe('Skip round', () => {
     await alert.getByRole('button', { name: 'Cancel' }).click();
     await expect(alert).toHaveCount(0);
 
-    // The round goes on, with the vote that was in it
+    // The round goes on, with the vote that was in it...
     await expect(host.page).toHaveURL(/\/estimating/);
     await expect(player.page).toHaveURL(/\/estimating/);
     await expect(host.page.locator(ESTIMATING.voteCount)).toContainText('1 of 2');
-    await expect(host.page.locator('p.round-skipped')).toHaveCount(0);
+
+    // ...to its end: the vote that completes it reveals both.
+    await host.castVote('8');
+    await host.page.waitForURL(/\/lobby/, { timeout: 10_000 });
+    await host.expectRevealedVotes(['5', '8']);
   });
 
   test('joiner has no round menu, so nothing to skip a round from', async ({ host, player }) => {

@@ -14,12 +14,17 @@ import { ESTIMATING } from './fixtures/helpers';
  * Two angles on it:
  *
  *  - The host has voted, the other voter has not, the host reloads. This is
- *    the case that revealed the round: with the sync gate in `DocService`
- *    taken out, this test fails.
+ *    the case that revealed the round: with the gate in the auto-reveal
+ *    driver (`presenceTrusted`) taken out, this test fails.
  *  - The other way round: the participant has voted and reloads. While it is
  *    away the host sees it go offline — a voter who has not voted remains,
  *    so the round must not reveal on that account either — and when it is
  *    back the round still waits for the host.
+ *
+ * Not covered, because it is not so: a voter who has NOT voted and goes
+ * away takes itself out of "every online voter", and a round that was only
+ * waiting for that one reveals (ADR-0018). The gate is about what a client
+ * believes on its way in, not about who is counted.
  *
  * Two clients each. The relay in these tests takes three connections to a
  * session, and a reload opens the new one while the old one may not have

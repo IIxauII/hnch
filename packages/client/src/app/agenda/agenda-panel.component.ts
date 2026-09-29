@@ -345,8 +345,13 @@ export class AgendaPanelComponent {
     return -1;
   });
 
+  /**
+   * What the story is listed as. The form asks for a title or a ticket ID,
+   * but the doc is written by every client: one with neither is named the
+   * way a round without a title is.
+   */
   protected itemDisplayTitle(item: AgendaItem): string {
-    return item.title ?? item.ticketId ?? '(untitled)';
+    return item.title ?? item.ticketId ?? 'Untitled story';
   }
 
   /** The item's state in a word, or the empty string while it is pending. */

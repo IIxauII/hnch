@@ -26,6 +26,7 @@ import {
 } from '@ionic/angular/standalone';
 
 import { SurfaceService } from '../core/surface.service';
+import { isComposingKey } from '../utils/composing-key';
 import { focusField } from '../utils/focus-field';
 import { buildRoundStartTicketId, buildRoundStartTitle } from './round-start.helpers';
 
@@ -229,7 +230,7 @@ export class RoundStartSheetComponent implements OnInit {
    * typing, not a submit.
    */
   protected onEnter(event: Event): void {
-    if ((event as KeyboardEvent).isComposing) return;
+    if (isComposingKey(event)) return;
     this.submit();
   }
 

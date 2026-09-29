@@ -443,6 +443,8 @@ export class EstimatingPage {
   private readonly timerTick = inject(TimerTickService);
   private readonly surface = inject(SurfaceService);
   private readonly alertCtrl = inject(AlertController);
+  /** The "Skip this round?" question, while it is up. */
+  private skipAlert: HTMLIonAlertElement | null = null;
   private readonly toast = inject(ToastService);
 
   protected readonly currentRound = this.docService.currentRound;
@@ -485,7 +487,7 @@ export class EstimatingPage {
       const code = this.docService.roomCode();
       const uuid = this.docService.relayRoomUuid();
       // Up *and* synced: an open socket is not yet the relay saying yes.
-      const joined = this.docService.syncStatus() === 'connected' && this.docService.relaySynced();
+      const joined = this.docService.joined();
       if (!joined) {
         this.lastRecordedUuid = null;
         return;
@@ -900,20 +902,19 @@ export class EstimatingPage {
   }
 
   private async leaveSession(): Promise<void> {
+    // The UUID the relay issued, which is what the entry was recorded under.
+    // Not the one in the doc: any participant can rewrite that. Read before
+    // anything is waited for — the session may be gone by the time it is over.
+    const uuid = this.docService.relayRoomUuid();
     if (this.myId()) {
       // Write the soft-delete before disconnecting so peers see the removal (ADR-0036).
       this.docService.commands.leave();
       // Flush the Yjs update through the WebSocket before closing (best-effort, 500 ms cap).
       await this.docService.flushUpdates();
     }
-    const uuid = this.docService.meta()?.roomUuid;
     this.docService.teardown();
     // Destructive leave — remove the entry, so Home does not offer the session again (ADR-0044).
-    if (uuid) {
-      await this.lastSessionService.removeByUuid(uuid);
-    } else {
-      await this.lastSessionService.clearAll();
-    }
+    if (uuid !== null) await this.lastSessionService.removeByUuid(uuid);
     await this.router.navigate(['/home']);
   }
 
@@ -923,6 +924,11 @@ export class EstimatingPage {
    * the thumb from closing it, so it asks first.
    */
   private async confirmSkip(): Promise<void> {
+    // The question is about this round. By the time it is answered the
+    // round may be over and another one running, or the host someone else.
+    const roundId = this.activeRound()?.id;
+    if (roundId === undefined) return;
+
     const alert = await this.alertCtrl.create({
       header: 'Skip this round?',
       message: 'Votes cast so far are dropped. The round cannot be reopened.',
@@ -932,10 +938,21 @@ export class EstimatingPage {
           text: 'Skip round',
           role: 'destructive',
           handler: () => {
-            this.onSkip();
+            if (this.isHost() && this.activeRound()?.id === roundId) this.onSkip();
           },
         },
       ],
+    });
+    // Making the question takes a moment, and the round may have ended in
+    // it — with the page left for the Lobby, where the question would come
+    // up over the results.
+    if (!this.isHost() || this.activeRound()?.id !== roundId) {
+      alert.remove();
+      return;
+    }
+    this.skipAlert = alert;
+    void alert.onDidDismiss().then(() => {
+      if (this.skipAlert === alert) this.skipAlert = null;
     });
     await alert.present();
   }
@@ -947,12 +964,18 @@ export class EstimatingPage {
   }
 
   /**
-   * A menu belongs to the screen it was opened on. This page is left without
-   * the user doing anything when the round reveals, and the menu would
-   * otherwise stay up over the Lobby, offering to skip a round that is over.
+   * A menu belongs to the screen it was opened on, and so does a question
+   * about the round. This page is left without the user doing anything when
+   * the round reveals, and either would otherwise stay up over the Lobby,
+   * offering to skip a round that is over.
    */
   ionViewWillLeave(): void {
     void this.surface.dismissMenu();
+    const alert = this.skipAlert;
+    this.skipAlert = null;
+    void alert?.dismiss(undefined, 'cancel').catch(() => {
+      // Already on its way out.
+    });
   }
 
   private async confirmEndSession(): Promise<void> {

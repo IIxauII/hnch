@@ -128,17 +128,21 @@ export class SessionAccessService {
     try {
       const hash = password === null ? null : await hashPassword(password, uuid);
       const answer = await patchRoomAccess(this.appPrefs.resolvedRelayHttpUrl(), uuid, hash);
-      // The session this was for is gone; so is everything to update.
-      if (this.docService.sessionEpoch() !== epoch) return 'applied';
 
-      // The relay has spoken: show what it says, before anything that can
-      // still go wrong.
-      this.seq += 1;
-      this.modeSignal.set(answer.accessMode === 'password' ? 'password' : 'open');
+      // Only while the session is still the one this was for. If it was left
+      // in the meantime there is nothing here to show it on, or to reconnect.
+      if (this.docService.sessionEpoch() === epoch) {
+        // The relay has spoken: show what it says, before anything that can
+        // still go wrong.
+        this.seq += 1;
+        this.modeSignal.set(answer.accessMode === 'password' ? 'password' : 'open');
 
-      // Our own socket still carries the old `pw`. Re-handshake, so the
-      // change does not lock this client out on its next reconnect.
-      this.docService.updateCredentials(hash);
+        // Our own socket still carries the old `pw`. Re-handshake, so the
+        // change does not lock this client out on its next reconnect.
+        this.docService.updateCredentials(hash);
+      }
+      // The relay has changed either way, and what the device remembers of
+      // the session is kept by its UUID, not by its being open here.
       await this.remember(uuid, hash);
       return 'applied';
     } catch {

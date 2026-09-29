@@ -140,6 +140,8 @@ interface MountOpts {
   onlineIds?: Set<string>;
   /** Own participant id; `null` stands in for a page mounted before it exists. */
   myId?: string | null;
+  /** Alerts take until `alertsReady()` to be made, as they take a moment in the app. */
+  holdAlerts?: boolean;
 }
 
 async function mount(opts: MountOpts = {}) {
@@ -178,6 +180,15 @@ async function mount(opts: MountOpts = {}) {
   const skipCurrentRound = vi.fn().mockReturnValue({ applied: true, at: 1 });
   const openSheetOrPopover = vi.fn().mockResolvedValue(undefined);
   const dismissMenu = vi.fn().mockResolvedValue(undefined);
+  const dismissAlert = vi.fn().mockResolvedValue(true);
+  const presentAlert = vi.fn().mockResolvedValue(undefined);
+  const removeAlert = vi.fn();
+  let alertsReady!: () => void;
+  const alertsHeld = opts.holdAlerts
+    ? new Promise<void>((resolve) => {
+        alertsReady = resolve;
+      })
+    : Promise.resolve();
   const toastInfo = vi.fn().mockResolvedValue(undefined);
   const haptic = {
     impactLight: vi.fn(),
@@ -220,10 +231,11 @@ async function mount(opts: MountOpts = {}) {
     activeParticipants: signal(roster).asReadonly(),
     settings: signal({ hostParticipantId: hostId }).asReadonly(),
     roomCode: signal('ZZZZZZ').asReadonly(),
-    meta: signal({ roomUuid: 'uuid' }).asReadonly(),
+    meta: signal({ roomUuid: 'uuid-from-the-doc' }).asReadonly(),
     syncStatus: signal('idle').asReadonly(),
     relaySynced: signal(false).asReadonly(),
-    relayRoomUuid: signal(null).asReadonly(),
+    joined: signal(false).asReadonly(),
+    relayRoomUuid: signal<string | null>('uuid').asReadonly(),
     autoRevealCount: autoRevealCountSig.asReadonly(),
     commands: {
       ...UNBOUND_SESSION_COMMANDS,
@@ -264,9 +276,16 @@ async function mount(opts: MountOpts = {}) {
       {
         provide: AlertController,
         useValue: {
-          create: vi.fn().mockImplementation((cfg: (typeof alerts)[number]) => {
+          create: vi.fn().mockImplementation(async (cfg: (typeof alerts)[number]) => {
             alerts.push(cfg);
-            return Promise.resolve({ present: vi.fn() });
+            await alertsHeld;
+            return {
+              present: presentAlert,
+              dismiss: dismissAlert,
+              remove: removeAlert,
+              // Stays up until someone answers it.
+              onDidDismiss: () => new Promise(() => {}),
+            };
           }),
         },
       },
@@ -285,6 +304,10 @@ async function mount(opts: MountOpts = {}) {
     discardCurrentRound,
     openSheetOrPopover,
     dismissMenu,
+    dismissAlert,
+    presentAlert,
+    removeAlert,
+    alertsReady: () => alertsReady(),
     toastInfo,
     haptic,
     docService,
@@ -776,11 +799,107 @@ describe('EstimatingPage — skip-round action', () => {
   });
 });
 
+describe('EstimatingPage — a skip that is answered late', () => {
+  async function askToSkip() {
+    const mounted = await mount({ isHost: true, initialRound: votingRound('r1') });
+    await tapSheetItem(mounted.fixture, mounted.openSheetOrPopover, 'Skip round');
+    await vi.waitFor(() => expect(mounted.alerts).toHaveLength(1));
+    return mounted;
+  }
+
+  // Everyone voted while the question was up: the round revealed by itself.
+  it('does not skip a round that is over', async () => {
+    const mounted = await askToSkip();
+    mounted.currentRoundSig.set(terminalRound('revealed', 'r1'));
+
+    tapAlertButton(mounted.alerts, 'Skip round');
+
+    expect(mounted.skipCurrentRound).not.toHaveBeenCalled();
+  });
+
+  // ...and the next one was started. The question was never about that one.
+  it('does not skip the round that came after', async () => {
+    const mounted = await askToSkip();
+    mounted.currentRoundSig.set(votingRound('r2'));
+
+    tapAlertButton(mounted.alerts, 'Skip round');
+
+    expect(mounted.skipCurrentRound).not.toHaveBeenCalled();
+    expect(mounted.haptic.impactHeavy).not.toHaveBeenCalled();
+  });
+});
+
+// Making the question takes a moment. Everyone may have voted in it: the
+// round reveals, and the page is left for the Lobby.
+describe('EstimatingPage — a skip that is asked about too late', () => {
+  async function chooseSkip(round = votingRound('r1')) {
+    const mounted = await mount({ isHost: true, initialRound: round, holdAlerts: true });
+    await tapSheetItem(mounted.fixture, mounted.openSheetOrPopover, 'Skip round');
+    await vi.waitFor(() => expect(mounted.alerts).toHaveLength(1));
+    return mounted;
+  }
+
+  it('asks when the round is still running', async () => {
+    const mounted = await chooseSkip();
+
+    mounted.alertsReady();
+
+    await vi.waitFor(() => expect(mounted.presentAlert).toHaveBeenCalledOnce());
+    expect(mounted.removeAlert).not.toHaveBeenCalled();
+  });
+
+  it('does not ask about a round that has ended meanwhile', async () => {
+    const mounted = await chooseSkip();
+    mounted.currentRoundSig.set(terminalRound('revealed', 'r1'));
+
+    mounted.alertsReady();
+
+    await vi.waitFor(() => expect(mounted.removeAlert).toHaveBeenCalledOnce());
+    expect(mounted.presentAlert).not.toHaveBeenCalled();
+    // Nothing is left behind for the page to close on its way out
+    (
+      mounted.fixture.componentInstance as unknown as { ionViewWillLeave(): void }
+    ).ionViewWillLeave();
+    expect(mounted.dismissAlert).not.toHaveBeenCalled();
+  });
+
+  it('nor about the round that came after it', async () => {
+    const mounted = await chooseSkip();
+    mounted.currentRoundSig.set(votingRound('r2'));
+
+    mounted.alertsReady();
+
+    await vi.waitFor(() => expect(mounted.removeAlert).toHaveBeenCalledOnce());
+    expect(mounted.presentAlert).not.toHaveBeenCalled();
+  });
+});
+
 describe('EstimatingPage — leaving the page', () => {
   it('closes the menu it opened', async () => {
     const { fixture, dismissMenu } = await mount({ isHost: true, initialRound: votingRound() });
     (fixture.componentInstance as unknown as { ionViewWillLeave(): void }).ionViewWillLeave();
     expect(dismissMenu).toHaveBeenCalledTimes(1);
+  });
+
+  // The page is left when the round reveals, whatever is on screen.
+  it('takes the question about the round with it', async () => {
+    const { fixture, alerts, dismissAlert, openSheetOrPopover, skipCurrentRound } = await mount({
+      isHost: true,
+      initialRound: votingRound(),
+    });
+    await tapSheetItem(fixture, openSheetOrPopover, 'Skip round');
+    await vi.waitFor(() => expect(alerts).toHaveLength(1));
+
+    (fixture.componentInstance as unknown as { ionViewWillLeave(): void }).ionViewWillLeave();
+
+    expect(dismissAlert).toHaveBeenCalledExactlyOnceWith(undefined, 'cancel');
+    expect(skipCurrentRound).not.toHaveBeenCalled();
+  });
+
+  it('has no question to close when none was asked', async () => {
+    const { fixture, dismissAlert } = await mount({ isHost: true, initialRound: votingRound() });
+    (fixture.componentInstance as unknown as { ionViewWillLeave(): void }).ionViewWillLeave();
+    expect(dismissAlert).not.toHaveBeenCalled();
   });
 });
 

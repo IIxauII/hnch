@@ -296,7 +296,7 @@ test.describe('screenshot capture', () => {
       // Note: redundant with 15-lobby-results-1440; kept per plan §4a for completeness.
       await shot(page, '4a-lobby-no-history-yet-1440');
 
-      // 6a — custom scale editor sheet
+      // 6a — preset card editor sheet
       // Path: App Settings → Default scale row → Edit button on a preset.
       await gotoFresh(page, '/settings');
       await page.waitForURL(/\/settings/);
@@ -308,7 +308,7 @@ test.describe('screenshot capture', () => {
       await page.locator(APP_SETTINGS_SCALE_PICKER.editBtn('Fibonacci')).click();
       await page.locator('app-scale-editor-sheet').waitFor({ state: 'visible' });
       await page.waitForTimeout(400);
-      await shot(page, '6a-custom-scale-editor-sheet');
+      await shot(page, '6a-preset-card-editor-sheet');
 
       // 6b — preset overrides toggle (one card toggled off)
       const toggle = page.locator(PRESET_CARD_EDITOR.cardToggle('21'));
@@ -322,9 +322,35 @@ test.describe('screenshot capture', () => {
         await page.waitForTimeout(300);
       }
       await shot(page, '6b-preset-override-card-toggled');
-      // Close editor + picker
+      // Close the editor; the picker stays for the next scene
       await page.locator(PRESET_CARD_EDITOR.doneBtn).click();
       await page.locator('app-scale-editor-sheet').waitFor({ state: 'hidden' });
+
+      // 6c — custom scale editor, before there is a scale: Cancel, and what is missing
+      await page
+        .locator('app-scale-picker-sheet ion-item', { hasText: 'Create custom scale' })
+        .click();
+      const customEditor = page.locator('app-custom-scale-editor-sheet');
+      await customEditor.waitFor({ state: 'visible' });
+      await page.waitForTimeout(400);
+      await shot(page, '6c-custom-scale-editor-new');
+
+      // 6d — the same sheet once the scale exists: Done, the cards, Delete
+      await customEditor.getByRole('textbox', { name: 'Scale name' }).fill('Team sizes');
+      const newCard = customEditor.getByRole('textbox', { name: 'New card' });
+      for (const card of ['S', 'M', 'L', 'XL']) {
+        await newCard.fill(card);
+        await newCard.press('Enter');
+      }
+      await expect(customEditor.locator('.card-face')).toHaveCount(4);
+      await expect(customEditor.locator('ion-toolbar ion-button')).toHaveText('Done');
+      await newCard.blur();
+      await shot(page, '6d-custom-scale-editor-saved');
+
+      // Leave nothing behind for the scenes that follow
+      await customEditor.locator('ion-button.delete-btn').click();
+      await page.locator('ion-alert').getByRole('button', { name: 'Delete' }).click();
+      await customEditor.waitFor({ state: 'hidden' });
       await page.locator(APP_SETTINGS_SCALE_PICKER.doneBtn).click();
       await page.locator('app-scale-picker-sheet').waitFor({ state: 'hidden' });
 

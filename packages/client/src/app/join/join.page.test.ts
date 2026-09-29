@@ -5,6 +5,7 @@
  * Tests here cover:
  * - shouldAutoSubmitDeepLink: deep-link auto-submit gate
  * - joinLinkAction: what entering the page with a link means
+ * - isJoinUrl: whether the router has arrived on the page
  * - shouldAutoSubmitTypedCode: typed-code auto-submit gate
  * - qrScanErrorCopy: reason → user-visible copy (regression lock)
  */
@@ -12,6 +13,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  isJoinUrl,
   joinLinkAction,
   qrScanErrorCopy,
   shouldAutoSubmitDeepLink,
@@ -53,16 +55,55 @@ describe('joinLinkAction', () => {
 
   it('joins when a link has just been followed', () => {
     expect(
-      joinLinkAction({ codeParam: 'K7P9MR', navigation: followed, lastNavigationId: undefined }),
+      joinLinkAction({
+        codeParam: 'K7P9MR',
+        navigation: followed,
+        lastNavigationId: undefined,
+        routerIsHere: true,
+      }),
     ).toBe('join');
   });
 
-  it('has nothing to act on without a code', () => {
+  it('has nothing to act on when it is first entered without a code', () => {
     expect(
-      joinLinkAction({ codeParam: null, navigation: followed, lastNavigationId: undefined }),
+      joinLinkAction({
+        codeParam: null,
+        navigation: followed,
+        lastNavigationId: undefined,
+        routerIsHere: true,
+      }),
     ).toBe('none');
     expect(
-      joinLinkAction({ codeParam: '', navigation: followed, lastNavigationId: undefined }),
+      joinLinkAction({
+        codeParam: '',
+        navigation: followed,
+        lastNavigationId: undefined,
+        routerIsHere: true,
+      }),
+    ).toBe('none');
+  });
+
+  // "Join session" on Home, with the page still in the stack from the last
+  // session: the form, not the code and the password typed back then.
+  it('starts over when it is sent to again without a code', () => {
+    expect(
+      joinLinkAction({
+        codeParam: null,
+        navigation: { id: 9, trigger: 'imperative' },
+        lastNavigationId: 4,
+        routerIsHere: true,
+      }),
+    ).toBe('reset');
+  });
+
+  it('is left as it was when it is gone back to without a code', () => {
+    expect(
+      joinLinkAction({
+        codeParam: null,
+        navigation: { id: 9, trigger: 'popstate' },
+        lastNavigationId: 4,
+        routerIsHere: true,
+      }),
     ).toBe('none');
   });
 
@@ -74,6 +115,7 @@ describe('joinLinkAction', () => {
         codeParam: 'K7P9MR',
         navigation: { id: 7, trigger: 'popstate' },
         lastNavigationId: 4,
+        routerIsHere: true,
       }),
     ).toBe('fill');
     // Also when the page had to be created again for it
@@ -82,6 +124,7 @@ describe('joinLinkAction', () => {
         codeParam: 'K7P9MR',
         navigation: { id: 7, trigger: 'popstate' },
         lastNavigationId: undefined,
+        routerIsHere: true,
       }),
     ).toBe('fill');
   });
@@ -94,6 +137,7 @@ describe('joinLinkAction', () => {
         codeParam: 'K7P9MR',
         navigation: { id: 9, trigger: 'imperative' },
         lastNavigationId: 4,
+        routerIsHere: true,
       }),
     ).toBe('join');
     expect(
@@ -101,23 +145,97 @@ describe('joinLinkAction', () => {
         codeParam: 'A2B3C4',
         navigation: { id: 9, trigger: 'imperative' },
         lastNavigationId: 4,
+        routerIsHere: true,
       }),
     ).toBe('join');
   });
 
   it('acts on one navigation once, however often the page says it was entered', () => {
-    expect(joinLinkAction({ codeParam: 'K7P9MR', navigation: followed, lastNavigationId: 4 })).toBe(
-      'none',
-    );
+    expect(
+      joinLinkAction({
+        codeParam: 'K7P9MR',
+        navigation: followed,
+        lastNavigationId: 4,
+        routerIsHere: true,
+      }),
+    ).toBe('none');
+  });
+
+  // A swipe back from the Lobby. Ionic runs the page transition first and
+  // the navigation after it: the router is still on the Lobby, its last
+  // navigation is the one that led there, and there is no code in its URL.
+  // Read as "sent here anew without a code", that emptied the form the user
+  // was coming back to.
+  describe('entered ahead of the router', () => {
+    const leadingToTheLobby = { id: 5, trigger: 'imperative' } as const;
+
+    it('leaves the form as it was', () => {
+      expect(
+        joinLinkAction({
+          codeParam: null,
+          navigation: leadingToTheLobby,
+          lastNavigationId: 4,
+          routerIsHere: false,
+        }),
+      ).toBe('none');
+    });
+
+    it('acts on nothing the router says, whatever it says', () => {
+      for (const codeParam of [null, 'K7P9MR']) {
+        for (const navigation of [
+          leadingToTheLobby,
+          { id: 5, trigger: 'popstate' } as const,
+          null,
+        ]) {
+          for (const lastNavigationId of [undefined, null, 4]) {
+            expect(
+              joinLinkAction({ codeParam, navigation, lastNavigationId, routerIsHere: false }),
+            ).toBe('none');
+          }
+        }
+      }
+    });
   });
 
   it('joins once where the router has no navigation to show', () => {
     expect(
-      joinLinkAction({ codeParam: 'K7P9MR', navigation: null, lastNavigationId: undefined }),
+      joinLinkAction({
+        codeParam: 'K7P9MR',
+        navigation: null,
+        lastNavigationId: undefined,
+        routerIsHere: true,
+      }),
     ).toBe('join');
-    expect(joinLinkAction({ codeParam: 'K7P9MR', navigation: null, lastNavigationId: null })).toBe(
-      'none',
-    );
+    expect(
+      joinLinkAction({
+        codeParam: 'K7P9MR',
+        navigation: null,
+        lastNavigationId: null,
+        routerIsHere: true,
+      }),
+    ).toBe('none');
+  });
+});
+
+describe('isJoinUrl', () => {
+  it('is true for the Join page, with a link on it or without', () => {
+    expect(isJoinUrl('/join')).toBe(true);
+    expect(isJoinUrl('/join?code=K7P9MR')).toBe(true);
+    expect(isJoinUrl('/join?code=K7P9MR&pw=1')).toBe(true);
+    expect(isJoinUrl('/join#x')).toBe(true);
+  });
+
+  it('is false everywhere else', () => {
+    expect(isJoinUrl('/lobby/K7P9MR')).toBe(false);
+    expect(isJoinUrl('/estimating/K7P9MR')).toBe(false);
+    expect(isJoinUrl('/home')).toBe(false);
+    expect(isJoinUrl('/')).toBe(false);
+    expect(isJoinUrl('')).toBe(false);
+  });
+
+  it('is not fooled by a path that merely starts the same', () => {
+    expect(isJoinUrl('/joined')).toBe(false);
+    expect(isJoinUrl('/join/K7P9MR')).toBe(false);
   });
 });
 

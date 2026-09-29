@@ -490,6 +490,87 @@ describe('LastSessionService v2', () => {
   });
 
   // -------------------------------------------------------------------------
+  // Changes take turns
+  // -------------------------------------------------------------------------
+
+  // Every change writes back what it read. Leaving a session and being
+  // refused by it can reach the cache in the same moment, and so can the
+  // password sheet and the page that records the session.
+  describe('changes made at the same moment', () => {
+    const now = 1_000_000;
+    const entry = (roomUuid: string) => ({
+      roomCode: roomUuid.toUpperCase(),
+      roomUuid,
+      lastSeenAt: now,
+      lastScreen: 'lobby',
+    });
+
+    it('do not undo each other', async () => {
+      store[KEY] = makeV2({ u1: entry('u1'), u2: entry('u2'), u3: entry('u3') });
+      const svc = await createService();
+
+      await Promise.all([svc.removeByUuid('u1'), svc.removeByUuid('u2')]);
+
+      const left = await svc.list({ now: () => now });
+      expect(left.map((e) => e.roomUuid)).toEqual(['u3']);
+    });
+
+    it('keep a record and a forgotten password apart', async () => {
+      store[KEY] = makeV2({ u1: { ...entry('u1'), passwordHash: 'old' } });
+      const svc = await createService();
+
+      await Promise.all([
+        svc.clearPasswordHash('u1'),
+        svc.recordJoin({ roomCode: 'U2', roomUuid: 'u2', lastScreen: 'lobby' }, { now: () => now }),
+      ]);
+
+      const left = await svc.list({ now: () => now });
+      expect(left.map((e) => e.roomUuid).toSorted()).toEqual(['u1', 'u2']);
+      expect(left.find((e) => e.roomUuid === 'u1')!.passwordHash).toBeUndefined();
+    });
+
+    it('happen in the order they were asked for', async () => {
+      const svc = await createService();
+
+      // Given up first, handed over second: the second one counts.
+      const cleared = svc.clearPasswordHash('u1');
+      svc.setPendingPasswordHash('u1', 'newer');
+      await cleared;
+      await svc.recordJoin(
+        { roomCode: 'U1', roomUuid: 'u1', lastScreen: 'lobby' },
+        { now: () => now },
+      );
+
+      const [recorded] = await svc.list({ now: () => now });
+      expect(recorded!.passwordHash).toBe('newer');
+    });
+
+    it('show a list that has all of them in it', async () => {
+      store[KEY] = makeV2({ u1: entry('u1'), u2: entry('u2') });
+      const svc = await createService();
+
+      void svc.removeByUuid('u1');
+      const left = await svc.list({ now: () => now });
+
+      expect(left.map((e) => e.roomUuid)).toEqual(['u2']);
+    });
+
+    it('go on after one of them failed', async () => {
+      store[KEY] = makeV2({ u1: entry('u1'), u2: entry('u2') });
+      const svc = await createService();
+      mockPreferences.set.mockRejectedValueOnce(new Error('disk full'));
+
+      const failed = svc.removeByUuid('u1');
+      const next = svc.removeByUuid('u2');
+
+      await expect(failed).rejects.toThrow('disk full');
+      await expect(next).resolves.toBeUndefined();
+      const left = await svc.list({ now: () => now });
+      expect(left.map((e) => e.roomUuid)).toEqual(['u1']);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // v1 → v2 migration
   // -------------------------------------------------------------------------
 

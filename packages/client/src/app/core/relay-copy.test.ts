@@ -24,9 +24,11 @@ describe('rejectionCopy', () => {
 
   // Whoever is turned away from a session they were in did not just type a
   // password: telling them it was incorrect would be news about nothing.
-  it('a password that was just typed is wrong; one that worked before has changed', () => {
+  it('a password that was just typed is wrong; on the way back in it is asked for', () => {
     expect(rejectionCopy('wrong-password', 'join')).toBe('That password is incorrect.');
-    expect(rejectionCopy('wrong-password', 'rejoin')).toBe("This session's password has changed.");
+    expect(rejectionCopy('wrong-password', 'rejoin')).toBe(
+      "Enter this session's password to get back in.",
+    );
     expect(rejectionCopy('wrong-password')).toBe('That password is incorrect.');
   });
 

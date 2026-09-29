@@ -3,7 +3,7 @@
  * the same refusal reads the same wherever it surfaces.
  */
 
-import type { JoinRejectionReason } from '@hnch/shared';
+import { MAX_ROOM_PARTICIPANTS, type JoinRejectionReason } from '@hnch/shared';
 
 /**
  * Shown whenever a relay call never got an answer — offline, a wrong relay
@@ -11,6 +11,13 @@ import type { JoinRejectionReason } from '@hnch/shared';
  */
 export const RELAY_UNREACHABLE_COPY =
   "Couldn't reach the relay. Check your connection and try again.";
+
+/**
+ * Shown when the relay did answer and something else went wrong on the way
+ * into the session. Saying the relay could not be reached would send the
+ * user looking at their connection.
+ */
+export const SESSION_OPEN_FAILED_COPY = "Couldn't open the session. Try again.";
 
 /**
  * Where the refusal reached the user:
@@ -21,8 +28,8 @@ export const RELAY_UNREACHABLE_COPY =
  *
  * It changes the wording only where the two are different things to say. A
  * code that was just typed may be mistyped; a session the device remembers
- * has ended. A password that was just typed is wrong; one that let them in
- * before has been changed since.
+ * has ended. A password that was just typed is wrong; someone who was in
+ * already is asked for one the session did not have, or has changed, since.
  */
 export type RejectionContext = 'join' | 'rejoin';
 
@@ -40,9 +47,11 @@ export function rejectionCopy(
         ? "That code isn't active. Double-check it with your host."
         : "That session isn't active anymore.";
     case 'wrong-password':
+      // On the way back in, nobody has just typed anything: the session was
+      // given a password, or a new one, since.
       return context === 'join'
         ? 'That password is incorrect.'
-        : "This session's password has changed.";
+        : "Enter this session's password to get back in.";
     case 'invalid-invite':
       return "That invite link isn't valid.";
     case 'expired-invite':
@@ -50,7 +59,7 @@ export function rejectionCopy(
     case 'invite-already-redeemed':
       return 'That invite link has already been used.';
     case 'room-full':
-      return 'This session is full (20 participants max).';
+      return `This session is full (${MAX_ROOM_PARTICIPANTS} participants max).`;
     case 'malformed-credentials':
       return context === 'join'
         ? "Couldn't join with the info provided."

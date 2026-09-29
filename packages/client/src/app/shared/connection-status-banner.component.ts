@@ -62,8 +62,10 @@ export function computeBannerLabel(
  * on its connection.
  *
  * Renders a bar at the top of `<ion-content>` while the session is not
- * connected, and stays in view when the page scrolls. On the way back
- * (reconnecting true → false) it shows a brief "Reconnected" toast.
+ * connected, and stays in view when the page scrolls. Once the session has
+ * been got back into it shows a brief "Reconnected" toast — not when the
+ * wait ended because the relay refused the connection, or because the
+ * session was left.
  *
  * It replaces a second indicator, a chip in the toolbar, that said the same
  * thing five seconds later and pushed into the title on a phone.
@@ -115,7 +117,6 @@ export function computeBannerLabel(
         border: 0.5px solid rgba(var(--ion-color-warning-rgb), 0.45);
         border-radius: 12px;
         background: var(--hnch-bg);
-        background: color-mix(in srgb, var(--ion-color-warning) 18%, var(--hnch-bg));
         box-shadow: var(--hnch-shadow-1);
         color: var(--hnch-text);
         font-size: 0.9375rem;
@@ -125,6 +126,14 @@ export function computeBannerLabel(
         flex: 0 0 auto;
         color: var(--hnch-warning-text);
         font-size: 1.125rem;
+      }
+      /* Behind a check of its own: a second declaration is no fallback for
+         one that holds a var() — where the mix is not understood the value
+         is dropped when it is computed, and the bar would be see-through. */
+      @supports (color: color-mix(in srgb, red, blue)) {
+        .banner {
+          background: color-mix(in srgb, var(--ion-color-warning) 18%, var(--hnch-bg));
+        }
       }
     `,
   ],
@@ -154,8 +163,9 @@ export class ConnectionStatusBannerComponent {
   );
 
   /**
-   * Flipped to `true` on the falling edge of `reconnecting()` (true → false).
-   * Cleared after 1500 ms so the toast dismisses naturally.
+   * Flipped to `true` when a connection that was being made again has got
+   * back into the session. Cleared after 1500 ms so the toast dismisses
+   * naturally.
    */
   protected readonly recentlyReconnected = signal(false);
 
@@ -165,23 +175,36 @@ export class ConnectionStatusBannerComponent {
     let clearTimer: ReturnType<typeof setTimeout> | null = null;
     let connectingTimer: ReturnType<typeof setTimeout> | null = null;
 
-    // Detect falling edge (true → false) via closure-tracked `previous`.
-    let previous = false;
+    // Waiting for the connection to come back: from the moment it is being
+    // made again until the session has been got back into — or the wait
+    // ends some other way. That the socket is up again is not it: the relay
+    // takes a socket before it turns a wrong password or a full session
+    // away (ADR-0035), and only a socket it keeps is ever brought in sync.
+    let awaited = false;
     effect(() => {
-      const current = this.reconnecting();
-      if (previous && !current) {
-        // Falling edge: transition from reconnecting → connected.
-        if (clearTimer !== null) {
-          clearTimeout(clearTimer);
-          clearTimer = null;
-        }
-        this.recentlyReconnected.set(true);
-        clearTimer = setTimeout(() => {
-          this.recentlyReconnected.set(false);
-          clearTimer = null;
-        }, 1500);
+      const reconnecting = this.reconnecting();
+      const back = this.docService.joined();
+      const over = this.rejected() || this.docService.syncStatus() === 'offline';
+      if (reconnecting) {
+        awaited = true;
+        return;
       }
-      previous = current;
+      if (!awaited || over) {
+        awaited = false;
+        return;
+      }
+      if (!back) return;
+
+      awaited = false;
+      if (clearTimer !== null) {
+        clearTimeout(clearTimer);
+        clearTimer = null;
+      }
+      this.recentlyReconnected.set(true);
+      clearTimer = setTimeout(() => {
+        this.recentlyReconnected.set(false);
+        clearTimer = null;
+      }, 1500);
     });
 
     // One effect owns the "connecting" delay. The clock starts when the

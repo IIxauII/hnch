@@ -102,9 +102,11 @@ Home
 
 The Join button stays on the page: it is how a password is submitted, and how a code that failed is retried.
 
-A link is acted on when it is followed, not every time the page it opened is come back to: Back from the Lobby lands on Join session with the code still in the tiles, and stays there.
+A link is acted on when it is followed, not every time the page it opened is come back to: the browser's Back from the Lobby lands on Join session with the code still in the tiles, and stays there. (The Lobby's own back button goes Home — §1.4.)
 
-**Passwords.** A password is what was typed, without the whitespace around it — wherever one is set or entered, in the app and in the CLI. A password pasted with a trailing space still opens the session. A password of nothing but spaces is no password.
+**Passwords.** A password is what was typed, without the whitespace around it — wherever one is set or entered, in the app and in the CLI. A password pasted with a trailing space still opens the session, and so does one pasted out of a chat with characters around it that cannot be seen. An accented letter is the same letter whichever way the keyboard wrote it (the password is compared in Unicode's NFC form); nothing else is folded together — capitals stay capitals. A password of nothing but spaces is no password: the app does not send one, and the CLI says "Password cannot be empty." rather than open a session that was meant to be protected. A password has at most 120 characters.
+
+A session whose password was set before this rule, with whitespace around it and from somewhere that kept it (an older CLI), is asked for with a password no current client can type: the host sets it again.
 
 ### 1.3b Pre-session agenda (ADR-0042)
 
@@ -149,8 +151,11 @@ Estimating
       - Host taps Reveal votes (manual), OR
       - All online voters have voted or abstained (unanimous auto-reveal, ADR-0018).
         A client that has just (re)connected waits for the relay's first sync
-        before it trusts its picture of who is online — reloading the page
-        mid-round must not reveal the round.
+        before it trusts its picture of who is online (ADR-0050) — a voter who
+        reloads the page mid-round must not reveal the round by doing so.
+        "Online" is taken at its word: when a voter who has not voted goes
+        offline, the round no longer waits for them, and reveals if everyone
+        else has voted.
   → All participants navigate to Lobby (results shown inline)
   → Host may skip the round instead of revealing (ADR-0040):
       - Host taps ⋯ → Skip round → confirmation "Skip this round?" (the votes cast so far
@@ -176,7 +181,7 @@ Lobby (post-reveal)
   → Everyone else waits: "Waiting for {host} to start the next round." (screen updates when host moves on)
 ```
 
-**Round numbers.** A round's number is its place among the rounds that were not cancelled, and it is the same on every screen of the app and in the export: the Estimating title, the results heading, the history. A cancelled round takes no number — cancel round 3 and the next round is round 3. The CLI counts the same way, except that it shows a re-vote by its place in its chain ("Round 2/2 [re-vote]") rather than by its number.
+**Round numbers.** A round's number is its place among the rounds that were not cancelled, and it is the same on every screen of the app and in the export: the Estimating title, the results heading, the history. A cancelled round takes no number — cancel round 3 and the next round is round 3. The CLI counts the same way. In its results and its history it shows a re-vote by its place in its chain as well ("Round 2/2 [re-vote]"); while the round runs, its title is the round's number, as in the app.
 
 **While a round runs, everyone is on Estimating.** The Lobby sends anyone who lands on it mid-round back to the cards — also when the page is re-entered with the browser's Back button. Session settings are therefore only reachable between rounds.
 
@@ -218,6 +223,7 @@ If the leaver later re-enters via room code, `joinSession` clears `leftAt`/`remo
 ```
 Lobby → ⋯ on a participant row (host only, target is not self)
   → Menu titled with the name: [Make host] [Remove] [Cancel]
+    ("Make host" only for a participant who is online: the role is not handed to someone who is not there)
   → Tap "Remove"
     → Confirmation alert:
         "Remove {name} from session?"
@@ -231,7 +237,10 @@ Lobby → ⋯ on a participant row (host only, target is not self)
     → Cancel: dismiss alert
   → Tap "Make host"
     → Confirmation alert: "Make {name} the host?" — [Cancel] [Make host]
+    → Confirm: everyone is told — "Bob is now the host" (Bob: "You are now the host")
 ```
+
+The toast about a new host says who the host is now, and why — where the client can vouch for the reason: "… left." for a host who left the session, "… disconnected." for one whose connection is gone. For a host who is still here it gives none. They may have handed the role over; or a participant who lost sight of the session for a moment has elected themselves, and the host that was did nothing.
 
 The ⋯ button is the same affordance on every surface; only the menu's presentation differs (§3).
 
@@ -255,7 +264,9 @@ Host's connection is lost
   → Other clients observe host's awareness going offline
   → 5-second debounce (ADR-0010)
   → Lowest peer-ID elected as new host
-  → All clients see a toast: "Bob disconnected. Alice is now the host." (the new host: "You are now the host")
+  → Everyone in the app sees a toast: "Bob disconnected. Alice is now the host."
+    (the new host: "Bob disconnected. You are now the host."). The CLI says who
+    the host is now, without the reason.
   → If former host rejoins within snapshot window: they rejoin as a regular participant
 ```
 
@@ -282,14 +293,19 @@ User taps a URL (or types a code) the relay no longer knows (snapshot TTL expire
 
 ```
 On Lobby or Estimating, the socket reconnects and the relay refuses it
-  (the host changed the password meanwhile, the session filled up, the session is gone)
-  → The client stops retrying — the answer will not change
-  → Toast with the reason: "This session's password has changed.",
+  (the host set or changed the password meanwhile, the session filled up, the session is gone)
+  → The client stops retrying — trying again is the user's to decide, not a loop's
+  → No "Reconnected": the wait is over, but not because the connection is back
+  → Toast with what to do, or the reason: "Enter this session's password to get back in.",
     "This session is full (20 participants max).", "That session isn't active anymore."
   → Wrong password: the password this device remembered is forgotten, and the user lands on
     Join session with the code filled in, to enter the new one
-  → Anything else: Home
+  → Session gone: it is dropped from "Jump back in" (ADR-0044) — it can never be got into
+    again — and the user lands on Home
+  → Session full: Home, with the session still under "Jump back in" for when there is room
 ```
+
+The page the user was on is not kept to go back to: Back from where they land does not lead into a session that is closed to them.
 
 The relay refuses some of these before there is a socket to close with a reason — a session it no longer has, a protected one asked for without a password — and the browser reports that like any dropped connection. The client asks the relay over HTTP what the socket could not say (ADR-0050), so nobody is left behind a "Reconnecting…" that will never end.
 
@@ -320,9 +336,17 @@ When the results section appears in Lobby after reveal: cards enter with 80ms st
 
 **Reduced-motion fallback** (`prefers-reduced-motion: reduce`): static "hnch'd!" badge with a single inline 🎉 next to the text. No confetti, no scale-in animation, no pulse.
 
+### The session code
+
+Six tiles, one character each. Typing moves on to the next tile, Backspace back to the one before; a pasted code fills them all. A tile that holds a character takes the next one typed in its place: a typo is corrected by typing over it.
+
 ### Forms open ready to type
 
-A sheet that exists to be typed into opens with the cursor in its first field — the session password, a story, the relay URL — and so does the password field on Join session when it appears. Enter submits. The round form does the same where there is a keyboard; on a phone it opens without one, because every field in it is optional and most rounds start with the form as it is.
+A sheet that exists to be typed into opens with the cursor in its first field — the session password, a story, the relay URL, the name of a new custom scale — and so does the password field on Join session when it appears. Enter submits. The cursor arrives once the sheet has finished opening, and not at all if the sheet is closed again before that, or if the user has put it somewhere else in the meantime.
+
+The forms about a round — the one that starts it, the one that edits it — do the same on the desktop surface only (a wide window and a mouse). Everywhere else they open without a keyboard: every field in them is optional, most rounds start with the form as it is, and a keyboard would cover it. A custom scale that is opened to be changed opens as it is, too.
+
+Enter that confirms a choice in an input method (IME) is part of typing: it never submits.
 
 ### Share sheet
 
@@ -351,6 +375,8 @@ Three standard dismissal gestures:
 
 Dismissing unsaved picker discards change (pickers commit on radio selection — "unsaved" state only applies to editors with Save button).
 
+**The custom scale editor saves as it is edited**, so it has no Save. A scale exists from the moment it has a name and two cards, and the one button in the header says which side of that moment the sheet is on: Cancel before, Done after. Both close the sheet, and closing it — by the button, a drag or a tap outside — saves a name that was still being typed. What is on screen is only saved while it *is* a scale; when it is not, the note under the cards says what is missing ("Add one more card and the scale is saved."), and for a scale that exists already, that the edit is not saved ("Not saved: a scale needs a name and at least 2 cards.") and the scale stays as it was. A save the device refuses is said so, in a toast and in the same note, and the next change tries again. Removing a card from the keyboard keeps the focus in the list; removing one by a tap leaves it where it was, with the keyboard that is up for the next card.
+
 ### Swipe-to-go-back
 
 Enabled globally via Ionic default `swipeGesture`. Leaving session reversible (snapshots live 24h per [ADR-0012](../adr/0012-snapshot-policy.md); rejoin via the "Jump back in" list on Home), accidental swipes safe.
@@ -377,7 +403,7 @@ Buttons: [Cancel]   [Leave]   (Leave role: destructive)
 - Non-blocking — never prevents user action.
 - One look in every mode and theme: inverse surface (text color as background).
 
-Common toasts: host handoff ("Alice is now the host"), code copied ("Code copied"), link copied ("Invite link copied"), password changes ("Password set", "Password removed"), round cancelled ("Round cancelled" / "The host cancelled the round"), session gone ("That session isn't active anymore."), relay unreachable ("Couldn't reach the relay. Check your connection and try again."), scan failure ("That doesn't look like an hnch invite").
+Common toasts: host handoff ("Alice is now the host", "Bob disconnected. Alice is now the host."), code copied ("Code copied"), link copied ("Invite link copied"), password changes ("Password set", "Password removed"), round cancelled ("Round cancelled" / "The host cancelled the round"), session gone ("That session isn't active anymore."), relay unreachable ("Couldn't reach the relay. Check your connection and try again."), scan failure ("That doesn't look like an hnch invite").
 
 ### Connection banner
 
@@ -408,7 +434,7 @@ The web PWA is a production surface, so desktop has to meet the same quality bar
 
 **Breakpoint.** `md` (768px) pivot, ANDed with `(pointer: fine)`. Touch laptops keep the mobile UX; desktop means 768px+ *and* a fine pointer. Central refs: `packages/client/src/theme/_breakpoints.scss` (SCSS map) and `packages/client/src/app/core/breakpoints.ts` (TS mirror) — keep the two in sync.
 
-**Modals.** Mobile = half-sheet, `breakpoints: [0, 0.6, 0.95]`; a sheet whose content is a list longer than half a screen (scale picker, scale editors) opens at full height instead, so nothing sits below the fold waiting to be found. Desktop = centered dialog via the `.modal-centered` global class in `theme/_ionic-overrides.scss` (no drag handle, 480px wide, 560px high or 80vh where that is less; `.modal-compact` for one- or two-field forms). The class does nothing outside the desktop surface: a tablet is wide, but it is touched, and gets the sheet. A modal is an inline `ion-modal` in the page that owns it, with its breakpoints from `SurfaceService` — see [ionic.md](ionic.md).
+**Modals.** Mobile = half-sheet, `breakpoints: [0, 0.6, 0.95]`; a sheet whose content is a list longer than half a screen (scale picker, scale editors) opens at full height instead, so nothing sits below the fold waiting to be found. Desktop = centered dialog via the `.modal-centered` global class in `theme/_ionic-overrides.scss` (no drag handle, 480px wide, 560px high or 80vh where that is less; `.modal-compact` for one- or two-field forms). The class does nothing outside the desktop surface: a tablet is wide, but it is touched, and gets the sheet. A sheet is an inline `ion-modal` in the page that owns it, with its breakpoints from `SurfaceService` — see [ionic.md](ionic.md). It closes when that page is left, whoever left it: a participant who has the QR code up when the host starts the round votes on a clear screen. (One sheet is made in code, like the menus and alerts are: the camera overlay of the QR scanner, which belongs to a service, not to a page.)
 
 **Menus.** Mobile = `ActionSheetController` overlay. Desktop = `PopoverController` anchored to its trigger, which fixes the Fitts's-law problem of a top-right gear opening a bottom-anchored sheet. Shared `<app-menu-popover>` replaces per-call-site button arrays; route through `SurfaceService.openSheetOrPopover()`.
 
@@ -427,6 +453,6 @@ The web PWA is a production surface, so desktop has to meet the same quality bar
 
 **Small screens.** Pages hold at 320px wide: the session code scales with the viewport, the card grid is three columns on a narrow phone and four from about 400px, rows wrap rather than truncate.
 
-**Accessibility.** Hover styles go inside `@media (hover: hover)`. Every interactive element carries a `:focus-visible` ring. Modal focus trap must be verified on desktop. Text in the accent color uses `--hnch-accent-text`, which is adjusted per theme to hold 4.5:1 on the page, on a card, and on a chip tinted with the accent itself; the raw accent is for fills. Touch targets are at least 44px: a control drawn smaller than that (toolbar buttons, the back chevron, icon buttons, toggles, the role switch, the ticket link) keeps its size and gets an invisible 44px hit area around its centre on any device with a touch screen (`touch-target` mixin, see [ionic.md](ionic.md#global-styles)). One exception: the show / hide eye in a password field is Ionic's own control, drawn inside a shadow tree the app's styles do not reach — 36px on iOS, 40px on Android. A control never reaches past a container that clips it — no negative margins to tuck a button into a row. Pinch-zoom is not disabled.
+**Accessibility.** Hover styles go inside `@media (hover: hover)`. Every interactive element carries a `:focus-visible` ring. Modal focus trap must be verified on desktop. Text in the accent color uses `--hnch-accent-text`, which is adjusted per theme to hold 4.5:1 on the page, on a card, and on a chip tinted with the accent itself; the raw accent is for fills. Touch targets are at least 44px: a control drawn smaller than that (toolbar buttons, the back chevron, icon buttons, toggles, the role switch, the ticket link) keeps its size and gets an invisible 44px hit area around its centre on any device with a touch screen (`touch-target` mixin, see [ionic.md](ionic.md#global-styles)). One exception: the show / hide eye in a password field is Ionic's own control, drawn inside a shadow tree the app's styles do not reach — 36px on iOS, 40px on Android. (The × that dismisses a toast is Ionic's own as well, but exposed as a part, and is sized to 44px.) A control never reaches past a container that clips it — no negative margins to tuck a button into a row. Pinch-zoom is not disabled.
 
 **Out of scope.** Native iOS/Android layout is untouched — native clients stay pure mobile. `ion-split-pane` is deferred: current Lobby density (session code with share + QR, 1–8 participants, one round) would look sparse next to a capped centered column. Revisit when round history shows 3+ entries inline; a Lobby side rail is a structural change and needs its own ADR.

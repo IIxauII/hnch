@@ -125,10 +125,6 @@ ion-chip.ticket-chip ion-label {
   white-space: normal;
 }
 
-.ticket-link ion-chip.ticket-chip {
-  --color: var(--hnch-accent-text);
-}
-
 // A link the height of a chip: the hit area reaches past it on touch.
 .ticket-link {
   display: inline-block;
