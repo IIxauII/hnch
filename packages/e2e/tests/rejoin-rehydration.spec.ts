@@ -28,7 +28,7 @@ test.describe('Rejoin / snapshot rehydration', () => {
     await player.expectParticipantCount(2);
 
     // Verify settings are preserved (default Fibonacci scale in subtitle).
-    // Player is non-host, so the subtitle renders as ion-chip.subtitle-chip
+    // Player is non-host, so the subtitle renders as plain text
     // (host gets button.subtitle); LOBBY.subtitle selector matches both.
     await expect(player.page.locator(LOBBY.subtitle)).toContainText('Fibonacci');
   });

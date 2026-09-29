@@ -27,7 +27,7 @@ test.describe('Re-vote eligibility after voter↔viewer toggle', () => {
     // 4. Player toggles to viewer/observer mid-round.
     await player.toggleRole();
     await expect(
-      player.page.locator(ESTIMATING.roleChip).filter({ hasText: 'Observing' }).first(),
+      player.page.locator(ESTIMATING.roleChip).filter({ hasText: 'Observer' }).first(),
     ).toBeVisible();
 
     // 5. Host triggers reveal manually (player is now a viewer, excluded from denominator).
@@ -78,7 +78,7 @@ test.describe('Re-vote eligibility after voter↔viewer toggle', () => {
     // Player toggles to viewer before voting — excluded from denominator.
     await player.toggleRole();
     await expect(
-      player.page.locator(ESTIMATING.roleChip).filter({ hasText: 'Observing' }).first(),
+      player.page.locator(ESTIMATING.roleChip).filter({ hasText: 'Observer' }).first(),
     ).toBeVisible();
 
     // Host is the only voter; auto-reveal fires when host votes.

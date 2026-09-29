@@ -48,8 +48,12 @@ _Avoid_: roundFormatters, display utils, roundView, per-surface formatter
 A round's *identity* as one string: `"PROJ-42 · Auth migration"` from `ticketId` and `title`, or `null` when it has neither (the caller picks the placeholder). Answers "what is this round called".
 _Avoid_: roundTitle, roundName, and — emphatically — using this name for chain position, which is what the CLI's private helper used to do
 
+**roundNumber**:
+The number a round goes by — its 1-based place among the session's rounds that were not discarded. One number per round, the same on every surface and every screen: the Estimating title, the results heading, the history, the export, the CLI. A discarded round is a tombstone (ADR-0046) and takes none, so the round that replaces a cancelled one gets the number it would have had; `nextRoundNumber` is what the next round will be called. Counting tombstones is what used to leave holes — cancel the first round and the session started at "Round 2".
+_Avoid_: round index, array position (`rounds.indexOf(round) + 1` counts tombstones), roundOrdinal
+
 **formatRoundPosition**:
-A round's *position* in its re-vote chain as one string: `"Round 1"`, or `"Round 2/3 [re-vote]"` for a re-vote. A different question from `formatRoundLabel` and therefore a different word; the two shared a name across packages until #509 and a reader could not tell from an import which they were getting. The ordinal is derived from the round's index in the rounds array — no caller passes one. The client's round history deliberately keeps its own ordinal-plus-badge split rather than binding this string, because its template styles the two independently; `formatRoundPosition` is the *string* form of the same idea.
+A round's *position* in its re-vote chain as one string: `"Round 1"`, or `"Round 2/3 [re-vote]"` for a re-vote. A different question from `formatRoundLabel` and therefore a different word; the two shared a name across packages until #509 and a reader could not tell from an import which they were getting. The ordinal is the round's **roundNumber** — no caller passes one. The client deliberately keeps its own number-plus-badge split rather than binding this string, because its templates style the two independently: the number is `roundNumber`, the badge reads "Re-vote". `formatRoundPosition` is the *string* form of the same idea.
 _Avoid_: formatRoundLabel (the collision this name exists to end), roundOrdinal, lineageLabel
 
 **roundStatsFor vs. computeRoundStats**:

@@ -17,9 +17,10 @@ vi.mock('@ionic/angular/standalone', async () => {
     'IonContent',
     'IonHeader',
     'IonInput',
+    'IonInputPasswordToggle',
     'IonItem',
-    'IonLabel',
     'IonList',
+    'IonNote',
     'IonTitle',
     'IonToolbar',
   ]) {

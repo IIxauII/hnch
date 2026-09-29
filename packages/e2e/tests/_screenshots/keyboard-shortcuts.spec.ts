@@ -20,7 +20,6 @@ import {
   BASE_URL,
   ONBOARDING,
   HOME,
-  JOIN,
   LOBBY,
   ROUND_START,
   ESTIMATING,
@@ -28,11 +27,13 @@ import {
   expandRoundStartSheet,
   clickRoundStartSubmit,
 } from '../fixtures/helpers';
+import { pageSettled } from './_helpers/settled';
 
 const OUT_DIR = resolveOutDir('keyboard');
 test.use({ trace: 'off', video: 'off', screenshot: 'off' });
 
 async function shot(page: Page, name: string): Promise<void> {
+  await pageSettled(page);
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(OUT_DIR, `${name}.png`), fullPage: false });
 }
@@ -51,7 +52,7 @@ async function joinAs(browser: Browser, name: string, code: string): Promise<Pag
   await page.locator(HOME.joinCard).click();
   await page.waitForURL(/\/join/);
   await fillRoomCode(page, code);
-  await page.locator(JOIN.joinBtn).click();
+  // The sixth character submits: no Join tap after a typed code.
   await page.waitForURL(/\/lobby/);
   return page;
 }
@@ -110,8 +111,9 @@ test('capture keyboard-shortcuts screenshots @layout @onboarding', async ({ brow
 
   // 5. Settings — keyboard shortcuts info section.
   await page.goto(`${BASE_URL}/settings`);
-  await page.locator('ion-list-header:has-text("Keyboard shortcuts")').waitFor({ timeout: 5_000 });
-  await page.locator('ion-list-header:has-text("Keyboard shortcuts")').scrollIntoViewIfNeeded();
+  const shortcuts = page.locator('app-settings .section-label:has-text("Keyboard shortcuts")');
+  await shortcuts.waitFor({ timeout: 5_000 });
+  await shortcuts.scrollIntoViewIfNeeded();
   await shot(page, '05-settings-keyboard-shortcuts');
 
   await ctx.close();

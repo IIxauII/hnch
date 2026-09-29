@@ -27,6 +27,7 @@ import { test, expect } from '@playwright/test';
 import { resolveOutDir } from './_helpers/out-dir';
 import { BASE_URL } from '../fixtures/helpers';
 import {
+  agendaItemActionMobile,
   freshMobileCtx,
   onboardMobile,
   createSessionMobile,
@@ -54,7 +55,7 @@ test('375px mobile — Add button visible and clickable in header (add mode) @ho
     // Primary regression guard: Add button must be visible at the natural
     // 0.6 breakpoint without any programmatic expansion. On the old footer
     // layout this assertion fails — the button is below the visible portion.
-    const addBtn = sheet.getByRole('button', { name: 'Add agenda item' });
+    const addBtn = sheet.getByRole('button', { name: 'Add story' });
     await expect(addBtn).toBeVisible({ timeout: 5_000 });
 
     // Confirm the button is also interactable (not just rendered off-screen).
@@ -66,8 +67,12 @@ test('375px mobile — Add button visible and clickable in header (add mode) @ho
     const cancelBtn = sheet.getByRole('button', { name: 'Cancel' });
     await expect(cancelBtn).toBeVisible({ timeout: 5_000 });
 
+    // The rule is stated once, in plain words — not as an error that is on
+    // screen before anything was typed.
+    await expect(sheet).toContainText('A story needs a title or a ticket ID.');
+
     // Fill a title so the primary button becomes enabled.
-    await page.getByRole('textbox', { name: 'Story title' }).fill('Mobile story');
+    await sheet.getByRole('textbox', { name: 'Title' }).fill('Mobile story');
     await expect(addBtn).toBeEnabled({ timeout: 3_000 });
 
     // Screenshot capture (opt-in only).
@@ -96,32 +101,23 @@ test('375px mobile — Save button visible and clickable in header (edit mode) @
 
     // Add an item first so we can open the edit sheet.
     const sheet = await openAgendaItemSheetMobile(page);
-    await page.getByRole('textbox', { name: 'Story title' }).fill('Editable story');
-    const addBtn = sheet.getByRole('button', { name: 'Add agenda item' });
+    await sheet.getByRole('textbox', { name: 'Title' }).fill('Editable story');
+    const addBtn = sheet.getByRole('button', { name: 'Add story' });
     await expect(addBtn).toBeEnabled({ timeout: 3_000 });
     await addBtn.click();
     await sheet.waitFor({ state: 'hidden', timeout: 15_000 });
 
-    // After dismiss the mobile panel is collapsed again — a "Next up" chip now
-    // shows the item we just added. Expand the panel via the chip so the
-    // host-only Edit button (inside the expanded list) is reachable.
-    const nextUpChip = page.locator('app-agenda-panel ion-chip.next-up-chip');
-    await nextUpChip.waitFor({ state: 'visible', timeout: 10_000 });
-    await nextUpChip.click();
-
-    // Now open the edit sheet for the item we just added.
+    // The story is on the list, its actions behind the row's ⋯ button.
     const list = page.locator('app-agenda-panel ion-list.agenda-list');
     const firstItem = list.locator('ion-item.agenda-item').first();
     await firstItem.waitFor({ state: 'visible', timeout: 10_000 });
-    const editBtn = firstItem.getByRole('button', { name: /^Edit /u });
-    await editBtn.waitFor({ state: 'visible', timeout: 5_000 });
-    await editBtn.click();
+    await agendaItemActionMobile(page, 0, 'Edit');
 
     const editSheet = page.locator('app-agenda-item-form-sheet');
     await editSheet.waitFor({ state: 'visible', timeout: 10_000 });
 
     // Save button must be visible at the natural 0.6 breakpoint.
-    const saveBtn = editSheet.getByRole('button', { name: 'Save agenda item' });
+    const saveBtn = editSheet.getByRole('button', { name: 'Save story' });
     await expect(saveBtn).toBeVisible({ timeout: 5_000 });
 
     // Pre-filled form should be valid → Save enabled.

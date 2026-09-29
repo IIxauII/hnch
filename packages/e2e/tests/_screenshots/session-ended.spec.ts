@@ -15,6 +15,7 @@ import path from 'node:path';
 import { test, type BrowserContext, type Page } from '@playwright/test';
 import { BASE_URL, ONBOARDING, HOME, LOBBY, fillRoomCode } from '../fixtures/helpers';
 import { resolveOutDir } from './_helpers/out-dir';
+import { pageSettled } from './_helpers/settled';
 
 const OUT_DIR = resolveOutDir('session-end');
 test.use({ trace: 'off', video: 'off', screenshot: 'off' });
@@ -31,6 +32,7 @@ async function freshCtx(
 }
 
 async function shot(page: Page, name: string): Promise<void> {
+  await pageSettled(page);
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(OUT_DIR, `${name}.png`), fullPage: false });
 }
@@ -85,7 +87,7 @@ test.describe('session ended screenshots', () => {
 
       await playerPage.goto(`${BASE_URL}/join`);
       await fillRoomCode(playerPage, code);
-      await playerPage.locator('ion-button:has-text("Join")').first().click();
+      // The sixth character submits: no Join tap after a typed code.
       await playerPage.waitForURL(/\/lobby/);
 
       // Host opens menu → "End session for everyone"

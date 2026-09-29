@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text, useInput } from 'ink';
-import { ABSTAIN_SENTINEL, formatElapsed, isAbstainVote } from '@hnch/shared';
+import { ABSTAIN_SENTINEL, formatElapsed, isAbstainVote, roundNumber } from '@hnch/shared';
 import { ParticipantList } from './components/ParticipantList.js';
 import { CardPicker } from './components/CardPicker.js';
 import { SharePicker } from './components/SharePicker.js';
@@ -98,7 +98,7 @@ export function Voting({
   }
 
   const myVote = myVoteRaw;
-  const roundNum = projection.rounds.indexOf(round) + 1;
+  const roundNum = roundNumber(round, projection.rounds);
   const title = round.title ? ` — ${round.title}` : '';
   const ticket = round.ticketId ? ` [${round.ticketId}]` : '';
 

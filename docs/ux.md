@@ -4,6 +4,8 @@ Authoritative ref for hnch user flows and interaction patterns. Sibling of [`pro
 
 This doc covers *what the user does* — flows between states and the micro-interactions inside them. Screen layouts, wireframes, and theming live elsewhere (or in code).
 
+**Words on screen.** The thing people meet in is a **session**, everywhere the user can read it: "New session", "Join session", "Session code". (`room` stays the word in code, the relay API and the ADRs.) What gets estimated is a **story**. A participant is a **Voter** or an **Observer** (`viewer` in the doc). Copy is sentence case: "Start round 1", "Reveal votes".
+
 UX decisions touching architecture cross-linked to governing ADR in [`adr/`](../adr/README.md). Conflicts need UX adjustment or superseding ADR — see [`CLAUDE.md`](../CLAUDE.md) for convention.
 
 ## Table of contents
@@ -25,33 +27,41 @@ App launch (no stored display name)
     → Tap Continue
       → Name persisted to Capacitor Preferences
       → If pending-join-URL was the launch trigger:
-          → Navigate to Join Room with code pre-filled
+          → Navigate to Join session with code pre-filled
       → Else:
           → Navigate to Home
 ```
 
-### 1.2 Create room → Lobby → first round
+### 1.2 New session → Lobby → first round
 
 ```
 Home
-  → Tap Create Room
+  → Tap New session
     → Client generates participantId from deviceId (ADR-0005)
     → Client creates Yjs doc with default settings
     → Client connects to relay; relay mints the room code (ADR-0008)
+      → Relay unreachable: toast, stay on Home, nothing created
+    → If "Ask for a password" is on (Settings): Session password sheet
+        → Done with a password: session is protected
+        → Skip, Done left blank, or sheet swiped away: session is open
     → Navigate to Lobby (as host)
 
 Lobby (host)
-  → Optionally adjust Scale, Access
-  → Share invite (share sheet) and/or read code aloud
+  → Optionally adjust name, scale, password (tap the summary line under the code, or ⋯ → Session settings)
+  → Share invite (share sheet), show the QR code, and/or read code aloud
   → Wait for participants (appear in list as they connect)
-  → Tap Start Round 1
-    → Round-start modal opens
+  → Tap Start round 1
+    → Round-start modal opens, pre-filled from the next story on the agenda
     → Host optionally types a descriptor
     → Tap Start
       → Writes Round 1 to Yjs doc, pushes Estimating
+
+Lobby (everyone else)
+  → Same screen without the host's controls
+  → Where the host has the round button: "Waiting for {host} to start the first round."
 ```
 
-### 1.3 Join room — three entry paths
+### 1.3 Join session — three entry paths
 
 **Via invite URL** (most common for remote teams):
 
@@ -59,17 +69,17 @@ Lobby (host)
 User taps invite URL in Messages/Slack/email
   → App launches (or foregrounds) via universal link handler
   → If no display name yet: show Onboarding, stash pending join
-  → Else: Navigate to Join Room with code pre-filled
-    → If room is public: auto-attempt connect → Lobby
-    → If room requires password: show password field inline, wait for Join tap
+  → Else: Navigate to Join session with code pre-filled
+    → If session is open: auto-attempt connect → Lobby
+    → If session requires password: show password field inline (focused), wait for Join tap
 ```
 
 **Via QR code** (co-located meetings):
 
 ```
 Home
-  → Tap Join Room
-    → Navigate to Join Room
+  → Tap Join session
+    → Navigate to Join session
     → Tap Scan QR code
       → Capacitor BarcodeScanner opens camera view
       → User scans → code captured
@@ -81,12 +91,16 @@ Home
 
 ```
 Home
-  → Tap Join Room
-    → Navigate to Join Room
-    → User types 6-character code
-    → Tap Join
+  → Tap Join session
+    → Navigate to Join session (first tile focused)
+    → User types or pastes the 6-character code
+    → The sixth character submits — no Join tap
       → Same as URL flow from "auto-attempt connect"
+      → Code not active: toast, code stays in the tiles to be corrected;
+        the same code is not re-submitted until it changes or Join is tapped
 ```
+
+The Join button stays on the page: it is how a password is submitted, and how a code that failed is retried.
 
 ### 1.3b Pre-session agenda (ADR-0042)
 
@@ -94,18 +108,22 @@ Host may queue stories before or during the session. All participants see the ag
 
 ```
 Lobby (host)
-  → Tap "Add story" → enter title / ticket ID / description
-    → Item appears in the "Pending" band of the agenda list
-  → Tap item in Pending band → Start Round modal opens pre-filled with item details
+  → Tap "Add story" → enter title / ticket ID / description (a story needs a title or a ticket ID)
+    → Story appears at the end of the pending stories
+  → The first pending story carries a "Next" badge
+    → Start round / Next round opens the round-start modal pre-filled with it
     → round.agendaItemId set to item id; item consumed on reveal/skip
-  → Host may reorder items (drag-handle) — sortKey fractional-index rewrite, no renumbering
-  → Host may edit or cancel (soft-delete) a pending item
-  → Host may skip an agenda item (no round created) — item moves to "Skipped" terminal state
+  → ⋯ on a pending story → [Move up] [Move down] [Edit] [Skip] [Remove]
+      - Move up / Move down — sortKey fractional-index rewrite, no renumbering
+      - Skip — no round created; item moves to "Skipped" terminal state
+      - Remove — soft-delete; hidden unless "Show removed" is on
 
-Consumed band
-  → Item shows linked round result (revealed) or "Skipped" chip (skipped)
+Estimated / skipped stories
+  → Stay on the list, marked, with no ⋯ (nothing left to do to them)
   → Past-round history resolves item names even after participants leave
 ```
+
+The list looks the same on every surface and is always fully on the page — there is no collapsed state. Everyone but the host sees it without the controls.
 
 ### 1.4 Round cycle (Estimating → Lobby → next)
 
@@ -119,46 +137,67 @@ Estimating
       - Tapping any card clears abstention and casts that vote instead
       - Abstaining satisfies the unanimous-reveal "has voted" predicate
   → Avatar row updates in real time (presence, voted-state; abstainers shown as filled)
+      - Observers are not in the row and not in the count ("2 of 3 voted")
+      - Once half have voted: "Waiting for {names}"
+  → Anyone may switch Voter ⇄ Observer with the role button beside the row (ADR-0020)
   → Reveal fires when:
-      - Host taps Reveal Votes (manual), OR
-      - All online participants have voted or abstained (unanimous auto-reveal, ADR-0018)
+      - Host taps Reveal votes (manual), OR
+      - All online voters have voted or abstained (unanimous auto-reveal, ADR-0018).
+        A client that has just (re)connected waits for the relay's first sync
+        before it trusts its picture of who is online — reloading the page
+        mid-round must not reveal the round.
   → All participants navigate to Lobby (results shown inline)
   → Host may skip the round instead of revealing (ADR-0040):
-      - Host taps Skip → round marked skippedAt, no vote results shown
+      - Host taps ⋯ → Skip round → round marked skippedAt, no vote results shown
       - All participants navigate to Lobby; skipped round listed in history with "Skipped" chip
       - Host can start a new round immediately; no re-vote lineage from a skip
+  → Host may cancel the round with the back chevron (ADR-0046):
+      - Round becomes a tombstone: no history entry, no number, linked story stays pending
+      - Host: toast "Round cancelled". Everyone else: toast "The host cancelled the round"
+      - All participants navigate to Lobby
 
 Lobby (post-reveal)
-  → Latest round results shown in full
-      - Votes grouped by value with voter chips, stats, elapsed time
+  → Latest round results shown in full: "Round N results", "Re-vote" beside it for a re-vote
+      - Votes grouped by value with voter chips, a bar for each value's share, stats, elapsed time
       - Abstained participants shown in a distinct "Abstained" group (separate from "Didn't vote")
+      - "Didn't vote" lists voters only — an Observer was never expected to vote
   → Below results, past rounds shown as compact history list (skipped rounds included with chip)
   → Host taps:
       - Re-vote: creates new Round with parentRoundId = current, reuses descriptor → Estimating
-      - Next Round: opens round-start modal → Estimating
-  → Joiners wait (no action buttons; screen updates when host moves on)
+      - Next round N: opens round-start modal → Estimating
+  → Everyone else waits: "Waiting for {host} to start the next round." (screen updates when host moves on)
 ```
+
+**Round numbers.** A round's number is its place among the rounds that were not cancelled, and it is the same on every screen: the Estimating title, the results heading, the history, the export, the CLI. A cancelled round takes no number — cancel round 3 and the next round is round 3.
+
+**While a round runs, everyone is on Estimating.** The Lobby sends anyone who lands on it mid-round back to the cards — also when the page is re-entered with the browser's Back button. Session settings are therefore only reachable between rounds.
 
 ### 1.5 Back, rejoin, and leave
 
 **Back (graceful disconnect):**
 
 ```
-User taps back (or swipes back) from Lobby / Estimating
-  → WebSocket disconnects; awareness broadcasts offline
+User taps back (or swipes back) from Lobby
   → Navigate to Home
-  → Home shows "Jump back in — Room K7P-9MR" banner
-    → Tap banner: reconnect to the room, navigate back to whichever screen it's on
-    → Ignore banner: fades out when relay snapshot expires (24h)
+  → Home lists the session under "Jump back in" — up to 5 sessions, newest first (ADR-0044)
+    → Tap a row: reconnect to the session, navigate back to whichever screen it's on.
+      A password this device already entered rides along — no second prompt.
+    → Relay no longer knows the session: toast, row removed
+    → × on a row: forget the session on this device
+    → Ignore it: the row goes when the relay snapshot expires (24h)
 ```
+
+One list for one session or five — there is no separate single-session banner.
 
 **Leave session (explicit, destructive):**
 
 ```
-Lobby / Estimating → ⋯ → Leave session
-  → Confirmation alert: "Leave this session? You'll need the code to rejoin."
+Lobby / Estimating
+  → Host: ⋯ → Leave session
+  → Everyone else: Leave button in the toolbar (their only session action, so not behind a menu)
+  → Confirmation alert: "Leave session? You'll need the code to rejoin."
     → Confirm: write `leftAt` + `removedBy = self` to own participant record (ADR-0036),
-      disconnect, clear jump-back-in cache, navigate to Home (no banner)
+      disconnect, clear jump-back-in cache, navigate to Home (session not listed)
     → Cancel: dismiss alert, stay on current screen
 ```
 
@@ -169,28 +208,31 @@ If the leaver later re-enters via room code, `joinSession` clears `leftAt`/`remo
 **Host removes a participant (kick, host only, destructive):**
 
 ```
-Lobby → swipe-left on a participant row (host only, target is not self)
-  → Drawer reveals: [Make host] [Remove]
+Lobby → ⋯ on a participant row (host only, target is not self)
+  → Menu titled with the name: [Make host] [Remove] [Cancel]
   → Tap "Remove"
     → Confirmation alert:
         "Remove {name} from session?"
-        Body: "They'll be disconnected and won't appear in the active roster.
-               Their votes in past rounds stay in the round history."
+        Body: "They'll be disconnected and dropped from the participant list.
+               Their votes in past rounds stay in the history."
         Buttons: [Cancel] [Remove (red)]
-    → Confirm: write `leftAt` + `removedBy = host` to target's record (ADR-0036),
-      close the sliding drawer
+    → Confirm: write `leftAt` + `removedBy = host` to target's record (ADR-0036)
       → Target client observes own `leftAt` set with `removedBy !== self`
         → Toast: "Removed by host"
         → Clear jump-back-in cache, navigate to Home
-    → Cancel: dismiss alert, drawer stays open until tapped away
+    → Cancel: dismiss alert
+  → Tap "Make host"
+    → Confirmation alert: "Make {name} the host?" — [Cancel] [Make host]
 ```
+
+The ⋯ button is the same affordance on every surface; only the menu's presentation differs (§3).
 
 No relay-side ban: a kicked user can re-enter the room code (their `leftAt` is cleared on re-join). For persistent removal the host changes the room password (ADR-0036, ADR-0017).
 
 **End session for everyone (host only, destructive):**
 
 ```
-⋯ menu (host) → End session for everyone
+⋯ menu (host, Lobby or Estimating) → End session for everyone
   → Confirmation alert: "End this session? All participants will be disconnected."
     → Confirm: write session-ended event to doc, all clients navigate to Home (with toast)
     → Cancel: dismiss
@@ -215,7 +257,7 @@ Host's connection is lost
 Host taps Reveal with zero votes
   → Reveal event written to doc
   → All clients navigate to Lobby
-  → Lobby results section shows only a "Didn't vote" group with every participant in it
+  → Lobby results section shows only a "Didn't vote" group with every voter in it
   → Host can tap Re-vote to try again
 ```
 
@@ -260,18 +302,18 @@ When the results section appears in Lobby after reveal: cards enter with 80ms st
 **Share invite** calls `Share.share({ title, text, url })` from `@capacitor/share`:
 
 - `title`: `"Join my hnch session"`
-- `text`: `"Room code: K7P-9MR"` (or equivalent)
-- `url`: invite URL
+- `text`: `"Session code: K7P-9MR"`
+- `url`: invite URL (carries `pw=1` for a protected session, so Join asks for the password up front)
 
 Native → iOS share sheet (AirDrop, Messages, Mail, Slack, etc.). Web → browser native share or clipboard copy + toast fallback.
 
 ### QR scanning
 
-**Scan QR code** on Join Room opens `@capacitor-mlkit/barcode-scanning` full-screen camera. Successful scan (QR containing hnch invite URL) → code extracted, scanner dismisses, code input auto-populates. Non-hnch content → toast ("That doesn't look like an hnch invite"), stay in scanner.
+**Scan QR code** on Join session opens `@capacitor-mlkit/barcode-scanning` full-screen camera. Successful scan (QR containing hnch invite URL) → code extracted, scanner dismisses, code input auto-populates. Non-hnch content → toast ("That doesn't look like an hnch invite"), stay in scanner.
 
 ### QR display
 
-**Show QR code** on Lobby → modal with invite URL as large QR. "Done" dismisses.
+**QR code** on Lobby (beside Share invite, under the session code) → modal with invite URL as large QR and the code in text. "Done" dismisses.
 
 ### Half-sheet modal dismissal
 
@@ -284,14 +326,14 @@ Dismissing unsaved picker discards change (pickers commit on radio selection —
 
 ### Swipe-to-go-back
 
-Enabled globally via Ionic default `swipeGesture`. Leaving session reversible (snapshots live 24h per [ADR-0012](../adr/0012-snapshot-policy.md); rejoin via Jump-back-in banner), accidental swipes safe.
+Enabled globally via Ionic default `swipeGesture`. Leaving session reversible (snapshots live 24h per [ADR-0012](../adr/0012-snapshot-policy.md); rejoin via the "Jump back in" list on Home), accidental swipes safe.
 
 ### Destructive confirmation
 
 Destructive actions confirmed via `ion-alert` before committing:
 
 ```
-Title:   "Leave this session?"
+Title:   "Leave session?"
 Message: "You'll need the code to rejoin."
 Buttons: [Cancel]   [Leave]   (Leave role: destructive)
 ```
@@ -306,15 +348,24 @@ Buttons: [Cancel]   [Leave]   (Leave role: destructive)
 - Duration: 2000ms informational, 4000ms errors.
 - No close button on short toasts; close icon for 4000ms error variant.
 - Non-blocking — never prevents user action.
+- One look in every mode and theme: inverse surface (text color as background).
 
-Common toasts: host handoff ("Alice is now hosting"), link copied ("Invite link copied"), room expired ("This room has expired or no longer exists"), scan failure ("That doesn't look like an hnch invite").
+Common toasts: host handoff ("Alice is now hosting"), code copied ("Code copied"), link copied ("Invite link copied"), password changes ("Password set", "Password removed"), round cancelled ("Round cancelled" / "The host cancelled the round"), session gone ("That session isn't active anymore."), relay unreachable ("Couldn't reach the relay. Check your connection and try again."), scan failure ("That doesn't look like an hnch invite").
+
+### Connection banner
+
+One indicator, in the page rather than the toolbar: a bar at the top of Lobby and Estimating that stays in view when the page scrolls.
+
+- "Reconnecting…" — as soon as a connection that was up drops.
+- "Connecting…" — a first connection that has taken longer than a second.
+- Connected: nothing. On the way back from "Reconnecting…": toast "Reconnected".
 
 ### Haptic feedback map
 
 | Event | Haptic |
 |-------|--------|
 | Vote cast / changed | `impact`, `Light` |
-| Host taps Reveal Votes | `impact`, `Medium` |
+| Host taps Reveal votes | `impact`, `Medium` |
 | Reveal animation completes | `notification`, `Success` |
 | Destructive confirm (Leave / End) | `impact`, `Heavy` on confirm tap |
 | Unanimous auto-reveal fires | `notification`, `Success` |
@@ -330,23 +381,25 @@ The web PWA is a production surface, so desktop has to meet the same quality bar
 
 **Breakpoint.** `md` (768px) pivot, ANDed with `(pointer: fine)`. Touch laptops keep the mobile UX; desktop means 768px+ *and* a fine pointer. Central refs: `packages/client/src/theme/_breakpoints.scss` (SCSS map) and `packages/client/src/app/core/breakpoints.ts` (TS mirror) — keep the two in sync.
 
-**Modals.** Mobile = half-sheet, `breakpoints: [0, 0.6, 0.95]`. Desktop = centered dialog via the `.modal-centered` global class in `global.scss` (sized through `::part(content)` CSS vars, no drag handle, width capped ≤480px, max-height 80vh). Always open through `SurfaceService.openModal()` rather than `ModalController` directly.
+**Modals.** Mobile = half-sheet, `breakpoints: [0, 0.6, 0.95]`; a sheet whose content is a list longer than half a screen (scale picker, scale editors) opens at full height instead, so nothing sits below the fold waiting to be found. Desktop = centered dialog via the `.modal-centered` global class in `theme/_ionic-overrides.scss` (no drag handle, width capped ≤480px, max-height 80vh; `.modal-compact` for one- or two-field forms). Always open through `SurfaceService.openModal()` rather than `ModalController` directly.
 
 **Menus.** Mobile = `ActionSheetController` overlay. Desktop = `PopoverController` anchored to its trigger, which fixes the Fitts's-law problem of a top-right gear opening a bottom-anchored sheet. Shared `<app-menu-popover>` replaces per-call-site button arrays; route through `SurfaceService.openSheetOrPopover()`.
 
-**CTA bars.** Mobile = sticky `ion-footer`. Desktop = pure-CSS `position: static` swap, so the footer reflows into the document as an inline CTA row. No JS, no portal.
+**CTA bars.** `ion-footer.cta-bar` holding `<div class="cta-inner">` with the buttons. The inner row is capped to the page's column width and centered, so the primary button lines up with the content above it instead of spanning a 1440px window. Desktop drops the bar's background and hairline. No JS, no portal.
 
-**Page width caps.** `<ion-grid fixed>` plus a per-page SCSS mixin — no wrapper component, and no implicit inheritance, so each page opts in explicitly.
+**Page width caps.** `<div class="page-container">` inside `ion-content`, plus a per-page SCSS mixin (`page-container($max)`) — no wrapper component, and no implicit inheritance, so each page opts in explicitly. Full width with a 16px gutter until the viewport outgrows the cap.
 
 | Page | Max width |
 |---|---|
 | Onboarding | 480px |
 | Join | 480px |
 | Home | 560px |
-| Estimating | 640px |
 | Settings | 720px |
+| Estimating | 800px |
 | Lobby | 800px |
 
-**Accessibility.** Hover styles go inside `@media (hover: hover)`. Every interactive element carries a `:focus-visible` ring. Modal focus trap must be verified on desktop.
+**Small screens.** Pages hold at 320px wide: the session code scales with the viewport, the card grid is three columns on a phone, rows wrap rather than truncate.
 
-**Out of scope.** Native iOS/Android layout is untouched — native clients stay pure mobile. `ion-split-pane` is deferred: current Lobby density (room code, share + QR rows, 1–8 participants, one round) would look sparse next to a capped centered column. Revisit when round history shows 3+ entries inline; a Lobby side rail is a structural change and needs its own ADR.
+**Accessibility.** Hover styles go inside `@media (hover: hover)`. Every interactive element carries a `:focus-visible` ring. Modal focus trap must be verified on desktop. Text in the accent color uses `--hnch-accent-text`, which is adjusted per theme to hold 4.5:1; the raw accent is for fills. Touch targets are at least 44px: a control drawn smaller than that (toolbar buttons, the back chevron, icon buttons, chips) keeps its size and gets an invisible 44px hit area around its centre on any device with a touch screen (`touch-target` mixin, see [ionic.md](ionic.md#global-styles)). A control never reaches past a container that clips it — no negative margins to tuck a button into a row. Pinch-zoom is not disabled.
+
+**Out of scope.** Native iOS/Android layout is untouched — native clients stay pure mobile. `ion-split-pane` is deferred: current Lobby density (session code with share + QR, 1–8 participants, one round) would look sparse next to a capped centered column. Revisit when round history shows 3+ entries inline; a Lobby side rail is a structural change and needs its own ADR.

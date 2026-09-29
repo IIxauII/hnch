@@ -17,34 +17,25 @@ import {
   formatRoomCode,
   formatRoundLabel,
   getScaleLabel,
-  isTerminalStatus,
-  resolveAvatarColor,
+  nextRoundNumber,
+  resolveRoom,
+  roundNumber,
 } from '@hnch/shared';
-import type { Round } from '@hnch/shared';
+import type { AgendaItem, AgendaResult, ParticipantSnapshot, Round } from '@hnch/shared';
 import {
   AlertController,
   PopoverController,
-  IonAccordion,
-  IonAccordionGroup,
-  IonAvatar,
   IonButton,
   IonButtons,
-  IonChip,
-  IonCol,
   IonContent,
   IonFooter,
-  IonGrid,
   IonHeader,
   IonIcon,
   IonItem,
-  IonItemOption,
-  IonItemOptions,
-  IonItemSliding,
   IonLabel,
   IonList,
   IonModal,
   IonNote,
-  IonRow,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
@@ -53,24 +44,26 @@ import {
   chevronBackOutline,
   closeCircleOutline,
   copyOutline,
-  ellipsisHorizontalCircle,
-  ellipsisVertical,
-  listOutline,
+  ellipsisHorizontal,
+  lockClosedOutline,
   logOutOutline,
   pencilOutline,
-  peopleOutline,
-  personCircleOutline,
   personRemoveOutline,
   qrCodeOutline,
   settingsOutline,
   shareOutline,
   starOutline,
-  statsChartOutline,
-  timeOutline,
 } from 'ionicons/icons';
 
-import { ConnectionChipComponent } from '../core/connection-chip.component';
-import { buildCopyRoomCodeToast, buildResultsHeading, isParticipantViewer } from './lobby-helpers';
+import { AppPreferenceService } from '../core/app-preference.service';
+import {
+  buildCopyRoomCodeToast,
+  buildResultsHeading,
+  buildRoundCta,
+  buildSessionSummary,
+  buildWaitingNote,
+  isParticipantViewer,
+} from './lobby-helpers';
 import type { MenuItem } from '../shared/menu-popover/menu-popover.component';
 import { ConnectionStatusBannerComponent } from '../shared/connection-status-banner.component';
 import { ExportService } from '../core/export.service';
@@ -86,46 +79,46 @@ import {
   type RoundStartSubmission,
 } from '../round-start/round-start.sheet';
 import { RoundEditSheetComponent } from './round-edit.sheet';
-import { SessionSettingsSheetComponent } from '../session-settings/session-settings.sheet';
+import {
+  SessionSettingsSheetComponent,
+  type AccessMode,
+  type AccessSelection,
+} from '../session-settings/session-settings.sheet';
+import { AvatarComponent } from '../shared/avatar.component';
+import { RoleToggleComponent } from '../shared/role-toggle.component';
+import { revoteLabel } from '../shared/revote-label';
 import { RoundHistoryComponent } from '../shared/round-history.component';
 import { VoteResultsComponent } from '../shared/vote-results.component';
 import { assertRoomCode } from '../core/room-join.service';
 import { shouldRecordCache } from '../core/cache-record-guard';
 import { QrDisplaySheetComponent } from './qr-display.sheet';
 import { presentSheet } from '../utils/present-sheet';
-import { rejectionCopy } from '../join/join.page';
-import { summarizeParticipants } from './lobby-summary';
+import { rejectionCopy } from '../join/join.helpers';
 import { AgendaPanelComponent } from '../agenda/agenda-panel.component';
 import {
   AgendaItemFormSheetComponent,
   type AgendaItemFormSubmission,
 } from '../agenda/agenda-item-form.sheet';
-import type { AgendaItem, AgendaResult } from '@hnch/shared';
 
 /**
- * Lobby — ux.md §5.4 host variant.
+ * Lobby — the session's home screen between rounds (ux.md §1.2, §1.4).
  *
- * Phase 2 only renders the host view because there are no joiners
- * without a relay. Phase 3 will split this into host + joiner
- * subtemplates driven by `settings.hostParticipantId ===
- * myParticipantId`.
+ * One screen for host and joiner; the host additionally gets the round
+ * controls in the footer, the ⋯ menu, and the per-participant actions. A
+ * joiner gets a one-tap Leave where the host has ⋯, and a line saying what
+ * they are waiting for where the host has a button.
  *
- * Session-settings sheet is wired through the ⋯ menu and the
- * subtitle tap. Share invite uses `@capacitor/share` with a
- * clipboard fallback on web (ux.md §6.5).
+ * Sections are plain cards in one column, the newest result right under the
+ * session code. Nothing collapses.
  *
- * The Lobby owns the session's lifetime (plan §3.10): leaving here
- * — either via the top-left back control or the ⋯ → "Leave
- * session" entry — prompts an `ion-alert` confirmation per ux.md
- * §2 "Destructive actions" and calls `docService.teardown()`
- * before popping to Home. The native `ion-back-button` would pop
- * without running our confirmation, so we render a custom back
- * chevron that routes through the same handler.
+ * The Lobby owns the session's lifetime (plan §3.10): leaving prompts an
+ * `ion-alert` confirmation per ux.md §2 "Destructive confirmation" and
+ * calls `docService.teardown()` before popping to Home. The back chevron is
+ * a soft exit — it keeps the session alive and the way back in on Home.
  *
  * After a round is revealed, Estimating navigates back to Lobby.
- * Lobby shows the full VoteResultsComponent for the latest revealed
- * round, and RoundHistoryComponent for any older revealed rounds.
- * The host gets Re-vote and Next Round controls in the footer.
+ * Lobby shows the full VoteResultsComponent for the latest finished
+ * round, and RoundHistoryComponent for any older ones.
  */
 @Component({
   selector: 'app-lobby',
@@ -134,32 +127,23 @@ import type { AgendaItem, AgendaResult } from '@hnch/shared';
   imports: [
     AgendaItemFormSheetComponent,
     AgendaPanelComponent,
-    ConnectionChipComponent,
+    AvatarComponent,
     ConnectionStatusBannerComponent,
-    IonAccordion,
-    IonAccordionGroup,
-    IonAvatar,
     IonButton,
     IonButtons,
-    IonChip,
-    IonCol,
     IonContent,
     IonFooter,
-    IonGrid,
     IonHeader,
     IonIcon,
     IonItem,
-    IonItemOption,
-    IonItemOptions,
-    IonItemSliding,
     IonLabel,
     IonList,
     IonModal,
     IonNote,
-    IonRow,
     IonTitle,
     IonToolbar,
     QrDisplaySheetComponent,
+    RoleToggleComponent,
     RoundEditSheetComponent,
     RoundHistoryComponent,
     RoundStartSheetComponent,
@@ -181,319 +165,239 @@ import type { AgendaItem, AgendaResult } from '@hnch/shared';
             ></ion-icon>
           </ion-button>
         </ion-buttons>
-        <ion-title>Lobby</ion-title>
+        <ion-title role="heading" aria-level="1">{{ sessionTitle() }}</ion-title>
         <ion-buttons slot="end">
-          <app-connection-chip></app-connection-chip>
-          <ion-button
-            aria-label="More options"
-            (click)="openActionSheet($event)"
-          >
-            <ion-icon
-              slot="icon-only"
-              name="ellipsis-horizontal-circle"
-            ></ion-icon>
-          </ion-button>
+          @if (isHost()) {
+            <ion-button
+              aria-label="More options"
+              (click)="openActionSheet($event)"
+            >
+              <ion-icon
+                slot="icon-only"
+                name="ellipsis-horizontal"
+              ></ion-icon>
+            </ion-button>
+          } @else {
+            <ion-button
+              aria-label="Leave session"
+              (click)="confirmLeave()"
+            >
+              <ion-icon
+                slot="icon-only"
+                name="log-out-outline"
+              ></ion-icon>
+            </ion-button>
+          }
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
-    <ion-content class="ion-padding">
-      <ion-grid fixed class="page-container">
+    <ion-content>
+      <div class="page-container">
         <app-connection-status-banner />
-        <ion-row>
-          <ion-col size="12" sizeLg="6" sizeXl="5">
-            <ion-accordion-group
-              [multiple]="true"
-              [value]="expandedSections()"
-              expand="inset"
-              (ionChange)="onAccordionChange($event)"
-            >
-              <ion-accordion
-                value="general"
-                class="lobby-section locked-open"
-              >
-                <ion-item slot="header" lines="inset">
-                  <ion-label>
-                    <h2 class="lobby-section__heading">Session</h2>
-                  </ion-label>
-                </ion-item>
-                <div slot="content" class="lobby-section__body">
-                  @if (roomCode()) {
+        <div class="lobby-layout">
+          <section class="hnch-card lobby-section session-card" aria-label="Session">
+            <div class="hnch-card__body">
+              <div class="card-label">Session code</div>
+              @if (roomCode()) {
+                <button
+                  type="button"
+                  class="room-code"
+                  aria-label="Copy session code"
+                  (click)="onCopyRoomCode()"
+                >
+                  <span>{{ formattedRoomCode() }}</span>
+                  <ion-icon name="copy-outline" aria-hidden="true"></ion-icon>
+                </button>
+                @if (subtitle()) {
+                  @if (isHost()) {
                     <button
                       type="button"
-                      class="room-code"
-                      aria-label="Copy room code"
-                      (click)="onCopyRoomCode()"
+                      class="subtitle"
+                      [attr.aria-label]="'Edit session settings: ' + subtitle()"
+                      (click)="openSessionSettings()"
                     >
-                      <span>{{ formattedRoomCode() }}</span>
-                      <ion-icon name="copy-outline" aria-hidden="true"></ion-icon>
+                      @if (passwordProtected()) {
+                        <ion-icon name="lock-closed-outline" aria-hidden="true"></ion-icon>
+                      }
+                      <span>{{ subtitle() }}</span>
+                      <ion-icon name="pencil-outline" aria-hidden="true"></ion-icon>
                     </button>
-                    @if (subtitle()) {
-                      @if (isHost()) {
-                        <button
-                          type="button"
-                          class="subtitle"
-                          [attr.aria-label]="'Edit session settings: ' + subtitle()"
-                          (click)="openSessionSettings()"
-                        >
-                          <span>{{ subtitle() }}</span>
-                          <ion-icon name="pencil-outline" aria-hidden="true"></ion-icon>
-                        </button>
-                      } @else {
-                        <ion-chip outline class="subtitle-chip">
-                          {{ subtitle() }}
-                        </ion-chip>
+                  } @else {
+                    <p class="subtitle-chip">
+                      @if (passwordProtected()) {
+                        <ion-icon name="lock-closed-outline" aria-hidden="true"></ion-icon>
                       }
-                    }
+                      <span>{{ subtitle() }}</span>
+                    </p>
                   }
+                }
+                <div class="share-actions">
+                  <ion-button fill="outline" class="share-btn" (click)="onShareInvite()">
+                    <ion-icon slot="start" name="share-outline" aria-hidden="true"></ion-icon>
+                    Share invite
+                  </ion-button>
+                  <ion-button fill="outline" class="qr-btn" (click)="onShowQr()">
+                    <ion-icon slot="start" name="qr-code-outline" aria-hidden="true"></ion-icon>
+                    QR code
+                  </ion-button>
                 </div>
-              </ion-accordion>
+              }
+              @if (!isHost()) {
+                <p class="waiting-note" role="status">{{ waitingNote() }}</p>
+              }
+            </div>
+          </section>
 
-              <ion-accordion value="share" class="lobby-section">
-                <ion-item slot="header" lines="inset">
-                  <ion-icon slot="start" name="share-outline" aria-hidden="true"></ion-icon>
-                  <ion-label>
-                    <h2 class="lobby-section__heading">Share</h2>
-                  </ion-label>
-                </ion-item>
-                <div slot="content" class="lobby-section__body">
-                  <ion-list lines="inset" class="actions">
-                    <ion-item button (click)="onShareInvite()">
-                      <ion-icon
-                        slot="start"
-                        name="share-outline"
-                        aria-hidden="true"
-                      ></ion-icon>
-                      <ion-label>Share invite</ion-label>
-                    </ion-item>
-                    <ion-item button (click)="onShowQr()">
-                      <ion-icon
-                        slot="start"
-                        name="qr-code-outline"
-                        aria-hidden="true"
-                      ></ion-icon>
-                      <ion-label>Show QR code</ion-label>
-                    </ion-item>
-                  </ion-list>
-                </div>
-              </ion-accordion>
-
-              <ion-accordion value="participants" class="lobby-section">
-                <ion-item slot="header" lines="inset">
-                  <ion-icon slot="start" name="people-outline" aria-hidden="true"></ion-icon>
-                  <ion-label>
-                    <h2 class="lobby-section__heading">
-                      Participants ({{ activeParticipants().length }})
-                    </h2>
-                    @if (participantsSummary() && !participantsAccordionOpen()) {
-                      <p class="participants-summary">{{ participantsSummary() }}</p>
-                    }
-                  </ion-label>
-                </ion-item>
-                <div slot="content" class="lobby-section__body">
-                  @if (isHost() && surface.mode() === 'mobile') {
-                    <p class="swipe-hint">Swipe a row for host actions.</p>
+          @if (lastRevealedRound(); as round) {
+            <section class="hnch-card lobby-section results-card">
+              <div class="hnch-card__header">
+                <h2 class="hnch-card__title lobby-section__heading results-heading">
+                  {{ resultsHeading() }}
+                  @if (resultsLineageNote(); as note) {
+                    <span class="hnch-card__title-note">{{ note }}</span>
                   }
-                  <ion-list lines="inset" class="participants">
-                    @for (p of activeParticipants(); track p.id) {
-                      @if (isHost() && p.id !== myId()) {
-                        <ion-item-sliding>
-                          <ion-item
-                            [class.offline]="!onlineIds().has(p.id)"
-                            [attr.aria-label]="p.displayName"
-                          >
-                            <ion-avatar
-                              slot="start"
-                              aria-hidden="true"
-                              [style.--avatar-color]="colorOf(p)"
-                            >
-                              <ion-icon name="person-circle-outline"></ion-icon>
-                            </ion-avatar>
-                            <ion-label>
-                              {{ p.displayName }}
-                              @if (p.id === hostId()) {
-                                <ion-icon
-                                  name="star-outline"
-                                  class="host-icon"
-                                  aria-label="Host"
-                                ></ion-icon>
-                              }
-                            </ion-label>
-                            @if (isParticipantViewer(p)) {
-                              <ion-note slot="end" aria-label="Observer">observer</ion-note>
-                            } @else if (!onlineIds().has(p.id)) {
-                              <ion-note slot="end">Offline</ion-note>
-                            }
-                            @if (surface.mode() === 'desktop') {
-                              <ion-button
-                                fill="clear"
-                                slot="end"
-                                [attr.aria-label]="'Host actions for ' + p.displayName"
-                                (click)="openParticipantActions(p, $event)"
-                              >
-                                <ion-icon name="ellipsis-vertical" aria-hidden="true"></ion-icon>
-                              </ion-button>
-                            }
-                          </ion-item>
-                          <ion-item-options side="end">
-                            <ion-item-option
-                              color="primary"
-                              [attr.aria-label]="'Make ' + p.displayName + ' host'"
-                              (click)="onHandoffTap(p.id, p.displayName)"
-                            >
-                              <ion-icon slot="icon-only" name="star-outline"></ion-icon>
-                            </ion-item-option>
-                            <ion-item-option
-                              color="danger"
-                              [attr.aria-label]="'Remove ' + p.displayName + ' from session'"
-                              (click)="onRemoveTap(p.id, p.displayName)"
-                            >
-                              <ion-icon slot="icon-only" name="person-remove-outline"></ion-icon>
-                            </ion-item-option>
-                          </ion-item-options>
-                        </ion-item-sliding>
-                      } @else {
-                        <ion-item
-                          [class.offline]="!onlineIds().has(p.id)"
-                          [attr.aria-label]="p.id === myId() ? 'You (' + p.displayName + ')' : p.displayName"
-                        >
-                          <ion-avatar
-                            slot="start"
-                            aria-hidden="true"
-                            [style.--avatar-color]="colorOf(p)"
-                          >
-                            <ion-icon name="person-circle-outline"></ion-icon>
-                          </ion-avatar>
-                          <ion-label>
-                            {{ p.id === myId() ? 'You (' + p.displayName + ')' : p.displayName }}
-                            @if (p.id === hostId()) {
-                              <ion-icon
-                                name="star-outline"
-                                class="host-icon"
-                                aria-label="Host"
-                              ></ion-icon>
-                            }
-                          </ion-label>
-                          @if (p.id === myId()) {
-                            <ion-chip
-                              slot="end"
-                              [color]="isParticipantViewer(p) ? 'medium' : 'primary'"
-                              [attr.aria-label]="isParticipantViewer(p) ? 'You are observing. Tap to switch to voter.' : 'You are a voter. Tap to switch to observer.'"
-                              [attr.aria-pressed]="isParticipantViewer(p)"
-                              (click)="onToggleRole()"
-                            >
-                              <ion-label>{{ isParticipantViewer(p) ? 'Observing' : 'Voter' }}</ion-label>
-                            </ion-chip>
-                          } @else if (isParticipantViewer(p)) {
-                            <ion-note slot="end" aria-label="Observer">observer</ion-note>
-                          } @else if (!onlineIds().has(p.id)) {
-                            <ion-note slot="end">Offline</ion-note>
-                          }
-                        </ion-item>
-                      }
+                </h2>
+                @if (hasRevealedRounds()) {
+                  <ion-button
+                    fill="clear"
+                    size="small"
+                    class="copy-results-btn"
+                    aria-label="Copy all results as Markdown"
+                    title="Copy all results as Markdown"
+                    (click)="copyResults()"
+                  >
+                    <ion-icon slot="icon-only" name="copy-outline" aria-hidden="true"></ion-icon>
+                  </ion-button>
+                }
+              </div>
+              <div class="hnch-card__body results-section" [attr.aria-label]="resultsHeading()">
+                @if (lastRoundWasSkipped()) {
+                  <p class="round-skipped" role="status">Round skipped</p>
+                } @else {
+                  <div class="results-descriptor-row">
+                    @if (formatRoundLabel(round); as label) {
+                      <p class="results-descriptor">{{ label }}</p>
+                    } @else if (isHost()) {
+                      <p class="results-descriptor placeholder">Untitled round</p>
                     }
-                  </ion-list>
-                </div>
-              </ion-accordion>
-            </ion-accordion-group>
-          </ion-col>
-
-          <ion-col size="12" sizeLg="6" sizeXl="7">
-            <ion-accordion-group
-              [multiple]="true"
-              [value]="expandedSections()"
-              expand="inset"
-              (ionChange)="onAccordionChange($event)"
-            >
-              <ion-accordion
-                value="agenda"
-                class="lobby-section locked-open"
-              >
-                <ion-item slot="header" lines="inset">
-                  <ion-icon slot="start" name="list-outline" aria-hidden="true"></ion-icon>
-                  <ion-label>
-                    <h2 class="lobby-section__heading">Agenda</h2>
-                  </ion-label>
-                </ion-item>
-                <div slot="content" class="lobby-section__body">
-                  <app-agenda-panel
-                    [items]="agenda()"
-                    [isHost]="isHost()"
-                    (addRequested)="openAddAgendaItem()"
-                    (editRequested)="openEditAgendaItem($event)"
-                    (skipRequested)="onAgendaSkip($event)"
-                    (cancelRequested)="onAgendaCancel($event)"
-                    (reorderUpRequested)="onAgendaReorderUp($event)"
-                    (reorderDownRequested)="onAgendaReorderDown($event)"
+                    @if (isHost()) {
+                      <ion-button
+                        fill="clear"
+                        size="small"
+                        class="edit-btn"
+                        aria-label="Edit round"
+                        (click)="openRoundEdit(round)"
+                      >
+                        <ion-icon name="pencil-outline" slot="icon-only" aria-hidden="true" />
+                      </ion-button>
+                    }
+                  </div>
+                  <app-vote-results
+                    [round]="round"
+                    [participants]="participants()"
+                    [myId]="myId()"
                   />
-                </div>
-              </ion-accordion>
+                }
+              </div>
+            </section>
+          }
 
-              @if (lastRevealedRound(); as round) {
-                <ion-accordion
-                  value="results"
-                  class="lobby-section locked-open"
-                >
-                  <ion-item slot="header" lines="inset">
-                    <ion-icon slot="start" name="stats-chart-outline" aria-hidden="true"></ion-icon>
-                    <ion-label>
-                      <h2 class="lobby-section__heading">{{ resultsHeading() }}</h2>
-                    </ion-label>
-                  </ion-item>
-                  <div slot="content" class="lobby-section__body results-section" [attr.aria-label]="resultsHeading()">
-                    @if (lastRoundWasSkipped()) {
-                      <p class="round-skipped" role="status">Round skipped</p>
-                    } @else {
-                      <div class="results-descriptor-row">
-                        @if (formatRoundLabel(round); as label) {
-                          <p class="results-descriptor">{{ label }}</p>
-                        } @else if (isHost()) {
-                          <p class="results-descriptor placeholder">Add a descriptor</p>
-                        }
-                        @if (isHost()) {
-                          <ion-button
-                            fill="clear"
-                            size="small"
-                            class="edit-btn"
-                            aria-label="Edit round descriptor"
-                            (click)="openRoundEdit(round)"
-                          >
-                            <ion-icon name="pencil-outline" slot="icon-only" />
-                          </ion-button>
-                        }
-                      </div>
-                      <app-vote-results
-                        [round]="round"
-                        [participants]="participants()"
-                        [myId]="myId()"
-                      />
-                    }
-                  </div>
-                </ion-accordion>
-              }
-
-              @if (pastRevealedRounds().length > 0) {
-                <ion-accordion value="history" class="lobby-section">
-                  <ion-item slot="header" lines="inset">
-                    <ion-icon slot="start" name="time-outline" aria-hidden="true"></ion-icon>
-                    <ion-label>
-                      <h2 class="lobby-section__heading">History</h2>
-                    </ion-label>
-                  </ion-item>
-                  <div slot="content" class="lobby-section__body">
-                    <app-round-history
-                      [rounds]="pastRevealedRounds()"
-                      [allRounds]="rounds()"
-                      [participants]="participants()"
-                      [isHost]="isHost()"
-                      (editTriggered)="openRoundEditById($event)"
+          <section class="hnch-card lobby-section participants-card">
+            <div class="hnch-card__header">
+              <h2 class="hnch-card__title lobby-section__heading">
+                Participants ({{ activeParticipants().length }})
+              </h2>
+            </div>
+            <div class="hnch-card__body">
+              <ion-list lines="none" class="participants">
+                @for (p of activeParticipants(); track p.id) {
+                  <ion-item
+                    [class.offline]="!onlineIds().has(p.id)"
+                    [attr.aria-label]="participantLabel(p)"
+                  >
+                    <app-avatar
+                      slot="start"
+                      [participantId]="p.id"
+                      [name]="p.displayName"
+                      [color]="p.avatarColor"
+                      [dimmed]="!onlineIds().has(p.id)"
                     />
-                  </div>
-                </ion-accordion>
-              }
-            </ion-accordion-group>
-          </ion-col>
-        </ion-row>
-      </ion-grid>
+                    <ion-label>
+                      <span class="participant-name">{{ participantLabel(p) }}</span>
+                      @if (p.id === hostId()) {
+                        <span class="host-badge host-icon">Host</span>
+                      }
+                    </ion-label>
+                    @if (p.id === myId()) {
+                      <app-role-toggle
+                        slot="end"
+                        [viewer]="isParticipantViewer(p)"
+                        (toggled)="onToggleRole()"
+                      />
+                    } @else {
+                      @if (!onlineIds().has(p.id)) {
+                        <ion-note slot="end">Offline</ion-note>
+                      } @else if (isParticipantViewer(p)) {
+                        <ion-note slot="end">Observer</ion-note>
+                      }
+                      @if (isHost()) {
+                        <ion-button
+                          fill="clear"
+                          slot="end"
+                          class="participant-menu-btn"
+                          [attr.aria-label]="'Host actions for ' + p.displayName"
+                          (click)="openParticipantActions(p, $event)"
+                        >
+                          <ion-icon
+                            slot="icon-only"
+                            name="ellipsis-horizontal"
+                            aria-hidden="true"
+                          ></ion-icon>
+                        </ion-button>
+                      }
+                    }
+                  </ion-item>
+                }
+              </ion-list>
+            </div>
+          </section>
+
+          <section class="hnch-card lobby-section agenda-card">
+            <div class="hnch-card__header">
+              <h2 class="hnch-card__title lobby-section__heading">Agenda</h2>
+            </div>
+            <div class="hnch-card__body">
+              <app-agenda-panel
+                [items]="agenda()"
+                [isHost]="isHost()"
+                (addRequested)="openAddAgendaItem()"
+                (editRequested)="openEditAgendaItem($event)"
+                (skipRequested)="onAgendaSkip($event)"
+                (cancelRequested)="onAgendaCancel($event)"
+                (reorderUpRequested)="onAgendaReorderUp($event)"
+                (reorderDownRequested)="onAgendaReorderDown($event)"
+              />
+            </div>
+          </section>
+
+          @if (pastRevealedRounds().length > 0) {
+            <section class="hnch-card lobby-section history-card">
+              <div class="hnch-card__header">
+                <h2 class="hnch-card__title lobby-section__heading">History</h2>
+              </div>
+              <div class="hnch-card__body">
+                <app-round-history
+                  [rounds]="pastRevealedRounds()"
+                  [allRounds]="rounds()"
+                  [participants]="participants()"
+                  [isHost]="isHost()"
+                  (editTriggered)="openRoundEditById($event)"
+                />
+              </div>
+            </section>
+          }
+        </div>
+      </div>
       @if (celebration.consensus() && celebration.showOverlay()) {
         <div
           class="consensus-overlay"
@@ -512,43 +416,23 @@ import type { AgendaItem, AgendaResult } from '@hnch/shared';
     @if (isHost()) {
       <ion-footer class="cta-bar">
         <ion-toolbar>
-          @if (lastRevealedRound()) {
-            @if (lastRoundWasSkipped()) {
+          <div class="cta-inner">
+            @if (canRevote()) {
               <ion-button
-                expand="block"
-                color="primary"
-                (click)="openRoundStart()"
+                fill="outline"
+                (click)="onRevote()"
               >
-                Next Round {{ nextRoundNumber() }}
+                Re-vote
               </ion-button>
-            } @else {
-              <div class="footer-row">
-                <ion-button
-                  expand="block"
-                  fill="outline"
-                  (click)="onRevote()"
-                >
-                  Re-vote
-                </ion-button>
-                <ion-button
-                  expand="block"
-                  color="primary"
-                  (click)="openRoundStart()"
-                >
-                  Next Round {{ nextRoundNumber() }}
-                </ion-button>
-              </div>
             }
-          } @else {
             <ion-button
-              expand="block"
               color="primary"
               [disabled]="!hasSession()"
               (click)="openRoundStart()"
             >
-              Start Round {{ nextRoundNumber() }}
+              {{ roundCta() }}
             </ion-button>
-          }
+          </div>
         </ion-toolbar>
       </ion-footer>
     }
@@ -606,7 +490,7 @@ import type { AgendaItem, AgendaResult } from '@hnch/shared';
     </ion-modal>
 
     <ion-modal
-      cssClass="modal-centered"
+      cssClass="modal-centered modal-compact"
       [isOpen]="roundEditOpen()"
       [breakpoints]="surface.sheetBreakpoints()"
       [initialBreakpoint]="surface.initialSheetBreakpoint()"
@@ -619,6 +503,7 @@ import type { AgendaItem, AgendaResult } from '@hnch/shared';
             [initialTitle]="round.title ?? null"
             [initialDescription]="round.description ?? null"
             (submitted)="onRoundEditSave($event)"
+            (closeRequested)="onRoundEditDismiss()"
           />
         }
       </ng-template>
@@ -644,177 +529,209 @@ import type { AgendaItem, AgendaResult } from '@hnch/shared';
   `,
   styles: [
     `
-      @use '../../theme/breakpoints' as *;
       @use '../../theme/page-container' as *;
+      @use '../../theme/a11y' as *;
       @include page-container(800px);
 
-      @media (min-width: $bp-xl) {
-        ion-grid.page-container {
-          max-width: 1600px;
-        }
+      /*
+       * One column on every surface, ordered by what matters right now: the
+       * code, then the newest result, then who is here.
+       */
+      .lobby-layout {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
       }
 
+      .session-card .hnch-card__body {
+        padding-block-start: 16px;
+      }
+      .card-label {
+        color: var(--hnch-muted);
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
       .room-code {
+        @include focus-ring;
         appearance: none;
-        background: transparent;
-        border: none;
-        padding: 0;
-        color: inherit;
-        font: inherit;
-        font-size: 2.5rem;
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        margin: 0.5rem 0 0.25rem;
-        display: inline-flex;
+        display: flex;
         align-items: center;
-        gap: 0.4rem;
+        gap: 10px;
+        max-width: 100%;
         min-height: 44px;
+        margin: 2px 0 0;
+        padding: 0;
+        border: none;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--hnch-text);
         cursor: pointer;
+        font: inherit;
+        /* Fits "XXX-XXX" on a 320px screen and stops growing at 40px. */
+        font-size: clamp(1.75rem, 9vw, 2.5rem);
+        font-variant-numeric: tabular-nums;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        line-height: 1.1;
+        white-space: nowrap;
       }
       .room-code ion-icon {
+        flex: 0 0 auto;
+        color: var(--hnch-muted);
         font-size: 1.25rem;
-        color: var(--ion-color-medium);
       }
-      .room-code:focus-visible {
-        outline: 2px solid var(--ion-color-primary);
-        outline-offset: 2px;
-        border-radius: 4px;
+      .subtitle,
+      .subtitle-chip {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        max-width: 100%;
+        margin: 4px 0 0;
+        color: var(--hnch-muted);
+        font-size: 0.9375rem;
+        line-height: 1.35;
+        text-align: start;
+      }
+      .subtitle > span,
+      .subtitle-chip > span {
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+      .subtitle ion-icon,
+      .subtitle-chip ion-icon {
+        flex: 0 0 auto;
+        font-size: 1rem;
       }
       .subtitle {
+        @include focus-ring;
         appearance: none;
-        background: transparent;
-        border: none;
+        min-height: 32px;
         padding: 0;
-        color: var(--ion-color-medium);
-        font: inherit;
+        border: none;
+        border-radius: 6px;
+        background: transparent;
         cursor: pointer;
-        text-align: left;
+        font-family: inherit;
         transition: color 120ms ease;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-        flex-wrap: wrap;
+        @include touch-target;
       }
-      .subtitle > span {
-        min-width: 0;
-      }
-      .subtitle ion-icon {
-        font-size: 1rem;
-        color: inherit;
-        transition: color 120ms ease;
-      }
-      .subtitle:focus-visible {
-        outline: 2px solid var(--ion-color-primary);
-        outline-offset: 2px;
-        border-radius: 4px;
-      }
-      @media (pointer: fine) {
+      @include hover-only {
         .subtitle:hover {
           color: var(--hnch-text);
         }
       }
-      .actions,
-      .participants {
-        margin-top: 1.25rem;
+      .share-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-block-start: 16px;
       }
-      .participants-summary {
-        margin: 0.125rem 0 0;
-        font-size: 0.85rem;
-        color: var(--ion-color-medium);
+      .share-actions ion-button {
+        flex: 1 1 8rem;
+        min-height: 44px;
+        margin: 0;
+        font-size: 0.9375rem;
       }
-      .swipe-hint {
-        margin: 0.25rem 1rem 0.25rem;
-        font-size: 0.8rem;
-        color: var(--ion-color-medium);
+      .waiting-note {
+        margin: 16px 0 0;
+        padding-block-start: 12px;
+        border-top: 0.55px solid var(--hnch-sep);
+        color: var(--hnch-muted);
+        font-size: 0.9375rem;
+        line-height: 1.4;
       }
-      ion-avatar ion-icon {
-        font-size: 2rem;
-        color: var(--avatar-color, var(--ion-color-medium));
+
+      ion-list.participants ion-item {
+        --min-height: 52px;
+        --padding-start: 0;
+        --inner-padding-end: 0;
       }
-      ion-item.offline ion-label {
-        color: var(--ion-color-medium);
+      ion-list.participants ion-item + ion-item {
+        border-top: 0.55px solid var(--hnch-sep);
       }
-      .host-icon {
-        font-size: 1rem;
-        color: var(--ion-color-medium);
-        vertical-align: middle;
-        margin-inline-start: 0.25rem;
+      ion-list.participants app-avatar {
+        margin-inline-end: 12px;
       }
-      .results-section {
-        margin-top: 1.5rem;
-        padding-top: 1rem;
-        border-top: 2px solid var(--hnch-sep);
+      ion-list.participants ion-label {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 4px 8px;
+        white-space: normal;
       }
-      .results-heading {
-        font-size: 1.25rem;
-        font-weight: 700;
-        margin: 0 0 0.25rem;
+      .participant-name {
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+      ion-item.offline .participant-name {
+        color: var(--hnch-muted);
+      }
+      .host-badge {
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: var(--hnch-fill);
+        color: var(--hnch-muted);
+        font-size: 0.75rem;
+        font-weight: 600;
+        line-height: 1.4;
+      }
+      ion-list.participants ion-note {
+        font-size: 0.875rem;
+      }
+      /*
+       * The dots sit at the row's edge, the 44px target reaches inwards from
+       * there. No negative margin: the item clips whatever overhangs it, and
+       * scrolling an overhanging button into view shifts the whole row, which
+       * cut the first letter off the name beside it.
+       */
+      .participant-menu-btn {
+        --color: var(--hnch-muted);
+        --padding-end: 0;
+        --padding-start: 20px;
+        min-width: 44px;
+        min-height: 44px;
+        margin: 0 0 0 4px;
+      }
+
+      .copy-results-btn {
+        --color: var(--hnch-muted);
+        --padding-end: 0;
+        --padding-start: 12px;
+        min-width: 44px;
+        min-height: 44px;
+        margin: 0;
       }
       .results-descriptor-row {
         display: flex;
         align-items: center;
-        gap: 0.25rem;
-        margin-bottom: 0.75rem;
+        gap: 4px;
+        min-height: 32px;
+        margin-block-end: 8px;
       }
       .results-descriptor {
+        min-width: 0;
         margin: 0;
-        color: var(--ion-color-medium);
+        color: var(--hnch-text);
+        font-size: 1rem;
+        font-weight: 500;
+        overflow-wrap: anywhere;
       }
       .results-descriptor.placeholder {
-        color: var(--ion-color-medium);
-        font-style: italic;
+        color: var(--hnch-muted);
+        font-weight: 400;
       }
       .edit-btn {
+        --color: var(--hnch-muted);
         --padding-start: 0.25rem;
         --padding-end: 0.25rem;
-      }
-      .round-skipped {
-        margin: 0.5rem 0;
-        color: var(--ion-color-medium);
-        font-style: italic;
-      }
-      .footer-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 0.5rem;
-        padding-inline: var(--ion-margin, 16px);
-      }
-      ion-accordion.lobby-section {
-        background: var(--hnch-elev-1);
-        border-radius: 12px;
-        margin-bottom: 1rem;
-        --background: transparent;
-      }
-      ion-accordion.lobby-section ion-item[slot='header'] {
-        --background: transparent;
-        --padding-start: 1rem;
-      }
-      ion-accordion.lobby-section .lobby-section__heading {
-        font-size: 1.05rem;
-        font-weight: 600;
+        flex: 0 0 auto;
         margin: 0;
       }
-      ion-accordion.lobby-section ion-icon[slot='start'] {
-        margin-inline-end: 0.5rem;
-      }
-      ion-accordion.lobby-section .lobby-section__body {
-        padding: 0.5rem 1rem 1rem;
-      }
-      ion-accordion.lobby-section .lobby-section__body ion-list {
-        background: transparent;
-        --ion-item-background: var(--hnch-elev-2);
-        border-radius: 8px;
-        overflow: hidden;
-      }
-      ion-accordion.lobby-section .lobby-section__body ion-list ion-item {
-        --background: var(--hnch-elev-2);
-      }
-      ion-accordion.lobby-section.locked-open::part(expand-icon) {
-        display: none;
-      }
-      ion-accordion.lobby-section.locked-open ion-item[slot='header'] {
-        --background-hover: transparent;
-        pointer-events: none;
+      .round-skipped {
+        margin: 0;
+        color: var(--hnch-muted);
       }
 
       /* Consensus overlay — positioned inside ion-content, below toolbar */
@@ -857,16 +774,23 @@ import type { AgendaItem, AgendaResult } from '@hnch/shared';
         z-index: 1001;
         overflow: hidden;
       }
+      /*
+       * A filled badge: accent fill, accent ink. Accent-colored *text* on the
+       * scrim was 2:1 in dark mode and not much better in light.
+       */
       .consensus-text {
         position: absolute;
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        font-size: 3rem;
+        padding: 0.35em 0.8em;
+        border-radius: 999px;
+        background: var(--hnch-accent);
+        box-shadow: var(--hnch-shadow-3);
+        color: var(--hnch-accent-ink);
+        font-size: clamp(2rem, 9vw, 3rem);
         font-weight: 800;
         letter-spacing: -0.02em;
-        color: var(--ion-color-primary);
-        text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
         white-space: nowrap;
         z-index: 1002;
         animation: consensusScaleIn 380ms cubic-bezier(0.34, 1.56, 0.64, 1) both,
@@ -882,6 +806,7 @@ import type { AgendaItem, AgendaResult } from '@hnch/shared';
 })
 export class LobbyPage implements OnDestroy {
   private readonly router = inject(Router);
+  private readonly appPrefs = inject(AppPreferenceService);
   private readonly docService = inject(DocService);
   private readonly haptic = inject(HapticService);
   private readonly participantIdService = inject(ParticipantIdService);
@@ -934,9 +859,17 @@ export class LobbyPage implements OnDestroy {
   /**
    * Access state lives here (not in SessionSettingsSheetComponent) so
    * it survives the modal's destroy/recreate lifecycle.
+   *
+   * The mode is relay state (ADR-0009), so it is read back from the relay
+   * (see `refreshAccessMode`) rather than assumed: a session created with
+   * a password, reloaded, or protected by a previous host is locked whether
+   * or not this page instance was the one that locked it. The password
+   * itself is only ever what was typed here — the relay holds a hash.
    */
-  protected readonly lobbyAccessMode = signal<'open' | 'password'>('open');
+  protected readonly lobbyAccessMode = signal<AccessMode>('open');
   protected readonly lobbyAccessPassword = signal('');
+
+  protected readonly passwordProtected = computed(() => this.lobbyAccessMode() === 'password');
 
   protected readonly myId = this.participantIdService.id;
 
@@ -944,9 +877,9 @@ export class LobbyPage implements OnDestroy {
 
   protected readonly isParticipantViewer = isParticipantViewer;
 
-  /** Resolved avatar color (ADR-0043). Falls back to deterministic hash of `p.id`. */
-  protected colorOf(p: { id: string; avatarColor?: string }): string {
-    return resolveAvatarColor(p.avatarColor, p.id);
+  /** A roster row's name: the participant's own row reads "You (Alex)". */
+  protected participantLabel(p: Pick<ParticipantSnapshot, 'id' | 'displayName'>): string {
+    return p.id === this.myId() ? `You (${p.displayName})` : p.displayName;
   }
 
   /** Toggle own voter↔viewer role. Wired to the self-row chip. */
@@ -954,16 +887,6 @@ export class LobbyPage implements OnDestroy {
     if (!this.myId()) return;
     this.haptic.impactLight();
     this.docService.commands.toggleRole();
-  }
-
-  /**
-   * Sync the expanded-sections signal from `ion-accordion-group` (ionChange).
-   * With `[multiple]="true"`, `detail.value` is a string[] of expanded values.
-   * Hedges against the older single-value shape for safety.
-   */
-  protected onAccordionChange(event: CustomEvent<{ value?: string | string[] | null }>): void {
-    const v = event.detail?.value;
-    this.expandedSections.set(Array.isArray(v) ? v : v ? [v] : []);
   }
 
   protected readonly isHost = computed(() => {
@@ -997,15 +920,30 @@ export class LobbyPage implements OnDestroy {
   /** Re-export of the shared label helper so the template can call it. */
   protected readonly formatRoundLabel = formatRoundLabel;
 
-  /** 1-based index for the "Start Round N" / "Next Round N" label. */
-  protected readonly nextRoundNumber = computed(() => this.rounds().length + 1);
+  /** The number on "Start round N" / "Next round N". Cancelled rounds take none. */
+  protected readonly nextRoundNumber = computed(() => nextRoundNumber(this.rounds()));
 
+  /**
+   * Toolbar title: the session's name when it has one. "Lobby" otherwise —
+   * the screen's name is only worth the space when there is nothing better.
+   */
+  protected readonly sessionTitle = computed(() => {
+    const name = this.docService.settings()?.name?.trim() ?? '';
+    return name.length > 0 ? name : 'Lobby';
+  });
+
+  /**
+   * One line under the code: scale, and the lock when there is one. The
+   * session's name is already the toolbar title, and the round number is on
+   * the button that starts it, so neither is repeated here.
+   */
   protected readonly subtitle = computed(() => {
     const settings = this.docService.settings();
     if (!settings || !settings.defaultScale) return '';
-    const round = this.nextRoundNumber();
-    const scaleName = getScaleLabel(settings.defaultScale.id, this.scalePrefs.customScales());
-    return `Round ${round} • ${scaleName}`;
+    return buildSessionSummary({
+      scaleLabel: getScaleLabel(settings.defaultScale.id, this.scalePrefs.customScales()),
+      passwordProtected: this.passwordProtected(),
+    });
   });
 
   /**
@@ -1018,7 +956,7 @@ export class LobbyPage implements OnDestroy {
     const rounds = this.rounds();
     for (let i = rounds.length - 1; i >= 0; i--) {
       const r = rounds[i]!;
-      if (isTerminalStatus(r.status) && r.status !== 'discarded') return r;
+      if (r.status === 'revealed' || r.status === 'skipped') return r;
     }
     return null;
   });
@@ -1031,51 +969,45 @@ export class LobbyPage implements OnDestroy {
     return r !== null && r.status === 'skipped';
   });
 
-  /**
-   * 1-based index of `lastRevealedRound` within `rounds()`.
-   */
+  /** The number `lastRevealedRound` goes by, or `null` when there is none. */
   protected readonly lastRevealedRoundIndex = computed(() => {
     const round = this.lastRevealedRound();
     if (!round) return null;
-    const idx = this.rounds().findIndex((r) => r.id === round.id);
-    return idx >= 0 ? idx + 1 : null;
+    const number = roundNumber(round, this.rounds());
+    return number > 0 ? number : null;
   });
 
-  /** Results-section heading — pure-helper backed for unit testability (issue #111). */
+  /** Results-card heading — pure-helper backed for unit testability. */
   protected readonly resultsHeading = computed(() =>
-    buildResultsHeading(this.lastRevealedRound(), this.lastRevealedRoundIndex(), this.rounds()),
+    buildResultsHeading(this.lastRevealedRound(), this.lastRevealedRoundIndex()),
   );
+
+  /** "Re-vote" beside the heading when the round re-votes an earlier one (issue #111). */
+  protected readonly resultsLineageNote = computed(() => {
+    const round = this.lastRevealedRound();
+    return round === null ? null : revoteLabel(round.id, this.rounds());
+  });
+
+  /** Re-vote needs a result to re-vote on; a skipped round has none. */
+  protected readonly canRevote = computed(
+    () => this.lastRevealedRound() !== null && !this.lastRoundWasSkipped(),
+  );
+
+  /** "Start round 1" / "Next round 4". */
+  protected readonly roundCta = computed(() =>
+    buildRoundCta(this.lastRevealedRound() !== null, this.nextRoundNumber()),
+  );
+
+  /** Shown to everyone but the host, in place of the round button. */
+  protected readonly waitingNote = computed(() => {
+    const hostId = this.hostId();
+    const host = this.activeParticipants().find((p) => p.id === hostId);
+    return buildWaitingNote(host?.displayName ?? null, this.lastRevealedRound() !== null);
+  });
 
   /** True when at least one round has been revealed (gates "Copy results" button). */
   protected readonly hasRevealedRounds = computed(() =>
     this.rounds().some((r) => r.status === 'revealed'),
-  );
-
-  /** True when at least one round has reached a terminal state (gates accordion collapse). */
-  protected readonly hasTerminalRounds = computed(() =>
-    this.rounds().some((r) => isTerminalStatus(r.status)),
-  );
-
-  /**
-   * Expanded-section values driving the lobby's `ion-accordion-group`s.
-   * Seeded by the mode-transition effect; updated by `(ionChange)`.
-   */
-  protected readonly expandedSections = signal<string[]>([]);
-  private prevSurfaceMode: 'mobile' | 'desktop' | null = null;
-
-  /** True when the participants accordion is currently expanded. */
-  protected readonly participantsAccordionOpen = computed(() =>
-    this.expandedSections().includes('participants'),
-  );
-
-  /**
-   * Short summary line shown in the accordion header when collapsed —
-   * e.g. "3 online · 1 offline · 1 viewer". Uses active participants only.
-   */
-  protected readonly participantsSummary = computed(() =>
-    summarizeParticipants(this.activeParticipants(), this.onlineIds(), (p) =>
-      this.isParticipantViewer(p),
-    ),
   );
 
   /**
@@ -1087,15 +1019,18 @@ export class LobbyPage implements OnDestroy {
     const rounds = this.rounds();
     const last = this.lastRevealedRound();
     if (!last) return [];
-    return rounds.filter((r) => isTerminalStatus(r.status) && r.id !== last.id);
+    // Revealed and skipped only: a discarded round is a tombstone and never
+    // resurfaces in history (ADR-0046).
+    return rounds.filter(
+      (r) => (r.status === 'revealed' || r.status === 'skipped') && r.id !== last.id,
+    );
   });
 
-  /** 1-based round number for the edit modal header. */
+  /** Round number for the edit modal header. */
   protected readonly editingRoundNumber = computed<number>(() => {
     const round = this.editingRound();
     if (!round) return 1;
-    const idx = this.rounds().findIndex((r) => r.id === round.id);
-    return idx >= 0 ? idx + 1 : 1;
+    return roundNumber(round, this.rounds()) || 1;
   });
 
   private readonly modalRef = viewChild<IonModal>('roundStartModal');
@@ -1116,41 +1051,22 @@ export class LobbyPage implements OnDestroy {
       'chevron-back-outline': chevronBackOutline,
       'close-circle-outline': closeCircleOutline,
       'copy-outline': copyOutline,
-      'ellipsis-horizontal-circle': ellipsisHorizontalCircle,
-      'ellipsis-vertical': ellipsisVertical,
-      'list-outline': listOutline,
+      'ellipsis-horizontal': ellipsisHorizontal,
+      'lock-closed-outline': lockClosedOutline,
       'log-out-outline': logOutOutline,
       'pencil-outline': pencilOutline,
-      'people-outline': peopleOutline,
-      'person-circle-outline': personCircleOutline,
       'person-remove-outline': personRemoveOutline,
       'qr-code-outline': qrCodeOutline,
       'settings-outline': settingsOutline,
       'share-outline': shareOutline,
       'star-outline': starOutline,
-      'stats-chart-outline': statsChartOutline,
-      'time-outline': timeOutline,
     });
 
-    // Mode-transition defaults: re-apply only when surface mode flips.
-    // Mobile collapses Share + History; desktop expands every section.
+    // Ask the relay whether the session is locked, once per room code.
+    // `untracked`-free on purpose: the only signal read is the code.
     effect(() => {
-      const mode = this.surface.mode();
-      if (this.prevSurfaceMode === mode) return;
-      const base =
-        mode === 'mobile'
-          ? ['general', 'participants', 'agenda', 'results']
-          : ['general', 'share', 'participants', 'agenda', 'results', 'history'];
-      this.expandedSections.set(base);
-      this.prevSurfaceMode = mode;
-    });
-
-    // Targeted Participants auto-collapse on first reveal (mobile only).
-    // Share / History user toggles are preserved.
-    effect(() => {
-      if (this.hasTerminalRounds() && this.surface.mode() === 'mobile') {
-        this.expandedSections.update((v) => v.filter((k) => k !== 'participants'));
-      }
+      const code = this.docService.roomCode();
+      if (code !== null) void this.refreshAccessMode(code);
     });
 
     // Refresh the jump-back-in cache only once per (uuid, screen)
@@ -1191,11 +1107,7 @@ export class LobbyPage implements OnDestroy {
     // `null` means the projection has not arrived yet (slow-network resume);
     // stay on the screen the URL asked for.
     effect(() => {
-      const screen = this.docService.screen();
-      if (screen === null || screen === 'lobby') return;
-      const code = this.docService.roomCode();
-      assertRoomCode(code, 'lobby.autoNav');
-      void this.router.navigate(['/estimating', code]);
+      this.followScreen();
     });
 
     // WS rejection handler — covers all reasons a joiner can be rejected
@@ -1223,6 +1135,44 @@ export class LobbyPage implements OnDestroy {
     afterRenderEffect(() => {
       this.celebration.attachLayer(this.confettiLayer()?.nativeElement ?? null);
     });
+  }
+
+  /**
+   * Ionic keeps this page alive under Estimating and re-shows the same
+   * instance on the way back, so the effect above — which only re-runs when
+   * `screen` changes — never notices a return to the Lobby while a round is
+   * still running (the browser's Back button does exactly that). Re-apply
+   * the rule on every entry: while a round is active, everyone is on
+   * Estimating.
+   */
+  ionViewWillEnter(): void {
+    this.followScreen();
+    const code = this.docService.roomCode();
+    if (code !== null) void this.refreshAccessMode(code);
+  }
+
+  /** Go where the shared `screenFor` rule says this peer belongs. */
+  private followScreen(): void {
+    const screen = this.docService.screen();
+    if (screen === null || screen === 'lobby') return;
+    const code = this.docService.roomCode();
+    assertRoomCode(code, 'lobby.autoNav');
+    void this.router.navigate(['/estimating', code]);
+  }
+
+  /**
+   * Read the session's access mode back from the relay. Best-effort: a
+   * failed lookup leaves the last known mode in place, and the connection
+   * banner already tells the user the relay is unreachable.
+   */
+  private async refreshAccessMode(code: string): Promise<void> {
+    try {
+      const resolved = await resolveRoom(this.appPrefs.resolvedRelayHttpUrl(), code);
+      if (this.docService.roomCode() !== code) return;
+      this.lobbyAccessMode.set(resolved.accessMode === 'password' ? 'password' : 'open');
+    } catch {
+      // Keep what we have.
+    }
   }
 
   protected openRoundStart(): void {
@@ -1384,13 +1334,25 @@ export class LobbyPage implements OnDestroy {
     }
   }
 
+  /**
+   * The host's ⋯ menu. Everyone else has nothing to choose between — their
+   * one action, Leave, is a button in the toolbar instead.
+   */
   protected async openActionSheet(event: Event): Promise<void> {
-    const items: { text: string; icon?: string; role?: string; handler?: () => void }[] = [
+    const items: MenuItem[] = [
       {
         text: 'Session settings',
         icon: 'settings-outline',
         handler: () => {
           this.openSessionSettings();
+        },
+      },
+      {
+        text: 'End session for everyone',
+        icon: 'close-circle-outline',
+        role: 'destructive',
+        handler: () => {
+          void this.confirmEndSession();
         },
       },
       {
@@ -1401,36 +1363,10 @@ export class LobbyPage implements OnDestroy {
           void this.confirmLeave();
         },
       },
+      { text: 'Cancel', role: 'cancel' },
     ];
 
-    if (this.isHost()) {
-      items.splice(1, 0, {
-        text: 'End session for everyone',
-        icon: 'close-circle-outline',
-        role: 'destructive',
-        handler: () => {
-          void this.confirmEndSession();
-        },
-      });
-    }
-
-    if (this.hasRevealedRounds()) {
-      items.splice(1, 0, {
-        text: 'Copy results',
-        icon: 'copy-outline',
-        handler: () => {
-          void this.copyResults();
-        },
-      });
-    }
-
-    items.push({ text: 'Cancel', role: 'cancel' });
-
-    await this.surface.openSheetOrPopover({
-      header: 'Session',
-      triggerEvent: event,
-      items,
-    });
+    await this.surface.openSheetOrPopover({ triggerEvent: event, items });
   }
 
   protected async confirmEndSession(): Promise<void> {
@@ -1457,6 +1393,7 @@ export class LobbyPage implements OnDestroy {
   }
 
   protected openSessionSettings(): void {
+    if (!this.isHost()) return;
     const modal = this.sessionSettingsModalRef();
     if (modal) void presentSheet({ modal });
   }
@@ -1466,10 +1403,8 @@ export class LobbyPage implements OnDestroy {
     this.sessionSettingsOpen.set(false);
   }
 
-  protected onAccessChanged(selection: {
-    mode: 'open' | 'password';
-    password: string | null;
-  }): void {
+  /** The relay has accepted an access change made in the settings sheet. */
+  protected onAccessChanged(selection: AccessSelection): void {
     this.lobbyAccessMode.set(selection.mode);
     this.lobbyAccessPassword.set(selection.password ?? '');
   }
@@ -1482,7 +1417,7 @@ export class LobbyPage implements OnDestroy {
     try {
       await Share.share({
         title: 'Join my hnch session',
-        text: `Room code: ${formatted}`,
+        text: `Session code: ${formatted}`,
         url,
         dialogTitle: 'Share invite',
       });
@@ -1494,7 +1429,7 @@ export class LobbyPage implements OnDestroy {
     }
   }
 
-  private async copyResults(): Promise<void> {
+  protected async copyResults(): Promise<void> {
     try {
       // Pass raw participants() — includes departed — so names still resolve per ADR-0036.
       const participantsRecord = Object.fromEntries(
@@ -1527,9 +1462,9 @@ export class LobbyPage implements OnDestroy {
   private async copyToClipboard(url: string, formattedCode: string): Promise<void> {
     try {
       await navigator.clipboard.writeText(url);
-      await this.toastService.info(`Invite link copied! (${formattedCode})`);
+      await this.toastService.info(`Invite link copied (${formattedCode})`);
     } catch {
-      await this.toastService.error('Could not share the invite link.');
+      await this.toastService.error("Couldn't share the invite link.");
     }
   }
 
@@ -1632,12 +1567,12 @@ export class LobbyPage implements OnDestroy {
    */
   protected async onHandoffTap(participantId: string, displayName: string): Promise<void> {
     const alert = await this.alertCtrl.create({
-      header: 'Make host?',
-      message: `Make ${displayName} the host?`,
+      header: `Make ${displayName} the host?`,
+      message: 'They take over the round controls. You stay in the session.',
       buttons: [
         { text: 'Cancel', role: 'cancel' },
         {
-          text: 'Confirm',
+          text: 'Make host',
           handler: () => {
             if (!this.myId()) return;
             if (this.docService.commands.handoffHost(participantId).applied) {
@@ -1651,9 +1586,9 @@ export class LobbyPage implements OnDestroy {
   }
 
   /**
-   * Desktop host-actions popover. Opened by the ellipsis button on each
-   * participant row when surface mode is 'desktop'. Mirrors the swipe
-   * actions available on mobile.
+   * Host actions for one participant, opened by the ⋯ button on their row:
+   * an action sheet on touch, a popover with a pointer. One visible
+   * affordance on every surface — it used to be a hidden swipe on mobile.
    */
   protected async openParticipantActions(
     p: { id: string; displayName: string },
@@ -1671,8 +1606,13 @@ export class LobbyPage implements OnDestroy {
         icon: 'person-remove-outline',
         handler: () => this.onRemoveTap(p.id, p.displayName),
       },
+      { text: 'Cancel', role: 'cancel' },
     ];
-    await this.surface.openSheetOrPopover({ items, triggerEvent: event });
+    await this.surface.openSheetOrPopover({
+      header: p.displayName,
+      items,
+      triggerEvent: event,
+    });
   }
 
   ngOnDestroy(): void {
@@ -1688,7 +1628,7 @@ export class LobbyPage implements OnDestroy {
     const alert = await this.alertCtrl.create({
       header: `Remove ${displayName} from session?`,
       message:
-        "They'll be disconnected and won't appear in the active roster. Their votes in past rounds stay in the round history.",
+        "They'll be disconnected and dropped from the participant list. Their votes in past rounds stay in the history.",
       buttons: [
         { text: 'Cancel', role: 'cancel' },
         {

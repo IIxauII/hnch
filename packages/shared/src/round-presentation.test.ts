@@ -1,4 +1,6 @@
 // Exercises: round-presentation:formatRoundLabel
+// Exercises: round-presentation:roundNumber
+// Exercises: round-presentation:nextRoundNumber
 // Exercises: round-presentation:formatRoundPosition
 // Exercises: round-presentation:computeRoundStats
 // Exercises: round-presentation:roundStatsFor
@@ -21,6 +23,8 @@ import {
   formatRoundLabel,
   formatRoundPosition,
   formatRoundStats,
+  nextRoundNumber,
+  roundNumber,
   roundStatsFor,
 } from './round-presentation.js';
 
@@ -77,6 +81,77 @@ describe('formatRoundLabel', () => {
 });
 
 // ---------------------------------------------------------------------------
+// roundNumber / nextRoundNumber
+// ---------------------------------------------------------------------------
+
+describe('roundNumber', () => {
+  it('is the 1-based position in the session', () => {
+    const r1 = makeRound({ id: 'r1' });
+    const r2 = makeRound({ id: 'r2' });
+    expect(roundNumber(r1, [r1, r2])).toBe(1);
+    expect(roundNumber(r2, [r1, r2])).toBe(2);
+  });
+
+  it('a discarded round takes no number: the next round gets it', () => {
+    const r1 = makeRound({ id: 'r1', status: 'discarded' });
+    const r2 = makeRound({ id: 'r2' });
+    expect(roundNumber(r2, [r1, r2])).toBe(1);
+  });
+
+  it('skips every discarded round before it, not just the first', () => {
+    const rounds = [
+      makeRound({ id: 'r1' }),
+      makeRound({ id: 'r2', status: 'discarded' }),
+      makeRound({ id: 'r3', status: 'skipped' }),
+      makeRound({ id: 'r4', status: 'discarded' }),
+      makeRound({ id: 'r5' }),
+    ];
+    expect(rounds.map((r) => roundNumber(r, rounds))).toEqual([1, 0, 2, 0, 3]);
+  });
+
+  it('a skipped round keeps its number — it is part of the history', () => {
+    const r1 = makeRound({ id: 'r1', status: 'skipped' });
+    const r2 = makeRound({ id: 'r2' });
+    expect(roundNumber(r1, [r1, r2])).toBe(1);
+    expect(roundNumber(r2, [r1, r2])).toBe(2);
+  });
+
+  it('is 0 for a discarded round and for one that is not in the list', () => {
+    const r1 = makeRound({ id: 'r1', status: 'discarded' });
+    expect(roundNumber(r1, [r1])).toBe(0);
+    expect(roundNumber(makeRound({ id: 'stray' }), [r1])).toBe(0);
+    expect(roundNumber(makeRound({ id: 'stray' }), [])).toBe(0);
+  });
+
+  it('matches by id, not identity', () => {
+    const r1 = makeRound({ id: 'r1' });
+    const r2 = makeRound({ id: 'r2' });
+    expect(roundNumber({ id: 'r2' }, [r1, r2])).toBe(2);
+  });
+});
+
+describe('nextRoundNumber', () => {
+  it('is 1 for a session with no rounds', () => {
+    expect(nextRoundNumber([])).toBe(1);
+  });
+
+  it('counts the rounds that happened', () => {
+    expect(nextRoundNumber([makeRound({ id: 'r1' }), makeRound({ id: 'r2' })])).toBe(3);
+  });
+
+  it("gives a cancelled round's number to the round that replaces it", () => {
+    const rounds = [makeRound({ id: 'r1' }), makeRound({ id: 'r2', status: 'discarded' })];
+    expect(nextRoundNumber(rounds)).toBe(2);
+    const replacement = makeRound({ id: 'r3' });
+    expect(roundNumber(replacement, [...rounds, replacement])).toBe(2);
+  });
+
+  it('is 1 again when the only round so far was cancelled', () => {
+    expect(nextRoundNumber([makeRound({ id: 'r1', status: 'discarded' })])).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // formatRoundPosition
 // ---------------------------------------------------------------------------
 
@@ -122,6 +197,12 @@ describe('formatRoundPosition', () => {
     const r1 = makeRound({ id: 'r1' });
     const r2 = makeRound({ id: 'r2' });
     expect(formatRoundPosition(makeRound({ id: 'r2' }), [r1, r2])).toBe('Round 2');
+  });
+
+  it('does not count a discarded round', () => {
+    const r1 = makeRound({ id: 'r1', status: 'discarded' });
+    const r2 = makeRound({ id: 'r2' });
+    expect(formatRoundPosition(r2, [r1, r2])).toBe('Round 1');
   });
 });
 

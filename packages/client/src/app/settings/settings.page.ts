@@ -9,19 +9,15 @@ import {
 import {
   IonBackButton,
   IonButtons,
-  IonCol,
   IonContent,
-  IonGrid,
   IonHeader,
   IonIcon,
   IonInput,
   IonItem,
   IonLabel,
   IonList,
-  IonListHeader,
   IonModal,
   IonNote,
-  IonRow,
   IonSelect,
   IonSelectOption,
   IonTitle,
@@ -29,7 +25,7 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { contrastOutline, moonOutline, sunnyOutline } from 'ionicons/icons';
+import { chevronBackOutline, contrastOutline, moonOutline, sunnyOutline } from 'ionicons/icons';
 
 import {
   AVATAR_PALETTE_KEYS,
@@ -56,10 +52,11 @@ import { presentSheet } from '../utils/present-sheet';
 import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.helpers';
 
 /**
- * App Settings screen — ux.md §5.7.
+ * App Settings screen — device-level preferences, none of them synced.
  *
- * Four sections: Profile (display name), Appearance (theme + accent),
- * Scales (default scale picker), and About (version).
+ * Sections: Profile, Appearance, New sessions (defaults applied when this
+ * device creates one), Advanced, Keyboard shortcuts (only where there is a
+ * keyboard), About.
  * Display name + default session name use inline blur-save.
  * Theme + accent use ion-select with `interface="popover"`.
  */
@@ -71,19 +68,15 @@ import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.he
     ScalePickerSheetComponent,
     IonBackButton,
     IonButtons,
-    IonCol,
     IonContent,
-    IonGrid,
     IonHeader,
     IonIcon,
     IonInput,
     IonItem,
     IonLabel,
     IonList,
-    IonListHeader,
     IonModal,
     IonNote,
-    IonRow,
     IonSelect,
     IonSelectOption,
     IonTitle,
@@ -95,206 +88,194 @@ import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.he
     <ion-header>
       <ion-toolbar>
         <ion-buttons slot="start">
-          <ion-back-button defaultHref="/home"></ion-back-button>
+          <ion-back-button
+            defaultHref="/home"
+            text=""
+            icon="chevron-back-outline"
+            aria-label="Back to home"
+          ></ion-back-button>
         </ion-buttons>
-        <ion-title>Settings</ion-title>
+        <ion-title role="heading" aria-level="1">Settings</ion-title>
       </ion-toolbar>
     </ion-header>
     <ion-content>
-      <ion-grid fixed class="page-container">
-        <ion-row><ion-col>
-      <!-- Profile -->
-      <ion-list-header>
-        <ion-label>Profile</ion-label>
-      </ion-list-header>
-      <ion-list lines="inset">
-        <ion-item>
-          <ion-input
-            #displayNameInput
-            label="Display name"
-            labelPlacement="floating"
-            [value]="displayName()"
-            maxlength="40"
-            aria-label="Display name"
-            (ionBlur)="onDisplayNameBlur()"
-          ></ion-input>
-        </ion-item>
-        <ion-item>
-          <ion-select
-            label="Avatar color"
-            interface="popover"
-            [interfaceOptions]="accentPopoverOptions"
-            [value]="avatarSelectValue()"
-            (ionChange)="onAvatarSelectChanged($event.detail.value)"
-          >
-            @for (entry of paletteEntries; track entry.key) {
-              <ion-select-option [value]="entry.key">{{ entry.label }}</ion-select-option>
-            }
-            <ion-select-option value="custom">Custom…</ion-select-option>
-          </ion-select>
-          <span
-            class="appearance-preview"
-            aria-hidden="true"
-            slot="end"
-            [style.background]="avatarResolvedColor()"
-          ></span>
-        </ion-item>
-        @if (avatarSelectValue() === 'custom') {
+      <div class="page-container">
+        <!-- Profile -->
+        <h2 class="section-label">Profile</h2>
+        <ion-list inset="true" lines="inset">
           <ion-item>
             <ion-input
-              #avatarHexInput
-              label="Custom hex"
+              #displayNameInput
+              label="Display name"
               labelPlacement="stacked"
-              placeholder="#rrggbb"
-              [value]="customHexInputValue()"
-              maxlength="7"
-              aria-label="Custom avatar color (hex)"
-              (ionBlur)="onAvatarHexBlur()"
+              [value]="displayName()"
+              maxlength="40"
+              autocapitalize="words"
+              autocomplete="name"
+              enterkeyhint="done"
+              (ionBlur)="onDisplayNameBlur()"
+              (keydown.enter)="onDisplayNameBlur()"
             ></ion-input>
           </ion-item>
+          <ion-item>
+            <ion-select
+              label="Avatar color"
+              interface="popover"
+              [interfaceOptions]="accentPopoverOptions"
+              [value]="avatarSelectValue()"
+              (ionChange)="onAvatarSelectChanged($event.detail.value)"
+            >
+              @for (entry of paletteEntries; track entry.key) {
+                <ion-select-option [value]="entry.key">{{ entry.label }}</ion-select-option>
+              }
+              <ion-select-option value="custom">Custom…</ion-select-option>
+            </ion-select>
+            <span
+              class="appearance-preview"
+              aria-hidden="true"
+              slot="end"
+              [style.background]="avatarResolvedColor()"
+            ></span>
+          </ion-item>
+          @if (avatarSelectValue() === 'custom') {
+            <ion-item>
+              <ion-input
+                #avatarHexInput
+                label="Custom color (hex)"
+                labelPlacement="stacked"
+                placeholder="#rrggbb"
+                [value]="customHexInputValue()"
+                maxlength="7"
+                autocapitalize="off"
+                autocorrect="off"
+                spellcheck="false"
+                (ionBlur)="onAvatarHexBlur()"
+                (keydown.enter)="onAvatarHexBlur()"
+              ></ion-input>
+            </ion-item>
+          }
+        </ion-list>
+
+        <!-- Appearance -->
+        <h2 class="section-label">Appearance</h2>
+        <ion-list inset="true" lines="inset">
+          <ion-item>
+            <ion-select
+              label="Theme"
+              interface="popover"
+              [value]="themeService.theme()"
+              (ionChange)="onThemeSelected($event.detail.value)"
+            >
+              <ion-select-option value="system">System</ion-select-option>
+              <ion-select-option value="light">Light</ion-select-option>
+              <ion-select-option value="dark">Dark</ion-select-option>
+            </ion-select>
+            <ion-icon
+              slot="end"
+              aria-hidden="true"
+              class="appearance-preview-icon"
+              [name]="themeIconName()"
+            ></ion-icon>
+          </ion-item>
+
+          <ion-item>
+            <ion-select
+              label="Accent"
+              interface="popover"
+              [interfaceOptions]="accentPopoverOptions"
+              [value]="accentService.accent()"
+              (ionChange)="onAccentSelected($event.detail.value)"
+            >
+              @for (entry of accentEntries; track entry.key) {
+                <ion-select-option [value]="entry.key">{{ entry.label }}</ion-select-option>
+              }
+            </ion-select>
+            <span
+              class="appearance-preview"
+              aria-hidden="true"
+              slot="end"
+            ></span>
+          </ion-item>
+        </ion-list>
+
+        <!-- Defaults for sessions this device creates -->
+        <h2 class="section-label">New sessions</h2>
+        <ion-list inset="true" lines="inset">
+          <ion-item button detail="true" (click)="openScalePicker()">
+            <ion-label>Default scale</ion-label>
+            <ion-note slot="end">{{ scaleLabel() }}</ion-note>
+          </ion-item>
+          <ion-item>
+            <ion-input
+              #defaultSessionNameInput
+              label="Default session name"
+              labelPlacement="stacked"
+              placeholder="None"
+              [value]="appPrefs.defaultSessionName() ?? ''"
+              maxlength="60"
+              autocapitalize="sentences"
+              enterkeyhint="done"
+              (ionBlur)="onDefaultSessionNameBlur()"
+              (keydown.enter)="onDefaultSessionNameBlur()"
+            ></ion-input>
+          </ion-item>
+          <ion-item>
+            <ion-toggle
+              [checked]="appPrefs.defaultPassword()"
+              (ionChange)="onDefaultPasswordToggle($event.detail.checked)"
+            >
+              <span class="toggle-title">Ask for a password</span>
+              <span class="toggle-hint">Each time you create a session</span>
+            </ion-toggle>
+          </ion-item>
+        </ion-list>
+
+        <!-- Advanced -->
+        <h2 class="section-label">Advanced</h2>
+        <ion-list inset="true" lines="inset">
+          <ion-item button detail="true" (click)="openRelayUrlEditor()">
+            <ion-label>Relay URL</ion-label>
+            <ion-note slot="end" class="relay-url">{{ relayUrlLabel() }}</ion-note>
+          </ion-item>
+        </ion-list>
+
+        <!-- Keyboard shortcuts (issue #154) — pointless without a keyboard -->
+        @if (surface.mode() === 'desktop') {
+          <h2 class="section-label">Keyboard shortcuts</h2>
+          <ion-list inset="true" lines="inset" class="shortcuts">
+            <ion-item>
+              <ion-label>Vote for a card</ion-label>
+              <span slot="end" class="keys"><kbd>1</kbd>–<kbd>9</kbd>, <kbd>0</kbd></span>
+            </ion-item>
+            <ion-item>
+              <ion-label>Move between cards</ion-label>
+              <span slot="end" class="keys"><kbd>←</kbd> <kbd>→</kbd></span>
+            </ion-item>
+            <ion-item>
+              <ion-label>Vote for the focused card</ion-label>
+              <span slot="end" class="keys"><kbd>Enter</kbd> / <kbd>Space</kbd></span>
+            </ion-item>
+          </ion-list>
+          <p class="section-footer">Press a card's key again to take your vote back.</p>
         }
-      </ion-list>
 
-      <!-- Appearance -->
-      <ion-list-header>
-        <ion-label>Appearance</ion-label>
-      </ion-list-header>
-      <ion-list lines="inset">
-        <ion-item>
-          <ion-select
-            label="Theme"
-            interface="popover"
-            [value]="themeService.theme()"
-            (ionChange)="onThemeSelected($event.detail.value)"
-          >
-            <ion-select-option value="system">System</ion-select-option>
-            <ion-select-option value="light">Light</ion-select-option>
-            <ion-select-option value="dark">Dark</ion-select-option>
-          </ion-select>
-          <ion-icon
-            slot="end"
-            aria-hidden="true"
-            class="appearance-preview-icon"
-            [name]="themeIconName()"
-          ></ion-icon>
-        </ion-item>
+        <!-- About -->
+        <h2 class="section-label">About</h2>
+        <ion-list inset="true" lines="inset">
+          <ion-item>
+            <ion-label>Version</ion-label>
+            <ion-note slot="end">{{ version }}</ion-note>
+          </ion-item>
+        </ion-list>
+      </div>
 
-        <ion-item>
-          <ion-select
-            label="Accent"
-            interface="popover"
-            [interfaceOptions]="accentPopoverOptions"
-            [value]="accentService.accent()"
-            (ionChange)="onAccentSelected($event.detail.value)"
-          >
-            @for (entry of accentEntries; track entry.key) {
-              <ion-select-option [value]="entry.key">{{ entry.label }}</ion-select-option>
-            }
-          </ion-select>
-          <span
-            class="appearance-preview"
-            aria-hidden="true"
-            slot="end"
-          ></span>
-        </ion-item>
-      </ion-list>
-
-      <!-- Scales -->
-      <ion-list-header>
-        <ion-label>Scales</ion-label>
-      </ion-list-header>
-      <ion-list lines="inset">
-        <ion-item button (click)="openScalePicker()">
-          <ion-label>Default scale</ion-label>
-          <ion-note slot="end">{{ scaleLabel() }}</ion-note>
-        </ion-item>
-      </ion-list>
-
-      <!-- Session Defaults -->
-      <ion-list-header>
-        <ion-label>Session Defaults</ion-label>
-      </ion-list-header>
-      <ion-list lines="inset">
-        <ion-item>
-          <ion-input
-            #defaultSessionNameInput
-            label="Default session name"
-            labelPlacement="floating"
-            placeholder="None"
-            [value]="appPrefs.defaultSessionName() ?? ''"
-            maxlength="60"
-            aria-label="Default session name"
-            (ionBlur)="onDefaultSessionNameBlur()"
-          ></ion-input>
-        </ion-item>
-        <ion-item>
-          <ion-label>Password by default</ion-label>
-          <ion-toggle
-            slot="end"
-            [checked]="appPrefs.defaultPassword()"
-            (ionChange)="onDefaultPasswordToggle($event.detail.checked)"
-            aria-label="Enable password by default"
-          ></ion-toggle>
-        </ion-item>
-      </ion-list>
-
-      <!-- Advanced -->
-      <ion-list-header>
-        <ion-label>Advanced</ion-label>
-      </ion-list-header>
-      <ion-list lines="inset">
-        <ion-item button (click)="openRelayUrlEditor()">
-          <ion-label>Relay URL</ion-label>
-          <ion-note slot="end">{{ relayUrlLabel() }}</ion-note>
-        </ion-item>
-      </ion-list>
-
-      <!-- Keyboard shortcuts (issue #154) -->
-      <ion-list-header>
-        <ion-label>Keyboard shortcuts</ion-label>
-      </ion-list-header>
-      <ion-list lines="inset">
-        <ion-item>
-          <ion-label>
-            <h3>1 – 9, 0</h3>
-            <p>Cards 1 – 10 (digit re-press clears)</p>
-          </ion-label>
-        </ion-item>
-        <ion-item>
-          <ion-label>
-            <h3>← / →</h3>
-            <p>Move focus between cards</p>
-          </ion-label>
-        </ion-item>
-        <ion-item>
-          <ion-label>
-            <h3>Enter / Space</h3>
-            <p>Cast or clear vote on focused card</p>
-          </ion-label>
-        </ion-item>
-      </ion-list>
-
-      <!-- About -->
-      <ion-list-header>
-        <ion-label>About</ion-label>
-      </ion-list-header>
-      <ion-list lines="inset">
-        <ion-item>
-          <ion-label>Version</ion-label>
-          <ion-note slot="end">{{ version }}</ion-note>
-        </ion-item>
-      </ion-list>
-
-        </ion-col></ion-row>
-      </ion-grid>
-
-      <!-- Scale picker half-sheet -->
+      <!-- Scale picker: a list, so it opens at full height -->
       <ion-modal
         #scalePickerModal
         cssClass="modal-centered"
         [isOpen]="scalePickerOpen()"
-        [breakpoints]="surface.sheetBreakpoints()"
-        [initialBreakpoint]="surface.initialSheetBreakpoint()"
+        [breakpoints]="surface.sheetBreakpointsFull()"
+        [initialBreakpoint]="surface.initialSheetBreakpointFull()"
         (didDismiss)="scalePickerOpen.set(false)"
       >
         <ng-template>
@@ -309,7 +290,7 @@ import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.he
       <!-- Relay URL editor half-sheet -->
       <ion-modal
         #relayUrlModal
-        cssClass="modal-centered"
+        cssClass="modal-centered modal-compact"
         [isOpen]="relayUrlEditorOpen()"
         [breakpoints]="surface.sheetBreakpoints()"
         [initialBreakpoint]="surface.initialSheetBreakpoint()"
@@ -327,24 +308,67 @@ import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.he
   `,
   styles: [
     `
-      @use '../../theme/breakpoints' as *;
       @use '../../theme/page-container' as *;
       @include page-container(720px);
 
-      ion-list-header {
-        padding-inline-start: 16px;
+      ion-list {
+        margin-block: 0;
+      }
+      ion-note {
+        font-size: 15px;
+      }
+      .relay-url {
+        max-width: 55%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       .appearance-preview {
         display: inline-block;
         width: 1.5rem;
         height: 1.5rem;
+        margin-inline-start: 8px;
+        border: 1px solid var(--hnch-sep-strong);
         border-radius: 50%;
-        border: 1px solid var(--ion-color-step-300, #ccc);
         background: var(--hnch-accent);
       }
       .appearance-preview-icon {
-        font-size: 1.25rem;
-        color: var(--ion-color-medium);
+        margin-inline-start: 8px;
+        color: var(--hnch-muted);
+        font-size: 1.5rem;
+      }
+      .toggle-title,
+      .toggle-hint {
+        display: block;
+        white-space: normal;
+      }
+      .toggle-hint {
+        margin-top: 2px;
+        color: var(--hnch-muted);
+        font-size: 13px;
+      }
+      .keys {
+        color: var(--hnch-muted);
+        font-size: 14px;
+        white-space: nowrap;
+      }
+      kbd {
+        display: inline-block;
+        min-width: 1.5em;
+        padding: 2px 6px;
+        border: 1px solid var(--hnch-sep-strong);
+        border-radius: 6px;
+        background: var(--hnch-fill);
+        color: var(--hnch-text);
+        font-family: inherit;
+        font-size: 13px;
+        line-height: 1.3;
+        text-align: center;
+      }
+      .section-footer {
+        margin: 8px 16px 0;
+        color: var(--hnch-muted);
+        font-size: 13px;
       }
     `,
   ],
@@ -435,6 +459,7 @@ export class SettingsPage {
 
   constructor() {
     addIcons({
+      'chevron-back-outline': chevronBackOutline,
       'contrast-outline': contrastOutline,
       'moon-outline': moonOutline,
       'sunny-outline': sunnyOutline,

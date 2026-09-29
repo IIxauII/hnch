@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/app.fixture';
-import { LOBBY } from './fixtures/helpers';
+import { HOME, LOBBY } from './fixtures/helpers';
 
 /**
  * Click a named item in the header ⋯ menu overlay.
@@ -50,16 +50,12 @@ test.describe('Leave session flow', () => {
 
     // Verify we are on home
     await host.page.waitForURL(/\/home/);
+    await host.page.locator(HOME.createCard).waitFor({ state: 'visible' });
 
-    // The "Jump back in" banner should NOT appear (last session was explicitly cleared)
-    // Wait a moment for any potential banner to render
-    await host.page.waitForTimeout(500);
-
-    // Check that there's no jump-back-in banner/card
-    // (The banner typically shows the room code from the last session)
-    const jumpBackBanner = host.page.locator('ion-card:has-text("Jump back in")');
-    const isVisible = await jumpBackBanner.isVisible().catch(() => false);
-    expect(isVisible).toBe(false);
+    // Nothing to jump back into (last session was explicitly cleared): no
+    // rows, and no "Jump back in" heading over an empty list either.
+    await expect(host.page.locator(HOME.recentRow)).toHaveCount(0);
+    await expect(host.page.locator('app-home')).not.toContainText('Jump back in');
   });
 
   test('cancel on leave alert dismisses dialog without leaving', async ({ host }) => {

@@ -1,5 +1,12 @@
 import { test, expect } from './fixtures/app.fixture';
-import { APP_SETTINGS, BASE_URL, HOME, LOBBY, SETTINGS_SHEET } from './fixtures/helpers';
+import {
+  APP_SETTINGS,
+  APP_SETTINGS_SCALE_PICKER,
+  BASE_URL,
+  HOME,
+  LOBBY,
+  SETTINGS_SHEET,
+} from './fixtures/helpers';
 import type { Participant } from './fixtures/app.fixture';
 
 /**
@@ -40,6 +47,17 @@ async function seedCustomScale(p: Participant, scale: SeedScale): Promise<void> 
     },
     { seed: scale, defaultId: scale.id },
   );
+}
+
+/**
+ * Put one custom scale into Preferences through the page itself, once, with
+ * the builtin default left alone. Not an init script: that would write the
+ * scale back on every load, and the point is to see it stay deleted.
+ */
+async function storeCustomScale(p: Participant, scale: SeedScale): Promise<void> {
+  await p.page.evaluate((seed: SeedScale) => {
+    localStorage.setItem('CapacitorStorage.hnch.customScales', JSON.stringify([seed]));
+  }, scale);
 }
 
 test.describe('Custom scale name display', () => {
@@ -101,5 +119,72 @@ test.describe('Custom scale name display', () => {
     // Expected fallback for `custom-no-label` is `No Label`.
     const defaultScaleRow = host.page.locator(APP_SETTINGS.defaultScaleValue);
     await expect(defaultScaleRow).toContainText('No Label');
+  });
+});
+
+test.describe('Custom scale deletion', () => {
+  const editor = 'app-custom-scale-editor-sheet';
+
+  test('a custom scale is deleted from its editor, after a confirmation', async ({ host }) => {
+    await host.page.goto(`${BASE_URL}/home`);
+    await host.page.waitForURL(/\/(home|onboarding)/);
+    if (host.page.url().includes('/onboarding')) {
+      await host.onboard();
+    }
+    await storeCustomScale(host, { id: CUSTOM_ID, label: CUSTOM_LABEL, cards: ['1', '2', '3'] });
+
+    await host.page.goto(`${BASE_URL}/settings`);
+    await host.page.waitForURL(/\/settings/);
+    await host.page.locator(APP_SETTINGS.defaultScaleRow).click();
+
+    const row = host.page.locator(APP_SETTINGS_SCALE_PICKER.scaleItem(CUSTOM_LABEL));
+    await expect(row).toBeVisible();
+    // The row offers Edit and nothing else: no swipe, no hidden delete.
+    await expect(host.page.locator('app-scale-picker-sheet ion-item-sliding')).toHaveCount(0);
+
+    await host.page.locator(APP_SETTINGS_SCALE_PICKER.editBtn(CUSTOM_LABEL)).click();
+    const deleteBtn = host.page.locator(`${editor} ion-button.delete-btn`);
+    await expect(deleteBtn).toBeVisible();
+
+    // Cancel: nothing happens.
+    await deleteBtn.click();
+    const alert = host.page.locator('ion-alert');
+    await expect(alert).toContainText('Delete this scale?');
+    await expect(alert).toContainText(CUSTOM_LABEL);
+    await alert.getByRole('button', { name: 'Cancel' }).click();
+    await expect(alert).toHaveCount(0);
+    await expect(host.page.locator(editor)).toBeVisible();
+
+    // Delete: the editor closes and the scale is gone from the list.
+    await deleteBtn.click();
+    await host.page.locator('ion-alert').getByRole('button', { name: 'Delete' }).click();
+    await expect(host.page.locator(editor)).toHaveCount(0);
+    await expect(row).toHaveCount(0);
+
+    // And it stays gone.
+    await host.page.reload();
+    await host.page.waitForURL(/\/settings/);
+    await host.page.locator(APP_SETTINGS.defaultScaleRow).click();
+    await expect(host.page.locator('app-scale-picker-sheet')).toBeVisible();
+    await expect(row).toHaveCount(0);
+  });
+
+  test('a scale that is still being created has nothing to delete', async ({ host }) => {
+    await host.page.goto(`${BASE_URL}/home`);
+    await host.page.waitForURL(/\/(home|onboarding)/);
+    if (host.page.url().includes('/onboarding')) {
+      await host.onboard();
+    }
+
+    await host.page.goto(`${BASE_URL}/settings`);
+    await host.page.waitForURL(/\/settings/);
+    await host.page.locator(APP_SETTINGS.defaultScaleRow).click();
+    await host.page
+      .locator('app-scale-picker-sheet ion-item')
+      .filter({ hasText: /custom scale/i })
+      .click();
+
+    await expect(host.page.locator(editor)).toBeVisible();
+    await expect(host.page.locator(`${editor} ion-button.delete-btn`)).toHaveCount(0);
   });
 });

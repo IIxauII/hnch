@@ -12,7 +12,7 @@ import {
 export interface MenuItem {
   text: string;
   /**
-   * 'destructive' → danger color.
+   * 'destructive' → danger label + icon.
    * 'cancel' → omitted from popover (backdrop tap already dismisses).
    * Any other string is passed through as-is.
    */
@@ -28,15 +28,18 @@ export interface MenuItem {
  * Receives `items` and optional `header` as componentProps from PopoverController.
  * Cancel-role items are omitted — the popover dismisses via backdrop tap.
  *
- * Standalone; all Ionic imports individual per ionic.md conventions.
+ * A destructive item is a danger-colored *label*, matching the action sheet
+ * it stands in for — not a solid danger row, which reads as an alarm rather
+ * than as one choice in a menu.
+ *
+ * All Ionic imports individual per ionic.md conventions.
  */
 @Component({
   selector: 'app-menu-popover',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [IonList, IonListHeader, IonItem, IonLabel, IonIcon],
   template: `
-    <ion-list [inset]="false">
+    <ion-list [inset]="false" lines="none">
       @if (header()) {
         <ion-list-header>
           <ion-label>{{ header() }}</ion-label>
@@ -45,7 +48,8 @@ export interface MenuItem {
       @for (item of visibleItems(); track item.text) {
         <ion-item
           button
-          [color]="item.role === 'destructive' ? 'danger' : undefined"
+          [detail]="false"
+          [class.destructive]="item.role === 'destructive'"
           (click)="onItemClick(item)"
           [attr.aria-label]="item.text"
         >
@@ -57,6 +61,30 @@ export interface MenuItem {
       }
     </ion-list>
   `,
+  styles: [
+    `
+      ion-list {
+        padding-block: 6px;
+        background: transparent;
+      }
+      ion-item {
+        --background: transparent;
+        --min-height: 44px;
+        font-size: 15px;
+      }
+      ion-item ion-icon {
+        margin-inline-end: 12px;
+        color: var(--hnch-muted);
+        font-size: 20px;
+      }
+      ion-item.destructive {
+        --color: var(--hnch-danger-text);
+      }
+      ion-item.destructive ion-icon {
+        color: var(--hnch-danger-text);
+      }
+    `,
+  ],
 })
 export class MenuPopoverComponent {
   readonly items = input<MenuItem[]>([]);

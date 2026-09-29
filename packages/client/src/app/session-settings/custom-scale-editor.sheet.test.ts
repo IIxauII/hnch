@@ -3,11 +3,18 @@
  *
  * Focuses on the abstain-sentinel validation added in ADR-0041 Phase 2
  * (onAddCard rejecting 'hnch_abstain') and the surrounding error/clear
- * paths. Secondary coverage: create-mode auto-save and cancel.
+ * paths. Secondary coverage: create-mode auto-save and cancel, and deleting
+ * a saved scale from the editor.
  */
 
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+
+// What the confirmation alert was asked to show, and how it gets answered.
+const alertState = vi.hoisted(() => ({
+  answer: 'cancel',
+  shown: [] as Array<{ header?: string; message?: string }>,
+}));
 
 // ---------------------------------------------------------------------------
 // Ionic component stubs — hoisted before component import.
@@ -47,7 +54,18 @@ vi.mock('@ionic/angular/standalone', async () => {
     @Input() disabled: boolean | undefined;
   }
 
+  class AlertController {
+    create(options: { header?: string; message?: string }) {
+      alertState.shown.push(options);
+      return Promise.resolve({
+        present: () => Promise.resolve(),
+        onDidDismiss: () => Promise.resolve({ role: alertState.answer }),
+      });
+    }
+  }
+
   return {
+    AlertController,
     IonButton: stub('ion-button'),
     IonButtons: stub('ion-buttons'),
     IonChip: stub('ion-chip'),
@@ -67,20 +85,33 @@ vi.mock('@ionic/angular/standalone', async () => {
 });
 
 vi.mock('ionicons', () => ({ addIcons: vi.fn() }));
-vi.mock('ionicons/icons', () => ({ addOutline: '', closeCircle: '' }));
+vi.mock('ionicons/icons', () => ({ addOutline: '', closeCircle: '', trashOutline: '' }));
 
 // ---------------------------------------------------------------------------
 // Service stubs
 // ---------------------------------------------------------------------------
+import { AlertController } from '@ionic/angular/standalone';
+
 import { HapticService } from '../core/haptic.service';
 import { ScalePreferenceService } from '../core/scale-preference.service';
 
-const hapticStub = { impactLight: vi.fn(), impactMedium: vi.fn(), notificationSuccess: vi.fn() };
+const hapticStub = {
+  impactLight: vi.fn(),
+  impactMedium: vi.fn(),
+  notificationSuccess: vi.fn(),
+  notificationWarning: vi.fn(),
+};
 const addCustomScaleFn = vi.fn().mockResolvedValue('custom-test-id');
 const updateCustomScaleFn = vi.fn().mockResolvedValue(undefined);
+/** Ids handed to `deleteCustomScale`, in order. */
+const deletedIds: string[] = [];
 const scalePrefsStub = {
   addCustomScale: addCustomScaleFn,
   updateCustomScale: updateCustomScaleFn,
+  deleteCustomScale: (id: string): Promise<void> => {
+    deletedIds.push(id);
+    return Promise.resolve();
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -95,12 +126,14 @@ type EditorInternals = {
   canSave: () => boolean;
   onAddCard: () => void;
   onNameInput: (v: string) => void;
+  onDeleteScale: () => Promise<void>;
 };
 
 async function mountEditor(existingScale?: { id: string; label: string; cards: string[] }) {
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [
+      { provide: AlertController, useValue: new AlertController() },
       { provide: HapticService, useValue: hapticStub },
       { provide: ScalePreferenceService, useValue: scalePrefsStub },
     ],
@@ -192,10 +225,10 @@ describe('CustomScaleEditorSheetComponent — onAddCard validation', () => {
 });
 
 describe('CustomScaleEditorSheetComponent — create-mode title and canSave', () => {
-  it('title is "Create Custom Scale" in create mode', async () => {
+  it('title is "New custom scale" in create mode', async () => {
     const fixture = await mountEditor();
     const title = (fixture.componentInstance as unknown as { title: () => string }).title();
-    expect(title).toBe('Create Custom Scale');
+    expect(title).toBe('New custom scale');
   });
 
   it('canSave is false with name empty', async () => {
@@ -231,10 +264,10 @@ describe('CustomScaleEditorSheetComponent — create-mode title and canSave', ()
 });
 
 describe('CustomScaleEditorSheetComponent — edit mode', () => {
-  it('title is "Edit Custom Scale" in edit mode', async () => {
+  it('title is "Edit custom scale" in edit mode', async () => {
     const fixture = await mountEditor({ id: 'custom-abc', label: 'Bananas', cards: ['S', 'M'] });
     const title = (fixture.componentInstance as unknown as { title: () => string }).title();
-    expect(title).toBe('Edit Custom Scale');
+    expect(title).toBe('Edit custom scale');
   });
 
   it('pre-fills name and cards from existingScale input', async () => {
@@ -247,5 +280,91 @@ describe('CustomScaleEditorSheetComponent — edit mode', () => {
     expect(comp.name()).toBe('Bananas');
     expect(comp.cards()).toEqual(['S', 'M', 'L']);
     expect(comp.persistedId()).toBe('custom-abc');
+  });
+});
+
+describe('CustomScaleEditorSheetComponent — deleting a scale', () => {
+  const SAVED = { id: 'custom-1', label: 'Team sizes', cards: ['S', 'M', 'L'] };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useRealTimers();
+    deletedIds.length = 0;
+    alertState.shown.length = 0;
+    alertState.answer = 'cancel';
+  });
+
+  function deleteButton(fixture: Awaited<ReturnType<typeof mountEditor>>): HTMLElement | null {
+    return (fixture.nativeElement as HTMLElement).querySelector('.delete-btn');
+  }
+
+  it('is offered for a scale that exists, not for one still being created', async () => {
+    expect(deleteButton(await mountEditor())).toBeNull();
+    expect(deleteButton(await mountEditor(SAVED))?.textContent?.trim()).toBe('Delete scale');
+  });
+
+  it('asks first, naming the scale', async () => {
+    const fixture = await mountEditor(SAVED);
+    await internals(fixture).onDeleteScale();
+
+    expect(alertState.shown).toHaveLength(1);
+    expect(alertState.shown[0]!.header).toBe('Delete this scale?');
+    expect(alertState.shown[0]!.message).toContain('Team sizes');
+  });
+
+  it('deletes nothing when the question is cancelled', async () => {
+    const fixture = await mountEditor(SAVED);
+    const closed = vi.fn();
+    fixture.componentInstance.closeRequested.subscribe(closed);
+
+    await internals(fixture).onDeleteScale();
+
+    expect(deletedIds).toEqual([]);
+    expect(closed).not.toHaveBeenCalled();
+  });
+
+  it('deletes the scale and closes when confirmed', async () => {
+    alertState.answer = 'destructive';
+    const fixture = await mountEditor(SAVED);
+    const closed = vi.fn();
+    fixture.componentInstance.closeRequested.subscribe(closed);
+
+    await internals(fixture).onDeleteScale();
+
+    expect(deletedIds).toEqual(['custom-1']);
+    expect(closed).toHaveBeenCalledOnce();
+    expect(hapticStub.notificationWarning).toHaveBeenCalledOnce();
+  });
+
+  it('does not save a name edit that was still waiting when the scale was deleted', async () => {
+    vi.useFakeTimers();
+    try {
+      alertState.answer = 'destructive';
+      const fixture = await mountEditor(SAVED);
+      const comp = internals(fixture);
+
+      comp.onNameInput('Team sizes v2');
+      await comp.onDeleteScale();
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      expect(deletedIds).toEqual(['custom-1']);
+      expect(updateCustomScaleFn).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not save a card change made after the delete either', async () => {
+    alertState.answer = 'destructive';
+    const fixture = await mountEditor(SAVED);
+    const comp = internals(fixture);
+
+    await comp.onDeleteScale();
+    comp.newCard = 'XL';
+    comp.onAddCard();
+    await fixture.whenStable();
+
+    expect(updateCustomScaleFn).not.toHaveBeenCalled();
+    expect(addCustomScaleFn).not.toHaveBeenCalled();
   });
 });

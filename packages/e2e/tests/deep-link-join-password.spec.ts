@@ -10,7 +10,7 @@ test.describe('Deep-link join with pw=1 hint', () => {
       (res) => res.url().includes('/access') && res.request().method() === 'PATCH',
     );
     await host.openSettings();
-    await host.changeAccess('Password', 'hunter2');
+    await host.setPassword('hunter2');
     await patchDone;
     await host.closeSettings();
 
@@ -44,7 +44,7 @@ test.describe('Deep-link join with pw=1 hint', () => {
       (res) => res.url().includes('/access') && res.request().method() === 'PATCH',
     );
     await host.openSettings();
-    await host.changeAccess('Password', 'hunter2');
+    await host.setPassword('hunter2');
     await patchDone;
     await host.closeSettings();
 

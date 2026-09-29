@@ -19,7 +19,7 @@ test.describe('Lobby — tap room code to copy', () => {
 
     const roomCodeBtn = host.page.locator(LOBBY.roomCode);
     await expect(roomCodeBtn).toBeVisible();
-    await expect(roomCodeBtn).toHaveAttribute('aria-label', 'Copy room code');
+    await expect(roomCodeBtn).toHaveAttribute('aria-label', 'Copy session code');
     const displayed = await host.page.locator(LOBBY.roomCodeText).textContent();
     expect(displayed?.trim()).toBe(expectedFormatted);
 
@@ -32,18 +32,23 @@ test.describe('Lobby — tap room code to copy', () => {
       .locator('ion-toast:not(.overlay-hidden)')
       .first()
       .evaluate((el) => (el as unknown as { message?: string }).message ?? '', { timeout: 5_000 });
-    expect(toastMessage).toMatch(/Room code copied|Couldn't copy/u);
+    expect(toastMessage).toMatch(/Code copied|Couldn't copy/u);
 
-    if (toastMessage === 'Room code copied') {
+    if (toastMessage === 'Code copied') {
       const clipboardValue = await host.page.evaluate(() => navigator.clipboard.readText());
       expect(clipboardValue).toBe(expectedFormatted);
     } else {
-      expect(toastMessage).toBe(`Couldn't copy — code is ${expectedFormatted}`);
+      expect(toastMessage).toBe(`Couldn't copy. The code is ${expectedFormatted}`);
     }
   });
 
-  test('Share invite item remains visible and unmodified', async ({ host }) => {
+  test('Share invite and QR code sit right under the code', async ({ host }) => {
     await host.createSession();
-    await expect(host.page.locator('ion-item:has-text("Share invite")')).toBeVisible();
+    const share = host.page.locator('app-lobby ion-button.share-btn');
+    const qr = host.page.locator('app-lobby ion-button.qr-btn');
+    await expect(share).toBeVisible();
+    await expect(share).toContainText('Share invite');
+    await expect(qr).toBeVisible();
+    await expect(qr).toContainText('QR code');
   });
 });

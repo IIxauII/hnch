@@ -7,6 +7,10 @@
 // ---------------------------------------------------------------------------
 
 :root {
+  // One system stack for both Ionic modes, so md and ios share a typeface.
+  --ion-font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+
   // Ionic substrate — drives stepped-color derivation + native component bg/text
   --ion-background-color:      #F2F2F7;
   --ion-background-color-rgb:  242,242,247;
@@ -29,8 +33,9 @@
   --hnch-text:         #000000;
   --hnch-text-2:       #1C1C1E;
 
-  // Muted text (tertiary / quaternary)
-  --hnch-muted:        rgba(60, 60, 67, 0.60);
+  // Muted text. `--hnch-muted` carries labels, so it clears WCAG AA (4.5:1)
+  // on every light surface; `--hnch-muted-2` is for hairlines and glyphs only.
+  --hnch-muted:        rgba(60, 60, 67, 0.75);
   --hnch-muted-2:      rgba(60, 60, 67, 0.30);
 
   // Separators — tighter per web best-practice
@@ -46,6 +51,12 @@
   --hnch-success:      #30D158;
   --hnch-warning:      #FF9F0A;
   --hnch-danger:       #FF453A;
+
+  // Semantic *label* colors. The three above are fills (3:1 or worse as text
+  // on white); these are the same hues darkened to clear AA on a surface.
+  --hnch-success-text: #1D7A3A;
+  --hnch-warning-text: #9A5B00;
+  --hnch-danger-text:  #C5221A;
 
   // Ionic semantic color sets — wired to --hnch-* so toasts, badges, chips match.
   // shade = mix(#000, base, 12%); tint = mix(#fff, base, 10%) per Ionic color generator.
@@ -70,14 +81,15 @@
   --ion-color-danger-shade:          #E03D33;
   --ion-color-danger-tint:           #FF584E;
 
-  // Apple system gray — aligns with --hnch-muted intent for native Ionic components
-  // (segment, chip) while solid hex satisfies Ionic's contrast/shade/tint requirement.
-  --ion-color-medium:                #8E8E93;
-  --ion-color-medium-rgb:            142,142,147;
-  --ion-color-medium-contrast:       #000000;
-  --ion-color-medium-contrast-rgb:   0,0,0;
-  --ion-color-medium-shade:          #7D7D81;
-  --ion-color-medium-tint:           #99999E;
+  // Neutral gray for native Ionic components (chip, badge, note). Solid hex
+  // satisfies Ionic's contrast/shade/tint requirement; darker than Apple's
+  // #8E8E93 so it clears AA as text on every light surface.
+  --ion-color-medium:                #6B6B70;
+  --ion-color-medium-rgb:            107,107,112;
+  --ion-color-medium-contrast:       #FFFFFF;
+  --ion-color-medium-contrast-rgb:   255,255,255;
+  --ion-color-medium-shade:          #5E5E63;
+  --ion-color-medium-tint:           #7A7A7E;
 
   // Disabled-button tokens — light mode
   // PR 3 will apply these to ion-button via --background-disabled/--color-disabled.
@@ -123,7 +135,7 @@
   --hnch-text-2:       #F2F2F7;
 
   // Muted text
-  --hnch-muted:        rgba(235, 235, 245, 0.60);
+  --hnch-muted:        rgba(235, 235, 245, 0.65);
   --hnch-muted-2:      rgba(235, 235, 245, 0.30);
 
   // Separators — tighter per web best-practice
@@ -138,6 +150,11 @@
   --hnch-success:      #30D158;
   --hnch-warning:      #FF9F0A;
   --hnch-danger:       #FF453A;
+
+  // Semantic label colors — the fills already read on dark, except danger.
+  --hnch-success-text: #30D158;
+  --hnch-warning-text: #FF9F0A;
+  --hnch-danger-text:  #FF8A82;
 
   // Ionic semantic color sets — dark mode.
   // Re-declared to override Ionic dark.class.css defaults; values unchanged from light
@@ -163,12 +180,12 @@
   --ion-color-danger-shade:          #E03D33;
   --ion-color-danger-tint:           #FF584E;
 
-  --ion-color-medium:                #8E8E93;
-  --ion-color-medium-rgb:            142,142,147;
+  --ion-color-medium:                #AEAEB2;
+  --ion-color-medium-rgb:            174,174,178;
   --ion-color-medium-contrast:       #000000;
   --ion-color-medium-contrast-rgb:   0,0,0;
-  --ion-color-medium-shade:          #7D7D81;
-  --ion-color-medium-tint:           #99999E;
+  --ion-color-medium-shade:          #99999D;
+  --ion-color-medium-tint:           #B6B6BA;
 
   // Disabled-button tokens — dark mode (fg bumped 0.40 → 0.50 for WCAG 4.5:1)
   --hnch-btn-disabled-bg: rgba(255, 255, 255, 0.08);

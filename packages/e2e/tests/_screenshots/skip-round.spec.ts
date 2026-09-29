@@ -28,6 +28,7 @@ import {
   expandRoundStartSheet,
   clickRoundStartSubmit,
 } from '../fixtures/helpers';
+import { pageSettled } from './_helpers/settled';
 
 const OUT_DIR = resolveOutDir('skip');
 test.use({ trace: 'off', video: 'off', screenshot: 'off' });
@@ -44,6 +45,7 @@ async function freshCtx(
 }
 
 async function shot(page: Page, name: string): Promise<void> {
+  await pageSettled(page);
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(OUT_DIR, `${name}.png`), fullPage: false });
 }
@@ -82,7 +84,7 @@ test.describe('skip round screenshots', () => {
         await onboard(page, name);
         await page.goto(`${BASE_URL}/join`);
         await fillRoomCode(page, code);
-        await page.locator('ion-button:has-text("Join")').first().click();
+        // The sixth character submits: no Join tap after a typed code.
         await page.waitForURL(/\/lobby/);
       }
 

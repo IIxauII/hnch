@@ -8,7 +8,7 @@ import {
   IonHeader,
   IonInput,
   IonItem,
-  IonLabel,
+  IonList,
   IonNote,
   IonTextarea,
   IonTitle,
@@ -41,9 +41,9 @@ export interface RoundStartSubmission {
  * Round-start half-sheet content — ux.md §5.8 "Round-start modal".
  *
  * Rendered inside an `<ion-modal>` by the caller; this component
- * owns only the internal chrome (title, descriptor inputs, and the
- * Cancel / Start actions in the header toolbar). Descriptor is
- * optional, Start is always enabled.
+ * owns only the internal chrome (title, the three optional fields, and the
+ * Cancel / Start actions in the header toolbar). Nothing is required, so
+ * Start is always enabled — Enter in either single-line field starts too.
  *
  * When `prefillAgendaItem` is set on modal open, the form is pre-filled
  * from the agenda item's title/ticketId/description. Mid-edit state is
@@ -59,7 +59,7 @@ export interface RoundStartSubmission {
     IonHeader,
     IonInput,
     IonItem,
-    IonLabel,
+    IonList,
     IonNote,
     IonTextarea,
     IonTitle,
@@ -76,7 +76,7 @@ export interface RoundStartSubmission {
             aria-label="Cancel"
           >Cancel</ion-button>
         </ion-buttons>
-        <ion-title>Start Round {{ roundNumber() }}</ion-title>
+        <ion-title>Start round {{ roundNumber() }}</ion-title>
         <ion-buttons slot="end">
           <ion-button
             strong="true"
@@ -89,59 +89,73 @@ export interface RoundStartSubmission {
       </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding">
-      <ion-item>
-        <ion-label position="stacked">What are you estimating?</ion-label>
-        <ion-input
-          [formControl]="titleControl"
-          placeholder="e.g., Login redesign"
-          autocapitalize="sentences"
-          enterkeyhint="next"
-          aria-label="Round title"
-          (keydown.enter)="submit()"
-        ></ion-input>
-      </ion-item>
-      <ion-item>
-        <ion-label position="stacked">Ticket ID</ion-label>
-        <ion-input
-          [formControl]="ticketIdControl"
-          placeholder="e.g. PROJ-1234"
-          autocapitalize="characters"
-          autocorrect="off"
-          spellcheck="false"
-          enterkeyhint="next"
-          aria-label="Ticket ID"
-          (keydown.enter)="submit()"
-        ></ion-input>
-      </ion-item>
-      <ion-item>
-        <ion-label position="stacked">Description</ion-label>
-        <ion-textarea
-          [formControl]="descriptionControl"
-          placeholder="Optional story context"
-          autocapitalize="sentences"
-          aria-label="Round description"
-          [rows]="2"
-        ></ion-textarea>
-      </ion-item>
+      <ion-list inset="true" lines="inset">
+        <ion-item>
+          <ion-input
+            [formControl]="titleControl"
+            label="What are you estimating?"
+            labelPlacement="stacked"
+            placeholder="e.g. Login redesign"
+            autocapitalize="sentences"
+            enterkeyhint="go"
+            maxlength="120"
+            aria-label="Round title"
+            (keydown.enter)="submit()"
+          ></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-input
+            [formControl]="ticketIdControl"
+            label="Ticket ID"
+            labelPlacement="stacked"
+            placeholder="e.g. PROJ-1234"
+            autocapitalize="characters"
+            autocorrect="off"
+            spellcheck="false"
+            enterkeyhint="go"
+            maxlength="120"
+            aria-label="Ticket ID"
+            (keydown.enter)="submit()"
+          ></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-textarea
+            [formControl]="descriptionControl"
+            label="Description"
+            labelPlacement="stacked"
+            placeholder="Optional context for the team"
+            autocapitalize="sentences"
+            aria-label="Round description"
+            [autoGrow]="true"
+            [counter]="true"
+            maxlength="500"
+            [rows]="2"
+          ></ion-textarea>
+        </ion-item>
+      </ion-list>
       <ion-note class="helper">
-        All fields are optional. This will appear on everyone's Estimating screen.
+        All optional. Everyone sees this while they vote.
       </ion-note>
     </ion-content>
   `,
   styles: [
     `
+      ion-list {
+        margin-block: 0;
+      }
       .helper {
         display: block;
-        margin-top: 0.5rem;
-        padding: 0 1rem;
+        padding: 8px 16px 0;
+        font-size: 13px;
+        line-height: 1.4;
       }
     `,
   ],
 })
 export class RoundStartSheetComponent implements OnInit {
   /**
-   * 1-based index for the "Start Round N" title. Callers pass the
-   * index the next round will occupy (rounds.length + 1).
+   * Number for the "Start round N" title. Callers pass the number the next
+   * round will go by (`nextRoundNumber`).
    */
   readonly roundNumber = input.required<number>();
 

@@ -134,18 +134,18 @@ Every `test()` under `_screenshots/` is annotated with one or more Playwright ta
 
 | File | Subfolder | Scenes |
 |---|---|---|
-| `capture.spec.ts` | `baseline/` | Onboarding, home, home overflow, settings page, join page, lobby, session-settings sheet, scale picker, access picker, QR modal, lobby overflow, round-start modal, estimating, estimating w/ card selected, lobby results, custom scale editor, preset toggle, round-history empty, empty home, connection chip offline + reconnected |
-| `password-flow.spec.ts` | `password/` | password sheet on join; wrong-password reject |
+| `capture.spec.ts` | `baseline/` | Onboarding, home, settings page, join page, lobby, session-settings sheet, scale picker, session settings with a password set, QR modal, lobby host menu, round-start modal, estimating, estimating w/ card selected, lobby results, custom scale editor, preset toggle, round-history empty, empty home, connection banner reconnecting + reconnected |
+| `password-flow.spec.ts` | `password/` | session settings with the password set; protected lobby; password field on join; wrong-password reject |
 | `reveal-transition.spec.ts` | `reveal/` | pre-reveal all-voted; post-reveal lobby |
 | `skip-round.spec.ts` | `skip/` | host skip action; lobby skipped row; suppressed pre-skip votes |
 | `round-history.spec.ts` | `history/` (prefixed `round-history-`) | populated history; departed-name resolution |
-| `room-history.spec.ts` | `history/` (prefixed `room-history-`) | home empty / one / two / five rooms; swipe-remove; hover-x |
-| `participants.spec.ts` | `participants/` (prefixed `participants-`) | viewer role badge + toggle; swipe-kick (mobile); leave-session confirm |
+| `room-history.spec.ts` | `history/` (prefixed `room-history-`) | home empty / one / two / five sessions; × focused (desktop + mobile) |
+| `participants.spec.ts` | `participants/` (prefixed `participants-`) | observer role switch; host actions menu on a row (mobile action sheet, desktop popover); leave-session confirm |
 | `participant-cap.spec.ts` | `participants/` (prefixed `participant-cap-`) | 4th joiner vs `HNCH_ROOM_CAP=3` → close 4006 |
 | `session-ended.spec.ts` | `session-end/` | joiner-side toast on host's End Session |
-| `connection-states.spec.ts` | `connection/` | sustained disconnected (≥5,500 ms) |
+| `connection-states.spec.ts` | `connection/` | reconnecting banner (desktop + mobile) |
 | `avatar-color.spec.ts` | `theming/` | settings palette default + Pink; lobby + estimating with chosen color |
-| `agenda-states.spec.ts` | `agenda/` | empty agenda; add sheet open/filled; 3-item list; edit sheet; mid-session consumed; skipped/cancelled; joiner mobile collapsed/expanded |
+| `agenda-states.spec.ts` | `agenda/` | empty agenda; add sheet open/filled; 3-item list; story menu; edit sheet; mid-session consumed; skipped/removed; joiner on mobile |
 | `keyboard-shortcuts.spec.ts` | `keyboard/` | shortcuts overlay |
 | `vote-bars-shot.spec.ts` | `vote-bars/` | vote distribution bars (light/dark, desktop/mobile) |
 | `vote-dots-196.spec.ts` | `vote-dots/` | vote dot layout (issue #196) |

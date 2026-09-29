@@ -8,14 +8,14 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { hashPassword, patchRoomAccess, type Scale } from '@hnch/shared';
+import { getScaleLabel, hashPassword, patchRoomAccess, type Scale } from '@hnch/shared';
 import {
   IonButton,
   IonButtons,
   IonContent,
   IonHeader,
-  IonIcon,
   IonInput,
+  IonInputPasswordToggle,
   IonItem,
   IonLabel,
   IonList,
@@ -24,42 +24,51 @@ import {
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
-import { addIcons } from 'ionicons';
-import { chevronForwardOutline } from 'ionicons/icons';
 
 import { AppPreferenceService } from '../core/app-preference.service';
 import { DocService } from '../core/doc/doc.service';
+import { LastSessionService } from '../core/last-session.service';
+import { ScalePreferenceService } from '../core/scale-preference.service';
 import { SurfaceService } from '../core/surface.service';
 import { ToastService } from '../services/toast.service';
-import {
-  AccessPickerSheetComponent,
-  type AccessMode,
-  type AccessSelection,
-} from './access-picker.sheet';
 import { ScalePickerSheetComponent } from './scale-picker.sheet';
 import { presentSheet } from '../utils/present-sheet';
-import { getScaleLabel } from '@hnch/shared';
-import { ScalePreferenceService } from '../core/scale-preference.service';
+import { accessHint, passwordPlaceholder } from './session-settings.helpers';
+
+/** Access modes per ADR-0009. Invite-only dropped from v1 (ADR-0017). */
+export type AccessMode = 'open' | 'password';
 
 /**
- * Session settings half-sheet — ux.md §5.8.
+ * What the sheet reports once the relay has accepted an access change.
+ * `password` is only populated when `mode === 'password'`.
+ */
+export interface AccessSelection {
+  readonly mode: AccessMode;
+  readonly password: string | null;
+}
+
+/**
+ * Session settings half-sheet — host only.
  *
- * Two rows (Scale, Access) with chevrons that open the corresponding
- * picker half-sheets. Scale writes through to `DocService` immediately
- * on selection (iOS picker idiom, no Save button). Access is held in a
- * local signal — access enforcement is a relay concern (ADR-0009).
+ * Three rows: name, scale, password. Name and password save when the field
+ * loses focus (or on Enter); scale opens its picker. There is no separate
+ * "access" picker: a session with a password is protected and one without is
+ * open, so the password field *is* the access setting.
+ *
+ * Access is relay state (ADR-0009). `accessChanged` fires only after the
+ * relay has accepted the change, so the Lobby never shows a lock the relay
+ * does not enforce.
  */
 @Component({
   selector: 'app-session-settings-sheet',
   host: { class: 'ion-page' },
   imports: [
-    AccessPickerSheetComponent,
     IonButton,
     IonButtons,
     IonContent,
     IonHeader,
-    IonIcon,
     IonInput,
+    IonInputPasswordToggle,
     IonItem,
     IonLabel,
     IonList,
@@ -75,55 +84,73 @@ import { ScalePreferenceService } from '../core/scale-preference.service';
       <ion-toolbar>
         <ion-title>Session settings</ion-title>
         <ion-buttons slot="end">
-          <ion-button (click)="closeRequested.emit()">Done</ion-button>
+          <ion-button strong="true" color="primary" (click)="closeRequested.emit()">Done</ion-button>
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
-    <ion-content class="ion-padding-top">
-      <ion-list lines="inset">
-        <ion-item [disabled]="!isHost()">
-          <ion-label position="floating">Session name</ion-label>
+    <ion-content class="ion-padding">
+      <ion-list inset="true" lines="inset">
+        <ion-item>
           <ion-input
             #sessionNameInput
+            label="Session name"
+            labelPlacement="stacked"
             type="text"
-            placeholder="e.g., Sprint 24 planning"
-            [value]="settings()?.name"
+            placeholder="e.g. Sprint 24 planning"
+            [value]="settings()?.name ?? ''"
             [disabled]="!isHost()"
+            maxlength="60"
+            autocapitalize="sentences"
+            enterkeyhint="done"
             (ionBlur)="onSessionNameBlur()"
-            clearInput
-            aria-label="Session name"
+            (keydown.enter)="onSessionNameBlur()"
           ></ion-input>
         </ion-item>
-        <ion-item button (click)="openScalePicker()">
+        <ion-item button detail="true" [disabled]="!isHost()" (click)="openScalePicker()">
           <ion-label>
             <h3>Scale</h3>
           </ion-label>
           <ion-note slot="end" class="value">{{ scaleLabel() }}</ion-note>
-          <ion-icon
-            slot="end"
-            name="chevron-forward-outline"
-            aria-hidden="true"
-          ></ion-icon>
         </ion-item>
-        <ion-item button (click)="openAccessPicker()">
-          <ion-label>
-            <h3>Access</h3>
-          </ion-label>
-          <ion-note slot="end" class="value">{{ accessLabel() }}</ion-note>
-          <ion-icon
-            slot="end"
-            name="chevron-forward-outline"
-            aria-hidden="true"
-          ></ion-icon>
+        <ion-item>
+          <ion-input
+            label="Password"
+            labelPlacement="stacked"
+            type="password"
+            autocomplete="new-password"
+            enterkeyhint="done"
+            maxlength="120"
+            [placeholder]="passwordPlaceholder()"
+            [value]="passwordDraft()"
+            [disabled]="!isHost() || savingAccess()"
+            (ionInput)="passwordDraft.set($any($event.detail.value) ?? '')"
+            (ionBlur)="onPasswordCommit()"
+            (keydown.enter)="onPasswordCommit()"
+          >
+            <ion-input-password-toggle slot="end" color="medium"></ion-input-password-toggle>
+          </ion-input>
         </ion-item>
       </ion-list>
+      <ion-note class="helper">{{ accessHint() }}</ion-note>
+      @if (isHost() && accessMode() === 'password') {
+        <ion-button
+          fill="clear"
+          color="danger"
+          class="remove-password-btn"
+          [disabled]="savingAccess()"
+          (click)="onRemovePassword()"
+        >
+          Remove password
+        </ion-button>
+      }
     </ion-content>
 
     <ion-modal
       #scaleModal
+      cssClass="modal-centered"
       [isOpen]="scaleOpen()"
-      [breakpoints]="surface.sheetBreakpoints()"
-      [initialBreakpoint]="surface.initialSheetBreakpoint()"
+      [breakpoints]="surface.sheetBreakpointsFull()"
+      [initialBreakpoint]="surface.initialSheetBreakpointFull()"
       (didDismiss)="scaleOpen.set(false)"
     >
       <ng-template>
@@ -134,30 +161,23 @@ import { ScalePreferenceService } from '../core/scale-preference.service';
         />
       </ng-template>
     </ion-modal>
-
-    <ion-modal
-      #accessModal
-      [isOpen]="accessOpen()"
-      [breakpoints]="surface.sheetBreakpoints()"
-      [initialBreakpoint]="surface.initialSheetBreakpoint()"
-      (didDismiss)="accessOpen.set(false)"
-    >
-      <ng-template>
-        <app-access-picker-sheet
-          [currentMode]="accessMode()"
-          [currentPassword]="accessPassword()"
-          (selected)="onAccessSelected($event)"
-          (closeRequested)="closeAccessPicker()"
-        />
-      </ng-template>
-    </ion-modal>
   `,
   styles: [
     `
+      ion-list {
+        margin-block: 0;
+      }
       .value {
-        color: var(--ion-color-medium);
-        font-size: 0.95rem;
-        margin-right: 0.25rem;
+        font-size: 0.9375rem;
+      }
+      .helper {
+        display: block;
+        padding: 8px 16px 0;
+        font-size: 13px;
+        line-height: 1.4;
+      }
+      .remove-password-btn {
+        margin: 8px 0 0 4px;
       }
     `,
   ],
@@ -166,6 +186,7 @@ export class SessionSettingsSheetComponent {
   private readonly appPrefs = inject(AppPreferenceService);
   private readonly scalePrefs = inject(ScalePreferenceService);
   private readonly docService = inject(DocService);
+  private readonly lastSessionService = inject(LastSessionService);
   private readonly toastService = inject(ToastService);
   protected readonly surface = inject(SurfaceService);
 
@@ -179,22 +200,25 @@ export class SessionSettingsSheetComponent {
 
   /**
    * Access state is owned by the parent (LobbyPage) so it survives
-   * modal dismiss/recreate cycles. The settings sheet reads and
-   * updates it via input/output bindings.
+   * modal dismiss/recreate cycles. `accessPassword` is whatever the host
+   * typed on this device this session — the relay only ever holds a hash,
+   * so after a reload it is blank even when the session is protected.
    */
   readonly accessMode = input<AccessMode>('open');
   readonly accessPassword = input<string>('');
   readonly accessChanged = output<AccessSelection>();
 
-  /**
-   * Host state — controls whether room name input is editable.
-   * Only the host can edit session name.
-   */
+  /** Only the host may change anything here; everyone else gets it read-only. */
   readonly isHost = input<boolean>(false);
 
-  /** Inner picker visibility flags. */
+  /** Inner picker visibility flag. */
   protected readonly scaleOpen = signal(false);
-  protected readonly accessOpen = signal(false);
+
+  /** What is in the password field right now. Committed on blur / Enter. */
+  protected readonly passwordDraft = signal('');
+
+  /** True while an access change is on its way to the relay. */
+  protected readonly savingAccess = signal(false);
 
   /** Current settings.defaultScale, or `null` until session boots. */
   protected readonly currentScale = computed<Scale | null>(
@@ -207,16 +231,17 @@ export class SessionSettingsSheetComponent {
     return getScaleLabel(id, this.scalePrefs.customScales());
   });
 
-  protected readonly accessLabel = computed(() => formatAccessLabel(this.accessMode()));
+  protected readonly accessHint = computed(() => accessHint(this.accessMode()));
+
+  protected readonly passwordPlaceholder = computed(() => passwordPlaceholder(this.accessMode()));
 
   private readonly sessionNameInput = viewChild<IonInput>('sessionNameInput');
   private readonly scaleModalRef = viewChild<IonModal>('scaleModal');
-  private readonly accessModalRef = viewChild<IonModal>('accessModal');
 
   constructor() {
-    addIcons({
-      'chevron-forward-outline': chevronForwardOutline,
-    });
+    // input()s aren't available until after construction — seed the draft
+    // from the parent's remembered password once they are.
+    queueMicrotask(() => this.passwordDraft.set(this.accessPassword()));
   }
 
   // ---------------------------------------------------------------------------
@@ -224,28 +249,22 @@ export class SessionSettingsSheetComponent {
   // ---------------------------------------------------------------------------
 
   protected onSessionNameBlur(): void {
+    if (!this.isHost()) return;
     const sessionNameInputElement = this.sessionNameInput();
     if (!sessionNameInputElement) return;
-    const trimmed = (sessionNameInputElement.value as string).trim();
-    const update = { ...(trimmed && { name: trimmed }) };
-    this.docService.updateSettings(update);
+    const trimmed = ((sessionNameInputElement.value as string | null | undefined) ?? '').trim();
+    if (!trimmed || trimmed === this.settings()?.name) return;
+    this.docService.updateSettings({ name: trimmed });
   }
 
   protected openScalePicker(): void {
+    if (!this.isHost()) return;
     const modal = this.scaleModalRef();
     if (modal) void presentSheet({ modal });
   }
 
-  protected openAccessPicker(): void {
-    const modal = this.accessModalRef();
-    if (modal) void presentSheet({ modal });
-  }
-
-  // ---------------------------------------------------------------------------
-  // Picker event handlers
-  // ---------------------------------------------------------------------------
-
   protected onScaleSelected(scale: Scale): void {
+    if (!this.isHost()) return;
     this.docService.updateSettings({ defaultScale: scale });
   }
 
@@ -254,49 +273,58 @@ export class SessionSettingsSheetComponent {
     this.scaleOpen.set(false);
   }
 
-  protected onAccessSelected(selection: AccessSelection): void {
-    this.accessChanged.emit(selection);
+  // ---------------------------------------------------------------------------
+  // Password
+  // ---------------------------------------------------------------------------
 
-    // Fire-and-forget relay PATCH — update access mode on the relay.
-    void this.syncAccessToRelay(selection);
+  /**
+   * Blur / Enter on the password field. A blank field changes nothing —
+   * taking the password *off* is the explicit "Remove password" button, so
+   * tabbing through an empty field can never open a protected session.
+   */
+  protected async onPasswordCommit(): Promise<void> {
+    if (!this.isHost() || this.savingAccess()) return;
+    const password = this.passwordDraft().trim();
+    if (!password) return;
+    if (this.accessMode() === 'password' && password === this.accessPassword()) return;
+    await this.applyAccess({ mode: 'password', password });
   }
 
-  private async syncAccessToRelay(selection: AccessSelection): Promise<void> {
+  protected async onRemovePassword(): Promise<void> {
+    if (!this.isHost() || this.savingAccess()) return;
+    await this.applyAccess({ mode: 'open', password: null });
+  }
+
+  /** Relay first; the UI only follows once the relay has said yes. */
+  private async applyAccess(selection: AccessSelection): Promise<void> {
     const roomUuid = this.docService.meta()?.roomUuid;
     if (!roomUuid) return;
 
+    this.savingAccess.set(true);
     try {
-      if (selection.mode === 'password' && selection.password) {
+      const relayUrl = this.appPrefs.resolvedRelayHttpUrl();
+      if (selection.mode === 'password' && selection.password !== null) {
         const hash = await hashPassword(selection.password, roomUuid);
-        await patchRoomAccess(this.appPrefs.resolvedRelayHttpUrl(), roomUuid, hash);
+        await patchRoomAccess(relayUrl, roomUuid, hash);
         // Our own socket still carries the old `pw`; re-handshake so the
-        // rotation does not lock this client out on its next reconnect.
+        // rotation does not lock this client out on its next reconnect, and
+        // cache the hash so the host's own way back in does not ask for it.
         this.docService.updateCredentials(hash);
-      } else if (selection.mode === 'open') {
-        await patchRoomAccess(this.appPrefs.resolvedRelayHttpUrl(), roomUuid, null);
+        this.lastSessionService.setPendingPasswordHash(roomUuid, hash);
+        this.passwordDraft.set(selection.password);
+        await this.toastService.info('Password set');
+      } else {
+        await patchRoomAccess(relayUrl, roomUuid, null);
         this.docService.updateCredentials(null);
+        await this.lastSessionService.clearPasswordHash(roomUuid);
+        this.passwordDraft.set('');
+        await this.toastService.info('Password removed');
       }
-      // 'invite' mode is a no-op per ADR-0017 (dropped from v1).
+      this.accessChanged.emit(selection);
     } catch {
-      await this.toastService.error('Failed to update access mode. Try again.');
+      await this.toastService.error("Couldn't update the password. Try again.");
+    } finally {
+      this.savingAccess.set(false);
     }
-  }
-
-  protected async closeAccessPicker(): Promise<void> {
-    await this.accessModalRef()?.dismiss();
-    this.accessOpen.set(false);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Module-private formatters
-// ---------------------------------------------------------------------------
-
-function formatAccessLabel(mode: AccessMode): string {
-  switch (mode) {
-    case 'open':
-      return 'Open';
-    case 'password':
-      return 'Password';
   }
 }

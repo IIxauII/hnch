@@ -10,9 +10,10 @@
  * rule that must precede statistics was spelled three times, and
  * `formatRoundLabel` named two unrelated ideas in two packages (issue #509).
  *
- * The module answers four questions:
+ * The module answers five questions:
  *
  *  - What is this round called?            → `formatRoundLabel`
+ *  - Which number does it go by?           → `roundNumber` / `nextRoundNumber`
  *  - Where does it sit in its chain?       → `formatRoundPosition`
  *  - What are its statistics, and how do
  *    they read?                            → `roundStatsFor` / `formatRoundStats`
@@ -62,6 +63,35 @@ export function formatRoundLabel(round: {
 }
 
 /**
+ * The number a round goes by: its 1-based position among the rounds that
+ * were not discarded.
+ *
+ * A discarded round is a tombstone (ADR-0046) — it shows up nowhere, so it
+ * takes no number either. Counting it left a hole: cancel the first round
+ * and the next one was "Round 2", with no Round 1 anywhere to be found.
+ *
+ * `0` for a round that is not in `allRounds` and for a discarded one.
+ * Neither is ever shown; callers pass the array the round came from.
+ */
+export function roundNumber(round: Pick<Round, 'id'>, allRounds: readonly Round[]): number {
+  let number = 0;
+  for (const candidate of allRounds) {
+    if (candidate.status === 'discarded') {
+      if (candidate.id === round.id) return 0;
+      continue;
+    }
+    number += 1;
+    if (candidate.id === round.id) return number;
+  }
+  return 0;
+}
+
+/** The number the next round will go by — see {@link roundNumber}. */
+export function nextRoundNumber(allRounds: readonly Round[]): number {
+  return allRounds.filter((r) => r.status !== 'discarded').length + 1;
+}
+
+/**
  * Where a round sits in its re-vote chain, as one string:
  * `"Round 3"` for a chain root or standalone round, `"Round 2/3 [re-vote]"`
  * for a re-vote (issue #111 AC#7).
@@ -69,15 +99,14 @@ export function formatRoundLabel(round: {
  * A distinct name from `formatRoundLabel` because it is a distinct idea —
  * position, not identity. The two used to share the name across packages.
  *
- * The ordinal is derived from the round's position in `allRounds` (1-based),
- * matching what every call site already computed for itself. A round that is
- * not in `allRounds` has no position and falls back to `Round 0`; callers
- * always pass the array the round came from.
+ * The ordinal is the round's {@link roundNumber}. A round that is not in
+ * `allRounds` has no position and falls back to `Round 0`; callers always
+ * pass the array the round came from.
  */
 export function formatRoundPosition(round: Round, allRounds: readonly Round[]): string {
   const lineage = resolveRoundLineage(round.id, allRounds);
   if (lineage !== null) return `Round ${lineage.depth}/${lineage.total} [re-vote]`;
-  return `Round ${allRounds.findIndex((r) => r.id === round.id) + 1}`;
+  return `Round ${roundNumber(round, allRounds)}`;
 }
 
 // ---------------------------------------------------------------------------

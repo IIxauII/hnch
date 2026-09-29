@@ -1,5 +1,5 @@
 /**
- * Spec 2 — Host kick participant via swipe drawer (ADR-0036)
+ * Spec 2 — Host removes a participant (ADR-0036)
  *
  * Ordering invariant:
  * Host writes `leftAt` + `removedBy = hostId` to B's record.
@@ -8,62 +8,15 @@
  * must happen after the host confirms the alert — the test enforces this by
  * awaiting A's alert confirm before asserting B's toast/navigation.
  *
- * Swipe: ion-item-sliding has no Playwright-native gesture API. We open the
- * sliding item programmatically via `element.open('end')` on the DOM node so
- * the drawer is guaranteed to be in the open state before tapping the option.
- * This avoids pointer-drag flakiness on headless Chromium.
- *
- * The `ion-item-option` for Remove carries
- * `aria-label="Remove {name} from session"` (lobby.page.ts line ~237).
+ * The action lives behind the ⋯ button on the participant's roster row —
+ * one visible affordance on every surface (`Participant.removeParticipant`).
  */
 
 import { test, expect } from './fixtures/app.fixture';
-import { LOBBY, expectToast } from './fixtures/helpers';
-
-/** Open the swipe drawer for a participant row (end side) by participant name. */
-async function openSwipeDrawer(
-  page: import('@playwright/test').Page,
-  participantName: string,
-): Promise<void> {
-  // Post-reveal, the participants accordion collapses (lobby.page.ts
-  // participantsAccordionValue computed). Force it open before locating the
-  // row — otherwise ion-item-option renders inside a collapsed accordion and
-  // Playwright reports the option as hidden.
-  await page.evaluate(() => {
-    const groups = document.querySelectorAll('ion-accordion-group') as NodeListOf<
-      HTMLElement & { value?: string | string[] | null }
-    >;
-    const all = ['general', 'share', 'participants', 'agenda', 'results', 'history'];
-    groups.forEach((g) => {
-      g.value = all;
-    });
-  });
-
-  // Wait until the participant's row is in the DOM and contains the name text.
-  // Uses ion-label text content rather than aria-label because Ionic web
-  // components may not reflect host-element aria-label attributes reliably
-  // when queried from page.evaluate before hydration settles.
-  const rowLocator = page.locator(
-    `ion-list.participants ion-item-sliding:has(ion-label:text-is("${participantName}"))`,
-  );
-  await rowLocator.waitFor({ state: 'visible', timeout: 5_000 });
-
-  // Programmatically open the sliding drawer.
-  // Note: using evaluate() because Playwright has no first-class swipe gesture API.
-  // open('end') is the stable web-component API on IonItemSliding.
-  await rowLocator.evaluate((el: Element) => {
-    (el as unknown as { open(side: string): void }).open('end');
-  });
-
-  // Wait for the option button to become visible
-  const removeOption = page.locator(
-    `ion-item-option[aria-label="Remove ${participantName} from session"]`,
-  );
-  await removeOption.waitFor({ state: 'visible', timeout: 5_000 });
-}
+import { HOME, LOBBY, expectToast } from './fixtures/helpers';
 
 test.describe('Host kick participant (ADR-0036)', () => {
-  test('host removes player via swipe drawer; player gets toast and lands on Home', async ({
+  test('host removes player via the row menu; player gets toast and lands on Home', async ({
     host,
     player,
   }) => {
@@ -71,18 +24,8 @@ test.describe('Host kick participant (ADR-0036)', () => {
     await player.joinSession(code);
     await host.expectParticipantCount(2);
 
-    // Open swipe drawer for Player row
-    await openSwipeDrawer(host.page, 'Player');
-
-    // Tap "Remove Player from session" option
-    const removeBtn = host.page.locator('ion-item-option[aria-label="Remove Player from session"]');
-    await removeBtn.click();
-
-    // Confirm in alert
-    const alert = host.page.locator('ion-alert');
-    await alert.waitFor({ state: 'visible', timeout: 5_000 });
-    const confirmBtn = host.page.locator('ion-alert button:has-text("Remove")');
-    await confirmBtn.click();
+    // ⋯ on Player's row → Remove → confirm
+    await host.removeParticipant('Player');
 
     // Host sees count decrement and Player gone from list
     await host.expectParticipantCount(1);
@@ -112,13 +55,7 @@ test.describe('Host kick participant (ADR-0036)', () => {
     await player.page.waitForURL(/\/lobby/, { timeout: 10_000 });
 
     // Now kick player
-    await openSwipeDrawer(host.page, 'Player');
-    const removeBtn = host.page.locator('ion-item-option[aria-label="Remove Player from session"]');
-    await removeBtn.click();
-    const alert = host.page.locator('ion-alert');
-    await alert.waitFor({ state: 'visible', timeout: 5_000 });
-    const confirmBtn = host.page.locator('ion-alert button:has-text("Remove")');
-    await confirmBtn.click();
+    await host.removeParticipant('Player');
 
     // Wait for host to see the active list update
     await host.expectParticipantCount(1);
@@ -132,33 +69,25 @@ test.describe('Host kick participant (ADR-0036)', () => {
     expect(hasPlayerName).toBe(true);
   });
 
-  test('after kick, no Jump-back-in banner for that room on kicked player Home', async ({
+  test('after kick, the session is not offered on the kicked player Home', async ({
     host,
     player,
   }) => {
     const code = await host.createSession();
     await player.joinSession(code);
+    await host.expectParticipantCount(2);
 
     // Kick player
-    await openSwipeDrawer(host.page, 'Player');
-    const removeBtn = host.page.locator('ion-item-option[aria-label="Remove Player from session"]');
-    await removeBtn.click();
-    const alert = host.page.locator('ion-alert');
-    await alert.waitFor({ state: 'visible', timeout: 5_000 });
-    const confirmBtn = host.page.locator('ion-alert button:has-text("Remove")');
-    await confirmBtn.click();
+    await host.removeParticipant('Player');
 
     await player.page.waitForURL(/\/home/, { timeout: 8_000 });
-    // Give Angular time to render
-    await player.page.waitForTimeout(500);
+    await player.page.locator(HOME.createCard).waitFor({ state: 'visible' });
 
-    // No banner (cache cleared per ADR-0036 §5)
-    const banner = player.page.locator('app-jump-back-in-banner');
-    const visible = await banner.isVisible().catch(() => false);
-    expect(visible).toBe(false);
+    // Nothing to jump back into (cache cleared per ADR-0036 §5)
+    await expect(player.page.locator(HOME.recentRow)).toHaveCount(0);
 
-    const homeContent = await player.page.textContent('body');
-    expect(homeContent).not.toContain(code);
+    const homeContent = await player.page.locator('app-home').textContent();
+    expect(homeContent).not.toContain(`${code.slice(0, 3)}-${code.slice(3)}`);
   });
 
   test('kicked player can rejoin: host sees participant reappear in active roster (ADR-0036 §6)', async ({
@@ -175,13 +104,7 @@ test.describe('Host kick participant (ADR-0036)', () => {
     await host.expectParticipantCount(2);
 
     // Kick player
-    await openSwipeDrawer(host.page, 'Player');
-    const removeBtn = host.page.locator('ion-item-option[aria-label="Remove Player from session"]');
-    await removeBtn.click();
-    const alert = host.page.locator('ion-alert');
-    await alert.waitFor({ state: 'visible', timeout: 5_000 });
-    const confirmBtn = host.page.locator('ion-alert button:has-text("Remove")');
-    await confirmBtn.click();
+    await host.removeParticipant('Player');
 
     await player.page.waitForURL(/\/home/, { timeout: 8_000 });
 

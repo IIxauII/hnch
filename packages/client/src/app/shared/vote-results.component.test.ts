@@ -33,6 +33,7 @@ vi.mock('@ionic/angular/standalone', async () => {
 
   return {
     IonChip,
+    IonIcon: stub('ion-icon'),
     IonItemGroup: stub('ion-item-group'),
     IonLabel: stub('ion-label'),
   };
@@ -62,6 +63,10 @@ function makeRound(overrides: Partial<Round> = {}): Round {
 
 function makeParticipant(id: string, displayName: string, leftAt?: number): ParticipantSnapshot {
   return { id, displayName, joinedAt: 0, ...(leftAt !== undefined ? { leftAt } : {}) };
+}
+
+function makeObserver(id: string, displayName: string): ParticipantSnapshot {
+  return { id, displayName, joinedAt: 0, role: 'viewer' };
 }
 
 const hapticStub = {
@@ -182,6 +187,56 @@ describe('VoteResultsComponent — TestBed rendering', () => {
     expect(groups[0]!.classList.contains('plurality')).toBe(true);
     expect(groups[1]!.classList.contains('plurality')).toBe(false);
     expect(groups[2]!.classList.contains('plurality')).toBe(false);
+  });
+
+  it('a tie has no plurality: no row is singled out', async () => {
+    const round = makeRound({ votes: { p1: '5', p2: '8' } });
+    const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
+    const fixture = await mountVoteResults(round, participants);
+    const el = fixture.nativeElement as HTMLElement;
+    const groups = Array.from(el.querySelectorAll('.group:not(.abstained):not(.didnt-vote)'));
+    expect(groups.length).toBe(2);
+    expect(el.querySelector('.plurality')).toBeNull();
+  });
+
+  it('a tie for the lead has no plurality even with a trailing card', async () => {
+    const round = makeRound({ votes: { p1: '5', p2: '5', p3: '8', p4: '8', p5: '3' } });
+    const participants = ['p1', 'p2', 'p3', 'p4', 'p5'].map((id) => makeParticipant(id, id));
+    const fixture = await mountVoteResults(round, participants);
+    expect((fixture.nativeElement as HTMLElement).querySelector('.plurality')).toBeNull();
+  });
+
+  it('an observer is not reported as having not voted (ADR-0041 §3)', async () => {
+    const round = makeRound({ votes: { p1: '5' } });
+    const participants = [
+      makeParticipant('p1', 'Alice'),
+      makeParticipant('p2', 'Bob'),
+      makeObserver('p3', 'Cy'),
+    ];
+    const fixture = await mountVoteResults(round, participants);
+    const group = (fixture.nativeElement as HTMLElement).querySelector('.didnt-vote');
+    expect(group?.textContent).toContain('Bob');
+    expect(group?.textContent).not.toContain('Cy');
+  });
+
+  it("no Didn't-vote group when only observers are without a vote", async () => {
+    const round = makeRound({ votes: { p1: '5', p2: '5' } });
+    const participants = [
+      makeParticipant('p1', 'Alice'),
+      makeParticipant('p2', 'Bob'),
+      makeObserver('p3', 'Cy'),
+    ];
+    const fixture = await mountVoteResults(round, participants);
+    expect((fixture.nativeElement as HTMLElement).querySelector('.didnt-vote')).toBeNull();
+  });
+
+  it('an observer who voted before switching keeps their vote on the board', async () => {
+    const round = makeRound({ votes: { p1: '5', p3: '8' } });
+    const participants = [makeParticipant('p1', 'Alice'), makeObserver('p3', 'Cy')];
+    const fixture = await mountVoteResults(round, participants);
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.didnt-vote')).toBeNull();
+    expect(el.textContent).toContain('Cy');
   });
 
   it('--bar-width inline style is proportional to group share (issue #123)', async () => {

@@ -195,7 +195,12 @@ export class RoomJoinService {
 
   /**
    * Await first decisive event from doc-service signals after a connect()
-   * call. Mirrors the same pattern in `home.page.ts`.
+   * call.
+   *
+   * "Connected" means connected *and synced*. The relay accepts the socket
+   * before it rejects a wrong password (ADR-0035), so an open socket alone
+   * is not yet an answer — settling on it sent the user into the Lobby and
+   * straight back out.
    */
   waitForJoinOutcome(opts: { timeoutMs?: number } = {}): Promise<JoinOutcome> {
     const timeoutMs = opts.timeoutMs ?? 5_000;
@@ -220,7 +225,7 @@ export class RoomJoinService {
             return;
           }
           const status = this.docService.syncStatus();
-          if (status === 'connected') settle('connected');
+          if (status === 'connected' && this.docService.relaySynced()) settle('connected');
         },
         { injector: this.injector },
       );

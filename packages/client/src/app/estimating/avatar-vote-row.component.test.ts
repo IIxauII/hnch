@@ -35,9 +35,12 @@ describe('AvatarVoteRowComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('1 of 3 voted');
   });
 
-  it('empty room: 0 participants, 0 voted → "0 of 0 voted"', () => {
+  it('nobody to wait for: 0 voters → "No voters yet", not "0 of 0 voted"', () => {
     const fixture = mount([], new Set());
-    expect(fixture.nativeElement.textContent).toContain('0 of 0 voted');
+    expect(fixture.nativeElement.textContent).toContain('No voters yet');
+    expect(fixture.nativeElement.textContent).not.toContain('0 of 0');
+    const row = fixture.nativeElement.querySelector('[role="group"]');
+    expect(row?.getAttribute('aria-label')).toBe('No voters yet');
   });
 
   // The component is intentionally dumb — it renders votedIds.size against
@@ -84,7 +87,7 @@ describe('AvatarVoteRowComponent', () => {
   });
 
   // ── Pending-line (#196 v3) ────────────────────────────────────────────────
-  // The "Waiting on: …" line surfaces names of unvoted participants once at
+  // The "Waiting for …" line surfaces names of unvoted participants once at
   // least 50 % of voters have voted (the decision-time signal for hosts).
   function pendingLineText(fixture: { nativeElement: HTMLElement }): string | null {
     return fixture.nativeElement.querySelector('.pending-line')?.textContent?.trim() ?? null;
@@ -103,7 +106,7 @@ describe('AvatarVoteRowComponent', () => {
 
   it('pending-line shown at >=50% voted with full display names (no JS truncation)', () => {
     // 2 of 4 (50%) voted — line lists pending names in full;
-    // overflow handling is delegated to CSS (text-overflow: ellipsis).
+    // overflow handling is delegated to CSS (the line wraps).
     const ps = [
       makeParticipant('v1', 'Alice'),
       makeParticipant('v2', 'Bob'),
@@ -111,13 +114,13 @@ describe('AvatarVoteRowComponent', () => {
       makeParticipant('v4', 'Dana'),
     ];
     const fixture = mount(ps, new Set(['v1', 'v2']));
-    expect(pendingLineText(fixture)).toBe('Waiting on: ChristopherLong, Dana');
+    expect(pendingLineText(fixture)).toBe('Waiting for ChristopherLong, Dana');
   });
 
   it('pending-line preserves names longer than 10 chars intact (#229)', () => {
     const ps = [makeParticipant('v1', 'Alice'), makeParticipant('v2', 'AlexandrinaXYZ')];
     const fixture = mount(ps, new Set(['v1']));
-    expect(pendingLineText(fixture)).toBe('Waiting on: AlexandrinaXYZ');
+    expect(pendingLineText(fixture)).toBe('Waiting for AlexandrinaXYZ');
   });
 
   it('pending-line hidden when all participants voted', () => {

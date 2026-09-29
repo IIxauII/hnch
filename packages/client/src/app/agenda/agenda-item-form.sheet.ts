@@ -1,12 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  input,
-  OnInit,
-  output,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, OnInit, output, signal } from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import {
   AbstractControl,
   FormControl,
@@ -23,12 +16,13 @@ import {
   IonHeader,
   IonInput,
   IonItem,
-  IonLabel,
+  IonList,
   IonNote,
   IonTextarea,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
+import { map, startWith } from 'rxjs';
 
 /**
  * Payload emitted when the user submits the agenda item form.
@@ -52,13 +46,17 @@ function atLeastOneRequired(group: AbstractControl): ValidationErrors | null {
 }
 
 /**
- * AgendaItemFormSheetComponent — half-sheet for adding or editing an agenda item.
+ * AgendaItemFormSheetComponent — half-sheet for adding or editing a story on
+ * the agenda.
  *
  * Modes:
- * - 'add': blank form, header = "Add Agenda Item"
- * - 'edit': pre-filled from `initialItem`, header = "Edit Agenda Item"
+ * - 'add': blank form, header = "Add story"
+ * - 'edit': pre-filled from `initialItem`, header = "Edit story"
  *
- * Validator: at least one of {title, ticketId} must be non-empty.
+ * Validator: at least one of {title, ticketId} must be non-empty. That rule
+ * is stated once, as a plain helper line, and enforced by the primary button
+ * staying disabled — not by an error that is on screen before the user has
+ * typed anything.
  * `submitted` emits trimmed values (null when blank).
  * `closeRequested` fires on cancel.
  */
@@ -72,7 +70,7 @@ function atLeastOneRequired(group: AbstractControl): ValidationErrors | null {
     IonHeader,
     IonInput,
     IonItem,
-    IonLabel,
+    IonList,
     IonNote,
     IonTextarea,
     IonTitle,
@@ -84,88 +82,81 @@ function atLeastOneRequired(group: AbstractControl): ValidationErrors | null {
     <ion-header>
       <ion-toolbar>
         <ion-buttons slot="start">
-          <ion-button
-            (click)="closeRequested.emit()"
-            aria-label="Cancel"
-          >Cancel</ion-button>
+          <ion-button (click)="closeRequested.emit()">Cancel</ion-button>
         </ion-buttons>
-        <ion-title>{{ mode() === 'edit' ? 'Edit Agenda Item' : 'Add Agenda Item' }}</ion-title>
+        <ion-title>{{ mode() === 'edit' ? 'Edit story' : 'Add story' }}</ion-title>
         <ion-buttons slot="end">
           <ion-button
             strong="true"
             color="primary"
-            [disabled]="isSubmitting() || !form.valid"
+            [disabled]="isSubmitting() || !formValid()"
             (click)="submit()"
-            aria-label="{{ mode() === 'edit' ? 'Save agenda item' : 'Add agenda item' }}"
+            aria-label="{{ mode() === 'edit' ? 'Save story' : 'Add story' }}"
           >{{ mode() === 'edit' ? 'Save' : 'Add' }}</ion-button>
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding">
       <form [formGroup]="form" (ngSubmit)="submit()">
-        <ion-item>
-          <ion-label position="stacked" aria-required="true">Title</ion-label>
-          <ion-input
-            formControlName="title"
-            placeholder="e.g., Login redesign"
-            autocapitalize="sentences"
-            enterkeyhint="next"
-            aria-label="Story title"
-            [attr.aria-describedby]="atLeastOneError() ? 'agenda-form-error' : null"
-          ></ion-input>
-        </ion-item>
-        <ion-item>
-          <ion-label position="stacked">Ticket ID</ion-label>
-          <ion-input
-            formControlName="ticketId"
-            placeholder="e.g., PROJ-1234"
-            autocapitalize="characters"
-            autocorrect="off"
-            spellcheck="false"
-            enterkeyhint="next"
-            aria-label="Issue tracker ticket ID"
-          ></ion-input>
-        </ion-item>
-        <ion-item>
-          <ion-label position="stacked">Description</ion-label>
-          <ion-textarea
-            formControlName="description"
-            placeholder="Optional story context"
-            autocapitalize="sentences"
-            aria-label="Story description"
-            [rows]="3"
-          ></ion-textarea>
-        </ion-item>
-        @if (atLeastOneError()) {
-          <ion-note
-            id="agenda-form-error"
-            color="danger"
-            class="form-error"
-            role="alert"
-            aria-live="assertive"
-          >
-            Enter a title or ticket ID.
-          </ion-note>
-        }
-        @if (descriptionTooLong()) {
-          <ion-note
-            color="danger"
-            class="form-error"
-            role="alert"
-            aria-live="assertive"
-          >
-            Description is too long (max 500 characters).
-          </ion-note>
-        }
+        <ion-list inset="true" lines="inset">
+          <ion-item>
+            <ion-input
+              formControlName="title"
+              label="Title"
+              labelPlacement="stacked"
+              placeholder="e.g. Login redesign"
+              autocapitalize="sentences"
+              enterkeyhint="next"
+              maxlength="120"
+              aria-describedby="agenda-form-hint"
+              (keydown.enter)="submit()"
+            ></ion-input>
+          </ion-item>
+          <ion-item>
+            <ion-input
+              formControlName="ticketId"
+              label="Ticket ID"
+              labelPlacement="stacked"
+              placeholder="e.g. PROJ-1234"
+              autocapitalize="characters"
+              autocorrect="off"
+              spellcheck="false"
+              enterkeyhint="next"
+              maxlength="120"
+              aria-describedby="agenda-form-hint"
+              (keydown.enter)="submit()"
+            ></ion-input>
+          </ion-item>
+          <ion-item>
+            <ion-textarea
+              formControlName="description"
+              label="Description"
+              labelPlacement="stacked"
+              placeholder="Optional context for the team"
+              autocapitalize="sentences"
+              [autoGrow]="true"
+              [counter]="true"
+              maxlength="500"
+              [rows]="2"
+            ></ion-textarea>
+          </ion-item>
+        </ion-list>
+        <ion-note id="agenda-form-hint" class="helper">
+          A story needs a title or a ticket ID.
+        </ion-note>
       </form>
     </ion-content>
   `,
   styles: [
     `
-      .form-error {
+      ion-list {
+        margin-block: 0;
+      }
+      .helper {
         display: block;
-        margin-top: 0.5rem;
-        padding: 0 1rem;
+        padding: 8px 16px 0;
+        font-size: 13px;
+        line-height: 1.4;
       }
     `,
   ],
@@ -203,13 +194,27 @@ export class AgendaItemFormSheetComponent implements OnInit {
 
   protected readonly isSubmitting = signal(false);
 
-  protected readonly atLeastOneError = computed(
-    () => this.form.invalid && this.form.errors?.['atLeastOneRequired'] === true,
+  /**
+   * Form validity as a signal. `form.valid` is a plain property, so a
+   * `computed()` over it never re-evaluates — this follows the form's own
+   * status stream instead.
+   */
+  protected readonly formValid = toSignal(
+    this.form.statusChanges.pipe(
+      startWith(this.form.status),
+      map(() => this.form.valid),
+    ),
+    { initialValue: this.form.valid },
   );
 
-  protected readonly descriptionTooLong = computed(
-    () => this.form.controls.description.errors?.['maxlength'] !== undefined,
-  );
+  constructor() {
+    // A submit the parent refuses leaves this sheet open (a peer removed the
+    // story mid-edit, say). The latch has to let go once the user edits
+    // again, or the form is stuck with a dead primary button.
+    this.form.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => {
+      this.isSubmitting.set(false);
+    });
+  }
 
   ngOnInit(): void {
     const item = this.initialItem();

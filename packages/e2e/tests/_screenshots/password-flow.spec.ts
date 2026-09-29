@@ -2,7 +2,9 @@
 /**
  * Screenshot capture — password-protected room flow.
  *
- * Two scenes:
+ * Four scenes:
+ *   pw-00  — session settings with the password just set (host)
+ *   pw-00b — lobby of a protected session (host): the lock on the summary line
  *   pw-01  — join page with password field visible (room resolved, pwd required)
  *   pw-02  — join page after wrong-password rejection (still on /join with error state)
  *
@@ -23,9 +25,10 @@ import {
   JOIN,
   LOBBY,
   SETTINGS_SHEET,
-  ACCESS_PICKER,
+  expectToast,
   fillRoomCode,
 } from '../fixtures/helpers';
+import { pageSettled } from './_helpers/settled';
 
 const OUT_DIR = resolveOutDir('password');
 test.use({ trace: 'off', video: 'off', screenshot: 'off' });
@@ -42,6 +45,7 @@ async function freshCtx(
 }
 
 async function shot(page: Page, name: string): Promise<void> {
+  await pageSettled(page);
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(OUT_DIR, `${name}.png`), fullPage: false });
 }
@@ -81,28 +85,34 @@ test.describe('password flow screenshots', () => {
       // Open session settings → set password
       await hostPage.locator(LOBBY.subtitleHostBtn).click();
       await hostPage.locator('app-session-settings-sheet').waitFor({ state: 'visible' });
-      await hostPage.locator(SETTINGS_SHEET.accessRow).click();
-      await hostPage.locator(ACCESS_PICKER.option('Password')).click();
-      const pwInput = hostPage.locator(ACCESS_PICKER.passwordInput).locator('input');
-      await pwInput.fill('secret123');
-      await pwInput.press('Enter');
-      const doneBtn = hostPage.locator(ACCESS_PICKER.doneBtn);
-      await doneBtn.waitFor({ state: 'visible' });
-      await doneBtn.evaluate((el: HTMLElement) => el.click());
       // Wait for relay PATCH to commit before joiner attempts
-      await hostPage.waitForResponse(
+      const patched = hostPage.waitForResponse(
         (res) => res.url().includes('/access') && res.request().method() === 'PATCH',
         { timeout: 10_000 },
       );
-      await hostPage.locator('app-access-picker-sheet').waitFor({ state: 'hidden' });
+      const pwInput = hostPage.locator(SETTINGS_SHEET.passwordInput).locator('input');
+      await pwInput.fill('secret123');
+      await pwInput.press('Enter');
+      await patched;
+      await expectToast(hostPage, 'Password set');
+      await hostPage.locator(SETTINGS_SHEET.removePasswordBtn).waitFor({ state: 'visible' });
+      await hostPage.locator('ion-toast').first().waitFor({ state: 'hidden', timeout: 5_000 });
+
+      // pw-00 — session settings, password set
+      await shot(hostPage, 'pw-00-session-settings-password-set');
+
+      await hostPage.locator(SETTINGS_SHEET.doneBtn).click();
+      await hostPage.locator('app-session-settings-sheet').waitFor({ state: 'hidden' });
+
+      // pw-00b — lobby of a protected session
+      await shot(hostPage, 'pw-00b-lobby-protected');
 
       // Joiner navigates to join page
       await onboard(joinerPage, 'Joiner');
       await joinerPage.locator(HOME.joinCard).click();
       await joinerPage.waitForURL(/\/join/);
       await fillRoomCode(joinerPage, code);
-      // First submit resolves the room → password field appears
-      await joinerPage.locator(JOIN.joinBtn).click();
+      // The sixth character submits: no Join tap after a typed code.
       const pwField = joinerPage.locator(JOIN.passwordInput).locator('input');
       await pwField.waitFor({ state: 'visible', timeout: 8_000 });
       await joinerPage.waitForTimeout(400);
@@ -114,7 +124,7 @@ test.describe('password flow screenshots', () => {
       await pwField.fill('wrongpassword');
       await joinerPage.locator(JOIN.joinBtn).click();
       // Wait for rejection to surface — stay on /join
-      await joinerPage.waitForTimeout(3_000);
+      await expectToast(joinerPage, 'That password is incorrect');
 
       // pw-02 — wrong-password rejection (still on /join)
       await shot(joinerPage, 'pw-02-join-wrong-password');

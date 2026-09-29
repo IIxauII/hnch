@@ -4,45 +4,18 @@
  * Full component-mount tests (DI heavy) are deferred to e2e.
  * Tests here cover:
  * - shouldAutoSubmitDeepLink: deep-link auto-submit gate
- * - rejectionCopy: close-code → user-visible copy mapping (regression lock)
+ * - shouldAutoSubmitTypedCode: typed-code auto-submit gate
+ * - rejectionCopy / qrScanErrorCopy: reason → user-visible copy (regression lock)
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-vi.mock('@ionic/angular/standalone', () => ({
-  IonBackButton: {},
-  IonButton: {},
-  IonButtons: {},
-  IonCol: {},
-  IonContent: {},
-  IonFooter: {},
-  IonGrid: {},
-  IonHeader: {},
-  IonIcon: {},
-  IonInput: {},
-  IonItem: {},
-  IonLabel: {},
-  IonList: {},
-  IonRow: {},
-  IonTitle: {},
-  IonToolbar: {},
-}));
-vi.mock('ionicons', () => ({}));
-vi.mock('ionicons/icons', () => ({ qrCodeOutline: '' }));
-vi.mock('@hnch/shared', () => ({
-  formatRoomCode: (s: string) => s,
-  hashPassword: vi.fn(),
-  isValidRoomCode: (s: string) => s.length === 6,
-  normalizeRoomCode: (s: string) => s.toUpperCase().replaceAll(/-/g, ''),
-  parseInviteContent: vi.fn(),
-  // last-session service imports
-  LAST_SESSION_TTL_MS: 24 * 60 * 60 * 1000,
-  LAST_SESSION_MAX_ENTRIES: 5,
-  migrateLastSessionCache: (_input: unknown) => ({ version: 2, entries: {} }),
-  pruneLastSessionEntries: (cache: unknown) => cache,
-}));
-
-import { rejectionCopy, shouldAutoSubmitDeepLink } from './join.page';
+import {
+  qrScanErrorCopy,
+  rejectionCopy,
+  shouldAutoSubmitDeepLink,
+  shouldAutoSubmitTypedCode,
+} from './join.helpers';
 
 describe('shouldAutoSubmitDeepLink', () => {
   it('returns false when no code param', () => {
@@ -74,6 +47,37 @@ describe('shouldAutoSubmitDeepLink', () => {
   });
 });
 
+describe('shouldAutoSubmitTypedCode', () => {
+  const base = {
+    codeIsValid: true,
+    code: 'K7P9MR',
+    lastAttemptedCode: null,
+    isSubmitting: false,
+  };
+
+  it('submits as soon as the sixth character lands', () => {
+    expect(shouldAutoSubmitTypedCode(base)).toBe(true);
+  });
+
+  it('waits while the code is still incomplete', () => {
+    expect(shouldAutoSubmitTypedCode({ ...base, codeIsValid: false, code: 'K7P9M' })).toBe(false);
+  });
+
+  it('does not stack a second attempt on one that is in flight', () => {
+    expect(shouldAutoSubmitTypedCode({ ...base, isSubmitting: true })).toBe(false);
+  });
+
+  it('does not retry a code that was already attempted', () => {
+    // Backspace-then-retype of the same character must not re-toast the
+    // same "code isn't active" failure; Join is there for a deliberate retry.
+    expect(shouldAutoSubmitTypedCode({ ...base, lastAttemptedCode: 'K7P9MR' })).toBe(false);
+  });
+
+  it('submits again once the user has corrected the code', () => {
+    expect(shouldAutoSubmitTypedCode({ ...base, lastAttemptedCode: 'K7P9MX' })).toBe(true);
+  });
+});
+
 describe('rejectionCopy', () => {
   it('maps malformed-credentials (close code 4010) to expected copy', () => {
     expect(rejectionCopy('malformed-credentials')).toBe("Couldn't join with the info provided.");
@@ -81,7 +85,7 @@ describe('rejectionCopy', () => {
 
   it('maps unknown-room to expected copy', () => {
     expect(rejectionCopy('unknown-room')).toBe(
-      "That room code isn't active. Double-check with your host.",
+      "That code isn't active. Double-check it with your host.",
     );
   });
 
@@ -90,9 +94,7 @@ describe('rejectionCopy', () => {
   });
 
   it('maps room-full to expected copy', () => {
-    expect(rejectionCopy('room-full')).toBe(
-      'This room is full (max 20 participants). Navigate back and try another room.',
-    );
+    expect(rejectionCopy('room-full')).toBe('This session is full (20 participants max).');
   });
 
   it('maps invalid-invite to expected copy', () => {
@@ -107,5 +109,35 @@ describe('rejectionCopy', () => {
     expect(rejectionCopy('invite-already-redeemed')).toBe(
       'That invite link has already been used.',
     );
+  });
+
+  it('speaks of sessions, never rooms', () => {
+    const reasons = [
+      'unknown-room',
+      'wrong-password',
+      'invalid-invite',
+      'expired-invite',
+      'invite-already-redeemed',
+      'room-full',
+      'malformed-credentials',
+    ] as const;
+    for (const reason of reasons) {
+      expect(rejectionCopy(reason)).not.toMatch(/\broom\b/iu);
+    }
+  });
+});
+
+describe('qrScanErrorCopy', () => {
+  it('has distinct copy for every failure reason', () => {
+    const reasons = [
+      'permission-denied',
+      'no-camera',
+      'camera-busy',
+      'unavailable',
+      'unknown',
+    ] as const;
+    const copies = reasons.map((r) => qrScanErrorCopy(r));
+    expect(new Set(copies).size).toBe(reasons.length);
+    for (const copy of copies) expect(copy.length).toBeGreaterThan(0);
   });
 });

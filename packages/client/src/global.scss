@@ -3,9 +3,11 @@
  * angular.json → styles). Component-specific styles live in their
  * own `styles` arrays; this file is reserved for cross-cutting
  * stylesheet imports and truly app-wide rules.
+ *
+ * App-wide component rules are a separate entry, `theme/components.scss`,
+ * listed after this file in angular.json so they land after Ionic's own
+ * sheets in the cascade.
  */
-
-@use 'theme/breakpoints' as *;
 
 /* Core CSS required for Ionic components to work properly */
 @import "@ionic/angular/css/core.css";
@@ -55,39 +57,4 @@
 .ion-palette-dark .accent-select-popover {
   ion-radio[value="racing-green"]::part(label) { color: #1F6B4F; }
   ion-radio[value="graphite"]::part(label)     { color: #F2F2F7; }
-}
-
-// ---------------------------------------------------------------------------
-// Desktop modal — centered dialog style
-// Applied by SurfaceService.openModal() via the 'modal-centered' CSS class.
-// Must live in global.scss (not component SCSS) because ion-modal is portalled
-// outside the component tree and ignores encapsulated styles.
-// ---------------------------------------------------------------------------
-
-@media (min-width: $bp-md) {
-  ion-modal.modal-centered::part(content) {
-    --width: min(480px, 90vw);
-    --height: 500px;
-    --max-height: 80vh;
-    --border-radius: 16px;
-  }
-  ion-modal.modal-centered::part(handle) { display: none; }
-}
-
-// ---------------------------------------------------------------------------
-// CTA bar — sticky footer on mobile, inline on desktop.
-// Add class="cta-bar" to any ion-footer containing a primary CTA button.
-// ---------------------------------------------------------------------------
-
-@media (min-width: $bp-md) and (pointer: fine) {
-  ion-footer.cta-bar {
-    position: static;
-    background: transparent;
-    box-shadow: none;
-    border-top: none;
-  }
-  ion-footer.cta-bar ion-toolbar {
-    --background: transparent;
-    --border-width: 0;
-  }
 }

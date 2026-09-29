@@ -124,6 +124,31 @@ describe('Voting — [a] abstain rendering', () => {
   });
 });
 
+// The round's number is shared with the web client and the export: its place
+// among the rounds that were not discarded.
+// Exercises: ui/Voting:Voting
+describe('Voting — round number', () => {
+  function propsWithRounds(rounds: Round[], round: Round) {
+    return { ...baseProps({ round }), projection: { ...PROJECTION, rounds } };
+  }
+
+  it('numbers the round by its place in the session', () => {
+    const r1 = makeRound({ id: 'r1', status: 'revealed' });
+    const r2 = makeRound({ id: 'r2' });
+    const { lastFrame } = render(<Voting {...propsWithRounds([r1, r2], r2)} />);
+    expect(lastFrame() ?? '').toContain('Round 2');
+  });
+
+  it('gives a discarded round no number: the next round takes it', () => {
+    const r1 = makeRound({ id: 'r1', status: 'discarded' });
+    const r2 = makeRound({ id: 'r2' });
+    const { lastFrame } = render(<Voting {...propsWithRounds([r1, r2], r2)} />);
+    const frame = lastFrame() ?? '';
+    expect(frame).toContain('Round 1');
+    expect(frame).not.toContain('Round 2');
+  });
+});
+
 // The voting timer's elapsed value is raw wall-clock arithmetic against the
 // host's `timerStartedAt`, so a peer whose clock lags the host's gets a
 // negative number. Clamping is the shared formatter's job (issue #509).

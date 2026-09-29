@@ -11,7 +11,6 @@ import type { AgendaItem } from '@hnch/shared';
 import {
   IonBadge,
   IonButton,
-  IonChip,
   IonIcon,
   IonItem,
   IonLabel,
@@ -22,260 +21,167 @@ import {
   addOutline,
   arrowDownOutline,
   arrowUpOutline,
-  banOutline,
   checkmarkCircleOutline,
-  chevronForwardOutline,
-  createOutline,
-  ellipsisHorizontalOutline,
+  ellipsisHorizontal,
   pencilOutline,
   playSkipForwardOutline,
+  trashOutline,
 } from 'ionicons/icons';
 
 import { SurfaceService } from '../core/surface.service';
+import type { MenuItem } from '../shared/menu-popover/menu-popover.component';
+
+/** How an item's state is spoken and, where shown, written. */
+const STATE_WORD: Record<AgendaItem['state'], string> = {
+  pending: '',
+  consumed: 'estimated',
+  skipped: 'skipped',
+  cancelled: 'removed',
+};
 
 /**
- * AgendaPanelComponent — ordered list of agenda items (ADR-0042).
+ * AgendaPanelComponent — the ordered list of stories queued for estimation
+ * (ADR-0042, ADR-0045).
  *
- * Desktop: always-expanded list with host-only edit controls.
- * Mobile: collapsed "Next up: {title}" chip; tap expands to inline list.
- *
- * Visibility: all participants see the list.
- * Edit controls: visible only when `isHost` is true.
+ * One layout on every surface: the list, then "Add story". Everyone sees the
+ * list; only the host gets the controls. A pending story's actions live
+ * behind a single ⋯ button (action sheet on touch, popover with a pointer)
+ * rather than five icon buttons per row, which did not fit a phone and gave
+ * no hint what each glyph did.
  *
  * Emits actions to parent rather than calling DocService directly,
  * keeping the component easily testable.
  */
 @Component({
   selector: 'app-agenda-panel',
-  imports: [IonBadge, IonButton, IonChip, IonIcon, IonItem, IonLabel, IonList],
+  imports: [IonBadge, IonButton, IonIcon, IonItem, IonLabel, IonList],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (surface.mode() === 'mobile' && !expanded()) {
-      <!-- Mobile collapsed: "Next up" chip -->
-      <div class="next-up-bar">
-        @if (nextItem()) {
-          <ion-chip
-            class="next-up-chip"
-            color="primary"
-            (click)="expanded.set(true)"
-            [attr.aria-label]="'Agenda: Next up ' + nextItemLabel() + '. Tap to expand.'"
-            role="button"
-            tabindex="0"
-            (keydown.enter)="expanded.set(true)"
-            (keydown.space)="expanded.set(true)"
-          >
-            <ion-icon name="chevron-forward-outline" aria-hidden="true" />
-            <ion-label>Next up: {{ nextItemLabel() }}</ion-label>
-          </ion-chip>
-        } @else if (pendingCount() === 0 && items().length > 0) {
-          <ion-chip
-            class="next-up-chip"
-            color="medium"
-            (click)="expanded.set(true)"
-            aria-label="Agenda complete. Tap to view."
-            role="button"
-            tabindex="0"
-            (keydown.enter)="expanded.set(true)"
-            (keydown.space)="expanded.set(true)"
-          >
-            <ion-icon name="checkmark-circle-outline" aria-hidden="true" />
-            <ion-label>Agenda complete</ion-label>
-          </ion-chip>
-        } @else if (isHost()) {
-          <ion-chip
-            class="next-up-chip"
-            color="medium"
-            (click)="addRequested.emit()"
-            aria-label="No agenda items. Tap to add."
-            role="button"
-            tabindex="0"
-          >
-            <ion-icon name="add-outline" aria-hidden="true" />
-            <ion-label>Add agenda</ion-label>
-          </ion-chip>
-        }
-      </div>
-    } @else {
-      <!-- Expanded list (always on desktop; toggled on mobile) -->
-      <div class="agenda-panel">
-        <div class="agenda-header">
-          <div class="agenda-header-actions">
-            @if (surface.mode() === 'mobile') {
-              <ion-button
-                fill="clear"
-                size="small"
-                (click)="expanded.set(false)"
-                aria-label="Collapse agenda"
-              >
-                <ion-icon name="chevron-forward-outline" slot="icon-only" class="collapse-icon" aria-hidden="true" />
-              </ion-button>
-            }
-            @if (isHost()) {
-              <ion-button
-                fill="clear"
-                size="small"
-                color="primary"
-                (click)="addRequested.emit()"
-                aria-label="Add agenda item"
-              >
-                <ion-icon name="add-outline" slot="icon-only" aria-hidden="true" />
-              </ion-button>
-            }
-          </div>
-        </div>
-
-        @if (visibleItems().length === 0) {
-          <p class="agenda-empty">
-            {{ isHost() ? 'No agenda items. Tap + to add.' : 'No agenda items.' }}
-          </p>
-        } @else {
-          <ion-list lines="inset" class="agenda-list" aria-label="Agenda items">
-            @for (item of visibleItems(); track item.id; let i = $index) {
-              <ion-item
-                class="agenda-item"
-                [class.agenda-item--pending]="item.state === 'pending'"
-                [class.agenda-item--consumed]="item.state === 'consumed'"
-                [class.agenda-item--skipped]="item.state === 'skipped'"
-                [class.agenda-item--cancelled]="item.state === 'cancelled'"
-                [attr.aria-label]="itemAriaLabel(item)"
-              >
-                <div slot="start" class="state-badge-wrapper" aria-hidden="true">
-                  @switch (item.state) {
-                    @case ('pending') {
-                      <span class="state-dot state-dot--pending" aria-hidden="true"></span>
-                    }
-                    @case ('consumed') {
-                      <ion-icon name="checkmark-circle-outline" class="state-icon state-icon--consumed" aria-hidden="true" />
-                    }
-                    @case ('skipped') {
-                      <ion-icon name="play-skip-forward-outline" class="state-icon state-icon--skipped" aria-hidden="true" />
-                    }
-                    @case ('cancelled') {
-                      <ion-icon name="ban-outline" class="state-icon state-icon--cancelled" aria-hidden="true" />
-                    }
+    <div class="agenda-panel">
+      @if (visibleItems().length === 0) {
+        <p class="empty-state agenda-empty">
+          {{
+            isHost()
+              ? 'Queue the stories you plan to estimate. Each round picks up the next one.'
+              : 'No stories queued yet.'
+          }}
+        </p>
+      } @else {
+        <ion-list lines="none" class="agenda-list" aria-label="Agenda items">
+          @for (item of visibleItems(); track item.id; let i = $index) {
+            <ion-item
+              class="agenda-item"
+              [class.agenda-item--pending]="item.state === 'pending'"
+              [class.agenda-item--consumed]="item.state === 'consumed'"
+              [class.agenda-item--skipped]="item.state === 'skipped'"
+              [class.agenda-item--cancelled]="item.state === 'cancelled'"
+              [attr.aria-label]="itemAriaLabel(item)"
+            >
+              <div slot="start" class="state-badge-wrapper" aria-hidden="true">
+                @switch (item.state) {
+                  @case ('pending') {
+                    <span class="state-dot state-dot--pending"></span>
                   }
-                </div>
+                  @case ('consumed') {
+                    <ion-icon name="checkmark-circle-outline" class="state-icon state-icon--consumed" />
+                  }
+                  @case ('skipped') {
+                    <ion-icon name="play-skip-forward-outline" class="state-icon" />
+                  }
+                  @case ('cancelled') {
+                    <ion-icon name="trash-outline" class="state-icon" />
+                  }
+                }
+              </div>
 
-                <ion-label class="item-label">
-                  <span class="item-title">{{ itemDisplayTitle(item) }}</span>
+              <ion-label class="item-label">
+                <span class="item-title">{{ itemDisplayTitle(item) }}</span>
+                <span class="item-tags">
+                  @if (i === pendingStartIndex()) {
+                    <ion-badge class="next-badge">Next</ion-badge>
+                  }
                   @if (item.ticketId && item.title) {
                     <ion-badge class="ticket-badge" color="medium" aria-label="Ticket {{ item.ticketId }}">{{ item.ticketId }}</ion-badge>
                   }
-                  @if (item.description) {
-                    <p class="item-description">{{ item.description }}</p>
-                  }
-                </ion-label>
-
-                @if (isHost() && item.state === 'pending') {
-                  <div slot="end" class="item-actions" aria-label="Actions for {{ itemDisplayTitle(item) }}">
-                    @if (i > pendingStartIndex()) {
-                      <ion-button
-                        fill="clear"
-                        size="small"
-                        (click)="reorderUpRequested.emit(item.id)"
-                        [attr.aria-label]="'Move ' + itemDisplayTitle(item) + ' up'"
-                      >
-                        <ion-icon name="arrow-up-outline" slot="icon-only" aria-hidden="true" />
-                      </ion-button>
-                    }
-                    @if (i < pendingEndIndex()) {
-                      <ion-button
-                        fill="clear"
-                        size="small"
-                        (click)="reorderDownRequested.emit(item.id)"
-                        [attr.aria-label]="'Move ' + itemDisplayTitle(item) + ' down'"
-                      >
-                        <ion-icon name="arrow-down-outline" slot="icon-only" aria-hidden="true" />
-                      </ion-button>
-                    }
-                    <ion-button
-                      fill="clear"
-                      size="small"
-                      (click)="editRequested.emit(item)"
-                      [attr.aria-label]="'Edit ' + itemDisplayTitle(item)"
-                    >
-                      <ion-icon name="pencil-outline" slot="icon-only" aria-hidden="true" />
-                    </ion-button>
-                    <ion-button
-                      fill="clear"
-                      size="small"
-                      (click)="skipRequested.emit(item.id)"
-                      [attr.aria-label]="'Skip ' + itemDisplayTitle(item)"
-                    >
-                      <ion-icon name="play-skip-forward-outline" slot="icon-only" aria-hidden="true" />
-                    </ion-button>
-                    <ion-button
-                      fill="clear"
-                      size="small"
-                      color="danger"
-                      (click)="cancelRequested.emit(item.id)"
-                      [attr.aria-label]="'Cancel ' + itemDisplayTitle(item)"
-                    >
-                      <ion-icon name="ban-outline" slot="icon-only" aria-hidden="true" />
-                    </ion-button>
-                  </div>
+                </span>
+                @if (item.description) {
+                  <p class="item-description">{{ item.description }}</p>
                 }
-              </ion-item>
-            }
-          </ion-list>
-        }
+              </ion-label>
 
-        @if (hasCancelled()) {
-          <ion-button
-            fill="clear"
-            size="small"
-            class="show-cancelled-btn"
-            (click)="showCancelled.set(!showCancelled())"
-            [attr.aria-label]="showCancelled() ? 'Hide cancelled items' : 'Show cancelled items'"
-            [attr.aria-pressed]="showCancelled()"
-          >
-            {{ showCancelled() ? 'Hide cancelled' : 'Show cancelled' }}
-          </ion-button>
-        }
-      </div>
-    }
+              @if (isHost() && item.state === 'pending') {
+                <ion-button
+                  slot="end"
+                  fill="clear"
+                  class="item-menu-btn"
+                  [attr.aria-label]="'Actions for ' + itemDisplayTitle(item)"
+                  (click)="openItemMenu(item, i, $event)"
+                >
+                  <ion-icon name="ellipsis-horizontal" slot="icon-only" aria-hidden="true" />
+                </ion-button>
+              }
+            </ion-item>
+          }
+        </ion-list>
+      }
+
+      @if (isHost() || hasCancelled()) {
+        <div class="agenda-footer">
+          @if (isHost()) {
+            <ion-button
+              fill="clear"
+              size="small"
+              class="add-btn"
+              (click)="addRequested.emit()"
+            >
+              <ion-icon name="add-outline" slot="start" aria-hidden="true" />
+              Add story
+            </ion-button>
+          }
+          @if (hasCancelled()) {
+            <ion-button
+              fill="clear"
+              size="small"
+              color="medium"
+              class="show-cancelled-btn"
+              (click)="showCancelled.set(!showCancelled())"
+              [attr.aria-pressed]="showCancelled()"
+            >
+              {{ showCancelled() ? 'Hide removed' : 'Show removed' }}
+            </ion-button>
+          }
+        </div>
+      }
+    </div>
   `,
   styles: [
     `
-      .next-up-bar {
-        padding: 0.25rem 0;
-      }
-      .next-up-chip {
-        cursor: pointer;
-      }
-      .agenda-panel {
-        margin-top: 1rem;
-        margin-bottom: 0.5rem;
-      }
-      .agenda-header {
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        margin-bottom: 0.25rem;
-      }
-      .agenda-header-actions {
-        display: flex;
-        align-items: center;
-        gap: 0.25rem;
-      }
-      .collapse-icon {
-        transform: rotate(90deg);
+      :host {
+        display: block;
       }
       .agenda-empty {
-        font-size: 0.875rem;
-        color: var(--ion-color-medium);
-        padding: 0.5rem 0;
-        margin: 0;
-        font-style: italic;
+        padding-block: 0 4px;
       }
       .agenda-list {
         margin: 0;
+        padding: 0;
+        background: transparent;
+      }
+      ion-item.agenda-item {
+        --background: transparent;
+        --inner-padding-end: 0;
+        --min-height: 48px;
+        --padding-start: 0;
+      }
+      ion-item.agenda-item + ion-item.agenda-item {
+        border-top: 0.55px solid var(--hnch-sep);
       }
       .state-badge-wrapper {
         display: flex;
         align-items: center;
         justify-content: center;
-        width: 1.5rem;
+        width: 1.25rem;
+        margin-inline-end: 12px;
       }
       .state-dot {
         display: inline-block;
@@ -284,67 +190,96 @@ import { SurfaceService } from '../core/surface.service';
         border-radius: 50%;
       }
       .state-dot--pending {
-        background: var(--ion-color-primary);
+        background: var(--hnch-accent-text);
       }
       .state-icon {
-        font-size: 1rem;
+        color: var(--hnch-muted);
+        font-size: 1.125rem;
       }
       .state-icon--consumed {
-        color: var(--ion-color-success);
-      }
-      .state-icon--skipped {
-        color: var(--ion-color-medium);
-      }
-      .state-icon--cancelled {
-        color: var(--ion-color-danger);
-        opacity: 0.6;
+        color: var(--hnch-success-text);
       }
       .item-label {
         display: flex;
         flex-direction: column;
-        gap: 0.125rem;
+        gap: 4px;
+        margin-block: 10px;
+        white-space: normal;
       }
       .item-title {
-        font-size: 0.9rem;
+        color: var(--hnch-text);
+        font-size: 1rem;
+        line-height: 1.3;
+        overflow-wrap: anywhere;
+      }
+      .item-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .item-tags:empty {
+        display: none;
+      }
+      .ticket-badge,
+      .next-badge {
+        padding: 3px 6px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
       }
       .ticket-badge {
-        font-size: 0.7rem;
-        padding: 2px 6px;
-        border-radius: 4px;
-        width: fit-content;
+        font-family: ui-monospace, 'SF Mono', 'Roboto Mono', Menlo, Consolas, monospace;
+      }
+      .next-badge {
+        --background: rgba(var(--hnch-accent-text-rgb), 0.16);
+        --color: var(--hnch-accent-text);
       }
       .item-description {
-        font-size: 0.8rem;
-        color: var(--ion-color-medium);
+        display: -webkit-box;
         margin: 0;
         overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        max-width: 20ch;
+        color: var(--hnch-muted);
+        font-size: 0.875rem;
+        line-height: 1.35;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
       }
-      .item-actions {
+      /* Dots at the row's edge, 44px target reaching inwards — as in the roster. */
+      .item-menu-btn {
+        --color: var(--hnch-muted);
+        --padding-end: 0;
+        --padding-start: 20px;
+        min-width: 44px;
+        min-height: 44px;
+        margin: 0;
+      }
+      .agenda-item--consumed .item-title,
+      .agenda-item--skipped .item-title,
+      .agenda-item--cancelled .item-title {
+        color: var(--hnch-muted);
+      }
+      .agenda-item--skipped .item-title,
+      .agenda-item--cancelled .item-title {
+        text-decoration: line-through;
+      }
+      .agenda-footer {
         display: flex;
+        flex-wrap: wrap;
         align-items: center;
+        justify-content: space-between;
+        gap: 4px;
+        margin: 4px -8px -8px;
       }
-      .agenda-item--consumed ion-label {
-        opacity: 0.65;
-      }
-      .agenda-item--skipped ion-label {
-        opacity: 0.5;
-        text-decoration: line-through;
-      }
-      .agenda-item--cancelled ion-label {
-        opacity: 0.4;
-        text-decoration: line-through;
-      }
-      .show-cancelled-btn {
-        margin-top: 0.25rem;
+      .agenda-footer ion-button {
+        margin: 0;
+        font-size: 0.9375rem;
       }
     `,
   ],
 })
 export class AgendaPanelComponent {
-  protected readonly surface = inject(SurfaceService);
+  private readonly surface = inject(SurfaceService);
 
   /** Full agenda list (all states), sorted by sortKey. */
   readonly items = input.required<readonly AgendaItem[]>();
@@ -352,47 +287,26 @@ export class AgendaPanelComponent {
   /** Whether this client is the host. */
   readonly isHost = input<boolean>(false);
 
-  /** Fires when host taps Add. */
+  /** Fires when host taps Add story. */
   readonly addRequested = output<void>();
 
-  /** Fires when host taps pencil on an item. */
+  /** Fires when host picks Edit on an item. */
   readonly editRequested = output<AgendaItem>();
 
-  /** Fires when host taps Skip on an item. */
+  /** Fires when host picks Skip on an item. */
   readonly skipRequested = output<string>();
 
-  /** Fires when host taps Cancel on an item. */
+  /** Fires when host picks Remove on an item. */
   readonly cancelRequested = output<string>();
 
-  /** Fires when host taps ↑ on an item. */
+  /** Fires when host picks Move up on an item. */
   readonly reorderUpRequested = output<string>();
 
-  /** Fires when host taps ↓ on an item. */
+  /** Fires when host picks Move down on an item. */
   readonly reorderDownRequested = output<string>();
 
-  /** Mobile expand/collapse state. Desktop always shows. */
-  protected readonly expanded = signal(false);
-
-  /** Whether to show cancelled items. */
+  /** Whether to show removed (cancelled) items. */
   protected readonly showCancelled = signal(false);
-
-  /** First pending agenda item. */
-  protected readonly nextItem = computed(() => {
-    for (const item of this.items()) {
-      if (item.state === 'pending') return item;
-    }
-    return null;
-  });
-
-  protected readonly nextItemLabel = computed(() => {
-    const item = this.nextItem();
-    if (!item) return '';
-    return item.title ?? item.ticketId ?? '';
-  });
-
-  protected readonly pendingCount = computed(
-    () => this.items().filter((i) => i.state === 'pending').length,
-  );
 
   protected readonly hasCancelled = computed(() =>
     this.items().some((i) => i.state === 'cancelled'),
@@ -404,7 +318,7 @@ export class AgendaPanelComponent {
     return this.items().filter((i) => show || i.state !== 'cancelled');
   });
 
-  /** Index of first pending item in visibleItems (for reorder boundary). */
+  /** Index of first pending item in visibleItems — the story the next round picks up. */
   protected readonly pendingStartIndex = computed(() => {
     const items = this.visibleItems();
     for (let i = 0; i < items.length; i++) {
@@ -428,9 +342,60 @@ export class AgendaPanelComponent {
 
   protected itemAriaLabel(item: AgendaItem): string {
     const title = this.itemDisplayTitle(item);
-    const state = item.state === 'pending' ? '' : `, ${item.state}`;
+    const word = STATE_WORD[item.state];
+    const state = word === '' ? '' : `, ${word}`;
     const ticket = item.ticketId && item.title ? `, ${item.ticketId}` : '';
     return `${title}${ticket}${state}`;
+  }
+
+  /**
+   * The actions for one pending story. Move up / Move down only appear when
+   * there is somewhere to move to, so the menu never offers a no-op.
+   */
+  protected menuFor(item: AgendaItem, index: number): MenuItem[] {
+    const items: MenuItem[] = [];
+    if (index > this.pendingStartIndex()) {
+      items.push({
+        text: 'Move up',
+        icon: 'arrow-up-outline',
+        handler: () => this.reorderUpRequested.emit(item.id),
+      });
+    }
+    if (index < this.pendingEndIndex()) {
+      items.push({
+        text: 'Move down',
+        icon: 'arrow-down-outline',
+        handler: () => this.reorderDownRequested.emit(item.id),
+      });
+    }
+    items.push(
+      {
+        text: 'Edit',
+        icon: 'pencil-outline',
+        handler: () => this.editRequested.emit(item),
+      },
+      {
+        text: 'Skip',
+        icon: 'play-skip-forward-outline',
+        handler: () => this.skipRequested.emit(item.id),
+      },
+      {
+        text: 'Remove',
+        icon: 'trash-outline',
+        role: 'destructive',
+        handler: () => this.cancelRequested.emit(item.id),
+      },
+      { text: 'Cancel', role: 'cancel' },
+    );
+    return items;
+  }
+
+  protected async openItemMenu(item: AgendaItem, index: number, event: Event): Promise<void> {
+    await this.surface.openSheetOrPopover({
+      header: this.itemDisplayTitle(item),
+      items: this.menuFor(item, index),
+      triggerEvent: event,
+    });
   }
 
   constructor() {
@@ -438,13 +403,11 @@ export class AgendaPanelComponent {
       'add-outline': addOutline,
       'arrow-down-outline': arrowDownOutline,
       'arrow-up-outline': arrowUpOutline,
-      'ban-outline': banOutline,
       'checkmark-circle-outline': checkmarkCircleOutline,
-      'chevron-forward-outline': chevronForwardOutline,
-      'create-outline': createOutline,
-      'ellipsis-horizontal-outline': ellipsisHorizontalOutline,
+      'ellipsis-horizontal': ellipsisHorizontal,
       'pencil-outline': pencilOutline,
-      'skip-forward-outline': playSkipForwardOutline,
+      'play-skip-forward-outline': playSkipForwardOutline,
+      'trash-outline': trashOutline,
     });
   }
 }

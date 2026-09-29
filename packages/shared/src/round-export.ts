@@ -1,6 +1,11 @@
 import type { Participant, Round } from './doc.js';
 import { isAbstainVote } from './abstain.js';
-import { formatRoundElapsed, formatRoundStats, roundStatsFor } from './round-presentation.js';
+import {
+  formatRoundElapsed,
+  formatRoundStats,
+  roundNumber,
+  roundStatsFor,
+} from './round-presentation.js';
 import { isLikelyUrl } from './is-likely-url.js';
 
 /** Escape pipe characters in Markdown table cell content. */
@@ -162,9 +167,10 @@ export function roundsToMarkdown(input: RoundExportInput): string {
   const revealedRounds = rounds.filter((r) => r.status === 'revealed');
   if (revealedRounds.length === 0) return '';
 
-  // Only group revealed rounds; index into original full rounds array for numbering
+  // Only revealed rounds are grouped, but each keeps the number it goes by in
+  // the session — the same one every screen shows for it.
   const roundIndex = new Map<string, number>();
-  rounds.forEach((r, i) => roundIndex.set(r.id, i + 1)); // 1-based
+  for (const r of rounds) roundIndex.set(r.id, roundNumber(r, rounds));
 
   // Group by chain root (ADR-0013), preserving original array order within buckets
   const buckets = groupByChainRoot(revealedRounds);

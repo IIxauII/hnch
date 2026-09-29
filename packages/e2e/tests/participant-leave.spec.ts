@@ -7,11 +7,11 @@
  * - B's vote in the already-revealed round still appears as a named chip
  *   in VoteResultsComponent on A's screen (raw participants map preserved,
  *   name lookup still resolves — "You (Player)" omitted; B shows as "Player").
- * - B lands on /home with no Jump-back-in banner for the room they just left.
+ * - B lands on /home, where the session they just left is not offered.
  */
 
 import { test, expect } from './fixtures/app.fixture';
-import { LOBBY } from './fixtures/helpers';
+import { HOME, LOBBY } from './fixtures/helpers';
 
 test.describe('Participant voluntary leave (ADR-0036)', () => {
   test('leaver removed from active roster; host sees count decrement', async ({ host, player }) => {
@@ -66,7 +66,7 @@ test.describe('Participant voluntary leave (ADR-0036)', () => {
     expect(hasPlayerName).toBe(true);
   });
 
-  test('after leave, no Jump-back-in banner for that room', async ({ host, player }) => {
+  test('after leave, the session is not offered on Home', async ({ host, player }) => {
     const code = await host.createSession();
     await player.joinSession(code);
     await player.page.waitForURL(/\/lobby/);
@@ -74,17 +74,13 @@ test.describe('Participant voluntary leave (ADR-0036)', () => {
     // Leave explicitly (writes leftAt, clears cache per ADR-0036 §5)
     await player.leaveSession();
     await player.page.waitForURL(/\/home/);
+    await player.page.locator(HOME.createCard).waitFor({ state: 'visible' });
 
-    // Give Angular a tick to render
-    await player.page.waitForTimeout(500);
-
-    // No Jump-back-in banner
-    const banner = player.page.locator('app-jump-back-in-banner');
-    const visible = await banner.isVisible().catch(() => false);
-    expect(visible).toBe(false);
+    // Nothing to jump back into
+    await expect(player.page.locator(HOME.recentRow)).toHaveCount(0);
 
     // Verify the code we left doesn't appear anywhere on Home
-    const homeContent = await player.page.textContent('body');
-    expect(homeContent).not.toContain(code);
+    const homeContent = await player.page.locator('app-home').textContent();
+    expect(homeContent).not.toContain(`${code.slice(0, 3)}-${code.slice(3)}`);
   });
 });

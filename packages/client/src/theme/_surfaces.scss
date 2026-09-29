@@ -1,0 +1,165 @@
+// Shared surface primitives — app-wide classes any template may use.
+//
+// Global on purpose: these are the building blocks every page composes
+// (card, section label, icon tile, CTA bar). Page SCSS keeps to layout.
+
+@use 'breakpoints' as *;
+
+// ---------------------------------------------------------------------------
+// Card — the one elevated container. Pairs elev-1 with shadow-1 (ionic.md).
+// ---------------------------------------------------------------------------
+
+.hnch-card {
+  box-sizing: border-box;
+  border: 0.5px solid var(--hnch-sep);
+  border-radius: 16px;
+  background: var(--hnch-elev-1);
+  box-shadow: var(--hnch-shadow-1);
+  color: var(--hnch-text);
+}
+
+.hnch-card__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 12px 16px 0;
+}
+
+.hnch-card__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+.hnch-card__title-note {
+  margin-inline-start: 6px;
+  color: var(--hnch-muted);
+  font-weight: 400;
+}
+
+.hnch-card__body {
+  padding: 8px 16px 16px;
+}
+
+// Rows inside a card sit on the card, not on a second nested surface.
+.hnch-card ion-list {
+  padding-block: 0;
+  background: transparent;
+}
+
+.hnch-card ion-item {
+  --background: transparent;
+  --padding-start: 16px;
+  --inner-padding-end: 16px;
+}
+
+.hnch-card ion-list > ion-item:last-of-type,
+.hnch-card ion-list > ion-item-sliding:last-of-type > ion-item {
+  --inner-border-width: 0;
+}
+
+// ---------------------------------------------------------------------------
+// Section label — small caps line above a group of rows
+// ---------------------------------------------------------------------------
+
+.section-label {
+  margin: 24px 4px 8px;
+  color: var(--hnch-muted);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.section-label:first-child {
+  margin-block-start: 8px;
+}
+
+// ---------------------------------------------------------------------------
+// Icon tile — rounded square behind a leading row icon
+// ---------------------------------------------------------------------------
+
+.icon-tile {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-inline-end: 12px;
+  border-radius: 10px;
+  font-size: 20px;
+}
+
+.icon-tile--accent {
+  background: var(--hnch-accent);
+  color: var(--hnch-accent-ink);
+}
+
+.icon-tile--neutral {
+  background: var(--hnch-fill);
+  color: var(--hnch-text);
+}
+
+// ---------------------------------------------------------------------------
+// Empty state — one muted line where a list would be
+// ---------------------------------------------------------------------------
+
+.empty-state {
+  margin: 0;
+  padding: 4px 0;
+  color: var(--hnch-muted);
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+// ---------------------------------------------------------------------------
+// CTA bar — add class="cta-bar" to an ion-footer holding the primary action.
+// Buttons go inside `<div class="cta-inner">`, which the page's
+// `page-container` mixin lines up with the content column.
+// ---------------------------------------------------------------------------
+
+ion-footer.cta-bar ion-toolbar {
+  --background: var(--hnch-bg);
+  --border-color: var(--hnch-sep);
+  --border-width: 0.55px 0 0;
+  --min-height: 0;
+  --padding-bottom: 0;
+  --padding-end: 0;
+  --padding-start: 0;
+  --padding-top: 0;
+}
+
+ion-footer.cta-bar .cta-inner {
+  display: flex;
+  box-sizing: border-box;
+  gap: 12px;
+  width: 100%;
+  margin-inline: auto;
+  padding: 12px 16px;
+}
+
+ion-footer.cta-bar .cta-inner > ion-button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 50px;
+  margin: 0;
+  font-size: 17px;
+}
+
+@media (min-width: $bp-md) and (pointer: fine) {
+  ion-footer.cta-bar ion-toolbar {
+    --background: transparent;
+    --border-width: 0;
+  }
+
+  ion-footer.cta-bar .cta-inner {
+    padding-block: 8px 24px;
+  }
+}

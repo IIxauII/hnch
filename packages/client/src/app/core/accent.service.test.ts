@@ -240,6 +240,80 @@ describe('AccentService', () => {
   });
 
   // -------------------------------------------------------------------------
+  // Accessible accent text — `--hnch-accent-text`
+  // -------------------------------------------------------------------------
+
+  it('contrastRatio matches the WCAG reference pairs', async () => {
+    const { contrastRatio } = await import('./accent.service');
+    expect(contrastRatio('#000000', '#ffffff')).toBeCloseTo(21, 5);
+    expect(contrastRatio('#ffffff', '#ffffff')).toBeCloseTo(1, 5);
+    // Order must not matter.
+    expect(contrastRatio('#1F6B4F', '#2C2C2E')).toBeCloseTo(
+      contrastRatio('#2C2C2E', '#1F6B4F'),
+      10,
+    );
+  });
+
+  it('dark Racing Green fails AA as a label, which is why the token exists', async () => {
+    const { contrastRatio } = await import('./accent.service');
+    expect(contrastRatio('#1F6B4F', '#2C2C2E')).toBeLessThan(3);
+  });
+
+  it('every accent clears AA as text on the worst-case surface, in both modes', async () => {
+    const { accessibleAccentText, contrastRatio, ACCENT_TEXT_SURFACE, ACCENT_TEXT_MIN_CONTRAST } =
+      await import('./accent.service');
+    const { ACCENTS, ACCENTS_DARK_OVERRIDE } = await import('./accent.tokens');
+
+    for (const key of Object.keys(ACCENTS) as (keyof typeof ACCENTS)[]) {
+      const light = accessibleAccentText(ACCENTS[key].base, false);
+      expect(
+        contrastRatio(light, ACCENT_TEXT_SURFACE.light),
+        `${key} light`,
+      ).toBeGreaterThanOrEqual(ACCENT_TEXT_MIN_CONTRAST);
+
+      const darkBase = (ACCENTS_DARK_OVERRIDE[key] ?? ACCENTS[key]).base;
+      const dark = accessibleAccentText(darkBase, true);
+      expect(contrastRatio(dark, ACCENT_TEXT_SURFACE.dark), `${key} dark`).toBeGreaterThanOrEqual(
+        ACCENT_TEXT_MIN_CONTRAST,
+      );
+    }
+  });
+
+  it('leaves a base that already passes untouched', async () => {
+    const { accessibleAccentText } = await import('./accent.service');
+    // Racing Green on a light surface is ~11:1.
+    expect(accessibleAccentText('#0B3D2E', false)).toBe('#0b3d2e');
+  });
+
+  it('writes --hnch-accent-text lighter than the base in dark mode', async () => {
+    const { relativeLuminance } = await import('./accent.service');
+    mockPreferences.get.mockResolvedValue({ value: 'racing-green' });
+    const svc = await createService();
+
+    document.documentElement.classList.add(DARK_CLASS);
+    await svc.loadFromStorage();
+
+    const text = getCssVar('--hnch-accent-text');
+    expect(text).toBeTruthy();
+    expect(relativeLuminance(text!)).toBeGreaterThan(relativeLuminance('#1F6B4F'));
+    expect(getCssVar('--hnch-accent-text-rgb')).toMatch(/^\d+,\d+,\d+$/u);
+    // The fill is untouched — only the label variant moves.
+    expect(getCssVar('--hnch-accent')).toBe('#1F6B4F');
+  });
+
+  it('recomputes --hnch-accent-text when the theme flips', async () => {
+    mockPreferences.get.mockResolvedValue({ value: 'amber' });
+    const svc = await createService();
+    await svc.loadFromStorage();
+    const lightText = getCssVar('--hnch-accent-text');
+
+    document.documentElement.classList.add(DARK_CLASS);
+    triggerClassMutation();
+
+    expect(getCssVar('--hnch-accent-text')).not.toBe(lightText);
+  });
+
+  // -------------------------------------------------------------------------
   // Persistence round-trip
   // -------------------------------------------------------------------------
 

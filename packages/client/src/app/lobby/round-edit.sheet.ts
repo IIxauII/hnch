@@ -8,8 +8,8 @@ import {
   IonHeader,
   IonInput,
   IonItem,
-  IonLabel,
-  IonNote,
+  IonList,
+  IonTextarea,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
@@ -19,6 +19,15 @@ export interface RoundEditSubmission {
   readonly description: string | null;
 }
 
+/**
+ * Round edit half-sheet — the host renames a finished round or rewrites its
+ * description. Same field labels as the round-start sheet it mirrors, and,
+ * like every form sheet, Cancel on the left and the primary action on the
+ * right (ionic.md).
+ *
+ * A round that has a title keeps one: Save stays disabled while the title
+ * field is blank.
+ */
 @Component({
   selector: 'app-round-edit-sheet',
   host: { class: 'ion-page' },
@@ -29,8 +38,8 @@ export interface RoundEditSubmission {
     IonHeader,
     IonInput,
     IonItem,
-    IonLabel,
-    IonNote,
+    IonList,
+    IonTextarea,
     IonTitle,
     IonToolbar,
     ReactiveFormsModule,
@@ -39,7 +48,10 @@ export interface RoundEditSubmission {
   template: `
     <ion-header>
       <ion-toolbar>
-        <ion-title>Edit Round {{ roundNumber() }}</ion-title>
+        <ion-buttons slot="start">
+          <ion-button (click)="closeRequested.emit()">Cancel</ion-button>
+        </ion-buttons>
+        <ion-title>Edit round {{ roundNumber() }}</ion-title>
         <ion-buttons slot="end">
           <ion-button
             strong="true"
@@ -52,42 +64,41 @@ export interface RoundEditSubmission {
       </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding">
-      <ion-item>
-        <ion-label position="stacked">What are you estimating?</ion-label>
-        <ion-input
-          [formControl]="titleControl"
-          placeholder="e.g., Login redesign"
-          autocapitalize="sentences"
-          aria-label="Round title"
-        ></ion-input>
-      </ion-item>
-      <ion-item>
-        <ion-label position="stacked">Notes (optional)</ion-label>
-        <ion-input
-          [formControl]="descriptionControl"
-          placeholder="Optional details"
-          autocapitalize="sentences"
-          aria-label="Round notes"
-        ></ion-input>
-      </ion-item>
-      @if (titleControl.invalid && titleControl.touched) {
-        <ion-note class="error" color="danger" aria-live="polite">
-          Title must be 120 characters or fewer.
-        </ion-note>
-      }
-      @if (descriptionControl.invalid && descriptionControl.touched) {
-        <ion-note class="error" color="danger" aria-live="polite">
-          Notes must be 500 characters or fewer.
-        </ion-note>
-      }
+      <ion-list inset="true" lines="inset">
+        <ion-item>
+          <ion-input
+            [formControl]="titleControl"
+            label="What are you estimating?"
+            labelPlacement="stacked"
+            placeholder="e.g. Login redesign"
+            autocapitalize="sentences"
+            enterkeyhint="done"
+            maxlength="120"
+            aria-label="Round title"
+            (keydown.enter)="submit()"
+          ></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-textarea
+            [formControl]="descriptionControl"
+            label="Description"
+            labelPlacement="stacked"
+            placeholder="Optional context for the team"
+            autocapitalize="sentences"
+            aria-label="Round description"
+            [autoGrow]="true"
+            [counter]="true"
+            maxlength="500"
+            [rows]="2"
+          ></ion-textarea>
+        </ion-item>
+      </ion-list>
     </ion-content>
   `,
   styles: [
     `
-      .error {
-        display: block;
-        margin-top: 0.25rem;
-        padding: 0 1rem;
+      ion-list {
+        margin-block: 0;
       }
     `,
   ],
@@ -97,6 +108,8 @@ export class RoundEditSheetComponent {
   readonly initialTitle = input<string | null>(null);
   readonly initialDescription = input<string | null>(null);
   readonly submitted = output<RoundEditSubmission>();
+  /** Fires when the user taps Cancel. The modal host must dismiss. */
+  readonly closeRequested = output<void>();
 
   protected readonly titleControl = new FormControl<string>('', {
     nonNullable: true,

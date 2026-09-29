@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  computed,
   effect,
   inject,
   signal,
@@ -12,23 +13,62 @@ import { syncOutline } from 'ionicons/icons';
 
 import { DocService } from '../core/doc/doc.service';
 
+/** The connection states the banner tells apart. */
+export type BannerSyncStatus = 'connected' | 'offline' | 'connecting' | 'disconnected';
+
 /**
- * Inline reconnecting banner — plan §3.9 / issue #42.
+ * How long a first connection may take before the banner mentions it. A
+ * connection that comes up within a second is not worth a flash of text.
+ */
+export const CONNECTING_BANNER_DELAY_MS = 1_000;
+
+/** True while a session is attached and its connection is not up. */
+export function isWaitingForConnection(status: BannerSyncStatus): boolean {
+  return status === 'connecting' || status === 'disconnected';
+}
+
+/**
+ * What the banner says, or `null` when there is nothing to say.
  *
- * Renders a full-width warning bar inside `<ion-content>` when
- * `docService.reconnecting()` is true. On the falling edge (true →
- * false) it shows a brief "Reconnected" success toast.
+ * A connection that was up and dropped is "Reconnecting…" straight away —
+ * what is on screen may be stale and the user should know. One that has
+ * never been up is "Connecting…", and only once it is taking a while. That
+ * covers the pauses between attempts too (`disconnected`): to the person
+ * waiting they are the same wait.
  *
- * Placement: caller drops `<app-connection-status-banner />` at the
- * top of `<ion-content>` content so it scrolls with the page and
- * never overlaps the footer.
+ * Exported for unit testing.
+ */
+export function computeBannerLabel(
+  reconnecting: boolean,
+  status: BannerSyncStatus,
+  waitingLongEnough: boolean,
+): string | null {
+  if (reconnecting) return 'Reconnecting…';
+  if (isWaitingForConnection(status) && waitingLongEnough) return 'Connecting…';
+  return null;
+}
+
+/**
+ * Connection banner — plan §3.9 / issue #42. The one place the app reports
+ * on its connection.
+ *
+ * Renders a bar at the top of `<ion-content>` while the session is not
+ * connected, and stays in view when the page scrolls. On the way back
+ * (reconnecting true → false) it shows a brief "Reconnected" toast.
+ *
+ * It replaces a second indicator, a chip in the toolbar, that said the same
+ * thing five seconds later and pushed into the title on a phone.
+ *
+ * Placement: caller drops `<app-connection-status-banner />` first inside
+ * the page's content column.
  */
 @Component({
   selector: 'app-connection-status-banner',
   imports: [IonIcon, IonToast],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '[class.visible]': 'label() !== null' },
   template: `
-    @if (reconnecting()) {
+    @if (label(); as text) {
       <div
         class="banner"
         role="status"
@@ -36,7 +76,7 @@ import { DocService } from '../core/doc/doc.service';
         data-testid="connection-status-banner"
       >
         <ion-icon name="sync-outline" class="banner-icon" aria-hidden="true"></ion-icon>
-        Reconnecting…
+        {{ text }}
       </div>
     }
 
@@ -44,27 +84,38 @@ import { DocService } from '../core/doc/doc.service';
       [isOpen]="recentlyReconnected()"
       message="Reconnected"
       position="top"
-      color="success"
       [duration]="1500"
     ></ion-toast>
   `,
   styles: [
     `
+      :host(.visible) {
+        display: block;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        margin-block-end: 12px;
+      }
+      /* Opaque: the page scrolls underneath it. */
       .banner {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
-        padding: 0.5rem 1rem;
-        background: var(--ion-color-warning-tint);
-        color: var(--ion-color-warning-contrast);
-        border-radius: 8px;
-        font-size: 0.9rem;
+        gap: 8px;
+        min-height: 40px;
+        padding: 8px 12px;
+        border: 0.5px solid rgba(var(--ion-color-warning-rgb), 0.45);
+        border-radius: 12px;
+        background: var(--hnch-bg);
+        background: color-mix(in srgb, var(--ion-color-warning) 18%, var(--hnch-bg));
+        box-shadow: var(--hnch-shadow-1);
+        color: var(--hnch-text);
+        font-size: 0.9375rem;
         font-weight: 500;
-        margin-bottom: 0.75rem;
       }
       .banner-icon {
-        font-size: 1.1rem;
-        flex-shrink: 0;
+        flex: 0 0 auto;
+        color: var(--hnch-warning-text);
+        font-size: 1.125rem;
       }
     `,
   ],
@@ -76,6 +127,16 @@ export class ConnectionStatusBannerComponent {
   protected readonly reconnecting = this.docService.reconnecting;
 
   /**
+   * True once the connection has been down — connecting, or between two
+   * attempts — continuously for {@link CONNECTING_BANNER_DELAY_MS}.
+   */
+  private readonly waitingLongEnough = signal(false);
+
+  protected readonly label = computed<string | null>(() =>
+    computeBannerLabel(this.reconnecting(), this.docService.syncStatus(), this.waitingLongEnough()),
+  );
+
+  /**
    * Flipped to `true` on the falling edge of `reconnecting()` (true → false).
    * Cleared after 1500 ms so the toast dismisses naturally.
    */
@@ -85,9 +146,9 @@ export class ConnectionStatusBannerComponent {
     addIcons({ 'sync-outline': syncOutline });
 
     let clearTimer: ReturnType<typeof setTimeout> | null = null;
+    let connectingTimer: ReturnType<typeof setTimeout> | null = null;
 
     // Detect falling edge (true → false) via closure-tracked `previous`.
-    // Same pattern as connection-chip.component.ts:137-150.
     let previous = false;
     effect(() => {
       const current = this.reconnecting();
@@ -106,8 +167,31 @@ export class ConnectionStatusBannerComponent {
       previous = current;
     });
 
+    // One effect owns the "connecting" delay. The clock starts when the
+    // connection goes down and runs through every retry; only coming up (or
+    // the session going away) stops it.
+    let waiting = false;
+    effect(() => {
+      const nowWaiting = isWaitingForConnection(this.docService.syncStatus());
+      if (nowWaiting === waiting) return;
+      waiting = nowWaiting;
+      if (connectingTimer !== null) {
+        clearTimeout(connectingTimer);
+        connectingTimer = null;
+      }
+      if (nowWaiting) {
+        connectingTimer = setTimeout(() => {
+          this.waitingLongEnough.set(true);
+          connectingTimer = null;
+        }, CONNECTING_BANNER_DELAY_MS);
+      } else {
+        this.waitingLongEnough.set(false);
+      }
+    });
+
     this.destroyRef.onDestroy(() => {
       if (clearTimer !== null) clearTimeout(clearTimer);
+      if (connectingTimer !== null) clearTimeout(connectingTimer);
     });
   }
 }

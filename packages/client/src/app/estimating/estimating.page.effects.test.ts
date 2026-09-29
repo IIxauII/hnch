@@ -7,10 +7,12 @@
  *    The rule itself lives in the shared `screenFor` selector and is tested
  *    there against plain projections (issue #508).
  *  - showBackChevron computed: non-host + terminal round → true
- *  - backChevronLabel computed: host + active round → discard label
+ *  - backChevronLabel computed: host + active round → cancel label
  *  - keyboard-gate roundActive: host + active round passes gate
  *  - softExit: host → routes through discardCurrentRound command; non-host → does not
  *  - openActionSheet: host + active round → inserts 'Skip round' item
+ *  - cancelled round: the host is told at the tap, everyone else on the way out
+ *  - host / joiner split of the toolbar and the footer
  */
 
 import { TestBed } from '@angular/core/testing';
@@ -23,51 +25,52 @@ vi.mock('@ionic/angular/standalone', async () => {
   const stub = (selector: string) =>
     Comp({ selector, template: '<ng-content/>', standalone: true })(class {});
   return {
-    IonAccordion: stub('ion-accordion'),
-    IonAccordionGroup: stub('ion-accordion-group'),
     IonButton: stub('ion-button'),
     IonButtons: stub('ion-buttons'),
     IonCard: stub('ion-card'),
     IonCardContent: stub('ion-card-content'),
     IonChip: stub('ion-chip'),
-    IonCol: stub('ion-col'),
     IonContent: stub('ion-content'),
     IonFooter: stub('ion-footer'),
-    IonGrid: stub('ion-grid'),
     IonHeader: stub('ion-header'),
     IonIcon: stub('ion-icon'),
-    IonItem: stub('ion-item'),
     IonLabel: stub('ion-label'),
-    IonList: stub('ion-list'),
-    IonListHeader: stub('ion-list-header'),
-    IonRow: stub('ion-row'),
     IonTitle: stub('ion-title'),
     IonToolbar: stub('ion-toolbar'),
-    IonNote: stub('ion-note'),
-    IonModal: stub('ion-modal'),
+    // Reached through SurfaceService → MenuPopoverComponent.
+    IonItem: stub('ion-item'),
+    IonList: stub('ion-list'),
+    IonListHeader: stub('ion-list-header'),
     AlertController: class AlertController {
       create = vi.fn().mockResolvedValue({ present: vi.fn() });
     },
     ActionSheetController: class ActionSheetController {},
     ModalController: class ModalController {},
     PopoverController: class PopoverController {},
+    ToastController: class ToastController {},
   };
 });
 vi.mock('ionicons', () => ({ addIcons: vi.fn() }));
 vi.mock('ionicons/icons', () => ({
   checkmarkCircle: '',
   chevronBackOutline: '',
+  close: '',
   closeCircleOutline: '',
-  ellipsisHorizontalCircle: '',
+  ellipsisHorizontal: '',
+  eyeOutline: '',
   logOutOutline: '',
+  playSkipForwardOutline: '',
   removeCircleOutline: '',
-  settingsOutline: '',
+  timerOutline: '',
 }));
-vi.mock('../core/connection-chip.component', async () => {
-  const { Component } = await import('@angular/core');
-  @Component({ selector: 'app-connection-chip', template: '', standalone: true })
-  class ConnectionChipComponent {}
-  return { ConnectionChipComponent };
+vi.mock('../shared/role-toggle.component', async () => {
+  const { Component, input, output } = await import('@angular/core');
+  @Component({ selector: 'app-role-toggle', template: '', standalone: true })
+  class RoleToggleComponent {
+    readonly viewer = input<boolean>(false);
+    readonly toggled = output<void>();
+  }
+  return { RoleToggleComponent };
 });
 vi.mock('../shared/connection-status-banner.component', async () => {
   const { Component } = await import('@angular/core');
@@ -147,6 +150,7 @@ async function mount(opts: MountOpts = {}) {
   const { TimerTickService } = await import('../core/timer-tick.service');
   const { SurfaceService } = await import('../core/surface.service');
   const { Router } = await import('@angular/router');
+  const { ToastService } = await import('../services/toast.service');
   const { AlertController } = await import('@ionic/angular/standalone');
 
   const round = opts.initialRound !== undefined ? opts.initialRound : votingRound();
@@ -173,6 +177,7 @@ async function mount(opts: MountOpts = {}) {
   const revealCurrentRound = vi.fn().mockReturnValue({ applied: true, at: 1 });
   const skipCurrentRound = vi.fn().mockReturnValue({ applied: true, at: 1 });
   const openSheetOrPopover = vi.fn().mockResolvedValue(undefined);
+  const toastInfo = vi.fn().mockResolvedValue(undefined);
   const haptic = {
     impactLight: vi.fn(),
     impactMedium: vi.fn(),
@@ -248,6 +253,7 @@ async function mount(opts: MountOpts = {}) {
         },
       },
       { provide: Router, useValue: { navigate } },
+      { provide: ToastService, useValue: { info: toastInfo, error: vi.fn() } },
       {
         provide: AlertController,
         useValue: {
@@ -273,6 +279,7 @@ async function mount(opts: MountOpts = {}) {
     skipCurrentRound,
     discardCurrentRound,
     openSheetOrPopover,
+    toastInfo,
     haptic,
     docService,
     lastSession,
@@ -372,10 +379,10 @@ describe('EstimatingPage — showBackChevron computed', () => {
 describe('EstimatingPage — backChevronLabel computed', () => {
   type Internals = { backChevronLabel: () => string };
 
-  it('discard label when host + active round (pending/voting)', async () => {
+  it('cancel label when host + active round (pending/voting)', async () => {
     const { fixture } = await mount({ isHost: true, initialRound: votingRound() });
     const page = fixture.componentInstance as unknown as Internals;
-    expect(page.backChevronLabel()).toBe('Discard round and return to lobby');
+    expect(page.backChevronLabel()).toBe('Cancel round and go back to the lobby');
   });
 
   it('back label when host + terminal round', async () => {
@@ -449,8 +456,19 @@ describe('EstimatingPage — softExit', () => {
     expect(navigate).toHaveBeenCalledWith(['/lobby', 'ZZZZZZ']);
   });
 
+  // The chevron cancels the round for everyone (ADR-0046) and leaves nothing
+  // behind on the Lobby, so it has to say what it just did.
+  it('host → says the round was cancelled', async () => {
+    const { fixture, toastInfo } = await mount({
+      isHost: true,
+      initialRound: votingRound('r-active'),
+    });
+    (fixture.componentInstance as unknown as Internals).softExit();
+    expect(toastInfo).toHaveBeenCalledWith('Round cancelled');
+  });
+
   it('host + command no-ops (already-terminal) → still navigates', async () => {
-    const { fixture, discardCurrentRound, navigate } = await mount({
+    const { fixture, discardCurrentRound, navigate, toastInfo } = await mount({
       isHost: true,
       initialRound: terminalRound('revealed', 'r-done'),
     });
@@ -459,16 +477,78 @@ describe('EstimatingPage — softExit', () => {
     page.softExit();
     expect(discardCurrentRound).toHaveBeenCalledWith();
     expect(navigate).toHaveBeenCalledWith(['/lobby', 'ZZZZZZ']);
+    expect(toastInfo).not.toHaveBeenCalled();
   });
 
   it('non-host → does NOT call discardCurrentRound', async () => {
-    const { fixture, discardCurrentRound } = await mount({
+    const { fixture, discardCurrentRound, toastInfo } = await mount({
       isHost: false,
       initialRound: votingRound(),
     });
     const page = fixture.componentInstance as unknown as Internals;
     page.softExit();
     expect(discardCurrentRound).not.toHaveBeenCalled();
+    expect(toastInfo).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cancelled round, seen from everyone else. The page is sent back to the
+// Lobby by the autoNav effect whatever ended the round; only a cancelled one
+// leaves no trace there, so only that one is announced.
+// ---------------------------------------------------------------------------
+
+describe('EstimatingPage — a round that ends under a voter', () => {
+  async function mountVoting(isHost: boolean) {
+    const mounted = await mount({ isHost, initialRound: votingRound('r1') });
+    TestBed.flushEffects();
+    return mounted;
+  }
+
+  function endRound(
+    mounted: Awaited<ReturnType<typeof mountVoting>>,
+    status: 'revealed' | 'skipped' | 'discarded',
+  ): void {
+    const ended = terminalRound(status, 'r1');
+    mounted.roundsSig.set([ended]);
+    mounted.currentRoundSig.set(status === 'discarded' ? null : ended);
+    mounted.screenSig.set('lobby');
+    TestBed.flushEffects();
+  }
+
+  it('cancelled by the host → says so, then goes to the lobby', async () => {
+    const mounted = await mountVoting(false);
+    endRound(mounted, 'discarded');
+    expect(mounted.toastInfo).toHaveBeenCalledWith('The host cancelled the round');
+    expect(mounted.navigate).toHaveBeenCalledWith(['/lobby', 'ZZZZZZ'], { replaceUrl: true });
+  });
+
+  it('revealed → no toast: the results are the announcement', async () => {
+    const mounted = await mountVoting(false);
+    endRound(mounted, 'revealed');
+    expect(mounted.toastInfo).not.toHaveBeenCalled();
+    expect(mounted.navigate).toHaveBeenCalled();
+  });
+
+  it('skipped → no toast: the lobby shows "Round skipped"', async () => {
+    const mounted = await mountVoting(false);
+    endRound(mounted, 'skipped');
+    expect(mounted.toastInfo).not.toHaveBeenCalled();
+  });
+
+  it('the host is not told twice: the tap already said it', async () => {
+    const mounted = await mountVoting(true);
+    endRound(mounted, 'discarded');
+    expect(mounted.toastInfo).not.toHaveBeenCalled();
+  });
+
+  it('no round was ever shown → nothing to announce', async () => {
+    const mounted = await mount({ isHost: false, initialScreen: null, initialRound: null });
+    TestBed.flushEffects();
+    mounted.roundsSig.set([terminalRound('discarded', 'r0')]);
+    mounted.screenSig.set('lobby');
+    TestBed.flushEffects();
+    expect(mounted.toastInfo).not.toHaveBeenCalled();
   });
 });
 
@@ -517,6 +597,112 @@ describe('EstimatingPage — openActionSheet skip-round insertion', () => {
     const [opts] = openSheetOrPopover.mock.calls[0] as [{ items: { text: string }[] }];
     const texts = opts.items.map((i) => i.text);
     expect(texts).not.toContain('Skip round');
+  });
+
+  it('host + active round → skip, end, leave, cancel, in that order', async () => {
+    const { fixture, openSheetOrPopover } = await mount({
+      isHost: true,
+      initialRound: votingRound(),
+    });
+    const event = new Event('click');
+    await (fixture.componentInstance as unknown as Internals).openActionSheet(event);
+
+    const [opts] = openSheetOrPopover.mock.calls[0] as [
+      { header?: string; triggerEvent: Event; items: { text: string; role?: string }[] },
+    ];
+    expect(opts.items.map((i) => i.text)).toEqual([
+      'Skip round',
+      'End session for everyone',
+      'Leave session',
+      'Cancel',
+    ]);
+    expect(opts.items.map((i) => i.role)).toEqual([
+      undefined,
+      'destructive',
+      'destructive',
+      'cancel',
+    ]);
+    expect(opts.triggerEvent).toBe(event);
+  });
+
+  // It used to navigate to the Lobby mid-round, where the Lobby sent the user
+  // straight back — or, when it did not, stranded them away from the vote.
+  it('never offers "Session settings": they live on the Lobby', async () => {
+    const { fixture, openSheetOrPopover } = await mount({
+      isHost: true,
+      initialRound: votingRound(),
+    });
+    await (fixture.componentInstance as unknown as Internals).openActionSheet(new Event('click'));
+
+    const [opts] = openSheetOrPopover.mock.calls[0] as [{ items: { text: string }[] }];
+    expect(opts.items.map((i) => i.text)).not.toContain('Session settings');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Host / joiner split of the template
+// ---------------------------------------------------------------------------
+
+describe('EstimatingPage — toolbar and footer', () => {
+  function textOf(el: Element | null | undefined): string {
+    return el?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+  }
+
+  it('is titled with the round number', async () => {
+    const { fixture } = await mount({
+      initialRound: votingRound('r2'),
+      initialRounds: [terminalRound('revealed', 'r1'), votingRound('r2')],
+    });
+    expect(textOf(fixture.nativeElement.querySelector('ion-title'))).toBe('Round 2');
+  });
+
+  it('is titled "Estimating" until the round shows up', async () => {
+    const { fixture } = await mount({ initialScreen: null, initialRound: null });
+    expect(textOf(fixture.nativeElement.querySelector('ion-title'))).toBe('Estimating');
+  });
+
+  it('host: a menu, and the Reveal button', async () => {
+    const { fixture } = await mount({ isHost: true, initialRound: votingRound() });
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('ion-button[aria-label="More options"]')).not.toBeNull();
+    expect(el.querySelector('ion-button[aria-label="Leave session"]')).toBeNull();
+    expect(textOf(el.querySelector('ion-footer ion-button'))).toBe('Reveal votes');
+  });
+
+  it('everyone else: a one-tap Leave, behind a confirmation, and no footer', async () => {
+    const { fixture, alerts } = await mount({ isHost: false, initialRound: votingRound() });
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('ion-button[aria-label="More options"]')).toBeNull();
+    expect(el.querySelector('ion-footer')).toBeNull();
+
+    el.querySelector<HTMLElement>('ion-button[aria-label="Leave session"]')!.click();
+    await vi.waitFor(() => expect(alerts).toHaveLength(1));
+    expect(alerts[0]!.buttons.map((b) => b.text)).toEqual(['Cancel', 'Leave']);
+  });
+
+  it('shows what is being estimated, description included', async () => {
+    const round: Round = {
+      ...votingRound(),
+      ticketId: 'PROJ-42',
+      title: 'Login form',
+      description: 'First line\nSecond line',
+    };
+    const { fixture } = await mount({ initialRound: round });
+    const story = (fixture.nativeElement as HTMLElement).querySelector('.story');
+    expect(textOf(story?.querySelector('.ticket-chip'))).toBe('PROJ-42');
+    expect(textOf(story?.querySelector('h2.descriptor'))).toBe('Login form');
+    // No leading or trailing whitespace: the block is rendered pre-wrap.
+    expect(story?.querySelector('.description-body')?.textContent).toBe('First line\nSecond line');
+  });
+
+  it('leaves the story block out when the round has no descriptor', async () => {
+    const { fixture } = await mount({ initialRound: votingRound() });
+    expect((fixture.nativeElement as HTMLElement).querySelector('.story')).toBeNull();
+  });
+
+  it('carries the role switch', async () => {
+    const { fixture } = await mount({ initialRound: votingRound() });
+    expect((fixture.nativeElement as HTMLElement).querySelector('app-role-toggle')).not.toBeNull();
   });
 });
 

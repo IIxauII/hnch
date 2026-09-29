@@ -212,6 +212,19 @@ export interface ConnectToRelayOptions {
    * `leftAt` for a rejoining participant (ADR-0036 §6).
    */
   readonly onSynced?: (() => void) | undefined;
+  /**
+   * Fires on every `synced` transition of the underlying socket: `true` once
+   * the relay's state has applied on the *current* connection, `false` when
+   * that connection goes away. Unlike {@link onSynced} it is not one-shot.
+   *
+   * This is the signal that awareness can be trusted. `y-websocket` drops
+   * every remote awareness state when a socket closes, and the relay pushes
+   * the room's states ahead of its sync-step-2 reply — so between a socket
+   * opening and `true` arriving here, a peer sees itself as the only one
+   * online. A rule that counts online peers (unanimous auto-reveal) must not
+   * evaluate in that window.
+   */
+  readonly onSyncedChange?: ((synced: boolean) => void) | undefined;
 }
 
 /** Public handle. Everything else is observed through the callbacks. */
@@ -313,8 +326,37 @@ export function connectToRelay(opts: ConnectToRelayOptions): RelayConnection {
     }),
   });
 
+  // Presence across a reconnect.
+  //
+  // `y-protocols` takes an awareness state only when its clock is newer than
+  // the last one it saw for that client. A reconnect defeats that in both
+  // directions. The relay drops our state when the socket closes and peers
+  // record us as gone — at the very clock we then come back with. And
+  // `y-websocket` drops every peer's state here while keeping the clock the
+  // relay is about to send that state back under. Left alone, everyone is
+  // offline to everyone until the next awareness renewal, up to 15 s later:
+  // three times the host-election debounce (ADR-0010), so the room changed
+  // hands, and changed back, over a reconnect nobody would have noticed.
+  const forgetPeerClocks = (): void => {
+    const { awareness } = provider;
+    // Deleting from a Map while iterating it is well-defined.
+    for (const clientId of awareness.meta.keys()) {
+      if (clientId !== awareness.clientID && !awareness.states.has(clientId)) {
+        awareness.meta.delete(clientId);
+      }
+    }
+  };
+
+  const reannounceSelf = (): void => {
+    const state = provider.awareness.getLocalState();
+    // Writing the state back is what advances the clock.
+    if (state !== null) provider.awareness.setLocalState(state);
+  };
+
   const onStatus = (ev: { status: SyncStatus }): void => {
     status = ev.status;
+    if (ev.status === 'disconnected') forgetPeerClocks();
+    if (ev.status === 'connected' && hasEverConnected) reannounceSelf();
     opts.onStatusChange?.(ev.status);
     // A successful (re)connect invalidates any prior rejection — the
     // relay accepted us, so clear the surfaced reason and the throttle
@@ -377,6 +419,16 @@ export function connectToRelay(opts: ConnectToRelayOptions): RelayConnection {
     syncedListener = onSynced;
     syncedEvents.on('synced', onSynced);
   }
+  // Registered after the one-shot above so `onSynced`'s post-sync write has
+  // landed by the time a consumer reacts to `onSyncedChange(true)`.
+  let syncedChangeListener: ((isSynced: boolean) => void) | null = null;
+  if (opts.onSyncedChange !== undefined) {
+    const onSyncedChange = (isSynced: boolean): void => {
+      opts.onSyncedChange?.(isSynced);
+    };
+    syncedChangeListener = onSyncedChange;
+    syncedEvents.on('synced', onSyncedChange);
+  }
 
   // window online/offline listeners — network interface changes do not
   // always close the socket promptly (Chromium offline mode, flaky Wi-Fi
@@ -436,6 +488,13 @@ export function connectToRelay(opts: ConnectToRelayOptions): RelayConnection {
       if (syncedListener !== null) {
         syncedEvents.off('synced', syncedListener);
         syncedListener = null;
+      }
+      if (syncedChangeListener !== null) {
+        syncedEvents.off('synced', syncedChangeListener);
+        syncedChangeListener = null;
+        // The provider is about to be destroyed with its listeners already
+        // detached, so the closing transition is reported here.
+        opts.onSyncedChange?.(false);
       }
       win?.removeEventListener('offline', onOffline);
       win?.removeEventListener('online', onOnline);

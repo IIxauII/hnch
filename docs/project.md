@@ -55,7 +55,9 @@ statistics at all rather than empty ones.
 
 ### Re-voting
 
-Re-votes are always allowed. A re-vote creates a *new* round with `parentRoundId` pointing at the previous round and title/metadata inherited by default, preserving the progression of estimates across rounds (e.g. 5 → 8 → 13) for retrospective value. The UI walks the parent chain to render lineage like "Round 2 of 3 on 'Auth migration'."
+Re-votes are always allowed. A re-vote creates a *new* round with `parentRoundId` pointing at the previous round and title/metadata inherited by default, preserving the progression of estimates across rounds (e.g. 5 → 8 → 13) for retrospective value. The UI walks the parent chain to tell a re-vote from a fresh round: the mobile client marks it "Re-vote" beside the round's number, the CLI renders the chain position ("Round 2/3 [re-vote]").
+
+A round goes by one number: its place among the session's rounds that were not cancelled. A round the host cancels leaves no trace — no history entry, no number — so the round that replaces it takes the number it would have had.
 
 Before a round's reveal, a user may change their vote any number of times by tapping a different card — only the selection at reveal time counts. This matches physical planning poker (you can flip your card back over before everyone shows).
 
@@ -108,7 +110,7 @@ Access control is *relay-enforced*, not client-side. The relay holds a small amo
 
 ## Participants
 
-Hard cap of 20 participants per session — more than enough for any real planning poker session and keeps relay bandwidth bounded. Participants can switch between **voter** and **viewer** roles at any time. Viewers observe but are not required to vote.
+Hard cap of 20 participants per session — more than enough for any real planning poker session and keeps relay bandwidth bounded. Participants can switch between **voter** and **viewer** roles at any time. Viewers observe but are not required to vote: they are left out of the vote count, of unanimous auto-reveal, and of the "Didn't vote" list on the results. On screen the viewer role reads **Observer**.
 
 ## Session Lifetime & Persistence
 
@@ -153,7 +155,7 @@ The session *creator* is the initial host. If the host disconnects, election pro
 
 Peer ID is the device identifier from *Identity*. Election happens in the shared Yjs doc; the relay is not involved.
 
-Host responsibilities — manual-reveal trigger, access-mode and password management — are scoped to the current elected host. A subtle crown icon in the participant list surfaces who holds the role.
+Host responsibilities — manual-reveal trigger, access-mode and password management — are scoped to the current elected host. A "Host" badge in the participant list surfaces who holds the role.
 
 ## UX
 

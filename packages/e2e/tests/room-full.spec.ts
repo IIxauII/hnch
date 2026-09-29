@@ -1,5 +1,5 @@
-import { test, expect } from './fixtures/app.fixture';
-import { BASE_URL, HOME, JOIN, fillRoomCode } from './fixtures/helpers';
+import { test } from './fixtures/app.fixture';
+import { BASE_URL, HOME, expectToast, fillRoomCode } from './fixtures/helpers';
 
 /**
  * Room full rejection test.
@@ -46,8 +46,8 @@ test.describe('Room full rejection', () => {
     // Navigate to join page
     await overflow.page.locator(HOME.joinCard).click();
     await overflow.page.waitForURL(/\/join/);
+    // The sixth character submits
     await fillRoomCode(overflow.page, code);
-    await overflow.page.locator(JOIN.joinBtn).click();
 
     // Room is full → WS close code 4006 arrives → join page should show
     // room-full toast and navigate to home. The join.page.ts component
@@ -56,10 +56,8 @@ test.describe('Room full rejection', () => {
     // Verify navigation back to /home (this is the guarantee)
     await overflow.page.waitForURL(/\/home/, { timeout: 10_000 });
 
-    // Optionally verify the toast appeared (it should, but focus on nav)
-    const toasts = overflow.page.locator('ion-toast');
-    const count = await toasts.count();
-    expect(count).toBeGreaterThan(0);
+    // ...and the toast says why
+    await expectToast(overflow.page, /session is full/i);
 
     // The other participants should still see 3
     for (const p of participants) {

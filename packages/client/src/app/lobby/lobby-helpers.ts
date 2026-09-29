@@ -3,7 +3,7 @@
  * directly without spinning up the full LobbyPage component graph.
  */
 
-import { participantRole, resolveRoundLineage } from '@hnch/shared';
+import { participantRole } from '@hnch/shared';
 import type { Round } from '@hnch/shared';
 
 /** True when a participant's effective role is `'viewer'`. */
@@ -12,26 +12,55 @@ export function isParticipantViewer(p: { role?: 'voter' | 'viewer' }): boolean {
 }
 
 /**
- * Build the results-section heading shown in the Lobby. For re-voted
- * rounds, surfaces the chain position as `"Round N of M Results"`
- * (issue #111). First-round / standalone rounds get `"Round N Results"`.
- * Returns the empty string when no terminal round exists yet.
+ * Heading of the Lobby's results card: `"Round N results"`, where N is the
+ * round's number in the session — the same N the Estimating screen showed
+ * for it and the History list will show for it later. Returns the empty
+ * string when no terminal round exists yet.
+ *
+ * A re-vote keeps its session number here; that it is a re-vote is a
+ * separate note beside the heading (`revoteLabel`).
  */
-export function buildResultsHeading(
-  round: Round | null,
-  roundIndex: number | null,
-  allRounds: readonly Round[],
-): string {
+export function buildResultsHeading(round: Round | null, roundIndex: number | null): string {
   if (round === null || roundIndex === null) return '';
-  const lineage = resolveRoundLineage(round.id, allRounds);
-  if (lineage === null) return `Round ${roundIndex} Results`;
-  return `Round ${lineage.depth} of ${lineage.total} Results`;
+  return `Round ${roundIndex} results`;
 }
 
 /**
- * Toast text shown after a room-code copy attempt. On failure the dash-formatted
+ * One line under the session code: what the session is called, which scale
+ * it votes on, and whether it is locked. Parts that do not apply are left
+ * out rather than shown empty.
+ */
+export function buildSessionSummary(input: {
+  name?: string | undefined;
+  scaleLabel: string;
+  passwordProtected: boolean;
+}): string {
+  const parts = [
+    input.name?.trim() ?? '',
+    input.scaleLabel.trim(),
+    input.passwordProtected ? 'Password protected' : '',
+  ];
+  return parts.filter((part) => part.length > 0).join(' · ');
+}
+
+/** Label of the host's primary button. */
+export function buildRoundCta(hasFinishedRound: boolean, nextRoundNumber: number): string {
+  return `${hasFinishedRound ? 'Next round' : 'Start round'} ${nextRoundNumber}`;
+}
+
+/**
+ * What everyone who is not the host sees in place of that button — the
+ * Lobby is otherwise silent about why nothing is happening.
+ */
+export function buildWaitingNote(hostName: string | null, hasFinishedRound: boolean): string {
+  const who = hostName?.trim() || 'the host';
+  return `Waiting for ${who} to start the ${hasFinishedRound ? 'next' : 'first'} round.`;
+}
+
+/**
+ * Toast text shown after a code copy attempt. On failure the dash-formatted
  * code is surfaced inline so the user can still read it.
  */
 export function buildCopyRoomCodeToast(success: boolean, code: string): string {
-  return success ? 'Room code copied' : `Couldn't copy — code is ${code}`;
+  return success ? 'Code copied' : `Couldn't copy. The code is ${code}`;
 }

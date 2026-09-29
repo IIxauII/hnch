@@ -16,7 +16,9 @@
  */
 
 import * as Y from 'yjs';
+import * as decoding from 'lib0/decoding';
 import * as encoding from 'lib0/encoding';
+import * as awarenessProtocol from 'y-protocols/awareness';
 import * as syncProtocol from 'y-protocols/sync';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -551,6 +553,70 @@ describe('connectToRelay onSynced', () => {
 });
 
 // ---------------------------------------------------------------------------
+// connectToRelay — onSyncedChange
+// ---------------------------------------------------------------------------
+
+describe('connectToRelay onSyncedChange', () => {
+  it('stays silent while the socket is open but not yet synced', () => {
+    const onSyncedChange = vi.fn();
+    makeConnection({ onSyncedChange });
+
+    connectSuccessfully();
+
+    expect(onSyncedChange).not.toHaveBeenCalled();
+  });
+
+  it('reports true on sync, false on close, and true again on the next sync', () => {
+    const onSyncedChange = vi.fn();
+    const doc = new Y.Doc();
+    makeConnection({ doc, onSyncedChange });
+    connectSuccessfully();
+
+    deliverSyncStep2(doc);
+    expect(onSyncedChange.mock.calls).toEqual([[true]]);
+
+    latestSocket().simulateClose(1006);
+    expect(onSyncedChange.mock.calls).toEqual([[true], [false]]);
+
+    vi.advanceTimersByTime(10_000);
+    connectSuccessfully();
+    // Reconnected, but the relay's state has not applied yet.
+    expect(onSyncedChange.mock.calls).toEqual([[true], [false]]);
+
+    deliverSyncStep2(doc);
+    expect(onSyncedChange.mock.calls).toEqual([[true], [false], [true]]);
+  });
+
+  it('fires after the one-shot onSynced, so its post-sync write has landed', () => {
+    const order: string[] = [];
+    const doc = new Y.Doc();
+    makeConnection({
+      doc,
+      onSynced: () => order.push('onSynced'),
+      onSyncedChange: (synced) => order.push(`onSyncedChange:${String(synced)}`),
+    });
+    connectSuccessfully();
+
+    deliverSyncStep2(doc);
+
+    expect(order).toEqual(['onSynced', 'onSyncedChange:true']);
+  });
+
+  it('reports false on disconnect and nothing afterwards', () => {
+    const onSyncedChange = vi.fn();
+    const doc = new Y.Doc();
+    const conn = makeConnection({ doc, onSyncedChange });
+    connectSuccessfully();
+    deliverSyncStep2(doc);
+    onSyncedChange.mockClear();
+
+    conn.disconnect();
+
+    expect(onSyncedChange.mock.calls).toEqual([[false]]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // connectToRelay — updateCredentials
 // ---------------------------------------------------------------------------
 
@@ -588,6 +654,156 @@ describe('connectToRelay updateCredentials', () => {
     conn.updateCredentials({ passwordHash: null });
 
     expect(socketParams()).toEqual({ did: 'device-1' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// connectToRelay — presence across a reconnect
+//
+// `y-protocols` takes an awareness state only when its clock is newer than
+// the last one seen for that client, and a reconnect leaves both sides
+// holding clocks that are not. What is asserted here is what a peer and a
+// caller can observe: what goes out on the new socket, and who is in
+// `awareness.getStates()` after the relay has replayed the room's presence.
+// ---------------------------------------------------------------------------
+
+const MESSAGE_AWARENESS = 1;
+
+/** A peer's presence as the relay relays it: one awareness message. */
+function awarenessMessageFrom(peer: awarenessProtocol.Awareness): ArrayBuffer {
+  const encoder = encoding.createEncoder();
+  encoding.writeVarUint(encoder, MESSAGE_AWARENESS);
+  encoding.writeVarUint8Array(
+    encoder,
+    awarenessProtocol.encodeAwarenessUpdate(peer, [peer.clientID]),
+  );
+  const bytes = encoding.toUint8Array(encoder);
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
+/** The clocks a socket was sent awareness states under, for one client. */
+function awarenessClocksSent(ws: FakeWebSocket, clientId: number): number[] {
+  const clocks: number[] = [];
+  for (const [payload] of ws.send.mock.calls as [Uint8Array][]) {
+    const decoder = decoding.createDecoder(new Uint8Array(payload));
+    if (decoding.readVarUint(decoder) !== MESSAGE_AWARENESS) continue;
+    const update = decoding.createDecoder(decoding.readVarUint8Array(decoder));
+    const count = decoding.readVarUint(update);
+    for (let i = 0; i < count; i++) {
+      const id = decoding.readVarUint(update);
+      const clock = decoding.readVarUint(update);
+      decoding.readVarString(update);
+      if (id === clientId) clocks.push(clock);
+    }
+  }
+  return clocks;
+}
+
+/** A second participant, as its own client would hold it. */
+function makePeer(participantId: string): awarenessProtocol.Awareness {
+  const peer = new awarenessProtocol.Awareness(new Y.Doc());
+  peer.setLocalStateField('participantId', participantId);
+  return peer;
+}
+
+/** Drop the connection the way a network does, and let the retry come up. */
+function reconnect(): void {
+  latestSocket().simulateClose(1006, '', false);
+  vi.advanceTimersByTime(10_000);
+  connectSuccessfully();
+}
+
+describe('connectToRelay presence across a reconnect', () => {
+  it('comes back under a newer clock, so peers take it for present again', () => {
+    const conn = makeConnection();
+    conn.awareness.setLocalStateField('participantId', 'me');
+    connectSuccessfully();
+    const first = latestSocket();
+    const me = conn.awareness.clientID;
+    const before = Math.max(...awarenessClocksSent(first, me));
+
+    reconnect();
+
+    const after = awarenessClocksSent(latestSocket(), me);
+    expect(latestSocket()).not.toBe(first);
+    expect(after.length).toBeGreaterThan(0);
+    // Peers have recorded us as gone at `before`; only a later clock counts.
+    expect(Math.min(...after)).toBeGreaterThan(before);
+  });
+
+  it('keeps what it said about itself', () => {
+    const conn = makeConnection();
+    conn.awareness.setLocalStateField('participantId', 'me');
+    connectSuccessfully();
+
+    reconnect();
+
+    expect(conn.awareness.getLocalState()).toEqual({ participantId: 'me' });
+  });
+
+  it('does not touch the clock on the first connect', () => {
+    const conn = makeConnection();
+    conn.awareness.setLocalStateField('participantId', 'me');
+    const clockBefore = conn.awareness.meta.get(conn.awareness.clientID)?.clock;
+
+    connectSuccessfully();
+
+    expect(conn.awareness.meta.get(conn.awareness.clientID)?.clock).toBe(clockBefore);
+  });
+
+  it('takes a peer for present again when the relay replays its unchanged state', () => {
+    const conn = makeConnection();
+    conn.awareness.setLocalStateField('participantId', 'me');
+    connectSuccessfully();
+    const peer = makePeer('them');
+    latestSocket().onmessage?.({ data: awarenessMessageFrom(peer) });
+    expect(conn.awareness.getStates().get(peer.clientID)).toEqual({ participantId: 'them' });
+
+    // The drop clears every peer...
+    latestSocket().simulateClose(1006, '', false);
+    expect(conn.awareness.getStates().has(peer.clientID)).toBe(false);
+
+    // ...and the relay replays the room to the new socket. The peer has done
+    // nothing in between: same state, same clock.
+    vi.advanceTimersByTime(10_000);
+    connectSuccessfully();
+    latestSocket().onmessage?.({ data: awarenessMessageFrom(peer) });
+
+    expect(conn.awareness.getStates().get(peer.clientID)).toEqual({ participantId: 'them' });
+  });
+
+  it('does the same when the reconnect is a change of password', () => {
+    const conn = makeConnection();
+    conn.awareness.setLocalStateField('participantId', 'me');
+    connectSuccessfully();
+    const me = conn.awareness.clientID;
+    const before = Math.max(...awarenessClocksSent(latestSocket(), me));
+    const peer = makePeer('them');
+    latestSocket().onmessage?.({ data: awarenessMessageFrom(peer) });
+
+    conn.updateCredentials({ passwordHash: 'hash-a' });
+    connectSuccessfully();
+    latestSocket().onmessage?.({ data: awarenessMessageFrom(peer) });
+
+    expect(Math.min(...awarenessClocksSent(latestSocket(), me))).toBeGreaterThan(before);
+    expect(conn.awareness.getStates().get(peer.clientID)).toEqual({ participantId: 'them' });
+  });
+
+  it('still lets a peer leave: a removal is not undone by the replay', () => {
+    const conn = makeConnection();
+    conn.awareness.setLocalStateField('participantId', 'me');
+    connectSuccessfully();
+    const peer = makePeer('them');
+    latestSocket().onmessage?.({ data: awarenessMessageFrom(peer) });
+
+    // The peer goes for good while we are connected.
+    peer.setLocalState(null);
+    latestSocket().onmessage?.({ data: awarenessMessageFrom(peer) });
+    expect(conn.awareness.getStates().has(peer.clientID)).toBe(false);
+
+    reconnect();
+
+    expect(conn.awareness.getStates().has(peer.clientID)).toBe(false);
   });
 });
 

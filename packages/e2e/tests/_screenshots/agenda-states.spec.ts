@@ -22,6 +22,7 @@ import {
   expandRoundStartSheet,
   clickRoundStartSubmit,
 } from '../fixtures/helpers';
+import { pageSettled } from './_helpers/settled';
 
 const OUT_DIR = resolveOutDir('agenda');
 // Disable trace/video/screenshot artefacts — we write our own files.
@@ -44,6 +45,7 @@ async function freshCtx(
 }
 
 async function shot(page: Page, name: string): Promise<void> {
+  await pageSettled(page);
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(OUT_DIR, `${name}.png`), fullPage: false });
 }
@@ -71,35 +73,60 @@ async function createSession(page: Page): Promise<string> {
   return code.replaceAll(/[^A-Z0-9]/gi, '');
 }
 
+const ADD_BTN = 'app-lobby:not(.ion-page-hidden) app-agenda-panel ion-button.add-btn';
+const AGENDA_ITEMS = 'app-lobby:not(.ion-page-hidden) app-agenda-panel ion-item.agenda-item';
+const FORM = 'app-agenda-item-form-sheet';
+
 async function addItem(page: Page, input: { title?: string; ticketId?: string }): Promise<void> {
-  const panel = page.locator('app-agenda-panel .agenda-panel');
-  await panel.waitFor({ state: 'visible' });
-  const addBtn = panel.getByRole('button', { name: 'Add agenda item' });
+  const addBtn = page.locator(ADD_BTN);
   await addBtn.waitFor({ state: 'visible', timeout: 10_000 });
   await addBtn.click();
 
-  const sheetTitle = page.locator('app-agenda-item-form-sheet ion-title');
+  const sheetTitle = page.locator(`${FORM} ion-title`);
   await sheetTitle.waitFor({ state: 'visible', timeout: 10_000 });
 
   if (input.title !== undefined) {
-    const f = page.getByRole('textbox', { name: 'Story title' });
-    await f.waitFor({ state: 'visible', timeout: 5_000 });
-    await f.fill(input.title);
+    await page
+      .locator(`${FORM} ion-input[formcontrolname="title"] input`)
+      .first()
+      .fill(input.title);
   }
   if (input.ticketId !== undefined) {
-    const f = page.getByRole('textbox', { name: 'Issue tracker ticket ID' });
-    await f.waitFor({ state: 'visible', timeout: 5_000 });
-    await f.fill(input.ticketId);
+    await page
+      .locator(`${FORM} ion-input[formcontrolname="ticketId"] input`)
+      .first()
+      .fill(input.ticketId);
   }
 
-  const submitBtn = page
-    .locator('app-agenda-item-form-sheet')
-    .getByRole('button', { name: /^(Add|Save) agenda item$/u });
+  const submitBtn = page.locator(FORM).getByRole('button', { name: /^(Add|Save) story$/u });
   await submitBtn.waitFor({ state: 'visible', timeout: 5_000 });
   // Brief settle before submit to let Angular reactivity stabilize between rapid calls.
   await page.waitForTimeout(200);
   await submitBtn.click();
   await sheetTitle.waitFor({ state: 'hidden', timeout: 15_000 });
+}
+
+/** Open the ⋯ menu of the nth story (0-based). Popover on desktop, action sheet on touch. */
+async function openItemMenu(page: Page, index: number): Promise<void> {
+  await page.locator(AGENDA_ITEMS).nth(index).locator('ion-button.item-menu-btn').click();
+  await page
+    .locator('ion-popover, ion-action-sheet')
+    .first()
+    .waitFor({ state: 'visible', timeout: 5_000 });
+}
+
+/** Pick an action from the open story menu and wait for the menu to go. */
+async function pickMenuAction(page: Page, action: string): Promise<void> {
+  const inSheet = page.locator(`ion-action-sheet button:has-text("${action}")`);
+  if (await inSheet.isVisible().catch(() => false)) {
+    await inSheet.click();
+  } else {
+    await page.locator('ion-popover').getByRole('button', { name: action, exact: true }).click();
+  }
+  await page
+    .locator('ion-popover, ion-action-sheet')
+    .first()
+    .waitFor({ state: 'hidden', timeout: 5_000 });
 }
 
 test.describe('agenda state screenshots', () => {
@@ -115,23 +142,26 @@ test.describe('agenda state screenshots', () => {
       await shot(page, '01-empty-agenda-host-desktop');
 
       // 02 — add sheet open (empty)
-      const panel = page.locator('app-agenda-panel .agenda-panel');
-      const addBtn = panel.getByRole('button', { name: 'Add agenda item' });
+      const addBtn = page.locator(ADD_BTN);
       await addBtn.waitFor({ state: 'visible' });
       await addBtn.click();
-      const sheetTitle = page.locator('app-agenda-item-form-sheet ion-title');
+      const sheetTitle = page.locator(`${FORM} ion-title`);
       await sheetTitle.waitFor({ state: 'visible', timeout: 10_000 });
       await shot(page, '02-agenda-add-sheet-open');
 
       // Fill and capture again
-      await page.getByRole('textbox', { name: 'Story title' }).fill('Login redesign');
-      await page.getByRole('textbox', { name: 'Issue tracker ticket ID' }).fill('AUTH-101');
+      await page
+        .locator(`${FORM} ion-input[formcontrolname="title"] input`)
+        .first()
+        .fill('Login redesign');
+      await page
+        .locator(`${FORM} ion-input[formcontrolname="ticketId"] input`)
+        .first()
+        .fill('AUTH-101');
       await shot(page, '03-agenda-add-sheet-filled');
 
       // Submit
-      const submitBtn = page
-        .locator('app-agenda-item-form-sheet')
-        .getByRole('button', { name: /^Add agenda item$/u });
+      const submitBtn = page.locator(FORM).getByRole('button', { name: 'Add story' });
       await submitBtn.click();
       await sheetTitle.waitFor({ state: 'hidden', timeout: 5_000 });
 
@@ -142,13 +172,17 @@ test.describe('agenda state screenshots', () => {
       // 04 — 3-item list (host desktop)
       await shot(page, '04-agenda-3-items-host-desktop');
 
+      // 04b — the story menu: every action on a story behind one ⋯ button
+      await openItemMenu(page, 1);
+      await page.waitForTimeout(300);
+      await shot(page, '04b-agenda-story-menu');
+      await page.keyboard.press('Escape');
+      await page.locator('ion-popover').first().waitFor({ state: 'hidden', timeout: 5_000 });
+
       // 05 — edit sheet open for first item
-      const list = page.locator('app-agenda-panel ion-list.agenda-list');
-      const firstItem = list.locator('ion-item.agenda-item').first();
-      const editBtn = firstItem.getByRole('button', { name: /^Edit /u });
-      await editBtn.waitFor({ state: 'visible' });
-      await editBtn.click();
-      const editSheetTitle = page.locator('app-agenda-item-form-sheet ion-title');
+      await openItemMenu(page, 0);
+      await pickMenuAction(page, 'Edit');
+      const editSheetTitle = page.locator(`${FORM} ion-title`);
       await editSheetTitle.waitFor({ state: 'visible', timeout: 10_000 });
       await shot(page, '05-agenda-edit-sheet-open');
       await page.keyboard.press('Escape');
@@ -177,32 +211,26 @@ test.describe('agenda state screenshots', () => {
       await shot(page, '07-agenda-mid-session-one-consumed');
 
       // Skip item 3 (index 2)
-      const skipItem = list.locator('ion-item.agenda-item').nth(2);
-      const skipBtn = skipItem.getByRole('button', { name: /^Skip /u });
-      await skipBtn.waitFor({ state: 'visible' });
-      await skipBtn.click();
+      await openItemMenu(page, 2);
+      await pickMenuAction(page, 'Skip');
       await page.waitForTimeout(300);
 
-      // 08 — skipped badge
+      // 08 — skipped story
       await shot(page, '08-agenda-skipped-badge');
 
-      // Cancel item 2 (now index 1)
-      const cancelItem = list.locator('ion-item.agenda-item').nth(1);
-      const cancelItemBtn = cancelItem.getByRole('button', { name: /^Cancel /u });
-      await cancelItemBtn.waitFor({ state: 'visible' });
-      await cancelItemBtn.click();
+      // Remove item 2 (index 1)
+      await openItemMenu(page, 1);
+      await pickMenuAction(page, 'Remove');
       await page.waitForTimeout(300);
 
-      // 09 — cancelled item hidden
+      // 09 — removed story hidden ("Show removed" appears)
       await shot(page, '09-agenda-cancelled-hidden');
     } finally {
       await ctx.close();
     }
   });
 
-  test('mobile — joiner chip collapsed + expanded @host @layout @participants', async ({
-    browser,
-  }) => {
+  test('mobile — what a joiner sees @host @layout @participants', async ({ browser }) => {
     test.setTimeout(90_000);
 
     // Host session with items
@@ -235,18 +263,19 @@ test.describe('agenda state screenshots', () => {
       const firstTile = joinerPage.locator('app-segmented-code-input').locator('input').first();
       await firstTile.focus();
       await joinerPage.keyboard.type(code);
-      await joinerPage.locator('ion-button:has-text("Join")').click();
+      // The sixth character submits: no Join tap after a typed code.
       await joinerPage.waitForURL(/\/lobby/, { timeout: 15_000 });
 
-      // 10 — joiner mobile collapsed (Next-up chip visible)
-      const chip = joinerPage.locator('app-agenda-panel ion-chip.next-up-chip');
-      await chip.waitFor({ state: 'visible', timeout: 10_000 });
-      await shot(joinerPage, '10-agenda-joiner-mobile-collapsed');
-
-      // 11 — joiner mobile expanded
-      await chip.click();
-      await joinerPage.locator('app-agenda-panel .agenda-panel').waitFor({ state: 'visible' });
-      await shot(joinerPage, '11-agenda-joiner-mobile-expanded');
+      // 10 — joiner on a phone: the whole list, no controls, "Next" on the first story
+      const items = joinerPage.locator(AGENDA_ITEMS);
+      await items.first().waitFor({ state: 'visible', timeout: 10_000 });
+      await joinerPage
+        .locator('app-agenda-panel ion-badge.next-badge')
+        .waitFor({ state: 'visible' });
+      await joinerPage
+        .locator('app-lobby:not(.ion-page-hidden) .agenda-card')
+        .scrollIntoViewIfNeeded();
+      await shot(joinerPage, '10-agenda-joiner-mobile');
     } finally {
       await hostCtx.close();
       await joinerCtx.close();

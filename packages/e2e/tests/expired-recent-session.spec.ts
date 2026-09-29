@@ -25,8 +25,8 @@ async function evictRoom(uuid: string): Promise<void> {
   if (!res.ok) throw new Error(`evictRoom failed: ${res.status}`);
 }
 
-test.describe('Expired Jump-back-in banner', () => {
-  test('stale banner appears dimmed on unknown-room, second tap clears it', async ({ host }) => {
+test.describe('Expired recent session', () => {
+  test('a session the relay has forgotten is dropped on the first tap', async ({ host }) => {
     // Step 1: host creates session → LastSessionService.record() fires on lobby init.
     const code = await host.createSession();
 
@@ -41,30 +41,28 @@ test.describe('Expired Jump-back-in banner', () => {
     // Step 4: force-evict the room on the relay.
     await evictRoom(uuid);
 
-    // Step 5: reload home so HomePage constructor re-reads localStorage → banner renders.
+    // Step 5: reload home so HomePage re-reads the cache → the row renders.
     await host.page.goto(`${BASE_URL}/home`);
     await host.page.waitForURL(/\/home/);
 
-    // Banner should be visible; row not yet stale.
-    const banner = host.page.locator('app-jump-back-in-banner');
-    await banner.waitFor({ state: 'visible', timeout: 5_000 });
-    const row = banner.locator('ion-item');
-    await expect(row).not.toHaveClass(/stale/);
+    const rows = host.page.locator(HOME.recentRow);
+    await expect(rows).toHaveCount(1);
 
-    // Step 6: tap banner → relay returns unknown-room → jumpBackInStale flips true.
-    await row.click();
+    // Step 6: tap the row → relay returns unknown-room.
+    await rows.first().click();
 
-    // Toast "That session isn't active anymore." fires.
+    // The toast says why, and the entry — which can never work again — goes
+    // with it. No second tap to clear a dimmed row.
     await expectToast(host.page, "That session isn't active anymore", { timeout: 8_000 });
+    await expect(rows).toHaveCount(0);
+    await expect(host.page).toHaveURL(/\/home/);
 
-    // Banner row acquires .stale class (dim).
-    await expect(row).toHaveClass(/stale/, { timeout: 5_000 });
+    // Gone for good.
+    await host.page.reload();
+    await host.page.waitForURL(/\/home/);
+    await expect(rows).toHaveCount(0);
 
-    // Step 7: second tap → cache cleared → banner removed from DOM.
-    await row.click();
-    await banner.waitFor({ state: 'hidden', timeout: 5_000 });
-
-    // Create Room and Join Room cards remain.
+    // New session and Join session rows remain.
     await expect(host.page.locator(HOME.createCard)).toBeVisible();
     await expect(host.page.locator(HOME.joinCard)).toBeVisible();
   });

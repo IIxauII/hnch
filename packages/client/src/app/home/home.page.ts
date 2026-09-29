@@ -4,27 +4,18 @@ import { hashPassword, mintRoom, patchRoomAccess } from '@hnch/shared';
 import {
   IonButton,
   IonButtons,
-  IonCol,
   IonContent,
-  IonGrid,
   IonHeader,
   IonIcon,
   IonItem,
   IonLabel,
   IonList,
   IonModal,
-  IonRow,
-  IonTitle,
+  IonSpinner,
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import {
-  addOutline,
-  arrowForwardOutline,
-  ellipsisHorizontalOutline,
-  returnUpBackOutline,
-  settingsOutline,
-} from 'ionicons/icons';
+import { addOutline, arrowForwardOutline, settingsOutline } from 'ionicons/icons';
 
 import { AppPreferenceService } from '../core/app-preference.service';
 import { AvatarColorService } from '../core/avatar-color.service';
@@ -37,26 +28,26 @@ import { LastSessionService } from '../core/last-session.service';
 import { ParticipantIdService } from '../core/participant-id.service';
 import { ScalePreferenceService } from '../core/scale-preference.service';
 import { assertRoomCode, RoomJoinService } from '../core/room-join.service';
-import { JumpBackInBannerComponent, type JumpBackInSummary } from './jump-back-in-banner.component';
+import { BrandMarkComponent } from '../shared/brand-mark.component';
 import { RecentRoomsListComponent } from './recent-rooms-list.component';
 import { PasswordPromptSheetComponent } from './password-prompt.sheet';
 import { presentSheet } from '../utils/present-sheet';
-import { rejectionCopy, routeForScreen, summaryFromCache } from './home.helpers';
+import { greetingFor, rejectionCopy, routeForScreen, RELAY_UNREACHABLE_COPY } from './home.helpers';
 
 /**
- * Home launchpad — ux.md §5.2.
+ * Home launchpad — ux.md §1.2, §1.5.
  *
- * Two primary entry points (Create, Join), an optional Jump-back-in
- * banner (1 cached room) or RecentRoomsList (2–5 cached rooms) above
- * them, and a ⋯ action sheet that exposes Settings.
+ * Two entry points (New session, Join session) and, above them, the
+ * sessions this device can still get back into. Settings is one tap away in
+ * the header — it used to be the only item in an overflow menu.
  *
  * Rejoin outcome handling (plan §3.8): we open the socket while still
  * mounted on Home, then race a `syncStatus === 'connected'` transition
  * against a relay rejection. On `unknown-room` we tear the session
- * down, clear the cache, toast, and stay put; any other outcome
+ * down, drop the entry, toast, and stay put; any other outcome
  * navigates to the cached `lastScreen`.
  *
- * "Create Room" mints a fresh room on the relay (`POST /rooms`,
+ * "New session" mints a fresh room on the relay (`POST /rooms`,
  * ADR-0016), seeds a `Y.Doc` with the returned UUID via DocService,
  * opens the y-websocket connection, then navigates to `/lobby`.
  */
@@ -64,93 +55,92 @@ import { rejectionCopy, routeForScreen, summaryFromCache } from './home.helpers'
   selector: 'app-home',
   host: { class: 'ion-page' },
   imports: [
+    BrandMarkComponent,
     IonButton,
     IonButtons,
-    IonCol,
     IonContent,
-    IonGrid,
     IonHeader,
     IonIcon,
     IonItem,
     IonLabel,
     IonList,
     IonModal,
-    IonRow,
-    IonTitle,
+    IonSpinner,
     IonToolbar,
-    JumpBackInBannerComponent,
     RecentRoomsListComponent,
     PasswordPromptSheetComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <ion-header [translucent]="true">
+    <ion-header class="ion-no-border">
       <ion-toolbar>
-        <ion-title size="large">hnch</ion-title>
+        <div class="brand" slot="start">
+          <app-brand-mark [size]="32" />
+          <span class="wordmark">hnch</span>
+        </div>
         <ion-buttons slot="end">
-          <ion-button
-            aria-label="More options"
-            (click)="openActionSheet($event)"
-          >
-            <ion-icon
-              slot="icon-only"
-              name="ellipsis-horizontal-outline"
-            ></ion-icon>
+          <ion-button aria-label="Settings" (click)="openSettings()">
+            <ion-icon slot="icon-only" name="settings-outline"></ion-icon>
           </ion-button>
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
-    <ion-content [fullscreen]="true">
-      <ion-grid fixed class="page-container">
-        <ion-row><ion-col>
-          @if (recentEntries().length >= 2) {
-            <app-recent-rooms-list
-              [entries]="recentEntries()"
-              (joinRequested)="onJoinEntry($event)"
-              (removeRequested)="onRemoveEntry($event)"
-            />
-          }
-          <ion-list inset="true" class="actions">
-            @if (recentEntries().length === 1) {
-              @if (jumpBackInSummary(); as summary) {
-                <app-jump-back-in-banner
-                  [summary]="summary"
-                  [stale]="jumpBackInStale()"
-                  [resuming]="resuming()"
-                  (resumeRequested)="onResumeJumpBack()"
-                />
-              }
+    <ion-content>
+      <div class="page-container">
+        <div class="hero">
+          <h1>{{ greeting() }}</h1>
+          <p>Estimate stories with your team. No account needed.</p>
+        </div>
+
+        @if (recentEntries().length > 0) {
+          <h2 class="section-label">Jump back in</h2>
+          <app-recent-rooms-list
+            [entries]="recentEntries()"
+            [busy]="resuming()"
+            (joinRequested)="onJoinEntry($event)"
+            (removeRequested)="onRemoveEntry($event)"
+          />
+          <h2 class="section-label">Start fresh</h2>
+        }
+
+        <ion-list inset="true" class="actions">
+          <ion-item
+            button="true"
+            detail="true"
+            [disabled]="creating()"
+            (click)="onCreateRoom()"
+          >
+            <div class="icon-tile icon-tile--accent" slot="start" aria-hidden="true">
+              <ion-icon name="add-outline"></ion-icon>
+            </div>
+            <ion-label>
+              <h3>New session</h3>
+              <p>Host an estimation for your team</p>
+            </ion-label>
+            @if (creating()) {
+              <ion-spinner slot="end" name="crescent" aria-label="Creating session"></ion-spinner>
             }
-            <ion-item button="true" detail="true" (click)="onCreateRoom()">
-              <div class="icon-tile icon-tile--accent" slot="start" aria-hidden="true">
-                <ion-icon name="add-outline"></ion-icon>
-              </div>
-              <ion-label>
-                <h2>Create Room</h2>
-                <p>Start a new session</p>
-              </ion-label>
-            </ion-item>
-            <ion-item button="true" detail="true" (click)="onJoinRoom()">
-              <div class="icon-tile icon-tile--neutral" slot="start" aria-hidden="true">
-                <ion-icon name="arrow-forward-outline"></ion-icon>
-              </div>
-              <ion-label>
-                <h2>Join Room</h2>
-                <p>Enter a code or scan QR</p>
-              </ion-label>
-            </ion-item>
-          </ion-list>
-        </ion-col></ion-row>
-      </ion-grid>
+          </ion-item>
+          <ion-item button="true" detail="true" (click)="onJoinRoom()">
+            <div class="icon-tile icon-tile--neutral" slot="start" aria-hidden="true">
+              <ion-icon name="arrow-forward-outline"></ion-icon>
+            </div>
+            <ion-label>
+              <h3>Join session</h3>
+              <p>Enter a code or scan a QR code</p>
+            </ion-label>
+          </ion-item>
+        </ion-list>
+      </div>
 
       <!-- Password prompt half-sheet -->
       <ion-modal
         #passwordModal
-        cssClass="modal-centered"
+        cssClass="modal-centered modal-compact"
         [isOpen]="passwordPromptOpen()"
         [breakpoints]="surface.sheetBreakpoints()"
         [initialBreakpoint]="surface.initialSheetBreakpoint()"
-        (didDismiss)="passwordPromptOpen.set(false)"
+        (didDismiss)="onPasswordSheetDismissed()"
       >
         <ng-template>
           <app-password-prompt-sheet
@@ -163,49 +153,66 @@ import { rejectionCopy, routeForScreen, summaryFromCache } from './home.helpers'
   `,
   styles: [
     `
-      @use '../../theme/breakpoints' as *;
       @use '../../theme/page-container' as *;
       @include page-container(560px);
 
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding-inline-start: 16px;
+      }
+      .wordmark {
+        color: var(--hnch-text);
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      .hero {
+        padding: 16px 4px 8px;
+      }
+      .hero h1 {
+        margin: 0 0 6px;
+        color: var(--hnch-text);
+        font-size: 28px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+        overflow-wrap: anywhere;
+      }
+      .hero p {
+        margin: 0;
+        color: var(--hnch-muted);
+        font-size: 16px;
+        line-height: 1.4;
+      }
       ion-list.actions {
+        margin-block: 16px 0;
         background: transparent;
-        margin-block-start: 8px;
+      }
+      .section-label + ion-list.actions {
+        margin-block-start: 0;
       }
       ion-item {
         --inner-padding-top: 12px;
         --inner-padding-bottom: 12px;
         --padding-start: 16px;
       }
-      ion-item h2 {
+      ion-item h3 {
+        margin: 0 0 2px;
+        color: var(--hnch-text);
         font-size: 17px;
         font-weight: 600;
-        color: var(--hnch-text);
-        margin: 0 0 2px;
       }
       ion-item p {
-        font-size: 14px;
-        color: var(--hnch-muted);
         margin: 0;
+        color: var(--hnch-muted);
+        font-size: 14px;
       }
-      .icon-tile {
-        width: 36px;
-        height: 36px;
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-inline-end: 12px;
-      }
-      .icon-tile--accent {
-        background: var(--hnch-accent);
-        color: var(--hnch-accent-ink);
-      }
-      .icon-tile--neutral {
-        background: var(--hnch-fill);
-        color: var(--hnch-text);
-      }
-      .icon-tile ion-icon {
-        font-size: 20px;
+      ion-spinner {
+        width: 20px;
+        height: 20px;
+        color: var(--hnch-muted);
       }
     `,
   ],
@@ -223,38 +230,25 @@ export class HomePage {
   private readonly docService = inject(DocService);
   private readonly roomJoinService = inject(RoomJoinService);
 
-  /**
-   * All recent room entries (up to 5, sorted by lastSeenAt desc).
-   * Drives both the banner (length === 1) and the list (length >= 2).
-   */
+  /** Sessions this device can still rejoin (up to 5, most recent first). */
   protected readonly recentEntries = signal<ClientLastSessionEntry[]>([]);
 
-  /**
-   * Summary passed into the banner (single-entry case). `null` means "no
-   * banner". Derived from `recentEntries[0]` after load.
-   */
-  protected readonly jumpBackInSummary = signal<JumpBackInSummary | null>(null);
+  /** "Hi, Alex" once the stored name has loaded; a neutral line until then. */
+  protected readonly greeting = signal(greetingFor(null));
 
   /**
-   * True when the cached session is stale (relay reported unknown-room).
-   * Banner remains visible but dimmed; tapping it shows the expired toast
-   * and clears the entry.
-   */
-  protected readonly jumpBackInStale = signal(false);
-
-  /**
-   * `true` while a rejoin is in flight. Bound to the banner's
-   * `disabled` state so double-taps are swallowed, and guards the
-   * `onResumeJumpBack` handler against re-entry.
+   * `true` while a rejoin is in flight. Disables the recent-session rows so
+   * double-taps are swallowed, and guards `onJoinEntry` against re-entry.
    */
   protected readonly resuming = signal(false);
 
   /**
-   * Guards the Create Room button against double-tap while the
-   * displayName + participantId reads are in flight. Pure in-memory
-   * re-entrancy flag; no view binding.
+   * `true` from the tap on "New session" until the Lobby is on screen or the
+   * attempt has failed. Disables the row and shows its spinner — minting the
+   * room is a network round-trip, and a row that does nothing on tap reads
+   * as broken.
    */
-  private creating = false;
+  protected readonly creating = signal(false);
 
   /**
    * State for the password prompt half-sheet. Opened after room is
@@ -263,8 +257,8 @@ export class HomePage {
   protected readonly passwordPromptOpen = signal(false);
 
   /**
-   * Cached room UUID from the successful mintRoom call, used to
-   * patchRoomAccess if user sets a password.
+   * UUID of a room that has been minted but whose Lobby is not on screen
+   * yet, because the password sheet is still up. `null` otherwise.
    */
   private pendingRoomUuid: string | null = null;
 
@@ -274,21 +268,19 @@ export class HomePage {
     addIcons({
       'add-outline': addOutline,
       'arrow-forward-outline': arrowForwardOutline,
-      'ellipsis-horizontal-outline': ellipsisHorizontalOutline,
-      'return-up-back-outline': returnUpBackOutline,
       'settings-outline': settingsOutline,
     });
-    void this.loadEntriesFromCache();
+    void this.refresh();
   }
 
   ionViewWillEnter(): void {
-    void this.loadEntriesFromCache();
+    void this.refresh();
   }
 
   protected async onCreateRoom(): Promise<void> {
-    // Guard against double-tap; both Preferences reads are async.
-    if (this.creating) return;
-    this.creating = true;
+    // Guard against double-tap; the mint and both Preferences reads are async.
+    if (this.creating()) return;
+    this.creating.set(true);
 
     try {
       // The displayNameGuard has already ensured this is non-null
@@ -297,9 +289,7 @@ export class HomePage {
       const [displayName, participantId, minted] = await Promise.all([
         this.displayNameService.getDisplayName(),
         this.participantIdService.getOrCreateId(),
-        // Mint the room on the relay (ADR-0016 `POST /rooms`). Until
-        // we introduce a local-session cache we do this eagerly; if
-        // the relay is unreachable the promise rejects and we bail.
+        // Mint the room on the relay (ADR-0016 `POST /rooms`).
         // Use AppPreferenceService relay URL override, fallback to environment default.
         mintRoom(this.appPrefs.resolvedRelayHttpUrl()),
       ]);
@@ -321,9 +311,7 @@ export class HomePage {
       });
 
       // Open the sync connection so our own writes propagate and the
-      // UI's status chip starts reflecting live state. ADR-0005's
-      // deviceId slot is filled from `participantId` until the
-      // Capacitor-Device swap in a later P3 commit.
+      // UI's status chip starts reflecting live state.
       this.docService.connect({
         roomCode: minted.code,
         deviceId: participantId,
@@ -338,8 +326,13 @@ export class HomePage {
       } else {
         await this.router.navigate(['/lobby', minted.code]);
       }
+    } catch {
+      // The relay never answered (offline, wrong relay URL, relay down). No
+      // session exists yet, so there is nothing to clean up — say so and let
+      // the user try again.
+      await this.toast(RELAY_UNREACHABLE_COPY);
     } finally {
-      this.creating = false;
+      this.creating.set(false);
     }
   }
 
@@ -347,9 +340,11 @@ export class HomePage {
     await this.router.navigate(['/join']);
   }
 
-  /**
-   * Fast-path rejoin for the recent rooms list — tap a row to rejoin.
-   */
+  protected openSettings(): void {
+    void this.router.navigate(['/settings']);
+  }
+
+  /** Tap on a recent-session row. */
   protected async onJoinEntry(entry: ClientLastSessionEntry): Promise<void> {
     if (this.resuming()) return;
     this.resuming.set(true);
@@ -360,78 +355,36 @@ export class HomePage {
     }
   }
 
-  /**
-   * Remove a room from the history list.
-   */
+  /** Remove a session from the list. */
   protected async onRemoveEntry(roomUuid: string): Promise<void> {
     await this.lastSessionService.removeByUuid(roomUuid);
     await this.loadEntriesFromCache();
   }
 
   /**
-   * Fast-path rejoin per plan §3.8 — single-entry banner variant.
+   * Fast-path rejoin per plan §3.8.
    *
    * Prechecks via `GET /rooms/:code` to detect `unknown-room` (relay
    * denies pre-upgrade with HTTP 404, not a WS close code), then opens
    * the socket; any post-upgrade rejection is handled by the existing
    * `waitForJoinOutcome` race.
    */
-  protected async onResumeJumpBack(): Promise<void> {
-    // Stale-clear is idempotent and doesn't need the resuming guard: the
-    // first tap may still be in-flight (awaiting toast.present) when the
-    // user taps again, so checking stale *before* the resuming guard lets
-    // the second tap reliably clear the banner even if resuming() is still
-    // true from the first tap's finally block not having run yet.
-    if (this.jumpBackInStale()) {
-      const entries = this.recentEntries();
-      if (entries[0]) {
-        await this.lastSessionService.removeByUuid(entries[0].roomUuid);
-      }
-      this.recentEntries.set([]);
-      this.jumpBackInSummary.set(null);
-      this.jumpBackInStale.set(false);
-      return;
-    }
-    if (this.resuming()) return;
-    this.resuming.set(true);
-    try {
-      // Re-read the cache at tap time rather than trusting the signal:
-      // the entry may have aged past TTL since the banner first
-      // rendered.
-      const entries = await this.lastSessionService.list();
-      const cache = entries[0];
-      if (!cache) {
-        this.recentEntries.set([]);
-        this.jumpBackInSummary.set(null);
-        this.jumpBackInStale.set(false);
-        return;
-      }
-
-      await this.doRejoin(cache);
-    } finally {
-      this.resuming.set(false);
-    }
-  }
-
-  /**
-   * Core rejoin logic shared by banner tap and list row tap.
-   */
   private async doRejoin(cache: ClientLastSessionEntry): Promise<void> {
-    const outcome = await this.roomJoinService.rejoin(cache.roomCode);
+    // A password this device already entered rides along (ADR-0044), so
+    // getting back into a protected session is one tap, same as a reload.
+    const passwordHash = cache.passwordHash;
+    const outcome = await this.roomJoinService.rejoin(
+      cache.roomCode,
+      passwordHash ? { passwordHash } : {},
+    );
 
     if (outcome.type === 'unknown-room') {
       // Relay has forgotten this room (ADR-0012's TTL lapsed or the
-      // server restarted). Mark banner as stale instead of immediately
-      // clearing — it renders dimmed and a second tap clears it.
+      // server restarted). The entry can never work again — drop it.
       this.docService.teardown();
-      if (this.recentEntries().length === 1) {
-        this.jumpBackInStale.set(true);
-      } else {
-        // For list mode, remove the stale entry immediately
-        await this.lastSessionService.removeByUuid(cache.roomUuid);
-        await this.loadEntriesFromCache();
-      }
-      await this.toast("That session isn't active anymore. Start a new one or join a fresh code.");
+      await this.lastSessionService.removeByUuid(cache.roomUuid);
+      await this.loadEntriesFromCache();
+      await this.toast("That session isn't active anymore. Start a new one or join with a code.");
       return;
     }
 
@@ -445,19 +398,31 @@ export class HomePage {
     }
 
     if (outcome.type === 'rejected') {
-      // Phase-5 rejection reasons land here once enforcement is on.
       this.docService.teardown();
+      if (outcome.reason === 'wrong-password') {
+        // The host changed the password since we cached ours. Forget the
+        // stale hash and hand over to Join, which asks for the new one.
+        await this.lastSessionService.clearPasswordHash(cache.roomUuid);
+        await this.router.navigate(['/join'], {
+          queryParams: { code: cache.roomCode },
+        });
+        return;
+      }
       await this.toast(rejectionCopy(outcome.reason));
       return;
     }
 
     if (outcome.type === 'network-error') {
-      // Network down — let user retry; don't clear the banner.
-      await this.toast("Couldn't reach the relay. Check your connection and try again.");
+      // Network down — let user retry; keep the entry.
+      await this.toast(RELAY_UNREACHABLE_COPY);
       return;
     }
 
     // 'connected' or 'timeout' — navigate into the session
+    if (passwordHash) {
+      // Keep the hash through the Lobby's next cache write.
+      this.lastSessionService.setPendingPasswordHash(cache.roomUuid, passwordHash);
+    }
     const code = this.docService.roomCode();
     assertRoomCode(code, 'home.doRejoin');
     const screen = cache.lastScreen ?? 'lobby';
@@ -466,36 +431,16 @@ export class HomePage {
     });
   }
 
-  protected async openActionSheet(event: Event): Promise<void> {
-    await this.surface.openSheetOrPopover({
-      header: 'hnch',
-      triggerEvent: event,
-      items: [
-        {
-          text: 'Settings',
-          icon: 'settings-outline',
-          handler: () => {
-            void this.router.navigate(['/settings']);
-          },
-        },
-        {
-          text: 'Cancel',
-          role: 'cancel',
-        },
-      ],
-    });
+  private async refresh(): Promise<void> {
+    await Promise.all([this.loadEntriesFromCache(), this.loadGreeting()]);
   }
 
   private async loadEntriesFromCache(): Promise<void> {
-    const entries = await this.lastSessionService.list();
-    this.recentEntries.set(entries);
-    // Reset stale flag on refresh
-    this.jumpBackInStale.set(false);
-    if (entries.length === 1) {
-      this.jumpBackInSummary.set(summaryFromCache(entries[0]!));
-    } else {
-      this.jumpBackInSummary.set(null);
-    }
+    this.recentEntries.set(await this.lastSessionService.list());
+  }
+
+  private async loadGreeting(): Promise<void> {
+    this.greeting.set(greetingFor(await this.displayNameService.getDisplayName()));
   }
 
   private async toast(message: string): Promise<void> {
@@ -505,55 +450,46 @@ export class HomePage {
   // ---------------------------------------------------------------------------
   // Password prompt handlers
   // ---------------------------------------------------------------------------
+  //
+  // The session already exists by the time this sheet is up, so every way out
+  // of it — Done, Skip, a swipe down, a tap on the backdrop — has to end in
+  // the Lobby. The two buttons only dismiss; `onPasswordSheetDismissed` is the
+  // single place that navigates.
 
   /**
-   * Handler for password submission from the password prompt sheet.
-   * If password is non-empty, hash it and patchRoomAccess; otherwise
-   * treat as no password (open mode). Then navigate to lobby.
+   * Done: apply the password if one was typed, then dismiss. A blank field is
+   * the same as Skip — the room stays open, which is how it was created.
    */
   protected async onPasswordSubmitted(password: string): Promise<void> {
-    try {
-      const uuid = this.pendingRoomUuid;
-      const code = this.docService.roomCode();
-      if (!uuid || !code) {
-        // Defensive: should never happen — createSession ran before this sheet opened.
-        throw new Error('onPasswordSubmitted: no pending room uuid/code');
-      }
-
-      // Dismiss the modal and close the signal
-      await this.passwordModalRef()?.dismiss();
-      this.passwordPromptOpen.set(false);
-
-      // If password is non-empty, hash and apply it
-      if (password.trim()) {
+    const uuid = this.pendingRoomUuid;
+    if (uuid !== null && password.trim()) {
+      try {
         const hash = await hashPassword(password, uuid);
         await patchRoomAccess(this.appPrefs.resolvedRelayHttpUrl(), uuid, hash);
-      }
-      // If empty password, room stays in open mode (created that way by default)
-
-      await this.router.navigate(['/lobby', code]);
-    } catch {
-      const code = this.docService.roomCode();
-      await this.toast('Failed to set password. Room created without password.');
-      if (code) {
-        await this.router.navigate(['/lobby', code]);
-      } else {
-        await this.router.navigate(['/home']);
+        // Our own socket was opened before the password existed; re-handshake
+        // so this client is not locked out on its next reconnect, and cache
+        // the hash so the host's own way back in does not ask for it.
+        this.docService.updateCredentials(hash);
+        this.lastSessionService.setPendingPasswordHash(uuid, hash);
+      } catch {
+        await this.toast("Couldn't set the password. The session was created without one.");
       }
     }
+    await this.passwordModalRef()?.dismiss();
   }
 
-  /**
-   * Handler for cancel/close from the password prompt sheet.
-   * Navigates to lobby without setting a password (open mode).
-   */
+  /** Skip: leave the room open. */
   protected async onPasswordPromptClosed(): Promise<void> {
     await this.passwordModalRef()?.dismiss();
+  }
+
+  /** The sheet is gone, however it went: carry on into the session. */
+  protected async onPasswordSheetDismissed(): Promise<void> {
     this.passwordPromptOpen.set(false);
+    if (this.pendingRoomUuid === null) return;
+    this.pendingRoomUuid = null;
     const code = this.docService.roomCode();
-    if (!code) {
-      throw new Error('onPasswordPromptClosed: docService.roomCode() is null — no active session');
-    }
+    if (code === null) return;
     await this.router.navigate(['/lobby', code]);
   }
 }

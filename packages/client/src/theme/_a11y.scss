@@ -1,14 +1,15 @@
-// A11y mixins — keyboard focus rings, hover-only interaction styles.
+// A11y mixins — keyboard focus rings, hover-only interaction styles, touch targets.
 
 /// Emit a :focus-visible outline; suppress the plain :focus ring so
 /// keyboard users see a clear indicator without mouse users seeing noise.
+/// Uses the label-safe accent: the fill accent is below 3:1 on dark surfaces.
 @mixin focus-ring {
   &:focus {
     outline: none;
   }
 
   &:focus-visible {
-    outline: 2px solid var(--ion-color-primary);
+    outline: 2px solid var(--hnch-accent-text);
     outline-offset: 2px;
   }
 }
@@ -18,5 +19,34 @@
 @mixin hover-only {
   @media (hover: hover) and (pointer: fine) {
     @content;
+  }
+}
+
+/// Give a control that is drawn smaller than a fingertip a hit area of
+/// `$size`, without moving anything around it: an invisible ::after reaches
+/// out from the control's centre and hands what it catches to the control.
+/// A control already that large is left alone. Only where a finger can be
+/// the pointer — a mouse does not need it.
+///
+/// The ::after sits *behind* the control's own content (its own stacking
+/// context, z-index -1), so a tap inside the control still lands on what it
+/// always landed on — for an Ionic host, the native button in its shadow
+/// tree — and only a tap in the margin around it is new.
+///
+/// Growing the control instead (min-width / min-height) shifts the layout it
+/// sits in; pulling it back with a negative margin gets it clipped by the
+/// first ancestor that hides overflow.
+@mixin touch-target($size: 44px) {
+  @media (any-pointer: coarse) {
+    position: relative;
+    isolation: isolate;
+
+    &::after {
+      position: absolute;
+      z-index: -1;
+      inset-block: min(0px, calc((100% - #{$size}) / 2));
+      inset-inline: min(0px, calc((100% - #{$size}) / 2));
+      content: '';
+    }
   }
 }

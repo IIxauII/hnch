@@ -10,9 +10,9 @@ import {
 import QRCode from 'qrcode';
 
 /**
- * Full-screen QR display — ux.md §6 "QR display".
+ * QR display — ux.md §2 "QR display".
  *
- * Renders the invite URL as a large QR code with the formatted room
+ * Renders the invite URL as a large QR code with the formatted session
  * code below for readability and accessibility. The caller owns the
  * `<ion-modal>` visibility; this component owns the content.
  */
@@ -35,34 +35,48 @@ import QRCode from 'qrcode';
         @if (qrDataUrl()) {
           <img
             [src]="qrDataUrl()"
-            [alt]="'QR code to join room ' + roomCode()"
+            [alt]="'QR code to join session ' + roomCode()"
             class="qr-image"
           />
         }
         <p class="room-code">{{ roomCode() }}</p>
+        <p class="hint">Point a phone camera at the code, or type it in.</p>
       </div>
     </ion-content>
   `,
   styles: [
     `
+      /*
+       * min-height, not height: the image must be able to push the container
+       * taller than the dialog and scroll, rather than be centered *over* the
+       * header — a QR code with its top row clipped does not scan.
+       */
       .qr-container {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        height: 100%;
+        min-height: 100%;
       }
       .qr-image {
-        width: min(80vmin, 400px);
-        height: min(80vmin, 400px);
+        width: min(100%, 320px);
+        height: auto;
+        aspect-ratio: 1;
         border-radius: 12px;
       }
       .room-code {
-        margin-top: 1.5rem;
+        margin: 20px 0 0;
+        color: var(--hnch-text);
         font-size: 1.75rem;
+        font-variant-numeric: tabular-nums;
         font-weight: 700;
-        letter-spacing: 0.1em;
-        font-family: var(--ion-font-family-monospace, ui-monospace, monospace);
+        letter-spacing: 0.08em;
+      }
+      .hint {
+        margin: 6px 0 0;
+        color: var(--hnch-muted);
+        font-size: 0.875rem;
+        text-align: center;
       }
     `,
   ],

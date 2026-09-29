@@ -6,18 +6,21 @@ import {
   IonContent,
   IonHeader,
   IonInput,
+  IonInputPasswordToggle,
   IonItem,
-  IonLabel,
   IonList,
+  IonNote,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
 
 /**
- * Password prompt half-sheet for create flow.
+ * Password prompt half-sheet for the create flow, shown when the
+ * "Ask for a password" preference is on.
  *
- * Single password input field (optional). User can leave blank.
- * Emits password string on confirm (may be empty), or cancel on dismissal.
+ * The session has already been created when this opens, so neither button
+ * cancels anything: **Skip** leaves the session open to anyone with the code,
+ * **Done** applies whatever was typed (a blank field is the same as Skip).
  */
 @Component({
   selector: 'app-password-prompt-sheet',
@@ -28,9 +31,10 @@ import {
     IonContent,
     IonHeader,
     IonInput,
+    IonInputPasswordToggle,
     IonItem,
-    IonLabel,
     IonList,
+    IonNote,
     IonTitle,
     IonToolbar,
     ReactiveFormsModule,
@@ -40,47 +44,65 @@ import {
     <ion-header>
       <ion-toolbar>
         <ion-buttons slot="start">
-          <ion-button (click)="closeRequested.emit()">Cancel</ion-button>
+          <ion-button (click)="closeRequested.emit()">Skip</ion-button>
         </ion-buttons>
-        <ion-title>Set Password (optional)</ion-title>
+        <ion-title>Session password</ion-title>
         <ion-buttons slot="end">
           <ion-button
             strong="true"
             color="primary"
             (click)="onConfirm()"
           >
-            Confirm
+            Done
           </ion-button>
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
-    <ion-content class="ion-padding-top">
-      <ion-list lines="inset">
+    <ion-content class="ion-padding">
+      <ion-list inset="true" lines="none">
         <ion-item>
-          <ion-label position="stacked">Password</ion-label>
           <ion-input
             [formControl]="passwordControl"
+            label="Password"
+            labelPlacement="stacked"
             type="password"
-            autocomplete="off"
+            autocomplete="new-password"
+            enterkeyhint="done"
             placeholder="Leave blank for no password"
             (keydown.enter)="onConfirm()"
-            aria-label="Password for room"
-          ></ion-input>
+          >
+            <ion-input-password-toggle slot="end" color="medium"></ion-input-password-toggle>
+          </ion-input>
         </ion-item>
       </ion-list>
+      <ion-note class="helper">
+        Anyone joining will need this password as well as the code.
+      </ion-note>
     </ion-content>
   `,
-  styles: [],
+  styles: [
+    `
+      ion-list {
+        margin-block: 0;
+      }
+      .helper {
+        display: block;
+        padding: 8px 16px 0;
+        font-size: 13px;
+        line-height: 1.4;
+      }
+    `,
+  ],
 })
 export class PasswordPromptSheetComponent {
   /**
-   * Emitted when user confirms. Passes the password string
+   * Emitted on Done. Passes the password string
    * (may be empty if user left field blank).
    */
   readonly passwordSubmitted = output<string>();
 
   /**
-   * Emitted when user taps Cancel or dismisses sheet.
+   * Emitted on Skip.
    */
   readonly closeRequested = output<void>();
 

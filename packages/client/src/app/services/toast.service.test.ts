@@ -68,8 +68,20 @@ describe('ToastService', () => {
         message: 'something went wrong',
         duration: 4000,
         position: 'top',
-        buttons: [{ icon: 'close', role: 'cancel' }],
+        buttons: [{ icon: 'close', role: 'cancel', htmlAttributes: { 'aria-label': 'Dismiss' } }],
       });
+    });
+
+    it('registers the close icon the dismiss button names', async () => {
+      const { stub } = makeToastControllerStub();
+      TestBed.configureTestingModule({
+        providers: [ToastService, { provide: ToastController, useValue: stub }],
+      });
+      TestBed.inject(ToastService);
+
+      // `addIcons` writes to the registry ionicons keeps on `window`.
+      const registry = (window as unknown as { Ionicons?: { map?: Map<string, string> } }).Ionicons;
+      expect(registry?.map?.get('close')).toBeTruthy();
     });
 
     it('omits close button when closeIcon: false is passed', async () => {

@@ -36,11 +36,12 @@ test.describe('Round ticket ID', () => {
     await host.reveal();
     await player.page.waitForURL(/\/lobby/, { timeout: 10_000 });
 
+    // The label stands on its own: no punctuation glued to the front of it.
     const historyRow1 = 'app-round-history li:has(.round-label:text-is("Round 1")) .round-title';
-    await expect(host.page.locator(historyRow1)).toHaveText(': PROJ-42 · Auth migration', {
+    await expect(host.page.locator(historyRow1)).toHaveText('PROJ-42 · Auth migration', {
       timeout: 3_000,
     });
-    await expect(player.page.locator(historyRow1)).toHaveText(': PROJ-42 · Auth migration', {
+    await expect(player.page.locator(historyRow1)).toHaveText('PROJ-42 · Auth migration', {
       timeout: 3_000,
     });
   });

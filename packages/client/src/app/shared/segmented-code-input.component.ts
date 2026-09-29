@@ -27,7 +27,6 @@ const TILE_COUNT = 6;
  */
 @Component({
   selector: 'app-segmented-code-input',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [
     {
@@ -37,7 +36,7 @@ const TILE_COUNT = 6;
     },
   ],
   template: `
-    <div class="code-row" role="group" aria-label="Room code, 6 characters">
+    <div class="code-row" role="group" aria-label="Session code, 6 characters">
       @for (tile of tiles(); track $index) {
         @if ($index === 3) {
           <span class="separator" aria-hidden="true"></span>
@@ -83,26 +82,39 @@ const TILE_COUNT = 6;
     .tile {
       flex: 1 1 0;
       min-width: 0;
-      height: 48px;
+      height: 52px;
+      padding: 0;
       border-radius: 10px;
       background: var(--hnch-fill);
       border: 1.5px solid transparent;
       outline: none;
       text-align: center;
-      font-family: 'SF Mono', 'Fira Mono', 'Roboto Mono', monospace;
-      font-size: 26px;
+      font-family: ui-monospace, 'SF Mono', 'Roboto Mono', Menlo, Consolas, monospace;
+      /* Never below 16px: iOS zooms the page when a smaller input takes focus. */
+      font-size: clamp(20px, 7vw, 26px);
       font-weight: 600;
       color: var(--hnch-text);
       text-transform: uppercase;
       caret-color: transparent;
-      transition: border-color 0.15s ease;
+      transition: border-color 0.15s ease, background 0.15s ease;
       -webkit-appearance: none;
       appearance: none;
     }
 
     .tile.focused,
     .tile:focus {
-      border-color: var(--hnch-accent);
+      border-color: var(--hnch-accent-text);
+      background: var(--hnch-elev-1);
+    }
+
+    .tile:disabled {
+      opacity: 0.5;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .tile {
+        transition: none;
+      }
     }
 
     .separator {
@@ -149,6 +161,12 @@ export class SegmentedCodeInputComponent implements ControlValueAccessor {
 
   setDisabledState(disabled: boolean): void {
     this.isDisabled.set(disabled);
+  }
+
+  /** Move focus to the first empty tile, or the last one when all are filled. */
+  focus(): void {
+    const firstEmpty = this.tiles().findIndex((t) => t === '');
+    this.focusTile(firstEmpty === -1 ? TILE_COUNT - 1 : firstEmpty);
   }
 
   // Event handlers -------------------------------------------------------

@@ -136,7 +136,7 @@ test.describe('Three-client scenarios', () => {
     await host.disconnect();
 
     // After election debounce, one of the two remaining players becomes host
-    // and sees the Reveal Votes button
+    // and sees the "Reveal votes" button
     const electionTimeout = 15_000;
 
     const player1HasReveal = player.page

@@ -81,6 +81,51 @@ export function tint(hex: string, pct: number): string {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 
+/** WCAG 2.x relative luminance of a 6-digit hex color (0 = black, 1 = white). */
+export function relativeLuminance(hex: string): number {
+  const clean = hex.replace('#', '');
+  const channel = (offset: number): number => {
+    const c = parseInt(clean.slice(offset, offset + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
+}
+
+/** WCAG 2.x contrast ratio between two 6-digit hex colors (1–21). */
+export function contrastRatio(a: string, b: string): number {
+  const la = relativeLuminance(a);
+  const lb = relativeLuminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+/**
+ * Worst-case surface an accent-colored label can sit on, per mode: the
+ * lightest dark surface (`--hnch-elev-3`) and the darkest light one
+ * (`--hnch-bg`). Clearing the target against these clears it against every
+ * other surface token in `variables.scss` — keep the two in sync.
+ */
+export const ACCENT_TEXT_SURFACE = { dark: '#48484A', light: '#F2F2F7' } as const;
+
+/** WCAG AA minimum for body-size text. */
+export const ACCENT_TEXT_MIN_CONTRAST = 4.5;
+
+/**
+ * The accent as it may be used for *text and icons on a surface*.
+ *
+ * `base` is tuned to be a fill — Racing Green on a dark surface is 2.2:1, and
+ * Amber on a light one is 1.4:1, so neither can carry a label. This walks the
+ * base toward white (dark mode) or black (light mode) until it clears AA,
+ * keeping the hue. A base that already passes comes back unchanged.
+ */
+export function accessibleAccentText(base: string, isDark: boolean): string {
+  const surface = isDark ? ACCENT_TEXT_SURFACE.dark : ACCENT_TEXT_SURFACE.light;
+  for (let pct = 0; pct <= 100; pct += 2) {
+    const candidate = isDark ? tint(base, pct) : shade(base, pct);
+    if (contrastRatio(candidate, surface) >= ACCENT_TEXT_MIN_CONTRAST) return candidate;
+  }
+  return isDark ? '#ffffff' : '#000000';
+}
+
 // ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
@@ -143,20 +188,24 @@ export class AccentService {
     const isDark = document.documentElement.classList.contains(DARK_CLASS);
     const override = isDark ? ACCENTS_DARK_OVERRIDE[key] : undefined;
     const def: AccentDef = override ?? ACCENTS[key];
-    this.writeCssVars(def);
+    this.writeCssVars(def, isDark);
   }
 
-  private writeCssVars(def: AccentDef): void {
+  private writeCssVars(def: AccentDef, isDark: boolean): void {
     const el = document.documentElement;
     const rgb = hexToRgbTuple(def.base);
     const inkRgb = hexToRgbTuple(def.ink);
     const shadedBase = shade(def.base, 12);
     const tintedBase = tint(def.base, 12);
+    const text = accessibleAccentText(def.base, isDark);
 
     el.style.setProperty('--hnch-accent', def.base);
     el.style.setProperty('--hnch-accent-rgb', rgb);
     el.style.setProperty('--hnch-accent-soft', def.soft);
     el.style.setProperty('--hnch-accent-ink', def.ink);
+    // Fills use `--hnch-accent`; labels and icons on a surface use these.
+    el.style.setProperty('--hnch-accent-text', text);
+    el.style.setProperty('--hnch-accent-text-rgb', hexToRgbTuple(text));
 
     el.style.setProperty('--ion-color-primary', def.base);
     el.style.setProperty('--ion-color-primary-rgb', rgb);

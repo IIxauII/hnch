@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { rejectionCopy, routeForScreen, summaryFromCache } from './home.helpers';
+import { greetingFor, rejectionCopy, RELAY_UNREACHABLE_COPY, routeForScreen } from './home.helpers';
 
 describe('HomePage — rejectionCopy', () => {
   it('unknown-room → session expired copy', () => {
@@ -30,12 +30,27 @@ describe('HomePage — rejectionCopy', () => {
     );
   });
 
-  it('room-full → room full copy', () => {
-    expect(rejectionCopy('room-full')).toBe('That room is full.');
+  it('room-full → session full copy', () => {
+    expect(rejectionCopy('room-full')).toBe('That session is full.');
   });
 
   it('malformed-credentials → rejoin info copy (differs from join page)', () => {
     expect(rejectionCopy('malformed-credentials')).toBe("Couldn't rejoin with the info on file.");
+  });
+
+  it('speaks of sessions, never rooms', () => {
+    const reasons = [
+      'unknown-room',
+      'wrong-password',
+      'invalid-invite',
+      'expired-invite',
+      'invite-already-redeemed',
+      'room-full',
+      'malformed-credentials',
+    ] as const;
+    for (const reason of reasons) {
+      expect(rejectionCopy(reason)).not.toMatch(/\broom\b/iu);
+    }
   });
 });
 
@@ -49,37 +64,25 @@ describe('HomePage — routeForScreen', () => {
   });
 });
 
-describe('HomePage — summaryFromCache', () => {
-  it('maps roomCode and lastScreen from a lobby cache entry', () => {
-    expect(
-      summaryFromCache({
-        roomCode: 'ABC123',
-        roomUuid: 'uuid-1',
-        lastSeenAt: 0,
-        lastScreen: 'lobby',
-      }),
-    ).toEqual({ roomCode: 'ABC123', lastScreen: 'lobby' });
+describe('HomePage — greetingFor', () => {
+  it('greets by name', () => {
+    expect(greetingFor('Alex')).toBe('Hi, Alex');
   });
 
-  it('maps roomCode and lastScreen from an estimating cache entry', () => {
-    expect(
-      summaryFromCache({
-        roomCode: 'XYZ789',
-        roomUuid: 'uuid-2',
-        lastSeenAt: 0,
-        lastScreen: 'estimating',
-      }),
-    ).toEqual({ roomCode: 'XYZ789', lastScreen: 'estimating' });
+  it('trims the stored name', () => {
+    expect(greetingFor('  Alex  ')).toBe('Hi, Alex');
   });
 
-  it('defaults lastScreen to lobby when entry has no lastScreen (v1 migration path)', () => {
-    expect(
-      summaryFromCache({
-        roomCode: 'ABC123',
-        roomUuid: 'uuid-3',
-        lastSeenAt: 0,
-        // lastScreen intentionally omitted — ClientLastSessionEntry has it optional
-      }),
-    ).toEqual({ roomCode: 'ABC123', lastScreen: 'lobby' });
+  it('falls back to a neutral line until the name has loaded', () => {
+    expect(greetingFor(null)).toBe('Welcome');
+    expect(greetingFor('   ')).toBe('Welcome');
+  });
+});
+
+describe('HomePage — RELAY_UNREACHABLE_COPY', () => {
+  it('tells the user what to do next', () => {
+    expect(RELAY_UNREACHABLE_COPY).toBe(
+      "Couldn't reach the relay. Check your connection and try again.",
+    );
   });
 });

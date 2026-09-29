@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/app.fixture';
-import { BASE_URL, HOME, JOIN, fillRoomCode } from './fixtures/helpers';
+import { BASE_URL, HOME, JOIN, expectToast, fillRoomCode } from './fixtures/helpers';
 
 test.describe('Password-protected rooms', () => {
   test('joiner must enter correct password to join', async ({ host, player }) => {
@@ -10,7 +10,7 @@ test.describe('Password-protected rooms', () => {
       (res) => res.url().includes('/access') && res.request().method() === 'PATCH',
     );
     await host.openSettings();
-    await host.changeAccess('Password', 'secret123');
+    await host.setPassword('secret123');
     await patchDone;
     await host.closeSettings();
 
@@ -30,7 +30,7 @@ test.describe('Password-protected rooms', () => {
       (res) => res.url().includes('/access') && res.request().method() === 'PATCH',
     );
     await host.openSettings();
-    await host.changeAccess('Password', 'correctpw');
+    await host.setPassword('correctpw');
     await patchDone;
     await host.closeSettings();
 
@@ -42,8 +42,8 @@ test.describe('Password-protected rooms', () => {
     }
     await player.page.locator(HOME.joinCard).click();
     await player.page.waitForURL(/\/join/);
+    // The sixth character resolves the code and reveals the password field
     await fillRoomCode(player.page, code);
-    await player.page.locator(JOIN.joinBtn).click();
 
     // Wait for password field
     const pwInput = player.page.locator(JOIN.passwordInput).locator('input');
@@ -51,9 +51,13 @@ test.describe('Password-protected rooms', () => {
     await pwInput.fill('wrongpassword');
     await player.page.locator(JOIN.joinBtn).click();
 
-    // Should stay on join page (not navigate to lobby)
-    await player.page.waitForTimeout(2000);
+    // Says so, and stays on the join page (does not navigate to lobby)
+    await expectToast(player.page, 'That password is incorrect');
     expect(player.page.url()).toContain('/join');
+
+    // The code is kept and the password field is emptied for another go
+    await expect(pwInput).toHaveValue('');
+    await expect(player.page.locator('app-lobby')).toHaveCount(0);
   });
 
   test('removing password lets joiner in without one', async ({ host, player }) => {
@@ -64,7 +68,7 @@ test.describe('Password-protected rooms', () => {
       (res) => res.url().includes('/access') && res.request().method() === 'PATCH',
     );
     await host.openSettings();
-    await host.changeAccess('Password', 'temppass');
+    await host.setPassword('temppass');
     await setPatch;
     await host.closeSettings();
 
@@ -73,7 +77,7 @@ test.describe('Password-protected rooms', () => {
       (res) => res.url().includes('/access') && res.request().method() === 'PATCH',
     );
     await host.openSettings();
-    await host.changeAccess('Open');
+    await host.removePassword();
     await removePatch;
     await host.closeSettings();
 

@@ -23,10 +23,10 @@ import { resolveAvatarColor, resolveAvatarInkColor, type ParticipantSnapshot } f
             </span>
           }
         </div>
-        <span class="count">{{ votedCount() }} of {{ participants().length }} voted</span>
+        <span class="count">{{ countLabel() }}</span>
       </div>
       @if (showPendingLine()) {
-        <p class="pending-line">Waiting on: {{ pendingNames() }}</p>
+        <p class="pending-line">Waiting for {{ pendingNames() }}</p>
       }
     </div>
   `,
@@ -38,51 +38,64 @@ import { resolveAvatarColor, resolveAvatarInkColor, type ParticipantSnapshot } f
       .row {
         display: flex;
         flex-direction: column;
-        gap: 0.25rem;
+        gap: 4px;
       }
       .dots-row {
         display: flex;
+        flex-wrap: wrap;
         align-items: center;
-        gap: 0.75rem;
+        gap: 6px 12px;
+        min-height: 32px;
       }
       .dots {
         display: flex;
         flex-wrap: wrap;
-        gap: 0.35rem;
-        row-gap: 0.5rem;
+        gap: 6px;
+      }
+      .dots:empty {
+        display: none;
       }
       .dot {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 1.5rem;
-        height: 1.5rem;
+        box-sizing: border-box;
+        width: 28px;
+        height: 28px;
         border-radius: 50%;
-        border: 1.5px solid var(--ion-color-medium);
+        border: 1.5px solid var(--hnch-sep-strong);
         background: transparent;
+        transition: background 0.15s ease, border-color 0.15s ease;
       }
       .dot.voted {
-        background: var(--avatar-color, var(--ion-color-primary));
-        border-color: var(--avatar-color, var(--ion-color-primary));
+        background: var(--avatar-color, var(--hnch-accent));
+        border-color: var(--avatar-color, var(--hnch-accent));
       }
       .dot-initial {
-        font-size: 0.625rem;
+        color: var(--hnch-muted);
+        font-size: 0.75rem;
         font-weight: 600;
         line-height: 1;
-        color: var(--ion-color-medium);
       }
       .count {
-        color: var(--ion-color-medium);
-        font-size: 0.95rem;
-      }
-      .pending-line {
-        margin: 0;
-        color: var(--ion-color-medium);
-        font-size: 0.8125rem;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        color: var(--hnch-muted);
+        font-size: 0.9375rem;
+        font-variant-numeric: tabular-nums;
         white-space: nowrap;
+      }
+      /* Names wrap: the line exists to be read, and an ellipsis ate the names. */
+      .pending-line {
         max-width: 100%;
+        margin: 0;
+        color: var(--hnch-muted);
+        font-size: 0.8125rem;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .dot {
+          transition: none;
+        }
       }
     `,
   ],
@@ -93,9 +106,17 @@ export class AvatarVoteRowComponent {
 
   protected readonly votedCount = computed(() => this.votedIds().size);
 
-  protected readonly ariaLabel = computed(
-    () => `${this.votedCount()} of ${this.participants().length} voted`,
-  );
+  /**
+   * "2 of 3 voted". With nobody to wait for — everyone here is observing —
+   * "0 of 0 voted" is arithmetic, not information.
+   */
+  protected readonly countLabel = computed(() => {
+    const total = this.participants().length;
+    if (total === 0 && this.votedCount() === 0) return 'No voters yet';
+    return `${this.votedCount()} of ${total} voted`;
+  });
+
+  protected readonly ariaLabel = this.countLabel;
 
   // Pending = participants whose id is NOT in votedIds.
   protected readonly pendingParticipants = computed(() =>

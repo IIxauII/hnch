@@ -12,6 +12,7 @@ import {
 import { FormsModule } from '@angular/forms';
 import { isValidCustomCardLabel, type CustomScale } from '@hnch/shared';
 import {
+  AlertController,
   IonButton,
   IonButtons,
   IonChip,
@@ -29,7 +30,7 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { addOutline, closeCircle } from 'ionicons/icons';
+import { addOutline, closeCircle, trashOutline } from 'ionicons/icons';
 
 import { HapticService } from '../core/haptic.service';
 import { ScalePreferenceService } from '../core/scale-preference.service';
@@ -45,6 +46,9 @@ import { ScalePreferenceService } from '../core/scale-preference.service';
  *
  * Auto-saves on every card mutation and after a 250ms debounce on name
  * changes. In create mode, first save mints the id and emits `created`.
+ *
+ * A scale that has been saved can be deleted from here, behind a
+ * confirmation — the one place a custom scale is deleted.
  *
  * Validation: name required, at least 2 cards required.
  * UX: chip-based card list; `ion-reorder-group` for ordering; X on each
@@ -84,10 +88,10 @@ import { ScalePreferenceService } from '../core/scale-preference.service';
       </ion-toolbar>
     </ion-header>
 
-    <ion-content class="ion-padding-top">
+    <ion-content class="ion-padding">
 
       <!-- Scale name -->
-      <ion-list lines="inset">
+      <ion-list inset="true" lines="inset">
         <ion-item>
           <ion-input
             label="Scale name"
@@ -103,7 +107,7 @@ import { ScalePreferenceService } from '../core/scale-preference.service';
       </ion-list>
 
       <!-- Add card input -->
-      <ion-list lines="inset" class="add-row">
+      <ion-list inset="true" lines="inset" class="add-row">
         <ion-item>
           <ion-input
             label="Add card"
@@ -129,14 +133,14 @@ import { ScalePreferenceService } from '../core/scale-preference.service';
       </ion-list>
 
       @if (newCardError()) {
-        <ion-note class="card-error ion-padding-horizontal" color="danger" aria-live="assertive">
+        <ion-note class="card-error" color="danger" aria-live="assertive">
           {{ newCardError() }}
         </ion-note>
       }
 
       <!-- Chip list with reorder -->
       @if (cards().length > 0) {
-        <ion-list lines="none" class="card-list">
+        <ion-list inset="true" lines="none" class="card-list">
           <ion-reorder-group
             [disabled]="false"
             (ionItemReorder)="onReorder($event)"
@@ -168,39 +172,53 @@ import { ScalePreferenceService } from '../core/scale-preference.service';
       }
 
       @if (cards().length === 0) {
-        <ion-note class="empty-hint ion-padding-horizontal" aria-live="polite">
+        <ion-note class="empty-hint" aria-live="polite">
           Add at least 2 cards to create the scale.
         </ion-note>
       } @else if (cards().length === 1) {
-        <ion-note class="empty-hint ion-padding-horizontal" aria-live="polite">
-          Add one more card to enable saving.
+        <ion-note class="empty-hint" aria-live="polite">
+          Add one more card and the scale is saved.
         </ion-note>
+      }
+
+      @if (persistedId()) {
+        <ion-button
+          class="delete-btn"
+          expand="block"
+          fill="clear"
+          color="danger"
+          (click)="onDeleteScale()"
+        >
+          <ion-icon slot="start" name="trash-outline" aria-hidden="true"></ion-icon>
+          Delete scale
+        </ion-button>
       }
 
     </ion-content>
   `,
   styles: [
     `
-      .add-row {
-        margin-top: 1rem;
+      ion-list {
+        margin-block: 0;
       }
-      .card-list {
-        margin-top: 0.5rem;
+      ion-list.add-row,
+      ion-list.card-list {
+        margin-block-start: 12px;
       }
-      .card-error {
-        display: block;
-        margin-top: 0.25rem;
-        font-size: 0.8rem;
-      }
+      .card-error,
       .empty-hint {
         display: block;
-        margin-top: 0.75rem;
-        font-size: 0.8rem;
-        color: var(--ion-color-medium);
+        padding: 8px 16px 0;
+        font-size: 13px;
+        line-height: 1.4;
       }
       ion-chip {
-        --background: var(--ion-color-primary-tint);
-        --color: var(--ion-color-primary-contrast);
+        --background: var(--hnch-accent);
+        --color: var(--hnch-accent-ink);
+      }
+      .delete-btn {
+        min-height: 44px;
+        margin: 24px 0 0;
       }
     `,
   ],
@@ -208,10 +226,13 @@ import { ScalePreferenceService } from '../core/scale-preference.service';
 export class CustomScaleEditorSheetComponent implements OnInit, OnDestroy {
   private readonly scalePrefs = inject(ScalePreferenceService);
   private readonly haptics = inject(HapticService);
+  private readonly alertCtrl = inject(AlertController);
 
   private nameDebounceHandle: ReturnType<typeof setTimeout> | null = null;
   private savingInProgress = false;
   private saveNeeded = false;
+  /** Set once the scale is deleted: nothing may save it back. */
+  private deleted = false;
 
   /**
    * If provided, the sheet opens in edit mode: pre-fills name and cards,
@@ -238,7 +259,7 @@ export class CustomScaleEditorSheetComponent implements OnInit, OnDestroy {
   protected readonly isEditMode = computed(() => !!this.existingScale());
 
   protected readonly title = computed(() =>
-    this.isEditMode() ? 'Edit Custom Scale' : 'Create Custom Scale',
+    this.isEditMode() ? 'Edit custom scale' : 'New custom scale',
   );
 
   protected readonly canSave = computed(
@@ -249,7 +270,11 @@ export class CustomScaleEditorSheetComponent implements OnInit, OnDestroy {
   protected readonly newCardError = signal<string | null>(null);
 
   constructor() {
-    addIcons({ 'add-outline': addOutline, 'close-circle': closeCircle });
+    addIcons({
+      'add-outline': addOutline,
+      'close-circle': closeCircle,
+      'trash-outline': trashOutline,
+    });
   }
 
   ngOnInit(): void {
@@ -321,8 +346,36 @@ export class CustomScaleEditorSheetComponent implements OnInit, OnDestroy {
     void this.autoSave();
   }
 
+  /** Ask first, then delete the scale from this device and close. */
+  protected async onDeleteScale(): Promise<void> {
+    const id = this.persistedId();
+    if (id === null) return;
+
+    const alert = await this.alertCtrl.create({
+      header: 'Delete this scale?',
+      message: `"${this.name().trim()}" is removed from this device.`,
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        { text: 'Delete', role: 'destructive' },
+      ],
+    });
+    await alert.present();
+    const { role } = await alert.onDidDismiss();
+    if (role !== 'destructive') return;
+
+    // A name edit still waiting out its debounce must not save after this.
+    this.deleted = true;
+    if (this.nameDebounceHandle !== null) {
+      clearTimeout(this.nameDebounceHandle);
+      this.nameDebounceHandle = null;
+    }
+    this.haptics.notificationWarning();
+    await this.scalePrefs.deleteCustomScale(id);
+    this.closeRequested.emit();
+  }
+
   private async autoSave(): Promise<void> {
-    if (!this.canSave()) return;
+    if (this.deleted || !this.canSave()) return;
     if (this.savingInProgress) {
       this.saveNeeded = true;
       return;

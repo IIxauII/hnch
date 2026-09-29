@@ -174,6 +174,14 @@ export class DocService {
    */
   private readonly hasFirstSyncCompletedSignal: WritableSignal<boolean> = signal(false);
   /**
+   * Mirrors `relay-client`'s `onSyncedChange`: true while the relay's state —
+   * and with it the room's awareness — has applied on the *current* socket.
+   * False before the first sync, between a drop and the re-sync, and after
+   * {@link disconnect}. Gates the auto-reveal driver; see
+   * {@link autoRevealProjection}.
+   */
+  private readonly relaySyncedSignal: WritableSignal<boolean> = signal(false);
+  /**
    * True while `endSessionForEveryone()` is in flight locally — guards the
    * `SessionEndService` observer from treating a self-triggered end as a
    * remote one.
@@ -331,6 +339,14 @@ export class DocService {
    */
   readonly lastRejection: Signal<JoinRejectionReason | null> =
     this.lastRejectionSignal.asReadonly();
+
+  /**
+   * True once the relay has answered the current connection with its state.
+   * A socket that is merely open says less than it seems to: the relay
+   * accepts the upgrade and *then* closes on a wrong password (ADR-0035), so
+   * `syncStatus` passes through `'connected'` on the way to a rejection.
+   */
+  readonly relaySynced: Signal<boolean> = this.relaySyncedSignal.asReadonly();
 
   /**
    * True once the relay has completed its first sync (y-websocket `onSynced`).
@@ -544,6 +560,13 @@ export class DocService {
           rejoinRoster(doc, joinParticipantId);
         }
       },
+      // The online set only means something while synced. Re-notify on both
+      // edges: a round that went unanimous while we were away reveals on the
+      // rising edge, and nothing evaluates on the falling one.
+      onSyncedChange: (synced) => {
+        this.relaySyncedSignal.set(synced);
+        this.notifyDrivers();
+      },
     });
   }
 
@@ -589,12 +612,14 @@ export class DocService {
     if (this.provider === null) {
       this.syncStatusSignal.set('offline');
       this.reconnectingSignal.set(false);
+      this.relaySyncedSignal.set(false);
       return;
     }
     this.provider.disconnect();
     this.provider = null;
     this.syncStatusSignal.set('offline');
     this.reconnectingSignal.set(false);
+    this.relaySyncedSignal.set(false);
   }
 
   /**
@@ -773,7 +798,7 @@ export class DocService {
   private startAutoRevealDriver(): void {
     this.autoRevealHandle?.stop();
     this.autoRevealHandle = startAutoReveal({
-      projection: () => this.projection(),
+      projection: () => this.autoRevealProjection(),
       onlineIds: () => this.onlineParticipantIdsSignal(),
       subscribe: (cb) => this.subscribeDriver(cb),
       reveal: () => {
@@ -784,6 +809,29 @@ export class DocService {
         }
       },
     });
+  }
+
+  /**
+   * The projection the auto-reveal driver is allowed to see, or `null` while
+   * its reading of who is online cannot be trusted.
+   *
+   * Unanimity is "every *online* voter has voted", and until the relay has
+   * synced on the current socket the online set is just this peer: the doc is
+   * already there (IndexedDB loads it before the socket opens, and a dropped
+   * socket keeps it) but `y-websocket` has cleared every remote awareness
+   * state. A peer that had voted would then count itself as the whole room
+   * and reveal the round for everyone — on a page reload, or on coming back
+   * from a network blip.
+   *
+   * A session with no other active participant has nobody to miscount, so it
+   * evaluates regardless; that keeps a solo round revealing while offline.
+   */
+  private autoRevealProjection(): DocProjection | null {
+    const snap = this.projection();
+    if (snap === null || this.relaySyncedSignal()) return snap;
+    const selfId = this.participantIdService.id();
+    const hasPeers = snap.participants.some((p) => isActiveParticipant(p) && p.id !== selfId);
+    return hasPeers ? null : snap;
   }
 
   /** Register a shared driver's change callback. Returns its unsubscribe. */

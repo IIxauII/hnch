@@ -1,12 +1,12 @@
 /**
- * Unit tests for the LobbyPage role predicate and the subtitle computed
- * (custom-scale label resolution). The chip-color and chip-label
- * expressions live inline in the template — those remain e2e-covered.
+ * Unit tests for the Lobby: the pure helpers behind its copy, the computeds
+ * that feed the template, the host / joiner split of the template itself, and
+ * the command call sites.
  */
 
 import { TestBed } from '@angular/core/testing';
 import { signal, type WritableSignal } from '@angular/core';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { UNBOUND_SESSION_COMMANDS } from '@hnch/shared';
 import type {
@@ -23,7 +23,43 @@ import type {
   SessionCommands,
 } from '@hnch/shared';
 
-import { buildCopyRoomCodeToast, buildResultsHeading, isParticipantViewer } from './lobby-helpers';
+import {
+  buildCopyRoomCodeToast,
+  buildResultsHeading,
+  buildRoundCta,
+  buildSessionSummary,
+  buildWaitingNote,
+  isParticipantViewer,
+} from './lobby-helpers';
+
+/**
+ * What the relay answers when the Lobby asks whether the session is locked.
+ * A plain object rather than a `vi.fn()`: `restoreMocks` would strip the
+ * implementation between tests.
+ */
+const relay = vi.hoisted(() => ({
+  accessMode: 'open' as 'open' | 'password',
+  unreachable: false,
+  lookups: [] as { url: string; code: string }[],
+}));
+
+vi.mock('@hnch/shared', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@hnch/shared')>();
+  return {
+    ...actual,
+    resolveRoom: async (url: string, code: string) => {
+      relay.lookups.push({ url, code });
+      if (relay.unreachable) throw new Error('relay unreachable');
+      return { uuid: 'uuid-1', accessMode: relay.accessMode };
+    },
+  };
+});
+
+beforeEach(() => {
+  relay.accessMode = 'open';
+  relay.unreachable = false;
+  relay.lookups = [];
+});
 
 function makeParticipant(id: string, role?: 'voter' | 'viewer'): ParticipantSnapshot {
   return { id, displayName: id, joinedAt: 0, role };
@@ -46,20 +82,21 @@ describe('LobbyPage — isParticipantViewer', () => {
 // Exercises: lobby/lobby-helpers:buildCopyRoomCodeToast
 describe('LobbyPage — buildCopyRoomCodeToast', () => {
   it('success path returns fixed copied message', () => {
-    expect(buildCopyRoomCodeToast(true, 'K7P-9MR')).toBe('Room code copied');
+    expect(buildCopyRoomCodeToast(true, 'K7P-9MR')).toBe('Code copied');
   });
 
   it('failure path surfaces the dash-formatted code so the user can read it', () => {
-    expect(buildCopyRoomCodeToast(false, 'K7P-9MR')).toBe("Couldn't copy — code is K7P-9MR");
+    expect(buildCopyRoomCodeToast(false, 'K7P-9MR')).toBe("Couldn't copy. The code is K7P-9MR");
   });
 
   it('failure path preserves whatever code string is passed (no reformatting)', () => {
-    expect(buildCopyRoomCodeToast(false, 'ABC-XYZ')).toBe("Couldn't copy — code is ABC-XYZ");
+    expect(buildCopyRoomCodeToast(false, 'ABC-XYZ')).toBe("Couldn't copy. The code is ABC-XYZ");
   });
 });
 
 // ---------------------------------------------------------------------------
-// buildResultsHeading — issue #111 re-vote breadcrumb
+// buildResultsHeading — the round's number in the session, nothing else.
+// The re-vote breadcrumb (issue #111) is `revoteLabel`, tested next to it.
 // ---------------------------------------------------------------------------
 
 function makeRound(overrides: Partial<Round> & { id: string }): Round {
@@ -75,49 +112,82 @@ function makeRound(overrides: Partial<Round> & { id: string }): Round {
 
 describe('LobbyPage — buildResultsHeading', () => {
   it('empty string when no round', () => {
-    expect(buildResultsHeading(null, null, [])).toBe('');
+    expect(buildResultsHeading(null, null)).toBe('');
   });
 
   it('empty string when roundIndex missing', () => {
-    const r1 = makeRound({ id: 'r1' });
-    expect(buildResultsHeading(r1, null, [r1])).toBe('');
+    expect(buildResultsHeading(makeRound({ id: 'r1' }), null)).toBe('');
   });
 
-  it('plain "Round N Results" for standalone round (AC#3)', () => {
-    const r1 = makeRound({ id: 'r1' });
-    expect(buildResultsHeading(r1, 1, [r1])).toBe('Round 1 Results');
+  it('"Round N results" for a standalone round', () => {
+    expect(buildResultsHeading(makeRound({ id: 'r1' }), 1)).toBe('Round 1 results');
   });
 
-  it('chain root keeps plain "Round N Results" (AC#4)', () => {
-    const r1 = makeRound({ id: 'r1' });
+  it('a re-vote keeps its number in the session', () => {
     const r2 = makeRound({ id: 'r2', parentRoundId: 'r1' });
-    expect(buildResultsHeading(r1, 1, [r1, r2])).toBe('Round 1 Results');
+    expect(buildResultsHeading(r2, 2)).toBe('Round 2 results');
+  });
+});
+
+// Exercises: lobby/lobby-helpers:buildSessionSummary
+describe('LobbyPage — buildSessionSummary', () => {
+  it('is the scale alone for an open, unnamed session', () => {
+    expect(buildSessionSummary({ scaleLabel: 'Fibonacci', passwordProtected: false })).toBe(
+      'Fibonacci',
+    );
   });
 
-  it('re-voted depth-2 of 2 → "Round 2 of 2 Results" (AC#1)', () => {
-    const r1 = makeRound({ id: 'r1' });
-    const r2 = makeRound({ id: 'r2', parentRoundId: 'r1' });
-    expect(buildResultsHeading(r2, 2, [r1, r2])).toBe('Round 2 of 2 Results');
+  it('says so when the session is locked', () => {
+    expect(buildSessionSummary({ scaleLabel: 'Fibonacci', passwordProtected: true })).toBe(
+      'Fibonacci · Password protected',
+    );
   });
 
-  it('3-deep leaf → "Round 3 of 3 Results" (AC#5)', () => {
-    const r1 = makeRound({ id: 'r1' });
-    const r2 = makeRound({ id: 'r2', parentRoundId: 'r1' });
-    const r3 = makeRound({ id: 'r3', parentRoundId: 'r2' });
-    expect(buildResultsHeading(r3, 3, [r1, r2, r3])).toBe('Round 3 of 3 Results');
+  it('leads with the name when one is passed', () => {
+    expect(
+      buildSessionSummary({ name: 'Sprint 12', scaleLabel: 'T-shirt', passwordProtected: true }),
+    ).toBe('Sprint 12 · T-shirt · Password protected');
   });
 
-  it('AC#2 retroactive: middle round shows updated total when third re-vote added', () => {
-    const r1 = makeRound({ id: 'r1' });
-    const r2 = makeRound({ id: 'r2', parentRoundId: 'r1' });
-    expect(buildResultsHeading(r2, 2, [r1, r2])).toBe('Round 2 of 2 Results');
-    const r3 = makeRound({ id: 'r3', parentRoundId: 'r2' });
-    expect(buildResultsHeading(r2, 2, [r1, r2, r3])).toBe('Round 2 of 3 Results');
+  it('leaves out a blank name rather than showing an empty part', () => {
+    expect(
+      buildSessionSummary({ name: '   ', scaleLabel: 'Fibonacci', passwordProtected: false }),
+    ).toBe('Fibonacci');
   });
 
-  it('missing parent ref falls back to plain "Round N Results" (AC#6)', () => {
-    const orphan = makeRound({ id: 'r2', parentRoundId: 'missing' });
-    expect(buildResultsHeading(orphan, 1, [orphan])).toBe('Round 1 Results');
+  it('is empty when there is nothing to say', () => {
+    expect(buildSessionSummary({ scaleLabel: '', passwordProtected: false })).toBe('');
+  });
+});
+
+// Exercises: lobby/lobby-helpers:buildRoundCta
+describe('LobbyPage — buildRoundCta', () => {
+  it('"Start round 1" before any round has finished', () => {
+    expect(buildRoundCta(false, 1)).toBe('Start round 1');
+  });
+
+  it('"Next round N" once there is a result on screen', () => {
+    expect(buildRoundCta(true, 4)).toBe('Next round 4');
+  });
+
+  it('says "Start" for any number while there is no result to follow', () => {
+    expect(buildRoundCta(false, 2)).toBe('Start round 2');
+  });
+});
+
+// Exercises: lobby/lobby-helpers:buildWaitingNote
+describe('LobbyPage — buildWaitingNote', () => {
+  it('names the host and the first round', () => {
+    expect(buildWaitingNote('Ada', false)).toBe('Waiting for Ada to start the first round.');
+  });
+
+  it('switches to the next round once one has finished', () => {
+    expect(buildWaitingNote('Ada', true)).toBe('Waiting for Ada to start the next round.');
+  });
+
+  it('falls back to "the host" when the host is unknown or unnamed', () => {
+    expect(buildWaitingNote(null, false)).toBe('Waiting for the host to start the first round.');
+    expect(buildWaitingNote('  ', true)).toBe('Waiting for the host to start the next round.');
   });
 });
 
@@ -144,30 +214,19 @@ vi.mock('@ionic/angular/standalone', async () => {
   return {
     AlertController,
     PopoverController,
-    IonAccordion: stub('ion-accordion'),
-    IonAccordionGroup: stub('ion-accordion-group'),
-    IonAvatar: stub('ion-avatar'),
     IonButton: stub('ion-button'),
     IonButtons: stub('ion-buttons'),
-    IonChip: stub('ion-chip'),
-    IonCol: stub('ion-col'),
     IonContent: stub('ion-content'),
     IonFooter: stub('ion-footer'),
-    IonGrid: stub('ion-grid'),
     IonHeader: stub('ion-header'),
     IonIcon: stub('ion-icon'),
     IonInput: stub('ion-input'),
     IonItem: stub('ion-item'),
-    IonItemOption: stub('ion-item-option'),
-    IonItemOptions: stub('ion-item-options'),
-    IonItemSliding: stub('ion-item-sliding'),
     IonLabel: stub('ion-label'),
-    IonBadge: stub('ion-badge'),
     IonList: stub('ion-list'),
     IonListHeader: stub('ion-list-header'),
     IonModal: stub('ion-modal'),
     IonNote: stub('ion-note'),
-    IonRow: stub('ion-row'),
     IonTextarea: stub('ion-textarea'),
     IonTitle: stub('ion-title'),
     IonToolbar: stub('ion-toolbar'),
@@ -178,20 +237,15 @@ vi.mock('ionicons/icons', () => ({
   chevronBackOutline: '',
   closeCircleOutline: '',
   copyOutline: '',
-  ellipsisHorizontalCircle: '',
-  ellipsisVertical: '',
-  listOutline: '',
+  ellipsisHorizontal: '',
+  lockClosedOutline: '',
   logOutOutline: '',
   pencilOutline: '',
-  peopleOutline: '',
-  personCircleOutline: '',
   personRemoveOutline: '',
   qrCodeOutline: '',
   settingsOutline: '',
   shareOutline: '',
   starOutline: '',
-  statsChartOutline: '',
-  timeOutline: '',
 }));
 vi.mock('@capacitor/share', () => ({ Share: { share: vi.fn(), canShare: vi.fn() } }));
 
@@ -201,9 +255,6 @@ const stubStandalone = async (selector: string, name: string) => {
   class S {}
   return { [name]: S };
 };
-vi.mock('../core/connection-chip.component', () =>
-  stubStandalone('app-connection-chip', 'ConnectionChipComponent'),
-);
 vi.mock('../shared/connection-status-banner.component', () =>
   stubStandalone('app-connection-status-banner', 'ConnectionStatusBannerComponent'),
 );
@@ -216,6 +267,10 @@ vi.mock('./round-edit.sheet', () =>
 vi.mock('../session-settings/session-settings.sheet', () =>
   stubStandalone('app-session-settings-sheet', 'SessionSettingsSheetComponent'),
 );
+vi.mock('../shared/avatar.component', () => stubStandalone('app-avatar', 'AvatarComponent'));
+vi.mock('../shared/role-toggle.component', () =>
+  stubStandalone('app-role-toggle', 'RoleToggleComponent'),
+);
 vi.mock('../shared/round-history.component', () =>
   stubStandalone('app-round-history', 'RoundHistoryComponent'),
 );
@@ -225,7 +280,7 @@ vi.mock('../shared/vote-results.component', () =>
 vi.mock('./qr-display.sheet', () =>
   stubStandalone('app-qr-display-sheet', 'QrDisplaySheetComponent'),
 );
-vi.mock('../join/join.page', () => ({ rejectionCopy: () => 'rejected' }));
+vi.mock('../join/join.helpers', () => ({ rejectionCopy: () => 'rejected' }));
 vi.mock('../agenda/agenda-panel.component', () =>
   stubStandalone('app-agenda-panel', 'AgendaPanelComponent'),
 );
@@ -243,6 +298,7 @@ async function mountLobby(scale: Scale | undefined, customs: CustomScale[]) {
   const { SurfaceService } = await import('../core/surface.service');
   const { ToastService } = await import('../services/toast.service');
   const { ExportService } = await import('../core/export.service');
+  const { AppPreferenceService } = await import('../core/app-preference.service');
   const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
   TestBed.resetTestingModule();
@@ -290,6 +346,10 @@ async function mountLobby(scale: Scale | undefined, customs: CustomScale[]) {
       { provide: ToastService, useValue: { show: vi.fn(), error: vi.fn() } },
       { provide: ExportService, useValue: { export: vi.fn() } },
       {
+        provide: AppPreferenceService,
+        useValue: { resolvedRelayHttpUrl: () => 'http://relay.test' },
+      },
+      {
         provide: AlertController,
         useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
       },
@@ -321,6 +381,7 @@ describe('LobbyPage — onRoundStart forwards ticketId', () => {
     const { SurfaceService } = await import('../core/surface.service');
     const { ToastService } = await import('../services/toast.service');
     const { ExportService } = await import('../core/export.service');
+    const { AppPreferenceService } = await import('../core/app-preference.service');
     const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     const startRound = vi.fn();
@@ -368,6 +429,10 @@ describe('LobbyPage — onRoundStart forwards ticketId', () => {
         },
         { provide: ToastService, useValue: { show: vi.fn(), error: vi.fn() } },
         { provide: ExportService, useValue: { export: vi.fn() } },
+        {
+          provide: AppPreferenceService,
+          useValue: { resolvedRelayHttpUrl: () => 'http://relay.test' },
+        },
         {
           provide: AlertController,
           useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
@@ -475,6 +540,7 @@ async function mountLobbySubtitleAffordance(opts: { isHost: boolean; subtitle: s
   const { SurfaceService } = await import('../core/surface.service');
   const { ToastService } = await import('../services/toast.service');
   const { ExportService } = await import('../core/export.service');
+  const { AppPreferenceService } = await import('../core/app-preference.service');
   const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
   // isHost = (myId === hostParticipantId). myId = 'me' (from ParticipantIdService stub).
@@ -534,6 +600,10 @@ async function mountLobbySubtitleAffordance(opts: { isHost: boolean; subtitle: s
       { provide: ToastService, useValue: { show: vi.fn(), info: vi.fn(), error: vi.fn() } },
       { provide: ExportService, useValue: { export: vi.fn() } },
       {
+        provide: AppPreferenceService,
+        useValue: { resolvedRelayHttpUrl: () => 'http://relay.test' },
+      },
+      {
         provide: AlertController,
         useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
       },
@@ -565,18 +635,20 @@ describe('LobbyPage — subtitle affordance', () => {
     expect(btn!.getAttribute('aria-label')).toContain('My Scale');
   });
 
-  it('non-host with non-empty subtitle renders ion-chip.subtitle-chip, no button.subtitle', async () => {
+  it('non-host with non-empty subtitle renders plain text, nothing to press', async () => {
     const fixture = await mountLobbySubtitleAffordance({ isHost: false, subtitle: 'My Scale' });
     const el: HTMLElement = fixture.nativeElement;
     expect(el.querySelector('button.subtitle')).toBeNull();
-    expect(el.querySelector('ion-chip.subtitle-chip')).not.toBeNull();
+    const text = el.querySelector('p.subtitle-chip');
+    expect(text?.textContent?.trim()).toBe('My Scale');
+    expect(text?.querySelector('ion-icon[name="pencil-outline"]')).toBeNull();
   });
 
-  it('empty subtitle renders neither button.subtitle nor ion-chip.subtitle-chip', async () => {
+  it('empty subtitle renders neither the button nor the text', async () => {
     const fixture = await mountLobbySubtitleAffordance({ isHost: true, subtitle: '' });
     const el: HTMLElement = fixture.nativeElement;
     expect(el.querySelector('button.subtitle')).toBeNull();
-    expect(el.querySelector('ion-chip.subtitle-chip')).toBeNull();
+    expect(el.querySelector('.subtitle-chip')).toBeNull();
   });
 });
 
@@ -598,6 +670,7 @@ describe('LobbyPage — onCopyRoomCode', () => {
     const { SurfaceService } = await import('../core/surface.service');
     const { ToastService } = await import('../services/toast.service');
     const { ExportService } = await import('../core/export.service');
+    const { AppPreferenceService } = await import('../core/app-preference.service');
     const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     const info = vi.fn().mockResolvedValue(undefined);
@@ -649,6 +722,10 @@ describe('LobbyPage — onCopyRoomCode', () => {
         { provide: ToastService, useValue: { info, error: vi.fn() } },
         { provide: ExportService, useValue: { export: vi.fn() } },
         {
+          provide: AppPreferenceService,
+          useValue: { resolvedRelayHttpUrl: () => 'http://relay.test' },
+        },
+        {
           provide: AlertController,
           useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
         },
@@ -671,7 +748,7 @@ describe('LobbyPage — onCopyRoomCode', () => {
     const internals = fixture.componentInstance as unknown as Internals;
     await internals.onCopyRoomCode();
     expect(writeText).toHaveBeenCalledWith('ABC-123');
-    expect(info).toHaveBeenCalledWith('Room code copied');
+    expect(info).toHaveBeenCalledWith('Code copied');
   });
 
   it('failure path: clipboard rejection still fires fallback toast with code inline', async () => {
@@ -680,7 +757,7 @@ describe('LobbyPage — onCopyRoomCode', () => {
     const internals = fixture.componentInstance as unknown as Internals;
     await internals.onCopyRoomCode();
     expect(writeText).toHaveBeenCalledWith('XYZ-789');
-    expect(info).toHaveBeenCalledWith("Couldn't copy — code is XYZ-789");
+    expect(info).toHaveBeenCalledWith("Couldn't copy. The code is XYZ-789");
   });
 
   it('empty room code: early-returns without touching clipboard or toast', async () => {
@@ -693,7 +770,9 @@ describe('LobbyPage — onCopyRoomCode', () => {
 });
 
 // ---------------------------------------------------------------------------
-// LobbyPage.openParticipantActions — desktop host-actions popover
+// LobbyPage.openParticipantActions — the ⋯ button on a roster row. One
+// affordance on every surface: `SurfaceService` turns the items into an
+// action sheet on touch and a popover with a pointer.
 // ---------------------------------------------------------------------------
 
 describe('LobbyPage — openParticipantActions', () => {
@@ -713,6 +792,7 @@ describe('LobbyPage — openParticipantActions', () => {
     const { SurfaceService } = await import('../core/surface.service');
     const { ToastService } = await import('../services/toast.service');
     const { ExportService } = await import('../core/export.service');
+    const { AppPreferenceService } = await import('../core/app-preference.service');
     const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     const openSheetOrPopover = vi.fn().mockResolvedValue(undefined);
@@ -763,6 +843,10 @@ describe('LobbyPage — openParticipantActions', () => {
         { provide: ToastService, useValue: { show: vi.fn(), info: vi.fn(), error: vi.fn() } },
         { provide: ExportService, useValue: { export: vi.fn() } },
         {
+          provide: AppPreferenceService,
+          useValue: { resolvedRelayHttpUrl: () => 'http://relay.test' },
+        },
+        {
           provide: AlertController,
           useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
         },
@@ -780,7 +864,7 @@ describe('LobbyPage — openParticipantActions', () => {
     return { fixture, openSheetOrPopover };
   }
 
-  it('calls openSheetOrPopover with 2 items, correct labels, destructive role, and triggerEvent', async () => {
+  it('offers Make host, Remove (destructive) and Cancel, titled with the name', async () => {
     const { fixture, openSheetOrPopover } = await mountWithSurface();
     const internals = fixture.componentInstance as unknown as Internals;
     const fakeEvent = new Event('click');
@@ -790,12 +874,13 @@ describe('LobbyPage — openParticipantActions', () => {
 
     expect(openSheetOrPopover).toHaveBeenCalledTimes(1);
     const [opts] = openSheetOrPopover.mock.calls[0] as [
-      { items: { text: string; role?: string }[]; triggerEvent: Event },
+      { header?: string; items: { text: string; role?: string }[]; triggerEvent: Event },
     ];
-    expect(opts.items).toHaveLength(2);
-    expect(opts.items[0]!.text).toBe('Make host');
-    expect(opts.items[1]!.text).toBe('Remove');
+    expect(opts.header).toBe('Alice');
+    expect(opts.items.map((item) => item.text)).toEqual(['Make host', 'Remove', 'Cancel']);
+    expect(opts.items[0]!.role).toBeUndefined();
     expect(opts.items[1]!.role).toBe('destructive');
+    expect(opts.items[2]!.role).toBe('cancel');
     expect(opts.triggerEvent).toBe(fakeEvent);
   });
 
@@ -843,6 +928,7 @@ describe('LobbyPage — ngOnDestroy', () => {
     const { SurfaceService } = await import('../core/surface.service');
     const { ToastService } = await import('../services/toast.service');
     const { ExportService } = await import('../core/export.service');
+    const { AppPreferenceService } = await import('../core/app-preference.service');
     const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     const dismiss = vi.fn().mockImplementation(dismissImpl);
@@ -892,6 +978,10 @@ describe('LobbyPage — ngOnDestroy', () => {
         },
         { provide: ToastService, useValue: { show: vi.fn(), info: vi.fn(), error: vi.fn() } },
         { provide: ExportService, useValue: { export: vi.fn() } },
+        {
+          provide: AppPreferenceService,
+          useValue: { resolvedRelayHttpUrl: () => 'http://relay.test' },
+        },
         {
           provide: AlertController,
           useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
@@ -950,6 +1040,7 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
     const { SurfaceService } = await import('../core/surface.service');
     const { ToastService } = await import('../services/toast.service');
     const { ExportService } = await import('../core/export.service');
+    const { AppPreferenceService } = await import('../core/app-preference.service');
     const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     TestBed.resetTestingModule();
@@ -992,6 +1083,10 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
         },
         { provide: ToastService, useValue: { info: vi.fn(), error: vi.fn() } },
         { provide: ExportService, useValue: { export: vi.fn() } },
+        {
+          provide: AppPreferenceService,
+          useValue: { resolvedRelayHttpUrl: () => 'http://relay.test' },
+        },
         {
           provide: AlertController,
           useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
@@ -1041,6 +1136,7 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
     const { SurfaceService } = await import('../core/surface.service');
     const { ToastService } = await import('../services/toast.service');
     const { ExportService } = await import('../core/export.service');
+    const { AppPreferenceService } = await import('../core/app-preference.service');
     const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     TestBed.resetTestingModule();
@@ -1083,6 +1179,10 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
         },
         { provide: ToastService, useValue: { info: vi.fn(), error: vi.fn() } },
         { provide: ExportService, useValue: { export: vi.fn() } },
+        {
+          provide: AppPreferenceService,
+          useValue: { resolvedRelayHttpUrl: () => 'http://relay.test' },
+        },
         {
           provide: AlertController,
           useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
@@ -1137,6 +1237,7 @@ describe('LobbyPage — terminal-round computeds (status)', () => {
     const { SurfaceService } = await import('../core/surface.service');
     const { ToastService } = await import('../services/toast.service');
     const { ExportService } = await import('../core/export.service');
+    const { AppPreferenceService } = await import('../core/app-preference.service');
     const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     TestBed.resetTestingModule();
@@ -1181,6 +1282,10 @@ describe('LobbyPage — terminal-round computeds (status)', () => {
         { provide: ToastService, useValue: { show: vi.fn(), info: vi.fn(), error: vi.fn() } },
         { provide: ExportService, useValue: { export: vi.fn() } },
         {
+          provide: AppPreferenceService,
+          useValue: { resolvedRelayHttpUrl: () => 'http://relay.test' },
+        },
+        {
           provide: AlertController,
           useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
         },
@@ -1216,10 +1321,9 @@ describe('LobbyPage — terminal-round computeds (status)', () => {
     // the discarded tombstone and the still-voting round.
     expect(c.lastRevealedRound()?.id).toBe('r1');
     expect(c.lastRoundWasSkipped()).toBe(false);
-    // pastRevealedRounds = all non-active rounds except the anchor — the
-    // discarded round is a non-active terminal and is retained here (the
-    // history component tombstone-filters separately).
-    expect(c.pastRevealedRounds().map((r) => r.id)).toEqual(['r2']);
+    // A discarded round is a tombstone (ADR-0046): it is not history, so it
+    // must not make the History card appear with nothing in it.
+    expect(c.pastRevealedRounds()).toEqual([]);
   });
 
   it('lastRevealedRound is null when no round has ended', async () => {
@@ -1249,6 +1353,7 @@ describe('LobbyPage — autoNav effect (wiring)', () => {
     const { SurfaceService } = await import('../core/surface.service');
     const { ToastService } = await import('../services/toast.service');
     const { ExportService } = await import('../core/export.service');
+    const { AppPreferenceService } = await import('../core/app-preference.service');
     const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     const navigate = vi.fn().mockResolvedValue(true);
@@ -1298,6 +1403,10 @@ describe('LobbyPage — autoNav effect (wiring)', () => {
         },
         { provide: ToastService, useValue: { show: vi.fn(), info: vi.fn(), error: vi.fn() } },
         { provide: ExportService, useValue: { export: vi.fn() } },
+        {
+          provide: AppPreferenceService,
+          useValue: { resolvedRelayHttpUrl: () => 'http://relay.test' },
+        },
         {
           provide: AlertController,
           useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
@@ -1370,6 +1479,7 @@ describe('LobbyPage — agenda form refusal keeps the modal open', () => {
     const { SurfaceService } = await import('../core/surface.service');
     const { ToastService } = await import('../services/toast.service');
     const { ExportService } = await import('../core/export.service');
+    const { AppPreferenceService } = await import('../core/app-preference.service');
     const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     const updateAgendaItemFields = vi.fn().mockReturnValue(result);
@@ -1421,6 +1531,10 @@ describe('LobbyPage — agenda form refusal keeps the modal open', () => {
         },
         { provide: ToastService, useValue: { show: vi.fn(), error: vi.fn() } },
         { provide: ExportService, useValue: { export: vi.fn() } },
+        {
+          provide: AppPreferenceService,
+          useValue: { resolvedRelayHttpUrl: () => 'http://relay.test' },
+        },
         {
           provide: AlertController,
           useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn(), dismiss: vi.fn() }) },
@@ -1580,6 +1694,15 @@ interface CommandMountOptions {
   /** `meta().roomUuid`; omitted exercises the `clearAll` leave branch. */
   roomUuid?: string;
   lastRejection?: WritableSignal<JoinRejectionReason | null>;
+  /** `settings().hostParticipantId`; own id is `'me'` unless `myId` says otherwise. */
+  hostId?: string;
+  /** `settings().name`. */
+  sessionName?: string;
+  scale?: Scale;
+  participants?: ParticipantSnapshot[];
+  /** Ids with a live awareness entry; defaults to everyone in `participants`. */
+  onlineIds?: string[];
+  screen?: Screen | null;
 }
 
 async function mountForCommands(opts: CommandMountOptions = {}) {
@@ -1592,6 +1715,7 @@ async function mountForCommands(opts: CommandMountOptions = {}) {
   const { SurfaceService } = await import('../core/surface.service');
   const { ToastService } = await import('../services/toast.service');
   const { ExportService } = await import('../core/export.service');
+  const { AppPreferenceService } = await import('../core/app-preference.service');
   const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
   const commands = { ...UNBOUND_SESSION_COMMANDS, ...opts.commands };
@@ -1609,6 +1733,18 @@ async function mountForCommands(opts: CommandMountOptions = {}) {
     clearAll: vi.fn().mockResolvedValue(undefined),
   };
   const alerts: { buttons: AlertButton[] }[] = [];
+  const openSheetOrPopover = vi.fn().mockResolvedValue(undefined);
+  const roster = opts.participants ?? [];
+  const hasSettings =
+    opts.hostId !== undefined || opts.sessionName !== undefined || opts.scale !== undefined;
+  const settings = hasSettings
+    ? {
+        ...(opts.hostId !== undefined && { hostParticipantId: opts.hostId }),
+        ...(opts.sessionName !== undefined && { name: opts.sessionName }),
+        ...(opts.scale !== undefined && { defaultScale: opts.scale }),
+      }
+    : undefined;
+  const screen = signal<Screen | null>(opts.screen === undefined ? 'lobby' : opts.screen);
 
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
@@ -1617,19 +1753,22 @@ async function mountForCommands(opts: CommandMountOptions = {}) {
       {
         provide: DocService,
         useValue: {
-          settings: signal(undefined).asReadonly(),
+          settings: signal(settings).asReadonly(),
           roomCode: signal('ABC123').asReadonly(),
+          hasSession: signal(true).asReadonly(),
           meta: signal(
             opts.roomUuid === undefined ? undefined : { roomUuid: opts.roomUuid },
           ).asReadonly(),
           syncStatus: signal('disconnected').asReadonly(),
           currentRound: signal(undefined).asReadonly(),
-          screen: signal('lobby').asReadonly(),
+          screen: screen.asReadonly(),
           lastRejection: (opts.lastRejection ?? signal(null)).asReadonly(),
           rounds: signal(opts.rounds ?? []).asReadonly(),
-          participants: signal([]).asReadonly(),
-          activeParticipants: signal([]).asReadonly(),
-          onlineParticipantIds: signal(new Set()).asReadonly(),
+          participants: signal(roster).asReadonly(),
+          activeParticipants: signal(roster).asReadonly(),
+          onlineParticipantIds: signal(
+            new Set(opts.onlineIds ?? roster.map((p) => p.id)),
+          ).asReadonly(),
           agenda: signal(opts.pendingAgenda ?? []).asReadonly(),
           pendingAgenda: signal(opts.pendingAgenda ?? []).asReadonly(),
           nextPendingAgendaItem: signal(null).asReadonly(),
@@ -1650,14 +1789,19 @@ async function mountForCommands(opts: CommandMountOptions = {}) {
         provide: SurfaceService,
         useValue: {
           mode: signal('mobile').asReadonly(),
+          openSheetOrPopover,
           sheetBreakpoints: () => [0, 0.5, 1],
           initialSheetBreakpoint: () => 0.5,
           sheetBreakpointsFull: () => [0, 0.6, 1],
           initialSheetBreakpointFull: () => 1,
         },
       },
-      { provide: ToastService, useValue: { show: vi.fn(), error: toastError } },
+      { provide: ToastService, useValue: { show: vi.fn(), info: vi.fn(), error: toastError } },
       { provide: ExportService, useValue: { export: vi.fn() } },
+      {
+        provide: AppPreferenceService,
+        useValue: { resolvedRelayHttpUrl: () => 'http://relay.test' },
+      },
       {
         provide: AlertController,
         useValue: {
@@ -1692,6 +1836,8 @@ async function mountForCommands(opts: CommandMountOptions = {}) {
     toastError,
     lastSession,
     alerts,
+    openSheetOrPopover,
+    screen,
   };
 }
 
@@ -2027,7 +2173,7 @@ describe('LobbyPage — onHandoffTap', () => {
     const { page, haptic, alerts } = await mountForCommands({ commands: { handoffHost } });
 
     await page.onHandoffTap('them', 'Ada');
-    tapAlertButton(alerts, 'Confirm');
+    tapAlertButton(alerts, 'Make host');
 
     expect(handoffHost).toHaveBeenCalledWith('them');
     expect(haptic.impactMedium).toHaveBeenCalledTimes(1);
@@ -2040,7 +2186,7 @@ describe('LobbyPage — onHandoffTap', () => {
     const { page, haptic, alerts } = await mountForCommands({ commands: { handoffHost } });
 
     await page.onHandoffTap('them', 'Ada');
-    tapAlertButton(alerts, 'Confirm');
+    tapAlertButton(alerts, 'Make host');
 
     expect(haptic.impactMedium).not.toHaveBeenCalled();
   });
@@ -2050,7 +2196,7 @@ describe('LobbyPage — onHandoffTap', () => {
     const { page, alerts } = await mountForCommands({ myId: null, commands: { handoffHost } });
 
     await page.onHandoffTap('them', 'Ada');
-    tapAlertButton(alerts, 'Confirm');
+    tapAlertButton(alerts, 'Make host');
 
     expect(handoffHost).not.toHaveBeenCalled();
   });
@@ -2115,5 +2261,507 @@ describe('LobbyPage — WS rejection while on Lobby', () => {
     await vi.waitFor(() => expect(navigate).toHaveBeenCalled());
     expect(teardown).toHaveBeenCalledTimes(1);
     expect(navigate).toHaveBeenCalledWith(['/home']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Host / joiner split
+//
+// One screen for both. What differs is what each can do, and that has to be
+// visible: the host gets the round buttons, a menu, and an actions button on
+// every other roster row; a joiner gets a one-tap Leave and a line saying what
+// they are waiting for.
+// ---------------------------------------------------------------------------
+
+const ADA: ParticipantSnapshot = { id: 'me', displayName: 'Ada', joinedAt: 1 };
+const BOB: ParticipantSnapshot = { id: 'bob', displayName: 'Bob', joinedAt: 2 };
+const CY: ParticipantSnapshot = { id: 'cy', displayName: 'Cy', joinedAt: 3, role: 'viewer' };
+
+function render(fixture: { detectChanges(): void; nativeElement: unknown }): HTMLElement {
+  fixture.detectChanges();
+  return fixture.nativeElement as HTMLElement;
+}
+
+function textOf(el: Element | null | undefined): string {
+  return el?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+}
+
+describe('LobbyPage — toolbar', () => {
+  it('gives the host a menu', async () => {
+    const { fixture } = await mountForCommands({ hostId: 'me' });
+    const el = render(fixture);
+    expect(el.querySelector('ion-button[aria-label="More options"]')).not.toBeNull();
+    expect(el.querySelector('ion-button[aria-label="Leave session"]')).toBeNull();
+  });
+
+  it('gives everyone else a one-tap Leave instead of a one-item menu', async () => {
+    const { fixture, alerts } = await mountForCommands({ hostId: 'bob' });
+    const el = render(fixture);
+    expect(el.querySelector('ion-button[aria-label="More options"]')).toBeNull();
+
+    const leave = el.querySelector<HTMLElement>('ion-button[aria-label="Leave session"]');
+    expect(leave).not.toBeNull();
+    leave!.click();
+    // Still behind a confirmation: leaving is destructive.
+    await vi.waitFor(() => expect(alerts).toHaveLength(1));
+    expect(alerts[0]!.buttons.map((b) => b.text)).toEqual(['Cancel', 'Leave']);
+  });
+
+  it('is titled with the session name', async () => {
+    const { fixture } = await mountForCommands({ hostId: 'me', sessionName: ' Sprint 12 ' });
+    expect(textOf(render(fixture).querySelector('ion-title'))).toBe('Sprint 12');
+  });
+
+  it('is titled "Lobby" when the session has no name', async () => {
+    const { fixture } = await mountForCommands({ hostId: 'me' });
+    expect(textOf(render(fixture).querySelector('ion-title'))).toBe('Lobby');
+  });
+});
+
+describe('LobbyPage — host menu', () => {
+  interface MenuInternals {
+    openActionSheet(event: Event): Promise<void>;
+    confirmLeave(): Promise<void>;
+    confirmEndSession(): Promise<void>;
+  }
+  interface MenuOptions {
+    items: { text: string; role?: string; handler?: () => void }[];
+    triggerEvent: Event;
+  }
+
+  it('lists settings, end, leave and cancel, in that order', async () => {
+    const { fixture, openSheetOrPopover } = await mountForCommands({ hostId: 'me' });
+    const event = new Event('click');
+
+    await (fixture.componentInstance as unknown as MenuInternals).openActionSheet(event);
+
+    const [opts] = openSheetOrPopover.mock.calls[0] as [MenuOptions];
+    expect(opts.items.map((item) => item.text)).toEqual([
+      'Session settings',
+      'End session for everyone',
+      'Leave session',
+      'Cancel',
+    ]);
+    expect(opts.items.map((item) => item.role)).toEqual([
+      undefined,
+      'destructive',
+      'destructive',
+      'cancel',
+    ]);
+    expect(opts.triggerEvent).toBe(event);
+  });
+
+  it('routes the destructive items through their confirmations', async () => {
+    const { fixture, openSheetOrPopover, alerts } = await mountForCommands({ hostId: 'me' });
+    await (fixture.componentInstance as unknown as MenuInternals).openActionSheet(
+      new Event('click'),
+    );
+    const [opts] = openSheetOrPopover.mock.calls[0] as [MenuOptions];
+
+    opts.items[1]!.handler?.();
+    await vi.waitFor(() => expect(alerts).toHaveLength(1));
+    expect(alerts[0]!.buttons.map((b) => b.text)).toEqual(['Cancel', 'End session']);
+
+    opts.items[2]!.handler?.();
+    await vi.waitFor(() => expect(alerts).toHaveLength(2));
+    expect(alerts[1]!.buttons.map((b) => b.text)).toEqual(['Cancel', 'Leave']);
+  });
+});
+
+describe('LobbyPage — round controls', () => {
+  function footerButtons(el: HTMLElement): string[] {
+    return [...el.querySelectorAll('ion-footer ion-button')].map((b) => textOf(b));
+  }
+
+  it('host: "Start round 1" and nothing to re-vote before any result', async () => {
+    const { fixture } = await mountForCommands({ hostId: 'me' });
+    expect(footerButtons(render(fixture))).toEqual(['Start round 1']);
+  });
+
+  it('host: Re-vote beside "Next round 2" once a round is revealed', async () => {
+    const { fixture } = await mountForCommands({ hostId: 'me', rounds: [makeRevealedRound()] });
+    expect(footerButtons(render(fixture))).toEqual(['Re-vote', 'Next round 2']);
+  });
+
+  it('host: a skipped round has no result to re-vote on', async () => {
+    const { fixture } = await mountForCommands({
+      hostId: 'me',
+      rounds: [makeRevealedRound({ status: 'skipped' })],
+    });
+    expect(footerButtons(render(fixture))).toEqual(['Next round 2']);
+  });
+
+  it('host: a cancelled round takes no number — the first round is still round 1', async () => {
+    const { fixture } = await mountForCommands({
+      hostId: 'me',
+      rounds: [makeRevealedRound({ status: 'discarded' })],
+    });
+    expect(footerButtons(render(fixture))).toEqual(['Start round 1']);
+  });
+
+  it('host: a cancelled round between two results leaves no gap', async () => {
+    const { fixture } = await mountForCommands({
+      hostId: 'me',
+      rounds: [
+        makeRevealedRound({ id: 'r1' }),
+        makeRevealedRound({ id: 'r2', status: 'discarded' }),
+      ],
+    });
+    expect(footerButtons(render(fixture))).toEqual(['Re-vote', 'Next round 2']);
+  });
+
+  it('host: is not told to wait for themselves', async () => {
+    const { fixture } = await mountForCommands({ hostId: 'me', participants: [ADA, BOB] });
+    expect(render(fixture).querySelector('.waiting-note')).toBeNull();
+  });
+
+  it('joiner: no round buttons, and a line saying who they are waiting for', async () => {
+    const { fixture } = await mountForCommands({ hostId: 'bob', participants: [ADA, BOB] });
+    const el = render(fixture);
+    expect(el.querySelector('ion-footer')).toBeNull();
+    expect(textOf(el.querySelector('.waiting-note'))).toBe(
+      'Waiting for Bob to start the first round.',
+    );
+  });
+
+  it('joiner: waits for the next round once there is a result', async () => {
+    const { fixture } = await mountForCommands({
+      hostId: 'bob',
+      participants: [ADA, BOB],
+      rounds: [makeRevealedRound()],
+    });
+    expect(textOf(render(fixture).querySelector('.waiting-note'))).toBe(
+      'Waiting for Bob to start the next round.',
+    );
+  });
+
+  it('joiner: waits for "the host" when the host has left the roster', async () => {
+    const { fixture } = await mountForCommands({ hostId: 'gone', participants: [ADA] });
+    expect(textOf(render(fixture).querySelector('.waiting-note'))).toBe(
+      'Waiting for the host to start the first round.',
+    );
+  });
+});
+
+describe('LobbyPage — results card', () => {
+  it('is absent until a round has finished', async () => {
+    const { fixture } = await mountForCommands({ hostId: 'me' });
+    expect(render(fixture).querySelector('.results-card')).toBeNull();
+  });
+
+  it('is headed with the round number in the session', async () => {
+    const { fixture } = await mountForCommands({
+      hostId: 'me',
+      rounds: [makeRevealedRound({ id: 'r1' }), makeRevealedRound({ id: 'r2' })],
+    });
+    const heading = render(fixture).querySelector('.results-heading');
+    expect(textOf(heading)).toBe('Round 2 results');
+  });
+
+  it('does not count a cancelled round in that number', async () => {
+    const { fixture } = await mountForCommands({
+      hostId: 'me',
+      rounds: [
+        makeRevealedRound({ id: 'r1', status: 'discarded' }),
+        makeRevealedRound({ id: 'r2' }),
+      ],
+    });
+    const heading = render(fixture).querySelector('.results-heading');
+    expect(textOf(heading)).toBe('Round 1 results');
+  });
+
+  it('notes a re-vote beside the heading', async () => {
+    const { fixture } = await mountForCommands({
+      hostId: 'me',
+      rounds: [
+        makeRevealedRound({ id: 'r1' }),
+        makeRevealedRound({ id: 'r2', parentRoundId: 'r1' }),
+      ],
+    });
+    const heading = render(fixture).querySelector('.results-heading');
+    expect(textOf(heading)).toBe('Round 2 results Re-vote');
+    expect(textOf(heading?.querySelector('.hnch-card__title-note'))).toBe('Re-vote');
+  });
+
+  it('says so when the round was skipped, and shows no chart', async () => {
+    const { fixture } = await mountForCommands({
+      hostId: 'me',
+      rounds: [makeRevealedRound({ status: 'skipped' })],
+    });
+    const el = render(fixture);
+    expect(textOf(el.querySelector('.round-skipped'))).toBe('Round skipped');
+    expect(el.querySelector('app-vote-results')).toBeNull();
+  });
+
+  it('lets the host, and only the host, edit the round', async () => {
+    const asHost = await mountForCommands({ hostId: 'me', rounds: [makeRevealedRound()] });
+    expect(render(asHost.fixture).querySelector('.results-card .edit-btn')).not.toBeNull();
+
+    const asJoiner = await mountForCommands({ hostId: 'bob', rounds: [makeRevealedRound()] });
+    expect(render(asJoiner.fixture).querySelector('.results-card .edit-btn')).toBeNull();
+  });
+
+  it('shows History only when an older round exists', async () => {
+    const one = await mountForCommands({ hostId: 'me', rounds: [makeRevealedRound()] });
+    expect(render(one.fixture).querySelector('.history-card')).toBeNull();
+
+    const two = await mountForCommands({
+      hostId: 'me',
+      rounds: [makeRevealedRound({ id: 'r1' }), makeRevealedRound({ id: 'r2' })],
+    });
+    expect(render(two.fixture).querySelector('.history-card')).not.toBeNull();
+  });
+});
+
+describe('LobbyPage — roster', () => {
+  function rows(el: HTMLElement): Element[] {
+    return [...el.querySelectorAll('ion-list.participants ion-item')];
+  }
+
+  it('counts the participants in the heading', async () => {
+    const { fixture } = await mountForCommands({ hostId: 'me', participants: [ADA, BOB, CY] });
+    expect(textOf(render(fixture).querySelector('.participants-card h2'))).toBe('Participants (3)');
+  });
+
+  it('own row reads "You (Ada)" and carries the role switch', async () => {
+    const toggleRole = vi.fn().mockReturnValue(APPLIED_ROSTER);
+    const { fixture } = await mountForCommands({
+      hostId: 'bob',
+      participants: [ADA, BOB],
+      commands: { toggleRole },
+    });
+    const [own, other] = rows(render(fixture));
+
+    expect(textOf(own!.querySelector('.participant-name'))).toBe('You (Ada)');
+    expect(own!.getAttribute('aria-label')).toBe('You (Ada)');
+    expect(own!.querySelector('app-role-toggle')).not.toBeNull();
+
+    expect(textOf(other!.querySelector('.participant-name'))).toBe('Bob');
+    expect(other!.querySelector('app-role-toggle')).toBeNull();
+  });
+
+  it('badges the host, whoever is looking', async () => {
+    const { fixture } = await mountForCommands({ hostId: 'bob', participants: [ADA, BOB] });
+    const [own, other] = rows(render(fixture));
+    expect(own!.querySelector('.host-badge')).toBeNull();
+    expect(textOf(other!.querySelector('.host-badge'))).toBe('Host');
+  });
+
+  it('host: an actions button on every row but their own', async () => {
+    const { fixture, openSheetOrPopover } = await mountForCommands({
+      hostId: 'me',
+      participants: [ADA, BOB, CY],
+    });
+    const [own, bob, cy] = rows(render(fixture));
+
+    expect(own!.querySelector('.participant-menu-btn')).toBeNull();
+    expect(cy!.querySelector('.participant-menu-btn')).not.toBeNull();
+
+    const button = bob!.querySelector<HTMLElement>('.participant-menu-btn');
+    expect(button?.getAttribute('aria-label')).toBe('Host actions for Bob');
+    button!.click();
+    await vi.waitFor(() => expect(openSheetOrPopover).toHaveBeenCalledTimes(1));
+    const [opts] = openSheetOrPopover.mock.calls[0] as [{ header?: string }];
+    expect(opts.header).toBe('Bob');
+  });
+
+  it('joiner: no actions button anywhere', async () => {
+    const { fixture } = await mountForCommands({ hostId: 'bob', participants: [ADA, BOB, CY] });
+    expect(render(fixture).querySelector('.participant-menu-btn')).toBeNull();
+  });
+
+  it('notes who is observing and who is offline', async () => {
+    const { fixture } = await mountForCommands({
+      hostId: 'me',
+      participants: [ADA, BOB, CY],
+      onlineIds: ['me', 'cy'],
+    });
+    const [own, bob, cy] = rows(render(fixture));
+
+    expect(own!.querySelector('ion-note')).toBeNull();
+    expect(own!.classList.contains('offline')).toBe(false);
+
+    expect(textOf(bob!.querySelector('ion-note'))).toBe('Offline');
+    expect(bob!.classList.contains('offline')).toBe(true);
+
+    expect(textOf(cy!.querySelector('ion-note'))).toBe('Observer');
+    expect(cy!.classList.contains('offline')).toBe(false);
+  });
+
+  it('offline wins over observer: one note per row', async () => {
+    const { fixture } = await mountForCommands({
+      hostId: 'me',
+      participants: [ADA, CY],
+      onlineIds: ['me'],
+    });
+    const [, cy] = rows(render(fixture));
+    expect([...cy!.querySelectorAll('ion-note')].map((n) => textOf(n))).toEqual(['Offline']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Access mode — relay state (ADR-0009), so the Lobby reads it back rather
+// than assuming "open". A session created with a password, reloaded, or
+// locked by a previous host used to show as open, and its invite link lost
+// the `pw=1` hint that makes Join ask for the password up front.
+// ---------------------------------------------------------------------------
+
+describe('LobbyPage — access mode', () => {
+  interface AccessInternals {
+    subtitle(): string;
+    inviteUrl(): string;
+    passwordProtected(): boolean;
+    ionViewWillEnter(): void;
+    onAccessChanged(selection: { mode: 'open' | 'password'; password?: string }): void;
+  }
+  const FIBONACCI: Scale = { id: 'fibonacci', cards: ['1', '2', '3'] };
+
+  async function mountAccess() {
+    const mounted = await mountForCommands({ hostId: 'me', scale: FIBONACCI });
+    mounted.fixture.detectChanges();
+    return {
+      ...mounted,
+      page: mounted.fixture.componentInstance as unknown as AccessInternals,
+    };
+  }
+
+  it('reads the lock back from the relay', async () => {
+    relay.accessMode = 'password';
+    const { page } = await mountAccess();
+
+    await vi.waitFor(() => expect(page.passwordProtected()).toBe(true));
+
+    expect(relay.lookups).toEqual([{ url: 'http://relay.test', code: 'ABC123' }]);
+    expect(page.subtitle()).toBe('Fibonacci · Password protected');
+    expect(page.inviteUrl()).toMatch(/\/join\?code=ABC123&pw=1$/);
+  });
+
+  it('shows the lock on the summary line', async () => {
+    relay.accessMode = 'password';
+    const { fixture, page } = await mountAccess();
+    await vi.waitFor(() => expect(page.passwordProtected()).toBe(true));
+    fixture.detectChanges();
+
+    const summary = (fixture.nativeElement as HTMLElement).querySelector('button.subtitle');
+    expect(summary?.querySelector('ion-icon[name="lock-closed-outline"]')).not.toBeNull();
+    expect(summary?.getAttribute('aria-label')).toBe(
+      'Edit session settings: Fibonacci · Password protected',
+    );
+  });
+
+  it('leaves an open session open', async () => {
+    const { fixture, page } = await mountAccess();
+    await vi.waitFor(() => expect(relay.lookups).toHaveLength(1));
+    await Promise.resolve();
+
+    expect(page.passwordProtected()).toBe(false);
+    expect(page.subtitle()).toBe('Fibonacci');
+    expect(page.inviteUrl()).toMatch(/\/join\?code=ABC123$/);
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('ion-icon[name="lock-closed-outline"]'),
+    ).toBeNull();
+  });
+
+  it('asks again on every entry, so a change made elsewhere shows up', async () => {
+    const { page } = await mountAccess();
+    await vi.waitFor(() => expect(relay.lookups).toHaveLength(1));
+
+    relay.accessMode = 'password';
+    page.ionViewWillEnter();
+
+    await vi.waitFor(() => expect(page.passwordProtected()).toBe(true));
+    expect(relay.lookups).toHaveLength(2);
+  });
+
+  it('keeps the last known mode when the relay cannot be reached', async () => {
+    relay.accessMode = 'password';
+    const { page } = await mountAccess();
+    await vi.waitFor(() => expect(page.passwordProtected()).toBe(true));
+
+    relay.unreachable = true;
+    page.ionViewWillEnter();
+    await vi.waitFor(() => expect(relay.lookups).toHaveLength(2));
+    await Promise.resolve();
+
+    expect(page.passwordProtected()).toBe(true);
+  });
+
+  it('follows a change the host makes in the settings sheet', async () => {
+    const { page } = await mountAccess();
+    await vi.waitFor(() => expect(relay.lookups).toHaveLength(1));
+    await Promise.resolve();
+
+    page.onAccessChanged({ mode: 'password', password: 'hunter2' });
+    expect(page.subtitle()).toBe('Fibonacci · Password protected');
+
+    page.onAccessChanged({ mode: 'open' });
+    expect(page.subtitle()).toBe('Fibonacci');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Re-entry. Ionic keeps the Lobby alive under Estimating and re-shows the
+// same instance on Back; nothing the autoNav effect reads has changed by
+// then, so it does not run again. Without the hook the host could sit on the
+// Lobby — and open its sheets — while everyone else was voting.
+// ---------------------------------------------------------------------------
+
+describe('LobbyPage — ionViewWillEnter', () => {
+  interface EnterInternals {
+    ionViewWillEnter(): void;
+  }
+
+  it('sends the user back to Estimating while a round is running', async () => {
+    const { fixture, navigate } = await mountForCommands({ screen: 'estimating' });
+    TestBed.flushEffects();
+    expect(navigate).toHaveBeenCalledTimes(1);
+
+    (fixture.componentInstance as unknown as EnterInternals).ionViewWillEnter();
+
+    expect(navigate).toHaveBeenCalledTimes(2);
+    expect(navigate).toHaveBeenLastCalledWith(['/estimating', 'ABC123']);
+  });
+
+  it('stays between rounds', async () => {
+    const { fixture, navigate } = await mountForCommands({ screen: 'lobby' });
+    (fixture.componentInstance as unknown as EnterInternals).ionViewWillEnter();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('stays while the projection has not loaded', async () => {
+    const { fixture, navigate } = await mountForCommands({ screen: null });
+    (fixture.componentInstance as unknown as EnterInternals).ionViewWillEnter();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+});
+
+describe('LobbyPage — openSessionSettings', () => {
+  interface SettingsInternals {
+    openSessionSettings(): void;
+  }
+
+  async function mountWithSettingsModal(hostId: string) {
+    const mounted = await mountForCommands({ hostId });
+    const present = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(mounted.fixture.componentInstance, 'sessionSettingsModalRef', {
+      value: () => ({ present, onDidDismiss: () => new Promise(() => undefined) }),
+      configurable: true,
+    });
+    return {
+      present,
+      page: mounted.fixture.componentInstance as unknown as SettingsInternals,
+    };
+  }
+
+  it('opens the sheet for the host', async () => {
+    const { page, present } = await mountWithSettingsModal('me');
+    page.openSessionSettings();
+    expect(present).toHaveBeenCalledTimes(1);
+  });
+
+  it('does nothing for anyone else', async () => {
+    const { page, present } = await mountWithSettingsModal('bob');
+    page.openSessionSettings();
+    expect(present).not.toHaveBeenCalled();
   });
 });

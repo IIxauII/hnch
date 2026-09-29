@@ -54,8 +54,8 @@ import { computeCardRows } from './scale-editor.helpers';
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
-    <ion-content class="ion-padding-top">
-      <ion-list lines="inset" [attr.aria-label]="title() + ' card toggles'">
+    <ion-content class="ion-padding">
+      <ion-list inset="true" lines="inset" [attr.aria-label]="title() + ' card toggles'">
         @for (card of cardRows(); track card.index) {
           <ion-item>
             <ion-label>
@@ -71,18 +71,21 @@ import { computeCardRows } from './scale-editor.helpers';
           </ion-item>
         }
       </ion-list>
-      <ion-note class="hint ion-padding-horizontal">
-        At least one card must remain enabled.
+      <ion-note class="hint">
+        Turn off the cards your team never uses. At least one stays on.
       </ion-note>
     </ion-content>
   `,
   styles: [
     `
+      ion-list {
+        margin-block: 0;
+      }
       .hint {
         display: block;
-        margin-top: 0.75rem;
-        font-size: 0.8rem;
-        color: var(--ion-color-medium);
+        padding: 8px 16px 0;
+        font-size: 13px;
+        line-height: 1.4;
       }
     `,
   ],
