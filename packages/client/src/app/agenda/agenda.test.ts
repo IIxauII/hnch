@@ -305,6 +305,49 @@ describe('AgendaItemFormSheetComponent', () => {
   });
 });
 
+describe('AgendaItemFormSheetComponent — Enter', () => {
+  type Internals = FormAccess & { onEnter(e: Event): void };
+
+  async function mountForm() {
+    const { AgendaItemFormSheetComponent } = await import('./agenda-item-form.sheet');
+    const fixture = TestBed.createComponent(AgendaItemFormSheetComponent);
+    fixture.componentRef.setInput('mode', 'add');
+    fixture.componentInstance.ngOnInit();
+    const emitted: unknown[] = [];
+    fixture.componentInstance.submitted.subscribe((v) => emitted.push(v));
+    const comp = fixture.componentInstance as unknown as Internals;
+    comp.form.controls.title.setValue('Login');
+    return { comp, emitted };
+  }
+
+  it('adds the story', async () => {
+    const { comp, emitted } = await mountForm();
+    comp.onEnter(new KeyboardEvent('keydown'));
+    expect(emitted).toHaveLength(1);
+  });
+
+  // With an input method editor, Enter picks the candidate. It is part of
+  // typing the title, not the end of it.
+  it('does not add it while a composition is being confirmed', async () => {
+    const { comp, emitted } = await mountForm();
+    comp.onEnter(new KeyboardEvent('keydown', { isComposing: true }));
+    expect(emitted).toHaveLength(0);
+  });
+
+  // The key has to say what it does: labelled "next" it still submitted, and
+  // on iOS that key sends Enter.
+  it('labels the key for what it does', async () => {
+    const { AgendaItemFormSheetComponent } = await import('./agenda-item-form.sheet');
+    const template = (
+      AgendaItemFormSheetComponent as unknown as { ɵcmp: { consts: unknown[] } }
+    ).ɵcmp.consts
+      .flat(3)
+      .join(' ');
+    expect(template).toContain('enterkeyhint done');
+    expect(template).not.toContain('enterkeyhint next');
+  });
+});
+
 describe('AgendaItemFormSheetComponent — validity and the submit latch', () => {
   type FormInternals = FormAccess & {
     formValid: () => boolean;
@@ -471,12 +514,12 @@ describe('AgendaPanelComponent', () => {
 });
 
 // ---------------------------------------------------------------------------
-// AgendaPanelComponent — itemDisplayTitle and itemAriaLabel branches
+// AgendaPanelComponent — itemDisplayTitle and stateWord branches
 // ---------------------------------------------------------------------------
 
 type PanelMethodAccess = {
   itemDisplayTitle: (item: AgendaItem) => string;
-  itemAriaLabel: (item: AgendaItem) => string;
+  stateWord: (item: AgendaItem) => string;
 };
 
 describe('AgendaPanelComponent — display helpers', () => {
@@ -505,22 +548,52 @@ describe('AgendaPanelComponent — display helpers', () => {
     expect(comp.itemDisplayTitle(item)).toBe('(untitled)');
   });
 
-  it('itemAriaLabel includes ticketId when both title and ticketId present', async () => {
-    const item = makeAgendaItem({ id: 'p1', sortKey: 'a0', title: 'Story', ticketId: 'PROJ-2' });
-    const comp = await mountPanelRaw([item]);
-    const label = comp.itemAriaLabel(item);
-    expect(label).toContain('PROJ-2');
-    expect(label).toContain('Story');
+  // A skipped round consumes its story too (ADR-0045), so "consumed" is
+  // "done" — it was not necessarily estimated.
+  it('stateWord names the state in plain words, and nothing while pending', async () => {
+    const comp = await mountPanelRaw([]);
+    const word = (state: AgendaItem['state']) =>
+      comp.stateWord(makeAgendaItem({ id: 'x', sortKey: 'a0', title: 'Story', state }));
+    expect(word('pending')).toBe('');
+    expect(word('consumed')).toBe('done');
+    expect(word('skipped')).toBe('skipped');
+    expect(word('cancelled')).toBe('removed');
+  });
+});
+
+describe('AgendaPanelComponent — what a screen reader is given', () => {
+  async function renderRows(items: AgendaItem[]): Promise<HTMLElement[]> {
+    const { AgendaPanelComponent } = await import('./agenda-panel.component');
+    const { SurfaceService } = await import('../core/surface.service');
+    TestBed.configureTestingModule({
+      providers: [{ provide: SurfaceService, useValue: new MockSurfaceService() }],
+    });
+    const fixture = TestBed.createComponent(AgendaPanelComponent);
+    fixture.componentRef.setInput('items', items);
+    fixture.componentRef.setInput('isHost', false);
+    fixture.detectChanges();
+    return [
+      ...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('.agenda-item'),
+    ];
+  }
+
+  it('reads a row as what it shows: no label standing in for its content', async () => {
+    const [row] = await renderRows([
+      makeAgendaItem({ id: 'p1', sortKey: 'a0', title: 'Story', ticketId: 'PROJ-2' }),
+    ]);
+    expect(row!.hasAttribute('aria-label')).toBe(false);
+    expect(row!.textContent).toContain('Story');
+    expect(row!.textContent).toContain('PROJ-2');
   });
 
-  it('itemAriaLabel appends state for non-pending items, in plain words', async () => {
-    const comp = await mountPanelRaw([]);
-    const label = (state: AgendaItem['state']) =>
-      comp.itemAriaLabel(makeAgendaItem({ id: 'x', sortKey: 'a0', title: 'Done', state }));
-    expect(label('pending')).toBe('Done');
-    expect(label('consumed')).toBe('Done, estimated');
-    expect(label('skipped')).toBe('Done, skipped');
-    expect(label('cancelled')).toBe('Done, removed');
+  it('puts the state into words, since on screen it is only an icon', async () => {
+    const [done, pending] = await renderRows([
+      makeAgendaItem({ id: 'c1', sortKey: 'a0', title: 'Login', state: 'consumed' }),
+      makeAgendaItem({ id: 'p1', sortKey: 'a1', title: 'Reset' }),
+    ]);
+    expect(done!.querySelector('.visually-hidden')?.textContent).toBe(', done');
+    expect(done!.querySelector('.state-badge-wrapper')?.getAttribute('aria-hidden')).toBe('true');
+    expect(pending!.querySelector('.visually-hidden')).toBeNull();
   });
 });
 

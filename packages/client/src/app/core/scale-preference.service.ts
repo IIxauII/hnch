@@ -159,6 +159,10 @@ export class ScalePreferenceService {
   /**
    * Remove a custom scale by id. No-ops silently if the id is not found
    * (idempotent — safe to call after optimistic UI removal).
+   *
+   * A default that pointed at the scale goes back to Fibonacci — which is
+   * what `defaultScale` resolved a dangling id to anyway, except that the
+   * picker then had nothing checked.
    */
   async deleteCustomScale(id: string): Promise<void> {
     const updated = this.customScalesSignal().filter((s) => s.id !== id);
@@ -168,6 +172,7 @@ export class ScalePreferenceService {
       key: ScalePreferenceService.CUSTOM_SCALES_KEY,
       value: JSON.stringify(updated),
     });
+    if (this.defaultScaleIdSignal() === id) await this.setDefaultScaleId('fibonacci');
   }
 
   /**

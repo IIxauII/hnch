@@ -121,7 +121,7 @@ export interface ConnectOptions {
  * Phase 3 adds a sync-provider handle: {@link connect} opens a
  * `y-websocket` against the relay once the session exists, and
  * {@link syncStatus} reflects the live connection state for the
- * UI's status chip.
+ * connection banner.
  */
 @Injectable({ providedIn: 'root' })
 export class DocService {
@@ -148,6 +148,16 @@ export class DocService {
   );
   private readonly roomCodeSignal: WritableSignal<string | null> = signal<string | null>(null);
   private provider: RelayConnection | null = null;
+  /**
+   * What the connection presents itself with. Kept here rather than only
+   * inside the provider because the provider does not exist yet while the
+   * local snapshot loads: a password set in that window (the host setting one
+   * right after creating the session) would otherwise be dropped, and the
+   * socket would open without it.
+   */
+  private credentials: JoinCredentials | null = null;
+  /** The participant the live session is bound to — see {@link attach}. */
+  private sessionParticipantId: string | null = null;
   /**
    * Set in joinSession, consumed by the next connectWithPersistence call,
    * cleared immediately after. Used to gate the post-sync `rejoin` roster
@@ -177,10 +187,13 @@ export class DocService {
    * Mirrors `relay-client`'s `onSyncedChange`: true while the relay's state —
    * and with it the room's awareness — has applied on the *current* socket.
    * False before the first sync, between a drop and the re-sync, and after
-   * {@link disconnect}. Gates the auto-reveal driver; see
-   * {@link autoRevealProjection}.
+   * {@link disconnect}. It is what the auto-reveal driver is told about how
+   * far awareness can be trusted.
    */
   private readonly relaySyncedSignal: WritableSignal<boolean> = signal(false);
+  /** Bumped whenever the session this service holds changes — see {@link sessionEpoch}. */
+  private readonly sessionEpochSignal: WritableSignal<number> = signal(0);
+  private readonly relayRoomUuidSignal: WritableSignal<string | null> = signal<string | null>(null);
   /**
    * True while `endSessionForEveryone()` is in flight locally — guards the
    * `SessionEndService` observer from treating a self-triggered end as a
@@ -349,6 +362,30 @@ export class DocService {
   readonly relaySynced: Signal<boolean> = this.relaySyncedSignal.asReadonly();
 
   /**
+   * Identifies the session this service holds: a number that changes every
+   * time a session starts or is torn down.
+   *
+   * The connection signals ({@link syncStatus}, {@link relaySynced},
+   * {@link lastRejection}) describe *whatever* session is current. Something
+   * that waits on them across an `await` — a join in progress — notes the
+   * epoch first and stops caring when it has moved on: the session it was
+   * waiting for is gone, and what the signals say now is about another one.
+   */
+  readonly sessionEpoch: Signal<number> = this.sessionEpochSignal.asReadonly();
+
+  /**
+   * The UUID the socket is connected under, as the relay issued it (minted at
+   * creation, or resolved from the code on joining). `null` while no
+   * connection has been asked for.
+   *
+   * Not the same thing as `meta().roomUuid`, which is read from the doc — and
+   * the doc is writable by every participant. Anything that talks to the relay
+   * about *this* session (the password's salt, the access change) goes by
+   * this one.
+   */
+  readonly relayRoomUuid: Signal<string | null> = this.relayRoomUuidSignal.asReadonly();
+
+  /**
    * True once the relay has completed its first sync (y-websocket `onSynced`).
    * Resets to false on `teardown`. Consumers should not act on `leftAt`
    * transitions observed before this is true — those came from the snapshot
@@ -508,14 +545,16 @@ export class DocService {
       throw new Error('DocService.connect: session has no roomUuid');
     }
 
-    // Start in `connecting` immediately so the UI's status chip doesn't
-    // flash `offline` during the one-tick gap before y-websocket's
-    // first `status` event fires.
+    // Start in `connecting` immediately so the connection banner's clock
+    // starts now, not one tick later when y-websocket's first `status` event
+    // fires.
     this.syncStatusSignal.set('connecting');
+    this.credentials = credentials;
+    this.relayRoomUuidSignal.set(roomUuid);
 
     const httpUrl = opts.httpBaseUrl ?? this.appPrefs.resolvedRelayHttpUrl();
 
-    void this.connectWithPersistence(doc, roomUuid, httpUrl, credentials, this.joinParticipantId);
+    void this.connectWithPersistence(doc, roomUuid, httpUrl, this.joinParticipantId);
     this.joinParticipantId = null;
   }
 
@@ -523,16 +562,27 @@ export class DocService {
     doc: Y.Doc,
     roomUuid: string,
     httpBaseUrl: string,
-    credentials: JoinCredentials,
     joinParticipantId: string | null = null,
   ): Promise<void> {
     // PWA: load local IndexedDB snapshot before opening WebSocket so the
     // UI is immediately populated from cache (ADR-0004).
     // Native: SQLite persistence deferred to Phase 6b (ADR-0004).
     if (!Capacitor.isNativePlatform()) {
-      this.persistence = new IndexeddbPersistence(roomUuid, doc);
-      await this.persistence.whenSynced;
+      const persistence = new IndexeddbPersistence(roomUuid, doc);
+      this.persistence = persistence;
+      await persistence.whenSynced;
+      // The session may have been torn down, or replaced, while the snapshot
+      // loaded. A provider created now would be bound to a destroyed doc and
+      // would block the next session's `connect()`.
+      if (this.doc !== doc) {
+        if (this.persistence === persistence) this.persistence = null;
+        void persistence.destroy();
+        return;
+      }
     }
+    // Read after the wait: the credentials may have changed during it.
+    const credentials = this.credentials;
+    if (credentials === null) return;
 
     this.provider = connectToRelay({
       httpBaseUrl,
@@ -546,7 +596,7 @@ export class DocService {
       // The throttle (3 transient closes inside 60 s) lives in `relay-client`;
       // the toast is surface-side, so only the copy is decided here.
       onRepeatRejection: () => {
-        void this.toastService.error('Trouble reaching the room — retrying.');
+        void this.toastService.error('Trouble reaching the session. Still trying.');
       },
       // ADR-0036 §6 LWW fix: flip `hasFirstSyncCompleted` before clearing any
       // stale `leftAt`/`removedBy` so that `ParticipantRemovalService` can
@@ -600,6 +650,12 @@ export class DocService {
    * open. No-op when the hash is unchanged or no connection is attached.
    */
   updateCredentials(passwordHash: string | null): void {
+    if (this.credentials !== null) {
+      const { passwordHash: _previous, ...rest } = this.credentials;
+      this.credentials = passwordHash === null ? rest : { ...rest, passwordHash };
+    }
+    // No provider yet means the socket has not been opened: it will open
+    // with the credentials above.
     this.provider?.updateCredentials({ passwordHash });
   }
 
@@ -649,6 +705,9 @@ export class DocService {
     this.hasFirstSyncCompletedSignal.set(false);
     this.endingSessionLocally.set(false);
     this.joinParticipantId = null;
+    this.credentials = null;
+    this.relayRoomUuidSignal.set(null);
+    this.sessionEpochSignal.update((n) => n + 1);
   }
 
   // ---------------------------------------------------------------------------
@@ -706,6 +765,8 @@ export class DocService {
    */
   private attach(doc: Y.Doc, participantId: string): void {
     this.doc = doc;
+    this.sessionParticipantId = participantId;
+    this.sessionEpochSignal.update((n) => n + 1);
     // Bind the writer seam before the drivers start — the auto-reveal
     // driver's `reveal()` adapter reaches it immediately below (#516).
     this.boundCommands = bindSessionCommands({
@@ -750,6 +811,7 @@ export class DocService {
     // `UNBOUND_SESSION_COMMANDS` rather than writing to a destroyed doc; a
     // second session rebinds a fresh set in `attach` (#516).
     this.boundCommands = null;
+    this.sessionParticipantId = null;
   }
 
   private rebuildProjection(): void {
@@ -798,8 +860,12 @@ export class DocService {
   private startAutoRevealDriver(): void {
     this.autoRevealHandle?.stop();
     this.autoRevealHandle = startAutoReveal({
-      projection: () => this.autoRevealProjection(),
+      projection: () => this.projection(),
       onlineIds: () => this.onlineParticipantIdsSignal(),
+      // The gate itself — and the solo exemption — are the shared driver's;
+      // this only says what the relay client reported.
+      presenceTrusted: () => this.relaySyncedSignal(),
+      selfId: () => this.sessionParticipantId,
       subscribe: (cb) => this.subscribeDriver(cb),
       reveal: () => {
         // Bump only when the write actually landed — a lost race no-ops, and
@@ -809,29 +875,6 @@ export class DocService {
         }
       },
     });
-  }
-
-  /**
-   * The projection the auto-reveal driver is allowed to see, or `null` while
-   * its reading of who is online cannot be trusted.
-   *
-   * Unanimity is "every *online* voter has voted", and until the relay has
-   * synced on the current socket the online set is just this peer: the doc is
-   * already there (IndexedDB loads it before the socket opens, and a dropped
-   * socket keeps it) but `y-websocket` has cleared every remote awareness
-   * state. A peer that had voted would then count itself as the whole room
-   * and reveal the round for everyone — on a page reload, or on coming back
-   * from a network blip.
-   *
-   * A session with no other active participant has nobody to miscount, so it
-   * evaluates regardless; that keeps a solo round revealing while offline.
-   */
-  private autoRevealProjection(): DocProjection | null {
-    const snap = this.projection();
-    if (snap === null || this.relaySyncedSignal()) return snap;
-    const selfId = this.participantIdService.id();
-    const hasPeers = snap.participants.some((p) => isActiveParticipant(p) && p.id !== selfId);
-    return hasPeers ? null : snap;
   }
 
   /** Register a shared driver's change callback. Returns its unsubscribe. */

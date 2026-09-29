@@ -246,6 +246,33 @@ describe('computeRoundStats', () => {
     expect(r).toMatchObject({ kind: 'numeric', mode: '3' });
   });
 
+  it('says when the mode is only the first of several tied cards', () => {
+    expect(computeRoundStats({ a: '3', b: '5' }, FIBONACCI_SCALE)).toMatchObject({
+      modeTied: true,
+    });
+    expect(computeRoundStats({ a: 'S', b: 'S', c: 'M', d: 'M' }, TSHIRT_SCALE)).toMatchObject({
+      mode: 'S',
+      modeTied: true,
+    });
+    // A tie for the lead is a tie, whatever trails behind it.
+    expect(
+      computeRoundStats({ a: 'S', b: 'S', c: 'M', d: 'M', e: 'L' }, TSHIRT_SCALE),
+    ).toMatchObject({ modeTied: true });
+  });
+
+  it('a card that leads is not tied — a tie further down does not count', () => {
+    expect(computeRoundStats({ a: '5', b: '5', c: '8' }, FIBONACCI_SCALE)).toMatchObject({
+      modeTied: false,
+    });
+    expect(computeRoundStats({ a: 'M', b: 'M', c: 'M' }, TSHIRT_SCALE)).toMatchObject({
+      modeTied: false,
+    });
+    expect(computeRoundStats({ a: 'M' }, TSHIRT_SCALE)).toMatchObject({ modeTied: false });
+    expect(
+      computeRoundStats({ a: 'M', b: 'M', c: 'M', d: 'S', e: 'L' }, TSHIRT_SCALE),
+    ).toMatchObject({ mode: 'M', modeTied: false });
+  });
+
   it('powers-of-2 2,4 → close', () => {
     const r = computeRoundStats({ a: '2', b: '4' }, POWERS_OF_2_SCALE);
     expect(r).toMatchObject({ kind: 'numeric', spread: 'close' });
@@ -536,6 +563,34 @@ describe('formatRoundStats', () => {
     expect(formatRoundStats(unanimous)?.spread).toBe('Unanimous');
     expect(formatRoundStats(close)?.spread).toBe('Close');
     expect(formatRoundStats(spread)?.spread).toBe('Spread');
+  });
+
+  it('names no most common card when the lead is shared', () => {
+    const tied = roundStatsFor(
+      makeRound({ scale: TSHIRT_SCALE, votes: { p1: 'S', p2: 'S', p3: 'M', p4: 'M' } }),
+    );
+    expect(formatRoundStats(tied)).toEqual({ kind: 'categorical', mode: null, spread: 'Close' });
+
+    const tiedNumeric = roundStatsFor(makeRound({ votes: { p1: '5', p2: '8' } }));
+    expect(formatRoundStats(tiedNumeric)).toMatchObject({ kind: 'numeric', mode: null });
+  });
+
+  it('an abstention does not break a tie, nor make one', () => {
+    const tied = roundStatsFor(
+      makeRound({
+        scale: TSHIRT_SCALE,
+        votes: { p1: 'S', p2: 'M', p3: ABSTAIN_SENTINEL, p4: ABSTAIN_SENTINEL },
+      }),
+    );
+    expect(formatRoundStats(tied)).toMatchObject({ mode: null });
+
+    const led = roundStatsFor(
+      makeRound({
+        scale: TSHIRT_SCALE,
+        votes: { p1: 'S', p2: ABSTAIN_SENTINEL },
+      }),
+    );
+    expect(formatRoundStats(led)).toMatchObject({ mode: 'S' });
   });
 
   it('a Risk-scale round formats as categorical rather than an empty row', () => {

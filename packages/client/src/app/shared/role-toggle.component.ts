@@ -10,6 +10,10 @@ import { eyeOutline, handLeftOutline } from 'ionicons/icons';
  * replaces was click-only. It names the role you currently hold and carries
  * an icon, which is what makes it read as a control rather than as a label.
  *
+ * Its name starts with the word on it, so "click Voter" finds it, and goes on
+ * to say where a press leads. It is not a pressed / unpressed toggle: those
+ * keep one name and change state, and this one changes its name.
+ *
  * The role is called `viewer` in the doc and "Observer" on screen.
  */
 @Component({
@@ -23,7 +27,6 @@ import { eyeOutline, handLeftOutline } from 'ionicons/icons';
       shape="round"
       size="small"
       [attr.aria-label]="ariaLabel()"
-      [attr.aria-pressed]="viewer()"
       [attr.title]="hint()"
       (click)="toggled.emit()"
     >
@@ -42,10 +45,11 @@ import { eyeOutline, handLeftOutline } from 'ionicons/icons';
         flex: 0 0 auto;
       }
       .role-toggle {
+        --ring: var(--hnch-accent-text);
         --background: rgba(var(--hnch-accent-text-rgb), 0.16);
-        --background-activated: rgba(var(--hnch-accent-text-rgb), 0.28);
-        --background-hover: rgba(var(--hnch-accent-text-rgb), 0.28);
-        --background-hover-opacity: 1;
+        --background-activated-opacity: 0;
+        --background-focused-opacity: 0;
+        --background-hover-opacity: 0;
         --color: var(--hnch-accent-text);
         --padding-end: 12px;
         --padding-start: 10px;
@@ -54,10 +58,20 @@ import { eyeOutline, handLeftOutline } from 'ionicons/icons';
         font-size: 0.8125rem;
       }
       .role-toggle--observer {
+        --ring: var(--hnch-muted);
         --background: var(--hnch-fill);
-        --background-activated: var(--hnch-fill-strong);
-        --background-hover: var(--hnch-fill-strong);
         --color: var(--hnch-muted);
+      }
+      /* Hover, focus and press draw a ring. A deeper tint would do, but it
+         moves the background toward the label and the label below AA. */
+      .role-toggle.ion-focused,
+      .role-toggle.ion-activated {
+        --box-shadow: inset 0 0 0 1.5px var(--ring);
+      }
+      @media (hover: hover) and (pointer: fine) {
+        .role-toggle:hover {
+          --box-shadow: inset 0 0 0 1.5px var(--ring);
+        }
       }
       ion-icon {
         margin-inline-end: 4px;
@@ -78,7 +92,7 @@ export class RoleToggleComponent {
   );
 
   protected readonly ariaLabel = computed(() =>
-    this.viewer() ? 'You are observing. Switch to voter.' : 'You are a voter. Switch to observer.',
+    this.viewer() ? 'Observer. Switch to voter.' : 'Voter. Switch to observer.',
   );
 
   constructor() {

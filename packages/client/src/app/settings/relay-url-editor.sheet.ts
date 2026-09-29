@@ -1,7 +1,13 @@
-import { ChangeDetectionStrategy, Component, input, OnInit, output } from '@angular/core';
+import {
+  afterNextRender,
+  ChangeDetectionStrategy,
+  Component,
+  input,
+  OnInit,
+  output,
+  viewChild,
+} from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
-
-import { validateRelayUrl } from './relay-url-editor.helpers';
 import {
   IonButton,
   IonButtons,
@@ -14,6 +20,9 @@ import {
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
+
+import { focusField } from '../utils/focus-field';
+import { validateRelayUrl } from './relay-url-editor.helpers';
 
 /**
  * Relay URL editor half-sheet.
@@ -65,6 +74,7 @@ import {
       <ion-list inset="true" lines="none">
         <ion-item>
           <ion-input
+            #urlField
             [formControl]="urlCtrl"
             label="Relay URL"
             labelPlacement="stacked"
@@ -87,7 +97,6 @@ import {
           fill="clear"
           class="reset-btn"
           (click)="onClear()"
-          aria-label="Clear relay URL override"
         >
           Use the default relay
         </ion-button>
@@ -96,9 +105,6 @@ import {
   `,
   styles: [
     `
-      ion-list {
-        margin-block: 0;
-      }
       .helper {
         display: block;
         padding: 8px 16px 0;
@@ -125,6 +131,13 @@ export class RelayUrlEditorSheetComponent implements OnInit {
     nonNullable: true,
     validators: [(ctrl) => validateRelayUrl(ctrl.value)],
   });
+
+  private readonly urlField = viewChild<IonInput>('urlField');
+
+  constructor() {
+    // The sheet is there to be typed into.
+    afterNextRender(() => void focusField(this.urlField()));
+  }
 
   ngOnInit(): void {
     this.urlCtrl.setValue(this.currentUrl() ?? '');

@@ -7,7 +7,6 @@ import {
   formatRoundElapsed,
   formatRoundPosition,
   isAbstainVote,
-  isTerminalStatus,
   roundsToMarkdown,
 } from '@hnch/shared';
 import type { DocProjection, Round } from '@hnch/shared';
@@ -19,9 +18,10 @@ import type { DocProjection, Round } from '@hnch/shared';
  * resolve in historical rounds per ADR-0036.
  */
 export function buildExportMarkdown(projection: DocProjection): string {
-  const terminalRounds = projection.rounds.filter((r) => isTerminalStatus(r.status));
   const participants = Object.fromEntries(projection.participants.map((p) => [p.id, p]));
-  return roundsToMarkdown({ rounds: terminalRounds, participants });
+  // Every round, not just the finished ones: the export numbers a round by
+  // its place in the list it is given, and picks out the revealed itself.
+  return roundsToMarkdown({ rounds: projection.rounds, participants });
 }
 
 /**

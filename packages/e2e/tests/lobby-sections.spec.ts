@@ -97,13 +97,32 @@ test.describe('Lobby sections', () => {
     await player.joinSession(code);
     await host.expectParticipantCount(2);
 
-    const firstRow = host.page.locator(LOBBY.participantItems).first();
-    await expect(firstRow).toBeVisible();
+    const lobby = host.page.locator('app-lobby:not(.ion-page-hidden)');
+    const heading = host.page.locator(LOBBY.participantCount);
+    const list = host.page.locator(LOBBY.participantList);
 
-    await host.page.locator(LOBBY.participantCount).click();
+    // Not a control to anything that asks: no button by that name, nothing
+    // that says it expands, nothing to tab to.
+    await expect(lobby.getByRole('button', { name: /Participants/u })).toHaveCount(0);
+    await expect(lobby.locator('[aria-expanded]')).toHaveCount(0);
+    expect(
+      await heading.evaluate((el) => {
+        const clickable = el.closest(
+          'button, a, [role="button"], [tabindex], ion-item, ion-button',
+        );
+        return clickable === null;
+      }),
+    ).toBe(true);
 
-    await expect(firstRow).toBeVisible();
+    // And not one to a click either. A collapse would be animated, with the
+    // rows still in the page while it runs — so it is the list's height that
+    // is compared, after an animation would have had time to finish.
+    const before = await list.boundingBox();
+    await heading.click();
+    await host.page.waitForTimeout(600);
+    expect((await list.boundingBox())?.height).toBe(before?.height);
     await expect(host.page.locator(LOBBY.participantItems)).toHaveCount(2);
+    await expect(host.page.locator(LOBBY.participantItems).first()).toBeVisible();
   });
 });
 
@@ -156,9 +175,22 @@ test.describe('Lobby sections on a phone', () => {
         expect(await leftOf(host.page, CARDS.participants)).toBe(left);
       }).toPass({ timeout: 5_000 });
 
-      // Nothing is wider than the screen.
-      const scrollWidth = await host.page.evaluate(() => document.documentElement.scrollWidth);
-      expect(scrollWidth).toBeLessThanOrEqual(host.page.viewportSize()!.width);
+      // Nothing is wider than the screen. Asked of the page's own scroller:
+      // the document never scrolls in Ionic, so its width says nothing.
+      const width = host.page.viewportSize()!.width;
+      const scroller = await host.page
+        .locator('app-lobby:not(.ion-page-hidden) ion-content')
+        .evaluate(async (el: HTMLElement & { getScrollElement(): Promise<HTMLElement> }) => {
+          const inner = await el.getScrollElement();
+          return { scrollWidth: inner.scrollWidth, clientWidth: inner.clientWidth };
+        });
+      expect(scroller.scrollWidth).toBeLessThanOrEqual(scroller.clientWidth);
+      expect(scroller.clientWidth).toBeLessThanOrEqual(width);
+      for (const card of [CARDS.session, CARDS.results, CARDS.participants, CARDS.agenda]) {
+        const box = await host.page.locator(card).first().boundingBox();
+        expect(box, card).not.toBeNull();
+        expect(box!.x + box!.width, card).toBeLessThanOrEqual(width - 16);
+      }
     } finally {
       await hostCtx.close();
       await playerCtx.close();

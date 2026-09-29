@@ -300,6 +300,143 @@ describe('LastSessionService v2', () => {
   // removeByUuid()
   // -------------------------------------------------------------------------
 
+  // -------------------------------------------------------------------------
+  // The hash the device keeps, and the one waiting to be kept
+  //
+  // A hash handed over before the session has an entry waits for the entry's
+  // first record. It must not outlive being given up: a hash left waiting is
+  // written back by the next record, for a session whose password the host
+  // has since removed.
+  // -------------------------------------------------------------------------
+
+  describe('rememberPasswordHash()', () => {
+    const now = 1_000_000;
+
+    it('writes the hash to the entry straight away when there is one', async () => {
+      const svc = await createService();
+      await svc.recordJoin(
+        { roomCode: 'A', roomUuid: 'u1', lastScreen: 'lobby' },
+        { now: () => now },
+      );
+
+      await svc.rememberPasswordHash('u1', 'new-hash');
+
+      const [entry] = await svc.list({ now: () => now });
+      expect(entry!.passwordHash).toBe('new-hash');
+    });
+
+    it('replaces the hash the entry had', async () => {
+      const svc = await createService();
+      await svc.recordJoin(
+        { roomCode: 'A', roomUuid: 'u1', lastScreen: 'lobby', passwordHash: 'old-hash' },
+        { now: () => now },
+      );
+
+      await svc.rememberPasswordHash('u1', 'new-hash');
+
+      const [entry] = await svc.list({ now: () => now });
+      expect(entry!.passwordHash).toBe('new-hash');
+    });
+
+    it('keeps everything else about the entry', async () => {
+      const svc = await createService();
+      await svc.recordJoin(
+        { roomCode: 'A', roomUuid: 'u1', lastScreen: 'estimating' },
+        { now: () => now },
+      );
+
+      await svc.rememberPasswordHash('u1', 'new-hash');
+
+      const [entry] = await svc.list({ now: () => now });
+      expect(entry).toMatchObject({ roomCode: 'A', lastScreen: 'estimating', lastSeenAt: now });
+    });
+
+    it('holds the hash for the first record when there is no entry yet', async () => {
+      const svc = await createService();
+
+      await svc.rememberPasswordHash('u1', 'first-hash');
+      expect(await svc.list({ now: () => now })).toEqual([]);
+
+      await svc.recordJoin(
+        { roomCode: 'A', roomUuid: 'u1', lastScreen: 'lobby' },
+        { now: () => now },
+      );
+      const [entry] = await svc.list({ now: () => now });
+      expect(entry!.passwordHash).toBe('first-hash');
+    });
+  });
+
+  describe('a hash that is given up stays given up', () => {
+    const now = 1_000_000;
+    const record = (svc: Awaited<ReturnType<typeof createService>>) =>
+      svc.recordJoin({ roomCode: 'A', roomUuid: 'u1', lastScreen: 'lobby' }, { now: () => now });
+
+    // The host sets a password, then removes it. The next record is the
+    // reconnect that follows the removal.
+    it('clearPasswordHash drops the one that was waiting', async () => {
+      const svc = await createService();
+      svc.setPendingPasswordHash('u1', 'waiting');
+
+      await svc.clearPasswordHash('u1');
+      await record(svc);
+
+      const [entry] = await svc.list({ now: () => now });
+      expect(entry!.passwordHash).toBeUndefined();
+    });
+
+    it('clearPasswordHash drops it even when there is no entry to clear', async () => {
+      const svc = await createService();
+      await svc.rememberPasswordHash('u1', 'waiting');
+
+      await svc.clearPasswordHash('u1');
+      await record(svc);
+
+      const [entry] = await svc.list({ now: () => now });
+      expect(entry!.passwordHash).toBeUndefined();
+    });
+
+    it('removeByUuid drops it', async () => {
+      const svc = await createService();
+      svc.setPendingPasswordHash('u1', 'waiting');
+
+      await svc.removeByUuid('u1');
+      await record(svc);
+
+      const [entry] = await svc.list({ now: () => now });
+      expect(entry!.passwordHash).toBeUndefined();
+    });
+
+    it('clearAll drops every one of them', async () => {
+      const svc = await createService();
+      svc.setPendingPasswordHash('u1', 'waiting');
+      svc.setPendingPasswordHash('u2', 'waiting-too');
+
+      await svc.clearAll();
+      await record(svc);
+      await svc.recordJoin(
+        { roomCode: 'B', roomUuid: 'u2', lastScreen: 'lobby' },
+        { now: () => now },
+      );
+
+      const entries = await svc.list({ now: () => now });
+      expect(entries.map((e) => e.passwordHash)).toEqual([undefined, undefined]);
+    });
+
+    it('leaves the hash of another session alone', async () => {
+      const svc = await createService();
+      svc.setPendingPasswordHash('u2', 'theirs');
+
+      await svc.clearPasswordHash('u1');
+      await svc.recordJoin(
+        { roomCode: 'B', roomUuid: 'u2', lastScreen: 'lobby' },
+        { now: () => now },
+      );
+
+      const [entry] = await svc.list({ now: () => now });
+      expect(entry!.passwordHash).toBe('theirs');
+    });
+  });
+
   describe('removeByUuid()', () => {
     it('removes one entry from a multi-entry cache', async () => {
       const svc = await createService();

@@ -15,6 +15,7 @@ import {
   patchRoundDescriptor,
   patchSettings,
   hashPassword,
+  normalizePassword,
   promoteHost as promoteHostCommand,
   bindSessionCommands,
   type SessionCommands,
@@ -115,7 +116,8 @@ export async function createSession(opts: CreateSessionOptions): Promise<Session
   // Mint room first to get UUID (needed as salt for password hash)
   const minted = await mintRoom(opts.relayUrl);
 
-  if (opts.password) {
+  // Whitespace alone is no password: the hash would be that of nothing.
+  if (opts.password !== undefined && normalizePassword(opts.password) !== '') {
     passwordHash = await hashPassword(opts.password, minted.uuid);
     // Update room with password
     await patchRoomAccess(opts.relayUrl, minted.uuid, passwordHash);
@@ -153,7 +155,7 @@ export async function joinSession(opts: JoinSessionOptions): Promise<SessionHand
 
   let passwordHash: string | undefined;
   if (resolved.accessMode === 'password') {
-    if (!opts.password) {
+    if (opts.password === undefined || normalizePassword(opts.password) === '') {
       throw new Error('Room requires a password');
     }
     passwordHash = await hashPassword(opts.password, resolved.uuid);
@@ -210,6 +212,11 @@ export function wireSession(opts: WireOptions): SessionHandle {
   const changeCallbacks = new Set<() => void>();
   const hostChangeCallbacks = new Set<(newHostId: string) => void>();
 
+  // Whether awareness can be believed: the relay's state has applied on the
+  // current socket. Until then this peer is the only one it can see, and a
+  // rule that counts who is online (unanimous auto-reveal) must wait.
+  let presenceTrusted = false;
+
   // Connect to relay
   const conn: RelayConnection = connectToRelay({
     httpBaseUrl: opts.relayUrl,
@@ -234,6 +241,12 @@ export function wireSession(opts: WireOptions): SessionHandle {
     // retrying" and "hung" look identical from the terminal.
     onRepeatRejection() {
       console.error('Trouble reaching the room — retrying.');
+    },
+    // Both edges re-evaluate: a round that went unanimous while the socket
+    // was down reveals on the way back up, and nothing does on the way down.
+    onSyncedChange(synced) {
+      presenceTrusted = synced;
+      changeCallbacks.forEach((cb) => cb());
     },
     // The post-sync timing is the rule, not an optimisation: the relay's ops
     // are already applied when `onSynced` fires, so `rejoin`'s delete outranks
@@ -292,6 +305,8 @@ export function wireSession(opts: WireOptions): SessionHandle {
   const autoReveal: AutoRevealHandle = startAutoReveal({
     projection: () => projectDoc(doc),
     onlineIds: getOnlineIds,
+    presenceTrusted: () => presenceTrusted,
+    selfId: () => participantId,
     subscribe(cb) {
       changeCallbacks.add(cb);
       awareness.on('change', cb);
@@ -358,7 +373,9 @@ export function wireSession(opts: WireOptions): SessionHandle {
     async updateAccess(mode: 'open' | 'password', password?: string) {
       let passwordHash: string | null = null;
       if (mode === 'password') {
-        if (!password) throw new Error('Password required for password mode');
+        if (password === undefined || normalizePassword(password) === '') {
+          throw new Error('Password required for password mode');
+        }
         passwordHash = await hashPassword(password, roomUuid);
       }
       await patchRoomAccess(relayUrl, roomUuid, passwordHash);

@@ -12,7 +12,12 @@ import { LOBBY } from './fixtures/helpers';
  * `fixtures/layout.ts` for what counts as clipped and why it matters.
  */
 
-/** Host + player, two stories queued, two rounds played. Host ends in the Lobby. */
+const HOST_LOBBY = 'app-lobby:not(.ion-page-hidden)';
+
+/**
+ * Host + player, three stories queued, two rounds played — so one story is
+ * still waiting, and still has its ⋯. Host ends in the Lobby.
+ */
 async function playTwoRounds(host: Participant, player: Participant): Promise<void> {
   const code = await host.createSession();
   await player.joinSession(code);
@@ -20,12 +25,23 @@ async function playTwoRounds(host: Participant, player: Participant): Promise<vo
 
   await host.addAgendaItem({ title: 'Login form', ticketId: 'PROJ-101' });
   await host.addAgendaItem({ title: 'Password reset email' });
+  await host.addAgendaItem({ title: 'Session timeout' });
+
+  // Before the first round: three stories, each with a menu
+  await expect(host.page.locator(`${HOST_LOBBY} ion-button.item-menu-btn`)).toHaveCount(3);
+  await expectNothingClipped(host, 'Lobby before the first round, host');
+  await expectNothingClipped(player, 'Lobby before the first round, participant');
 
   await host.startRound();
   await player.waitForEstimating();
   await expectNothingClipped(host, 'Estimating, host');
   await expectNothingClipped(player, 'Estimating, participant');
   await host.castVote('5');
+  // A selected card is drawn scaled, which is its own way of being cut off
+  await expect(
+    host.page.locator('app-estimating:not(.ion-page-hidden) ion-card.card.selected'),
+  ).toHaveCount(1);
+  await expectNothingClipped(host, 'Estimating with a card selected, host');
   await player.castVote('8');
   await host.page.waitForURL(/\/lobby/, { timeout: 10_000 });
   await host.page.locator(LOBBY.resultsSection).waitFor({ state: 'visible' });
@@ -37,6 +53,14 @@ async function playTwoRounds(host: Participant, player: Participant): Promise<vo
   await host.page.waitForURL(/\/lobby/, { timeout: 10_000 });
   await player.page.waitForURL(/\/lobby/, { timeout: 10_000 });
   await host.page.locator(LOBBY.resultsSection).waitFor({ state: 'visible' });
+
+  // Everything the guard is there for is on the page
+  await expect(host.page.locator(`${HOST_LOBBY} ion-button.participant-menu-btn`)).toHaveCount(1);
+  await expect(host.page.locator(`${HOST_LOBBY} ion-button.item-menu-btn`)).toHaveCount(1);
+  await expect(host.page.locator(`${HOST_LOBBY} ion-button.copy-results-btn`)).toHaveCount(1);
+  await expect(
+    host.page.locator(`${HOST_LOBBY} app-round-history ion-button.edit-btn`),
+  ).toHaveCount(1);
 }
 
 /** Retried, so a page still sliding in has time to settle. */

@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/app.fixture';
-import { BASE_URL, HOME, expectToast } from './fixtures/helpers';
+import { BASE_URL, HOME, expectToast, rememberedSessionCodes } from './fixtures/helpers';
 
 const RELAY_HTTP_URL = `http://localhost:${process.env['RELAY_PORT'] ?? 1234}`;
 
@@ -24,6 +24,30 @@ async function evictRoom(uuid: string): Promise<void> {
   });
   if (!res.ok) throw new Error(`evictRoom failed: ${res.status}`);
 }
+
+test.describe('A session that expires while someone is in it', () => {
+  // The relay answers the next handshake with 404, before there is a socket
+  // to close with a reason. Left at that, the app retries for ever behind a
+  // "Reconnecting…" that will never go away.
+  test('the participant is told, and taken Home', async ({ host, player }) => {
+    const code = await host.createSession();
+    await player.joinSession(code);
+    await host.expectParticipantCount(2);
+    await expect.poll(() => rememberedSessionCodes(player.page)).toContain(code);
+
+    await evictRoom(await resolveRoomUuid(code));
+
+    // The connection has to be opened again
+    await player.page.context().setOffline(true);
+    await player.page.waitForTimeout(1_000);
+    await player.page.context().setOffline(false);
+
+    await expectToast(player.page, "That session isn't active anymore", { timeout: 15_000 });
+    await player.page.waitForURL(/\/home/, { timeout: 10_000 });
+    await expect(player.page.locator(HOME.createCard)).toBeVisible();
+    await expect(player.page.locator('[data-testid="connection-status-banner"]')).toHaveCount(0);
+  });
+});
 
 test.describe('Expired recent session', () => {
   test('a session the relay has forgotten is dropped on the first tap', async ({ host }) => {
@@ -57,9 +81,14 @@ test.describe('Expired recent session', () => {
     await expect(rows).toHaveCount(0);
     await expect(host.page).toHaveURL(/\/home/);
 
-    // Gone for good.
+    // Gone for good: from the cache, which is what a Home that loads later
+    // reads. (Rows counted right after a reload are zero either way — the
+    // list has not been read yet.)
+    await expect.poll(() => rememberedSessionCodes(host.page)).not.toContain(code);
     await host.page.reload();
     await host.page.waitForURL(/\/home/);
+    await host.page.locator(HOME.createCard).waitFor({ state: 'visible' });
+    expect(await rememberedSessionCodes(host.page)).not.toContain(code);
     await expect(rows).toHaveCount(0);
 
     // New session and Join session rows remain.

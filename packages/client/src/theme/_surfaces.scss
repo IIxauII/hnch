@@ -3,6 +3,7 @@
 // Global on purpose: these are the building blocks every page composes
 // (card, section label, icon tile, CTA bar). Page SCSS keeps to layout.
 
+@use 'a11y' as *;
 @use 'breakpoints' as *;
 
 // ---------------------------------------------------------------------------
@@ -58,8 +59,7 @@
   --inner-padding-end: 16px;
 }
 
-.hnch-card ion-list > ion-item:last-of-type,
-.hnch-card ion-list > ion-item-sliding:last-of-type > ion-item {
+.hnch-card ion-list > ion-item:last-of-type {
   --inner-border-width: 0;
 }
 
@@ -79,6 +79,63 @@
 
 .section-label:first-child {
   margin-block-start: 8px;
+}
+
+// The same small caps line, as the first thing inside a card.
+.card-label {
+  color: var(--hnch-muted);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+// ---------------------------------------------------------------------------
+// Visually hidden — text for a screen reader where the screen shows an icon
+// ---------------------------------------------------------------------------
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+// ---------------------------------------------------------------------------
+// Ticket chip — a tracker reference, set in monospace. Wrapped in
+// `a.ticket-link` where the reference resolves to a URL.
+// ---------------------------------------------------------------------------
+
+ion-chip.ticket-chip {
+  --background: var(--hnch-fill);
+  --color: var(--hnch-text);
+  height: auto;
+  min-height: 28px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8125rem;
+}
+
+ion-chip.ticket-chip ion-label {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.ticket-link ion-chip.ticket-chip {
+  --color: var(--hnch-accent-text);
+}
+
+// A link the height of a chip: the hit area reaches past it on touch.
+.ticket-link {
+  display: inline-block;
+  border-radius: 16px;
+  text-decoration: none;
+  @include focus-ring;
+  @include touch-target;
 }
 
 // ---------------------------------------------------------------------------

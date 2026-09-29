@@ -7,6 +7,10 @@
 // ---------------------------------------------------------------------------
 
 :root {
+  // What the browser draws itself — scrollbars, native controls — follows
+  // the app's theme, which is not always the OS's (ThemeService).
+  color-scheme: light;
+
   // One system stack for both Ionic modes, so md and ios share a typeface.
   --ion-font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto,
     'Helvetica Neue', Arial, sans-serif;
@@ -34,8 +38,10 @@
   --hnch-text-2:       #1C1C1E;
 
   // Muted text. `--hnch-muted` carries labels, so it clears WCAG AA (4.5:1)
-  // on every light surface; `--hnch-muted-2` is for hairlines and glyphs only.
-  --hnch-muted:        rgba(60, 60, 67, 0.75);
+  // on every light surface and on a neutral chip (`--hnch-fill`, and
+  // `--hnch-fill-strong` while hovered) over the page or a card;
+  // `--hnch-muted-2` is for hairlines and glyphs only.
+  --hnch-muted:        rgba(60, 60, 67, 0.80);
   --hnch-muted-2:      rgba(60, 60, 67, 0.30);
 
   // Separators — tighter per web best-practice
@@ -53,10 +59,12 @@
   --hnch-danger:       #FF453A;
 
   // Semantic *label* colors. The three above are fills (3:1 or worse as text
-  // on white); these are the same hues darkened to clear AA on a surface.
-  --hnch-success-text: #1D7A3A;
-  --hnch-warning-text: #9A5B00;
-  --hnch-danger-text:  #C5221A;
+  // on white); these are the same hues darkened to clear AA on the page, a
+  // card and an overlay — and on a chip tinted with the fill of the same
+  // name, over the page or a card.
+  --hnch-success-text: #1C7739;
+  --hnch-warning-text: #955800;
+  --hnch-danger-text:  #BE2119;
 
   // Ionic semantic color sets — wired to --hnch-* so toasts, badges, chips match.
   // shade = mix(#000, base, 12%); tint = mix(#fff, base, 10%) per Ionic color generator.
@@ -112,6 +120,8 @@
 // ---------------------------------------------------------------------------
 
 :root.ion-palette-dark {
+  color-scheme: dark;
+
   // Ionic substrate — dark mode (Apple HIG #1C1C1E for perceived depth)
   --ion-background-color:      #1C1C1E;
   --ion-background-color-rgb:  28,28,30;
@@ -134,8 +144,8 @@
   --hnch-text:         #FFFFFF;
   --hnch-text-2:       #F2F2F7;
 
-  // Muted text
-  --hnch-muted:        rgba(235, 235, 245, 0.65);
+  // Muted text — AA on every dark surface and on a neutral chip, as in light.
+  --hnch-muted:        rgba(235, 235, 245, 0.70);
   --hnch-muted-2:      rgba(235, 235, 245, 0.30);
 
   // Separators — tighter per web best-practice
@@ -152,6 +162,7 @@
   --hnch-danger:       #FF453A;
 
   // Semantic label colors — the fills already read on dark, except danger.
+  // Same surfaces and chips as in light.
   --hnch-success-text: #30D158;
   --hnch-warning-text: #FF9F0A;
   --hnch-danger-text:  #FF8A82;

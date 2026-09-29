@@ -259,24 +259,79 @@ describe('AccentService', () => {
     expect(contrastRatio('#1F6B4F', '#2C2C2E')).toBeLessThan(3);
   });
 
-  it('every accent clears AA as text on the worst-case surface, in both modes', async () => {
-    const { accessibleAccentText, contrastRatio, ACCENT_TEXT_SURFACE, ACCENT_TEXT_MIN_CONTRAST } =
+  it('every accent clears AA as text on every surface, in both modes', async () => {
+    const { accessibleAccentText, contrastRatio, ACCENT_TEXT_SURFACES, ACCENT_TEXT_MIN_CONTRAST } =
       await import('./accent.service');
     const { ACCENTS, ACCENTS_DARK_OVERRIDE } = await import('./accent.tokens');
 
     for (const key of Object.keys(ACCENTS) as (keyof typeof ACCENTS)[]) {
       const light = accessibleAccentText(ACCENTS[key].base, false);
-      expect(
-        contrastRatio(light, ACCENT_TEXT_SURFACE.light),
-        `${key} light`,
-      ).toBeGreaterThanOrEqual(ACCENT_TEXT_MIN_CONTRAST);
+      for (const surface of ACCENT_TEXT_SURFACES.light) {
+        expect(contrastRatio(light, surface), `${key} light on ${surface}`).toBeGreaterThanOrEqual(
+          ACCENT_TEXT_MIN_CONTRAST,
+        );
+      }
 
       const darkBase = (ACCENTS_DARK_OVERRIDE[key] ?? ACCENTS[key]).base;
       const dark = accessibleAccentText(darkBase, true);
-      expect(contrastRatio(dark, ACCENT_TEXT_SURFACE.dark), `${key} dark`).toBeGreaterThanOrEqual(
-        ACCENT_TEXT_MIN_CONTRAST,
-      );
+      for (const surface of ACCENT_TEXT_SURFACES.dark) {
+        expect(contrastRatio(dark, surface), `${key} dark on ${surface}`).toBeGreaterThanOrEqual(
+          ACCENT_TEXT_MIN_CONTRAST,
+        );
+      }
     }
+  });
+
+  // The role switch, the "Next" badge, a voter's chip: the label in the
+  // accent, on a background tinted with 16% of that same color. The tint
+  // moves the background toward the label — blue that held 4.6:1 on the page
+  // was 3.7:1 on its own chip.
+  it('every accent clears AA on a chip tinted with itself, in both modes', async () => {
+    const { accessibleAccentText, blend, contrastRatio, ACCENT_TEXT_SURFACES, ACCENT_TINT_ALPHA } =
+      await import('./accent.service');
+    const { ACCENTS, ACCENTS_DARK_OVERRIDE } = await import('./accent.tokens');
+
+    for (const key of Object.keys(ACCENTS) as (keyof typeof ACCENTS)[]) {
+      for (const isDark of [false, true]) {
+        const base = isDark ? (ACCENTS_DARK_OVERRIDE[key] ?? ACCENTS[key]).base : ACCENTS[key].base;
+        const text = accessibleAccentText(base, isDark);
+        const [page, card] = isDark ? ACCENT_TEXT_SURFACES.dark : ACCENT_TEXT_SURFACES.light;
+        for (const surface of [page, card]) {
+          const chip = blend(text, surface, ACCENT_TINT_ALPHA);
+          expect(
+            contrastRatio(text, chip),
+            `${key} ${isDark ? 'dark' : 'light'} chip on ${surface}`,
+          ).toBeGreaterThanOrEqual(4.5);
+        }
+      }
+    }
+  });
+
+  it('blend composites one color over another', async () => {
+    const { blend } = await import('./accent.service');
+    expect(blend('#000000', '#ffffff', 0)).toBe('#ffffff');
+    expect(blend('#000000', '#ffffff', 1)).toBe('#000000');
+    expect(blend('#000000', '#ffffff', 0.5)).toBe('#808080');
+    expect(blend('#0A84FF', '#F2F2F7', 0.16)).toBe('#cde0f8');
+  });
+
+  it('keeps the surfaces it checks against in step with the stylesheet', async () => {
+    const { ACCENT_TEXT_SURFACES } = await import('./accent.service');
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    // Vitest runs from the package root.
+    const css = readFileSync(resolve(process.cwd(), 'src/theme/variables.scss'), 'utf8');
+    const token = (name: string): string[] =>
+      [...css.matchAll(new RegExp(`--hnch-${name}:\\s*(#[0-9A-Fa-f]{6})`, 'gu'))].map((m) =>
+        m[1]!.toUpperCase(),
+      );
+
+    // Each token is declared twice: light first, dark second.
+    const [lightBg, darkBg] = token('bg');
+    const [lightCard, darkCard] = token('elev-1');
+    const [lightOverlay, darkOverlay] = token('elev-2');
+    expect([...ACCENT_TEXT_SURFACES.light]).toEqual([lightBg, lightCard, lightOverlay]);
+    expect([...ACCENT_TEXT_SURFACES.dark]).toEqual([darkBg, darkCard, darkOverlay]);
   });
 
   it('leaves a base that already passes untouched', async () => {

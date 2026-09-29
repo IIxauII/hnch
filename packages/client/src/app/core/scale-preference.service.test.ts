@@ -314,6 +314,36 @@ describe('ScalePreferenceService', () => {
       expect(mockPreferences.set).not.toHaveBeenCalled();
     });
 
+    it('takes the default back to Fibonacci when the default is what was deleted', async () => {
+      mockPreferences.get.mockImplementation(allKeysNull());
+      mockPreferences.set.mockResolvedValue();
+      const svc = await createService();
+      const id = await svc.addCustomScale('Mine', ['1', '2']);
+      await svc.setDefaultScaleId(id);
+      expect(svc.defaultScale().id).toBe(id);
+
+      await svc.deleteCustomScale(id);
+
+      expect(svc.defaultScaleId()).toBe('fibonacci');
+      expect(svc.defaultScale().id).toBe('fibonacci');
+      expect(mockPreferences.set).toHaveBeenLastCalledWith({
+        key: 'hnch.defaultScaleId',
+        value: 'fibonacci',
+      });
+    });
+
+    it('leaves the default alone when another scale is deleted', async () => {
+      mockPreferences.get.mockImplementation(allKeysNull());
+      mockPreferences.set.mockResolvedValue();
+      const svc = await createService();
+      const id = await svc.addCustomScale('Mine', ['1', '2']);
+      await svc.setDefaultScaleId('t-shirt');
+
+      await svc.deleteCustomScale(id);
+
+      expect(svc.defaultScaleId()).toBe('t-shirt');
+    });
+
     it('does not remove other scales', async () => {
       vi.stubGlobal('crypto', {
         randomUUID: vi.fn().mockReturnValueOnce('keep').mockReturnValueOnce('remove'),

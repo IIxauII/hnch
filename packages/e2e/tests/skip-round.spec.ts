@@ -1,5 +1,5 @@
-import { test, expect } from './fixtures/app.fixture';
-import { LOBBY, SESSION_TOOLBAR } from './fixtures/helpers';
+import { clickMenuOption, test, expect } from './fixtures/app.fixture';
+import { ESTIMATING, LOBBY, SESSION_TOOLBAR } from './fixtures/helpers';
 
 test.describe('Skip round', () => {
   test('host skips a round and both clients navigate to lobby with skipped label', async ({
@@ -40,6 +40,30 @@ test.describe('Skip round', () => {
       player.page.locator('ion-button', { hasText: LOBBY.nextRoundBtn }),
     ).not.toBeVisible();
     await expect(player.page.locator(LOBBY.revoteBtn)).not.toBeVisible();
+  });
+
+  // Skip sits one row from "Session settings" and cannot be undone.
+  test('skipping asks first, and cancelling leaves the round running', async ({ host, player }) => {
+    const code = await host.createSession();
+    await player.joinSession(code);
+    await host.startRound();
+    await player.waitForEstimating();
+    await player.castVote('5');
+    await expect(host.page.locator(ESTIMATING.voteCount)).toContainText('1 of 2');
+
+    await host.openHostMenu();
+    await clickMenuOption(host.page, 'Skip round');
+    const alert = host.page.locator('ion-alert');
+    await expect(alert).toContainText('Skip this round?');
+    await expect(alert).toContainText('Votes cast so far are dropped');
+    await alert.getByRole('button', { name: 'Cancel' }).click();
+    await expect(alert).toHaveCount(0);
+
+    // The round goes on, with the vote that was in it
+    await expect(host.page).toHaveURL(/\/estimating/);
+    await expect(player.page).toHaveURL(/\/estimating/);
+    await expect(host.page.locator(ESTIMATING.voteCount)).toContainText('1 of 2');
+    await expect(host.page.locator('p.round-skipped')).toHaveCount(0);
   });
 
   test('joiner has no round menu, so nothing to skip a round from', async ({ host, player }) => {

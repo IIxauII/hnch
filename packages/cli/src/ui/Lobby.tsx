@@ -5,6 +5,7 @@ import {
   formatRoundStats,
   isAbstainVote,
   isConsensus,
+  isRecordedStatus,
   isTerminalStatus,
   nextPendingAgendaItem,
   roundStatsFor,
@@ -233,10 +234,12 @@ export function Lobby({
   );
 
   const hasRounds = rounds.length > 0;
-  const terminalRounds = rounds.filter((r) => isTerminalStatus(r.status));
+  // Rounds with something to show. A cancelled round is a tombstone
+  // (ADR-0046): it is listed nowhere and takes no number.
+  const recordedRounds = rounds.filter((r) => isRecordedStatus(r.status));
 
-  // Past rounds = all terminal rounds except the latest (shown in full)
-  const pastRounds = currentRound !== null ? terminalRounds.slice(0, -1) : terminalRounds;
+  // Past rounds = all of them except the latest (shown in full)
+  const pastRounds = currentRound !== null ? recordedRounds.slice(0, -1) : recordedRounds;
 
   if (hostMenuOpen) {
     return (
@@ -551,7 +554,7 @@ function ResultsSection({ projection, round, rounds }: ResultsSectionProps): Rea
               Med: <Text bold>{stats.median}</Text>
             </Text>
           )}
-          {stats?.kind === 'categorical' && (
+          {stats?.kind === 'categorical' && stats.mode !== null && (
             <Text>
               Most common: <Text bold>{stats.mode}</Text>
             </Text>

@@ -57,7 +57,7 @@ statistics at all rather than empty ones.
 
 Re-votes are always allowed. A re-vote creates a *new* round with `parentRoundId` pointing at the previous round and title/metadata inherited by default, preserving the progression of estimates across rounds (e.g. 5 → 8 → 13) for retrospective value. The UI walks the parent chain to tell a re-vote from a fresh round: the mobile client marks it "Re-vote" beside the round's number, the CLI renders the chain position ("Round 2/3 [re-vote]").
 
-A round goes by one number: its place among the session's rounds that were not cancelled. A round the host cancels leaves no trace — no history entry, no number — so the round that replaces it takes the number it would have had.
+A round goes by one number: its place among the session's rounds that were not cancelled. A round the host cancels leaves no trace — no history entry, no number — so the round that replaces it takes the number it would have had. (The CLI's chain position for a re-vote counts within the chain, so there the same round reads "Round 2/3 [re-vote]".)
 
 Before a round's reveal, a user may change their vote any number of times by tapping a different card — only the selection at reveal time counts. This matches physical planning poker (you can flip your card back over before everyone shows).
 
@@ -73,7 +73,7 @@ Users can define their own scales with arbitrary labels — numeric, text, or mi
 - `S, M, L, XXXXL`
 - `Easy, Medium, Hard, Impossible`
 
-Custom scales can be created per-session and shared with all participants automatically.
+Custom scales can be created per-session and shared with all participants automatically. What is shared is the cards: a scale's name stays on the device that made it (ADR-0019), so to everyone else — and to its owner, once the scale is deleted — it is "Custom scale". Deleting a scale does not touch a session that is running on it; deleting the one that was the device's default puts the default back to Fibonacci.
 
 ## Joining a Session
 

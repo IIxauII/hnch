@@ -158,7 +158,7 @@ describe('DocService — relay wiring', () => {
 
     opts.onRepeatRejection?.();
 
-    expect(toastError).toHaveBeenCalledWith('Trouble reaching the room — retrying.');
+    expect(toastError).toHaveBeenCalledWith('Trouble reaching the session. Still trying.');
   });
 
   it('forwards a rotated password hash to the live connection', async () => {

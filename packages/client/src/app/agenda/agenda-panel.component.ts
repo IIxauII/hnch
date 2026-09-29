@@ -31,10 +31,14 @@ import {
 import { SurfaceService } from '../core/surface.service';
 import type { MenuItem } from '../shared/menu-popover/menu-popover.component';
 
-/** How an item's state is spoken and, where shown, written. */
+/**
+ * How an item's state is spoken. A story is `consumed` once its round has
+ * ended, and a round that was skipped ends too (ADR-0045) — so the word is
+ * "done", not "estimated".
+ */
 const STATE_WORD: Record<AgendaItem['state'], string> = {
   pending: '',
-  consumed: 'estimated',
+  consumed: 'done',
   skipped: 'skipped',
   cancelled: 'removed',
 };
@@ -67,7 +71,7 @@ const STATE_WORD: Record<AgendaItem['state'], string> = {
           }}
         </p>
       } @else {
-        <ion-list lines="none" class="agenda-list" aria-label="Agenda items">
+        <ion-list lines="none" class="agenda-list" aria-label="Stories">
           @for (item of visibleItems(); track item.id; let i = $index) {
             <ion-item
               class="agenda-item"
@@ -75,7 +79,6 @@ const STATE_WORD: Record<AgendaItem['state'], string> = {
               [class.agenda-item--consumed]="item.state === 'consumed'"
               [class.agenda-item--skipped]="item.state === 'skipped'"
               [class.agenda-item--cancelled]="item.state === 'cancelled'"
-              [attr.aria-label]="itemAriaLabel(item)"
             >
               <div slot="start" class="state-badge-wrapper" aria-hidden="true">
                 @switch (item.state) {
@@ -95,7 +98,13 @@ const STATE_WORD: Record<AgendaItem['state'], string> = {
               </div>
 
               <ion-label class="item-label">
-                <span class="item-title">{{ itemDisplayTitle(item) }}</span>
+                <span class="item-title">
+                  {{ itemDisplayTitle(item) }}
+                  @if (stateWord(item); as word) {
+                    <!-- The state is an icon on screen; this is its text. -->
+                    <span class="visually-hidden">, {{ word }}</span>
+                  }
+                </span>
                 <span class="item-tags">
                   @if (i === pendingStartIndex()) {
                     <ion-badge class="next-badge">Next</ion-badge>
@@ -340,12 +349,9 @@ export class AgendaPanelComponent {
     return item.title ?? item.ticketId ?? '(untitled)';
   }
 
-  protected itemAriaLabel(item: AgendaItem): string {
-    const title = this.itemDisplayTitle(item);
-    const word = STATE_WORD[item.state];
-    const state = word === '' ? '' : `, ${word}`;
-    const ticket = item.ticketId && item.title ? `, ${item.ticketId}` : '';
-    return `${title}${ticket}${state}`;
+  /** The item's state in a word, or the empty string while it is pending. */
+  protected stateWord(item: AgendaItem): string {
+    return STATE_WORD[item.state];
   }
 
   /**

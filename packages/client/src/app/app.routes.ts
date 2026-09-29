@@ -21,7 +21,7 @@ import { sessionResumeGuard } from './core/session-resume.guard';
  * dropping the user on Home.
  *
  * Legacy parameterless variants (`lobby`, `estimating`) redirect to
- * `/home` so old bookmarks fall through to the Jump-back-in banner
+ * `/home` so old bookmarks fall through to Home's "Jump back in" list
  * instead of 404-ing.
  */
 export const routes: Routes = [
@@ -52,7 +52,7 @@ export const routes: Routes = [
     loadComponent: () => import('./estimating/estimating.page').then((m) => m.EstimatingPage),
   },
   // Legacy parameterless variants — redirect to home so old bookmarks
-  // fall through to the Jump-back-in banner rather than 404-ing.
+  // fall through to Home's "Jump back in" list rather than 404-ing.
   {
     path: 'lobby',
     redirectTo: 'home',

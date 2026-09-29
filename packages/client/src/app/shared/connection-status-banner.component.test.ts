@@ -41,15 +41,24 @@ import {
 function makeMockDocService(initial = false, initialStatus: BannerSyncStatus = 'connected') {
   const reconnecting = signal(initial);
   const syncStatus = signal<BannerSyncStatus>(initialStatus);
+  const lastRejection = signal<string | null>(null);
   return {
-    stub: { reconnecting: reconnecting.asReadonly(), syncStatus: syncStatus.asReadonly() },
+    stub: {
+      reconnecting: reconnecting.asReadonly(),
+      syncStatus: syncStatus.asReadonly(),
+      lastRejection: lastRejection.asReadonly(),
+    },
     setReconnecting: (v: boolean) => reconnecting.set(v),
     setStatus: (v: BannerSyncStatus) => syncStatus.set(v),
+    setRejection: (v: string | null) => lastRejection.set(v),
   };
 }
 
 function mount(initial = false, initialStatus: BannerSyncStatus = 'connected') {
-  const { stub, setReconnecting, setStatus } = makeMockDocService(initial, initialStatus);
+  const { stub, setReconnecting, setStatus, setRejection } = makeMockDocService(
+    initial,
+    initialStatus,
+  );
   TestBed.configureTestingModule({
     schemas: [NO_ERRORS_SCHEMA],
     providers: [{ provide: DocService, useValue: stub }],
@@ -57,7 +66,7 @@ function mount(initial = false, initialStatus: BannerSyncStatus = 'connected') {
   TestBed.overrideComponent(ConnectionStatusBannerComponent, { set: { imports: [] } });
   const fixture = TestBed.createComponent(ConnectionStatusBannerComponent);
   fixture.detectChanges();
-  return { fixture, setReconnecting, setStatus };
+  return { fixture, setReconnecting, setStatus, setRejection };
 }
 
 function getBanner(fixture: ReturnType<typeof mount>['fixture']): Element | null {
@@ -94,6 +103,13 @@ describe('computeBannerLabel', () => {
   it('the pause between two attempts is the same wait', () => {
     expect(computeBannerLabel(false, 'disconnected', false)).toBeNull();
     expect(computeBannerLabel(false, 'disconnected', true)).toBe('Connecting…');
+  });
+
+  // The relay client stops trying after a refusal; the status stays at
+  // `disconnected`. There is no wait to report, and nothing that would end it.
+  it('says nothing once the relay has refused the connection for good', () => {
+    expect(computeBannerLabel(false, 'disconnected', true, true)).toBeNull();
+    expect(computeBannerLabel(false, 'connecting', true, true)).toBeNull();
   });
 
   it('waits one second before mentioning a first connection', () => {
@@ -215,6 +231,40 @@ describe('ConnectionStatusBannerComponent — a connection that keeps failing', 
 
     setStatus('offline');
     fixture.detectChanges();
+    expect(getBanner(fixture)).toBeNull();
+  });
+});
+
+describe('ConnectionStatusBannerComponent — a connection the relay refused', () => {
+  // The host changed the password and this socket came back with the old
+  // one: refused, and not retried. "Connecting…" would never come down.
+  it('takes the banner down, and keeps it down', () => {
+    vi.useFakeTimers();
+    const { fixture, setStatus, setRejection } = mount(false, 'connecting');
+    vi.advanceTimersByTime(CONNECTING_BANNER_DELAY_MS);
+    fixture.detectChanges();
+    expect(getBanner(fixture)?.textContent?.trim()).toBe('Connecting…');
+
+    setRejection('wrong-password');
+    setStatus('disconnected');
+    fixture.detectChanges();
+    expect(getBanner(fixture)).toBeNull();
+
+    vi.advanceTimersByTime(CONNECTING_BANNER_DELAY_MS * 5);
+    fixture.detectChanges();
+    expect(getBanner(fixture)).toBeNull();
+  });
+
+  it('never puts it up for a refusal that arrives within the first second', () => {
+    vi.useFakeTimers();
+    const { fixture, setStatus, setRejection } = mount(false, 'connecting');
+    vi.advanceTimersByTime(CONNECTING_BANNER_DELAY_MS - 200);
+
+    setRejection('room-full');
+    setStatus('disconnected');
+    vi.advanceTimersByTime(CONNECTING_BANNER_DELAY_MS * 2);
+    fixture.detectChanges();
+
     expect(getBanner(fixture)).toBeNull();
   });
 });

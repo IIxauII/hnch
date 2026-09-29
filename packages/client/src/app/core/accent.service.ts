@@ -99,15 +99,55 @@ export function contrastRatio(a: string, b: string): number {
 }
 
 /**
- * Worst-case surface an accent-colored label can sit on, per mode: the
- * lightest dark surface (`--hnch-elev-3`) and the darkest light one
- * (`--hnch-bg`). Clearing the target against these clears it against every
- * other surface token in `variables.scss` — keep the two in sync.
+ * The surfaces an accent-colored label sits on, per mode — the page, a card,
+ * an overlay (`--hnch-bg`, `--hnch-elev-1`, `--hnch-elev-2` in
+ * `variables.scss`; keep the two in sync).
  */
-export const ACCENT_TEXT_SURFACE = { dark: '#48484A', light: '#F2F2F7' } as const;
+export const ACCENT_TEXT_SURFACES = {
+  dark: ['#1C1C1E', '#2C2C2E', '#3A3A3C'],
+  light: ['#F2F2F7', '#FFFFFF', '#FAFAFB'],
+} as const;
+
+/**
+ * How strongly a chip is tinted with the color of its own label
+ * (`rgba(var(--hnch-accent-text-rgb), 0.16)`: the role switch, the "Next"
+ * badge, a voter's chip, a ticket link). Chips sit on the page and on cards.
+ */
+export const ACCENT_TINT_ALPHA = 0.16;
 
 /** WCAG AA minimum for body-size text. */
 export const ACCENT_TEXT_MIN_CONTRAST = 4.5;
+
+/** `fg` laid over `bg` at `alpha`, as the browser composites it. */
+export function blend(fg: string, bg: string, alpha: number): string {
+  const channel = (hex: string, offset: number): number =>
+    parseInt(hex.replace('#', '').slice(offset, offset + 2), 16);
+  const mix = (offset: number): string =>
+    Math.round(channel(fg, offset) * alpha + channel(bg, offset) * (1 - alpha))
+      .toString(16)
+      .padStart(2, '0');
+  return `#${mix(0)}${mix(2)}${mix(4)}`;
+}
+
+/**
+ * Every background a label in `text` can end up on: each surface, and the
+ * label's own tint over the page and over a card.
+ */
+export function accentTextBackgrounds(text: string, isDark: boolean): string[] {
+  const [page, card, overlay] = isDark ? ACCENT_TEXT_SURFACES.dark : ACCENT_TEXT_SURFACES.light;
+  return [
+    page,
+    card,
+    overlay,
+    blend(text, page, ACCENT_TINT_ALPHA),
+    blend(text, card, ACCENT_TINT_ALPHA),
+  ];
+}
+
+/** The lowest contrast `text` has against any background it can end up on. */
+export function worstAccentTextContrast(text: string, isDark: boolean): number {
+  return Math.min(...accentTextBackgrounds(text, isDark).map((bg) => contrastRatio(text, bg)));
+}
 
 /**
  * The accent as it may be used for *text and icons on a surface*.
@@ -116,12 +156,15 @@ export const ACCENT_TEXT_MIN_CONTRAST = 4.5;
  * Amber on a light one is 1.4:1, so neither can carry a label. This walks the
  * base toward white (dark mode) or black (light mode) until it clears AA,
  * keeping the hue. A base that already passes comes back unchanged.
+ *
+ * "Clears AA" counts the tinted chips too. A label that holds 4.5:1 on the
+ * page does not hold it on the page tinted with 16% of itself: the tint
+ * moves the background toward the label.
  */
 export function accessibleAccentText(base: string, isDark: boolean): string {
-  const surface = isDark ? ACCENT_TEXT_SURFACE.dark : ACCENT_TEXT_SURFACE.light;
-  for (let pct = 0; pct <= 100; pct += 2) {
+  for (let pct = 0; pct <= 100; pct += 1) {
     const candidate = isDark ? tint(base, pct) : shade(base, pct);
-    if (contrastRatio(candidate, surface) >= ACCENT_TEXT_MIN_CONTRAST) return candidate;
+    if (worstAccentTextContrast(candidate, isDark) >= ACCENT_TEXT_MIN_CONTRAST) return candidate;
   }
   return isDark ? '#ffffff' : '#000000';
 }

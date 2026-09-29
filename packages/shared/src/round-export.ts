@@ -137,7 +137,7 @@ function buildStatsLine(round: Round): string {
 
   if (stats?.kind === 'numeric') {
     parts.push(`Avg ${stats.mean} · Med ${stats.median}`);
-  } else if (stats?.kind === 'categorical') {
+  } else if (stats?.kind === 'categorical' && stats.mode !== null) {
     parts.push(`Most common: ${stats.mode}`);
   }
 
@@ -169,8 +169,8 @@ export function roundsToMarkdown(input: RoundExportInput): string {
 
   // Only revealed rounds are grouped, but each keeps the number it goes by in
   // the session — the same one every screen shows for it.
-  const roundIndex = new Map<string, number>();
-  for (const r of rounds) roundIndex.set(r.id, roundNumber(r, rounds));
+  const numberOf = new Map<string, number>();
+  for (const r of rounds) numberOf.set(r.id, roundNumber(r, rounds));
 
   // Group by chain root (ADR-0013), preserving original array order within buckets
   const buckets = groupByChainRoot(revealedRounds);
@@ -195,7 +195,7 @@ export function roundsToMarkdown(input: RoundExportInput): string {
     const chain = buckets.get(rootId)!;
     const root = chain.find((r) => r.id === rootId)!;
     const revotes = chain.filter((r) => r.id !== rootId);
-    const rootNum = roundIndex.get(root.id) ?? 0;
+    const rootNum = numberOf.get(root.id) ?? 0;
 
     const rootHeading = root.title
       ? `## Round ${rootNum} — ${root.title}${formatTicket(root.ticketId)}`
@@ -212,7 +212,7 @@ export function roundsToMarkdown(input: RoundExportInput): string {
 
     // Subsequent re-votes in the chain — render as ### Re-vote (ADR-0013)
     for (const revote of revotes) {
-      const revoteNum = roundIndex.get(revote.id) ?? 0;
+      const revoteNum = numberOf.get(revote.id) ?? 0;
       const revoteHeading = `### Re-vote ${revoteNum}${formatTicket(revote.ticketId)}`;
       const revoteTable = buildVoteTable(revote, nameById);
       const revoteStats = buildStatsLine(revote);

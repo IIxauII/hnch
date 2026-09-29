@@ -13,7 +13,7 @@
  */
 
 import { test, expect } from './fixtures/app.fixture';
-import { HOME, LOBBY, expectToast } from './fixtures/helpers';
+import { HOME, LOBBY, expectToast, rememberedSessionCodes } from './fixtures/helpers';
 
 test.describe('Host kick participant (ADR-0036)', () => {
   test('host removes player via the row menu; player gets toast and lands on Home', async ({
@@ -76,6 +76,7 @@ test.describe('Host kick participant (ADR-0036)', () => {
     const code = await host.createSession();
     await player.joinSession(code);
     await host.expectParticipantCount(2);
+    await expect.poll(() => rememberedSessionCodes(player.page)).toContain(code);
 
     // Kick player
     await host.removeParticipant('Player');
@@ -84,10 +85,13 @@ test.describe('Host kick participant (ADR-0036)', () => {
     await player.page.locator(HOME.createCard).waitFor({ state: 'visible' });
 
     // Nothing to jump back into (cache cleared per ADR-0036 §5)
-    await expect(player.page.locator(HOME.recentRow)).toHaveCount(0);
+    await expect.poll(() => rememberedSessionCodes(player.page)).not.toContain(code);
 
-    const homeContent = await player.page.locator('app-home').textContent();
-    expect(homeContent).not.toContain(`${code.slice(0, 3)}-${code.slice(3)}`);
+    // And Home, read afresh, does not offer it
+    await player.page.reload();
+    await player.page.locator(HOME.createCard).waitFor({ state: 'visible' });
+    await expect(player.page.locator(HOME.recentRow)).toHaveCount(0);
+    expect(await rememberedSessionCodes(player.page)).not.toContain(code);
   });
 
   test('kicked player can rejoin: host sees participant reappear in active roster (ADR-0036 §6)', async ({

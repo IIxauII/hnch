@@ -58,7 +58,7 @@ Lobby (host)
 
 Lobby (everyone else)
   → Same screen without the host's controls
-  → Where the host has the round button: "Waiting for {host} to start the first round."
+  → In the session card, under the code: "Waiting for {host} to start the first round."
 ```
 
 ### 1.3 Join session — three entry paths
@@ -102,6 +102,10 @@ Home
 
 The Join button stays on the page: it is how a password is submitted, and how a code that failed is retried.
 
+A link is acted on when it is followed, not every time the page it opened is come back to: Back from the Lobby lands on Join session with the code still in the tiles, and stays there.
+
+**Passwords.** A password is what was typed, without the whitespace around it — wherever one is set or entered, in the app and in the CLI. A password pasted with a trailing space still opens the session. A password of nothing but spaces is no password.
+
 ### 1.3b Pre-session agenda (ADR-0042)
 
 Host may queue stories before or during the session. All participants see the agenda read-only; only the host may mutate it.
@@ -112,18 +116,19 @@ Lobby (host)
     → Story appears at the end of the pending stories
   → The first pending story carries a "Next" badge
     → Start round / Next round opens the round-start modal pre-filled with it
-    → round.agendaItemId set to item id; item consumed on reveal/skip
+    → round.agendaItemId set to item id; when the round is revealed or skipped the
+      story is done (`consumed` in the doc), and a cancelled round leaves it pending
   → ⋯ on a pending story → [Move up] [Move down] [Edit] [Skip] [Remove]
       - Move up / Move down — sortKey fractional-index rewrite, no renumbering
       - Skip — no round created; item moves to "Skipped" terminal state
       - Remove — soft-delete; hidden unless "Show removed" is on
 
-Estimated / skipped stories
+Done / skipped stories
   → Stay on the list, marked, with no ⋯ (nothing left to do to them)
   → Past-round history resolves item names even after participants leave
 ```
 
-The list looks the same on every surface and is always fully on the page — there is no collapsed state. Everyone but the host sees it without the controls.
+The list looks the same on every surface and is always fully on the page — there is no collapsed state. Everyone but the host sees it without the host's controls: no "Add story", no ⋯. "Show removed" is a way of looking at the list, and is there for everyone.
 
 ### 1.4 Round cycle (Estimating → Lobby → next)
 
@@ -148,7 +153,8 @@ Estimating
         mid-round must not reveal the round.
   → All participants navigate to Lobby (results shown inline)
   → Host may skip the round instead of revealing (ADR-0040):
-      - Host taps ⋯ → Skip round → round marked skippedAt, no vote results shown
+      - Host taps ⋯ → Skip round → confirmation "Skip this round?" (the votes cast so far
+        are dropped and the round cannot be reopened) → round marked skippedAt, no vote results shown
       - All participants navigate to Lobby; skipped round listed in history with "Skipped" chip
       - Host can start a new round immediately; no re-vote lineage from a skip
   → Host may cancel the round with the back chevron (ADR-0046):
@@ -159,6 +165,8 @@ Estimating
 Lobby (post-reveal)
   → Latest round results shown in full: "Round N results", "Re-vote" beside it for a re-vote
       - Votes grouped by value with voter chips, a bar for each value's share, stats, elapsed time
+      - A tie has no leader: no bar is singled out, and no value is named "Most common"
+      - Nothing to list at all (a round revealed with only Observers around): "No votes were cast."
       - Abstained participants shown in a distinct "Abstained" group (separate from "Didn't vote")
       - "Didn't vote" lists voters only — an Observer was never expected to vote
   → Below results, past rounds shown as compact history list (skipped rounds included with chip)
@@ -168,7 +176,7 @@ Lobby (post-reveal)
   → Everyone else waits: "Waiting for {host} to start the next round." (screen updates when host moves on)
 ```
 
-**Round numbers.** A round's number is its place among the rounds that were not cancelled, and it is the same on every screen: the Estimating title, the results heading, the history, the export, the CLI. A cancelled round takes no number — cancel round 3 and the next round is round 3.
+**Round numbers.** A round's number is its place among the rounds that were not cancelled, and it is the same on every screen of the app and in the export: the Estimating title, the results heading, the history. A cancelled round takes no number — cancel round 3 and the next round is round 3. The CLI counts the same way, except that it shows a re-vote by its place in its chain ("Round 2/2 [re-vote]") rather than by its number.
 
 **While a round runs, everyone is on Estimating.** The Lobby sends anyone who lands on it mid-round back to the cards — also when the page is re-entered with the browser's Back button. Session settings are therefore only reachable between rounds.
 
@@ -247,7 +255,7 @@ Host's connection is lost
   → Other clients observe host's awareness going offline
   → 5-second debounce (ADR-0010)
   → Lowest peer-ID elected as new host
-  → All clients see a toast: "Alice is now hosting"
+  → All clients see a toast: "Bob disconnected. Alice is now the host." (the new host: "You are now the host")
   → If former host rejoins within snapshot window: they rejoin as a regular participant
 ```
 
@@ -261,14 +269,29 @@ Host taps Reveal with zero votes
   → Host can tap Re-vote to try again
 ```
 
-**Invite URL to expired/nonexistent room:**
+**Invite URL or code for a session that is gone:**
 
 ```
-User taps URL whose room code no longer exists (snapshot TTL expired)
-  → Relay rejects the join (reason: unknown-room, per auth.ts)
-  → Client shows error screen or toast: "This room has expired or no longer exists."
-  → User returned to Home
+User taps a URL (or types a code) the relay no longer knows (snapshot TTL expired)
+  → Relay answers unknown-room
+  → Toast: "That code isn't active. Double-check it with your host."
+  → User stays on Join session, code still in the tiles, to correct it or go back
 ```
+
+**The relay turns away a connection the user is already in a session on:**
+
+```
+On Lobby or Estimating, the socket reconnects and the relay refuses it
+  (the host changed the password meanwhile, the session filled up, the session is gone)
+  → The client stops retrying — the answer will not change
+  → Toast with the reason: "This session's password has changed.",
+    "This session is full (20 participants max).", "That session isn't active anymore."
+  → Wrong password: the password this device remembered is forgotten, and the user lands on
+    Join session with the code filled in, to enter the new one
+  → Anything else: Home
+```
+
+The relay refuses some of these before there is a socket to close with a reason — a session it no longer has, a protected one asked for without a password — and the browser reports that like any dropped connection. The client asks the relay over HTTP what the socket could not say (ADR-0050), so nobody is left behind a "Reconnecting…" that will never end.
 
 ---
 
@@ -296,6 +319,10 @@ When the results section appears in Lobby after reveal: cards enter with 80ms st
 - `Haptics.impact({ style: 'Medium' })` fires 120 ms after the overlay appears.
 
 **Reduced-motion fallback** (`prefers-reduced-motion: reduce`): static "hnch'd!" badge with a single inline 🎉 next to the text. No confetti, no scale-in animation, no pulse.
+
+### Forms open ready to type
+
+A sheet that exists to be typed into opens with the cursor in its first field — the session password, a story, the relay URL — and so does the password field on Join session when it appears. Enter submits. The round form does the same where there is a keyboard; on a phone it opens without one, because every field in it is optional and most rounds start with the form as it is.
 
 ### Share sheet
 
@@ -350,7 +377,7 @@ Buttons: [Cancel]   [Leave]   (Leave role: destructive)
 - Non-blocking — never prevents user action.
 - One look in every mode and theme: inverse surface (text color as background).
 
-Common toasts: host handoff ("Alice is now hosting"), code copied ("Code copied"), link copied ("Invite link copied"), password changes ("Password set", "Password removed"), round cancelled ("Round cancelled" / "The host cancelled the round"), session gone ("That session isn't active anymore."), relay unreachable ("Couldn't reach the relay. Check your connection and try again."), scan failure ("That doesn't look like an hnch invite").
+Common toasts: host handoff ("Alice is now the host"), code copied ("Code copied"), link copied ("Invite link copied"), password changes ("Password set", "Password removed"), round cancelled ("Round cancelled" / "The host cancelled the round"), session gone ("That session isn't active anymore."), relay unreachable ("Couldn't reach the relay. Check your connection and try again."), scan failure ("That doesn't look like an hnch invite").
 
 ### Connection banner
 
@@ -381,7 +408,7 @@ The web PWA is a production surface, so desktop has to meet the same quality bar
 
 **Breakpoint.** `md` (768px) pivot, ANDed with `(pointer: fine)`. Touch laptops keep the mobile UX; desktop means 768px+ *and* a fine pointer. Central refs: `packages/client/src/theme/_breakpoints.scss` (SCSS map) and `packages/client/src/app/core/breakpoints.ts` (TS mirror) — keep the two in sync.
 
-**Modals.** Mobile = half-sheet, `breakpoints: [0, 0.6, 0.95]`; a sheet whose content is a list longer than half a screen (scale picker, scale editors) opens at full height instead, so nothing sits below the fold waiting to be found. Desktop = centered dialog via the `.modal-centered` global class in `theme/_ionic-overrides.scss` (no drag handle, width capped ≤480px, max-height 80vh; `.modal-compact` for one- or two-field forms). Always open through `SurfaceService.openModal()` rather than `ModalController` directly.
+**Modals.** Mobile = half-sheet, `breakpoints: [0, 0.6, 0.95]`; a sheet whose content is a list longer than half a screen (scale picker, scale editors) opens at full height instead, so nothing sits below the fold waiting to be found. Desktop = centered dialog via the `.modal-centered` global class in `theme/_ionic-overrides.scss` (no drag handle, 480px wide, 560px high or 80vh where that is less; `.modal-compact` for one- or two-field forms). The class does nothing outside the desktop surface: a tablet is wide, but it is touched, and gets the sheet. A modal is an inline `ion-modal` in the page that owns it, with its breakpoints from `SurfaceService` — see [ionic.md](ionic.md).
 
 **Menus.** Mobile = `ActionSheetController` overlay. Desktop = `PopoverController` anchored to its trigger, which fixes the Fitts's-law problem of a top-right gear opening a bottom-anchored sheet. Shared `<app-menu-popover>` replaces per-call-site button arrays; route through `SurfaceService.openSheetOrPopover()`.
 
@@ -398,8 +425,8 @@ The web PWA is a production surface, so desktop has to meet the same quality bar
 | Estimating | 800px |
 | Lobby | 800px |
 
-**Small screens.** Pages hold at 320px wide: the session code scales with the viewport, the card grid is three columns on a phone, rows wrap rather than truncate.
+**Small screens.** Pages hold at 320px wide: the session code scales with the viewport, the card grid is three columns on a narrow phone and four from about 400px, rows wrap rather than truncate.
 
-**Accessibility.** Hover styles go inside `@media (hover: hover)`. Every interactive element carries a `:focus-visible` ring. Modal focus trap must be verified on desktop. Text in the accent color uses `--hnch-accent-text`, which is adjusted per theme to hold 4.5:1; the raw accent is for fills. Touch targets are at least 44px: a control drawn smaller than that (toolbar buttons, the back chevron, icon buttons, chips) keeps its size and gets an invisible 44px hit area around its centre on any device with a touch screen (`touch-target` mixin, see [ionic.md](ionic.md#global-styles)). A control never reaches past a container that clips it — no negative margins to tuck a button into a row. Pinch-zoom is not disabled.
+**Accessibility.** Hover styles go inside `@media (hover: hover)`. Every interactive element carries a `:focus-visible` ring. Modal focus trap must be verified on desktop. Text in the accent color uses `--hnch-accent-text`, which is adjusted per theme to hold 4.5:1 on the page, on a card, and on a chip tinted with the accent itself; the raw accent is for fills. Touch targets are at least 44px: a control drawn smaller than that (toolbar buttons, the back chevron, icon buttons, toggles, the role switch, the ticket link) keeps its size and gets an invisible 44px hit area around its centre on any device with a touch screen (`touch-target` mixin, see [ionic.md](ionic.md#global-styles)). One exception: the show / hide eye in a password field is Ionic's own control, drawn inside a shadow tree the app's styles do not reach — 36px on iOS, 40px on Android. A control never reaches past a container that clips it — no negative margins to tuck a button into a row. Pinch-zoom is not disabled.
 
 **Out of scope.** Native iOS/Android layout is untouched — native clients stay pure mobile. `ion-split-pane` is deferred: current Lobby density (session code with share + QR, 1–8 participants, one round) would look sparse next to a capped centered column. Revisit when round history shows 3+ entries inline; a Lobby side rail is a structural change and needs its own ADR.

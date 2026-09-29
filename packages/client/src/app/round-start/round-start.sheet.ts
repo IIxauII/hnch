@@ -1,4 +1,14 @@
-import { ChangeDetectionStrategy, Component, input, OnInit, output, signal } from '@angular/core';
+import {
+  afterNextRender,
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  input,
+  OnInit,
+  output,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import type { AgendaItem } from '@hnch/shared';
 import {
@@ -14,6 +24,9 @@ import {
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
+
+import { SurfaceService } from '../core/surface.service';
+import { focusField } from '../utils/focus-field';
 import { buildRoundStartTicketId, buildRoundStartTitle } from './round-start.helpers';
 
 /**
@@ -92,6 +105,7 @@ export interface RoundStartSubmission {
       <ion-list inset="true" lines="inset">
         <ion-item>
           <ion-input
+            #titleField
             [formControl]="titleControl"
             label="What are you estimating?"
             labelPlacement="stacked"
@@ -99,8 +113,7 @@ export interface RoundStartSubmission {
             autocapitalize="sentences"
             enterkeyhint="go"
             maxlength="120"
-            aria-label="Round title"
-            (keydown.enter)="submit()"
+            (keydown.enter)="onEnter($event)"
           ></ion-input>
         </ion-item>
         <ion-item>
@@ -114,8 +127,7 @@ export interface RoundStartSubmission {
             spellcheck="false"
             enterkeyhint="go"
             maxlength="120"
-            aria-label="Ticket ID"
-            (keydown.enter)="submit()"
+            (keydown.enter)="onEnter($event)"
           ></ion-input>
         </ion-item>
         <ion-item>
@@ -125,7 +137,6 @@ export interface RoundStartSubmission {
             labelPlacement="stacked"
             placeholder="Optional context for the team"
             autocapitalize="sentences"
-            aria-label="Round description"
             [autoGrow]="true"
             [counter]="true"
             maxlength="500"
@@ -140,9 +151,6 @@ export interface RoundStartSubmission {
   `,
   styles: [
     `
-      ion-list {
-        margin-block: 0;
-      }
       .helper {
         display: block;
         padding: 8px 16px 0;
@@ -194,6 +202,18 @@ export class RoundStartSheetComponent implements OnInit {
 
   protected readonly isSubmitting = signal(false);
 
+  private readonly surface = inject(SurfaceService);
+  private readonly titleField = viewChild<IonInput>('titleField');
+
+  constructor() {
+    // With a keyboard at hand, the title is ready to be typed and Enter
+    // starts the round. Not on a phone: every field is optional, most rounds
+    // start with the form as it is, and the keyboard would cover it.
+    afterNextRender(() => {
+      if (this.surface.mode() === 'desktop') void focusField(this.titleField());
+    });
+  }
+
   ngOnInit(): void {
     const item = this.prefillAgendaItem();
     if (item !== null) {
@@ -201,6 +221,16 @@ export class RoundStartSheetComponent implements OnInit {
       this.ticketIdControl.setValue(item.ticketId ?? '');
       this.descriptionControl.setValue(item.description ?? '');
     }
+  }
+
+  /**
+   * Enter in a one-line field starts the round, and the key says so
+   * (`enterkeyhint`). The Enter that confirms an IME composition is part of
+   * typing, not a submit.
+   */
+  protected onEnter(event: Event): void {
+    if ((event as KeyboardEvent).isComposing) return;
+    this.submit();
   }
 
   protected submit(): void {

@@ -4,8 +4,6 @@
  * mounting the Ionic component graph. All exports are dependency-free.
  */
 
-import type { JoinRejectionReason } from '@hnch/shared';
-
 import type { QrScanErrorReason } from '../core/qr-scanner.service';
 
 /**
@@ -19,6 +17,51 @@ export function shouldAutoSubmitDeepLink(
 ): boolean {
   if (!codeParam) return false;
   return displayName !== null && displayName.trim().length > 0;
+}
+
+/** The navigation that brought the user to the Join page. */
+export interface JoinNavigation {
+  readonly id: number;
+  /** `popstate` is Back / Forward; anything else went somewhere new. */
+  readonly trigger: 'imperative' | 'popstate' | 'hashchange';
+}
+
+/**
+ * What to do with the code in the link the Join page is entered with:
+ *
+ *  - `'join'` — fill it in and try to join;
+ *  - `'fill'` — fill it in and leave it at that;
+ *  - `'none'` — the page is as it should be.
+ */
+export type JoinLinkAction = 'join' | 'fill' | 'none';
+
+/**
+ * Decide what entering the Join page with a link means.
+ *
+ * Ionic keeps the page in its stack, so it is *entered* more often than it
+ * is created, and being entered with a link is a reason to join only when
+ * the link has just been followed:
+ *
+ *  - Sent here with a code — by an invite, or by a session that turned the
+ *    user away — went somewhere new: join.
+ *  - Back from the Lobby, to the page the link had opened, is going back.
+ *    Joining again would put the user straight back in the session they are
+ *    backing out of; the code is put back in the field and left there.
+ *
+ * `lastNavigationId` is the navigation the page last acted on, so that one
+ * navigation is acted on once however often the page reports being entered.
+ */
+export function joinLinkAction(input: {
+  codeParam: string | null;
+  navigation: JoinNavigation | null;
+  lastNavigationId: number | null | undefined;
+}): JoinLinkAction {
+  if (!input.codeParam) return 'none';
+  const { navigation } = input;
+  // Nothing to go by: the first entry was the link being followed.
+  if (navigation === null) return input.lastNavigationId === undefined ? 'join' : 'none';
+  if (navigation.id === input.lastNavigationId) return 'none';
+  return navigation.trigger === 'popstate' ? 'fill' : 'join';
 }
 
 /**
@@ -39,29 +82,6 @@ export function shouldAutoSubmitTypedCode(input: {
 }): boolean {
   if (!input.codeIsValid || input.isSubmitting) return false;
   return input.code !== input.lastAttemptedCode;
-}
-
-/**
- * Map a `JoinRejectionReason` to user-visible copy. The switch is
- * exhaustive, so a new reason fails the build until it has copy.
- */
-export function rejectionCopy(reason: JoinRejectionReason): string {
-  switch (reason) {
-    case 'unknown-room':
-      return "That code isn't active. Double-check it with your host.";
-    case 'wrong-password':
-      return 'That password is incorrect.';
-    case 'invalid-invite':
-      return "That invite link isn't valid.";
-    case 'expired-invite':
-      return 'That invite link has expired.';
-    case 'invite-already-redeemed':
-      return 'That invite link has already been used.';
-    case 'room-full':
-      return 'This session is full (20 participants max).';
-    case 'malformed-credentials':
-      return "Couldn't join with the info provided.";
-  }
 }
 
 /** Map a `QrScanErrorReason` to user-visible copy. */

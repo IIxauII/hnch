@@ -9,7 +9,8 @@
  *  - hostId changes → toast + haptic
  *  - hostId transitions to null → reset tracking, no toast
  *
- * SessionEndService / ParticipantRemovalService / ThemeService are
+ * SessionEndService / SessionRejectionService / ParticipantRemovalService /
+ * ThemeService are
  * provided as empty stubs because they are eagerly injected but their
  * own behaviour is tested in dedicated suites.
  */
@@ -71,6 +72,7 @@ import { HapticService } from './core/haptic.service';
 import { ParticipantIdService } from './core/participant-id.service';
 import { ParticipantRemovalService } from './core/participant-removal.service';
 import { SessionEndService } from './core/session-end.service';
+import { SessionRejectionService } from './core/session-rejection.service';
 import { ThemeService } from './core/theme.service';
 import { ToastService } from './services/toast.service';
 
@@ -112,6 +114,7 @@ describe('AppComponent — host-change toast effect', () => {
         { provide: ToastService, useValue: { info: toastInfoSpy } },
         // Eagerly-instantiated services that must be injectable but are not exercised here
         { provide: SessionEndService, useValue: {} },
+        { provide: SessionRejectionService, useValue: {} },
         { provide: ParticipantRemovalService, useValue: {} },
         { provide: ThemeService, useValue: {} },
       ],

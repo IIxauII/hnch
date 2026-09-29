@@ -8,7 +8,15 @@ import { DisplayNameService } from './display-name.service';
 import { DocService } from './doc/doc.service';
 import { ParticipantIdService } from './participant-id.service';
 
-export type JoinOutcome = 'connected' | 'timeout' | JoinRejectionReason;
+/**
+ * How a join attempt ended.
+ *
+ * `'superseded'` — the session the attempt was for is no longer the one the
+ * app holds: it was torn down (the user went elsewhere, the host had already
+ * ended it) or replaced by another. Whoever did that owns what happens next;
+ * the attempt's caller does nothing — no toast, no navigation.
+ */
+export type JoinOutcome = 'connected' | 'timeout' | 'superseded' | JoinRejectionReason;
 
 export interface RejoinResult {
   readonly type: 'connected';
@@ -22,8 +30,19 @@ export type RejoinOutcome =
   | { readonly type: 'password-required'; readonly roomCode: string }
   | { readonly type: 'unknown-room' }
   | { readonly type: 'timeout' }
+  /** See {@link JoinOutcome}: the caller does nothing. */
+  | { readonly type: 'superseded' }
   | { readonly type: 'rejected'; readonly reason: JoinRejectionReason }
   | { readonly type: 'network-error' };
+
+export interface JoinWaitOptions {
+  readonly timeoutMs?: number;
+  /**
+   * Lets the caller give up on the attempt — it left the screen the attempt
+   * was started from. The wait then settles `'superseded'`.
+   */
+  readonly signal?: AbortSignal;
+}
 
 /**
  * Dependencies for the pure `rejoinRoom` function — extracted so the logic
@@ -37,7 +56,7 @@ export interface RejoinDeps {
   /** Avatar color wire value (ADR-0043). Null = "no value set yet". */
   getAvatarColor: () => string | null;
   docService: Pick<DocService, 'teardown' | 'joinSession' | 'connect'>;
-  waitForJoinOutcome: (opts?: { timeoutMs?: number }) => Promise<JoinOutcome>;
+  waitForJoinOutcome: (opts?: JoinWaitOptions) => Promise<JoinOutcome>;
 }
 
 /**
@@ -56,7 +75,7 @@ export interface RejoinDeps {
 export async function rejoinRoom(
   rawCode: string,
   deps: RejoinDeps,
-  opts: { timeoutMs?: number; passwordHash?: string } = {},
+  opts: JoinWaitOptions & { passwordHash?: string } = {},
 ): Promise<RejoinOutcome> {
   const code = normalizeRoomCode(rawCode);
 
@@ -119,6 +138,10 @@ export async function rejoinRoom(
     return { type: 'timeout' };
   }
 
+  if (outcome === 'superseded') {
+    return { type: 'superseded' };
+  }
+
   return { type: 'rejected', reason: outcome };
 }
 
@@ -172,7 +195,7 @@ export class RoomJoinService {
    */
   async rejoin(
     rawCode: string,
-    opts: { timeoutMs?: number; passwordHash?: string } = {},
+    opts: JoinWaitOptions & { passwordHash?: string } = {},
   ): Promise<RejoinOutcome> {
     const key = normalizeRoomCode(rawCode);
     return dedupRejoin(this.inFlightRejoins, key, () => rejoinRoom(rawCode, this.makeDeps(), opts));
@@ -201,17 +224,27 @@ export class RoomJoinService {
    * before it rejects a wrong password (ADR-0035), so an open socket alone
    * is not yet an answer — settling on it sent the user into the Lobby and
    * straight back out.
+   *
+   * The signals it reads describe whatever session the app currently holds,
+   * so the wait is tied to the one that was current when it started. Once
+   * that session is gone — torn down by the user going elsewhere, by
+   * `SessionEndService` finding the session already ended, or replaced by a
+   * new one — the wait settles `'superseded'` rather than reporting on a
+   * session it was never about.
    */
-  waitForJoinOutcome(opts: { timeoutMs?: number } = {}): Promise<JoinOutcome> {
+  waitForJoinOutcome(opts: JoinWaitOptions = {}): Promise<JoinOutcome> {
     const timeoutMs = opts.timeoutMs ?? 5_000;
+    const epoch = this.docService.sessionEpoch();
     return new Promise((resolve) => {
       let settled = false;
       let timeoutId: ReturnType<typeof setTimeout> | null = null;
+      const onAbort = (): void => settle('superseded');
 
       const settle = (outcome: JoinOutcome): void => {
         if (settled) return;
         settled = true;
         if (timeoutId !== null) clearTimeout(timeoutId);
+        opts.signal?.removeEventListener('abort', onAbort);
         queueMicrotask(() => ref.destroy());
         resolve(outcome);
       };
@@ -219,6 +252,10 @@ export class RoomJoinService {
       const ref = effect(
         () => {
           if (settled) return;
+          if (this.docService.sessionEpoch() !== epoch) {
+            settle('superseded');
+            return;
+          }
           const rejection = this.docService.lastRejection();
           if (rejection !== null) {
             settle(rejection);
@@ -230,7 +267,17 @@ export class RoomJoinService {
         { injector: this.injector },
       );
 
-      timeoutId = setTimeout(() => settle('timeout'), timeoutMs);
+      if (opts.signal?.aborted === true) {
+        settle('superseded');
+        return;
+      }
+      opts.signal?.addEventListener('abort', onAbort);
+      // The session can also be gone by the time the clock runs out without
+      // the effect having had a turn; say so rather than "timeout".
+      timeoutId = setTimeout(
+        () => settle(this.docService.sessionEpoch() === epoch ? 'timeout' : 'superseded'),
+        timeoutMs,
+      );
     });
   }
 }

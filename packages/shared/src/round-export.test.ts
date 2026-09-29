@@ -110,6 +110,28 @@ describe('roundsToMarkdown', () => {
     expect(result).toContain('Avg 5.0 · Med 5.0');
   });
 
+  it('a tie names no most common card', () => {
+    const round = makeRound({
+      id: 'r1',
+      scale: TSHIRT_SCALE,
+      votes: { p1: 'S', p2: 'M' },
+      timerStartedAt: 0,
+      revealedAt: 60_000,
+    });
+    const result = roundsToMarkdown({
+      rounds: [round],
+      participants: new Map([
+        ['p1', makeParticipant('Alice')],
+        ['p2', makeParticipant('Bob')],
+      ]),
+    });
+
+    expect(result).not.toContain('Most common');
+    // The rest of the line is still there, without a stray separator.
+    expect(result).toContain('Elapsed 1:00');
+    expect(result).not.toContain('· Elapsed');
+  });
+
   it('single revealed round, T-shirt scale → Most common line, no avg/med', () => {
     const round = makeRound({
       id: 'r1',

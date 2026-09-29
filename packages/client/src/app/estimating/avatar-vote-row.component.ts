@@ -2,6 +2,8 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 
 import { resolveAvatarColor, resolveAvatarInkColor, type ParticipantSnapshot } from '@hnch/shared';
 
+import { nameInitial } from '../shared/name-initial';
+
 @Component({
   selector: 'app-avatar-vote-row',
   imports: [],
@@ -67,9 +69,16 @@ import { resolveAvatarColor, resolveAvatarInkColor, type ParticipantSnapshot } f
         background: transparent;
         transition: background 0.15s ease, border-color 0.15s ease;
       }
+      /* The edge is the fill pulled toward the text color, as on the avatar:
+         a dark fill on a dark surface has no edge of its own. */
       .dot.voted {
         background: var(--avatar-color, var(--hnch-accent));
         border-color: var(--avatar-color, var(--hnch-accent));
+        border-color: color-mix(
+          in srgb,
+          var(--avatar-color, var(--hnch-accent)) 72%,
+          var(--hnch-text)
+        );
       }
       .dot-initial {
         color: var(--hnch-muted);
@@ -123,7 +132,7 @@ export class AvatarVoteRowComponent {
     this.participants().filter((p) => !this.votedIds().has(p.id)),
   );
 
-  // Reveal the "Waiting on:" line once at least half of voters have voted
+  // Show the "Waiting for …" line once at least half of the voters have voted
   // (decision-time signal for the host) and at least one is still pending.
   protected readonly showPendingLine = computed(() => {
     const total = this.participants().length;
@@ -140,7 +149,7 @@ export class AvatarVoteRowComponent {
   );
 
   protected initialOf(p: ParticipantSnapshot): string {
-    return (p.displayName?.trim()?.[0] ?? '').toUpperCase();
+    return nameInitial(p.displayName);
   }
 
   /** Resolved avatar color (ADR-0043). Falls back to deterministic hash of `p.id`. */

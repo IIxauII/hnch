@@ -265,10 +265,14 @@ export class Participant {
     );
   }
 
-  /** Tap the ⋯ menu, click "Skip round" (host only). Navigates to /lobby with skipped label. */
+  /**
+   * Tap the ⋯ menu, "Skip round", and confirm (host only). Navigates to
+   * /lobby with the skipped label.
+   */
   async skipRound(): Promise<void> {
     await this.openHostMenu();
     await clickMenuOption(this.page, 'Skip round');
+    await this.confirmAlert('Skip round');
     await this.page.waitForURL(/\/lobby/, { timeout: 10_000 });
   }
 
@@ -320,15 +324,26 @@ export class Participant {
     await doneBtn.click();
   }
 
+  /** The relay's answer to the next access change made from this page. */
+  private accessChangeAccepted(): Promise<unknown> {
+    return this.page.waitForResponse(
+      (res) => res.url().includes('/access') && res.request().method() === 'PATCH' && res.ok(),
+      { timeout: 10_000 },
+    );
+  }
+
   /**
    * Set or change the session password. Assumes settings sheet is open.
-   * Resolves once the relay has accepted it.
+   * Resolves once the relay has accepted it — its answer to *this* change,
+   * not the toast, which may still be up from the change before.
    */
   async setPassword(password: string): Promise<void> {
+    const accepted = this.accessChangeAccepted();
     const input = this.page.locator(SETTINGS_SHEET.passwordInput).locator('input');
     await input.fill(password);
     // Enter commits, the same as leaving the field.
     await input.press('Enter');
+    await accepted;
     await expectToast(this.page, 'Password set');
   }
 
@@ -337,7 +352,9 @@ export class Participant {
    * session has one. Resolves once the relay has accepted it.
    */
   async removePassword(): Promise<void> {
+    const accepted = this.accessChangeAccepted();
     await this.page.locator(SETTINGS_SHEET.removePasswordBtn).click();
+    await accepted;
     await expectToast(this.page, 'Password removed');
   }
 

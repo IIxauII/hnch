@@ -4,7 +4,6 @@
  */
 
 import { participantRole } from '@hnch/shared';
-import type { Round } from '@hnch/shared';
 
 /** True when a participant's effective role is `'viewer'`. */
 export function isParticipantViewer(p: { role?: 'voter' | 'viewer' }): boolean {
@@ -15,31 +14,26 @@ export function isParticipantViewer(p: { role?: 'voter' | 'viewer' }): boolean {
  * Heading of the Lobby's results card: `"Round N results"`, where N is the
  * round's number in the session — the same N the Estimating screen showed
  * for it and the History list will show for it later. Returns the empty
- * string when no terminal round exists yet.
+ * string when no round has ended yet.
  *
  * A re-vote keeps its session number here; that it is a re-vote is a
  * separate note beside the heading (`revoteLabel`).
  */
-export function buildResultsHeading(round: Round | null, roundIndex: number | null): string {
-  if (round === null || roundIndex === null) return '';
-  return `Round ${roundIndex} results`;
+export function buildResultsHeading(roundNumber: number | null): string {
+  return roundNumber === null ? '' : `Round ${roundNumber} results`;
 }
 
 /**
- * One line under the session code: what the session is called, which scale
- * it votes on, and whether it is locked. Parts that do not apply are left
- * out rather than shown empty.
+ * One line under the session code: which scale the session votes on, and
+ * whether it is locked. The session's name is the page title, so it is not
+ * repeated here. Parts that do not apply are left out rather than shown
+ * empty.
  */
 export function buildSessionSummary(input: {
-  name?: string | undefined;
   scaleLabel: string;
   passwordProtected: boolean;
 }): string {
-  const parts = [
-    input.name?.trim() ?? '',
-    input.scaleLabel.trim(),
-    input.passwordProtected ? 'Password protected' : '',
-  ];
+  const parts = [input.scaleLabel.trim(), input.passwordProtected ? 'Password protected' : ''];
   return parts.filter((part) => part.length > 0).join(' · ');
 }
 

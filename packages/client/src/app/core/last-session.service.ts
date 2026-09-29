@@ -43,8 +43,8 @@ export type LastSessionCache = ClientLastSessionEntry;
 // ---------------------------------------------------------------------------
 
 /**
- * Thin Preferences wrapper backing the Home-screen room history list
- * and Jump-back-in banner (ADR-0044). Stores up to
+ * Thin Preferences wrapper backing Home's "Jump back in" list (ADR-0044).
+ * Stores up to
  * `LAST_SESSION_MAX_ENTRIES` (5) per-room entries keyed by `roomUuid`,
  * TTL-aligned to ADR-0012's 24 h relay snapshot window.
  *
@@ -59,6 +59,11 @@ export class LastSessionService {
    * join. Consumed (and cleared) by the first `recordJoin` call for
    * that uuid, so the hash is persisted without the lobby/estimating
    * pages needing to know about it.
+   *
+   * Only ever holds a hash the relay has accepted, for a session that has
+   * no entry yet. Everything that gives a hash up ({@link clearPasswordHash},
+   * {@link removeByUuid}, {@link clearAll}) gives this up with it — a hash
+   * left waiting here would be written back by the next record.
    */
   private readonly pendingHashes = new Map<string, string>();
   /** @deprecated Use the module-level `LAST_SESSION_KEY` constant. */
@@ -218,10 +223,35 @@ export class LastSessionService {
   }
 
   /**
+   * The relay has accepted `passwordHash` for this session: keep it
+   * (ADR-0044). Written to the session's entry straight away when it has one;
+   * otherwise held for the entry its first record creates.
+   *
+   * For a hash that changes while the session is already on record — the
+   * host setting or changing the password. A hash handed to
+   * {@link setPendingPasswordHash} instead waits for the next record, and
+   * with the socket staying up there may not be one until much later.
+   */
+  async rememberPasswordHash(roomUuid: string, passwordHash: string): Promise<void> {
+    const migrated = await this.readCache();
+    const entries = { ...migrated.entries } as Record<string, ClientLastSessionEntry>;
+    const existing = entries[roomUuid];
+    if (!existing) {
+      this.pendingHashes.set(roomUuid, passwordHash);
+      return;
+    }
+    this.pendingHashes.delete(roomUuid);
+    entries[roomUuid] = { ...existing, passwordHash };
+    await this.writeCache(entries);
+  }
+
+  /**
    * Clear only the `passwordHash` field on a specific entry (ADR-0044
    * decision §6 — wrong-password/4002 handling). Keeps all other fields.
+   * A hash still waiting to be recorded is dropped as well.
    */
   async clearPasswordHash(roomUuid: string): Promise<void> {
+    this.pendingHashes.delete(roomUuid);
     const migrated = await this.readCache();
     const entries = { ...migrated.entries } as Record<string, ClientLastSessionEntry>;
 
@@ -242,6 +272,7 @@ export class LastSessionService {
    * this was the last entry.
    */
   async removeByUuid(roomUuid: string): Promise<void> {
+    this.pendingHashes.delete(roomUuid);
     const migrated = await this.readCache();
     const entries = { ...migrated.entries } as Record<string, ClientLastSessionEntry>;
 
@@ -253,6 +284,7 @@ export class LastSessionService {
 
   /** Remove the Preferences key entirely. */
   async clearAll(): Promise<void> {
+    this.pendingHashes.clear();
     await Preferences.remove({ key: LAST_SESSION_KEY });
   }
 

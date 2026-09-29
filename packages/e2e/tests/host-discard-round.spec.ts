@@ -17,7 +17,7 @@
  * Tag: @host — exercises the host-only Estimating back chevron path.
  */
 import { test, expect } from './fixtures/app.fixture';
-import { ESTIMATING, LOBBY, ROUND_START, expectToast } from './fixtures/helpers';
+import { ESTIMATING, LOBBY, ROUND_FIELD, ROUND_START, expectToast } from './fixtures/helpers';
 
 test.describe('Host discard round @host', () => {
   test('back chevron discards in-flight round; agenda item stays pending and is re-startable', async ({
@@ -36,7 +36,7 @@ test.describe('Host discard round @host', () => {
     await startRoundBtn.click();
     const modal = host.page.locator('app-round-start-sheet');
     await modal.waitFor({ state: 'visible' });
-    const titleInput = host.page.getByRole('textbox', { name: 'Round title' });
+    const titleInput = host.page.getByRole('textbox', { name: ROUND_FIELD.title });
     await expect(titleInput).toHaveValue('Login redesign');
     const startBtn = host.page.locator(ROUND_START.startBtn);
     await startBtn.click();

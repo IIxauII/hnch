@@ -177,6 +177,7 @@ async function mount(opts: MountOpts = {}) {
   const revealCurrentRound = vi.fn().mockReturnValue({ applied: true, at: 1 });
   const skipCurrentRound = vi.fn().mockReturnValue({ applied: true, at: 1 });
   const openSheetOrPopover = vi.fn().mockResolvedValue(undefined);
+  const dismissMenu = vi.fn().mockResolvedValue(undefined);
   const toastInfo = vi.fn().mockResolvedValue(undefined);
   const haptic = {
     impactLight: vi.fn(),
@@ -187,7 +188,10 @@ async function mount(opts: MountOpts = {}) {
 
   // Alert configs the page hands to AlertController, so a test can run the
   // handler on a named button without rendering the dialog.
-  const alerts: { buttons: { text: string; role?: string; handler?: () => void }[] }[] = [];
+  const alerts: {
+    header?: string;
+    buttons: { text: string; role?: string; handler?: () => void }[];
+  }[] = [];
   const lastSession = {
     record: vi.fn().mockResolvedValue(undefined),
     clear: vi.fn().mockResolvedValue(undefined),
@@ -218,6 +222,8 @@ async function mount(opts: MountOpts = {}) {
     roomCode: signal('ZZZZZZ').asReadonly(),
     meta: signal({ roomUuid: 'uuid' }).asReadonly(),
     syncStatus: signal('idle').asReadonly(),
+    relaySynced: signal(false).asReadonly(),
+    relayRoomUuid: signal(null).asReadonly(),
     autoRevealCount: autoRevealCountSig.asReadonly(),
     commands: {
       ...UNBOUND_SESSION_COMMANDS,
@@ -250,6 +256,7 @@ async function mount(opts: MountOpts = {}) {
         useValue: {
           mode: signal('desktop').asReadonly(),
           openSheetOrPopover,
+          dismissMenu,
         },
       },
       { provide: Router, useValue: { navigate } },
@@ -257,12 +264,10 @@ async function mount(opts: MountOpts = {}) {
       {
         provide: AlertController,
         useValue: {
-          create: vi
-            .fn()
-            .mockImplementation((cfg: { buttons: { text: string; handler?: () => void }[] }) => {
-              alerts.push(cfg);
-              return Promise.resolve({ present: vi.fn() });
-            }),
+          create: vi.fn().mockImplementation((cfg: (typeof alerts)[number]) => {
+            alerts.push(cfg);
+            return Promise.resolve({ present: vi.fn() });
+          }),
         },
       },
     ],
@@ -279,6 +284,7 @@ async function mount(opts: MountOpts = {}) {
     skipCurrentRound,
     discardCurrentRound,
     openSheetOrPopover,
+    dismissMenu,
     toastInfo,
     haptic,
     docService,
@@ -586,7 +592,8 @@ describe('EstimatingPage — openActionSheet skip-round insertion', () => {
     expect(texts).not.toContain('Skip round');
   });
 
-  it('non-host → does NOT include "Skip round"', async () => {
+  // The button is not rendered for them; this is the handler refusing too.
+  it('non-host → no menu at all', async () => {
     const { fixture, openSheetOrPopover } = await mount({
       isHost: false,
       initialRound: votingRound(),
@@ -594,9 +601,7 @@ describe('EstimatingPage — openActionSheet skip-round insertion', () => {
     const page = fixture.componentInstance as unknown as Internals;
     await page.openActionSheet(new Event('click'));
 
-    const [opts] = openSheetOrPopover.mock.calls[0] as [{ items: { text: string }[] }];
-    const texts = opts.items.map((i) => i.text);
-    expect(texts).not.toContain('Skip round');
+    expect(openSheetOrPopover).not.toHaveBeenCalled();
   });
 
   it('host + active round → skip, end, leave, cancel, in that order', async () => {
@@ -741,20 +746,41 @@ describe('EstimatingPage — onReveal', () => {
 // ---------------------------------------------------------------------------
 
 describe('EstimatingPage — skip-round action', () => {
-  type Internals = { openActionSheet(e: Event): Promise<void> };
-
-  it('invokes skipCurrentRound and haptics on applied', async () => {
-    const { fixture, skipCurrentRound, haptic, openSheetOrPopover } = await mount({
+  it('asks first: choosing Skip round skips nothing yet', async () => {
+    const { fixture, skipCurrentRound, alerts, openSheetOrPopover } = await mount({
       isHost: true,
       initialRound: votingRound(),
     });
-    await (fixture.componentInstance as unknown as Internals).openActionSheet(new Event('click'));
-    const [opts] = openSheetOrPopover.mock.calls[0] as [
-      { items: { text: string; handler?: () => void }[] },
-    ];
-    opts.items.find((i) => i.text === 'Skip round')?.handler?.();
-    expect(skipCurrentRound).toHaveBeenCalled();
+    await tapSheetItem(fixture, openSheetOrPopover, 'Skip round');
+    await vi.waitFor(() => expect(alerts).toHaveLength(1));
+
+    expect(alerts[0]!.header).toBe('Skip this round?');
+    expect(alerts[0]!.buttons.map((b) => [b.text, b.role])).toEqual([
+      ['Cancel', 'cancel'],
+      ['Skip round', 'destructive'],
+    ]);
+    expect(skipCurrentRound).not.toHaveBeenCalled();
+  });
+
+  it('skips, with haptics, once confirmed', async () => {
+    const { fixture, skipCurrentRound, haptic, alerts, openSheetOrPopover } = await mount({
+      isHost: true,
+      initialRound: votingRound(),
+    });
+    await tapSheetItem(fixture, openSheetOrPopover, 'Skip round');
+    await vi.waitFor(() => expect(alerts).toHaveLength(1));
+    tapAlertButton(alerts, 'Skip round');
+
+    expect(skipCurrentRound).toHaveBeenCalledTimes(1);
     expect(haptic.impactHeavy).toHaveBeenCalled();
+  });
+});
+
+describe('EstimatingPage — leaving the page', () => {
+  it('closes the menu it opened', async () => {
+    const { fixture, dismissMenu } = await mount({ isHost: true, initialRound: votingRound() });
+    (fixture.componentInstance as unknown as { ionViewWillLeave(): void }).ionViewWillLeave();
+    expect(dismissMenu).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -947,11 +973,14 @@ describe('EstimatingPage — leaveSession', () => {
   });
 
   it('skips the soft-delete and the flush when there is no participant id', async () => {
-    const { fixture, docService, alerts, navigate, openSheetOrPopover } = await mount({
+    const { fixture, docService, alerts, navigate } = await mount({
       myId: null,
     });
 
-    await tapSheetItem(fixture, openSheetOrPopover, 'Leave session');
+    // Nobody without an id is the host, so this is the toolbar button's path.
+    await (
+      fixture.componentInstance as unknown as { confirmLeave(): Promise<void> }
+    ).confirmLeave();
     tapAlertButton(alerts, 'Leave');
     await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith(['/home']));
 

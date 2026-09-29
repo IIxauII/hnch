@@ -51,6 +51,10 @@ const OUT_DIR = resolveOutDir('reveal'); // → docs/screenshots/<sha>/reveal/
 
 The helper writes `mkdir -p` only when called — never at module import — so it is safe to import from non-test modules.
 
+### Taking the shot
+
+Every spec's `shot()` waits for `pageSettled(page)` (`_helpers/settled.ts`) before it captures: exactly one page showing, fully in. Ionic keeps the page being left on screen while the new one slides in, and a shot taken then shows the two on top of each other. Call `shot()` once the content of the new page is known to be there — until then the one page showing is still the old one. A toast that should not be in the picture is waited out with `expect(page.locator('ion-toast:not(.overlay-hidden)')).toHaveCount(0)`; the first `ion-toast` in the page is the connection banner's own and is always hidden.
+
 ### Local manual run
 
 ```sh
@@ -84,7 +88,7 @@ Every `test()` under `_screenshots/` is annotated with one or more Playwright ta
 | `@scale` | scale picker, custom scale editor, preset overrides |
 | `@connection` | online / reconnecting / offline / disconnected |
 | `@session-end` | host End Session → joiner toast |
-| `@home` | home and last-session card |
+| `@home` | home and the list of recent sessions |
 | `@onboarding` | first-run name entry |
 | `@agenda` | agenda states (`agenda-states.spec.ts`) |
 | `@keyboard` | keyboard shortcuts surfaces (`keyboard-shortcuts.spec.ts`) |

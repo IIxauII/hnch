@@ -21,6 +21,7 @@ import {
   BUILTIN_SCALES,
   hashPassword,
   joinDoc,
+  normalizePassword,
   parseAvatarColor,
   RelayRejectionError,
   resolveRoom,
@@ -50,13 +51,18 @@ import {
   handleAgendaMv,
 } from './commands/agenda.js';
 
+/**
+ * Ask for the password. What comes back is the password as it is compared
+ * (`normalizePassword`), so "nothing typed" and "spaces typed" are both the
+ * empty string to whoever asked.
+ */
 async function promptPassword(): Promise<string> {
   return new Promise((resolve) => {
     const rl = createInterface({ input: process.stdin, output: process.stderr });
     process.stderr.write('Password: ');
     rl.question('', (answer) => {
       rl.close();
-      resolve(answer);
+      resolve(normalizePassword(answer));
     });
   });
 }

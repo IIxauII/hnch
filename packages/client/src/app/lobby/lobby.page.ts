@@ -18,7 +18,6 @@ import {
   formatRoundLabel,
   getScaleLabel,
   nextRoundNumber,
-  resolveRoom,
   roundNumber,
 } from '@hnch/shared';
 import type { AgendaItem, AgendaResult, ParticipantSnapshot, Round } from '@hnch/shared';
@@ -55,7 +54,7 @@ import {
   starOutline,
 } from 'ionicons/icons';
 
-import { AppPreferenceService } from '../core/app-preference.service';
+import { SessionAccessService } from '../core/session-access.service';
 import {
   buildCopyRoomCodeToast,
   buildResultsHeading,
@@ -79,11 +78,7 @@ import {
   type RoundStartSubmission,
 } from '../round-start/round-start.sheet';
 import { RoundEditSheetComponent } from './round-edit.sheet';
-import {
-  SessionSettingsSheetComponent,
-  type AccessMode,
-  type AccessSelection,
-} from '../session-settings/session-settings.sheet';
+import { SessionSettingsSheetComponent } from '../session-settings/session-settings.sheet';
 import { AvatarComponent } from '../shared/avatar.component';
 import { RoleToggleComponent } from '../shared/role-toggle.component';
 import { revoteLabel } from '../shared/revote-label';
@@ -93,7 +88,6 @@ import { assertRoomCode } from '../core/room-join.service';
 import { shouldRecordCache } from '../core/cache-record-guard';
 import { QrDisplaySheetComponent } from './qr-display.sheet';
 import { presentSheet } from '../utils/present-sheet';
-import { rejectionCopy } from '../join/join.helpers';
 import { AgendaPanelComponent } from '../agenda/agenda-panel.component';
 import {
   AgendaItemFormSheetComponent,
@@ -202,7 +196,7 @@ import {
                 <button
                   type="button"
                   class="room-code"
-                  aria-label="Copy session code"
+                  [attr.aria-label]="'Copy session code ' + formattedRoomCode()"
                   (click)="onCopyRoomCode()"
                 >
                   <span>{{ formattedRoomCode() }}</span>
@@ -311,10 +305,7 @@ import {
             <div class="hnch-card__body">
               <ion-list lines="none" class="participants">
                 @for (p of activeParticipants(); track p.id) {
-                  <ion-item
-                    [class.offline]="!onlineIds().has(p.id)"
-                    [attr.aria-label]="participantLabel(p)"
-                  >
+                  <ion-item [class.offline]="!onlineIds().has(p.id)">
                     <app-avatar
                       slot="start"
                       [participantId]="p.id"
@@ -465,10 +456,7 @@ import {
     >
       <ng-template>
         <app-session-settings-sheet
-          [accessMode]="lobbyAccessMode()"
-          [accessPassword]="lobbyAccessPassword()"
           [isHost]="isHost()"
-          (accessChanged)="onAccessChanged($event)"
           (closeRequested)="closeSessionSettings()"
         />
       </ng-template>
@@ -503,7 +491,7 @@ import {
             [initialTitle]="round.title ?? null"
             [initialDescription]="round.description ?? null"
             (submitted)="onRoundEditSave($event)"
-            (closeRequested)="onRoundEditDismiss()"
+            (closeRequested)="roundEditOpen.set(false)"
           />
         }
       </ng-template>
@@ -545,13 +533,6 @@ import {
 
       .session-card .hnch-card__body {
         padding-block-start: 16px;
-      }
-      .card-label {
-        color: var(--hnch-muted);
-        font-size: 13px;
-        font-weight: 600;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
       }
       .room-code {
         @include focus-ring;
@@ -806,7 +787,7 @@ import {
 })
 export class LobbyPage implements OnDestroy {
   private readonly router = inject(Router);
-  private readonly appPrefs = inject(AppPreferenceService);
+  private readonly access = inject(SessionAccessService);
   private readonly docService = inject(DocService);
   private readonly haptic = inject(HapticService);
   private readonly participantIdService = inject(ParticipantIdService);
@@ -857,19 +838,12 @@ export class LobbyPage implements OnDestroy {
   protected readonly editingAgendaItem = signal<AgendaItem | null>(null);
 
   /**
-   * Access state lives here (not in SessionSettingsSheetComponent) so
-   * it survives the modal's destroy/recreate lifecycle.
-   *
-   * The mode is relay state (ADR-0009), so it is read back from the relay
-   * (see `refreshAccessMode`) rather than assumed: a session created with
-   * a password, reloaded, or protected by a previous host is locked whether
-   * or not this page instance was the one that locked it. The password
-   * itself is only ever what was typed here — the relay holds a hash.
+   * Whether the session asks for a password. Relay state (ADR-0009), kept by
+   * `SessionAccessService`: a session created with a password, reloaded, or
+   * protected by a previous host is locked whether or not this page was the
+   * one that locked it.
    */
-  protected readonly lobbyAccessMode = signal<AccessMode>('open');
-  protected readonly lobbyAccessPassword = signal('');
-
-  protected readonly passwordProtected = computed(() => this.lobbyAccessMode() === 'password');
+  protected readonly passwordProtected = computed(() => this.access.mode() === 'password');
 
   protected readonly myId = this.participantIdService.id;
 
@@ -882,7 +856,7 @@ export class LobbyPage implements OnDestroy {
     return p.id === this.myId() ? `You (${p.displayName})` : p.displayName;
   }
 
-  /** Toggle own voter↔viewer role. Wired to the self-row chip. */
+  /** Toggle own voter↔viewer role. Wired to the switch on the participant's own row. */
   protected onToggleRole(): void {
     if (!this.myId()) return;
     this.haptic.impactLight();
@@ -908,7 +882,7 @@ export class LobbyPage implements OnDestroy {
     const code = this.roomCode();
     if (!code) return '';
     const base = `${window.location.origin}/join?code=${code}`;
-    return this.lobbyAccessMode() === 'password' ? `${base}&pw=1` : base;
+    return this.passwordProtected() ? `${base}&pw=1` : base;
   });
 
   /** Dash-formatted room code for human display. */
@@ -970,7 +944,7 @@ export class LobbyPage implements OnDestroy {
   });
 
   /** The number `lastRevealedRound` goes by, or `null` when there is none. */
-  protected readonly lastRevealedRoundIndex = computed(() => {
+  protected readonly lastRevealedRoundNumber = computed(() => {
     const round = this.lastRevealedRound();
     if (!round) return null;
     const number = roundNumber(round, this.rounds());
@@ -979,7 +953,7 @@ export class LobbyPage implements OnDestroy {
 
   /** Results-card heading — pure-helper backed for unit testability. */
   protected readonly resultsHeading = computed(() =>
-    buildResultsHeading(this.lastRevealedRound(), this.lastRevealedRoundIndex()),
+    buildResultsHeading(this.lastRevealedRoundNumber()),
   );
 
   /** "Re-vote" beside the heading when the round re-votes an earlier one (issue #111). */
@@ -1062,25 +1036,19 @@ export class LobbyPage implements OnDestroy {
       'star-outline': starOutline,
     });
 
-    // Ask the relay whether the session is locked, once per room code.
-    // `untracked`-free on purpose: the only signal read is the code.
-    effect(() => {
-      const code = this.docService.roomCode();
-      if (code !== null) void this.refreshAccessMode(code);
-    });
-
     // Refresh the jump-back-in cache only once per (uuid, screen)
     // transition — deduped via lastRecordedUuid so we don't write on
     // every Yjs doc mutation while staying connected (ADR-0022 §5).
     effect(() => {
       const code = this.docService.roomCode();
-      const uuid = this.docService.meta()?.roomUuid;
-      const status = this.docService.syncStatus();
-      if (status !== 'connected') {
+      const uuid = this.docService.relayRoomUuid();
+      // Up *and* synced: an open socket is not yet the relay saying yes.
+      const joined = this.docService.syncStatus() === 'connected' && this.docService.relaySynced();
+      if (!joined) {
         this.lastRecordedUuid = null;
         return;
       }
-      if (shouldRecordCache(code, uuid, status, this.lastRecordedUuid)) {
+      if (shouldRecordCache(code, uuid, joined, this.lastRecordedUuid)) {
         this.lastRecordedUuid = uuid ?? null;
         void this.lastSessionService.record({
           roomCode: code!,
@@ -1110,25 +1078,6 @@ export class LobbyPage implements OnDestroy {
       this.followScreen();
     });
 
-    // WS rejection handler — covers all reasons a joiner can be rejected
-    // while already on Lobby (e.g. host changes password mid-session,
-    // room-full race, etc.). Captures code synchronously at signal-flip
-    // time before endSession clears it.
-    effect(() => {
-      const reason = this.docService.lastRejection();
-      if (reason === null) return;
-      const code = this.roomCode();
-      void (async () => {
-        this.docService.teardown();
-        await this.toastService.error(rejectionCopy(reason));
-        if (reason === 'wrong-password') {
-          await this.router.navigate(['/join'], { queryParams: { code } });
-        } else {
-          await this.router.navigate(['/home']);
-        }
-      })();
-    });
-
     // Wire confetti layer DOM node to CelebrationService after each render.
     // afterRenderEffect guarantees the read runs after view commit so the
     // element is document-attached when attachLayer() is called (P3-C3).
@@ -1147,8 +1096,27 @@ export class LobbyPage implements OnDestroy {
    */
   ionViewWillEnter(): void {
     this.followScreen();
-    const code = this.docService.roomCode();
-    if (code !== null) void this.refreshAccessMode(code);
+    // Whether the session is locked is the relay's to say, and may have
+    // changed while this page was out of sight.
+    void this.access.refresh();
+  }
+
+  /**
+   * Menus and sheets belong to the screen they were opened on. The page is
+   * left without the user doing anything when the host starts a round, and
+   * whatever was open then would sit on top of Estimating — a sheet also
+   * switches off the voting keys there.
+   */
+  ionViewWillLeave(): void {
+    void this.surface.dismissMenu();
+    for (const modal of [this.modalRef(), this.sessionSettingsModalRef(), this.qrModalRef()]) {
+      void modal?.dismiss();
+    }
+    this.roundStartOpen.set(false);
+    this.sessionSettingsOpen.set(false);
+    this.qrOpen.set(false);
+    this.roundEditOpen.set(false);
+    this.agendaFormOpen.set(false);
   }
 
   /** Go where the shared `screenFor` rule says this peer belongs. */
@@ -1158,21 +1126,6 @@ export class LobbyPage implements OnDestroy {
     const code = this.docService.roomCode();
     assertRoomCode(code, 'lobby.autoNav');
     void this.router.navigate(['/estimating', code]);
-  }
-
-  /**
-   * Read the session's access mode back from the relay. Best-effort: a
-   * failed lookup leaves the last known mode in place, and the connection
-   * banner already tells the user the relay is unreachable.
-   */
-  private async refreshAccessMode(code: string): Promise<void> {
-    try {
-      const resolved = await resolveRoom(this.appPrefs.resolvedRelayHttpUrl(), code);
-      if (this.docService.roomCode() !== code) return;
-      this.lobbyAccessMode.set(resolved.accessMode === 'password' ? 'password' : 'open');
-    } catch {
-      // Keep what we have.
-    }
   }
 
   protected openRoundStart(): void {
@@ -1339,6 +1292,7 @@ export class LobbyPage implements OnDestroy {
    * one action, Leave, is a button in the toolbar instead.
    */
   protected async openActionSheet(event: Event): Promise<void> {
+    if (!this.isHost()) return;
     const items: MenuItem[] = [
       {
         text: 'Session settings',
@@ -1401,12 +1355,6 @@ export class LobbyPage implements OnDestroy {
   protected async closeSessionSettings(): Promise<void> {
     await this.sessionSettingsModalRef()?.dismiss();
     this.sessionSettingsOpen.set(false);
-  }
-
-  /** The relay has accepted an access change made in the settings sheet. */
-  protected onAccessChanged(selection: AccessSelection): void {
-    this.lobbyAccessMode.set(selection.mode);
-    this.lobbyAccessPassword.set(selection.password ?? '');
   }
 
   protected async onShareInvite(): Promise<void> {
@@ -1488,6 +1436,11 @@ export class LobbyPage implements OnDestroy {
     if (round) this.openRoundEdit(round);
   }
 
+  /**
+   * The sheet is gone. Only now is the round let go of: the sheet renders
+   * from it, and clearing it on Cancel or Save emptied the sheet while it
+   * was still sliding out.
+   */
   protected onRoundEditDismiss(): void {
     this.roundEditOpen.set(false);
     this.editingRound.set(null);
@@ -1498,15 +1451,16 @@ export class LobbyPage implements OnDestroy {
     if (!round) return;
     this.docService.updateRoundDescriptor(round.id, {
       title: payload.title,
-      ...(payload.description !== null && { description: payload.description }),
+      // An emptied description is written as empty: left out, the old text
+      // would stay.
+      description: payload.description ?? '',
     });
     this.roundEditOpen.set(false);
-    this.editingRound.set(null);
   }
 
   /**
    * Soft exit — back-chevron path. Navigates to Home WITHOUT clearing
-   * the last-session cache, so the Jump-back-in banner remains visible.
+   * the last-session cache, so the session stays on Home's "Jump back in" list.
    * Does not tear down the WebSocket; the session stays alive in the
    * background while the user is on Home.
    *
@@ -1517,9 +1471,9 @@ export class LobbyPage implements OnDestroy {
   }
 
   /**
-   * Destructive-action confirmation (ux.md §2). Wired ONLY to the
-   * ⋯ → "Leave session" action-sheet item so the session is never
-   * torn down without an explicit user confirmation.
+   * Destructive-action confirmation (ux.md §2). Reached from the host's menu
+   * and from everyone else's toolbar button, so the session is never left
+   * without an explicit confirmation.
    *
    * The back chevron uses `softExit()` instead — no dialog, cache kept.
    */
@@ -1551,7 +1505,7 @@ export class LobbyPage implements OnDestroy {
     }
     const uuid = this.docService.meta()?.roomUuid;
     this.docService.teardown();
-    // Destructive leave — remove entry so Jump-back-in banner does not reappear (ADR-0044).
+    // Destructive leave — remove the entry, so Home does not offer the session again (ADR-0044).
     if (uuid) {
       await this.lastSessionService.removeByUuid(uuid);
     } else {
@@ -1594,12 +1548,17 @@ export class LobbyPage implements OnDestroy {
     p: { id: string; displayName: string },
     event: Event,
   ): Promise<void> {
-    const items: MenuItem[] = [
-      {
+    const items: MenuItem[] = [];
+    // The role can only go to someone who is here to take it; offered to an
+    // offline participant it was confirmed and then refused without a word.
+    if (this.onlineIds().has(p.id)) {
+      items.push({
         text: 'Make host',
         icon: 'star-outline',
         handler: () => this.onHandoffTap(p.id, p.displayName),
-      },
+      });
+    }
+    items.push(
       {
         text: 'Remove',
         role: 'destructive',
@@ -1607,7 +1566,7 @@ export class LobbyPage implements OnDestroy {
         handler: () => this.onRemoveTap(p.id, p.displayName),
       },
       { text: 'Cancel', role: 'cancel' },
-    ];
+    );
     await this.surface.openSheetOrPopover({
       header: p.displayName,
       items,

@@ -111,9 +111,6 @@ import { canContinue } from './onboarding.helpers';
         font-size: 17px;
         line-height: 1.4;
       }
-      ion-list {
-        margin-block: 0;
-      }
       .hint {
         margin: 8px 16px 0;
         color: var(--hnch-muted);

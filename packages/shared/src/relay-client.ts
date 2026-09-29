@@ -162,6 +162,43 @@ const REPEAT_REJECTION_WINDOW_MS = 60_000;
 /** Transient closes inside the window before {@link ConnectToRelayOptions.onRepeatRejection} fires. */
 const REPEAT_REJECTION_THRESHOLD = 3;
 
+/** The least time between two questions to the relay about why a socket closed. */
+const REFUSAL_LOOKUP_INTERVAL_MS = 5_000;
+
+/**
+ * Why the relay will not take this connection, where it says so over HTTP —
+ * or `null` when it has nothing against it, or cannot be reached.
+ *
+ * The relay refuses two kinds of connection *before* the upgrade (ADR-0035):
+ * one to a session it no longer has (HTTP 404), and one to a protected
+ * session that brings no password (HTTP 400). Neither status reaches the
+ * page. A browser reports a refused handshake as a close without a code,
+ * which is also what a dropped link looks like.
+ */
+async function refusalBehindClose(
+  httpBaseUrl: string,
+  roomUuid: string,
+  credentials: JoinCredentials,
+): Promise<JoinRejectionReason | null> {
+  let resolved: ResolvedRoom;
+  try {
+    resolved = await resolveRoom(httpBaseUrl, credentials.roomCode);
+  } catch (err) {
+    // The relay has no such session.
+    if (err instanceof RelayRejectionError) return err.reason;
+    // No answer, or none that says anything: the link, not the session.
+    return null;
+  }
+  // The code has been handed to another session: this one is gone.
+  if (resolved.uuid !== roomUuid) return 'unknown-room';
+  // Protected, and there is nothing to show for it. With a hash in hand the
+  // relay takes the socket and answers in a close code, right or wrong.
+  if (resolved.accessMode === 'password' && credentials.passwordHash === undefined) {
+    return 'wrong-password';
+  }
+  return null;
+}
+
 export interface ConnectToRelayOptions {
   /**
    * Base **http** URL of the relay, e.g. `http://localhost:1234` (no
@@ -188,8 +225,12 @@ export interface ConnectToRelayOptions {
   readonly onStatusChange?: ((status: SyncStatus) => void) | undefined;
   /**
    * Fires when the relay closes the socket with a private-use code from
-   * ADR-0016's table. `null` is passed on a successful (re)connect to
-   * clear any prior rejection surfaced to the UI.
+   * ADR-0016's table — or turns out, when asked, to refuse the connection
+   * before it is a socket at all: the session is gone, or has been given a
+   * password this connection does not carry. `null` is passed on a
+   * successful (re)connect to clear any prior rejection surfaced to the UI.
+   *
+   * A rejection is final. Reconnecting stops with it.
    */
   readonly onRejectionChange?: ((reason: JoinRejectionReason | null) => void) | undefined;
   /**
@@ -213,9 +254,11 @@ export interface ConnectToRelayOptions {
    */
   readonly onSynced?: (() => void) | undefined;
   /**
-   * Fires on every `synced` transition of the underlying socket: `true` once
-   * the relay's state has applied on the *current* connection, `false` when
-   * that connection goes away. Unlike {@link onSynced} it is not one-shot.
+   * Fires when "synced" changes: `true` once the relay's state has applied on
+   * the *current* connection, `false` when that connection goes away or the
+   * network is reported offline. Unlike {@link onSynced} it is not one-shot,
+   * and it only fires on a change — never `false` for a connection that was
+   * not synced to begin with.
    *
    * This is the signal that awareness can be trusted. `y-websocket` drops
    * every remote awareness state when a socket closes, and the relay pushes
@@ -223,6 +266,11 @@ export interface ConnectToRelayOptions {
    * opening and `true` arriving here, a peer sees itself as the only one
    * online. A rule that counts online peers (unanimous auto-reveal) must not
    * evaluate in that window.
+   *
+   * What it does not cover: a link that dies without the platform noticing
+   * (no `offline` event, no close). Awareness then times its peers out after
+   * 30 s, about when `y-websocket` gives up on the socket, and for that
+   * moment the peers are gone while this still says `true`.
    */
   readonly onSyncedChange?: ((synced: boolean) => void) | undefined;
 }
@@ -301,12 +349,22 @@ export function connectToRelay(opts: ConnectToRelayOptions): RelayConnection {
   // reconnecting signal so no spurious banner shows during teardown.
   let manuallyDisconnected = false;
   let reconnecting = false;
+  // True from `updateCredentials` until the socket is back up (or refused).
+  // The drop in between was asked for: it is not a connection being lost,
+  // and must not be announced as one.
+  let rehandshaking = false;
+  // Last value handed to `onSyncedChange`, so it only ever reports a change.
+  let synced = false;
   // Rolling buffer of transient-close timestamps for the repeat throttle.
   const transientCloseTimestamps: number[] = [];
 
   const recomputeReconnecting = (): void => {
     const next =
-      hasEverConnected && status !== 'connected' && lastRejection === null && !manuallyDisconnected;
+      hasEverConnected &&
+      status !== 'connected' &&
+      lastRejection === null &&
+      !manuallyDisconnected &&
+      !rehandshaking;
     if (next === reconnecting) return;
     reconnecting = next;
     opts.onReconnectingChange?.(next);
@@ -326,7 +384,7 @@ export function connectToRelay(opts: ConnectToRelayOptions): RelayConnection {
     }),
   });
 
-  // Presence across a reconnect.
+  // Presence across a reconnect (ADR-0050).
   //
   // `y-protocols` takes an awareness state only when its clock is newer than
   // the last one it saw for that client. A reconnect defeats that in both
@@ -337,6 +395,11 @@ export function connectToRelay(opts: ConnectToRelayOptions): RelayConnection {
   // offline to everyone until the next awareness renewal, up to 15 s later:
   // three times the host-election debounce (ADR-0010), so the room changed
   // hands, and changed back, over a reconnect nobody would have noticed.
+  //
+  // Forgetting a clock means the next state for that client is taken at any
+  // clock. That is safe because of what the relay sends a socket that has
+  // just opened: the states it holds now, and nothing else. A peer that left
+  // while we were away is not among them, so nothing brings it back.
   const forgetPeerClocks = (): void => {
     const { awareness } = provider;
     // Deleting from a Map while iterating it is well-defined.
@@ -353,16 +416,30 @@ export function connectToRelay(opts: ConnectToRelayOptions): RelayConnection {
     if (state !== null) provider.awareness.setLocalState(state);
   };
 
+  const setSynced = (next: boolean): void => {
+    if (next === synced) return;
+    synced = next;
+    opts.onSyncedChange?.(next);
+  };
+
+  // An awareness instance may have been connected before — the caller keeps
+  // it across `disconnect()` and a fresh `connectToRelay`. Whatever clocks it
+  // still holds for peers it no longer has are as stale as after a drop.
+  forgetPeerClocks();
+
   const onStatus = (ev: { status: SyncStatus }): void => {
     status = ev.status;
     if (ev.status === 'disconnected') forgetPeerClocks();
-    if (ev.status === 'connected' && hasEverConnected) reannounceSelf();
+    // On every connect, the first included: an awareness instance that was
+    // connected before comes back at a clock its peers have already seen.
+    if (ev.status === 'connected') reannounceSelf();
     opts.onStatusChange?.(ev.status);
     // A successful (re)connect invalidates any prior rejection — the
     // relay accepted us, so clear the surfaced reason and the throttle
     // buffer that was tracking the failed attempts.
     if (ev.status === 'connected') {
       hasEverConnected = true;
+      rehandshaking = false;
       lastRejection = null;
       opts.onRejectionChange?.(null);
       transientCloseTimestamps.length = 0;
@@ -370,8 +447,47 @@ export function connectToRelay(opts: ConnectToRelayOptions): RelayConnection {
     recomputeReconnecting();
   };
 
+  // Permanent relay rejection — retrying will not help. Stop the reconnect
+  // loop so the surface can route the user somewhere useful.
+  const refuse = (reason: JoinRejectionReason): void => {
+    lastRejection = reason;
+    opts.onRejectionChange?.(reason);
+    provider.shouldConnect = false;
+    provider.disconnect();
+    recomputeReconnecting();
+  };
+
+  // A refusal the socket cannot report (ADR-0050) — see `refusalBehindClose`.
+  //
+  // It happens to someone who was in the session a moment ago: the host set
+  // a password, or the session expired, while their socket was down. Left
+  // to itself y-websocket retries, for ever, a request that will be refused
+  // for ever. So a close that says nothing is followed by a question that
+  // can. No answer changes nothing: the retry loop carries on.
+  let lookingUpRefusal = false;
+  let lastRefusalLookupAt = Number.NEGATIVE_INFINITY;
+  const settled = (): boolean => manuallyDisconnected || lastRejection !== null;
+  const lookUpRefusal = async (): Promise<void> => {
+    const now = Date.now();
+    if (lookingUpRefusal || now - lastRefusalLookupAt < REFUSAL_LOOKUP_INTERVAL_MS) return;
+    lookingUpRefusal = true;
+    lastRefusalLookupAt = now;
+    try {
+      const reason = await refusalBehindClose(opts.httpBaseUrl, opts.roomUuid, credentials);
+      // Whatever happened while the question was out has the last word.
+      if (reason === null || settled() || status === 'connected') return;
+      refuse(reason);
+    } finally {
+      lookingUpRefusal = false;
+    }
+  };
+
   const onConnectionClose = (event: { code: number } | null): void => {
+    // `null` is a close this module asked for (`provider.disconnect()`).
     if (event === null) return;
+    // Any other close during a re-handshake means it did not go through:
+    // from here on this is a connection being recovered, like any other.
+    rehandshaking = false;
     const reason = JOIN_REJECTION_REASONS_BY_CODE.get(event.code);
     if (reason === undefined) {
       // Transient failure (network drop, no relay-issued code, unexpected
@@ -388,15 +504,10 @@ export function connectToRelay(opts: ConnectToRelayOptions): RelayConnection {
         opts.onRepeatRejection?.();
       }
       recomputeReconnecting();
+      void lookUpRefusal();
       return;
     }
-    // Permanent relay rejection — retrying will not help. Stop the
-    // reconnect loop so the surface can route the user somewhere useful.
-    lastRejection = reason;
-    opts.onRejectionChange?.(reason);
-    provider.shouldConnect = false;
-    provider.disconnect();
-    recomputeReconnecting();
+    refuse(reason);
   };
 
   provider.on('status', onStatus);
@@ -421,14 +532,10 @@ export function connectToRelay(opts: ConnectToRelayOptions): RelayConnection {
   }
   // Registered after the one-shot above so `onSynced`'s post-sync write has
   // landed by the time a consumer reacts to `onSyncedChange(true)`.
-  let syncedChangeListener: ((isSynced: boolean) => void) | null = null;
-  if (opts.onSyncedChange !== undefined) {
-    const onSyncedChange = (isSynced: boolean): void => {
-      opts.onSyncedChange?.(isSynced);
-    };
-    syncedChangeListener = onSyncedChange;
-    syncedEvents.on('synced', onSyncedChange);
-  }
+  const syncedChangeListener = (isSynced: boolean): void => {
+    setSynced(isSynced);
+  };
+  syncedEvents.on('synced', syncedChangeListener);
 
   // window online/offline listeners — network interface changes do not
   // always close the socket promptly (Chromium offline mode, flaky Wi-Fi
@@ -437,6 +544,9 @@ export function connectToRelay(opts: ConnectToRelayOptions): RelayConnection {
   const onOffline = (): void => {
     if (manuallyDisconnected) return;
     status = 'disconnected';
+    // The socket may stay open for a while yet, but nothing is coming
+    // through it: what awareness says from here on is not to be believed.
+    setSynced(false);
     opts.onStatusChange?.('disconnected');
     recomputeReconnecting();
   };
@@ -472,6 +582,7 @@ export function connectToRelay(opts: ConnectToRelayOptions): RelayConnection {
         next === undefined
           ? { roomCode: credentials.roomCode, deviceId: credentials.deviceId }
           : { ...credentials, passwordHash: next };
+      rehandshaking = true;
       provider.shouldConnect = false;
       provider.disconnect();
       provider.params = credentialsToParams(credentials);
@@ -489,13 +600,10 @@ export function connectToRelay(opts: ConnectToRelayOptions): RelayConnection {
         syncedEvents.off('synced', syncedListener);
         syncedListener = null;
       }
-      if (syncedChangeListener !== null) {
-        syncedEvents.off('synced', syncedChangeListener);
-        syncedChangeListener = null;
-        // The provider is about to be destroyed with its listeners already
-        // detached, so the closing transition is reported here.
-        opts.onSyncedChange?.(false);
-      }
+      syncedEvents.off('synced', syncedChangeListener);
+      // The provider is about to be destroyed with its listeners already
+      // detached, so the closing transition is reported here.
+      setSynced(false);
       win?.removeEventListener('offline', onOffline);
       win?.removeEventListener('online', onOnline);
       provider.shouldConnect = false;

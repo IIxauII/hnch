@@ -196,7 +196,7 @@ import { resolveKeyboardCardAction, shouldHandleKeyEvent } from './estimating.ke
             <div class="observer-notice" role="status" aria-live="polite">
               <ion-icon name="eye-outline" aria-hidden="true"></ion-icon>
               <p>You're observing this round</p>
-              <p class="observer-hint">Switch to Voter to pick a card.</p>
+              <p class="observer-hint">Switch to voter to pick a card.</p>
             </div>
           } @else if (activeRound(); as activeR) {
             <h2 class="section">Pick your estimate</h2>
@@ -276,25 +276,13 @@ import { resolveKeyboardCardAction, shouldHandleKeyEvent } from './estimating.ke
       .story {
         margin-block-end: 16px;
       }
-      .ticket-link {
-        display: inline-block;
-        text-decoration: none;
-      }
-      .ticket-chip {
-        --background: var(--hnch-fill);
-        --color: var(--hnch-text);
-        height: auto;
-        min-height: 28px;
+      /* The ticket chip itself is a shared surface (theme/_surfaces.scss). */
+      .ticket-link,
+      ion-chip.ticket-chip {
         margin: 0 0 8px;
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        font-size: 0.8125rem;
       }
-      .ticket-link .ticket-chip {
-        --color: var(--hnch-accent-text);
-      }
-      .ticket-chip ion-label {
-        overflow-wrap: anywhere;
-        white-space: normal;
+      .ticket-link ion-chip.ticket-chip {
+        margin: 0;
       }
       .descriptor {
         margin: 0;
@@ -345,7 +333,7 @@ import { resolveKeyboardCardAction, shouldHandleKeyEvent } from './estimating.ke
         font-size: 1.0625rem;
         font-weight: 600;
       }
-      /* Three columns on a phone: a whole Fibonacci scale without scrolling. */
+      /* Three columns on a narrow phone, four from about 400px. */
       .grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
@@ -459,7 +447,6 @@ export class EstimatingPage {
 
   protected readonly currentRound = this.docService.currentRound;
   protected readonly activeRound = this.docService.activeRound;
-  protected readonly onlineParticipants = this.docService.onlineParticipants;
 
   // Tracks the last uuid written to the cache so the effect does not
   // re-fire on every Yjs doc mutation while connected to the same room.
@@ -496,13 +483,14 @@ export class EstimatingPage {
     // (ADR-0022 §5).
     effect(() => {
       const code = this.docService.roomCode();
-      const uuid = this.docService.meta()?.roomUuid;
-      const status = this.docService.syncStatus();
-      if (status !== 'connected') {
+      const uuid = this.docService.relayRoomUuid();
+      // Up *and* synced: an open socket is not yet the relay saying yes.
+      const joined = this.docService.syncStatus() === 'connected' && this.docService.relaySynced();
+      if (!joined) {
         this.lastRecordedUuid = null;
         return;
       }
-      if (shouldRecordCache(code, uuid, status, this.lastRecordedUuid)) {
+      if (shouldRecordCache(code, uuid, joined, this.lastRecordedUuid)) {
         this.lastRecordedUuid = uuid ?? null;
         void this.lastSessionService.record({
           roomCode: code!,
@@ -618,7 +606,7 @@ export class EstimatingPage {
    * history show for it later. Returns `null` when there's no active round
    * (transient — we just navigated in).
    */
-  protected readonly roundIndex = computed(() => {
+  protected readonly currentRoundNumber = computed(() => {
     const round = this.currentRound();
     if (!round) return null;
     const number = roundNumber(round, this.docService.rounds());
@@ -626,7 +614,7 @@ export class EstimatingPage {
   });
 
   /** Toolbar title: "Round 3". */
-  protected readonly pageTitle = computed(() => buildEstimatingTitle(this.roundIndex()));
+  protected readonly pageTitle = computed(() => buildEstimatingTitle(this.currentRoundNumber()));
 
   /** The current user's card, or `null` when they haven't voted yet. */
   protected readonly myVote = computed<string | null>(() => {
@@ -709,10 +697,6 @@ export class EstimatingPage {
     return me ? participantRole(me) === 'viewer' : false;
   });
 
-  /**
-   * Elapsed voting time label (M:SS counting up), or `null` before the
-   * round's stopwatch has started. Driven by the 4 Hz wall-clock tick.
-   */
   /**
    * Reactive http(s) URL parsed from `round.ticketId`, or `null` when
    * the value is missing or non-URL. Single parse point — template uses
@@ -855,30 +839,29 @@ export class EstimatingPage {
    * Lobby while a round is running.
    */
   protected async openActionSheet(event: Event): Promise<void> {
+    if (!this.isHost()) return;
     const items: MenuItem[] = [];
 
-    if (this.isHost()) {
-      const round = this.currentRound();
-      if (round && canEnterTerminal(round.status)) {
-        items.push({
-          text: 'Skip round',
-          icon: 'play-skip-forward-outline',
-          handler: () => {
-            this.onSkip();
-          },
-        });
-      }
+    const round = this.currentRound();
+    if (round && canEnterTerminal(round.status)) {
       items.push({
+        text: 'Skip round',
+        icon: 'play-skip-forward-outline',
+        handler: () => {
+          void this.confirmSkip();
+        },
+      });
+    }
+
+    items.push(
+      {
         text: 'End session for everyone',
         icon: 'close-circle-outline',
         role: 'destructive',
         handler: () => {
           void this.confirmEndSession();
         },
-      });
-    }
-
-    items.push(
+      },
       {
         text: 'Leave session',
         icon: 'log-out-outline',
@@ -925,7 +908,7 @@ export class EstimatingPage {
     }
     const uuid = this.docService.meta()?.roomUuid;
     this.docService.teardown();
-    // Destructive leave — remove entry so Jump-back-in banner does not reappear (ADR-0044).
+    // Destructive leave — remove the entry, so Home does not offer the session again (ADR-0044).
     if (uuid) {
       await this.lastSessionService.removeByUuid(uuid);
     } else {
@@ -934,10 +917,42 @@ export class EstimatingPage {
     await this.router.navigate(['/home']);
   }
 
+  /**
+   * A skip cannot be taken back (ADR-0040): the votes cast so far are dropped
+   * and the story is marked as done. It sits first in the menu, one slip of
+   * the thumb from closing it, so it asks first.
+   */
+  private async confirmSkip(): Promise<void> {
+    const alert = await this.alertCtrl.create({
+      header: 'Skip this round?',
+      message: 'Votes cast so far are dropped. The round cannot be reopened.',
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        {
+          text: 'Skip round',
+          role: 'destructive',
+          handler: () => {
+            this.onSkip();
+          },
+        },
+      ],
+    });
+    await alert.present();
+  }
+
   private onSkip(): void {
     if (this.docService.commands.skipCurrentRound().applied) {
       this.haptic.impactHeavy();
     }
+  }
+
+  /**
+   * A menu belongs to the screen it was opened on. This page is left without
+   * the user doing anything when the round reveals, and the menu would
+   * otherwise stay up over the Lobby, offering to skip a round that is over.
+   */
+  ionViewWillLeave(): void {
+    void this.surface.dismissMenu();
   }
 
   private async confirmEndSession(): Promise<void> {

@@ -71,7 +71,9 @@ export function formatRoundLabel(round: {
  * and the next one was "Round 2", with no Round 1 anywhere to be found.
  *
  * `0` for a round that is not in `allRounds` and for a discarded one.
- * Neither is ever shown; callers pass the array the round came from.
+ * Neither has a number to show: callers pass the array the round came from,
+ * and list finished rounds through `isRecordedStatus`, which leaves
+ * tombstones out.
  */
 export function roundNumber(round: Pick<Round, 'id'>, allRounds: readonly Round[]): number {
   let number = 0;
@@ -117,10 +119,21 @@ export type SpreadLabel = 'unanimous' | 'close' | 'spread';
 
 /**
  * Stats for a revealed round. null when votes is empty.
+ *
+ * `mode` is always a card: on a tie, the first of the tied cards in scale
+ * order. `modeTied` says when that happened — the card is then one of
+ * several, not the most common one.
  */
 export type RoundStats =
-  | { kind: 'numeric'; mean: number; median: number; mode: string; spread: SpreadLabel }
-  | { kind: 'categorical'; mode: string; spread: SpreadLabel }
+  | {
+      kind: 'numeric';
+      mean: number;
+      median: number;
+      mode: string;
+      modeTied: boolean;
+      spread: SpreadLabel;
+    }
+  | { kind: 'categorical'; mode: string; modeTied: boolean; spread: SpreadLabel }
   | null;
 
 // Spread thresholds:
@@ -148,7 +161,10 @@ function buildCardOrder(values: string[], scaleCards: string[]): (card: string) 
     knownIndex.get(card) ?? unknownIndex.get(card) ?? Number.MAX_SAFE_INTEGER;
 }
 
-function computeMode(values: string[], cardOrder: (card: string) => number): string {
+function computeMode(
+  values: string[],
+  cardOrder: (card: string) => number,
+): { mode: string; modeTied: boolean } {
   const freq = new Map<string, number>();
   for (const v of values) freq.set(v, (freq.get(v) ?? 0) + 1);
 
@@ -163,8 +179,9 @@ function computeMode(values: string[], cardOrder: (card: string) => number): str
       best = card;
     }
   }
+  const modeTied = ordered.filter((card) => freq.get(card) === bestCount).length > 1;
   // `ordered` is non-empty because values is non-empty (caller guarantees)
-  return best!;
+  return { mode: best!, modeTied };
 }
 
 /**
@@ -190,8 +207,11 @@ export function computeRoundStats(votes: Record<string, string>, scale: Scale): 
     const numericValues = values.map(parseFloat).filter(Number.isFinite);
     if (numericValues.length === 0) {
       // All votes were non-numeric strings on a numeric scale — degrade gracefully.
-      const mode = computeMode(values, cardOrder);
-      return { kind: 'categorical', mode, spread: categoricalSpread(values) };
+      return {
+        kind: 'categorical',
+        ...computeMode(values, cardOrder),
+        spread: categoricalSpread(values),
+      };
     }
 
     const mean = numericValues.reduce((s, n) => s + n, 0) / numericValues.length;
@@ -199,8 +219,6 @@ export function computeRoundStats(votes: Record<string, string>, scale: Scale): 
     const sorted = [...numericValues].toSorted((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
     const median = sorted.length % 2 === 1 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
-
-    const mode = computeMode(values, cardOrder);
 
     let spread: SpreadLabel;
     if (new Set(values).size === 1) {
@@ -214,12 +232,15 @@ export function computeRoundStats(votes: Record<string, string>, scale: Scale): 
       spread = max - min <= 1 ? 'close' : 'spread';
     }
 
-    return { kind: 'numeric', mean, median, mode, spread };
+    return { kind: 'numeric', mean, median, ...computeMode(values, cardOrder), spread };
   }
 
   // Categorical path
-  const mode = computeMode(values, cardOrder);
-  return { kind: 'categorical', mode, spread: categoricalSpread(values) };
+  return {
+    kind: 'categorical',
+    ...computeMode(values, cardOrder),
+    spread: categoricalSpread(values),
+  };
 }
 
 /**
@@ -241,13 +262,17 @@ export function roundStatsFor(round: Pick<Round, 'votes' | 'scale'>): RoundStats
  * Display form of `RoundStats` — the same discriminant, every field a string
  * ready to bind. `null` in, `null` out, so callers branch once.
  *
+ * `mode` is the most common card, and `null` when there is none: on a tie
+ * no card was chosen more often than every other, and naming one of them
+ * would crown a winner the votes did not produce.
+ *
  * `spread` is the *word* (`Unanimous` / `Close` / `Spread`). Spread *colour*
  * deliberately stays with the surface: Ionic colour names are not
  * presentation-neutral.
  */
 export type RoundStatsDisplay =
-  | { kind: 'numeric'; mean: string; median: string; mode: string; spread: string }
-  | { kind: 'categorical'; mode: string; spread: string }
+  | { kind: 'numeric'; mean: string; median: string; mode: string | null; spread: string }
+  | { kind: 'categorical'; mode: string | null; spread: string }
   | null;
 
 function formatSpread(spread: SpreadLabel): string {
@@ -261,16 +286,17 @@ function formatSpread(spread: SpreadLabel): string {
 export function formatRoundStats(stats: RoundStats): RoundStatsDisplay {
   if (stats === null) return null;
   const spread = formatSpread(stats.spread);
+  const mode = stats.modeTied ? null : stats.mode;
   if (stats.kind === 'numeric') {
     return {
       kind: 'numeric',
       mean: stats.mean.toFixed(1),
       median: stats.median.toFixed(1),
-      mode: stats.mode,
+      mode,
       spread,
     };
   }
-  return { kind: 'categorical', mode: stats.mode, spread };
+  return { kind: 'categorical', mode, spread };
 }
 
 // ---------------------------------------------------------------------------

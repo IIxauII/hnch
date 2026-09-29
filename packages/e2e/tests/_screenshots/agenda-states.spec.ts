@@ -5,7 +5,7 @@
  * Writes PNGs to docs/screenshots/<sha>/agenda/ (via shared helper) covering key agenda UI
  * states on desktop 1440 viewport: empty panel, add sheet (open + filled),
  * 3-item list, edit sheet, round-start pre-fill, mid-session (1 consumed),
- * skipped badge, cancelled hidden, and mobile joiner chip.
+ * skipped badge, cancelled hidden, and the list as a joiner sees it on a phone.
  *
  * Run with:
  *   SCREENSHOT_CAPTURE=1 pnpm --filter @hnch/e2e exec playwright test \

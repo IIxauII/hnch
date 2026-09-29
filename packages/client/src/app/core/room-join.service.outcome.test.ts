@@ -7,6 +7,9 @@
  * `syncStatus` passes through `'connected'` on the way to a rejection. The
  * outcome settles on the first sync instead, so callers can stay where they
  * are until they know.
+ *
+ * The signals it reads are about whatever session the app holds. The wait is
+ * about one session: the one that was current when it started.
  */
 
 // Exercises: core/room-join.service:RoomJoinService (waitForJoinOutcome)
@@ -40,6 +43,7 @@ async function mount() {
   const syncStatus = signal<Status>('connecting');
   const relaySynced = signal(false);
   const lastRejection = signal<JoinRejectionReason | null>(null);
+  const sessionEpoch = signal(1);
 
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
@@ -50,6 +54,7 @@ async function mount() {
           syncStatus: syncStatus.asReadonly(),
           relaySynced: relaySynced.asReadonly(),
           lastRejection: lastRejection.asReadonly(),
+          sessionEpoch: sessionEpoch.asReadonly(),
         },
       },
       { provide: AppPreferenceService, useValue: { resolvedRelayHttpUrl: () => 'http://x.test' } },
@@ -59,7 +64,14 @@ async function mount() {
     ],
   });
 
-  return { service: TestBed.inject(RoomJoinService), syncStatus, relaySynced, lastRejection };
+  return {
+    service: TestBed.inject(RoomJoinService),
+    syncStatus,
+    relaySynced,
+    lastRejection,
+    /** The session is torn down, or another takes its place. */
+    sessionChanges: () => sessionEpoch.update((n) => n + 1),
+  };
 }
 
 /** Resolve state of a promise without waiting on it. */
@@ -161,5 +173,80 @@ describe('RoomJoinService.waitForJoinOutcome', () => {
     TestBed.flushEffects();
 
     expect(await outcome).toBe('connected');
+  });
+
+  // The host had ended the session before this peer got in: the doc syncs,
+  // `SessionEndService` sees the end and tears the session down. What the
+  // signals say from then on is not an answer to this wait.
+  it('settles "superseded" when the session it was waiting on is torn down', async () => {
+    const { service, syncStatus, sessionChanges } = await mount();
+    const outcome = service.waitForJoinOutcome();
+
+    sessionChanges();
+    syncStatus.set('offline');
+    TestBed.flushEffects();
+
+    expect(await outcome).toBe('superseded');
+  });
+
+  // The user started another session meanwhile. That one connecting is not
+  // this one connecting.
+  it('does not take another session coming up for its own', async () => {
+    const { service, syncStatus, relaySynced, sessionChanges } = await mount();
+    const outcome = service.waitForJoinOutcome();
+
+    sessionChanges();
+    syncStatus.set('connected');
+    relaySynced.set(true);
+    TestBed.flushEffects();
+
+    expect(await outcome).toBe('superseded');
+  });
+
+  it('says "superseded", not "timeout", when the session went without a word', async () => {
+    const { service, sessionChanges } = await mount();
+    const outcome = service.waitForJoinOutcome({ timeoutMs: 5_000 });
+    // Let the effect have its first turn, then change the session behind it.
+    TestBed.flushEffects();
+
+    sessionChanges();
+    vi.advanceTimersByTime(5_000);
+
+    expect(await outcome).toBe('superseded');
+  });
+
+  describe('given up on by the caller', () => {
+    it('settles "superseded" when the caller aborts', async () => {
+      const { service } = await mount();
+      const attempt = new AbortController();
+      const outcome = service.waitForJoinOutcome({ signal: attempt.signal });
+      TestBed.flushEffects();
+
+      attempt.abort();
+
+      expect(await outcome).toBe('superseded');
+    });
+
+    it('settles at once when the caller had already given up', async () => {
+      const { service } = await mount();
+      const attempt = new AbortController();
+      attempt.abort();
+
+      expect(await service.waitForJoinOutcome({ signal: attempt.signal })).toBe('superseded');
+    });
+
+    it('stops listening once it has an answer', async () => {
+      const { service, syncStatus, relaySynced } = await mount();
+      const attempt = new AbortController();
+      const removed = vi.spyOn(attempt.signal, 'removeEventListener');
+      const outcome = service.waitForJoinOutcome({ signal: attempt.signal });
+
+      syncStatus.set('connected');
+      relaySynced.set(true);
+      TestBed.flushEffects();
+
+      expect(await outcome).toBe('connected');
+      expect(removed).toHaveBeenCalledWith('abort', expect.any(Function));
+    });
   });
 });

@@ -1,5 +1,12 @@
-import { ChangeDetectionStrategy, Component, output } from '@angular/core';
+import {
+  afterNextRender,
+  ChangeDetectionStrategy,
+  Component,
+  output,
+  viewChild,
+} from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
+import { normalizePassword } from '@hnch/shared';
 import {
   IonButton,
   IonButtons,
@@ -13,6 +20,8 @@ import {
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
+
+import { focusField } from '../utils/focus-field';
 
 /**
  * Password prompt half-sheet for the create flow, shown when the
@@ -62,12 +71,14 @@ import {
       <ion-list inset="true" lines="none">
         <ion-item>
           <ion-input
+            #passwordField
             [formControl]="passwordControl"
             label="Password"
             labelPlacement="stacked"
             type="password"
-            autocomplete="new-password"
+            autocomplete="off"
             enterkeyhint="done"
+            maxlength="120"
             placeholder="Leave blank for no password"
             (keydown.enter)="onConfirm()"
           >
@@ -82,9 +93,6 @@ import {
   `,
   styles: [
     `
-      ion-list {
-        margin-block: 0;
-      }
       .helper {
         display: block;
         padding: 8px 16px 0;
@@ -111,9 +119,15 @@ export class PasswordPromptSheetComponent {
     validators: [Validators.maxLength(120)],
   });
 
+  private readonly passwordField = viewChild<IonInput>('passwordField');
+
+  constructor() {
+    // The sheet is there to have a password typed into it.
+    afterNextRender(() => void focusField(this.passwordField()));
+  }
+
   protected onConfirm(): void {
     if (this.passwordControl.invalid) return;
-    const password = this.passwordControl.value.trim();
-    this.passwordSubmitted.emit(password);
+    this.passwordSubmitted.emit(normalizePassword(this.passwordControl.value));
   }
 }

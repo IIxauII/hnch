@@ -9,7 +9,15 @@
  */
 
 import { test, expect } from './fixtures/app.fixture';
-import { BASE_URL, ESTIMATING, HOME, LOBBY, ROUND_START, fillRoomCode } from './fixtures/helpers';
+import {
+  BASE_URL,
+  ESTIMATING,
+  HOME,
+  LOBBY,
+  ROUND_FIELD,
+  ROUND_START,
+  fillRoomCode,
+} from './fixtures/helpers';
 
 // ---------------------------------------------------------------------------
 // 1. Single-host flow
@@ -46,7 +54,7 @@ test.describe('Agenda single-host flow', () => {
 
     // Title field should be pre-filled with item 1's title.
     // getByRole pierces ion-input shadow DOM to find the native input.
-    const titleInput = host.page.getByRole('textbox', { name: 'Round title' });
+    const titleInput = host.page.getByRole('textbox', { name: ROUND_FIELD.title });
     await expect(titleInput).toHaveValue('Login redesign');
 
     // Cancel modal — state should be unchanged.
@@ -87,7 +95,7 @@ test.describe('Agenda single-host flow', () => {
     await nextRoundBtn.click();
     const modal2 = host.page.locator('app-round-start-sheet');
     await modal2.waitFor({ state: 'visible' });
-    const ticketInput = host.page.getByRole('textbox', { name: 'Ticket ID' });
+    const ticketInput = host.page.getByRole('textbox', { name: ROUND_FIELD.ticketId });
     await expect(ticketInput).toHaveValue('PROJ-42');
 
     // Confirm round 2 — same :has-text() pattern as round 1
@@ -197,6 +205,95 @@ test.describe('Agenda multi-client visibility', () => {
 });
 
 // ---------------------------------------------------------------------------
+// 2b. Ordering and editing — the rest of the row menu
+// ---------------------------------------------------------------------------
+
+test.describe('Agenda ordering and editing', () => {
+  test('stories move up and down, and the next round follows the order', async ({
+    host,
+    player,
+  }) => {
+    const code = await host.createSession();
+    await player.joinSession(code);
+    await host.addAgendaItem({ title: 'Alpha' });
+    await host.addAgendaItem({ title: 'Beta' });
+    await host.addAgendaItem({ title: 'Gamma' });
+    await host.expectNextAgendaItem('Alpha');
+
+    await host.reorderAgendaItem(1, 'up');
+    await host.expectAgendaItems([{ title: 'Beta' }, { title: 'Alpha' }, { title: 'Gamma' }]);
+    await host.expectNextAgendaItem('Beta');
+    // The same order for everyone
+    await player.expectAgendaItems([{ title: 'Beta' }, { title: 'Alpha' }, { title: 'Gamma' }]);
+    await player.expectNextAgendaItem('Beta');
+
+    await host.reorderAgendaItem(1, 'down');
+    await host.expectAgendaItems([{ title: 'Beta' }, { title: 'Gamma' }, { title: 'Alpha' }]);
+    await player.expectAgendaItems([{ title: 'Beta' }, { title: 'Gamma' }, { title: 'Alpha' }]);
+
+    // The round picks up whatever is first now
+    await host.page
+      .locator('app-lobby:not(.ion-page-hidden) ion-button')
+      .filter({ hasText: LOBBY.startRoundBtn })
+      .click();
+    await host.page.locator('app-round-start-sheet').waitFor({ state: 'visible' });
+    await expect(host.page.getByRole('textbox', { name: ROUND_FIELD.title })).toHaveValue('Beta');
+  });
+
+  test('the menu offers no move that goes nowhere', async ({ host }) => {
+    await host.createSession();
+    await host.addAgendaItem({ title: 'Alpha' });
+    await host.addAgendaItem({ title: 'Beta' });
+
+    const menuOf = (index: number) =>
+      host.page
+        .locator('app-lobby:not(.ion-page-hidden) app-agenda-panel ion-item.agenda-item')
+        .nth(index)
+        .locator('ion-button.item-menu-btn');
+    const menu = host.page.locator('ion-popover, ion-action-sheet').first();
+    const option = (name: string) => menu.getByRole('button', { name, exact: true });
+    const close = async () => {
+      await menu.evaluate((el: HTMLElement & { dismiss?: () => Promise<boolean> }) =>
+        el.dismiss?.(),
+      );
+      await menu.waitFor({ state: 'hidden', timeout: 5_000 });
+    };
+
+    await menuOf(0).click();
+    await menu.waitFor({ state: 'visible' });
+    await expect(option('Move down')).toHaveCount(1);
+    await expect(option('Move up')).toHaveCount(0);
+    await close();
+
+    await menuOf(1).click();
+    await menu.waitFor({ state: 'visible' });
+    await expect(option('Move up')).toHaveCount(1);
+    await expect(option('Move down')).toHaveCount(0);
+    await close();
+  });
+
+  test('an edited story reads the same for everyone, and in the round it starts', async ({
+    host,
+    player,
+  }) => {
+    const code = await host.createSession();
+    await player.joinSession(code);
+    await host.addAgendaItem({ title: 'Alpha' });
+    await host.addAgendaItem({ title: 'Beta' });
+
+    await host.editAgendaItem(0, { title: 'Alpha, revised', ticketId: 'ALPHA-1' });
+
+    const edited = [{ title: 'Alpha, revised', ticketId: 'ALPHA-1' }, { title: 'Beta' }];
+    await host.expectAgendaItems(edited);
+    await player.expectAgendaItems(edited);
+
+    await host.startRound();
+    await player.waitForEstimating();
+    await expect(player.page.locator(ESTIMATING.descriptor)).toHaveText('Alpha, revised');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 3. Re-vote preserves agendaItemId
 // ---------------------------------------------------------------------------
 
@@ -219,7 +316,7 @@ test.describe('Agenda re-vote linkage', () => {
     const modal = host.page.locator('app-round-start-sheet');
     await modal.waitFor({ state: 'visible' });
     // Verify pre-fill before submitting — round must carry title for re-vote inheritance.
-    const titleField = host.page.getByRole('textbox', { name: 'Round title' });
+    const titleField = host.page.getByRole('textbox', { name: ROUND_FIELD.title });
     await expect(titleField).toHaveValue('Auth service');
     const startBtn = host.page.locator(ROUND_START.startBtn);
     await startBtn.waitFor({ state: 'visible' });

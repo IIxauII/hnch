@@ -156,6 +156,14 @@ describe('getScaleLabel', () => {
     expect(getScaleLabel('custom-missing', [CUSTOM])).toBe('Missing');
   });
 
+  it('does not show the id of a custom scale this device does not have', () => {
+    const id = 'custom-1b4e28ba-2fa1-11d2-883f-0016d3cca427';
+    expect(getScaleLabel(id, [CUSTOM])).toBe('Custom scale');
+    expect(getScaleLabel(id)).toBe('Custom scale');
+    // Its own name, where the device has it.
+    expect(getScaleLabel(id, [{ id, label: 'Team sizes', cards: ['S', 'L'] }])).toBe('Team sizes');
+  });
+
   it('falls back to formatScaleId when customs is undefined', () => {
     expect(getScaleLabel('custom-untracked')).toBe('Untracked');
   });

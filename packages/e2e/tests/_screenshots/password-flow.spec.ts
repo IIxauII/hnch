@@ -16,7 +16,7 @@
  *     tests/_screenshots/password-flow.spec.ts
  */
 import path from 'node:path';
-import { test, type BrowserContext, type Page } from '@playwright/test';
+import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import { resolveOutDir } from './_helpers/out-dir';
 import {
   BASE_URL,
@@ -96,7 +96,10 @@ test.describe('password flow screenshots', () => {
       await patched;
       await expectToast(hostPage, 'Password set');
       await hostPage.locator(SETTINGS_SHEET.removePasswordBtn).waitFor({ state: 'visible' });
-      await hostPage.locator('ion-toast').first().waitFor({ state: 'hidden', timeout: 5_000 });
+      // Any toast that is up — see capture.spec.ts.
+      await expect(hostPage.locator('ion-toast:not(.overlay-hidden)')).toHaveCount(0, {
+        timeout: 5_000,
+      });
 
       // pw-00 — session settings, password set
       await shot(hostPage, 'pw-00-session-settings-password-set');

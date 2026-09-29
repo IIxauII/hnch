@@ -11,7 +11,7 @@
  */
 
 import { test, expect } from './fixtures/app.fixture';
-import { HOME, LOBBY } from './fixtures/helpers';
+import { HOME, LOBBY, rememberedSessionCodes } from './fixtures/helpers';
 
 test.describe('Participant voluntary leave (ADR-0036)', () => {
   test('leaver removed from active roster; host sees count decrement', async ({ host, player }) => {
@@ -70,6 +70,7 @@ test.describe('Participant voluntary leave (ADR-0036)', () => {
     const code = await host.createSession();
     await player.joinSession(code);
     await player.page.waitForURL(/\/lobby/);
+    await expect.poll(() => rememberedSessionCodes(player.page)).toContain(code);
 
     // Leave explicitly (writes leftAt, clears cache per ADR-0036 §5)
     await player.leaveSession();
@@ -77,10 +78,12 @@ test.describe('Participant voluntary leave (ADR-0036)', () => {
     await player.page.locator(HOME.createCard).waitFor({ state: 'visible' });
 
     // Nothing to jump back into
-    await expect(player.page.locator(HOME.recentRow)).toHaveCount(0);
+    await expect.poll(() => rememberedSessionCodes(player.page)).not.toContain(code);
 
-    // Verify the code we left doesn't appear anywhere on Home
-    const homeContent = await player.page.locator('app-home').textContent();
-    expect(homeContent).not.toContain(`${code.slice(0, 3)}-${code.slice(3)}`);
+    // And Home, read afresh, does not offer it
+    await player.page.reload();
+    await player.page.locator(HOME.createCard).waitFor({ state: 'visible' });
+    await expect(player.page.locator(HOME.recentRow)).toHaveCount(0);
+    expect(await rememberedSessionCodes(player.page)).not.toContain(code);
   });
 });

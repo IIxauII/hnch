@@ -15,9 +15,8 @@ test.describe('Auto-reconnect after transient disconnect', () => {
     // Go offline — simulate transient network drop
     await host.page.context().setOffline(true);
 
-    // Reconnecting banner should appear (docService.reconnecting() fires after
-    // hasEverConnected + disconnect, with a 5 s debounce before the chip
-    // upgrades to warning. The banner is wired directly to reconnecting().)
+    // The banner appears as soon as a connection that was up is known to be
+    // down: it is wired to docService.reconnecting(), with no delay.
     await expect(
       host.page.locator('app-lobby:not(.ion-page-hidden) [data-testid="connection-status-banner"]'),
     ).toBeVisible({ timeout: 5_000 });
@@ -106,11 +105,15 @@ test.describe('Auto-reconnect after transient disconnect', () => {
     await expect(playerRowOnHost.locator('ion-note')).toHaveCount(0, { timeout: 4_000 });
     await expect(hostRowOnPlayer.locator('ion-note')).toHaveCount(0, { timeout: 4_000 });
 
-    // Past one election debounce, nothing has changed hands
-    await host.page.waitForTimeout(6_000);
-    await expect(hostRowOnPlayer.locator(LOBBY.hostIcon)).toHaveCount(1);
-    await expect(playerRowOnHost.locator(LOBBY.hostIcon)).toHaveCount(0);
-    await expect(playerRowOnHost.locator('ion-note')).toHaveCount(0);
+    // Past one election debounce, nothing has changed hands — and nothing
+    // did on the way there. Looked at once a second, not waited for: a
+    // retrying assertion would sit through a handover that is handed back.
+    for (let i = 0; i < 6; i++) {
+      await host.page.waitForTimeout(1_000);
+      expect(await hostRowOnPlayer.locator(LOBBY.hostIcon).count(), `second ${i + 1}`).toBe(1);
+      expect(await playerRowOnHost.locator(LOBBY.hostIcon).count(), `second ${i + 1}`).toBe(0);
+      expect(await playerRowOnHost.locator('ion-note').count(), `second ${i + 1}`).toBe(0);
+    }
     await host.expectIsHost();
   });
 

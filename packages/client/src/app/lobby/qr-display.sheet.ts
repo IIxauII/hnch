@@ -26,7 +26,9 @@ import QRCode from 'qrcode';
       <ion-toolbar>
         <ion-title>Scan to join</ion-title>
         <ion-buttons slot="end">
-          <ion-button (click)="closeRequested.emit()">Done</ion-button>
+          <ion-button strong="true" color="primary" (click)="closeRequested.emit()">
+            Done
+          </ion-button>
         </ion-buttons>
       </ion-toolbar>
     </ion-header>

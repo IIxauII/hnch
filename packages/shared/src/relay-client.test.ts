@@ -154,6 +154,14 @@ function stubFetch(response: {
 beforeEach(() => {
   sockets = [];
   vi.useFakeTimers();
+  // Nothing in here talks to a real relay. A connection asks one why its
+  // socket closed; by default there is none to answer.
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => {
+      throw new TypeError('fetch failed');
+    }),
+  );
 });
 
 afterEach(() => {
@@ -441,6 +449,266 @@ describe('connectToRelay rejection', () => {
 });
 
 // ---------------------------------------------------------------------------
+// connectToRelay — a refusal the socket cannot report
+// ---------------------------------------------------------------------------
+
+describe('connectToRelay refusal before the upgrade', () => {
+  /** What `GET /rooms/ABC123` answers while the socket is being refused. */
+  function relayAnswers(
+    room: { uuid?: string; accessMode: string } | 'gone',
+  ): ReturnType<typeof vi.fn> {
+    if (room === 'gone') {
+      return stubFetch({ status: 404, json: async () => ({ reason: 'unknown-room' }) });
+    }
+    return stubFetch({
+      json: async () => ({ uuid: room.uuid ?? 'room-uuid-test', accessMode: room.accessMode }),
+    });
+  }
+
+  /** Let the question go out and its answer come back. */
+  async function answered(): Promise<void> {
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(0);
+  }
+
+  function observed() {
+    const onRejectionChange = vi.fn<(r: JoinRejectionReason | null) => void>();
+    const onReconnectingChange = vi.fn<(r: boolean) => void>();
+    return { onRejectionChange, onReconnectingChange };
+  }
+
+  // The host set a password while this peer's socket was down. The relay
+  // answers its next handshake with HTTP 400 — which a browser reports as a
+  // close without a code, the same as a dropped link.
+  it('stops retrying once the session has been given a password it does not carry', async () => {
+    const fetchMock = relayAnswers({ accessMode: 'password' });
+    const { onRejectionChange, onReconnectingChange } = observed();
+    makeConnection({ onRejectionChange, onReconnectingChange });
+    connectSuccessfully();
+
+    latestSocket().simulateClose(1006);
+    await answered();
+    const socketCount = sockets.length;
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:1234/rooms/ABC123');
+    expect(onRejectionChange).toHaveBeenLastCalledWith('wrong-password');
+    expect(onReconnectingChange).toHaveBeenLastCalledWith(false);
+    expect(sockets.length).toBe(socketCount);
+  });
+
+  it('stops retrying once the relay no longer has the session', async () => {
+    relayAnswers('gone');
+    const { onRejectionChange, onReconnectingChange } = observed();
+    makeConnection({ onRejectionChange, onReconnectingChange });
+    connectSuccessfully();
+
+    latestSocket().simulateClose(1006);
+    await answered();
+    const socketCount = sockets.length;
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(onRejectionChange).toHaveBeenLastCalledWith('unknown-room');
+    expect(onReconnectingChange).toHaveBeenLastCalledWith(false);
+    expect(sockets.length).toBe(socketCount);
+  });
+
+  // Codes are handed out again once a session has expired.
+  it('takes the session for gone when its code belongs to another one now', async () => {
+    relayAnswers({ uuid: 'another-room', accessMode: 'open' });
+    const { onRejectionChange } = observed();
+    makeConnection({ onRejectionChange });
+    connectSuccessfully();
+
+    latestSocket().simulateClose(1006);
+    await answered();
+
+    expect(onRejectionChange).toHaveBeenLastCalledWith('unknown-room');
+  });
+
+  it('applies to a connection that never came up, too', async () => {
+    relayAnswers({ accessMode: 'password' });
+    const { onRejectionChange } = observed();
+    makeConnection({ onRejectionChange });
+
+    latestSocket().simulateClose(1006);
+    await answered();
+
+    expect(onRejectionChange).toHaveBeenLastCalledWith('wrong-password');
+  });
+
+  it('keeps retrying when the relay cannot be reached', async () => {
+    const { onRejectionChange, onReconnectingChange } = observed();
+    makeConnection({ onRejectionChange, onReconnectingChange });
+    connectSuccessfully();
+    const socketCount = sockets.length;
+
+    latestSocket().simulateClose(1006);
+    await answered();
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(onRejectionChange).not.toHaveBeenCalledWith(expect.any(String));
+    expect(onReconnectingChange).toHaveBeenLastCalledWith(true);
+    expect(sockets.length).toBeGreaterThan(socketCount);
+  });
+
+  it('keeps retrying when the relay has nothing against the connection', async () => {
+    relayAnswers({ accessMode: 'open' });
+    const { onRejectionChange } = observed();
+    makeConnection({ onRejectionChange });
+    connectSuccessfully();
+    const socketCount = sockets.length;
+
+    latestSocket().simulateClose(1006);
+    await answered();
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(onRejectionChange).not.toHaveBeenCalledWith(expect.any(String));
+    expect(sockets.length).toBeGreaterThan(socketCount);
+  });
+
+  it('keeps retrying when the relay answers with an error', async () => {
+    stubFetch({ status: 503 });
+    const { onRejectionChange } = observed();
+    makeConnection({ onRejectionChange });
+    connectSuccessfully();
+    const socketCount = sockets.length;
+
+    latestSocket().simulateClose(1006);
+    await answered();
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(onRejectionChange).not.toHaveBeenCalledWith(expect.any(String));
+    expect(sockets.length).toBeGreaterThan(socketCount);
+  });
+
+  // With a password in hand the relay takes the socket and answers in a
+  // close code, right or wrong. Whether it is right is not for us to guess.
+  it('leaves a connection that carries a password to the close code', async () => {
+    relayAnswers({ accessMode: 'password' });
+    const { onRejectionChange } = observed();
+    makeConnection({
+      onRejectionChange,
+      credentials: { deviceId: 'device-001', roomCode: 'ABC123', passwordHash: 'hash' },
+    });
+    connectSuccessfully();
+    const socketCount = sockets.length;
+
+    latestSocket().simulateClose(1006);
+    await answered();
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(onRejectionChange).not.toHaveBeenCalledWith(expect.any(String));
+    expect(sockets.length).toBeGreaterThan(socketCount);
+  });
+
+  it('goes by the password the connection carries now, not the one it started with', async () => {
+    relayAnswers({ accessMode: 'password' });
+    const { onRejectionChange } = observed();
+    const conn = makeConnection({ onRejectionChange });
+    connectSuccessfully();
+    conn.updateCredentials({ passwordHash: 'hash' });
+    connectSuccessfully();
+
+    latestSocket().simulateClose(1006);
+    await answered();
+
+    expect(onRejectionChange).not.toHaveBeenCalledWith(expect.any(String));
+  });
+
+  it('does not ask again within five seconds of having asked', async () => {
+    const fetchMock = relayAnswers({ accessMode: 'open' });
+    makeConnection();
+    connectSuccessfully();
+
+    latestSocket().simulateClose(1006);
+    await answered();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // The next socket is up within the backoff, and fails as well
+    await vi.advanceTimersByTimeAsync(3_000);
+    latestSocket().simulateClose(1006);
+    await answered();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(3_000);
+    latestSocket().simulateClose(1006);
+    await answered();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('says nothing when the connection came back while the question was out', async () => {
+    let answer!: (value: unknown) => void;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise((resolve) => {
+            answer = resolve;
+          }),
+      ),
+    );
+    const { onRejectionChange } = observed();
+    makeConnection({ onRejectionChange });
+    connectSuccessfully();
+
+    latestSocket().simulateClose(1006);
+    await vi.advanceTimersByTimeAsync(10_000);
+    connectSuccessfully();
+    answer({
+      ok: true,
+      status: 200,
+      json: async () => ({ uuid: 'room-uuid-test', accessMode: 'password' }),
+    });
+    await answered();
+
+    expect(onRejectionChange).not.toHaveBeenCalledWith(expect.any(String));
+    expect(onRejectionChange).toHaveBeenLastCalledWith(null);
+  });
+
+  it('says nothing after disconnect()', async () => {
+    let answer!: (value: unknown) => void;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise((resolve) => {
+            answer = resolve;
+          }),
+      ),
+    );
+    const { onRejectionChange } = observed();
+    const conn = makeConnection({ onRejectionChange });
+    connectSuccessfully();
+
+    latestSocket().simulateClose(1006);
+    await vi.advanceTimersByTimeAsync(0);
+    conn.disconnect();
+    answer({
+      ok: true,
+      status: 200,
+      json: async () => ({ uuid: 'room-uuid-test', accessMode: 'password' }),
+    });
+    await answered();
+
+    expect(onRejectionChange).not.toHaveBeenCalledWith(expect.any(String));
+  });
+
+  it('does not ask about a close the relay gave a reason for', async () => {
+    const fetchMock = relayAnswers({ accessMode: 'password' });
+    const { onRejectionChange } = observed();
+    makeConnection({ onRejectionChange });
+    connectSuccessfully();
+
+    latestSocket().simulateClose(JOIN_REJECTION_CLOSE_CODES['room-full']);
+    await answered();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(onRejectionChange).toHaveBeenLastCalledWith('room-full');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // connectToRelay — repeat-rejection throttle
 // ---------------------------------------------------------------------------
 
@@ -614,6 +882,17 @@ describe('connectToRelay onSyncedChange', () => {
 
     expect(onSyncedChange.mock.calls).toEqual([[false]]);
   });
+
+  // It reports a change. A connection that never synced has none to report.
+  it('says nothing on disconnect when it never synced', () => {
+    const onSyncedChange = vi.fn();
+    const conn = makeConnection({ onSyncedChange });
+    connectSuccessfully();
+
+    conn.disconnect();
+
+    expect(onSyncedChange).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -713,6 +992,44 @@ function reconnect(): void {
   connectSuccessfully();
 }
 
+describe('connectToRelay re-handshake', () => {
+  // Changing the password closes the socket and opens one with the new hash.
+  // Nothing was lost, so nothing is announced as lost and found.
+  it('is not reported as reconnecting', () => {
+    const onReconnectingChange = vi.fn();
+    const conn = makeConnection({ onReconnectingChange });
+    connectSuccessfully();
+
+    conn.updateCredentials({ passwordHash: 'hash-a' });
+    connectSuccessfully();
+
+    expect(onReconnectingChange).not.toHaveBeenCalled();
+  });
+
+  it('becomes a reconnect like any other once the new socket fails', () => {
+    const onReconnectingChange = vi.fn();
+    const conn = makeConnection({ onReconnectingChange });
+    connectSuccessfully();
+
+    conn.updateCredentials({ passwordHash: 'hash-a' });
+    latestSocket().simulateClose(1006, '', false);
+
+    expect(onReconnectingChange.mock.calls).toEqual([[true]]);
+  });
+
+  it('reports reconnecting again for a drop after it went through', () => {
+    const onReconnectingChange = vi.fn();
+    const conn = makeConnection({ onReconnectingChange });
+    connectSuccessfully();
+    conn.updateCredentials({ passwordHash: 'hash-a' });
+    connectSuccessfully();
+
+    latestSocket().simulateClose(1006, '', false);
+
+    expect(onReconnectingChange.mock.calls).toEqual([[true]]);
+  });
+});
+
 describe('connectToRelay presence across a reconnect', () => {
   it('comes back under a newer clock, so peers take it for present again', () => {
     const conn = makeConnection();
@@ -741,14 +1058,29 @@ describe('connectToRelay presence across a reconnect', () => {
     expect(conn.awareness.getLocalState()).toEqual({ participantId: 'me' });
   });
 
-  it('does not touch the clock on the first connect', () => {
-    const conn = makeConnection();
-    conn.awareness.setLocalStateField('participantId', 'me');
-    const clockBefore = conn.awareness.meta.get(conn.awareness.clientID)?.clock;
-
+  // The caller keeps its awareness across `disconnect()` and a new
+  // `connectToRelay`. To the new connection that is a first connect; to the
+  // peers it is someone coming back at a clock they have already seen.
+  it('does the same for an awareness instance that was connected before', () => {
+    const doc = new Y.Doc();
+    const awareness = new awarenessProtocol.Awareness(doc);
+    awareness.setLocalStateField('participantId', 'me');
+    const first = makeConnection({ doc, awareness });
     connectSuccessfully();
+    const me = awareness.clientID;
+    const before = Math.max(...awarenessClocksSent(latestSocket(), me));
+    const peer = makePeer('them');
+    latestSocket().onmessage?.({ data: awarenessMessageFrom(peer) });
+    first.disconnect();
 
-    expect(conn.awareness.meta.get(conn.awareness.clientID)?.clock).toBe(clockBefore);
+    // `disconnect` destroys the provider, not the awareness it was handed.
+    awareness.setLocalStateField('participantId', 'me');
+    makeConnection({ doc, awareness });
+    connectSuccessfully();
+    latestSocket().onmessage?.({ data: awarenessMessageFrom(peer) });
+
+    expect(Math.min(...awarenessClocksSent(latestSocket(), me))).toBeGreaterThan(before);
+    expect(awareness.getStates().get(peer.clientID)).toEqual({ participantId: 'them' });
   });
 
   it('takes a peer for present again when the relay replays its unchanged state', () => {
@@ -789,7 +1121,7 @@ describe('connectToRelay presence across a reconnect', () => {
     expect(conn.awareness.getStates().get(peer.clientID)).toEqual({ participantId: 'them' });
   });
 
-  it('still lets a peer leave: a removal is not undone by the replay', () => {
+  it('does not bring a peer back by itself: only a replayed state does', () => {
     const conn = makeConnection();
     conn.awareness.setLocalStateField('participantId', 'me');
     connectSuccessfully();
@@ -801,9 +1133,29 @@ describe('connectToRelay presence across a reconnect', () => {
     latestSocket().onmessage?.({ data: awarenessMessageFrom(peer) });
     expect(conn.awareness.getStates().has(peer.clientID)).toBe(false);
 
+    // The relay replays the states it holds, and it no longer holds this one.
     reconnect();
 
     expect(conn.awareness.getStates().has(peer.clientID)).toBe(false);
+  });
+
+  // The other side of forgetting a clock, pinned down so nobody relies on the
+  // opposite: once forgotten, a state is taken at any clock. What keeps a
+  // departed peer gone is the relay replaying only the states it still holds
+  // (`relay/src/ws-connection.ts`), not anything in this module.
+  it('takes any state for a peer whose clock it forgot, however old', () => {
+    const conn = makeConnection();
+    conn.awareness.setLocalStateField('participantId', 'me');
+    connectSuccessfully();
+    const peer = makePeer('them');
+    const stale = awarenessMessageFrom(peer);
+    peer.setLocalStateField('participantId', 'them');
+    latestSocket().onmessage?.({ data: awarenessMessageFrom(peer) });
+
+    reconnect();
+    latestSocket().onmessage?.({ data: stale });
+
+    expect(conn.awareness.getStates().has(peer.clientID)).toBe(true);
   });
 });
 
@@ -894,6 +1246,26 @@ describe('connectToRelay window events', () => {
     fire('offline');
 
     expect(onStatusChange).toHaveBeenCalledWith('disconnected');
+  });
+
+  // The socket can stay open for a while after the network is gone. What
+  // awareness says in that time is not to be believed.
+  it('reports not synced on offline, and synced again once it is back', () => {
+    installFakeWindow();
+    const onSyncedChange = vi.fn();
+    const doc = new Y.Doc();
+    makeConnection({ doc, onSyncedChange });
+    connectSuccessfully();
+    deliverSyncStep2(doc);
+
+    fire('offline');
+    expect(onSyncedChange.mock.calls).toEqual([[true], [false]]);
+
+    fire('online');
+    vi.advanceTimersByTime(10_000);
+    connectSuccessfully();
+    deliverSyncStep2(doc);
+    expect(onSyncedChange.mock.calls).toEqual([[true], [false], [true]]);
   });
 
   it('forces a fresh socket on online', () => {

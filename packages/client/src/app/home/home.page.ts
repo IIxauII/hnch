@@ -1,6 +1,13 @@
-import { ChangeDetectionStrategy, Component, inject, signal, viewChild } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { Router } from '@angular/router';
-import { hashPassword, mintRoom, patchRoomAccess } from '@hnch/shared';
+import { hashPassword, mintRoom, normalizePassword, patchRoomAccess } from '@hnch/shared';
 import {
   IonButton,
   IonButtons,
@@ -26,13 +33,14 @@ import { DocService } from '../core/doc/doc.service';
 import type { ClientLastSessionEntry } from '../core/last-session.service';
 import { LastSessionService } from '../core/last-session.service';
 import { ParticipantIdService } from '../core/participant-id.service';
+import { rejectionCopy, RELAY_UNREACHABLE_COPY } from '../core/relay-copy';
 import { ScalePreferenceService } from '../core/scale-preference.service';
-import { assertRoomCode, RoomJoinService } from '../core/room-join.service';
+import { RoomJoinService } from '../core/room-join.service';
 import { BrandMarkComponent } from '../shared/brand-mark.component';
 import { RecentRoomsListComponent } from './recent-rooms-list.component';
 import { PasswordPromptSheetComponent } from './password-prompt.sheet';
 import { presentSheet } from '../utils/present-sheet';
-import { greetingFor, rejectionCopy, routeForScreen, RELAY_UNREACHABLE_COPY } from './home.helpers';
+import { greetingFor, routeForScreen } from './home.helpers';
 
 /**
  * Home launchpad — ux.md §1.2, §1.5.
@@ -42,10 +50,14 @@ import { greetingFor, rejectionCopy, routeForScreen, RELAY_UNREACHABLE_COPY } fr
  * the header — it used to be the only item in an overflow menu.
  *
  * Rejoin outcome handling (plan §3.8): we open the socket while still
- * mounted on Home, then race a `syncStatus === 'connected'` transition
- * against a relay rejection. On `unknown-room` we tear the session
- * down, drop the entry, toast, and stay put; any other outcome
- * navigates to the cached `lastScreen`.
+ * mounted on Home and wait for the relay's verdict
+ * (`RoomJoinService.rejoin`). A session the relay no longer knows drops its
+ * entry; a refusal is reported; a session that is there opens on the screen
+ * it was last seen on.
+ *
+ * One thing at a time: while a session is being created or rejoined, the
+ * other ways into a session are switched off. Each of them starts by
+ * tearing down whatever session is there.
  *
  * "New session" mints a fresh room on the relay (`POST /rooms`,
  * ADR-0016), seeds a `Y.Doc` with the returned UUID via DocService,
@@ -96,7 +108,7 @@ import { greetingFor, rejectionCopy, routeForScreen, RELAY_UNREACHABLE_COPY } fr
           <h2 class="section-label">Jump back in</h2>
           <app-recent-rooms-list
             [entries]="recentEntries()"
-            [busy]="resuming()"
+            [busy]="busy()"
             (joinRequested)="onJoinEntry($event)"
             (removeRequested)="onRemoveEntry($event)"
           />
@@ -107,7 +119,7 @@ import { greetingFor, rejectionCopy, routeForScreen, RELAY_UNREACHABLE_COPY } fr
           <ion-item
             button="true"
             detail="true"
-            [disabled]="creating()"
+            [disabled]="busy()"
             (click)="onCreateRoom()"
           >
             <div class="icon-tile icon-tile--accent" slot="start" aria-hidden="true">
@@ -121,7 +133,7 @@ import { greetingFor, rejectionCopy, routeForScreen, RELAY_UNREACHABLE_COPY } fr
               <ion-spinner slot="end" name="crescent" aria-label="Creating session"></ion-spinner>
             }
           </ion-item>
-          <ion-item button="true" detail="true" (click)="onJoinRoom()">
+          <ion-item button="true" detail="true" [disabled]="busy()" (click)="onJoinRoom()">
             <div class="icon-tile icon-tile--neutral" slot="start" aria-hidden="true">
               <ion-icon name="arrow-forward-outline"></ion-icon>
             </div>
@@ -250,6 +262,9 @@ export class HomePage {
    */
   protected readonly creating = signal(false);
 
+  /** A session is being created or rejoined: one way in at a time. */
+  protected readonly busy = computed(() => this.creating() || this.resuming());
+
   /**
    * State for the password prompt half-sheet. Opened after room is
    * minted if appPrefs.defaultPassword() is true.
@@ -279,20 +294,31 @@ export class HomePage {
 
   protected async onCreateRoom(): Promise<void> {
     // Guard against double-tap; the mint and both Preferences reads are async.
-    if (this.creating()) return;
+    if (this.busy()) return;
     this.creating.set(true);
 
     try {
       // The displayNameGuard has already ensured this is non-null
       // before we ever rendered, so the `?? ''` fallback is defense
       // in depth rather than an expected branch.
-      const [displayName, participantId, minted] = await Promise.all([
-        this.displayNameService.getDisplayName(),
-        this.participantIdService.getOrCreateId(),
-        // Mint the room on the relay (ADR-0016 `POST /rooms`).
-        // Use AppPreferenceService relay URL override, fallback to environment default.
-        mintRoom(this.appPrefs.resolvedRelayHttpUrl()),
-      ]);
+      let displayName: string | null;
+      let participantId: string;
+      let minted: Awaited<ReturnType<typeof mintRoom>>;
+      try {
+        [displayName, participantId, minted] = await Promise.all([
+          this.displayNameService.getDisplayName(),
+          this.participantIdService.getOrCreateId(),
+          // Mint the room on the relay (ADR-0016 `POST /rooms`).
+          // Use AppPreferenceService relay URL override, fallback to environment default.
+          mintRoom(this.appPrefs.resolvedRelayHttpUrl()),
+        ]);
+      } catch {
+        // The relay never answered (offline, wrong relay URL, relay down). No
+        // session exists yet, so there is nothing to clean up — say so and
+        // let the user try again.
+        await this.toast(RELAY_UNREACHABLE_COPY);
+        return;
+      }
 
       // Tear down any leftover session (e.g. back-nav from a prior
       // flow that bailed early) so createSession's single-session
@@ -310,8 +336,7 @@ export class HomePage {
         roomCode: minted.code,
       });
 
-      // Open the sync connection so our own writes propagate and the
-      // UI's status chip starts reflecting live state.
+      // Open the sync connection so our own writes propagate.
       this.docService.connect({
         roomCode: minted.code,
         deviceId: participantId,
@@ -326,17 +351,13 @@ export class HomePage {
       } else {
         await this.router.navigate(['/lobby', minted.code]);
       }
-    } catch {
-      // The relay never answered (offline, wrong relay URL, relay down). No
-      // session exists yet, so there is nothing to clean up — say so and let
-      // the user try again.
-      await this.toast(RELAY_UNREACHABLE_COPY);
     } finally {
       this.creating.set(false);
     }
   }
 
   protected async onJoinRoom(): Promise<void> {
+    if (this.busy()) return;
     await this.router.navigate(['/join']);
   }
 
@@ -346,7 +367,7 @@ export class HomePage {
 
   /** Tap on a recent-session row. */
   protected async onJoinEntry(entry: ClientLastSessionEntry): Promise<void> {
-    if (this.resuming()) return;
+    if (this.busy()) return;
     this.resuming.set(true);
     try {
       await this.doRejoin(entry);
@@ -408,7 +429,7 @@ export class HomePage {
         });
         return;
       }
-      await this.toast(rejectionCopy(outcome.reason));
+      await this.toast(rejectionCopy(outcome.reason, 'rejoin'));
       return;
     }
 
@@ -418,13 +439,17 @@ export class HomePage {
       return;
     }
 
-    // 'connected' or 'timeout' — navigate into the session
-    if (passwordHash) {
-      // Keep the hash through the Lobby's next cache write.
-      this.lastSessionService.setPendingPasswordHash(cache.roomUuid, passwordHash);
-    }
+    // The session went away while this was waiting on it — the host had
+    // already ended it, say. Whoever closed it has told the user.
+    if (outcome.type === 'superseded') return;
+
+    // 'connected' or 'timeout' — go into the session, if it is still there.
     const code = this.docService.roomCode();
-    assertRoomCode(code, 'home.doRejoin');
+    if (code === null) return;
+    if (passwordHash && outcome.type === 'connected') {
+      // The relay took the hash again: keep it, with a fresh lease.
+      await this.lastSessionService.rememberPasswordHash(cache.roomUuid, passwordHash);
+    }
     const screen = cache.lastScreen ?? 'lobby';
     await this.router.navigate([routeForScreen(screen, code)], {
       replaceUrl: true,
@@ -462,7 +487,7 @@ export class HomePage {
    */
   protected async onPasswordSubmitted(password: string): Promise<void> {
     const uuid = this.pendingRoomUuid;
-    if (uuid !== null && password.trim()) {
+    if (uuid !== null && normalizePassword(password) !== '') {
       try {
         const hash = await hashPassword(password, uuid);
         await patchRoomAccess(this.appPrefs.resolvedRelayHttpUrl(), uuid, hash);
@@ -470,7 +495,7 @@ export class HomePage {
         // so this client is not locked out on its next reconnect, and cache
         // the hash so the host's own way back in does not ask for it.
         this.docService.updateCredentials(hash);
-        this.lastSessionService.setPendingPasswordHash(uuid, hash);
+        await this.lastSessionService.rememberPasswordHash(uuid, hash);
       } catch {
         await this.toast("Couldn't set the password. The session was created without one.");
       }

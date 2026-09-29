@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { resolveAvatarColor, resolveAvatarInkColor } from '@hnch/shared';
 
+import { nameInitial } from './name-initial';
+
 /**
  * Participant avatar — the display name's initial on the participant's
  * color (ADR-0043). The same mark the Estimating vote row uses, so a person
@@ -21,6 +23,7 @@ import { resolveAvatarColor, resolveAvatarInkColor } from '@hnch/shared';
     '[style.height.px]': 'size()',
     '[style.font-size.px]': 'fontSize()',
     '[style.background]': 'fill()',
+    '[style.--avatar-fill]': 'fill()',
     '[style.color]': 'ink()',
     '[class.dimmed]': 'dimmed()',
   },
@@ -33,6 +36,11 @@ import { resolveAvatarColor, resolveAvatarInkColor } from '@hnch/shared';
         align-items: center;
         justify-content: center;
         border-radius: 50%;
+        /* An edge in the fill's own hue, pulled toward the text color. A
+           dark fill on a dark surface has none of its own — Graphite on a
+           dark card was a letter floating in the row. */
+        box-shadow: inset 0 0 0 1.5px
+          color-mix(in srgb, var(--avatar-fill, transparent) 72%, var(--hnch-text));
         font-weight: 600;
         line-height: 1;
         user-select: none;
@@ -53,7 +61,7 @@ export class AvatarComponent {
   /** Offline participants render faded. */
   readonly dimmed = input<boolean>(false);
 
-  protected readonly initial = computed(() => (this.name().trim()[0] ?? '?').toUpperCase());
+  protected readonly initial = computed(() => nameInitial(this.name()) || '?');
   protected readonly fill = computed(() => resolveAvatarColor(this.color(), this.participantId()));
   protected readonly ink = computed(() =>
     resolveAvatarInkColor(this.color(), this.participantId()),

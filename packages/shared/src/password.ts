@@ -19,8 +19,25 @@ function toHex(buf: ArrayBuffer): string {
 }
 
 /**
+ * A password as it is compared: without the whitespace around it.
+ *
+ * A session password is said aloud or pasted from a chat, and a keyboard's
+ * predictive text adds a space after a word. "banana" set by the host and
+ * "banana " typed by a joiner are the same password to both of them. Applied
+ * inside {@link hashPassword}, so no entry point — create, change, join, on
+ * either surface — can hash a different string for the same password.
+ *
+ * Exported for the one thing callers still decide themselves: whether
+ * anything was typed at all.
+ */
+export function normalizePassword(password: string): string {
+  return password.trim();
+}
+
+/**
  * Derive a 64-character hex hash from a password and salt using
- * PBKDF2-SHA-256 with 100K iterations.
+ * PBKDF2-SHA-256 with 100K iterations. The password is normalized first
+ * ({@link normalizePassword}).
  *
  * The salt should be the room UUID so the same password on different
  * rooms produces different hashes.
@@ -28,7 +45,7 @@ function toHex(buf: ArrayBuffer): string {
 export async function hashPassword(password: string, salt: string): Promise<string> {
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
-    encoder.encode(password),
+    encoder.encode(normalizePassword(password)),
     ALGORITHM,
     false,
     ['deriveBits'],

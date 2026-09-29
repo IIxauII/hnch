@@ -1,5 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
-import { formatRoundElapsed, formatRoundLabel, isAbstainVote, roundNumber } from '@hnch/shared';
+import {
+  formatRoundElapsed,
+  formatRoundLabel,
+  isAbstainVote,
+  isRecordedStatus,
+  roundNumber,
+} from '@hnch/shared';
 import type { AgendaItem, ParticipantSnapshot, Round } from '@hnch/shared';
 import { IonButton, IonIcon } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -124,11 +130,16 @@ interface HistoryEntry {
         gap: 2px 8px;
         min-width: 0;
       }
+      /* Takes a line of its own when it does not fit beside the name, and
+         wraps within it when it does not fit the line either: a round with
+         many different votes has a long summary. */
       .history-meta {
         display: flex;
-        flex: 0 0 auto;
+        flex: 0 1 auto;
+        flex-wrap: wrap;
         align-items: baseline;
-        gap: 12px;
+        gap: 2px 12px;
+        min-width: 0;
         color: var(--hnch-muted);
         font-variant-numeric: tabular-nums;
       }
@@ -151,7 +162,9 @@ interface HistoryEntry {
         font-weight: 600;
         white-space: nowrap;
       }
-      .round-summary,
+      .round-summary {
+        min-width: 0;
+      }
       .round-elapsed,
       .round-skipped {
         white-space: nowrap;
@@ -209,7 +222,7 @@ export class RoundHistoryComponent {
   readonly entries = computed<readonly HistoryEntry[]>(() => {
     const source = this.allRounds().length > 0 ? this.allRounds() : this.rounds();
 
-    const listed = this.rounds().filter((r) => r.status === 'revealed' || r.status === 'skipped');
+    const listed = this.rounds().filter((r) => isRecordedStatus(r.status));
 
     // Reverse chronological — newest rounds first in the history list.
     return listed.toReversed().map((round) => {

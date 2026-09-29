@@ -311,9 +311,6 @@ import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.he
       @use '../../theme/page-container' as *;
       @include page-container(720px);
 
-      ion-list {
-        margin-block: 0;
-      }
       ion-note {
         font-size: 15px;
       }

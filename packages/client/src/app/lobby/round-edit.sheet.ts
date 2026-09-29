@@ -74,8 +74,7 @@ export interface RoundEditSubmission {
             autocapitalize="sentences"
             enterkeyhint="done"
             maxlength="120"
-            aria-label="Round title"
-            (keydown.enter)="submit()"
+            (keydown.enter)="onEnter($event)"
           ></ion-input>
         </ion-item>
         <ion-item>
@@ -85,7 +84,6 @@ export interface RoundEditSubmission {
             labelPlacement="stacked"
             placeholder="Optional context for the team"
             autocapitalize="sentences"
-            aria-label="Round description"
             [autoGrow]="true"
             [counter]="true"
             maxlength="500"
@@ -95,13 +93,6 @@ export interface RoundEditSubmission {
       </ion-list>
     </ion-content>
   `,
-  styles: [
-    `
-      ion-list {
-        margin-block: 0;
-      }
-    `,
-  ],
 })
 export class RoundEditSheetComponent {
   readonly roundNumber = input.required<number>();
@@ -133,6 +124,15 @@ export class RoundEditSheetComponent {
       },
       { allowSignalWrites: true },
     );
+  }
+
+  /**
+   * Enter in the title saves, and the key says so (`enterkeyhint`). The Enter
+   * that confirms an IME composition is part of typing, not a submit.
+   */
+  protected onEnter(event: Event): void {
+    if ((event as KeyboardEvent).isComposing) return;
+    this.submit();
   }
 
   protected submit(): void {

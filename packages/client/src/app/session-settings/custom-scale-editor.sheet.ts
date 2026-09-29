@@ -15,7 +15,6 @@ import {
   AlertController,
   IonButton,
   IonButtons,
-  IonChip,
   IonContent,
   IonHeader,
   IonIcon,
@@ -51,8 +50,12 @@ import { ScalePreferenceService } from '../core/scale-preference.service';
  * confirmation — the one place a custom scale is deleted.
  *
  * Validation: name required, at least 2 cards required.
- * UX: chip-based card list; `ion-reorder-group` for ordering; X on each
- * chip to remove. Add card via text input + Add button or Enter key.
+ * UX: one row per card, with a button to remove it and a handle to move it
+ * (`ion-reorder-group`). Add a card via text input + Add button or Enter key.
+ *
+ * The header has one button. Until the scale exists it is Cancel, on the
+ * left; once it has been saved there is nothing left to cancel, and it is
+ * Done, on the right — where every other sheet has its Done.
  */
 @Component({
   selector: 'app-custom-scale-editor-sheet',
@@ -61,7 +64,6 @@ import { ScalePreferenceService } from '../core/scale-preference.service';
     FormsModule,
     IonButton,
     IonButtons,
-    IonChip,
     IonContent,
     IonHeader,
     IonIcon,
@@ -79,18 +81,25 @@ import { ScalePreferenceService } from '../core/scale-preference.service';
   template: `
     <ion-header>
       <ion-toolbar>
-        <ion-buttons slot="start">
-          <ion-button (click)="closeRequested.emit()">
-            {{ persistedId() ? 'Done' : 'Cancel' }}
-          </ion-button>
-        </ion-buttons>
+        @if (!persistedId()) {
+          <ion-buttons slot="start">
+            <ion-button (click)="closeRequested.emit()">Cancel</ion-button>
+          </ion-buttons>
+        }
         <ion-title>{{ title() }}</ion-title>
+        @if (persistedId()) {
+          <ion-buttons slot="end">
+            <ion-button strong="true" color="primary" (click)="closeRequested.emit()">
+              Done
+            </ion-button>
+          </ion-buttons>
+        }
       </ion-toolbar>
     </ion-header>
 
     <ion-content class="ion-padding">
 
-      <!-- Scale name -->
+      <!-- Scale name, and the field that adds a card to it -->
       <ion-list inset="true" lines="inset">
         <ion-item>
           <ion-input
@@ -101,24 +110,19 @@ import { ScalePreferenceService } from '../core/scale-preference.service';
             autocapitalize="words"
             [ngModel]="name()"
             (ionInput)="onNameInput($any($event.detail.value) ?? '')"
-            aria-label="Scale name"
           ></ion-input>
         </ion-item>
-      </ion-list>
-
-      <!-- Add card input -->
-      <ion-list inset="true" lines="inset" class="add-row">
-        <ion-item>
+        <ion-item class="add-row">
           <ion-input
             label="Add card"
             labelPlacement="stacked"
             placeholder="e.g. XS"
             maxlength="12"
             autocapitalize="characters"
+            enterkeyhint="done"
             [(ngModel)]="newCard"
             (ionInput)="newCard = $any($event.detail.value) ?? ''; newCardError.set(null)"
             (keydown.enter)="onAddCard()"
-            aria-label="New card face value"
           ></ion-input>
           <ion-button
             slot="end"
@@ -138,29 +142,26 @@ import { ScalePreferenceService } from '../core/scale-preference.service';
         </ion-note>
       }
 
-      <!-- Chip list with reorder -->
+      <!-- The cards, in order: remove one, or drag it somewhere else -->
       @if (cards().length > 0) {
-        <ion-list inset="true" lines="none" class="card-list">
+        <ion-list inset="true" lines="inset" class="card-list" aria-label="Cards">
           <ion-reorder-group
             [disabled]="false"
             (ionItemReorder)="onReorder($event)"
           >
             @for (card of cards(); track $index; let i = $index) {
               <ion-item>
-                <ion-chip
-                  [attr.aria-label]="card + ', tap X to remove'"
+                <ion-label class="card-face">{{ card }}</ion-label>
+                <ion-button
+                  slot="end"
+                  fill="clear"
+                  color="medium"
+                  class="remove-card-btn"
+                  [attr.aria-label]="'Remove card ' + card"
+                  (click)="onDeleteCard(i, $event)"
                 >
-                  <ion-label>{{ card }}</ion-label>
-                  <ion-icon
-                    name="close-circle"
-                    (click)="onDeleteCard(i, $event)"
-                    [attr.aria-label]="'Remove card ' + card"
-                    role="button"
-                    tabindex="0"
-                    (keydown.enter)="onDeleteCard(i, $event)"
-                    (keydown.space)="onDeleteCard(i, $event)"
-                  ></ion-icon>
-                </ion-chip>
+                  <ion-icon slot="icon-only" name="close-circle" aria-hidden="true"></ion-icon>
+                </ion-button>
                 <ion-reorder
                   slot="end"
                   [attr.aria-label]="'Reorder card ' + card"
@@ -198,11 +199,8 @@ import { ScalePreferenceService } from '../core/scale-preference.service';
   `,
   styles: [
     `
-      ion-list {
-        margin-block: 0;
-      }
-      ion-list.add-row,
-      ion-list.card-list {
+      /* Two classes on the list: Ionic's own rule for an inset list has two. */
+      ion-list.list-inset.card-list {
         margin-block-start: 12px;
       }
       .card-error,
@@ -212,9 +210,15 @@ import { ScalePreferenceService } from '../core/scale-preference.service';
         font-size: 13px;
         line-height: 1.4;
       }
-      ion-chip {
-        --background: var(--hnch-accent);
-        --color: var(--hnch-accent-ink);
+      .card-face {
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+      }
+      .remove-card-btn {
+        min-width: 44px;
+        min-height: 44px;
+        margin: 0;
+        font-size: 1rem;
       }
       .delete-btn {
         min-height: 44px;
@@ -233,6 +237,8 @@ export class CustomScaleEditorSheetComponent implements OnInit, OnDestroy {
   private saveNeeded = false;
   /** Set once the scale is deleted: nothing may save it back. */
   private deleted = false;
+  /** True while the delete confirmation is up — a second tap must not stack another. */
+  private confirmingDelete = false;
 
   /**
    * If provided, the sheet opens in edit mode: pre-fills name and cards,
@@ -349,18 +355,24 @@ export class CustomScaleEditorSheetComponent implements OnInit, OnDestroy {
   /** Ask first, then delete the scale from this device and close. */
   protected async onDeleteScale(): Promise<void> {
     const id = this.persistedId();
-    if (id === null) return;
+    if (id === null || this.deleted || this.confirmingDelete) return;
 
-    const alert = await this.alertCtrl.create({
-      header: 'Delete this scale?',
-      message: `"${this.name().trim()}" is removed from this device.`,
-      buttons: [
-        { text: 'Cancel', role: 'cancel' },
-        { text: 'Delete', role: 'destructive' },
-      ],
-    });
-    await alert.present();
-    const { role } = await alert.onDidDismiss();
+    this.confirmingDelete = true;
+    let role: string | undefined;
+    try {
+      const alert = await this.alertCtrl.create({
+        header: 'Delete this scale?',
+        message: `"${this.name().trim()}" is removed from this device. A session that uses it keeps its cards.`,
+        buttons: [
+          { text: 'Cancel', role: 'cancel' },
+          { text: 'Delete', role: 'destructive' },
+        ],
+      });
+      await alert.present();
+      ({ role } = await alert.onDidDismiss());
+    } finally {
+      this.confirmingDelete = false;
+    }
     if (role !== 'destructive') return;
 
     // A name edit still waiting out its debounce must not save after this.
@@ -393,7 +405,8 @@ export class CustomScaleEditorSheetComponent implements OnInit, OnDestroy {
         this.created.emit(id);
       } else {
         await this.scalePrefs.updateCustomScale(currentId, label, cards);
-        this.updated.emit(currentId);
+        // Deleted while this save was under way: there is nothing to pick.
+        if (!this.deleted) this.updated.emit(currentId);
       }
     } finally {
       this.savingInProgress = false;

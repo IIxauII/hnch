@@ -31,6 +31,35 @@ export async function expectToast(
 }
 
 // ---------------------------------------------------------------------------
+// The sessions this device remembers
+// ---------------------------------------------------------------------------
+
+/** Capacitor Preferences on the web is localStorage under this prefix. */
+const LAST_SESSION_STORAGE_KEY = 'CapacitorStorage.hnch.lastSession';
+
+/**
+ * Codes of the sessions this device can get back into, read from where they
+ * are kept rather than from Home.
+ *
+ * Home reads the list when it is entered and renders it a moment later, so
+ * "there is no row for this session" is true of every Home that has not
+ * finished loading — an assertion on the rows passes whether or not the
+ * session was forgotten. What is in the cache is what Home will show.
+ */
+export async function rememberedSessionCodes(page: Page): Promise<string[]> {
+  return page.evaluate((key: string) => {
+    const raw = localStorage.getItem(key);
+    if (raw === null) return [];
+    try {
+      const cache = JSON.parse(raw) as { entries?: Record<string, { roomCode?: string }> };
+      return Object.values(cache.entries ?? {}).map((entry) => entry.roomCode ?? '');
+    } catch {
+      return [];
+    }
+  }, LAST_SESSION_STORAGE_KEY);
+}
+
+// ---------------------------------------------------------------------------
 // Onboarding
 // ---------------------------------------------------------------------------
 export const ONBOARDING = {
@@ -140,11 +169,22 @@ export const QR_MODAL = {
 // ---------------------------------------------------------------------------
 // Round-start modal
 // ---------------------------------------------------------------------------
+/**
+ * What the fields of the round form are called on screen — and therefore to
+ * assistive tech: the label *is* the accessible name. Round-start and
+ * round-edit share them. Use with `getByRole('textbox', { name })`.
+ */
+export const ROUND_FIELD = {
+  title: 'What are you estimating?',
+  ticketId: 'Ticket ID',
+  description: 'Description',
+} as const;
+
 export const ROUND_START = {
-  /** Round title input. Ionic projects the wrapper's aria-label to the inner native input, so we address it there. */
-  titleInput: 'app-round-start-sheet ion-input:has(input[aria-label="Round title"])',
+  /** The round's title, addressed by its label. */
+  titleInput: `app-round-start-sheet ion-input[label="${ROUND_FIELD.title}"]`,
   /** Ticket ID input (optional tracker reference). */
-  ticketIdInput: 'app-round-start-sheet ion-input:has(input[aria-label="Ticket ID"])',
+  ticketIdInput: `app-round-start-sheet ion-input[label="${ROUND_FIELD.ticketId}"]`,
   startBtn: 'app-round-start-sheet ion-button:has-text("Start")',
 } as const;
 
@@ -194,7 +234,6 @@ export const ESTIMATING = {
   roundTitle: 'app-estimating:not(.ion-page-hidden) ion-title',
   /** What is being estimated: the round's title. */
   descriptor: 'app-estimating:not(.ion-page-hidden) .descriptor',
-  elapsed: 'p.elapsed',
   cardGrid: 'div.grid',
   card: (value: string) => `app-estimating ion-card.card:has(ion-card-content:text-is("${value}"))`,
   selectedCard: 'ion-card.card.selected',
@@ -221,8 +260,6 @@ export const SETTINGS_SHEET = {
   passwordInput: 'app-session-settings-sheet ion-input[label="Password"]',
   /** Only there while the session has a password. */
   removePasswordBtn: 'app-session-settings-sheet ion-button.remove-password-btn',
-  /** One line under the list saying who can get in. */
-  accessHint: 'app-session-settings-sheet ion-note.helper',
   doneBtn: 'app-session-settings-sheet ion-button:has-text("Done")',
 } as const;
 
@@ -275,27 +312,6 @@ export const PRESET_CARD_EDITOR = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// Password sheet (join page — password prompt + error display)
-// ---------------------------------------------------------------------------
-export const PASSWORD_SHEET = {
-  /** Password input on the join page (appears once the typed code resolves to a protected session). */
-  passwordInput: JOIN.passwordInput,
-  /** Error text shown after wrong-password rejection (WS close 4002). */
-  errorText: 'p.error-text, ion-note.error, .join-error',
-} as const;
-
-// ---------------------------------------------------------------------------
-// Viewer role toggle
-// ---------------------------------------------------------------------------
-export const VIEWER_ROLE = {
-  /**
-   * Role switch on the estimating page. Text is "Voter" or "Observer".
-   * Use `.filter({ hasText: ... })` to assert specific state.
-   */
-  chip: ESTIMATING.roleChip,
-} as const;
-
-// ---------------------------------------------------------------------------
 // Host actions on a participant (⋯ on their roster row → Make host / Remove)
 // ---------------------------------------------------------------------------
 export const KICK_AFFORDANCE = {
@@ -308,34 +324,12 @@ export const KICK_AFFORDANCE = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// Custom scale editor (scale-editor-sheet)
-// ---------------------------------------------------------------------------
-// Entry path: App Settings → Default scale row → Edit button next to a preset.
-// Selector for the sheet itself; card toggles use PRESET_CARD_EDITOR.
-export const CUSTOM_SCALE_EDITOR = {
-  sheet: 'app-scale-editor-sheet',
-  cardList: PRESET_CARD_EDITOR.cardList,
-  cardToggle: PRESET_CARD_EDITOR.cardToggle,
-  doneBtn: PRESET_CARD_EDITOR.doneBtn,
-} as const;
-
-// ---------------------------------------------------------------------------
-// Session-ended toast
-// ---------------------------------------------------------------------------
-// Use expectToast(page, /session ended/i) from helpers.ts for assertions.
-// Selector for the visible ion-toast element (if direct DOM access is needed).
-export const SESSION_ENDED_TOAST = {
-  toast: 'ion-toast:not(.overlay-hidden)',
-} as const;
-
-// ---------------------------------------------------------------------------
 // Connection banner
 // ---------------------------------------------------------------------------
 // app-connection-status-banner renders its bar only while the session is not
 // connected: "Reconnecting…" as soon as a connection that was up drops,
 // "Connecting…" once a first connection is taking a while. Connected: no bar.
 export const CONNECTION_BANNER = {
-  host: 'app-connection-status-banner',
   banner: '[data-testid="connection-status-banner"]',
 } as const;
 

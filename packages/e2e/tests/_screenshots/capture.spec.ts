@@ -34,6 +34,7 @@ import {
   expandRoundStartSheet,
   clickRoundStartSubmit,
   fillRoomCode,
+  rememberedSessionCodes,
 } from '../fixtures/helpers';
 import { pageSettled } from './_helpers/settled';
 
@@ -216,8 +217,12 @@ test.describe('screenshot capture', () => {
       await pwInput.press('Enter');
       await expectToast(page, 'Password set');
       await page.locator(SETTINGS_SHEET.removePasswordBtn).waitFor({ state: 'visible' });
-      // Let the toast go so the sheet is what the shot shows.
-      await page.locator('ion-toast').first().waitFor({ state: 'hidden', timeout: 5_000 });
+      // Let the toast go so the sheet is what the shot shows. Any toast that
+      // is up: the first `ion-toast` in the page is the banner's own, which
+      // is hidden whenever nothing has just reconnected.
+      await expect(page.locator('ion-toast:not(.overlay-hidden)')).toHaveCount(0, {
+        timeout: 5_000,
+      });
       await shot(page, '09-session-settings-password-set');
       // Back to an open session so the rest of the tour is unchanged.
       await page.locator(SETTINGS_SHEET.removePasswordBtn).click();
@@ -426,8 +431,9 @@ test.describe('screenshot capture', () => {
       await page.waitForURL(/\/lobby/);
       await page.locator(LOBBY.participantList).waitFor({ state: 'visible' });
       // Let the connection come up first: a connection that was never up has
-      // nothing to *re*connect, and the banner would say "Connecting…".
-      await page.waitForTimeout(800);
+      // nothing to *re*connect, and the banner would say "Connecting…". The
+      // device remembers a session once it is connected to it and in sync.
+      await expect.poll(() => rememberedSessionCodes(page), { timeout: 15_000 }).toHaveLength(1);
 
       // 8a — reconnecting
       await ctx.setOffline(true);

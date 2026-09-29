@@ -26,8 +26,8 @@ export function parseTicketIdHref(raw: string | undefined | null): string | null
  * Toolbar title: the round's number in the session. `"Estimating"` for the
  * moment between arriving on the page and the round showing up.
  */
-export function buildEstimatingTitle(roundIndex: number | null): string {
-  return roundIndex === null ? 'Estimating' : `Round ${roundIndex}`;
+export function buildEstimatingTitle(roundNumber: number | null): string {
+  return roundNumber === null ? 'Estimating' : `Round ${roundNumber}`;
 }
 
 /**

@@ -16,31 +16,27 @@ import { ESTIMATING } from './fixtures/helpers';
  *  - The host has voted, the other voter has not, the host reloads. This is
  *    the case that revealed the round: with the sync gate in `DocService`
  *    taken out, this test fails.
- *  - One of three voters has voted and reloads. While it is away the other
- *    two see it go offline — two voters who have not voted remain, so the
- *    round must not reveal on that account either — and when it is back the
- *    round still waits for them.
+ *  - The other way round: the participant has voted and reloads. While it is
+ *    away the host sees it go offline — a voter who has not voted remains,
+ *    so the round must not reveal on that account either — and when it is
+ *    back the round still waits for the host.
+ *
+ * Two clients each. The relay in these tests takes three connections to a
+ * session, and a reload opens the new one while the old one may not have
+ * been counted out yet: a third client would put the reload at the limit.
  */
 test.describe('Reload mid-round', () => {
-  test('a voter who reloads does not reveal the round for everyone', async ({
-    host,
-    player,
-    createParticipant,
-  }) => {
-    const third = await createParticipant('Third');
-
+  test('a voter who reloads does not reveal the round for everyone', async ({ host, player }) => {
     const code = await host.createSession();
     await player.joinSession(code);
-    await third.joinSession(code);
-    await host.expectParticipantCount(3);
+    await host.expectParticipantCount(2);
 
     await host.startRound('Login form');
     await player.waitForEstimating();
-    await third.waitForEstimating();
 
-    // One of three has voted
+    // One of two has voted
     await player.castVote('5');
-    await expect(host.page.locator(ESTIMATING.voteCount)).toContainText('1 of 3');
+    await expect(host.page.locator(ESTIMATING.voteCount)).toContainText('1 of 2');
 
     // ...and reloads
     await player.page.reload();
@@ -50,8 +46,7 @@ test.describe('Reload mid-round', () => {
     await host.page.waitForTimeout(3_000);
     expect(host.page.url()).toContain('/estimating');
     expect(player.page.url()).toContain('/estimating');
-    expect(third.page.url()).toContain('/estimating');
-    await expect(host.page.locator(ESTIMATING.voteCount)).toContainText('1 of 3');
+    await expect(host.page.locator(ESTIMATING.voteCount)).toContainText('1 of 2');
     await host.expectVotesHidden();
 
     // The vote survived the reload
@@ -61,11 +56,10 @@ test.describe('Reload mid-round', () => {
 
     // The round still reveals by itself once it should
     await host.castVote('8');
-    await third.castVote('8');
     await host.page.waitForURL(/\/lobby/, { timeout: 10_000 });
     await player.page.waitForURL(/\/lobby/, { timeout: 10_000 });
-    await host.expectRevealedVotes(['5', '8', '8']);
-    await player.expectRevealedVotes(['5', '8', '8']);
+    await host.expectRevealedVotes(['5', '8']);
+    await player.expectRevealedVotes(['5', '8']);
   });
 
   test('the host reloading does not reveal the round either', async ({ host, player }) => {

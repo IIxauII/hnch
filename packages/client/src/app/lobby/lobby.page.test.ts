@@ -6,14 +6,13 @@
 
 import { TestBed } from '@angular/core/testing';
 import { signal, type WritableSignal } from '@angular/core';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { UNBOUND_SESSION_COMMANDS } from '@hnch/shared';
 import type {
   AgendaItem,
   AgendaResult,
   CustomScale,
-  JoinRejectionReason,
   ParticipantSnapshot,
   RosterResult,
   Round,
@@ -31,35 +30,6 @@ import {
   buildWaitingNote,
   isParticipantViewer,
 } from './lobby-helpers';
-
-/**
- * What the relay answers when the Lobby asks whether the session is locked.
- * A plain object rather than a `vi.fn()`: `restoreMocks` would strip the
- * implementation between tests.
- */
-const relay = vi.hoisted(() => ({
-  accessMode: 'open' as 'open' | 'password',
-  unreachable: false,
-  lookups: [] as { url: string; code: string }[],
-}));
-
-vi.mock('@hnch/shared', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@hnch/shared')>();
-  return {
-    ...actual,
-    resolveRoom: async (url: string, code: string) => {
-      relay.lookups.push({ url, code });
-      if (relay.unreachable) throw new Error('relay unreachable');
-      return { uuid: 'uuid-1', accessMode: relay.accessMode };
-    },
-  };
-});
-
-beforeEach(() => {
-  relay.accessMode = 'open';
-  relay.unreachable = false;
-  relay.lookups = [];
-});
 
 function makeParticipant(id: string, role?: 'voter' | 'viewer'): ParticipantSnapshot {
   return { id, displayName: id, joinedAt: 0, role };
@@ -111,21 +81,13 @@ function makeRound(overrides: Partial<Round> & { id: string }): Round {
 }
 
 describe('LobbyPage — buildResultsHeading', () => {
-  it('empty string when no round', () => {
-    expect(buildResultsHeading(null, null)).toBe('');
+  it('empty string when no round has ended', () => {
+    expect(buildResultsHeading(null)).toBe('');
   });
 
-  it('empty string when roundIndex missing', () => {
-    expect(buildResultsHeading(makeRound({ id: 'r1' }), null)).toBe('');
-  });
-
-  it('"Round N results" for a standalone round', () => {
-    expect(buildResultsHeading(makeRound({ id: 'r1' }), 1)).toBe('Round 1 results');
-  });
-
-  it('a re-vote keeps its number in the session', () => {
-    const r2 = makeRound({ id: 'r2', parentRoundId: 'r1' });
-    expect(buildResultsHeading(r2, 2)).toBe('Round 2 results');
+  it('"Round N results" for the round that goes by N', () => {
+    expect(buildResultsHeading(1)).toBe('Round 1 results');
+    expect(buildResultsHeading(12)).toBe('Round 12 results');
   });
 });
 
@@ -141,18 +103,6 @@ describe('LobbyPage — buildSessionSummary', () => {
     expect(buildSessionSummary({ scaleLabel: 'Fibonacci', passwordProtected: true })).toBe(
       'Fibonacci · Password protected',
     );
-  });
-
-  it('leads with the name when one is passed', () => {
-    expect(
-      buildSessionSummary({ name: 'Sprint 12', scaleLabel: 'T-shirt', passwordProtected: true }),
-    ).toBe('Sprint 12 · T-shirt · Password protected');
-  });
-
-  it('leaves out a blank name rather than showing an empty part', () => {
-    expect(
-      buildSessionSummary({ name: '   ', scaleLabel: 'Fibonacci', passwordProtected: false }),
-    ).toBe('Fibonacci');
   });
 
   it('is empty when there is nothing to say', () => {
@@ -225,7 +175,16 @@ vi.mock('@ionic/angular/standalone', async () => {
     IonLabel: stub('ion-label'),
     IonList: stub('ion-list'),
     IonListHeader: stub('ion-list-header'),
-    IonModal: stub('ion-modal'),
+    IonModal: Comp({ selector: 'ion-modal', template: '<ng-content/>', standalone: true })(
+      class {
+        present(): Promise<void> {
+          return Promise.resolve();
+        }
+        dismiss(): Promise<boolean> {
+          return Promise.resolve(true);
+        }
+      },
+    ),
     IonNote: stub('ion-note'),
     IonTextarea: stub('ion-textarea'),
     IonTitle: stub('ion-title'),
@@ -280,7 +239,6 @@ vi.mock('../shared/vote-results.component', () =>
 vi.mock('./qr-display.sheet', () =>
   stubStandalone('app-qr-display-sheet', 'QrDisplaySheetComponent'),
 );
-vi.mock('../join/join.helpers', () => ({ rejectionCopy: () => 'rejected' }));
 vi.mock('../agenda/agenda-panel.component', () =>
   stubStandalone('app-agenda-panel', 'AgendaPanelComponent'),
 );
@@ -298,7 +256,7 @@ async function mountLobby(scale: Scale | undefined, customs: CustomScale[]) {
   const { SurfaceService } = await import('../core/surface.service');
   const { ToastService } = await import('../services/toast.service');
   const { ExportService } = await import('../core/export.service');
-  const { AppPreferenceService } = await import('../core/app-preference.service');
+  const { SessionAccessService } = await import('../core/session-access.service');
   const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
   TestBed.resetTestingModule();
@@ -312,6 +270,8 @@ async function mountLobby(scale: Scale | undefined, customs: CustomScale[]) {
           roomCode: signal('ABC123').asReadonly(),
           meta: signal(undefined).asReadonly(),
           syncStatus: signal('disconnected').asReadonly(),
+          relaySynced: signal(false).asReadonly(),
+          relayRoomUuid: signal(null).asReadonly(),
           currentRound: signal(undefined).asReadonly(),
           screen: signal('lobby').asReadonly(),
           lastRejection: signal(null).asReadonly(),
@@ -346,8 +306,12 @@ async function mountLobby(scale: Scale | undefined, customs: CustomScale[]) {
       { provide: ToastService, useValue: { show: vi.fn(), error: vi.fn() } },
       { provide: ExportService, useValue: { export: vi.fn() } },
       {
-        provide: AppPreferenceService,
-        useValue: { resolvedRelayHttpUrl: () => 'http://relay.test' },
+        provide: SessionAccessService,
+        useValue: {
+          mode: signal('open').asReadonly(),
+          saving: signal(false).asReadonly(),
+          refresh: () => Promise.resolve(),
+        },
       },
       {
         provide: AlertController,
@@ -381,7 +345,7 @@ describe('LobbyPage — onRoundStart forwards ticketId', () => {
     const { SurfaceService } = await import('../core/surface.service');
     const { ToastService } = await import('../services/toast.service');
     const { ExportService } = await import('../core/export.service');
-    const { AppPreferenceService } = await import('../core/app-preference.service');
+    const { SessionAccessService } = await import('../core/session-access.service');
     const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     const startRound = vi.fn();
@@ -396,6 +360,8 @@ describe('LobbyPage — onRoundStart forwards ticketId', () => {
             roomCode: signal('ABC123').asReadonly(),
             meta: signal(undefined).asReadonly(),
             syncStatus: signal('disconnected').asReadonly(),
+            relaySynced: signal(false).asReadonly(),
+            relayRoomUuid: signal(null).asReadonly(),
             currentRound: signal(undefined).asReadonly(),
             screen: signal('lobby').asReadonly(),
             lastRejection: signal(null).asReadonly(),
@@ -430,8 +396,12 @@ describe('LobbyPage — onRoundStart forwards ticketId', () => {
         { provide: ToastService, useValue: { show: vi.fn(), error: vi.fn() } },
         { provide: ExportService, useValue: { export: vi.fn() } },
         {
-          provide: AppPreferenceService,
-          useValue: { resolvedRelayHttpUrl: () => 'http://relay.test' },
+          provide: SessionAccessService,
+          useValue: {
+            mode: signal('open').asReadonly(),
+            saving: signal(false).asReadonly(),
+            refresh: () => Promise.resolve(),
+          },
         },
         {
           provide: AlertController,
@@ -540,7 +510,7 @@ async function mountLobbySubtitleAffordance(opts: { isHost: boolean; subtitle: s
   const { SurfaceService } = await import('../core/surface.service');
   const { ToastService } = await import('../services/toast.service');
   const { ExportService } = await import('../core/export.service');
-  const { AppPreferenceService } = await import('../core/app-preference.service');
+  const { SessionAccessService } = await import('../core/session-access.service');
   const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
   // isHost = (myId === hostParticipantId). myId = 'me' (from ParticipantIdService stub).
@@ -565,6 +535,8 @@ async function mountLobbySubtitleAffordance(opts: { isHost: boolean; subtitle: s
           roomCode: signal('ABC123').asReadonly(),
           meta: signal(undefined).asReadonly(),
           syncStatus: signal('disconnected').asReadonly(),
+          relaySynced: signal(false).asReadonly(),
+          relayRoomUuid: signal(null).asReadonly(),
           currentRound: signal(undefined).asReadonly(),
           screen: signal('lobby').asReadonly(),
           lastRejection: signal(null).asReadonly(),
@@ -600,8 +572,12 @@ async function mountLobbySubtitleAffordance(opts: { isHost: boolean; subtitle: s
       { provide: ToastService, useValue: { show: vi.fn(), info: vi.fn(), error: vi.fn() } },
       { provide: ExportService, useValue: { export: vi.fn() } },
       {
-        provide: AppPreferenceService,
-        useValue: { resolvedRelayHttpUrl: () => 'http://relay.test' },
+        provide: SessionAccessService,
+        useValue: {
+          mode: signal('open').asReadonly(),
+          saving: signal(false).asReadonly(),
+          refresh: () => Promise.resolve(),
+        },
       },
       {
         provide: AlertController,
@@ -670,7 +646,7 @@ describe('LobbyPage — onCopyRoomCode', () => {
     const { SurfaceService } = await import('../core/surface.service');
     const { ToastService } = await import('../services/toast.service');
     const { ExportService } = await import('../core/export.service');
-    const { AppPreferenceService } = await import('../core/app-preference.service');
+    const { SessionAccessService } = await import('../core/session-access.service');
     const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     const info = vi.fn().mockResolvedValue(undefined);
@@ -688,6 +664,8 @@ describe('LobbyPage — onCopyRoomCode', () => {
             roomCode: signal(opts.roomCode ?? 'ABC123').asReadonly(),
             meta: signal(undefined).asReadonly(),
             syncStatus: signal('disconnected').asReadonly(),
+            relaySynced: signal(false).asReadonly(),
+            relayRoomUuid: signal(null).asReadonly(),
             currentRound: signal(undefined).asReadonly(),
             screen: signal('lobby').asReadonly(),
             lastRejection: signal(null).asReadonly(),
@@ -722,8 +700,12 @@ describe('LobbyPage — onCopyRoomCode', () => {
         { provide: ToastService, useValue: { info, error: vi.fn() } },
         { provide: ExportService, useValue: { export: vi.fn() } },
         {
-          provide: AppPreferenceService,
-          useValue: { resolvedRelayHttpUrl: () => 'http://relay.test' },
+          provide: SessionAccessService,
+          useValue: {
+            mode: signal('open').asReadonly(),
+            saving: signal(false).asReadonly(),
+            refresh: () => Promise.resolve(),
+          },
         },
         {
           provide: AlertController,
@@ -782,7 +764,8 @@ describe('LobbyPage — openParticipantActions', () => {
     onRemoveTap(id: string, name: string): Promise<void>;
   };
 
-  async function mountWithSurface() {
+  /** `online`: who is here. The role can only be handed to one of them. */
+  async function mountWithSurface(online: string[] = ['p1', 'p2', 'p3']) {
     const { Router } = await import('@angular/router');
     const { DocService } = await import('../core/doc/doc.service');
     const { HapticService } = await import('../core/haptic.service');
@@ -792,7 +775,7 @@ describe('LobbyPage — openParticipantActions', () => {
     const { SurfaceService } = await import('../core/surface.service');
     const { ToastService } = await import('../services/toast.service');
     const { ExportService } = await import('../core/export.service');
-    const { AppPreferenceService } = await import('../core/app-preference.service');
+    const { SessionAccessService } = await import('../core/session-access.service');
     const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     const openSheetOrPopover = vi.fn().mockResolvedValue(undefined);
@@ -808,13 +791,15 @@ describe('LobbyPage — openParticipantActions', () => {
             roomCode: signal('ABC123').asReadonly(),
             meta: signal(undefined).asReadonly(),
             syncStatus: signal('disconnected').asReadonly(),
+            relaySynced: signal(false).asReadonly(),
+            relayRoomUuid: signal(null).asReadonly(),
             currentRound: signal(undefined).asReadonly(),
             screen: signal('lobby').asReadonly(),
             lastRejection: signal(null).asReadonly(),
             rounds: signal([]).asReadonly(),
             participants: signal([]).asReadonly(),
             activeParticipants: signal([]).asReadonly(),
-            onlineParticipantIds: signal(new Set()).asReadonly(),
+            onlineParticipantIds: signal(new Set(online)).asReadonly(),
             agenda: signal([]).asReadonly(),
             pendingAgenda: signal([]).asReadonly(),
             nextPendingAgendaItem: signal(null).asReadonly(),
@@ -834,6 +819,7 @@ describe('LobbyPage — openParticipantActions', () => {
           useValue: {
             mode: signal('desktop').asReadonly(),
             openSheetOrPopover,
+            dismissMenu: vi.fn().mockResolvedValue(undefined),
             sheetBreakpoints: () => [0, 0.5, 1],
             initialSheetBreakpoint: () => 0.5,
             sheetBreakpointsFull: () => [0, 0.6, 1],
@@ -843,8 +829,12 @@ describe('LobbyPage — openParticipantActions', () => {
         { provide: ToastService, useValue: { show: vi.fn(), info: vi.fn(), error: vi.fn() } },
         { provide: ExportService, useValue: { export: vi.fn() } },
         {
-          provide: AppPreferenceService,
-          useValue: { resolvedRelayHttpUrl: () => 'http://relay.test' },
+          provide: SessionAccessService,
+          useValue: {
+            mode: signal('open').asReadonly(),
+            saving: signal(false).asReadonly(),
+            refresh: () => Promise.resolve(),
+          },
         },
         {
           provide: AlertController,
@@ -911,6 +901,18 @@ describe('LobbyPage — openParticipantActions', () => {
     opts.items[1]!.handler?.();
     expect(onRemoveTap).toHaveBeenCalledWith('p3', 'Carol');
   });
+
+  // The shared command refuses an offline target, so the offer ended in a
+  // confirmation that did nothing.
+  it('does not offer Make host for someone who is offline', async () => {
+    const { fixture, openSheetOrPopover } = await mountWithSurface(['p2']);
+    const internals = fixture.componentInstance as unknown as Internals;
+
+    await internals.openParticipantActions({ id: 'p1', displayName: 'Alice' }, new Event('click'));
+
+    const [opts] = openSheetOrPopover.mock.calls[0] as [{ items: { text: string }[] }];
+    expect(opts.items.map((item) => item.text)).toEqual(['Remove', 'Cancel']);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -928,7 +930,7 @@ describe('LobbyPage — ngOnDestroy', () => {
     const { SurfaceService } = await import('../core/surface.service');
     const { ToastService } = await import('../services/toast.service');
     const { ExportService } = await import('../core/export.service');
-    const { AppPreferenceService } = await import('../core/app-preference.service');
+    const { SessionAccessService } = await import('../core/session-access.service');
     const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     const dismiss = vi.fn().mockImplementation(dismissImpl);
@@ -944,6 +946,8 @@ describe('LobbyPage — ngOnDestroy', () => {
             roomCode: signal('ABC123').asReadonly(),
             meta: signal(undefined).asReadonly(),
             syncStatus: signal('disconnected').asReadonly(),
+            relaySynced: signal(false).asReadonly(),
+            relayRoomUuid: signal(null).asReadonly(),
             currentRound: signal(undefined).asReadonly(),
             screen: signal('lobby').asReadonly(),
             lastRejection: signal(null).asReadonly(),
@@ -970,6 +974,7 @@ describe('LobbyPage — ngOnDestroy', () => {
           useValue: {
             mode: signal('desktop').asReadonly(),
             openSheetOrPopover: vi.fn().mockResolvedValue(undefined),
+            dismissMenu: vi.fn().mockResolvedValue(undefined),
             sheetBreakpoints: () => [0, 0.5, 1],
             initialSheetBreakpoint: () => 0.5,
             sheetBreakpointsFull: () => [0, 0.6, 1],
@@ -979,8 +984,12 @@ describe('LobbyPage — ngOnDestroy', () => {
         { provide: ToastService, useValue: { show: vi.fn(), info: vi.fn(), error: vi.fn() } },
         { provide: ExportService, useValue: { export: vi.fn() } },
         {
-          provide: AppPreferenceService,
-          useValue: { resolvedRelayHttpUrl: () => 'http://relay.test' },
+          provide: SessionAccessService,
+          useValue: {
+            mode: signal('open').asReadonly(),
+            saving: signal(false).asReadonly(),
+            refresh: () => Promise.resolve(),
+          },
         },
         {
           provide: AlertController,
@@ -1040,7 +1049,7 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
     const { SurfaceService } = await import('../core/surface.service');
     const { ToastService } = await import('../services/toast.service');
     const { ExportService } = await import('../core/export.service');
-    const { AppPreferenceService } = await import('../core/app-preference.service');
+    const { SessionAccessService } = await import('../core/session-access.service');
     const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     TestBed.resetTestingModule();
@@ -1054,6 +1063,8 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
             roomCode: signal('ABC123').asReadonly(),
             meta: signal(undefined).asReadonly(),
             syncStatus: signal('disconnected').asReadonly(),
+            relaySynced: signal(false).asReadonly(),
+            relayRoomUuid: signal(null).asReadonly(),
             currentRound: signal(undefined).asReadonly(),
             screen: signal('lobby').asReadonly(),
             lastRejection: signal(null).asReadonly(),
@@ -1084,8 +1095,12 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
         { provide: ToastService, useValue: { info: vi.fn(), error: vi.fn() } },
         { provide: ExportService, useValue: { export: vi.fn() } },
         {
-          provide: AppPreferenceService,
-          useValue: { resolvedRelayHttpUrl: () => 'http://relay.test' },
+          provide: SessionAccessService,
+          useValue: {
+            mode: signal('open').asReadonly(),
+            saving: signal(false).asReadonly(),
+            refresh: () => Promise.resolve(),
+          },
         },
         {
           provide: AlertController,
@@ -1136,7 +1151,7 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
     const { SurfaceService } = await import('../core/surface.service');
     const { ToastService } = await import('../services/toast.service');
     const { ExportService } = await import('../core/export.service');
-    const { AppPreferenceService } = await import('../core/app-preference.service');
+    const { SessionAccessService } = await import('../core/session-access.service');
     const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     TestBed.resetTestingModule();
@@ -1150,6 +1165,8 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
             roomCode: signal('ABC123').asReadonly(),
             meta: signal(undefined).asReadonly(),
             syncStatus: signal('disconnected').asReadonly(),
+            relaySynced: signal(false).asReadonly(),
+            relayRoomUuid: signal(null).asReadonly(),
             currentRound: signal(undefined).asReadonly(),
             screen: signal('lobby').asReadonly(),
             lastRejection: signal(null).asReadonly(),
@@ -1180,8 +1197,12 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
         { provide: ToastService, useValue: { info: vi.fn(), error: vi.fn() } },
         { provide: ExportService, useValue: { export: vi.fn() } },
         {
-          provide: AppPreferenceService,
-          useValue: { resolvedRelayHttpUrl: () => 'http://relay.test' },
+          provide: SessionAccessService,
+          useValue: {
+            mode: signal('open').asReadonly(),
+            saving: signal(false).asReadonly(),
+            refresh: () => Promise.resolve(),
+          },
         },
         {
           provide: AlertController,
@@ -1237,7 +1258,7 @@ describe('LobbyPage — terminal-round computeds (status)', () => {
     const { SurfaceService } = await import('../core/surface.service');
     const { ToastService } = await import('../services/toast.service');
     const { ExportService } = await import('../core/export.service');
-    const { AppPreferenceService } = await import('../core/app-preference.service');
+    const { SessionAccessService } = await import('../core/session-access.service');
     const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     TestBed.resetTestingModule();
@@ -1251,6 +1272,8 @@ describe('LobbyPage — terminal-round computeds (status)', () => {
             roomCode: signal('ABC123').asReadonly(),
             meta: signal(undefined).asReadonly(),
             syncStatus: signal('disconnected').asReadonly(),
+            relaySynced: signal(false).asReadonly(),
+            relayRoomUuid: signal(null).asReadonly(),
             currentRound: signal(undefined).asReadonly(),
             screen: signal('lobby').asReadonly(),
             lastRejection: signal(null).asReadonly(),
@@ -1282,8 +1305,12 @@ describe('LobbyPage — terminal-round computeds (status)', () => {
         { provide: ToastService, useValue: { show: vi.fn(), info: vi.fn(), error: vi.fn() } },
         { provide: ExportService, useValue: { export: vi.fn() } },
         {
-          provide: AppPreferenceService,
-          useValue: { resolvedRelayHttpUrl: () => 'http://relay.test' },
+          provide: SessionAccessService,
+          useValue: {
+            mode: signal('open').asReadonly(),
+            saving: signal(false).asReadonly(),
+            refresh: () => Promise.resolve(),
+          },
         },
         {
           provide: AlertController,
@@ -1353,7 +1380,7 @@ describe('LobbyPage — autoNav effect (wiring)', () => {
     const { SurfaceService } = await import('../core/surface.service');
     const { ToastService } = await import('../services/toast.service');
     const { ExportService } = await import('../core/export.service');
-    const { AppPreferenceService } = await import('../core/app-preference.service');
+    const { SessionAccessService } = await import('../core/session-access.service');
     const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     const navigate = vi.fn().mockResolvedValue(true);
@@ -1370,6 +1397,8 @@ describe('LobbyPage — autoNav effect (wiring)', () => {
             roomCode: signal('LOBBY1').asReadonly(),
             meta: signal(undefined).asReadonly(),
             syncStatus: signal('disconnected').asReadonly(),
+            relaySynced: signal(false).asReadonly(),
+            relayRoomUuid: signal(null).asReadonly(),
             currentRound: signal(undefined).asReadonly(),
             screen: screenSig.asReadonly(),
             lastRejection: signal(null).asReadonly(),
@@ -1404,8 +1433,12 @@ describe('LobbyPage — autoNav effect (wiring)', () => {
         { provide: ToastService, useValue: { show: vi.fn(), info: vi.fn(), error: vi.fn() } },
         { provide: ExportService, useValue: { export: vi.fn() } },
         {
-          provide: AppPreferenceService,
-          useValue: { resolvedRelayHttpUrl: () => 'http://relay.test' },
+          provide: SessionAccessService,
+          useValue: {
+            mode: signal('open').asReadonly(),
+            saving: signal(false).asReadonly(),
+            refresh: () => Promise.resolve(),
+          },
         },
         {
           provide: AlertController,
@@ -1479,7 +1512,7 @@ describe('LobbyPage — agenda form refusal keeps the modal open', () => {
     const { SurfaceService } = await import('../core/surface.service');
     const { ToastService } = await import('../services/toast.service');
     const { ExportService } = await import('../core/export.service');
-    const { AppPreferenceService } = await import('../core/app-preference.service');
+    const { SessionAccessService } = await import('../core/session-access.service');
     const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
     const updateAgendaItemFields = vi.fn().mockReturnValue(result);
@@ -1497,6 +1530,8 @@ describe('LobbyPage — agenda form refusal keeps the modal open', () => {
             roomCode: signal('ABC123').asReadonly(),
             meta: signal(undefined).asReadonly(),
             syncStatus: signal('disconnected').asReadonly(),
+            relaySynced: signal(false).asReadonly(),
+            relayRoomUuid: signal(null).asReadonly(),
             currentRound: signal(undefined).asReadonly(),
             screen: signal('lobby').asReadonly(),
             lastRejection: signal(null).asReadonly(),
@@ -1532,8 +1567,12 @@ describe('LobbyPage — agenda form refusal keeps the modal open', () => {
         { provide: ToastService, useValue: { show: vi.fn(), error: vi.fn() } },
         { provide: ExportService, useValue: { export: vi.fn() } },
         {
-          provide: AppPreferenceService,
-          useValue: { resolvedRelayHttpUrl: () => 'http://relay.test' },
+          provide: SessionAccessService,
+          useValue: {
+            mode: signal('open').asReadonly(),
+            saving: signal(false).asReadonly(),
+            refresh: () => Promise.resolve(),
+          },
         },
         {
           provide: AlertController,
@@ -1693,7 +1732,6 @@ interface CommandMountOptions {
   rounds?: Round[];
   /** `meta().roomUuid`; omitted exercises the `clearAll` leave branch. */
   roomUuid?: string;
-  lastRejection?: WritableSignal<JoinRejectionReason | null>;
   /** `settings().hostParticipantId`; own id is `'me'` unless `myId` says otherwise. */
   hostId?: string;
   /** `settings().name`. */
@@ -1703,6 +1741,8 @@ interface CommandMountOptions {
   /** Ids with a live awareness entry; defaults to everyone in `participants`. */
   onlineIds?: string[];
   screen?: Screen | null;
+  /** What `SessionAccessService` says the relay enforces. Default: open. */
+  accessMode?: 'open' | 'password';
 }
 
 async function mountForCommands(opts: CommandMountOptions = {}) {
@@ -1715,7 +1755,7 @@ async function mountForCommands(opts: CommandMountOptions = {}) {
   const { SurfaceService } = await import('../core/surface.service');
   const { ToastService } = await import('../services/toast.service');
   const { ExportService } = await import('../core/export.service');
-  const { AppPreferenceService } = await import('../core/app-preference.service');
+  const { SessionAccessService } = await import('../core/session-access.service');
   const { AlertController, PopoverController } = await import('@ionic/angular/standalone');
 
   const commands = { ...UNBOUND_SESSION_COMMANDS, ...opts.commands };
@@ -1734,6 +1774,10 @@ async function mountForCommands(opts: CommandMountOptions = {}) {
   };
   const alerts: { buttons: AlertButton[] }[] = [];
   const openSheetOrPopover = vi.fn().mockResolvedValue(undefined);
+  const dismissMenu = vi.fn().mockResolvedValue(undefined);
+  const updateRoundDescriptor = vi.fn();
+  const accessMode = signal<'open' | 'password'>(opts.accessMode ?? 'open');
+  const refreshAccess = vi.fn().mockResolvedValue(undefined);
   const roster = opts.participants ?? [];
   const hasSettings =
     opts.hostId !== undefined || opts.sessionName !== undefined || opts.scale !== undefined;
@@ -1760,9 +1804,11 @@ async function mountForCommands(opts: CommandMountOptions = {}) {
             opts.roomUuid === undefined ? undefined : { roomUuid: opts.roomUuid },
           ).asReadonly(),
           syncStatus: signal('disconnected').asReadonly(),
+          relaySynced: signal(false).asReadonly(),
+          relayRoomUuid: signal(null).asReadonly(),
           currentRound: signal(undefined).asReadonly(),
           screen: screen.asReadonly(),
-          lastRejection: (opts.lastRejection ?? signal(null)).asReadonly(),
+          lastRejection: signal(null).asReadonly(),
           rounds: signal(opts.rounds ?? []).asReadonly(),
           participants: signal(roster).asReadonly(),
           activeParticipants: signal(roster).asReadonly(),
@@ -1774,6 +1820,7 @@ async function mountForCommands(opts: CommandMountOptions = {}) {
           nextPendingAgendaItem: signal(null).asReadonly(),
           commands,
           endSessionForEveryone,
+          updateRoundDescriptor,
           teardown,
           flushUpdates,
         },
@@ -1790,6 +1837,7 @@ async function mountForCommands(opts: CommandMountOptions = {}) {
         useValue: {
           mode: signal('mobile').asReadonly(),
           openSheetOrPopover,
+          dismissMenu,
           sheetBreakpoints: () => [0, 0.5, 1],
           initialSheetBreakpoint: () => 0.5,
           sheetBreakpointsFull: () => [0, 0.6, 1],
@@ -1799,8 +1847,12 @@ async function mountForCommands(opts: CommandMountOptions = {}) {
       { provide: ToastService, useValue: { show: vi.fn(), info: vi.fn(), error: toastError } },
       { provide: ExportService, useValue: { export: vi.fn() } },
       {
-        provide: AppPreferenceService,
-        useValue: { resolvedRelayHttpUrl: () => 'http://relay.test' },
+        provide: SessionAccessService,
+        useValue: {
+          mode: accessMode.asReadonly(),
+          saving: signal(false).asReadonly(),
+          refresh: refreshAccess,
+        },
       },
       {
         provide: AlertController,
@@ -1837,6 +1889,10 @@ async function mountForCommands(opts: CommandMountOptions = {}) {
     lastSession,
     alerts,
     openSheetOrPopover,
+    dismissMenu,
+    updateRoundDescriptor,
+    accessMode,
+    refreshAccess,
     screen,
   };
 }
@@ -2235,35 +2291,6 @@ describe('LobbyPage — onRemoveTap', () => {
   });
 });
 
-describe('LobbyPage — WS rejection while on Lobby', () => {
-  it('tears the session down, toasts, and routes back to Join on wrong-password', async () => {
-    const lastRejection = signal<JoinRejectionReason | null>(null);
-    const { fixture, teardown, toastError, navigate } = await mountForCommands({ lastRejection });
-    fixture.detectChanges();
-
-    lastRejection.set('wrong-password');
-    fixture.detectChanges();
-
-    await vi.waitFor(() => expect(navigate).toHaveBeenCalled());
-    expect(teardown).toHaveBeenCalledTimes(1);
-    expect(toastError).toHaveBeenCalled();
-    expect(navigate).toHaveBeenCalledWith(['/join'], { queryParams: { code: 'ABC123' } });
-  });
-
-  it('routes Home for a rejection that is not a password mismatch', async () => {
-    const lastRejection = signal<JoinRejectionReason | null>(null);
-    const { fixture, teardown, navigate } = await mountForCommands({ lastRejection });
-    fixture.detectChanges();
-
-    lastRejection.set('room-full');
-    fixture.detectChanges();
-
-    await vi.waitFor(() => expect(navigate).toHaveBeenCalled());
-    expect(teardown).toHaveBeenCalledTimes(1);
-    expect(navigate).toHaveBeenCalledWith(['/home']);
-  });
-});
-
 // ---------------------------------------------------------------------------
 // Host / joiner split
 //
@@ -2533,7 +2560,9 @@ describe('LobbyPage — roster', () => {
     const [own, other] = rows(render(fixture));
 
     expect(textOf(own!.querySelector('.participant-name'))).toBe('You (Ada)');
-    expect(own!.getAttribute('aria-label')).toBe('You (Ada)');
+    // Read as what it shows: a label on the row would stand in for the badge
+    // and the status beside the name.
+    expect(own!.hasAttribute('aria-label')).toBe(false);
     expect(own!.querySelector('app-role-toggle')).not.toBeNull();
 
     expect(textOf(other!.querySelector('.participant-name'))).toBe('Bob');
@@ -2600,10 +2629,11 @@ describe('LobbyPage — roster', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Access mode — relay state (ADR-0009), so the Lobby reads it back rather
-// than assuming "open". A session created with a password, reloaded, or
-// locked by a previous host used to show as open, and its invite link lost
-// the `pw=1` hint that makes Join ask for the password up front.
+// Access mode — relay state (ADR-0009), kept by `SessionAccessService`. The
+// Lobby shows what that service knows and asks it to look again on entry. A
+// session created with a password, reloaded, or locked by a previous host
+// used to show as open, and its invite link lost the `pw=1` hint that makes
+// Join ask for the password up front.
 // ---------------------------------------------------------------------------
 
 describe('LobbyPage — access mode', () => {
@@ -2612,12 +2642,11 @@ describe('LobbyPage — access mode', () => {
     inviteUrl(): string;
     passwordProtected(): boolean;
     ionViewWillEnter(): void;
-    onAccessChanged(selection: { mode: 'open' | 'password'; password?: string }): void;
   }
   const FIBONACCI: Scale = { id: 'fibonacci', cards: ['1', '2', '3'] };
 
-  async function mountAccess() {
-    const mounted = await mountForCommands({ hostId: 'me', scale: FIBONACCI });
+  async function mountAccess(mode: 'open' | 'password' = 'open') {
+    const mounted = await mountForCommands({ hostId: 'me', scale: FIBONACCI, accessMode: mode });
     mounted.fixture.detectChanges();
     return {
       ...mounted,
@@ -2625,22 +2654,16 @@ describe('LobbyPage — access mode', () => {
     };
   }
 
-  it('reads the lock back from the relay', async () => {
-    relay.accessMode = 'password';
-    const { page } = await mountAccess();
+  it('says so when the session is locked, and hints at it in the invite link', async () => {
+    const { page } = await mountAccess('password');
 
-    await vi.waitFor(() => expect(page.passwordProtected()).toBe(true));
-
-    expect(relay.lookups).toEqual([{ url: 'http://relay.test', code: 'ABC123' }]);
+    expect(page.passwordProtected()).toBe(true);
     expect(page.subtitle()).toBe('Fibonacci · Password protected');
     expect(page.inviteUrl()).toMatch(/\/join\?code=ABC123&pw=1$/);
   });
 
   it('shows the lock on the summary line', async () => {
-    relay.accessMode = 'password';
-    const { fixture, page } = await mountAccess();
-    await vi.waitFor(() => expect(page.passwordProtected()).toBe(true));
-    fixture.detectChanges();
+    const { fixture } = await mountAccess('password');
 
     const summary = (fixture.nativeElement as HTMLElement).querySelector('button.subtitle');
     expect(summary?.querySelector('ion-icon[name="lock-closed-outline"]')).not.toBeNull();
@@ -2649,10 +2672,8 @@ describe('LobbyPage — access mode', () => {
     );
   });
 
-  it('leaves an open session open', async () => {
-    const { fixture, page } = await mountAccess();
-    await vi.waitFor(() => expect(relay.lookups).toHaveLength(1));
-    await Promise.resolve();
+  it('shows no lock on an open session', async () => {
+    const { fixture, page } = await mountAccess('open');
 
     expect(page.passwordProtected()).toBe(false);
     expect(page.subtitle()).toBe('Fibonacci');
@@ -2662,40 +2683,27 @@ describe('LobbyPage — access mode', () => {
     ).toBeNull();
   });
 
-  it('asks again on every entry, so a change made elsewhere shows up', async () => {
-    const { page } = await mountAccess();
-    await vi.waitFor(() => expect(relay.lookups).toHaveLength(1));
+  // The sheet that makes the change is usually gone before the relay has
+  // answered; the Lobby follows the service, not the sheet.
+  it('follows a change as soon as the relay has taken it', async () => {
+    const { fixture, page, accessMode } = await mountAccess('open');
 
-    relay.accessMode = 'password';
-    page.ionViewWillEnter();
-
-    await vi.waitFor(() => expect(page.passwordProtected()).toBe(true));
-    expect(relay.lookups).toHaveLength(2);
-  });
-
-  it('keeps the last known mode when the relay cannot be reached', async () => {
-    relay.accessMode = 'password';
-    const { page } = await mountAccess();
-    await vi.waitFor(() => expect(page.passwordProtected()).toBe(true));
-
-    relay.unreachable = true;
-    page.ionViewWillEnter();
-    await vi.waitFor(() => expect(relay.lookups).toHaveLength(2));
-    await Promise.resolve();
-
-    expect(page.passwordProtected()).toBe(true);
-  });
-
-  it('follows a change the host makes in the settings sheet', async () => {
-    const { page } = await mountAccess();
-    await vi.waitFor(() => expect(relay.lookups).toHaveLength(1));
-    await Promise.resolve();
-
-    page.onAccessChanged({ mode: 'password', password: 'hunter2' });
+    accessMode.set('password');
+    fixture.detectChanges();
     expect(page.subtitle()).toBe('Fibonacci · Password protected');
 
-    page.onAccessChanged({ mode: 'open' });
+    accessMode.set('open');
+    fixture.detectChanges();
     expect(page.subtitle()).toBe('Fibonacci');
+  });
+
+  it('asks again on every entry, so a change made elsewhere shows up', async () => {
+    const { page, refreshAccess } = await mountAccess();
+    refreshAccess.mockClear();
+
+    page.ionViewWillEnter();
+
+    expect(refreshAccess).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -2763,5 +2771,87 @@ describe('LobbyPage — openSessionSettings', () => {
     const { page, present } = await mountWithSettingsModal('bob');
     page.openSessionSettings();
     expect(present).not.toHaveBeenCalled();
+  });
+});
+
+describe('LobbyPage — leaving the page', () => {
+  type Internals = {
+    ionViewWillLeave(): void;
+    qrOpen: { (): boolean; set(v: boolean): void };
+    roundEditOpen: { (): boolean; set(v: boolean): void };
+    agendaFormOpen: { (): boolean; set(v: boolean): void };
+    sessionSettingsOpen: { (): boolean; set(v: boolean): void };
+    roundStartOpen: { (): boolean; set(v: boolean): void };
+  };
+
+  // The host starting a round moves everyone to Estimating; a sheet left open
+  // would sit on top of it and switch off the voting keys.
+  it('closes the menu and every sheet it opened', async () => {
+    const { fixture, dismissMenu } = await mountForCommands({ hostId: 'me' });
+    const page = fixture.componentInstance as unknown as Internals;
+    page.qrOpen.set(true);
+    page.roundEditOpen.set(true);
+    page.agendaFormOpen.set(true);
+    page.sessionSettingsOpen.set(true);
+    page.roundStartOpen.set(true);
+
+    page.ionViewWillLeave();
+
+    expect(dismissMenu).toHaveBeenCalledTimes(1);
+    expect(page.qrOpen()).toBe(false);
+    expect(page.roundEditOpen()).toBe(false);
+    expect(page.agendaFormOpen()).toBe(false);
+    expect(page.sessionSettingsOpen()).toBe(false);
+    expect(page.roundStartOpen()).toBe(false);
+  });
+});
+
+describe('LobbyPage — editing a round', () => {
+  type Internals = {
+    openRoundEdit(round: Round): void;
+    onRoundEditSave(payload: { title: string; description: string | null }): void;
+    onRoundEditDismiss(): void;
+    roundEditOpen(): boolean;
+    editingRound(): Round | null;
+  };
+  const ROUND = makeRound({ id: 'r1', status: 'revealed', title: 'Login', description: 'Old' });
+
+  async function mountWithRound() {
+    const { fixture, updateRoundDescriptor } = await mountForCommands({ hostId: 'me' });
+    const page = fixture.componentInstance as unknown as Internals;
+    page.openRoundEdit(ROUND);
+    return { page, updateRoundDescriptor };
+  }
+
+  // Clearing the round on Save or Cancel emptied the sheet while it was still
+  // sliding out.
+  it('Save closes the sheet and keeps the round until the sheet is gone', async () => {
+    const { page } = await mountWithRound();
+
+    page.onRoundEditSave({ title: 'Login v2', description: 'New' });
+    expect(page.roundEditOpen()).toBe(false);
+    expect(page.editingRound()).toBe(ROUND);
+
+    page.onRoundEditDismiss();
+    expect(page.editingRound()).toBeNull();
+  });
+
+  it('writes an emptied description as empty, so the old text does not stay', async () => {
+    const { page, updateRoundDescriptor } = await mountWithRound();
+
+    page.onRoundEditSave({ title: 'Login', description: null });
+
+    expect(updateRoundDescriptor).toHaveBeenCalledWith('r1', { title: 'Login', description: '' });
+  });
+});
+
+describe('LobbyPage — host menu', () => {
+  // The button is not rendered for anyone else; this is the handler refusing too.
+  it('does not open for someone who is not the host', async () => {
+    const { fixture, openSheetOrPopover } = await mountForCommands({ hostId: 'bob' });
+    await (
+      fixture.componentInstance as unknown as { openActionSheet(e: Event): Promise<void> }
+    ).openActionSheet(new Event('click'));
+    expect(openSheetOrPopover).not.toHaveBeenCalled();
   });
 });

@@ -80,14 +80,15 @@ test.describe('Mid-session password change', () => {
     const hostRowOnPlayer = player.page.locator(KICK_AFFORDANCE.row('Host'));
     const playerRowOnHost = host.page.locator(KICK_AFFORDANCE.row('Player'));
 
-    // Checked repeatedly across 7 s: longer than one election debounce (5 s),
-    // so a handover would have happened by the end of it.
+    // Looked at once a second across 7 s: longer than one election debounce
+    // (5 s), so a handover would have happened by the end of it. Looked at,
+    // not waited for: a retrying assertion would sit through a flicker.
     for (let i = 0; i < 7; i++) {
       await host.page.waitForTimeout(1_000);
-      await expect(playerRowOnHost.locator('ion-note')).toHaveCount(0);
-      await expect(hostRowOnPlayer.locator('ion-note')).toHaveCount(0);
-      await expect(hostRowOnPlayer.locator(LOBBY.hostIcon)).toHaveCount(1);
-      await expect(playerRowOnHost.locator(LOBBY.hostIcon)).toHaveCount(0);
+      expect(await playerRowOnHost.locator('ion-note').count(), `second ${i + 1}`).toBe(0);
+      expect(await hostRowOnPlayer.locator('ion-note').count(), `second ${i + 1}`).toBe(0);
+      expect(await hostRowOnPlayer.locator(LOBBY.hostIcon).count(), `second ${i + 1}`).toBe(1);
+      expect(await playerRowOnHost.locator(LOBBY.hostIcon).count(), `second ${i + 1}`).toBe(0);
     }
 
     // The host still runs the session; the participant is still in it, on
@@ -104,6 +105,39 @@ test.describe('Mid-session password change', () => {
     await player.castVote('5');
     await host.page.waitForURL(/\/lobby/, { timeout: 10_000 });
     await host.expectRevealedVotes(['5', '5']);
+  });
+
+  // The participant's socket was opened before there was a password. The next
+  // time it has to be opened again, the relay turns it away — and for good,
+  // so the app must not leave them on a screen that will never sync again.
+  test('a participant whose connection drops after the change is asked for the password', async ({
+    host,
+    player,
+  }) => {
+    const code = await host.createSession();
+    await player.joinSession(code);
+    await host.expectParticipantCount(2);
+
+    await host.openSettings();
+    await host.setPassword('midpass');
+    await host.closeSettings();
+
+    await player.page.context().setOffline(true);
+    await player.page.waitForTimeout(1_000);
+    await player.page.context().setOffline(false);
+
+    // Told why, and taken to where the password can be entered
+    await expectToast(player.page, "This session's password has changed", { timeout: 15_000 });
+    await player.page.waitForURL(new RegExp(`/join\\?code=${code}`, 'u'), { timeout: 10_000 });
+    const pwInput = player.page.locator(JOIN.passwordInput).locator('input');
+    await pwInput.waitFor({ state: 'visible', timeout: 5_000 });
+
+    // With it, they are back in
+    await pwInput.fill('midpass');
+    await player.page.locator(JOIN.joinBtn).click();
+    await player.page.waitForURL(/\/lobby/, { timeout: 10_000 });
+    await host.expectParticipantCount(2);
+    await player.expectParticipantCount(2);
   });
 
   test('new joiner rejected with wrong password after mid-session lock', async ({

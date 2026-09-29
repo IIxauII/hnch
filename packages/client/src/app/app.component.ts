@@ -7,6 +7,7 @@ import { HapticService } from './core/haptic.service';
 import { ParticipantIdService } from './core/participant-id.service';
 import { ParticipantRemovalService } from './core/participant-removal.service';
 import { SessionEndService } from './core/session-end.service';
+import { SessionRejectionService } from './core/session-rejection.service';
 import { ThemeService } from './core/theme.service';
 import { ToastService } from './services/toast.service';
 
@@ -41,6 +42,7 @@ export class AppComponent {
   // ensure Angular creates these singletons; each service's effect
   // self-gates on `docService.hasSession()`.
   private readonly sessionEnd = inject(SessionEndService);
+  private readonly sessionRejection = inject(SessionRejectionService);
   private readonly participantRemoval = inject(ParticipantRemovalService);
   private readonly theme = inject(ThemeService);
 
@@ -55,6 +57,7 @@ export class AppComponent {
   constructor() {
     // Consume effect services to mark them as used
     void this.sessionEnd;
+    void this.sessionRejection;
     void this.participantRemoval;
     void this.theme;
     effect(() => {

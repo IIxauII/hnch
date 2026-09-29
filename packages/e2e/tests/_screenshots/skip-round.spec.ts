@@ -4,6 +4,7 @@
  *
  * Scenes:
  *   skip-01  — estimating page with overflow menu open showing "Skip round" option
+ *   skip-01b — the confirmation that follows
  *   skip-02  — lobby after skip (round-skipped label, no Re-vote, no results)
  *
  * Host + 2 players so auto-reveal doesn't fire on a single vote.
@@ -134,6 +135,13 @@ test.describe('skip round screenshots', () => {
       } else {
         await popoverBtn.evaluate((el: HTMLElement) => el.click());
       }
+
+      // skip-01b — the question before the round is dropped
+      const alert = hostPage.locator('ion-alert');
+      await alert.waitFor({ state: 'visible', timeout: 5_000 });
+      await hostPage.waitForTimeout(400);
+      await shot(hostPage, 'skip-01b-confirm');
+      await alert.getByRole('button', { name: 'Skip round' }).click();
 
       await hostPage.waitForURL(/\/lobby/, { timeout: 10_000 });
       const skippedLabel = hostPage.locator('p.round-skipped');

@@ -183,6 +183,58 @@ describe('App — re-vote inherits parent round descriptor (ADR-0013 / #516)', (
 });
 
 // ---------------------------------------------------------------------------
+// What the Lobby is given to show. The host cancelling a round sends everyone
+// to the Lobby with that round last in the list; it is a tombstone (ADR-0046)
+// and the headline belongs to the round before it.
+// ---------------------------------------------------------------------------
+
+describe('App — a cancelled round is not what the Lobby shows', () => {
+  const revealed: Round = {
+    id: 'r1',
+    createdAt: 0,
+    createdBy: 'host',
+    scale: SCALE,
+    status: 'revealed',
+    title: 'Login form',
+    votes: { host: '5' },
+  };
+  const cancelled: Round = {
+    id: 'r2',
+    createdAt: 1,
+    createdBy: 'host',
+    scale: SCALE,
+    status: 'discarded',
+    title: 'Never mind',
+    votes: { host: '8' },
+  };
+
+  it('headlines the last round with a result, under the number it goes by', async () => {
+    const { session } = makeSession({ current: null, rounds: [revealed, cancelled] });
+    const { lastFrame } = await renderInk(
+      <App session={session} participantId="host" displayName="Host" accessMode="open" />,
+    );
+    const frame = lastFrame() ?? '';
+
+    expect(frame).toContain('Round 1');
+    expect(frame).toContain('Login form');
+    expect(frame).not.toContain('Round 0');
+    expect(frame).not.toContain('Never mind');
+  });
+
+  it('shows no results at all when the only round was cancelled', async () => {
+    const { session } = makeSession({ current: null, rounds: [cancelled] });
+    const { lastFrame } = await renderInk(
+      <App session={session} participantId="host" displayName="Host" accessMode="open" />,
+    );
+    const frame = lastFrame() ?? '';
+
+    expect(frame).not.toContain('Results');
+    expect(frame).not.toContain('Round 0');
+    expect(frame).not.toContain('Never mind');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Bound command call sites (#516)
 //
 // `SessionHandle` no longer carries per-act forwards — App reaches the whole

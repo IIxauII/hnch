@@ -49,6 +49,10 @@ interface VoteGroup {
   imports: [IonChip, IonIcon, IonItemGroup, IonLabel],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    @if (empty()) {
+      <p class="no-votes">No votes were cast.</p>
+    }
+
     <div class="groups">
       @for (group of voteGroups(); track group.card; let i = $index; let first = $first) {
         <ion-item-group
@@ -125,10 +129,13 @@ interface VoteGroup {
             </div>
           }
           @case ('categorical') {
-            <div class="stat">
-              <dt class="stat-label">Most common</dt>
-              <dd class="stat-value">{{ s.mode }}</dd>
-            </div>
+            <!-- Absent on a tie: no card was the most common one. -->
+            @if (s.mode !== null) {
+              <div class="stat">
+                <dt class="stat-label">Most common</dt>
+                <dd class="stat-value">{{ s.mode }}</dd>
+              </div>
+            }
           }
         }
         <!-- The label is what keeps "Close" from reading as a close button. -->
@@ -159,6 +166,11 @@ interface VoteGroup {
       :host {
         display: block;
         position: relative;
+      }
+      .no-votes {
+        margin: 0;
+        color: var(--hnch-muted);
+        font-size: 0.9375rem;
       }
       .groups {
         display: flex;
@@ -467,6 +479,18 @@ export class VoteResultsComponent {
     out.sort();
     return out;
   });
+
+  /**
+   * Nothing to list: no votes, no abstentions, and nobody who was expected
+   * to vote — a round revealed with only observers in the session. Said in
+   * words, so the card is not a lone timer.
+   */
+  protected readonly empty = computed(
+    () =>
+      this.voteGroups().length === 0 &&
+      this.abstainedNames().length === 0 &&
+      this.didntVoteNames().length === 0,
+  );
 
   /** Elapsed voting time, or null when the round has no knowable duration. */
   readonly elapsedLabel = computed<string | null>(() => formatRoundElapsed(this.round()));

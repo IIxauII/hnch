@@ -314,6 +314,66 @@ describe('VoteResultsComponent — TestBed rendering', () => {
     expect(chip!.getAttribute('aria-label')).toBe('Consensus level: Spread');
   });
 
+  it('categorical scale → names the most common card', async () => {
+    const TSHIRT = { id: 't-shirt', cards: ['XS', 'S', 'M', 'L', 'XL'] };
+    const round = makeRound({ scale: TSHIRT, votes: { p1: 'M', p2: 'M', p3: 'L' } });
+    const participants = [
+      makeParticipant('p1', 'Alice'),
+      makeParticipant('p2', 'Bob'),
+      makeParticipant('p3', 'Carol'),
+    ];
+    const fixture = await mountVoteResults(round, participants);
+    const el = fixture.nativeElement as HTMLElement;
+    const labels = [...el.querySelectorAll('.stat-label')].map((n) => n.textContent?.trim());
+    expect(labels).toEqual(['Most common', 'Agreement']);
+    expect(el.querySelector('.stat-value')?.textContent?.trim()).toBe('M');
+  });
+
+  // S, S, M, M: the first of the tied cards used to be crowned.
+  it('a tie names no most common card', async () => {
+    const TSHIRT = { id: 't-shirt', cards: ['XS', 'S', 'M', 'L', 'XL'] };
+    const round = makeRound({ scale: TSHIRT, votes: { p1: 'S', p2: 'S', p3: 'M', p4: 'M' } });
+    const participants = [
+      makeParticipant('p1', 'Alice'),
+      makeParticipant('p2', 'Bob'),
+      makeParticipant('p3', 'Carol'),
+      makeParticipant('p4', 'Dave'),
+    ];
+    const fixture = await mountVoteResults(round, participants);
+    const el = fixture.nativeElement as HTMLElement;
+    const labels = [...el.querySelectorAll('.stat-label')].map((n) => n.textContent?.trim());
+    expect(labels).toEqual(['Agreement']);
+    expect(el.querySelector('.stat-value')).toBeNull();
+  });
+
+  it('says so when there is nothing to list', async () => {
+    const round = makeRound({ votes: {} });
+    const fixture = await mountVoteResults(round, [makeObserver('p1', 'Alice')]);
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.no-votes')?.textContent?.trim()).toBe('No votes were cast.');
+    expect(el.querySelectorAll('.group')).toHaveLength(0);
+  });
+
+  it('does not say "no votes" next to a list of who did not vote', async () => {
+    const round = makeRound({ votes: {} });
+    const fixture = await mountVoteResults(round, [makeParticipant('p1', 'Alice')]);
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.no-votes')).toBeNull();
+    expect(el.querySelector('.group.didnt-vote')).not.toBeNull();
+  });
+
+  it('does not say "no votes" when there are votes or abstentions', async () => {
+    const voted = await mountVoteResults(makeRound({ votes: { p1: '5' } }), [
+      makeParticipant('p1', 'Alice'),
+    ]);
+    expect((voted.nativeElement as HTMLElement).querySelector('.no-votes')).toBeNull();
+
+    const abstained = await mountVoteResults(makeRound({ votes: { p1: ABSTAIN_SENTINEL } }), [
+      makeParticipant('p1', 'Alice'),
+    ]);
+    expect((abstained.nativeElement as HTMLElement).querySelector('.no-votes')).toBeNull();
+  });
+
   it('zero votes → no consensus chip (issue #157 AC #5)', async () => {
     const TSHIRT = { id: 't-shirt', cards: ['XS', 'S', 'M', 'L', 'XL'] };
     const round = makeRound({ scale: TSHIRT, votes: {} });

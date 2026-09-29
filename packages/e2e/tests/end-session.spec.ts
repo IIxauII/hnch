@@ -1,27 +1,5 @@
-import { test, expect } from './fixtures/app.fixture';
+import { clickMenuOption, test, expect } from './fixtures/app.fixture';
 import { LOBBY, SESSION_TOOLBAR, expectToast } from './fixtures/helpers';
-
-/**
- * Click a named item in the header ⋯ menu overlay.
- * Works for both ion-action-sheet (mobile) and ion-popover/app-menu-popover (desktop).
- */
-async function clickMenuOption(page: import('@playwright/test').Page, text: string): Promise<void> {
-  const actionSheetBtn = page.locator(`ion-action-sheet button:has-text("${text}")`);
-  // ion-item[button] renders a native <button> in shadow DOM; getByRole() pierces shadow.
-  const popoverBtn = page.locator('ion-popover').getByRole('button', { name: text });
-
-  await Promise.any([
-    actionSheetBtn.waitFor({ state: 'visible', timeout: 5_000 }),
-    popoverBtn.waitFor({ state: 'visible', timeout: 5_000 }),
-  ]);
-
-  const isActionSheet = await actionSheetBtn.isVisible().catch(() => false);
-  if (isActionSheet) {
-    await actionSheetBtn.click();
-  } else {
-    await popoverBtn.click();
-  }
-}
 
 /**
  * Helper: open ⋯ menu and trigger "End session for everyone" flow.

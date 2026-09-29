@@ -23,6 +23,16 @@ export interface ClippedControl {
  *
  * Reaching past a *scroller* is not a defect: that is what scrolling is for,
  * so an axis stops being checked once the walk has passed a scroller on it.
+ *
+ * What clips: `overflow: hidden` / `clip`, and paint containment
+ * (`contain: paint | content | strict` — `ion-list` has it). Only ancestors
+ * that can clip the control are asked: an absolutely positioned box is not
+ * clipped by the static boxes between it and its containing block, and a
+ * fixed one only by an ancestor with a transform. Edges are compared in
+ * viewport pixels, so an ancestor that is scaled (the selected card is) is
+ * measured scaled.
+ *
+ * Not covered: `clip-path`, and transforms that are not a scale.
  */
 export async function clippedControls(page: Page): Promise<ClippedControl[]> {
   return page.evaluate(() => {
@@ -68,35 +78,56 @@ export async function clippedControls(page: Page): Promise<ClippedControl[]> {
     };
 
     const controls = everyElement(document.body).filter((el) => {
+      // Disabled ones too: cut off is cut off, whether or not it can be used.
       if (!el.matches('button, a[href], input, textarea, select')) return false;
-      if ((el as HTMLButtonElement).disabled) return false;
       // Ionic's select lays a full-size hidden button over itself.
       const root = el.getRootNode();
       if (root instanceof ShadowRoot && root.host.tagName === 'ION-SELECT') return false;
       return isShown(el);
     });
 
+    const paints = (contain: string): boolean => /\b(?:paint|content|strict)\b/u.test(contain);
+
     const found: ClippedControl[] = [];
     for (const control of controls) {
       const rect = control.getBoundingClientRect();
       let scrollsX = false;
       let scrollsY = false;
+      // How the box we are following up the tree is positioned: the control
+      // first, then each ancestor that turned out to contain it.
+      let position = getComputedStyle(control).position;
       for (let n = flatParent(control); n; n = flatParent(n)) {
         const style = getComputedStyle(n);
+        const transformed = style.transform !== 'none';
+        // Not in the containing-block chain: it cannot clip what it does not contain.
+        if (position === 'fixed' && !transformed) continue;
+        if (position === 'absolute' && style.position === 'static' && !transformed) continue;
+        position = style.position;
+
         if (style.overflowX === 'auto' || style.overflowX === 'scroll') scrollsX = true;
         if (style.overflowY === 'auto' || style.overflowY === 'scroll') scrollsY = true;
-        const clipsX = !scrollsX && (style.overflowX === 'hidden' || style.overflowX === 'clip');
-        const clipsY = !scrollsY && (style.overflowY === 'hidden' || style.overflowY === 'clip');
+        const contained = paints(style.contain);
+        const clipsX =
+          !scrollsX && (contained || style.overflowX === 'hidden' || style.overflowX === 'clip');
+        const clipsY =
+          !scrollsY && (contained || style.overflowY === 'hidden' || style.overflowY === 'clip');
         if (!clipsX && !clipsY) continue;
 
+        // The rect is in viewport pixels, the client box in the element's
+        // own: a scaled ancestor has to be measured scaled.
         const outer = n.getBoundingClientRect();
-        const left = outer.left + n.clientLeft;
-        const top = outer.top + n.clientTop;
+        const box = n as HTMLElement;
+        const scaleX = box.offsetWidth > 0 ? outer.width / box.offsetWidth : 1;
+        const scaleY = box.offsetHeight > 0 ? outer.height / box.offsetHeight : 1;
+        const left = outer.left + n.clientLeft * scaleX;
+        const top = outer.top + n.clientTop * scaleY;
+        const right = left + n.clientWidth * scaleX;
+        const bottom = top + n.clientHeight * scaleY;
         const over = {
           left: clipsX ? Math.max(0, left - rect.left) : 0,
-          right: clipsX ? Math.max(0, rect.right - (left + n.clientWidth)) : 0,
+          right: clipsX ? Math.max(0, rect.right - right) : 0,
           top: clipsY ? Math.max(0, top - rect.top) : 0,
-          bottom: clipsY ? Math.max(0, rect.bottom - (top + n.clientHeight)) : 0,
+          bottom: clipsY ? Math.max(0, rect.bottom - bottom) : 0,
         };
         // Half a pixel of slack for sub-pixel layout.
         if (Math.max(over.left, over.right, over.top, over.bottom) > 0.5) {

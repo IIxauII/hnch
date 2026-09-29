@@ -250,7 +250,7 @@ These are *not* in this roadmap and will be called out if they drift in:
 
 - iPad-specific or landscape-first layouts.
 - Desktop-native flavors (Android-native rolled into Phase 6b per [`plans/native-deployment.md`](plans/native-deployment.md); PWA remains the desktop path).
-- Session history / reporting / analytics surfaces beyond the single Jump-back-in banner.
+- Session history / reporting / analytics surfaces beyond Home's "Jump back in" list.
 - Team UI (the [ADR-0007](../adr/0007-teams-local-only.md) concept stays in architecture, no UI in v1).
 - Integrations with trackers (Jira, Linear, etc.).
 - Account sign-in or cross-device identity.

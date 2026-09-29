@@ -106,7 +106,7 @@ QR scanning via `@capacitor-mlkit/barcode-scanning` requires camera permission. 
 
 Before tagging a v1 candidate, run the full happy path on a physical iPhone:
 
-- Fresh install → onboarding → create room → share invite → second device joins → vote → reveal → re-vote → next round → leave → jump-back-in banner → rejoin.
+- Fresh install → onboarding → create room → share invite → second device joins → vote → reveal → re-vote → next round → leave → "Jump back in" list → rejoin.
 
 Also verify: haptics fire at the right moments, safe-area insets are correct, keyboard does not cover inputs, dark mode toggles correctly, and the QR scanner opens and dismisses cleanly.
 
@@ -214,6 +214,6 @@ These are deliberately excluded from v1 per `roadmap.md §11` but worth keeping 
 - **Team UI** — ADR-0007 architecture is in place; no UI planned for v1.
 - **Jira / Linear integrations** — story-point writing back to trackers; post-v1.
 - **Account sign-in / cross-device identity** — device-scoped identity (ADR-0005) is the v1 model.
-- **Session history / analytics** — beyond the Jump-back-in banner; post-v1.
+- **Session history / analytics** — beyond Home's "Jump back in" list; post-v1.
 - **Liquid Glass / iOS 26 theming** — `@rdlabo/ionic-theme-ios26` deferred pending package stabilisation (`ux.md §7`).
 - **Export formats beyond clipboard markdown** — CSV/PDF/JSON export; post-v1.

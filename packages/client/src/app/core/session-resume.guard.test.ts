@@ -189,6 +189,27 @@ describe('sessionResumeGuardLogic', () => {
     expect(result).toBe(true);
   });
 
+  // The host had ended the session; it was torn down while this waited.
+  it('redirects Home when the session went away under it, and leaves the cache alone', async () => {
+    const { sessionResumeGuardLogic } = await import('./session-resume.guard');
+
+    const router = makeRouter();
+    const docService = makeDocService(false, null);
+    const lastSessionService = makeLastSessionService();
+    const roomJoinService = makeRoomJoinService({ type: 'superseded' });
+
+    const result = await sessionResumeGuardLogic(
+      { router, docService, lastSessionService, roomJoinService },
+      makeSegments('lobby', 'ABCDEF'),
+    );
+
+    expect(router.createUrlTree).toHaveBeenCalledWith(['/home']);
+    expect(result).not.toBe(true);
+    expect(lastSessionService.removeByUuid).not.toHaveBeenCalled();
+    expect(lastSessionService.clearAll).not.toHaveBeenCalled();
+    expect(lastSessionService.setPendingPasswordHash).not.toHaveBeenCalled();
+  });
+
   it('redirects to /join?code= on password-required (no cached hash)', async () => {
     const { sessionResumeGuardLogic } = await import('./session-resume.guard');
 

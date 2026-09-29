@@ -18,7 +18,7 @@
  * Sanity assertions (self-row / non-host rows):
  * - Host's own row has NO overflow button (aria-label "Host actions for Host" absent).
  * - On a non-host participant's own view, the overflow button is absent
- *   (the `@if (isHost() && p.id !== myId())` guard in lobby.page.ts).
+ *   (rows get one only for the host, and never the host's own row).
  */
 
 import { test, expect } from './fixtures/app.fixture';

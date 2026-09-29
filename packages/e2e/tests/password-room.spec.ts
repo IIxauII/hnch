@@ -45,19 +45,40 @@ test.describe('Password-protected rooms', () => {
     // The sixth character resolves the code and reveals the password field
     await fillRoomCode(player.page, code);
 
-    // Wait for password field
+    // Wait for password field. It takes the focus: the next thing typed is
+    // the password, with no tap in between.
     const pwInput = player.page.locator(JOIN.passwordInput).locator('input');
     await pwInput.waitFor({ state: 'visible', timeout: 5_000 });
-    await pwInput.fill('wrongpassword');
+    await expect(pwInput).toBeFocused();
+    await player.page.keyboard.type('wrongpassword');
+    await expect(pwInput).toHaveValue('wrongpassword');
     await player.page.locator(JOIN.joinBtn).click();
 
     // Says so, and stays on the join page (does not navigate to lobby)
     await expectToast(player.page, 'That password is incorrect');
     expect(player.page.url()).toContain('/join');
 
-    // The code is kept and the password field is emptied for another go
+    // The code is kept and the password field is emptied for another go —
+    // and has the focus again
     await expect(pwInput).toHaveValue('');
+    await expect(pwInput).toBeFocused();
     await expect(player.page.locator('app-lobby')).toHaveCount(0);
+  });
+
+  // Leading and trailing whitespace is not part of a password, on either side.
+  test('a password pasted with a space after it still opens the session', async ({
+    host,
+    player,
+  }) => {
+    const code = await host.createSession();
+    await host.openSettings();
+    await host.setPassword('  secret123 ');
+    await host.closeSettings();
+
+    await player.joinSessionWithPassword(code, 'secret123  ');
+
+    await host.expectParticipantCount(2);
+    await player.expectParticipantCount(2);
   });
 
   test('removing password lets joiner in without one', async ({ host, player }) => {

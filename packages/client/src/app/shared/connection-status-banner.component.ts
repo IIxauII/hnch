@@ -22,8 +22,16 @@ export type BannerSyncStatus = 'connected' | 'offline' | 'connecting' | 'disconn
  */
 export const CONNECTING_BANNER_DELAY_MS = 1_000;
 
-/** True while a session is attached and its connection is not up. */
-export function isWaitingForConnection(status: BannerSyncStatus): boolean {
+/**
+ * True while a session is attached, its connection is not up, and it is
+ * still being tried for.
+ *
+ * `rejected` — the relay has refused this connection for good, and the relay
+ * client has stopped trying. The status stays at `disconnected`, but nothing
+ * is being waited for: saying "Connecting…" would go on saying it forever.
+ */
+export function isWaitingForConnection(status: BannerSyncStatus, rejected = false): boolean {
+  if (rejected) return false;
   return status === 'connecting' || status === 'disconnected';
 }
 
@@ -42,9 +50,10 @@ export function computeBannerLabel(
   reconnecting: boolean,
   status: BannerSyncStatus,
   waitingLongEnough: boolean,
+  rejected = false,
 ): string | null {
   if (reconnecting) return 'Reconnecting…';
-  if (isWaitingForConnection(status) && waitingLongEnough) return 'Connecting…';
+  if (isWaitingForConnection(status, rejected) && waitingLongEnough) return 'Connecting…';
   return null;
 }
 
@@ -132,8 +141,16 @@ export class ConnectionStatusBannerComponent {
    */
   private readonly waitingLongEnough = signal(false);
 
+  /** The relay has refused the connection; nobody is trying any more. */
+  private readonly rejected = computed(() => this.docService.lastRejection() !== null);
+
   protected readonly label = computed<string | null>(() =>
-    computeBannerLabel(this.reconnecting(), this.docService.syncStatus(), this.waitingLongEnough()),
+    computeBannerLabel(
+      this.reconnecting(),
+      this.docService.syncStatus(),
+      this.waitingLongEnough(),
+      this.rejected(),
+    ),
   );
 
   /**
@@ -172,7 +189,7 @@ export class ConnectionStatusBannerComponent {
     // the session going away) stops it.
     let waiting = false;
     effect(() => {
-      const nowWaiting = isWaitingForConnection(this.docService.syncStatus());
+      const nowWaiting = isWaitingForConnection(this.docService.syncStatus(), this.rejected());
       if (nowWaiting === waiting) return;
       waiting = nowWaiting;
       if (connectingTimer !== null) {

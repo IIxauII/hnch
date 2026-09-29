@@ -54,6 +54,7 @@ export interface SessionResumeGuardDeps {
  *     - `unknown-room` or handshake failure → removeByUuid, redirect to `/home`.
  *     - `timeout` → allow (WS will reconnect in background; guard gives the
  *       benefit of the doubt rather than killing the route on a slow network).
+ *     - `superseded` → redirect to `/home`; the session is gone.
  *
  * Applied after `displayNameGuard` in the route config so we know we have
  * a display name before trying to create a session.
@@ -74,7 +75,7 @@ export async function sessionResumeGuardLogic(
   const code = normalizeRoomCode(rawCode);
 
   // Validate before touching the cache — an invalid code (typo URL) must
-  // not wipe a legitimate Jump-back-in pointer for a different room.
+  // not wipe a legitimate "Jump back in" entry for a different session.
   if (!isValidRoomCode(code)) {
     return router.createUrlTree(['/home']);
   }
@@ -105,6 +106,12 @@ export async function sessionResumeGuardLogic(
       // local state is available; the reconnecting banner handles the UX.
       return true;
 
+    case 'superseded':
+      // The session was torn down while this was waiting on it — the host
+      // had already ended it, say. Whoever tore it down has told the user
+      // and is sending them on; there is nothing to show here.
+      return router.createUrlTree(['/home']);
+
     case 'password-required':
       // No cached hash; redirect to Join page which auto-fills the code
       // and shows the password field.
@@ -132,7 +139,7 @@ export async function sessionResumeGuardLogic(
       return router.createUrlTree(['/home']);
 
     case 'network-error':
-      // Preserve cache; let user retry via the Jump-back-in banner.
+      // Preserve cache; let user retry from Home's "Jump back in" list.
       return router.createUrlTree(['/home']);
   }
 }

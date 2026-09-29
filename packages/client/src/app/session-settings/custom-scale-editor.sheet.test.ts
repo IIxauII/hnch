@@ -312,6 +312,52 @@ describe('CustomScaleEditorSheetComponent — deleting a scale', () => {
     expect(alertState.shown[0]!.message).toContain('Team sizes');
   });
 
+  // The scale may be the one a session is running on; the doc has its cards.
+  it('says what happens to a session that uses the scale', async () => {
+    const fixture = await mountEditor(SAVED);
+    await internals(fixture).onDeleteScale();
+
+    expect(alertState.shown[0]!.message).toContain('A session that uses it keeps its cards.');
+  });
+
+  it('asks once, however often the button is tapped', async () => {
+    alertState.answer = 'destructive';
+    const fixture = await mountEditor(SAVED);
+    const comp = internals(fixture);
+    const closed = vi.fn();
+    fixture.componentInstance.closeRequested.subscribe(closed);
+
+    await Promise.all([comp.onDeleteScale(), comp.onDeleteScale(), comp.onDeleteScale()]);
+
+    expect(alertState.shown).toHaveLength(1);
+    expect(deletedIds).toEqual(['custom-1']);
+    expect(closed).toHaveBeenCalledOnce();
+  });
+
+  it('can be asked again after the question was cancelled', async () => {
+    const fixture = await mountEditor(SAVED);
+    const comp = internals(fixture);
+
+    await comp.onDeleteScale();
+    alertState.answer = 'destructive';
+    await comp.onDeleteScale();
+
+    expect(alertState.shown).toHaveLength(2);
+    expect(deletedIds).toEqual(['custom-1']);
+  });
+
+  it('does not ask again once the scale is deleted', async () => {
+    alertState.answer = 'destructive';
+    const fixture = await mountEditor(SAVED);
+    const comp = internals(fixture);
+
+    await comp.onDeleteScale();
+    await comp.onDeleteScale();
+
+    expect(alertState.shown).toHaveLength(1);
+    expect(deletedIds).toEqual(['custom-1']);
+  });
+
   it('deletes nothing when the question is cancelled', async () => {
     const fixture = await mountEditor(SAVED);
     const closed = vi.fn();
@@ -352,6 +398,46 @@ describe('CustomScaleEditorSheetComponent — deleting a scale', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  // `updated` makes the picker select the scale. One that is gone must not
+  // be selected by a save that was already on its way.
+  it('does not report a save that finishes after the delete', async () => {
+    alertState.answer = 'destructive';
+    let finishSave!: () => void;
+    updateCustomScaleFn.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishSave = resolve;
+        }),
+    );
+    const fixture = await mountEditor(SAVED);
+    const comp = internals(fixture);
+    const updated = vi.fn();
+    fixture.componentInstance.updated.subscribe(updated);
+
+    comp.newCard = 'XL';
+    comp.onAddCard();
+    expect(updateCustomScaleFn).toHaveBeenCalledOnce();
+    await comp.onDeleteScale();
+    finishSave();
+    await fixture.whenStable();
+
+    expect(deletedIds).toEqual(['custom-1']);
+    expect(updated).not.toHaveBeenCalled();
+  });
+
+  it('reports a save as long as the scale is there', async () => {
+    const fixture = await mountEditor(SAVED);
+    const comp = internals(fixture);
+    const updated = vi.fn();
+    fixture.componentInstance.updated.subscribe(updated);
+
+    comp.newCard = 'XL';
+    comp.onAddCard();
+    await fixture.whenStable();
+
+    expect(updated).toHaveBeenCalledExactlyOnceWith('custom-1');
   });
 
   it('does not save a card change made after the delete either', async () => {

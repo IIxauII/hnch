@@ -1,27 +1,5 @@
-import { test, expect } from './fixtures/app.fixture';
-import { HOME, LOBBY } from './fixtures/helpers';
-
-/**
- * Click a named item in the header ⋯ menu overlay.
- * Works for both ion-action-sheet (mobile) and ion-popover/app-menu-popover (desktop).
- */
-async function clickMenuOption(page: import('@playwright/test').Page, text: string): Promise<void> {
-  const actionSheetBtn = page.locator(`ion-action-sheet button:has-text("${text}")`);
-  // ion-item[button] renders a native <button> in shadow DOM; getByRole() pierces shadow.
-  const popoverBtn = page.locator('ion-popover').getByRole('button', { name: text });
-
-  await Promise.any([
-    actionSheetBtn.waitFor({ state: 'visible', timeout: 5_000 }),
-    popoverBtn.waitFor({ state: 'visible', timeout: 5_000 }),
-  ]);
-
-  const isActionSheet = await actionSheetBtn.isVisible().catch(() => false);
-  if (isActionSheet) {
-    await actionSheetBtn.click();
-  } else {
-    await popoverBtn.click();
-  }
-}
+import { clickMenuOption, test, expect } from './fixtures/app.fixture';
+import { HOME, LOBBY, rememberedSessionCodes } from './fixtures/helpers';
 
 test.describe('Leave session flow', () => {
   test('host leaves session via action sheet → confirm → navigates to Home', async ({ host }) => {
@@ -41,9 +19,10 @@ test.describe('Leave session flow', () => {
   });
 
   test('after explicit leave, last session cache is cleared', async ({ host }) => {
-    // Create a session
-    await host.createSession();
+    // Create a session, which the device remembers once it is in it
+    const code = await host.createSession();
     await host.page.waitForURL(/\/lobby/);
+    await expect.poll(() => rememberedSessionCodes(host.page)).toContain(code);
 
     // Leave the session
     await host.leaveSession();
@@ -52,10 +31,16 @@ test.describe('Leave session flow', () => {
     await host.page.waitForURL(/\/home/);
     await host.page.locator(HOME.createCard).waitFor({ state: 'visible' });
 
-    // Nothing to jump back into (last session was explicitly cleared): no
-    // rows, and no "Jump back in" heading over an empty list either.
+    // Forgotten: nothing to jump back into...
+    await expect.poll(() => rememberedSessionCodes(host.page)).toEqual([]);
+
+    // ...and a Home that has read that shows no rows, and no "Jump back in"
+    // heading over an empty list either.
+    await host.page.reload();
+    await host.page.locator(HOME.createCard).waitFor({ state: 'visible' });
     await expect(host.page.locator(HOME.recentRow)).toHaveCount(0);
     await expect(host.page.locator('app-home')).not.toContainText('Jump back in');
+    expect(await rememberedSessionCodes(host.page)).toEqual([]);
   });
 
   test('cancel on leave alert dismisses dialog without leaving', async ({ host }) => {

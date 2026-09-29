@@ -30,6 +30,10 @@ describe('AvatarComponent', () => {
     expect(mount({ participantId: 'p1', name: '  sam' }).textContent).toBe('S');
   });
 
+  it('keeps an emoji whole rather than showing half of it', () => {
+    expect(mount({ participantId: 'p1', name: '😀 Sam' }).textContent).toBe('😀');
+  });
+
   it('falls back to "?" for an empty name', () => {
     expect(mount({ participantId: 'p1', name: '   ' }).textContent).toBe('?');
   });
@@ -42,6 +46,12 @@ describe('AvatarComponent', () => {
     probe.style.color = resolveAvatarInkColor('amber', 'p1');
     expect(el.style.background).toBe(probe.style.background);
     expect(el.style.color).toBe(probe.style.color);
+  });
+
+  // The edge ring is mixed from the fill in the stylesheet.
+  it('hands its fill to the stylesheet', () => {
+    const el = mount({ participantId: 'p1', name: 'Ada', color: 'amber' });
+    expect(el.style.getPropertyValue('--avatar-fill')).toBe(resolveAvatarColor('amber', 'p1'));
   });
 
   it('derives a stable color from the id when none is set', () => {

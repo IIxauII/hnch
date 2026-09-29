@@ -79,7 +79,9 @@ import { previewBuiltinCards, previewCards } from './scale-picker.helpers';
       <ion-toolbar>
         <ion-title>{{ showPickerMode() ? 'Scale' : 'Scales' }}</ion-title>
         <ion-buttons slot="end">
-          <ion-button (click)="closeRequested.emit()">Done</ion-button>
+          <ion-button strong="true" color="primary" (click)="closeRequested.emit()">
+            Done
+          </ion-button>
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
@@ -224,9 +226,6 @@ import { previewBuiltinCards, previewCards } from './scale-picker.helpers';
   `,
   styles: [
     `
-      ion-list {
-        margin-block: 0;
-      }
       ion-note {
         font-size: 0.85rem;
       }

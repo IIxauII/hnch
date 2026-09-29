@@ -172,6 +172,16 @@ describe('rejoinRoom', () => {
     expect(lastSessionService.record).not.toHaveBeenCalled();
   });
 
+  it('passes on that the session went away while it waited', async () => {
+    const { rejoinRoom, deps } = await buildDeps({
+      resolveResult: { uuid: 'uuid-open', accessMode: 'open' },
+      waitOutcome: 'superseded',
+    });
+
+    const result = await rejoinRoom('ABC123', deps);
+    expect(result.type).toBe('superseded');
+  });
+
   it('returns timeout outcome when waitForJoinOutcome times out', async () => {
     const { rejoinRoom, deps } = await buildDeps({
       resolveResult: { uuid: 'uuid-open', accessMode: 'open' },

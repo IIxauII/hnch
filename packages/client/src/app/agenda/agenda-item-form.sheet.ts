@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, input, OnInit, output, signal } from '@angular/core';
+import {
+  afterNextRender,
+  ChangeDetectionStrategy,
+  Component,
+  input,
+  OnInit,
+  output,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import {
   AbstractControl,
@@ -23,6 +32,8 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { map, startWith } from 'rxjs';
+
+import { focusField } from '../utils/focus-field';
 
 /**
  * Payload emitted when the user submits the agenda item form.
@@ -101,15 +112,16 @@ function atLeastOneRequired(group: AbstractControl): ValidationErrors | null {
         <ion-list inset="true" lines="inset">
           <ion-item>
             <ion-input
+              #titleField
               formControlName="title"
               label="Title"
               labelPlacement="stacked"
               placeholder="e.g. Login redesign"
               autocapitalize="sentences"
-              enterkeyhint="next"
+              enterkeyhint="done"
               maxlength="120"
               aria-describedby="agenda-form-hint"
-              (keydown.enter)="submit()"
+              (keydown.enter)="onEnter($event)"
             ></ion-input>
           </ion-item>
           <ion-item>
@@ -121,10 +133,10 @@ function atLeastOneRequired(group: AbstractControl): ValidationErrors | null {
               autocapitalize="characters"
               autocorrect="off"
               spellcheck="false"
-              enterkeyhint="next"
+              enterkeyhint="done"
               maxlength="120"
               aria-describedby="agenda-form-hint"
-              (keydown.enter)="submit()"
+              (keydown.enter)="onEnter($event)"
             ></ion-input>
           </ion-item>
           <ion-item>
@@ -149,9 +161,6 @@ function atLeastOneRequired(group: AbstractControl): ValidationErrors | null {
   `,
   styles: [
     `
-      ion-list {
-        margin-block: 0;
-      }
       .helper {
         display: block;
         padding: 8px 16px 0;
@@ -207,6 +216,8 @@ export class AgendaItemFormSheetComponent implements OnInit {
     { initialValue: this.form.valid },
   );
 
+  private readonly titleField = viewChild<IonInput>('titleField');
+
   constructor() {
     // A submit the parent refuses leaves this sheet open (a peer removed the
     // story mid-edit, say). The latch has to let go once the user edits
@@ -214,6 +225,9 @@ export class AgendaItemFormSheetComponent implements OnInit {
     this.form.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => {
       this.isSubmitting.set(false);
     });
+
+    // The sheet is there to be typed into.
+    afterNextRender(() => void focusField(this.titleField()));
   }
 
   ngOnInit(): void {
@@ -225,6 +239,15 @@ export class AgendaItemFormSheetComponent implements OnInit {
         description: item.description ?? '',
       });
     }
+  }
+
+  /**
+   * Enter in a one-line field submits, and the key says so (`enterkeyhint`).
+   * The Enter that confirms an IME composition is part of typing, not a submit.
+   */
+  protected onEnter(event: Event): void {
+    if ((event as KeyboardEvent).isComposing) return;
+    this.submit();
   }
 
   protected submit(): void {

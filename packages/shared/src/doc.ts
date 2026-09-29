@@ -403,16 +403,27 @@ export const SCALE_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   risk: 'Risk',
 };
 
+/** What a custom scale is called where its own name is not known. */
+export const CUSTOM_SCALE_FALLBACK_LABEL = 'Custom scale';
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+
 /**
  * Returns a human-readable label for a scale ID. For builtin scales this is
  * the value from SCALE_DISPLAY_NAMES. For custom IDs (prefixed `custom-`) the
  * prefix is stripped and each hyphen-separated word is title-cased. Any other
  * unknown ID is title-cased word-by-word as a best-effort fallback.
+ *
+ * A custom scale's id is `custom-<uuid>`, and its name lives on the device
+ * that made it (ADR-0019) — the doc carries the id and the cards. Everyone
+ * else in the session, and the owner once the scale is deleted, has only the
+ * id to go by: that reads {@link CUSTOM_SCALE_FALLBACK_LABEL}, not the UUID.
  */
 export function formatScaleId(id: string): string {
   if (id in SCALE_DISPLAY_NAMES) return SCALE_DISPLAY_NAMES[id]!;
   if (id.length === 0) return id;
   const stripped = id.startsWith('custom-') ? id.slice('custom-'.length) : id;
+  if (stripped !== id && UUID_PATTERN.test(stripped)) return CUSTOM_SCALE_FALLBACK_LABEL;
   return stripped
     .split('-')
     .map((word) => (word.length === 0 ? word : word.charAt(0).toUpperCase() + word.slice(1)))

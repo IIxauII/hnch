@@ -40,16 +40,27 @@ describe('RoleToggleComponent', () => {
   it('says where a press leads, for pointer and for screen reader alike', async () => {
     const voter = (await mount(false)).button;
     expect(voter.getAttribute('title')).toBe('Switch to observer');
-    expect(voter.getAttribute('aria-label')).toBe('You are a voter. Switch to observer.');
+    expect(voter.getAttribute('aria-label')).toBe('Voter. Switch to observer.');
 
     const observer = (await mount(true)).button;
     expect(observer.getAttribute('title')).toBe('Switch to voter');
-    expect(observer.getAttribute('aria-label')).toBe('You are observing. Switch to voter.');
+    expect(observer.getAttribute('aria-label')).toBe('Observer. Switch to voter.');
   });
 
-  it('exposes the observer state as a pressed toggle', async () => {
-    expect((await mount(false)).button.getAttribute('aria-pressed')).toBe('false');
-    expect((await mount(true)).button.getAttribute('aria-pressed')).toBe('true');
+  // Speech input finds a control by the word on it ("click Voter").
+  it('starts its name with the word it shows', async () => {
+    for (const viewer of [false, true]) {
+      const { button } = await mount(viewer);
+      const shown = button.textContent!.trim();
+      expect(button.getAttribute('aria-label')!.startsWith(shown)).toBe(true);
+    }
+  });
+
+  // A pressed toggle keeps its name and changes state. This one changes its
+  // name, so a state on top would say the same thing twice, differently.
+  it('is not announced as a pressed toggle', async () => {
+    expect((await mount(false)).button.hasAttribute('aria-pressed')).toBe(false);
+    expect((await mount(true)).button.hasAttribute('aria-pressed')).toBe(false);
   });
 
   it('marks the observer state for styling', async () => {

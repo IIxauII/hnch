@@ -8,7 +8,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { getScaleLabel, hashPassword, patchRoomAccess, type Scale } from '@hnch/shared';
+import { getScaleLabel, normalizePassword, type Scale } from '@hnch/shared';
 import {
   IonButton,
   IonButtons,
@@ -25,27 +25,14 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 
-import { AppPreferenceService } from '../core/app-preference.service';
 import { DocService } from '../core/doc/doc.service';
-import { LastSessionService } from '../core/last-session.service';
 import { ScalePreferenceService } from '../core/scale-preference.service';
+import { SessionAccessService } from '../core/session-access.service';
 import { SurfaceService } from '../core/surface.service';
 import { ToastService } from '../services/toast.service';
 import { ScalePickerSheetComponent } from './scale-picker.sheet';
 import { presentSheet } from '../utils/present-sheet';
 import { accessHint, passwordPlaceholder } from './session-settings.helpers';
-
-/** Access modes per ADR-0009. Invite-only dropped from v1 (ADR-0017). */
-export type AccessMode = 'open' | 'password';
-
-/**
- * What the sheet reports once the relay has accepted an access change.
- * `password` is only populated when `mode === 'password'`.
- */
-export interface AccessSelection {
-  readonly mode: AccessMode;
-  readonly password: string | null;
-}
 
 /**
  * Session settings half-sheet — host only.
@@ -55,9 +42,14 @@ export interface AccessSelection {
  * "access" picker: a session with a password is protected and one without is
  * open, so the password field *is* the access setting.
  *
- * Access is relay state (ADR-0009). `accessChanged` fires only after the
- * relay has accepted the change, so the Lobby never shows a lock the relay
- * does not enforce.
+ * Access is relay state (ADR-0009), kept by `SessionAccessService`. The
+ * sheet asks for a change and reports how it went; the state itself is not
+ * the sheet's, because the sheet is usually closed before the relay has
+ * answered — the field saves on blur, and what blurs it is the tap on Done.
+ *
+ * The password is never shown back. The relay holds a hash and so does this
+ * device; the field is empty until something is typed into it, and empty
+ * again once that has been saved.
  */
 @Component({
   selector: 'app-session-settings-sheet',
@@ -117,7 +109,7 @@ export interface AccessSelection {
             label="Password"
             labelPlacement="stacked"
             type="password"
-            autocomplete="new-password"
+            autocomplete="off"
             enterkeyhint="done"
             maxlength="120"
             [placeholder]="passwordPlaceholder()"
@@ -164,9 +156,6 @@ export interface AccessSelection {
   `,
   styles: [
     `
-      ion-list {
-        margin-block: 0;
-      }
       .value {
         font-size: 0.9375rem;
       }
@@ -183,10 +172,9 @@ export interface AccessSelection {
   ],
 })
 export class SessionSettingsSheetComponent {
-  private readonly appPrefs = inject(AppPreferenceService);
   private readonly scalePrefs = inject(ScalePreferenceService);
   private readonly docService = inject(DocService);
-  private readonly lastSessionService = inject(LastSessionService);
+  private readonly access = inject(SessionAccessService);
   private readonly toastService = inject(ToastService);
   protected readonly surface = inject(SurfaceService);
 
@@ -198,15 +186,8 @@ export class SessionSettingsSheetComponent {
    */
   readonly closeRequested = output<void>();
 
-  /**
-   * Access state is owned by the parent (LobbyPage) so it survives
-   * modal dismiss/recreate cycles. `accessPassword` is whatever the host
-   * typed on this device this session — the relay only ever holds a hash,
-   * so after a reload it is blank even when the session is protected.
-   */
-  readonly accessMode = input<AccessMode>('open');
-  readonly accessPassword = input<string>('');
-  readonly accessChanged = output<AccessSelection>();
+  /** Whether the session asks for a password, as the relay last said. */
+  protected readonly accessMode = this.access.mode;
 
   /** Only the host may change anything here; everyone else gets it read-only. */
   readonly isHost = input<boolean>(false);
@@ -218,7 +199,7 @@ export class SessionSettingsSheetComponent {
   protected readonly passwordDraft = signal('');
 
   /** True while an access change is on its way to the relay. */
-  protected readonly savingAccess = signal(false);
+  protected readonly savingAccess = this.access.saving;
 
   /** Current settings.defaultScale, or `null` until session boots. */
   protected readonly currentScale = computed<Scale | null>(
@@ -237,12 +218,6 @@ export class SessionSettingsSheetComponent {
 
   private readonly sessionNameInput = viewChild<IonInput>('sessionNameInput');
   private readonly scaleModalRef = viewChild<IonModal>('scaleModal');
-
-  constructor() {
-    // input()s aren't available until after construction — seed the draft
-    // from the parent's remembered password once they are.
-    queueMicrotask(() => this.passwordDraft.set(this.accessPassword()));
-  }
 
   // ---------------------------------------------------------------------------
   // Row handlers
@@ -284,47 +259,30 @@ export class SessionSettingsSheetComponent {
    */
   protected async onPasswordCommit(): Promise<void> {
     if (!this.isHost() || this.savingAccess()) return;
-    const password = this.passwordDraft().trim();
-    if (!password) return;
-    if (this.accessMode() === 'password' && password === this.accessPassword()) return;
-    await this.applyAccess({ mode: 'password', password });
+    const password = this.passwordDraft();
+    if (normalizePassword(password) === '') return;
+    // Out of the field before anything else: it has been handed over.
+    this.passwordDraft.set('');
+    await this.report(await this.access.setPassword(password), 'Password set');
   }
 
   protected async onRemovePassword(): Promise<void> {
     if (!this.isHost() || this.savingAccess()) return;
-    await this.applyAccess({ mode: 'open', password: null });
+    this.passwordDraft.set('');
+    await this.report(await this.access.removePassword(), 'Password removed');
   }
 
-  /** Relay first; the UI only follows once the relay has said yes. */
-  private async applyAccess(selection: AccessSelection): Promise<void> {
-    const roomUuid = this.docService.meta()?.roomUuid;
-    if (!roomUuid) return;
-
-    this.savingAccess.set(true);
-    try {
-      const relayUrl = this.appPrefs.resolvedRelayHttpUrl();
-      if (selection.mode === 'password' && selection.password !== null) {
-        const hash = await hashPassword(selection.password, roomUuid);
-        await patchRoomAccess(relayUrl, roomUuid, hash);
-        // Our own socket still carries the old `pw`; re-handshake so the
-        // rotation does not lock this client out on its next reconnect, and
-        // cache the hash so the host's own way back in does not ask for it.
-        this.docService.updateCredentials(hash);
-        this.lastSessionService.setPendingPasswordHash(roomUuid, hash);
-        this.passwordDraft.set(selection.password);
-        await this.toastService.info('Password set');
-      } else {
-        await patchRoomAccess(relayUrl, roomUuid, null);
-        this.docService.updateCredentials(null);
-        await this.lastSessionService.clearPasswordHash(roomUuid);
-        this.passwordDraft.set('');
-        await this.toastService.info('Password removed');
-      }
-      this.accessChanged.emit(selection);
-    } catch {
+  /**
+   * Say how the change went. Runs to the end even when the sheet has been
+   * closed in the meantime — the toast is how the user finds out.
+   */
+  private async report(
+    result: Awaited<ReturnType<SessionAccessService['setPassword']>>,
+    done: string,
+  ): Promise<void> {
+    if (result === 'applied') await this.toastService.info(done);
+    if (result === 'failed') {
       await this.toastService.error("Couldn't update the password. Try again.");
-    } finally {
-      this.savingAccess.set(false);
     }
   }
 }
