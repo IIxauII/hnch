@@ -29,7 +29,7 @@
     "@angular/forms": "^20.0.0",
     "@angular/platform-browser": "^20.0.0",
     "@angular/platform-browser-dynamic": "^20.0.0",
-    "@angular/router": "^20.0.0",
+    "@angular/router": "^20.3.32",
     "@capacitor-mlkit/barcode-scanning": "^8.0.1",
     "@capacitor/app": "8.1.0",
     "@capacitor/clipboard": "^8.0.1",
