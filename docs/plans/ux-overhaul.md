@@ -6,7 +6,7 @@
 **Shape:** Multi-phase programme: 6 phases, 114 tickets, proposed ADRs 0050–0055
 **Companions:** [ux-overhaul-issues.md](ux-overhaul-issues.md) is the issue register behind every `UX-nnn` id. [docs/design.md](../design.md) is a draft rulebook extracted from §2.1, §4, §5 and §6 of this plan.
 
-> **About the evidence references.** The citation keys below (audit and research reports, prototype notes and frames, judging notes, critic challenges) point to artefacts from the analysis session. They were not committed. The issue register carries the verified evidence for every `UX-nnn` issue, with repo paths and line numbers. Where a ticket says to re-run a session script (T5.4), recreate it under `packages/e2e` first.
+> **About the evidence references.** The citation keys below (audit and research reports, prototype notes, screenshots and frames, judging notes, critic challenges) point to files on the orphan branch [`ux-overhaul-artifacts`](https://github.com/IIxauII/hnch/tree/ux-overhaul-artifacts), a frozen snapshot of `main@c0fae33` kept off `main` like `screenshots`. Paths in the key resolve from that branch's root; prototype screenshots (`p-*`, `d-*`, `n320-*`) are in `prototype/web/shots/`, terminal frames (`80x24/...`) in `prototype/cli/frames/`, and `docs/screenshots/latest/...` references in `ci-screenshots/sha-b23d9c7/`. The issue register carries the verified evidence for every `UX-nnn` issue, with links into the branch.
 
 - **Audience:** the repo owner, who makes the calls in §9, and the coding agents who execute §7 under the contract in §4.
 - **How it was made:**
@@ -20,7 +20,7 @@
 
 ### Citation keys
 
-| Key | Source (analysis-session artefact, not committed) |
+| Key | Source (on the [`ux-overhaul-artifacts`](https://github.com/IIxauII/hnch/tree/ux-overhaul-artifacts) branch) |
 |---|---|
 | `UX-nnn` | [ux-overhaul-issues.md](ux-overhaul-issues.md): the canonical, de-duplicated issue IDs |
 | `NEW-n` | Defects found after the register by the critics and confirmed by reading the code (§1.4). They have not been reproduced live |
@@ -2008,7 +2008,7 @@ The repo's ADRs run to 0049 (`adr/README.md` index); gaps left by deletions are 
 | **T5.1** | Motion | View-Transition morph, stamp and settle-ring polish; reduced motion incl. Ionic `animated:false` | R-31; reduced-motion snapshot; a low-end Android profile has no jank | mobile-sonnet | M | 075 |
 | **T5.2** | Brand | Wordmark in headers; live `document.title` (R-40, R-63 prefix); favicon dot; final OG image; manifest icons | Slack/Teams unfurl checked manually | mobile-haiku | S | 053 |
 | **T5.3** | Docs | New `docs/design.md` (with the approved frames); `docs/ux.md` §1–3 rewritten with the §6.7 state rows; `schema.md`; `cli.md` (generated key table); CONTEXT.md vocabulary. `project.md` drift: crown, nickname, Teams/Nearby "not in v1", Offline Support narrowed per ADR-0050. Roadmap; backlog pruned | `reviewer` finds no doc/code mismatch | main session + reviewer | M | 107, 109 |
-| **T5.4** | Budget audit | Re-run the analysis session's live-web Playwright scenarios and the CLI pty probes; publish before/after against the T0.8b baseline; flip every report-only gate to blocking, except R-05 (nightly trend) | §0.2 targets met or explained | e2e-sonnet | S | — |
+| **T5.4** | Budget audit | Port the live-web Playwright scenarios (`scripts/live-web` on the `ux-overhaul-artifacts` branch) into `packages/e2e`, re-run them and the CLI pty probes; publish before/after against the T0.8b baseline; flip every report-only gate to blocking, except R-05 (nightly trend) | §0.2 targets met or explained | e2e-sonnet | S | — |
 | **T5.5** | Read-compat cleanup | Stop writing `lastScreen`; keep tolerant reads of `skippedAt`/`cancelled` in `terminalState()` | Mixed-version test green | shared-haiku | S | — |
 | **T5.6** | Assistive-tech pass 2 | VoiceOver (iOS) and NVDA over the full loop and the state rows | No blocker; findings fixed | owner + mobile-sonnet | S | 068 |
 
@@ -2256,7 +2256,7 @@ ADR-0028 rules out telemetry. Every measure is therefore a **scripted test, a CI
 
 ## Appendix B: Sources
 
-**Evidence base** (analysis-session artefacts, not committed; the issue register is [ux-overhaul-issues.md](ux-overhaul-issues.md)):
+**Evidence base** (on the [`ux-overhaul-artifacts`](https://github.com/IIxauII/hnch/tree/ux-overhaul-artifacts) branch; the issue register is [ux-overhaul-issues.md](ux-overhaul-issues.md)):
 
 | Kind | Files |
 |---|---|
