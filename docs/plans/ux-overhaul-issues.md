@@ -11,7 +11,7 @@ Built 2026-10-13 from the eight skeptic-verified audits (`reports/*.verified.md`
 - **Severity** is the highest verified (post-adjustment) severity among the primary sources. Where verifiers disagreed, or a source's raise belonged to a different aspect, the note says so.
 - **Status**: `confirmed` means the core claim reproduced as stated, or a verifier found the issue with evidence. `adjusted` means the verifier changed the severity, scope or recommendation.
 - **Surfaces**: `web-desktop`, `web-mobile`, `cli`.
-- **Paths**: `packages/…` and `docs/…` are repo-relative. `scratchpad/…` paths point to artefacts from the analysis session (live screenshots, terminal frames, scripts, audit reports); they were not committed. `docs/screenshots/latest/…` are CI captures.
+- **Paths**: `packages/…` and `docs/…` are repo-relative. Evidence links (live screenshots, terminal frames, scripts, reports) point into the orphan branch [`ux-overhaul-artifacts`](https://github.com/IIxauII/hnch/tree/ux-overhaul-artifacts). `docs/screenshots/latest/…` are CI captures as of 2026-10-13; `main` prunes old ones, and the frozen copies are in `ci-screenshots/sha-b23d9c7/` on that branch.
 - **Cut candidate** means an auditor proposed cutting or merging the feature. Whether to cut is a product decision; many cuts need an ADR first (see the ADR line).
 
 ## Summary
@@ -98,8 +98,8 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
   - packages/shared/src/auto-reveal.ts:56-70 (denominator = online awareness only; evaluates synchronously on construction with only self in awareness)
   - y-websocket.js:142-151 removes all remote awareness states on any socket close, so a network blip also triggers it (lweb:M2)
   - packages/client/src/app/lobby/lobby.page.ts:1571-1581 (softExit only navigates) and packages/client/src/app/core/room-join.service.ts:87 (doRejoin always tears down)
-  - scratchpad/live/web/repro-reload-reveal/desktop/log.json (trials 1 and 3, voted voter reloads: hostRevealed=true; trials 2 and 4: no reveal)
-  - scratchpad/live/web/repro-reload-reveal/desktop/02-h1-trial1-voted-voter-reloads-host.png ('5 (1 vote) · Didn't vote (2) · Unanimous')
+  - [live/web/repro-reload-reveal/desktop/log.json](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/web/repro-reload-reveal/desktop/log.json) (trials 1 and 3, voted voter reloads: hostRevealed=true; trials 2 and 4: no reveal)
+  - [live/web/repro-reload-reveal/desktop/02-h1-trial1-voted-voter-reloads-host.png](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/web/repro-reload-reveal/desktop/02-h1-trial1-voted-voter-reloads-host.png) ('5 (1 vote) · Didn't vote (2) · Unanimous')
   - CLI uses the same driver: packages/cli/src/session.ts:292
 - **Fix direction:** Evaluate auto-reveal only when the socket is connected, initial sync is done and a remote awareness update has arrived since connect. Add a 3-10 s presence grace before a dropped voter leaves the denominator. Add e2e tests for reload-after-vote and socket-drop on web and CLI.
 - **ADR:** The presence grace amends ADR-0018 decision (3). Gating on sync alone is compatible with ADR-0018. A host-only reveal writer is not (lweb:LW-01 note).
@@ -112,8 +112,8 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Evidence:**
   - packages/client/src/app/lobby/lobby.page.ts:1193-1199 (the auto-nav effect reacts only to screen() changes and does not re-run on a cached page)
   - packages/client/src/app/estimating/estimating.page.ts:766-777 (the menu item only navigates; the settings sheet never opens)
-  - scratchpad/live/web/verify-hotloop-h02/desktop/01-vic-h02-voter-after-session-settings.png and 02-host-h02-host-after-session-settings.png (room CSK2MN: voter on /lobby with no cards 6 s later)
-  - scratchpad/live/web/probes2/desktop/log.json and 04-host-host-after-back-from-estimating.png (browser back strands the host and the voter)
+  - [live/web/verify-hotloop-h02/desktop/01-vic-h02-voter-after-session-settings.png](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/web/verify-hotloop-h02/desktop/01-vic-h02-voter-after-session-settings.png) and 02-host-h02-host-after-session-settings.png (room CSK2MN: voter on /lobby with no cards 6 s later)
+  - [live/web/probes2/desktop/log.json](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/web/probes2/desktop/log.json) and 04-host-host-after-back-from-estimating.png (browser back strands the host and the voter)
 - **Fix direction:** Remove the Estimating 'Session settings' item, or open the sheet in place. Re-evaluate screenFor on ionViewWillEnter/NavigationEnd. Intercept back on Estimating. Structural fix: a single session screen (see the route-transition issue).
 
 ### UX-003 · high · startRound has no active-round guard: the Lobby offers 'Start Round N+1' while a round is voting, which creates concurrent, orphaned rounds
@@ -125,7 +125,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
   - packages/shared/src/round-commands.ts:103-127 (refuses only when there is no host and appends unconditionally)
   - packages/client/src/app/lobby/lobby.page.ts:1001 (nextRoundNumber = rounds.length+1) and :512-554 (the footer ignores activeRound)
   - Live rooms WUXGU9 and JK6FZY: rounds=['voting','voting'] after Start from a stale Lobby
-  - scratchpad/live/web/verify-hotloop-h02/desktop/02-host-h02-host-after-session-settings.png ('START ROUND 2' while round 1 is voting) and 03-host-h02-host-after-round2.png
+  - [live/web/verify-hotloop-h02/desktop/02-host-h02-host-after-session-settings.png](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/web/verify-hotloop-h02/desktop/02-host-h02-host-after-session-settings.png) ('START ROUND 2' while round 1 is voting) and 03-host-h02-host-after-round2.png
 - **Fix direction:** startRound refuses with reason 'round-active' while a round is non-terminal (shared module). The Lobby derives its CTA from activeRound ('Round N in progress → Return to vote / Reveal'). Add an e2e test for back-then-Start.
 
 ### UX-004 · high · Discarded rounds leak into History and the 'latest Results': hidden votes are exposed, numbering counts tombstones, and in the CLI [v]/[t] then act on a different round
@@ -136,8 +136,8 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Evidence:**
   - packages/client/src/app/shared/round-history.component.ts:160 and packages/client/src/app/lobby/lobby.page.ts:1086-1091 filter with isTerminalStatus, which includes 'discarded' (packages/shared/src/round-transitions.ts:23-25). ADR-0046 l.30 says history excludes discarded rounds.
   - packages/cli/src/ui/App.tsx:382-384 and packages/cli/src/ui/Lobby.tsx:236-239 have the same leak; App.tsx:232,294 act on currentRound(), which skips discards
-  - scratchpad/live/web/verify-hotloop-hist.console.txt (room UEY772: History 'Round 1: Discard me — 5×1')
-  - scratchpad/live/cli/s2b-revote-discard/07-after-discard.txt → 08-after-v-on-discarded.txt (v re-votes a different story); scratchpad/frames-1.16.1/20-host-after-d-discard.txt
+  - [live/web/verify-hotloop-hist.console.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/web/verify-hotloop-hist.console.txt) (room UEY772: History 'Round 1: Discard me — 5×1')
+  - [live/cli/s2b-revote-discard/07-after-discard.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/cli/s2b-revote-discard/07-after-discard.txt) → 08-after-v-on-discarded.txt (v re-votes a different story); [frames-1.16.1/20-host-after-d-discard.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/frames-1.16.1/20-host-after-d-discard.txt)
 - **Fix direction:** Add one shared historyRounds()/latestResultRound() selector in packages/shared that excludes discarded rounds (ADR-0046). Bind it in web History, the Lobby results and the CLI anchor/history. Add a test that the displayed round is the action target.
 - **ADR:** Implements ADR-0046 as written; no new ADR.
 
@@ -174,7 +174,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Evidence:**
   - packages/client/src/app/home/home.page.ts:514-534 (the create path patches the relay but never caches the hash)
   - packages/client/src/app/session-settings/session-settings.sheet.ts:264-279 (the Lobby path calls updateCredentials but never setPendingPasswordHash; only join.page.ts:408 and session-resume.guard.ts:99 do)
-  - Live PRA68J: relay accessMode=password, the lastSession entry has no passwordHash, reload → /join?code=PRA68J (scratchpad/live/web/verify-journeys-pw/phone/)
+  - Live PRA68J: relay accessMode=password, the lastSession entry has no passwordHash, reload → /join?code=PRA68J ([live/web/verify-journeys-pw/phone/](https://github.com/IIxauII/hnch/tree/ux-overhaul-artifacts/live/web/verify-journeys-pw/phone))
 - **Fix direction:** Cache the host's hash whenever the password is set or rotated (setPendingPasswordHash, or recordJoin with the hash, which ADR-0044 allows), and clear it on 'Open'. Add an e2e test: set password → reload → still in Lobby.
 
 ### UX-008 · high · Roster and 'Didn't vote' eligibility is wrong: observers, late joiners and departed or kicked participants are counted on web and CLI, and past results change retroactively
@@ -209,7 +209,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Evidence:**
   - No removedBy observer in packages/cli/src
   - packages/shared/src/vote-commands.ts:72 refuses departed voters, and packages/cli/src/ui/App.tsx:257-262 drops the result silently
-  - scratchpad/live/cli/s10-kick-end/01-after-kick.txt (the CLI is still in the lobby after the kick)
+  - [live/cli/s10-kick-end/01-after-kick.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/cli/s10-kick-end/01-after-kick.txt) (the CLI is still in the lobby after the kick)
 - **Fix direction:** Observe your own participant record. On removedBy, unmount, print 'Removed from ABC-DEF by <host>' and exit 0. Add leave and the description line.
 
 ### UX-011 · high · The CLI never observes the agenda: added stories stay invisible, and the next round is not pre-filled or linked
@@ -219,8 +219,8 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Status:** confirmed: Intermittent: the projection refreshes only when another observed map changes. The one-shot agenda add masks it because its joinDoc touches participants.
 - **Evidence:**
   - packages/cli/src/session.ts:250-256 observes meta, settings, participants and rounds, but not doc.getArray('agenda')
-  - scratchpad/frames-1.16.1/03a-host-agenda-prompt.txt, 90-host-tui-after-cli-agenda-add.txt, 91-host-tui-after-local-change.txt
-  - scratchpad/live/cli/s2-cli-host-web-voter/26-agenda-added.txt
+  - [frames-1.16.1/03a-host-agenda-prompt.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/frames-1.16.1/03a-host-agenda-prompt.txt), 90-host-tui-after-cli-agenda-add.txt, 91-host-tui-after-local-change.txt
+  - [live/cli/s2-cli-host-web-voter/26-agenda-added.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/cli/s2-cli-host-web-voter/26-agenda-added.txt)
 - **Fix direction:** Observe the agenda array (or doc 'update'/afterTransaction) in wireSession. Add a test that an agenda-only change refreshes the projection.
 
 ### UX-012 · high · The CLI status bar stays on 'connecting' in password rooms even though sync works
@@ -230,7 +230,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Status:** adjusted: The verifiers disagree: live_cli confirmed it as high, while the cli verifier lowered it to medium (cosmetic, password rooms only). The highest verified severity, high, is used.
 - **Evidence:**
   - packages/cli/src/ui/App.tsx:68 (useState('connecting')); SessionHandle has no status getter (packages/cli/src/session.ts:84-111)
-  - scratchpad/frames-1.16.1/a2-joiner-wrong-password.txt and a3-joiner-in.txt
+  - [frames-1.16.1/a2-joiner-wrong-password.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/frames-1.16.1/a2-joiner-wrong-password.txt) and a3-joiner-in.txt
 - **Fix direction:** Add SessionHandle.status() and seed the state from it. Show '● live', and raise a banner only when degraded.
 
 ### UX-013 · medium · Room access state is local-only and can be wrong both ways: 'Access: Open' in password rooms, or 'Password' with an empty field while the relay stays open
@@ -265,7 +265,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Evidence:**
   - packages/cli/src/ui/components/CardPicker.tsx:20-34 (useState(0), Math.max/min clamp, no digit or Space keys; docs/cli.md:101 wrongly says 'wraps')
   - packages/cli/src/ui/Lobby.tsx:330-347 and packages/cli/src/ui/App.tsx:176-222 (title prompt, then ticket prompt, on every story)
-  - Metrics: 4.5 keys per vote on Fibonacci; the host needs ~8.5 keys plus 2 prompts per story (cli report); scratchpad/live/cli/s2-cli-host-web-voter/host-keylog.json
+  - Metrics: 4.5 keys per vote on Fibonacci; the host needs ~8.5 keys plus 2 prompts per story (cli report); [live/cli/s2-cli-host-web-voter/host-keylog.json](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/cli/s2-cli-host-web-voter/host-keylog.json)
   - A stray Enter cast card [0] (hot:H-11, cli-out voting6b.txt)
 - **Fix direction:** Value typing (type '13'; single-key faces vote immediately) with key labels under the cards. Arrows wrap, and the cursor starts on your current vote. In the lobby, Enter starts the next agenda story with no prompt; otherwise show one 'Story: PROJ-12 Title' prompt.
 
@@ -313,8 +313,8 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Status:** confirmed: RA-13 also covers WCAG 2.1.4 (single-key shortcuts cannot be turned off).
 - **Evidence:**
   - The only document keydown handler is packages/client/src/app/estimating/estimating.page.ts:671; estimating.keyboard.ts:70-90 handles cards only; lobby.page.ts has no key handlers
-  - scratchpad/live/web/probes/desktop/log.json (12 Tabs to Start, focus lands on ion-modal, R does nothing, 6 Tabs to Reveal)
-  - The CLI already has [r]/[n]/[v] (scratchpad/live/cli/s2b-revote-discard/08-after-v-on-discarded.txt)
+  - [live/web/probes/desktop/log.json](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/web/probes/desktop/log.json) (12 Tabs to Start, focus lands on ion-modal, R does nothing, 6 Tabs to Reveal)
+  - The CLI already has [r]/[n]/[v] ([live/cli/s2b-revote-discard/08-after-v-on-discarded.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/cli/s2b-revote-discard/08-after-v-on-discarded.txt))
 - **Fix direction:** One shared keymap in packages/shared for web and CLI (value keys, A abstain, R reveal, Enter/N next, V re-vote, ? help, Esc). Show inline hints on fine pointers. Add a Settings toggle for single-key shortcuts.
 
 ### UX-020 · high · Joiners get no waiting state between rounds and no cue when a round opens (empty Agenda card, no 'waiting for host')
@@ -325,7 +325,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Evidence:**
   - packages/client/src/app/lobby/lobby.page.ts:512 (the footer renders only @if isHost(), and there is no waiting copy)
   - packages/client/src/app/agenda/agenda-panel.component.ts:53-96 (empty accordion for a non-host with 0 items)
-  - scratchpad/live/web/s2-s3-joiners/phone/06-joiner1-joiner-lobby.png, scratchpad/live/web/verify-hotloop-h02/desktop/04-vic-h02-voter-after-round2.png
+  - [live/web/s2-s3-joiners/phone/06-joiner1-joiner-lobby.png](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/web/s2-s3-joiners/phone/06-joiner1-joiner-lobby.png), [live/web/verify-hotloop-h02/desktop/04-vic-h02-voter-after-round2.png](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/web/verify-hotloop-h02/desktop/04-vic-h02-voter-after-round2.png)
 - **Fix direction:** Joiner Lobby: 'You're in. Waiting for <host> to start…' with avatars. Hide empty sections for joiners. Add a light haptic and a title flash when a round opens.
 
 ### UX-021 · medium · Agenda authoring is slow: one modal per item, no autofocus, Enter doesn't submit, an error shows (and is announced assertively) on open, no bulk paste; the CLI add prompt mislabels its fields as optional
@@ -336,7 +336,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Evidence:**
   - packages/client/src/app/agenda/agenda-item-form.sheet.ts:206-208 (memoized computed() over non-signal form state: the error shows on open and never clears)
   - packages/client/src/app/agenda/agenda-item-form.sheet.ts:139-147 (role=alert aria-live=assertive on a pristine form) and :112 (enterkeyhint='next', no submit button)
-  - scratchpad/live/web/s5-agenda/phone/02-host-agenda-form-open.png (3 items ≈ 13-14 actions)
+  - [live/web/s5-agenda/phone/02-host-agenda-form-open.png](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/web/s5-agenda/phone/02-host-agenda-form-open.png) (3 items ≈ 13-14 actions)
   - packages/cli/src/ui/Lobby.tsx:388,394,405 and packages/cli/src/ui/App.tsx:429-437 (CLI: 'optional' prompts, then a 3 s error)
 - **Fix direction:** Inline 'Add story' input (Enter adds and keeps focus) with multi-line paste ('KEY-123 Title' per line). Validate only after a submit attempt. CLI: `hnch create --agenda file.txt`.
 
@@ -391,7 +391,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Evidence:**
   - packages/client/src/app/shared/segmented-code-input.component.ts:165-184 (handles only Backspace/arrows) and :213-229 (paste handler)
   - parseInviteContent is used only in the QR path (packages/client/src/app/join/join.page.ts:441)
-  - Live: activeElement on /join is BODY; pasting https://hnch.dev/join?code=… gives 'HTTPSH' with Join enabled (scratchpad/live/web/verify-journeys-paste/phone/)
+  - Live: activeElement on /join is BODY; pasting https://hnch.dev/join?code=… gives 'HTTPSH' with Join enabled ([live/web/verify-journeys-paste/phone/](https://github.com/IIxauII/hnch/tree/ux-overhaul-artifacts/live/web/verify-journeys-paste/phone))
 - **Fix direction:** One 'Join with code or link' field (on Home). Autofocus it, accept URLs via parseInviteContent, auto-submit on the 6th valid character, and let Enter submit.
 
 ### UX-027 · medium · Onboarding is a separate gate with no autofocus and no room context for invite arrivals, and it stays in the back stack
@@ -424,7 +424,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Status:** confirmed: The host needs 2 taps on a phone to copy the link.
 - **Evidence:**
   - packages/client/src/app/lobby/lobby.page.ts:1137-1146 (mobile collapses Share by default), :1477-1495 (Share.share falls back to the clipboard only on throw), :1514-1519 (a code tap copies the code, not the link)
-  - scratchpad/live/web/s2-s3-joiners/phone/01-host-share-expanded.png, 02-host-share-invite-toast.png, 03-host-room-code-copied-toast.png
+  - [live/web/s2-s3-joiners/phone/01-host-share-expanded.png](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/web/s2-s3-joiners/phone/01-host-share-expanded.png), 02-host-share-invite-toast.png, 03-host-room-code-copied-toast.png
 - **Fix direction:** One 'Invite' header button (copies the link on desktop, opens the share sheet on mobile) with a QR icon. Tapping the code copies the link.
 
 ### UX-030 · medium · A wrong password briefly shows the Lobby, then bounces back to Join with the wrong value still in the field
@@ -453,7 +453,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Status:** adjusted: Soft exit and 'Leave forgets the room' are documented choices. An auto hand-off needs an ADR superseding ADR-0010/0048. Changing intentional-leave semantics amends ADR-0036 §3.
 - **Evidence:**
   - packages/client/src/app/lobby/lobby.page.ts:1571-1581 (softExit only navigates; the host stays online, so no election runs, per ADR-0048); Leave alert copy at :1594
-  - scratchpad/live/web/probes2/desktop/08-host-host-after-back-chevron.png and 09-rita-rita-7s-after-host-exit.png
+  - [live/web/probes2/desktop/08-host-host-after-back-chevron.png](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/web/probes2/desktop/08-host-host-after-back-chevron.png) and 09-rita-rita-7s-after-host-exit.png
 - **Fix direction:** Give Back one meaning: minimise without side effects, or disconnect while keeping the cache. Offer one Leave that keeps the room in Recent, plus a host-only 'End for everyone'. Voters see 'Host stepped away'.
 - **ADR:** ADR-0010/0048 for auto hand-off; ADR-0036 §3 for leave semantics.
 
@@ -478,8 +478,8 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Evidence:**
   - packages/client/src/app/lobby/lobby.page.ts:400-494 (template order: Results is the 5th section)
   - packages/client/src/app/shared/vote-results.component.ts:179-194 (bar opacity 0.06/0.12)
-  - docs/screenshots/latest/baseline/16-lobby-results-390.png; scratchpad/live/web/s4-three-stories/phone/16-host-s3-host-results.png (results_section_top 610 of 844 px)
-  - Proposed direction: scratchpad/visual/prototype/visual-direction-render.png
+  - docs/screenshots/latest/baseline/16-lobby-results-390.png; [live/web/s4-three-stories/phone/16-host-s3-host-results.png](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/web/s4-three-stories/phone/16-host-s3-host-results.png) (results_section_top 610 of 844 px)
+  - Proposed direction: [visual/prototype/visual-direction-render.png](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/visual/prototype/visual-direction-render.png)
 - **Fix direction:** Make the Revealed state the hero: suggested or most-picked value large, distribution at full opacity with avatars, story title in primary text, CTA adjacent. It must fit above the fold at 390x844.
 
 ### UX-035 · medium · Results don't support a fast decision: no suggested card or outlier callout, decimal Avg/Med, and the CLI lists votes in arrival order with no distribution
@@ -500,7 +500,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Evidence:**
   - packages/shared/src/round-presentation.ts:102 and :175-178 (distinct===1 → 'unanimous', no minimum count) and :224-225 ('Spread' is also one of its own values)
   - isConsensus in packages/shared/src/doc-projection.ts:843-847 requires ≥2 votes and counts abstains, so the chip and the celebration disagree
-  - Live web: 'XS (1 vote) … Didn't vote (1) … Unanimous'; scratchpad/live/cli/s2-head-src/12-s2-results-partial.txt ('Spread: Unanimous' with 1 of 2 votes)
+  - Live web: 'XS (1 vote) … Didn't vote (1) … Unanimous'; [live/cli/s2-head-src/12-s2-results-partial.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/cli/s2-head-src/12-s2-results-partial.txt) ('Spread: Unanimous' with 1 of 2 votes)
 - **Fix direction:** Require ≥2 numeric votes for any agreement label ('Not enough votes'). Rename the levels (e.g. Agreed/Close/Split). Use one rule for the chip, the celebration and the CLI.
 
 ### UX-037 · medium · The consensus celebration covers the results with a scrim for 3 s, 'hnch'd!' fails contrast, and the confetti is emoji
@@ -511,7 +511,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Evidence:**
   - packages/client/src/app/core/celebration.service.ts:129-157 (3000 ms)
   - packages/client/src/app/lobby/lobby.page.ts:497-509 and :842-852 (absolute overlay, inset 0, z-index 1000, rgba(0,0,0,.55))
-  - 'hnch'd!' is 2.36:1 in light and 2.99:1 in dark (scratchpad/reports/visual-contrast-current.txt)
+  - 'hnch'd!' is 2.36:1 in light and 2.99:1 in dark ([reports/visual-contrast-current.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/reports/visual-contrast-current.txt))
   - docs/screenshots/latest/reveal/consensus-reduced-375-light.png
 - **Fix direction:** Replace it with a non-blocking badge or glow (≤1 s) on the result hero plus the success haptic. No scrim; vector confetti or none.
 
@@ -540,7 +540,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Sources:** `lweb:LW-33`
 - **Status:** confirmed
 - **Evidence:**
-  - scratchpad/live/web/s5-agenda/phone/10-host-after-story-2.png and log.json (final footer 'Re-vote / Next Round 4' with every agenda item consumed)
+  - [live/web/s5-agenda/phone/10-host-after-story-2.png](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/web/s5-agenda/phone/10-host-after-story-2.png) and log.json (final footer 'Re-vote / Next Round 4' with every agenda item consumed)
 - **Fix direction:** When the queue empties, show an 'All stories estimated' summary with the agreed numbers, Copy summary and an End session CTA.
 
 ## layout & responsive (7)
@@ -564,7 +564,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Status:** confirmed
 - **Evidence:**
   - packages/client/src/app/lobby/lobby.page.ts:812 (::part(expand-icon) does not exist in Ionic 8.8.4) and :815-818 (pointer-events:none)
-  - scratchpad/live/web/probes3/phone/01-host-after-tap-session-chevron.png (Session collapsed, code hidden)
+  - [live/web/probes3/phone/01-host-after-tap-session-chevron.png](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/web/probes3/phone/01-host-after-tap-session-chevron.png) (Session collapsed, code hidden)
   - 13 interactive host controls before round 1 (features metric)
 - **Fix direction:** No accordions in the room. Use a fixed hierarchy (hero: next-story CTA or revealed results → avatar strip → Stories queue) with plain headed sections. Use 'Show all (n)' only for long history.
 
@@ -575,7 +575,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Status:** adjusted: LW-10 corrected from 'one character per line' to ~4-character lines; still high because it is on the main host screen.
 - **Evidence:**
   - docs/screenshots/latest/agenda/04-agenda-3-items-host-desktop.png (row 3's up arrow sits in the down column of rows 1-2)
-  - scratchpad/live/web/s5-agenda/phone/05-host-agenda-3-items.png ('Paym/ent/retry')
+  - [live/web/s5-agenda/phone/05-host-agenda-3-items.png](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/web/s5-agenda/phone/05-host-agenda-3-items.png) ('Paym/ent/retry')
 - **Fix direction:** Full-width title, plus one row ⋯ (Edit, Move to next, Remove) and drag. Merge skip and cancel into one 'Remove from queue'.
 
 ### UX-044 · high · Desktop dialogs are a fixed 500px tall: the QR is clipped under the header, short dialogs are mostly empty, and nested pickers bypass the desktop dialog style
@@ -587,7 +587,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
   - packages/client/src/global.scss:67-73 (fixed height); packages/client/src/app/lobby/qr-display.sheet.ts:48-58
   - docs/screenshots/latest/baseline/10-qr-modal.png (finder patterns touch the header), docs/screenshots/latest/baseline/09-access-sheet.png (2-option picker in a large square dialog)
   - 4 of 12 modals lack modal-centered (session-settings:122,138; scale-picker:211,229); nesting reaches 3 levels
-  - scratchpad/live/web/s2-s3-joiners/phone/04-host-qr-sheet.png (a toast covers the phone QR sheet header and Done)
+  - [live/web/s2-s3-joiners/phone/04-host-qr-sheet.png](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/web/s2-s3-joiners/phone/04-host-qr-sheet.png) (a toast covers the phone QR sheet header and Done)
 - **Fix direction:** Auto-height dialogs (max min(80vh, 720px)). Cap the QR at min(60vh, 320px) with safe centring. Replace second-level modals with inline segments or popovers. Show toasts at the bottom.
 
 ### UX-045 · medium · The phone Lobby wastes 22% of the width (42px nested gutters), and participant names wrap mid-word
@@ -628,8 +628,8 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Sources:** `vis:VIS-01`, `a11y:RA-01`, `jrn:J-22`, `hot:H-23`, `lweb:LW-03`, `feat:M4`  ·  **Related:** `hot:M-8`
 - **Status:** adjusted: The default theme is 'system' (theme.service.ts:22), not dark, and light racing-green is 12.2:1. High, not critical: values, counts and Next stay readable.
 - **Evidence:**
-  - packages/client/src/app/core/accent.service.ts:161-166 writes the fill colour into --ion-color-primary; the dark value #1F6B4F is 2.65:1 on #1C1C1E and 2.17:1 on #2C2C2E (scratchpad/reports/visual-contrast-current.txt)
-  - docs/screenshots/latest/baseline/15-lobby-results-1440.png; scratchpad/live/web/s7-theming/phone/15-host-lobby-post-host-dark.png
+  - packages/client/src/app/core/accent.service.ts:161-166 writes the fill colour into --ion-color-primary; the dark value #1F6B4F is 2.65:1 on #1C1C1E and 2.17:1 on #2C2C2E ([reports/visual-contrast-current.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/reports/visual-contrast-current.txt))
+  - docs/screenshots/latest/baseline/15-lobby-results-1440.png; [live/web/s7-theming/phone/15-host-lobby-post-host-dark.png](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/web/s7-theming/phone/15-host-lobby-post-host-dark.png)
 - **Fix direction:** Split the accent into fill and text-safe foreground tokens per theme (e.g. dark fg #7ED6AA, ≈8:1 on #2C2C2E). Map chips, clear/outline buttons, icons and alerts to the fg token. Add a contrast unit test over ACCENTS × themes × surfaces.
 - **ADR:** An additive fg token does not collide with ADR-0043.
 
@@ -639,7 +639,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Sources:** `vis:VIS-03`, `vis:M8`  ·  **Related:** `a11y:RA-01`
 - **Status:** adjusted: VIS-03 undercounted: 9 accents fail, not 7.
 - **Evidence:**
-  - On white: amber 1.41, teal 1.99, green 2.02, orange 2.06, dijon 2.42, red 3.41, violet 3.52 (scratchpad/reports/visual-contrast-current.txt)
+  - On white: amber 1.41, teal 1.99, green 2.02, orange 2.06, dijon 2.42, red 3.41, violet 3.52 ([reports/visual-contrast-current.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/reports/visual-contrast-current.txt))
   - adr/0043-per-participant-avatar-color.md, Context bullet 4
 - **Fix direction:** Opinion (the auditors'): cut the theme-accent picker and keep racing green as the brand accent; avatar colour stays as identity. If the picker is kept, curate 4-5 accents with hand-tuned fill and fg per mode, plus a contrast test. Record the corrected palette contract in a new ADR.
 - **ADR:** Cutting the picker does not conflict with ADR-0043 (theme and avatar are orthogonal). Removing custom hex amends ADR-0043 §6, which added it per user request, so ask first.
@@ -663,7 +663,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
   - 32 var(--ion-color-medium) uses + 7 color="medium" attributes vs 12 --hnch-muted
   - packages/client/src/theme/variables.scss:44-71 (the light semantic colours are Apple's dark-mode values); packages/client/src/app/shared/vote-results.component.ts:460-461 (spreadColor)
   - 'N of M voted' is 2.92:1 on #f2f2f7 (live_web s7 metrics)
-  - 29 of 41 current token pairs fail (scratchpad/reports/visual-contrast-current.txt) vs 0 of 36 proposed (scratchpad/reports/visual-contrast-proposed.txt)
+  - 29 of 41 current token pairs fail ([reports/visual-contrast-current.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/reports/visual-contrast-current.txt)) vs 0 of 36 proposed ([reports/visual-contrast-proposed.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/reports/visual-contrast-proposed.txt))
 - **Fix direction:** Per-mode text tokens (e.g. secondary #636366 light / #AEAEB2 dark; semantic text #16794A / #8F5A00 / #B42318 in light). Always pair status with an icon. Lint against direct --ion-color-medium use, and add a contrast check to screenshot CI.
 
 ### UX-052 · high · The Onboarding 'Continue' button renders dark-on-green (2.57:1) in Material dark
@@ -726,7 +726,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Status:** adjusted: Voted vs unvoted is still distinguishable. The palette distribution is uniform (jrn:J-36 refuted). Per-room reassignment collides with ADR-0043, so use render-time disambiguation.
 - **Evidence:**
   - packages/client/src/app/estimating/avatar-vote-row.component.ts:64-74 (no dark variant; 0.625rem initials)
-  - scratchpad/reports/visual-contrast-current.txt; collisions seen in scratchpad/live/web/s5-agenda/phone/05-host-agenda-3-items.png
+  - [reports/visual-contrast-current.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/reports/visual-contrast-current.txt); collisions seen in [live/web/s5-agenda/phone/05-host-agenda-3-items.png](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/web/s5-agenda/phone/05-host-agenda-3-items.png)
 - **Fix direction:** Theme-aware avatar fills or a neutral ring, ≥12px/700 initials with ink chosen by contrast, and a check mark for 'voted'.
 
 ### UX-058 · medium · No bundled typeface: layout depends on fallback font metrics, so the Session card's code, copy icon and subtitle collide on macOS
@@ -736,7 +736,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Status:** adjusted: H-24's desktop collision did not reproduce on Linux CI fonts; it does reproduce with macOS fonts (VIS-14, LW-18).
 - **Evidence:**
   - No font is loaded
-  - scratchpad/live/web/s1-new-host/desktop/04-host-lobby-new-room.png (the copy icon touches 'Round 1 • Fibonacci') vs docs/screenshots/latest/baseline/15-lobby-results-1440.png (DejaVu wraps)
+  - [live/web/s1-new-host/desktop/04-host-lobby-new-room.png](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/web/s1-new-host/desktop/04-host-lobby-new-room.png) (the copy icon touches 'Round 1 • Fibonacci') vs docs/screenshots/latest/baseline/15-lobby-results-1440.png (DejaVu wraps)
   - Mobile: ~40px dead gap in docs/screenshots/latest/baseline/16-lobby-results-390.png
 - **Fix direction:** Bundle Inter (variable, Latin subset, tnum). Lay out the room code and subtitle as block rows, or move the room code to a header pill.
 
@@ -887,7 +887,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Sources:** `lweb:LW-29`, `a11y:RA-18`
 - **Status:** adjusted: RA-18: the WCAG 2.5.8 spacing exception may let the 18px target pass, so it is 'small' rather than a definite failure.
 - **Evidence:**
-  - scratchpad/live/web/probes3/phone/log.json (tap_targets 166x18, 38x32, 59x32, 125x32)
+  - [live/web/probes3/phone/log.json](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/web/probes3/phone/log.json) (tap_targets 166x18, 38x32, 59x32, 125x32)
   - 'Tap + to add' on desktop; the subtitle button has padding 0
 - **Fix direction:** Minimum hit areas of 44px for touch and 32px for pointers. Tooltips equal to the aria-label on fine pointers. Desktop wording ('Click', 'Press N').
 
@@ -928,7 +928,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Evidence:**
   - packages/client/src/app/lobby/lobby.page.ts:1001-1009 (`Round ${rounds.length+1} • scale`)
   - docs/screenshots/latest/baseline/16-lobby-results-390.png ('Round 2 • Fibonacci' above 'Round 1 Results')
-  - scratchpad/live/web/s4-three-stories/phone/16-host-s3-host-results.png ('Round 5 • Fibonacci' / 'Round 4 Results' after 3 stories)
+  - [live/web/s4-three-stories/phone/16-host-s3-host-results.png](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/web/s4-three-stories/phone/16-host-s3-host-results.png) ('Round 5 • Fibonacci' / 'Round 4 Results' after 3 stories)
   - packages/cli/src/ui/Voting.tsx:101 (indexOf+1) vs packages/shared/src/round-presentation.ts:77-81 (formatRoundPosition); packages/client/src/app/estimating/estimating.page.ts:151 (h1 'Round N')
 - **Fix direction:** Label by story ('Story 3 of 12 · PROJ-99'; re-votes as '2nd vote'). Make the story title the H1. Drop the round number from the Session card. Use one shared formatter on both surfaces.
 
@@ -939,7 +939,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Status:** confirmed
 - **Evidence:**
   - packages/client/src/app/core/host-change-message.ts:10-15; packages/client/src/app/app.component.ts:61-79 (cannot tell a hand-off from an election)
-  - packages/cli/src/session.ts:309-317 (pre-sync lastHostId); scratchpad/frames-1.16.1/02-joiner-lobby.txt
+  - packages/cli/src/session.ts:309-317 (pre-sync lastHostId); [frames-1.16.1/02-joiner-lobby.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/frames-1.16.1/02-joiner-lobby.txt)
 - **Fix direction:** Pass a reason: 'Hana made Jo the host' vs 'Hana dropped. Jo is now hosting'. No haptic on a hand-off. Fire host notices only after the initial sync.
 
 ## settings/IA bloat (8)
@@ -1002,7 +1002,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Sources:** `cli:CLI-23`  ·  **Related:** `feat:F-24`, `vis:VIS-32`
 - **Status:** confirmed
 - **Evidence:**
-  - packages/client/src/app/home/home.page.ts:469-487; packages/cli/src/ui/components/HostActionsMenu.tsx:4-10 (m, Enter, y; scratchpad/frames-1.16.1/13-host-menu.txt)
+  - packages/client/src/app/home/home.page.ts:469-487; packages/cli/src/ui/components/HostActionsMenu.tsx:4-10 (m, Enter, y; [frames-1.16.1/13-host-menu.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/frames-1.16.1/13-host-menu.txt))
 - **Fix direction:** A gear icon on Home. In the CLI, put End session in the q prompt ('(l)eave / (e)nd for all') or the '?' palette.
 
 ### UX-085 · low · In-app QR scanning duplicates the phone camera and is even offered on desktop
@@ -1033,7 +1033,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Status:** adjusted: Lowered from critical: it needs 2+ cached entries, and every clean exit wipes the cache.
 - **Evidence:**
   - packages/cli/src/index.ts:268-269 (rl.close() before resolve), :278 (the close listener rejects first), :433-437
-  - scratchpad/live/cli/s3-web-host-cli-voter/24-resume-multi-picked.txt
+  - [live/cli/s3-web-host-cli-voter/24-resume-multi-picked.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/cli/s3-web-host-cli-voter/24-resume-multi-picked.txt)
 - **Fix direction:** Resolve before closing. Better: an Ink picker (↑↓ ⏎, digits) or `hnch resume <code>`.
 
 ### UX-088 · high · `hnch agenda add/list/…` print their result but never exit (an undestroyed Awareness keeps Node alive)
@@ -1043,7 +1043,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Status:** adjusted: Lowered from critical: the write succeeds and Ctrl+C escapes, but scripting is blocked.
 - **Evidence:**
   - packages/cli/src/commands/agenda.ts:84 (the Awareness is never destroyed); packages/cli/src/session.ts:384-395 (disconnect does not destroy it)
-  - scratchpad/scripts/verify-awareness-hang.mjs (proves the cause); scratchpad/live/cli/s9-agenda-hang/ (still alive at 15 s); s5-agenda-config results.json exit:null at 20.3 s
+  - [scripts/verify-awareness-hang.mjs](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/scripts/verify-awareness-hang.mjs) (proves the cause); [live/cli/s9-agenda-hang/](https://github.com/IIxauII/hnch/tree/ux-overhaul-artifacts/live/cli/s9-agenda-hang) (still alive at 15 s); s5-agenda-config results.json exit:null at 20.3 s
 - **Fix direction:** Destroy the awareness and the doc on disconnect, and exit after the flush. Add an e2e test asserting that one-shots exit within 2 s.
 
 ### UX-089 · high · The CLI password prompt has no visible label and echoes the password in plain text, and a wrong password on `join` drops into a fake lobby
@@ -1053,7 +1053,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Status:** confirmed: lcli:F-03 lowered (the reason is printed, and q/y plus a retry recovers) but still high. --password is already a boolean flag.
 - **Evidence:**
   - packages/cli/src/index.ts:53-62 (label written to stderr, then rl.question('') with echo on); :182-191 (handleJoin handles only unknown-room/room-full, while resume handles wrong-password at :340-343, :397-402)
-  - scratchpad/frames-1.16.1/a0-password-typing.txt, a1-joiner-password-prompt.txt; scratchpad/live/cli/s4-errors/09-pw-join-wrong-after-6s.txt
+  - [frames-1.16.1/a0-password-typing.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/frames-1.16.1/a0-password-typing.txt), a1-joiner-password-prompt.txt; [live/cli/s4-errors/09-pw-join-wrong-after-6s.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/cli/s4-errors/09-pw-join-wrong-after-6s.txt)
 - **Fix direction:** A masked, labelled input (the TextInput mask already exists), cleared after submit. Re-prompt on a wrong password up to 3 times, then exit non-zero. Add --password-stdin for scripts.
 - **ADR:** ADR-0044 already specifies clearing the hash and re-prompting.
 
@@ -1063,7 +1063,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Sources:** `cli:CLI-16`, `lcli:F-24`  ·  **Related:** `lcli:F-25`
 - **Status:** confirmed: Dashed or lowercase codes already work (room-code.ts:54-56).
 - **Evidence:**
-  - Published 1.16.1: --version prints 'unknown', -h exits 1, 'hnch K7P9MR' gives 'Unknown argument' (scratchpad/live/cli/s1-first-run/05-version.txt, 02-help.txt)
+  - Published 1.16.1: --version prints 'unknown', -h exits 1, 'hnch K7P9MR' gives 'Unknown argument' ([live/cli/s1-first-run/05-version.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/cli/s1-first-run/05-version.txt), 02-help.txt)
   - packages/cli/src/index.ts never calls .version(); parseInviteContent exists but join does not use it
 - **Fix direction:** Accept a positional code (ADR-0026 allows it) and URL join (needs an ADR superseding ADR-0026). Inject the version at build time. Add -h/-V, examples-first help, --json and completion.
 - **ADR:** URL join supersedes ADR-0026.
@@ -1074,7 +1074,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Sources:** `cli:CLI-17`, `lcli:F-27`
 - **Status:** confirmed
 - **Evidence:**
-  - scratchpad/cli-out/errors.txt (leaked 'unknown-room' reason; non-TTY stack trace); scratchpad/live/cli/s4-errors/ (13-15 unreachable cases)
+  - [cli-out/errors.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/cli-out/errors.txt) (leaked 'unknown-room' reason; non-TTY stack trace); [live/cli/s4-errors/](https://github.com/IIxauII/hnch/tree/ux-overhaul-artifacts/live/cli/s4-errors) (13-15 unreachable cases)
   - packages/cli/src/room-code-input.ts rejects only an empty code; packages/cli/src/index.ts:75-87 (password prompted before --scale is validated), :295-298 (unreachable exits 0), :477-483
 - **Fix direction:** Validate before prompting or any network work. One error formatter (what happened, why, the next command). A documented exit-code table. Fail early when not a TTY (or use --plain).
 
@@ -1086,7 +1086,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Evidence:**
   - packages/cli/src/commands/agenda.ts:82-104 (joinDoc before sync; sets the awareness participant id; never leaves)
   - packages/shared/src/doc-projection.ts:373-375 (joinDoc deletes leftAt/removedBy); packages/cli/src/session.ts:268-300 (election and auto-reveal start)
-  - scratchpad/live/cli/s5-agenda-config/01-host-observer-before-agenda.txt → 02-host-after-agenda-add-1.txt (viewer becomes voter)
+  - [live/cli/s5-agenda-config/01-host-observer-before-agenda.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/cli/s5-agenda-config/01-host-observer-before-agenda.txt) → 02-host-after-agenda-add-1.txt (viewer becomes voter)
 - **Fix direction:** One-shots use a sync-only connection with no joinDoc, awareness, election or auto-reveal (or cut them; see the next issue).
 
 ### UX-093 · medium · `hnch agenda skip/cancel/mv` are effectively unusable: list shows indexes but the commands need UUIDs or sortKeys, and the target room is implicit
@@ -1109,7 +1109,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Status:** confirmed: Worse than reported: the Ctrl+C escape runs clearLastSession (index.ts:144-147), so the host also loses resume.
 - **Evidence:**
   - packages/cli/src/ui/components/LobbySettings.tsx:244-248 (forwards only 'open', so the password field never mounts); the AccessPicker handler is isActive:!editingPassword
-  - scratchpad/frames-1.16.1/33-access-enter-password.txt, 34-after-typing-pw.txt, 35-after-esc-esc-q.txt
+  - [frames-1.16.1/33-access-enter-password.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/frames-1.16.1/33-access-enter-password.txt), 34-after-typing-pw.txt, 35-after-esc-esc-q.txt
 - **Fix direction:** Fix the state flow and mount a masked, labelled input. Add a test that every overlay keeps an active handler that responds to Esc.
 
 ### UX-095 · high · The CLI clears the whole screen and scrollback every second once the frame is taller than the terminal, and narrow terminals split words and leave ghost lines
@@ -1119,7 +1119,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Status:** confirmed: Upgrading to Ink 8 needs React ≥19.3 and a test migration.
 - **Evidence:**
   - ink 5.2.1 build/ink.js:121-123 (clearTerminal whenever outputHeight >= rows); packages/cli/src/ui/App.tsx:114-123 (a new Set every second)
-  - scratchpad/cli-out/main-1.16.1.txt:344-345 (4 clears in 4 s at 80x24); scratchpad/live/cli/s6-results.json (5 per 4 s at 60x20); the lobby/results frame is 28 lines
+  - [cli-out/main-1.16.1.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/cli-out/main-1.16.1.txt):344-345 (4 clears in 4 s at 80x24); [live/cli/s6-results.json](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/cli/s6-results.json) (5 per 4 s at 60x20); the lobby/results frame is 28 lines
 - **Fix direction:** First skip no-op state updates and budget every screen to 80x24. Then move to Ink ≥7 with alternateScreen and incremental rendering (the prototype measured 0 clears).
 
 ### UX-096 · high · CLI key-hint rows are overloaded (up to 10 hints) and wrap mid-label even at 100 columns
@@ -1129,7 +1129,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Status:** confirmed
 - **Evidence:**
   - packages/cli/src/ui/Lobby.tsx:424-463, packages/cli/src/ui/Voting.tsx:143-152
-  - scratchpad/frames-1.16.1/09-host-results-60x20.txt ('R evote', 'Se ttings'); scratchpad/live/cli/s2-cli-host-web-voter/ frames 26 and 30
+  - [frames-1.16.1/09-host-results-60x20.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/frames-1.16.1/09-host-results-60x20.txt) ('R evote', 'Se ttings'); [live/cli/s2-cli-host-web-voter/](https://github.com/IIxauII/hnch/tree/ux-overhaul-artifacts/live/cli/s2-cli-host-web-voter) frames 26 and 30
 - **Fix direction:** One truncating hint line: primary action first, at most 4-6 contextual hints, then '? more' and 'q leave'. Never wrap labels.
 
 ### UX-097 · high · CLI keys change meaning across screens (s = Start/Skip, a = Agenda/Abstain), destructive d/s act on a single keypress, e is host-only in the lobby, and the docs disagree
@@ -1150,7 +1150,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Evidence:**
   - packages/cli/src/ui/Lobby.tsx:210,226 (compares input==='Escape', which never matches; Ink reports key.escape), :206-208 (single-key parseInt), :124-127
   - packages/cli/src/ui/App.tsx:141-149 (the quit gate ignores Lobby overlays)
-  - scratchpad/frames-1.16.1/14b-host-handoff-after-esc.txt, 14c-host-handoff-after-q.txt; scratchpad/live/cli/s12-handoff/02-after-esc.txt
+  - [frames-1.16.1/14b-host-handoff-after-esc.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/frames-1.16.1/14b-host-handoff-after-esc.txt), 14c-host-handoff-after-q.txt; [live/cli/s12-handoff/02-after-esc.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/cli/s12-handoff/02-after-esc.txt)
 - **Fix direction:** One App-owned modal stack: Esc pops the top layer, and q is active only at the top level. An arrow-navigable participants panel for hand-off and kick. Render tests for every overlay.
 
 ### UX-099 · medium · CLI progress and presence signals are weak: no 'N of M voted · waiting on X', a '(voter)' self label, '·' for everyone in the lobby, and 'Waiting for participants…' with 3 present
@@ -1160,7 +1160,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Status:** adjusted: lcli:F-15 is medium: each roster row already shows ✓ or ·.
 - **Evidence:**
   - packages/cli/src/ui/components/ParticipantList.tsx:42,51-52; packages/cli/src/ui/Lobby.tsx:275 (votes={})
-  - scratchpad/frames-1.16.1/03-host-lobby-with-agenda.txt
+  - [frames-1.16.1/03-host-lobby-with-agenda.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/frames-1.16.1/03-host-lobby-with-agenda.txt)
 - **Fix direction:** One progress line ('Voted 3/5 · waiting on Cleo, Dana'), a 'you' marker and context-aware headings. Lobby = invite + roster + next story + one primary key.
 
 ### UX-100 · medium · The CLI ignores NO_COLOR, rejects --no-color, loses the card cursor in monochrome, and encodes host-only meaning by colour alone
@@ -1169,7 +1169,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Sources:** `cli:CLI-15`, `lcli:F-23`
 - **Status:** confirmed: The point about yellow-hint contrast is unmeasured opinion.
 - **Evidence:**
-  - scratchpad/cli-out/colorflags.txt (NO_COLOR=1 → 44 SGR sequences; --no-color exits 1; FORCE_COLOR=0 → 0); scratchpad/live/cli/s6-nocolor/
+  - [cli-out/colorflags.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/cli-out/colorflags.txt) (NO_COLOR=1 → 44 SGR sequences; --no-color exits 1; FORCE_COLOR=0 → 0); [live/cli/s6-nocolor/](https://github.com/IIxauII/hnch/tree/ux-overhaul-artifacts/live/cli/s6-nocolor)
 - **Fix direction:** Honour NO_COLOR, --no-color and TERM=dumb. Show focus with glyphs (▲, heavy borders). Use the default fg plus bold/dim for text, and colour for accents only.
 
 ### UX-101 · medium · CLI invite/share is weak: no web link on create, the invite is printed once to stderr, the code appears in two formats, the hnch.dev origin is hard-coded, and export has no clipboard fallback
@@ -1179,7 +1179,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Status:** adjusted: The share picker does show the full URL persistently (lcli:F-26 adjusted). Deriving the share origin from the relay config collides with ADR-0031.
 - **Evidence:**
   - packages/cli/src/share.ts:9-12 (hard-coded https://hnch.dev); StatusBar shows the raw code while SharePicker formats it
-  - scratchpad/frames-1.16.1/12-host-share-picker.txt; scratchpad/live/cli/s11-copy-fail/01-copy-failed-notice.txt
+  - [frames-1.16.1/12-host-share-picker.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/frames-1.16.1/12-host-share-picker.txt); [live/cli/s11-copy-fail/01-copy-failed-notice.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/cli/s11-copy-fail/01-copy-failed-notice.txt)
 - **Fix direction:** A persistent invite line (formatted code · web URL · npx one-liner); 'c' copies the link directly; OSC 52 clipboard. Export falls back to writing ./hnch-<code>.md. Use an explicit share-origin setting.
 - **ADR:** ADR-0031, if the origin is derived from the relay.
 
@@ -1189,7 +1189,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Sources:** `cli:CLI-19`, `lcli:F-29`
 - **Status:** confirmed
 - **Evidence:**
-  - packages/cli/src/ui/components/ScalePicker.tsx:66-83 (scratchpad/frames-1.16.1/b1-enter-on-tshirt.txt); packages/cli/src/ui/components/LobbySettings.tsx:143-152; packages/cli/src/ui/components/TextInput.tsx:23-36
+  - packages/cli/src/ui/components/ScalePicker.tsx:66-83 ([frames-1.16.1/b1-enter-on-tshirt.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/frames-1.16.1/b1-enter-on-tshirt.txt)); packages/cli/src/ui/components/LobbySettings.tsx:143-152; packages/cli/src/ui/components/TextInput.tsx:23-36
   - packages/cli/src/config.ts:136 vs packages/cli/src/ui/components/ConfigSettings.tsx:77
 - **Fix direction:** Enter always selects. Keep customisation out of the session. Add readline-style keys. Show '(overridden by HNCH_RELAY_URL)'.
 
@@ -1199,7 +1199,7 @@ Input: 302 verified findings and verifier-found issues, of which 2 were refuted 
 - **Sources:** `cli:CLI-21`, `lcli:F-18`
 - **Status:** confirmed
 - **Evidence:**
-  - scratchpad/frames-1.16.1/18b-joiner-after-quit.txt, a5-host-after-end.txt; scratchpad/live/cli/s1-first-run/14-after-exit.txt
+  - [frames-1.16.1/18b-joiner-after-quit.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/frames-1.16.1/18b-joiner-after-quit.txt), a5-host-after-end.txt; [live/cli/s1-first-run/14-after-exit.txt](https://github.com/IIxauII/hnch/blob/ux-overhaul-artifacts/live/cli/s1-first-run/14-after-exit.txt)
 - **Fix direction:** Use the alternate screen so the shell is restored. Print a 3-6 line summary (stories, estimates, resume command). Send Markdown results to stdout when piped or with --summary.
 
 ### UX-104 · medium · The CLI has no plain or screen-reader mode (also needed for CI, logs and non-TTY use)
