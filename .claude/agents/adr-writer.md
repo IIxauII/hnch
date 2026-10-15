@@ -82,9 +82,8 @@ The ADR captures the decision and what it costs. Nothing else. If you find yours
 3. **One ADR per decision.** Don't bundle unrelated decisions.
 4. **Quote constraints** from existing ADRs when explaining inheritance — the link plus the quote, so the reader doesn't have to chase.
 5. **Update the index** in `adr/README.md` in the same change.
-6. **Update CLAUDE.md "Current decisions at a glance"** when the change is summary-worthy. Flag this as an action item if you don't have authority to do it.
-7. **Status starts Proposed.** User accepts.
-8. When done, use `SendMessage` to tell orchestrator "ADR-NNNN drafted at adr/NNNN-title.md".
+6. **Status starts Proposed.** User accepts.
+7. When done, use `SendMessage` to tell orchestrator "ADR-NNNN drafted at adr/NNNN-title.md".
 
 ## What You Do NOT Do
 
