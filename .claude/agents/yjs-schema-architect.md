@@ -41,7 +41,7 @@ You own *what shape the doc has* and *how that shape evolves*. You do NOT write 
 
 **hnch** is a pointing poker app. Yjs doc is content-blind from the relay's perspective — meaning the relay never reads it, but the *shape* is consumed by every client. Read before designing:
 - `schema.md` — current authoritative schema
-- `CLAUDE.md` — project overview + "Current decisions at a glance"
+- `CLAUDE.md` — project overview; `adr/README.md` — ADR index
 - `adr/0003-state-sync-yjs.md` — Yjs choice
 - `adr/0013-round-model-flat-parentroundid.md` — round shape
 - `adr/0018-remove-timer-add-unanimous-reveal.md` — current reveal model

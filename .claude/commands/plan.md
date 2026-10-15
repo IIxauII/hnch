@@ -21,7 +21,7 @@ You are the **plan orchestrator**. You delegate research and drafting to the `pl
 
 ## Flow
 
-1. **Load inputs.** Read the spec (or issue + recent comments). Read `CLAUDE.md` "Current decisions at a glance" if not already in context — most plans bump into an ADR.
+1. **Load inputs.** Read the spec (or issue + recent comments). Skim the index in `adr/README.md` if not already in context — most plans bump into an ADR.
 
 2. **Spawn `planner` agent.** Pass: spec content, the constraint that it MUST emit a `RESEARCH_NEEDED` block for any unknown rather than guessing, and explicit instruction to flag every load-bearing decision (file boundaries, package scopes, ADR conflicts, schema diffs, migration ordering) as a numbered DECISION instead of resolving it.
 
@@ -44,7 +44,7 @@ You are the **plan orchestrator**. You delegate research and drafting to the `pl
    For multi-PR, planner must emit phases with: scope, exit bar, dependencies, suggested package scope(s) for Conventional Commit title.
 
 7. **Screenshot decision.** Ask via `AskUserQuestion`: "Does this PR need screenshots?"
-   - **Yes — required** (UI change, visible behavior shift) → record screenshot plan per phase: which screens, light+dark, mobile+portal as relevant. Per `CLAUDE.md`: commit images to PR branch under `docs/screenshots/<slug>/`, then post PR comment with branch-file links (NOT raw URLs, pasted attachments, or markdown tables — all three fail to render on mobile GH). Note in plan whether the screenshot commit gets squashed/dropped before merge.
+   - **Yes — required** (UI change, visible behavior shift) → record screenshot plan per phase: which screens, light+dark, mobile+portal as relevant. Delivery is automated (CONTRIBUTING.md § Screenshots): the pre-push hook and `pnpm screenshots:publish` push PNGs to the `screenshots` branch and own the sticky PR comment. Never plan PNG commits to the PR branch or a hand-posted screenshot comment.
    - **No — pure backend/refactor/docs** → record explicit "No screenshots — <reason>" in plan so reviewers don't ask.
    - **Maybe — depends on outcome** → defer to execution, flag in Open questions.
 
@@ -109,9 +109,7 @@ You are the **plan orchestrator**. You delegate research and drafting to the `pl
 <If Yes:>
 - Screens: <which views/states>
 - Variants: <light+dark, mobile+portal>
-- Path: `docs/screenshots/<slug>/`
-- Delivery: PR comment with branch-file links (https://github.com/<owner>/<repo>/blob/<branch>/docs/screenshots/<slug>/<file>.png)
-- Merge handling: squash/drop screenshot commit before merge? <yes/no>
+- Delivery: after `gh pr create`, run `pnpm screenshots:publish` from the phase worktree. Published only when it prints `done. <PR url>`; a push before the PR exists publishes nothing.
 
 <If No:>
 - Reason: <pure backend / refactor / docs / etc.>
