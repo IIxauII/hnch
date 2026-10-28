@@ -22,7 +22,12 @@ import { clock } from './clock';
 import { concatBytes } from './bytes';
 import { configOf, type RelayConfig } from './config';
 import { passwordDigest, passwordMatches } from './digest';
-import { Presence, PresenceLimitError, type PresenceEntry } from './presence';
+import {
+  AwarenessTooLargeError,
+  Presence,
+  PresenceLimitError,
+  type PresenceEntry,
+} from './presence';
 import {
   answerSync,
   awarenessMessage,
@@ -261,6 +266,7 @@ export class Room extends DurableObject<Env> {
         // As the Node relay: a frame the relay can't read closes its socket.
         logEvent('room-frame-rejected', err);
         if (err instanceof PresenceLimitError) closeQuietly(ws, 1008, 'too many states');
+        else if (err instanceof AwarenessTooLargeError) closeQuietly(ws, 1009, 'message too big');
         else closeQuietly(ws, 1003, 'unsupported data');
         return;
       }
@@ -466,7 +472,8 @@ export class Room extends DurableObject<Env> {
         this.lastRearmCheck = null;
       }
     }
-    return meta;
+    // Re-read: the metadata may have changed during the awaits above.
+    return this.loadMeta();
   }
 
   /**

@@ -47,11 +47,26 @@ interface Held extends PresenceEntry {
 
 const NULL_STATE = 'null';
 
+interface Entry {
+  readonly clientId: number;
+  readonly clock: number;
+  readonly state: string;
+  readonly isNull: boolean;
+}
+
 /**
  * States one socket may hold. A client announces one; a few allow for odd
  * clients, and the cap keeps a peer from growing the room's memory unbounded.
  */
 export const MAX_STATES_PER_SOCKET = 8;
+
+/** The most an awareness update may weigh: a few dozen small states at most. */
+export const MAX_AWARENESS_BYTES = 64 * 1024;
+
+/** An awareness update past {@link MAX_AWARENESS_BYTES}. */
+export class AwarenessTooLargeError extends Error {
+  override readonly name = 'AwarenessTooLargeError';
+}
 
 /** An update that would make one socket hold more than its share of states. */
 export class PresenceLimitError extends Error {
@@ -77,9 +92,12 @@ export class Presence {
    * peers echo it back.
    */
   apply(owner: string, update: Uint8Array, now: number): PresenceChange {
+    if (update.byteLength > MAX_AWARENESS_BYTES) {
+      throw new AwarenessTooLargeError(`awareness update over ${MAX_AWARENESS_BYTES} bytes`);
+    }
     const decoder = decoding.createDecoder(update);
     const count = decoding.readVarUint(decoder);
-    const entries: { clientId: number; clock: number; state: string; isNull: boolean }[] = [];
+    const entries: Entry[] = [];
     for (let i = 0; i < count; i++) {
       const clientId = decoding.readVarUint(decoder);
       const clock = decoding.readVarUint(decoder);
@@ -87,12 +105,31 @@ export class Presence {
       const isNull = JSON.parse(state) === null; // throws on text a peer could not parse
       if (clientId !== this.relay?.clientId) entries.push({ clientId, clock, state, isNull });
     }
-    // Only entries this socket would take over count toward its cap. y-websocket
-    // echoes every change it applies, so a joiner repeats the whole opening
-    // presence; those are not newer than what the room holds and cost nothing.
+    // Work out the frame's net effect first, on an overlay of the store that is
+    // updated after each entry exactly as the commit below mutates it, so the
+    // cap check and the commit can't disagree (an id may appear twice in a frame).
+    // Only entries this socket would take over count: y-websocket echoes every
+    // change it applies, so a joiner repeats the whole opening presence, and
+    // those entries are not newer than what the room holds.
+    const overlay = new Map<number, { clock: number | undefined; held: Held | undefined }>();
+    const staged: { entry: Entry; known: boolean; previous: Held | undefined }[] = [];
     const owned = new Set(this.ownedBy(owner).map((e) => e.clientId));
-    for (const { clientId, clock, isNull } of entries) {
-      if (!this.takesOver(clientId, clock, isNull)) continue;
+    for (const entry of entries) {
+      const { clientId, clock, isNull } = entry;
+      const seen = overlay.get(clientId) ?? {
+        clock: this.clocks.get(clientId),
+        held: this.held.get(clientId),
+      };
+      const newer = (seen.clock ?? 0) < clock;
+      const sameClockRemoval = seen.clock === clock && isNull && seen.held !== undefined;
+      // A removal of a client the room never heard of has nothing to revive.
+      if ((!newer && !sameClockRemoval) || (isNull && seen.clock === undefined)) continue;
+
+      staged.push({ entry, known: seen.clock !== undefined, previous: seen.held });
+      overlay.set(clientId, {
+        clock,
+        held: isNull ? undefined : { clientId, clock, state: entry.state, updatedAt: now, owner },
+      });
       if (isNull) owned.delete(clientId);
       else owned.add(clientId);
     }
@@ -101,34 +138,23 @@ export class Presence {
     }
 
     const change: PresenceChange = { added: [], updated: [], removed: [], previousOwners: [] };
-    for (const { clientId, clock, state, isNull } of entries) {
-      if (!this.takesOver(clientId, clock, isNull)) continue;
-      const known = this.clocks.get(clientId);
-      const previous = this.held.get(clientId);
+    for (const { entry, known, previous } of staged) {
+      const { clientId, clock, state, isNull } = entry;
       if (previous !== undefined && previous.owner !== owner) {
         change.previousOwners.push(previous.owner);
       }
-
       this.clocks.set(clientId, clock);
       if (isNull) {
         this.removedAt.set(clientId, now);
         this.held.delete(clientId);
-        if (known !== undefined && previous !== undefined) change.removed.push(clientId);
+        if (known && previous !== undefined) change.removed.push(clientId);
       } else {
         this.removedAt.delete(clientId);
         this.held.set(clientId, { clientId, clock, state, updatedAt: now, owner });
-        (known === undefined || previous === undefined ? change.added : change.updated).push(
-          clientId,
-        );
+        (!known || previous === undefined ? change.added : change.updated).push(clientId);
       }
     }
     return change;
-  }
-
-  /** y-protocols' rule: a newer clock, or a removal at the held clock. */
-  private takesOver(clientId: number, clock: number, isNull: boolean): boolean {
-    const current = this.clocks.get(clientId) ?? 0;
-    return current < clock || (current === clock && isNull && this.held.has(clientId));
   }
 
   /**

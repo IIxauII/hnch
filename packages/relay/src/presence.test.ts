@@ -4,6 +4,7 @@
  * store encodes must apply in a client.
  */
 
+import * as encoding from 'lib0/encoding';
 import { describe, expect, it } from 'vitest';
 import * as Y from 'yjs';
 import {
@@ -13,11 +14,25 @@ import {
   removeAwarenessStates,
 } from 'y-protocols/awareness';
 import {
+  AwarenessTooLargeError,
+  MAX_AWARENESS_BYTES,
   MAX_STATES_PER_SOCKET,
   Presence,
   PresenceLimitError,
   PRESENCE_TIMEOUT_MS,
 } from './presence';
+
+/** One awareness update with exactly these entries, in this order. */
+function frameOf(entries: readonly [clientId: number, clock: number, state: string][]): Uint8Array {
+  const encoder = encoding.createEncoder();
+  encoding.writeVarUint(encoder, entries.length);
+  for (const [clientId, clock, state] of entries) {
+    encoding.writeVarUint(encoder, clientId);
+    encoding.writeVarUint(encoder, clock);
+    encoding.writeVarString(encoder, state);
+  }
+  return encoding.toUint8Array(encoder);
+}
 
 function client(clientID: number): Awareness {
   const doc = new Y.Doc();
@@ -241,5 +256,76 @@ describe('Presence', () => {
     const before = observer.meta.get(77)!.clock;
     applyAwarenessUpdate(observer, presence.encode([], 5_000), 'relay');
     expect(observer.meta.get(77)!.clock).toBeGreaterThan(before);
+  });
+
+  describe('a frame that lists a client twice', () => {
+    it('counts the net effect: a state added and an older removal still is a state held', () => {
+      const presence = new Presence();
+      const pairs = Array.from({ length: MAX_STATES_PER_SOCKET + 1 }, (_, i) => [
+        [500 + i, 2, '{}'],
+        [500 + i, 1, 'null'],
+      ]).flat() as [number, number, string][];
+
+      expect(() => presence.apply('socket-a', frameOf(pairs), 0)).toThrow(PresenceLimitError);
+      expect(presence.clientIds()).toEqual([]);
+      expect(presence.remembered()).toBe(0);
+    });
+
+    it('admits the same pairs up to the cap', () => {
+      const presence = new Presence();
+      const pairs = Array.from({ length: MAX_STATES_PER_SOCKET }, (_, i) => [
+        [500 + i, 2, '{}'],
+        [500 + i, 1, 'null'],
+      ]).flat() as [number, number, string][];
+
+      presence.apply('socket-a', frameOf(pairs), 0);
+      expect(presence.ownedBy('socket-a')).toHaveLength(MAX_STATES_PER_SOCKET);
+    });
+
+    it('does not let a thief take another socket states past its cap', () => {
+      const presence = new Presence();
+      for (let i = 0; i < MAX_STATES_PER_SOCKET + 1; i++) {
+        presence.apply(`victim-${i}`, frameOf([[700 + i, 5, '{"v":1}']]), 0);
+      }
+      const steal = Array.from({ length: MAX_STATES_PER_SOCKET + 1 }, (_, i) => [
+        [700 + i, 7, '{"stolen":true}'],
+        [700 + i, 6, 'null'],
+      ]).flat() as [number, number, string][];
+
+      expect(() => presence.apply('thief', frameOf(steal), 1)).toThrow(PresenceLimitError);
+      expect(presence.ownedBy('thief')).toEqual([]);
+      expect(presence.ownedBy('victim-0')).toHaveLength(1);
+    });
+
+    it('applies a removal after a state in order, as y-protocols does', () => {
+      const presence = new Presence();
+      const change = presence.apply(
+        'socket-a',
+        frameOf([
+          [9, 1, '{}'],
+          [9, 2, 'null'],
+        ]),
+        0,
+      );
+      expect(presence.clientIds()).toEqual([]);
+      expect(change.added).toEqual([9]);
+      expect(change.removed).toEqual([9]);
+    });
+  });
+
+  it('records no removal for a client it never heard of', () => {
+    const presence = new Presence();
+    const change = presence.apply('socket-a', frameOf([[41, 3, 'null']]), 0);
+    expect(change).toEqual({ added: [], updated: [], removed: [], previousOwners: [] });
+    expect(presence.remembered()).toBe(0);
+  });
+
+  it(`refuses an update over ${MAX_AWARENESS_BYTES} bytes`, () => {
+    const presence = new Presence();
+    const entries = Array.from(
+      { length: MAX_AWARENESS_BYTES },
+      (_, i) => [1000 + i, 1, 'null'] as [number, number, string],
+    );
+    expect(() => presence.apply('socket-a', frameOf(entries), 0)).toThrow(AwarenessTooLargeError);
   });
 });

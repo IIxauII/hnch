@@ -16,6 +16,13 @@ function roomStub(uuid: string) {
 
 afterEach(() => restoreClock());
 
+function varint(n: number): number[] {
+  const out: number[] = [];
+  for (; n > 127; n = Math.floor(n / 128)) out.push((n % 128) | 128);
+  out.push(n);
+  return out;
+}
+
 describe('joining a room', () => {
   it('opens with sync-step-1, then the presence the room holds', async () => {
     const { uuid } = await createRoom();
@@ -114,6 +121,20 @@ describe('sync', () => {
     const update = [9, ...entries];
     alice.send(new Uint8Array([1, update.length, ...update]));
     expect((await alice.closed()).code).toBe(1008);
+    expect(bob.closeEvent).toBeNull();
+  });
+
+  it('closes 1009 a socket whose awareness frame is far past any client state', async () => {
+    const { uuid } = await createRoom();
+    const alice = await Peer.join(uuid);
+    const bob = await Peer.join(uuid);
+    // 100k entries of (id, clock 1, "null"): about 600 KB.
+    const body: number[] = [];
+    const count = 100_000;
+    for (let i = 0; i < count; i++) body.push(...varint(1000 + i), 1, 4, 110, 117, 108, 108);
+    const update = [...varint(count), ...body];
+    alice.send(new Uint8Array([1, ...varint(update.length), ...update]));
+    expect((await alice.closed()).code).toBe(1009);
     expect(bob.closeEvent).toBeNull();
   });
 
