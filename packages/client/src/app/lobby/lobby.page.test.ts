@@ -22,6 +22,7 @@ import type {
   SessionCommands,
 } from '@hnch/shared';
 
+import { SessionExitService } from '../core/session-exit.service';
 import {
   buildCopyRoomCodeToast,
   buildResultsHeading,
@@ -290,6 +291,7 @@ async function mountLobby(scale: Scale | undefined, customs: CustomScale[]) {
       { provide: HapticService, useValue: { impactLight: vi.fn() } },
       { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
       { provide: LastSessionService, useValue: { record: vi.fn() } },
+      { provide: SessionExitService, useValue: { exit: vi.fn() } },
       {
         provide: ScalePreferenceService,
         useValue: { customScales: signal(customs).asReadonly() },
@@ -381,6 +383,7 @@ describe('LobbyPage — onRoundStart forwards ticketId', () => {
         { provide: HapticService, useValue: { impactLight: vi.fn() } },
         { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
         { provide: LastSessionService, useValue: { record: vi.fn() } },
+        { provide: SessionExitService, useValue: { exit: vi.fn() } },
         {
           provide: ScalePreferenceService,
           useValue: { customScales: signal([]).asReadonly() },
@@ -558,6 +561,7 @@ async function mountLobbySubtitleAffordance(opts: { isHost: boolean; subtitle: s
       { provide: HapticService, useValue: { impactLight: vi.fn() } },
       { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
       { provide: LastSessionService, useValue: { record: vi.fn() } },
+      { provide: SessionExitService, useValue: { exit: vi.fn() } },
       {
         provide: ScalePreferenceService,
         useValue: { customScales: signal(customs).asReadonly() },
@@ -687,6 +691,7 @@ describe('LobbyPage — onCopyRoomCode', () => {
         { provide: HapticService, useValue: { impactLight: vi.fn() } },
         { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
         { provide: LastSessionService, useValue: { record: vi.fn() } },
+        { provide: SessionExitService, useValue: { exit: vi.fn() } },
         {
           provide: ScalePreferenceService,
           useValue: { customScales: signal([]).asReadonly() },
@@ -815,6 +820,7 @@ describe('LobbyPage — openParticipantActions', () => {
         { provide: HapticService, useValue: { impactLight: vi.fn() } },
         { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
         { provide: LastSessionService, useValue: { record: vi.fn() } },
+        { provide: SessionExitService, useValue: { exit: vi.fn() } },
         {
           provide: ScalePreferenceService,
           useValue: { customScales: signal([]).asReadonly() },
@@ -971,6 +977,7 @@ describe('LobbyPage — ngOnDestroy', () => {
         { provide: HapticService, useValue: { impactLight: vi.fn() } },
         { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
         { provide: LastSessionService, useValue: { record: vi.fn() } },
+        { provide: SessionExitService, useValue: { exit: vi.fn() } },
         {
           provide: ScalePreferenceService,
           useValue: { customScales: signal([]).asReadonly() },
@@ -1085,6 +1092,7 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
         { provide: HapticService, useValue: { impactLight: vi.fn() } },
         { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
         { provide: LastSessionService, useValue: { record: vi.fn() } },
+        { provide: SessionExitService, useValue: { exit: vi.fn() } },
         {
           provide: ScalePreferenceService,
           useValue: { customScales: signal([]).asReadonly() },
@@ -1188,6 +1196,7 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
         { provide: HapticService, useValue: { impactLight: vi.fn() } },
         { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
         { provide: LastSessionService, useValue: { record: vi.fn() } },
+        { provide: SessionExitService, useValue: { exit: vi.fn() } },
         {
           provide: ScalePreferenceService,
           useValue: { customScales: signal([]).asReadonly() },
@@ -1300,6 +1309,7 @@ describe('LobbyPage — terminal-round computeds (status)', () => {
         { provide: HapticService, useValue: { impactLight: vi.fn() } },
         { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
         { provide: LastSessionService, useValue: { record: vi.fn() } },
+        { provide: SessionExitService, useValue: { exit: vi.fn() } },
         { provide: ScalePreferenceService, useValue: { customScales: signal([]).asReadonly() } },
         {
           provide: SurfaceService,
@@ -1426,6 +1436,7 @@ describe('LobbyPage — autoNav effect (wiring)', () => {
         { provide: HapticService, useValue: { impactLight: vi.fn() } },
         { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
         { provide: LastSessionService, useValue: { record: vi.fn() } },
+        { provide: SessionExitService, useValue: { exit: vi.fn() } },
         {
           provide: ScalePreferenceService,
           useValue: { customScales: signal([]).asReadonly() },
@@ -1564,6 +1575,7 @@ describe('LobbyPage — agenda form refusal keeps the modal open', () => {
         { provide: HapticService, useValue: { impactLight } },
         { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
         { provide: LastSessionService, useValue: { record: vi.fn() } },
+        { provide: SessionExitService, useValue: { exit: vi.fn() } },
         { provide: ScalePreferenceService, useValue: { customScales: signal([]).asReadonly() } },
         {
           provide: SurfaceService,
@@ -1786,6 +1798,7 @@ async function mountForCommands(opts: CommandMountOptions = {}) {
     removeByUuid: vi.fn().mockResolvedValue(undefined),
     clearAll: vi.fn().mockResolvedValue(undefined),
   };
+  const sessionExit = { exit: vi.fn().mockResolvedValue(undefined) };
   const alerts: { buttons: AlertButton[] }[] = [];
   const openSheetOrPopover = vi.fn().mockResolvedValue(undefined);
   const dismissMenu = vi.fn().mockResolvedValue(undefined);
@@ -1844,6 +1857,7 @@ async function mountForCommands(opts: CommandMountOptions = {}) {
         useValue: { id: signal(opts.myId === undefined ? 'me' : opts.myId).asReadonly() },
       },
       { provide: LastSessionService, useValue: lastSession },
+      { provide: SessionExitService, useValue: sessionExit },
       { provide: ScalePreferenceService, useValue: { customScales: signal([]).asReadonly() } },
       {
         provide: SurfaceService,
@@ -1900,6 +1914,7 @@ async function mountForCommands(opts: CommandMountOptions = {}) {
     flushUpdates,
     toastError,
     lastSession,
+    sessionExit,
     alerts,
     openSheetOrPopover,
     dismissMenu,
@@ -2187,54 +2202,27 @@ describe('LobbyPage — confirmEndSession', () => {
   });
 });
 
+// What leaving does (write `leave`, flush, tear down, forget, Home) is
+// `SessionExitService`'s `left` exit and is tested there.
 describe('LobbyPage — leaveSession', () => {
-  it('writes the soft-delete, flushes, tears down, and drops the cached entry', async () => {
-    const leave = vi.fn().mockReturnValue(APPLIED_ROSTER);
-    const { page, teardown, flushUpdates, lastSession, navigate, alerts, haptic } =
-      await mountForCommands({ roomUuid: 'uuid-1', commands: { leave } });
+  it('leaves the session as left once Leave is confirmed', async () => {
+    const { page, sessionExit, alerts, haptic } = await mountForCommands();
 
     await page.confirmLeave();
     tapAlertButton(alerts, 'Leave');
-    await vi.waitFor(() => expect(navigate).toHaveBeenCalled());
 
     expect(haptic.impactHeavy).toHaveBeenCalledTimes(1);
-    expect(leave).toHaveBeenCalledTimes(1);
-    expect(flushUpdates).toHaveBeenCalledTimes(1);
-    expect(teardown).toHaveBeenCalledTimes(1);
-    expect(lastSession.removeByUuid).toHaveBeenCalledWith('uuid-1');
-    expect(lastSession.clearAll).not.toHaveBeenCalled();
-    expect(navigate).toHaveBeenCalledWith(['/home']);
+    expect(sessionExit.exit).toHaveBeenCalledExactlyOnceWith({ kind: 'left' });
   });
 
-  // The doc's own UUID is writable by everyone in the session: it must not
-  // decide which of this device's sessions is forgotten, let alone all.
-  it('forgets nothing else when there is no relay UUID to go by', async () => {
-    const { page, lastSession, navigate, alerts } = await mountForCommands({
-      commands: { leave: vi.fn().mockReturnValue(APPLIED_ROSTER) },
-    });
+  it('stays in the session when Leave is cancelled', async () => {
+    const { page, sessionExit, alerts, haptic } = await mountForCommands();
 
     await page.confirmLeave();
-    tapAlertButton(alerts, 'Leave');
-    await vi.waitFor(() => expect(navigate).toHaveBeenCalled());
+    tapAlertButton(alerts, 'Cancel');
 
-    expect(lastSession.clearAll).not.toHaveBeenCalled();
-    expect(lastSession.removeByUuid).not.toHaveBeenCalled();
-  });
-
-  it('skips the soft-delete and the flush when there is no participant id', async () => {
-    const leave = vi.fn().mockReturnValue(APPLIED_ROSTER);
-    const { page, teardown, flushUpdates, navigate, alerts } = await mountForCommands({
-      myId: null,
-      commands: { leave },
-    });
-
-    await page.confirmLeave();
-    tapAlertButton(alerts, 'Leave');
-    await vi.waitFor(() => expect(navigate).toHaveBeenCalled());
-
-    expect(leave).not.toHaveBeenCalled();
-    expect(flushUpdates).not.toHaveBeenCalled();
-    expect(teardown).toHaveBeenCalledTimes(1);
+    expect(haptic.impactHeavy).not.toHaveBeenCalled();
+    expect(sessionExit.exit).not.toHaveBeenCalled();
   });
 });
 
