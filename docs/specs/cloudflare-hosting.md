@@ -14,13 +14,13 @@ Today hnch runs on one rented IONOS VPS (1 vCPU, 1 GB RAM): Caddy serves the PWA
 
 - **Host, voter, viewer** (PWA, native app): affected only indirectly. Same URL, same flows. Rooms now survive deploys.
 - **CLI user**: must keep working on every released CLI version without an update.
-- **Operator** (the owner): no server to run; deploys stay hands-off from CI; DNS and registrar live in the existing Cloudflare account.
+- **Operator** (the owner): no server to run; deploys stay hands-off from CI; DNS lives in the existing Cloudflare account. The registration stays at IONOS.
 
 ## Proposed behavior
 
 - Users notice nothing on the surface: `https://hnch.dev` serves the app, room codes and join links work as before, and the native app and installed CLIs connect unchanged.
 - A room survives a relay deploy. Everyone may drop for a moment and reconnect on their own, and the room comes back with its rounds and votes. The 24 h "back tomorrow" window (ADR-0012) still holds.
-- The operator no longer has a VPS. Releases deploy from CI as today. DNS and the domain are managed in Cloudflare.
+- The operator no longer has a VPS. Releases deploy from CI as today. DNS is managed in Cloudflare; the domain stays registered at IONOS.
 - If Cloudflare's free daily limits are ever hit, the relay errors until 00:00 UTC. It never runs up a bill.
 
 ## Success criteria
@@ -28,9 +28,9 @@ Today hnch runs on one rented IONOS VPS (1 vCPU, 1 GB RAM): Caddy serves the PWA
 - `hnch.dev` (app and relay) is served by Cloudflare. The VPS is switched off and cancelled.
 - The latest released CLI and the current store and native builds create, join, vote and reveal against the new relay with no client release.
 - A room created before a relay deploy can be rejoined after it, with its state intact.
-- At current usage hnch runs within Cloudflare's free plan. The only recurring cost is the domain at registry price.
+- At current usage hnch runs within Cloudflare's free plan. The only recurring cost is the domain renewal at IONOS.
 - The e2e suite passes locally and in CI against the new relay.
-- `hnch.dev` resolves via Cloudflare nameservers and its registration sits with Cloudflare Registrar.
+- `hnch.dev` resolves via Cloudflare nameservers.
 
 ## Scope
 
@@ -38,7 +38,7 @@ Today hnch runs on one rented IONOS VPS (1 vCPU, 1 GB RAM): Caddy serves the PWA
 - PWA static hosting on Cloudflare, keeping the single-origin layout (ADR-0029's no-CORS property).
 - Relay on Cloudflare with the same HTTP API, WebSocket protocol and close codes (ADR-0016, ADR-0035).
 - Room state persisted by the relay so it survives deploys, deleted 24 h after the last peer leaves.
-- DNS on Cloudflare (zone created 2026-10-28) and the registrar transfer from IONOS.
+- DNS on Cloudflare (zone created 2026-10-28, Active since 14:17 UTC that day).
 - CI deploys for client and relay, local dev and e2e on the new runtime.
 - Cutover from the VPS and its decommission.
 
@@ -48,11 +48,12 @@ Today hnch runs on one rented IONOS VPS (1 vCPU, 1 GB RAM): Caddy serves the PWA
 - Paid Cloudflare plans (Workers Paid stays the fallback only if free limits bite).
 - Analytics or telemetry beyond what ADR-0028 allows.
 - Email on `hnch.dev`. The owner doesn't use it, so the IONOS mail records were not carried over.
+- Moving the registration to Cloudflare Registrar. Out of scope by owner decision (2026-10-28): `hnch.dev` stays registered at IONOS.
 
 ## Settled by owner
 
 - Settled 2026-10-28: move DNS to Cloudflare now, DNS-only records, no change for users.
-- Settled 2026-10-28: transfer the registration from IONOS to Cloudflare Registrar. No `@hnch.dev` mail is in use.
+- Settled 2026-10-28 (revised the same day): the registration stays at IONOS; only DNS moves to Cloudflare. A transfer would cost $12.20 for an extra year with no saving now. Reopen only on a materially new fact, such as an IONOS renewal price well above Cloudflare's. No `@hnch.dev` mail is in use.
 - Settled 2026-10-28: port the relay to Cloudflare, accepting that room state is stored at Cloudflare (EU-pinned where the platform allows), deleted 24 h after the last peer leaves.
 
 ## Open questions
