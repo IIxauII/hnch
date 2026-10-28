@@ -1,3 +1,10 @@
+# [1.17.0](https://github.com/IIxauII/hnch/compare/cli-v1.16.1...cli-v1.17.0) (2026-10-28)
+
+
+### Features
+
+* **client,shared,cli,e2e,docs,repo:** simpler screens, shorter flows, steadier presence ([#522](https://github.com/IIxauII/hnch/issues/522)) ([dd830e1](https://github.com/IIxauII/hnch/commit/dd830e1fe508da467cdc37534b07b22a67210d23))
+
 ## [1.16.1](https://github.com/IIxauII/hnch/compare/cli-v1.16.0...cli-v1.16.1) (2026-08-25)
 
 
