@@ -20,12 +20,12 @@ Today hnch runs on one rented IONOS VPS (1 vCPU, 1 GB RAM): Caddy serves the PWA
 
 - Users notice nothing on the surface: `https://hnch.dev` serves the app, room codes and join links work as before, and the native app and installed CLIs connect unchanged.
 - A room survives a relay deploy. Everyone may drop for a moment and reconnect on their own, and the room comes back with its rounds and votes. The 24 h "back tomorrow" window (ADR-0012) still holds.
-- The operator no longer has a VPS. Releases deploy from CI as today. DNS is managed in Cloudflare; the domain stays registered at IONOS.
+- No server of the operator's sits in the serving path any more. Releases deploy from CI as today. DNS is managed in Cloudflare; the domain stays registered at IONOS.
 - If Cloudflare's free daily limits are ever hit, the relay errors until 00:00 UTC. It never runs up a bill.
 
 ## Success criteria
 
-- `hnch.dev` (app and relay) is served by Cloudflare. The VPS is switched off and cancelled.
+- `hnch.dev` (app and relay) is served by Cloudflare. The VPS is left as it is; decommissioning it is out of scope for now.
 - The latest released CLI and the current store and native builds create, join, vote and reveal against the new relay with no client release.
 - A room created before a relay deploy can be rejoined after it, with its state intact.
 - At current usage hnch runs within Cloudflare's free plan. The only recurring cost is the domain renewal at IONOS.
@@ -40,7 +40,7 @@ Today hnch runs on one rented IONOS VPS (1 vCPU, 1 GB RAM): Caddy serves the PWA
 - Room state persisted by the relay so it survives deploys, deleted 24 h after the last peer leaves.
 - DNS on Cloudflare (zone created 2026-10-28, Active since 14:17 UTC that day).
 - CI deploys for client and relay, local dev and e2e on the new runtime.
-- Cutover from the VPS and its decommission.
+- One full cutover from the VPS to Cloudflare. Downtime during the switch is acceptable.
 
 **Out (explicit anti-goals):**
 - Any change to the wire protocol, REST shape, close codes or client behavior.
@@ -49,20 +49,22 @@ Today hnch runs on one rented IONOS VPS (1 vCPU, 1 GB RAM): Caddy serves the PWA
 - Analytics or telemetry beyond what ADR-0028 allows.
 - Email on `hnch.dev`. The owner doesn't use it, so the IONOS mail records were not carried over.
 - Moving the registration to Cloudflare Registrar. Out of scope by owner decision (2026-10-28): `hnch.dev` stays registered at IONOS.
+- Shutting down or cancelling the VPS. Out of scope by owner decision (2026-10-28): it stays as it is for now.
 
 ## Settled by owner
 
 - Settled 2026-10-28: move DNS to Cloudflare now, DNS-only records, no change for users.
 - Settled 2026-10-28 (revised the same day): the registration stays at IONOS; only DNS moves to Cloudflare. A transfer would cost $12.20 for an extra year with no saving now. Reopen only on a materially new fact, such as an IONOS renewal price well above Cloudflare's. No `@hnch.dev` mail is in use.
 - Settled 2026-10-28: port the relay to Cloudflare, accepting that room state is stored at Cloudflare (EU-pinned where the platform allows), deleted 24 h after the last peer leaves.
+- Settled 2026-10-28: one full cutover of `hnch.dev` to Cloudflare, not a staged one. There is no customer base yet, so downtime during the switch is acceptable.
 
 ## Open questions
 
-- Does the free plan count incoming WebSocket messages 1:1 or 20:1 against its 100k daily request cap? The docs only state the 20:1 ratio for paid billing.
-- Is EU data pinning (Durable Object jurisdiction) available on the free plan?
-- Keep the Node relay as a self-host fallback, or delete it once Cloudflare is live?
-- `/health` loses its global room and peer counts. Is version plus liveness enough?
-- What cutover window is acceptable? The VPS holds rooms in RAM only, so live rooms at switch time are lost once.
+- Does the free plan count incoming WebSocket messages 1:1 or 20:1 against its 100k daily request cap? Still undocumented; the plan budgets 1:1. Durable Object duration (~29 occupied room-hours a day) is the tighter limit anyway.
+- Resolved: EU pinning works on the free plan (prototype, `namespace.jurisdiction('eu')`).
+- Resolved 2026-10-28 (owner): the Node relay is replaced in place, with no self-host fallback.
+- Resolved: `/health` reports version and liveness only; nothing but the deploy smoke test reads it.
+- Resolved 2026-10-28 (owner): no cutover window. One full switch whenever the work is ready; live rooms at switch time are lost once.
 
 ## ADR impact
 

@@ -3,45 +3,50 @@
 **Status:** Draft
 **Date:** 2026-10-28
 **Source spec:** docs/specs/cloudflare-hosting.md
-**Shape:** Multi-PR: 6 PRs in 4 phases (1a, 1b, 2, 3a, 3b, 4), plus owner-run preconditions in Phase 0
+**Shape:** Multi-PR: 4 PRs (1a, 1b, 2, 3-docs). The owner runs the Phase 0 ops and the Phase 3 switch.
 
 ## Summary
 
-The relay moves to a Cloudflare Worker with Durable Objects (DOs): `Room`, one per room UUID; `Codes`, one per room code; and `Expiry`, one per UTC day, which backs up room deletion. The PWA moves to an assets-only Worker. Both sit on `hnch.dev` through zone routes. Only DNS moves to Cloudflare; the registration stays at IONOS. After a 7-day rollback window the IONOS VPS is switched off.
+The relay moves to a Cloudflare Worker with three kinds of Durable Object (DO): `Room` (one per room UUID), `Codes` (one per room code) and `Expiry` (one per UTC day, a backstop that makes sure rooms get deleted). The PWA moves to an assets-only Worker.
 
-Rooms now survive relay deploys. They persist (EU-pinned) until 24–25 h after the last peer leaves, which matches the Node relay's ADR-0012 TTL plus its hourly sweep. The wire protocol, REST shape and close codes do not change, so released CLIs (1.1.1 onwards) and native builds keep working without a release. Structural decision: [ADR-0051](../../adr/0051-cloudflare-hosting.md) (Proposed; amendments listed under ADR impact).
+Both Workers attach to `hnch.dev` through zone routes. Those routes are deployed early but stay inert while the apex DNS record is DNS-only. Cutover is one full switch: proxy the apex records, then verify on `hnch.dev` and fix forward. Only DNS is at Cloudflare; the domain registration stays at IONOS. The IONOS VPS is left untouched and idle, and decommissioning it is out of scope.
+
+Rooms now survive relay deploys. They persist, pinned to the EU, until 24–25 h after the last peer leaves, which is the ADR-0012 TTL plus the Node relay's hourly sweep jitter. The wire protocol, REST shape and close codes are unchanged, so released CLIs (1.1.1 onwards) and native builds keep working without a release. Structural decision: [ADR-0051](../../adr/0051-cloudflare-hosting.md) (Proposed; amendments listed under ADR impact).
 
 ## Approach
 
-### Topology (D1-A recommended; G0 passed both variants)
+### Topology (D1-A, settled)
 
-- Two Workers on one hostname, both on zone routes. This keeps the single origin of ADR-0029, so there is still no CORS for the PWA.
-  - **`hnch-relay`** (`packages/relay`): routes `<host>/health*`, `<host>/rooms*`, `<host>/ws/*`.
+- Two Workers on one hostname, both attached by zone routes. The single origin of ADR-0029 is kept, so there is still no CORS for the PWA.
+  - **`hnch-relay`** (`packages/relay`), on routes `hnch.dev/health*`, `hnch.dev/rooms*` and `hnch.dev/ws/*`.
     - The trailing `*` on `/health*` is needed: G0 showed that exact `/health` misses `/health?x=1` and `/health/`.
-    - Matching is case-sensitive. `/Rooms/…` and bare `/ws` fall through to the SPA, which is parity with Caddy and the Node relay.
-  - **`hnch-web`** (`packages/client`): an assets-only Worker serving `packages/client/www`, with SPA fallback and `_headers`, on route `<host>/*`. The more specific relay routes win (G0).
-  - A client release redeploys only `hnch-web`. G0 held relay sockets for 300 s across a web redeploy with 0 closes.
-  - A relay release is a staggered blip (see "Deploy coexistence").
-- **Apex DNS:** `hnch.dev` A stays pointed at the VPS, but proxied, from the pre-cutover step until Phase 4. Every path without a route falls through to the VPS, which is what makes instant rollback possible (D2-A).
-- **Proving ground:** the same Workers on `next.hnch.dev` (proxied `AAAA 100::`, P0.4). Until Phase 3b it serves a `next` build of the PWA that points at the `next` relay (D3-A). Phase 4 removes it (D4).
+    - Matching is case-sensitive. `/Rooms/…` and a bare `/ws` fall through to the SPA, which matches Caddy and the Node relay today.
+  - **`hnch-web`** (`packages/client`): an assets-only Worker serving `packages/client/www`, with SPA fallback and `_headers`, on route `hnch.dev/*`. The more specific relay routes win (G0).
+  - A client release redeploys only `hnch-web`. In G0, relay sockets held for 300 s across a web redeploy with 0 closes. A relay release is a staggered blip (contract item 12).
+- **Routes are inert until the switch.** Workers routes only run on proxied hostnames.
+  - Both Workers deploy with their `hnch.dev` routes from their first release (1b and 2).
+  - The apex stays DNS-only and points at the VPS until Phase 3, so the VPS keeps serving users.
+  - **The switch** is setting the apex records (and `www`) to proxied. Both Workers then go live at once.
+- **No proving ground** (D3/D4, settled). There is no `next.hnch.dev` and no pre-cutover test build. Pre-cutover confidence comes from CI (unit tests on workerd, e2e against a local workerd relay) plus G0. Real-network checks run on `hnch.dev` right after the switch.
+- **The VPS is left as is.** After the switch it gets no traffic, except sockets already open to it (they stay until they reconnect) and resolvers still holding the old A record (until its TTL expires). That leaves an incidental rollback: set the records back to DNS-only and Caddy serves again, with its relay frozen at 1.2.1.
 
 ### Relay Worker: behavioural contract (parity with `packages/relay` today)
 
 1. **Routes:**
-   - `GET /health` (any query string), `POST /rooms` (exact path), `GET /rooms/:code`, `PATCH /rooms/:uuid/access`, `WS /ws/:uuid`.
+   - `GET /health` (any query), `POST /rooms` (exact path), `GET /rooms/:code`, `PATCH /rooms/:uuid/access`, `WS /ws/:uuid`.
    - `OPTIONS *` → `204`.
-   - Anything else that reaches the Worker, such as `/health/` or `/roomsXYZ` → `404 {error:'not-found'}`.
-   - CORS headers stay identical to the Node relay (`*`, `GET, POST, PATCH, DELETE, OPTIONS`, `Content-Type`). Native apps send a preflight `OPTIONS /rooms` from `capacitor://localhost` or `https://localhost` before each `POST /rooms`.
+   - Anything else that reaches the Worker (for example `/health/` or `/roomsXYZ`) → `404 {error:'not-found'}`.
+   - CORS headers stay identical to the Node relay: `*`, `GET, POST, PATCH, DELETE, OPTIONS`, `Content-Type`. Native apps send a preflight `OPTIONS /rooms` before each `POST /rooms`, from `capacitor://localhost` or `https://localhost`.
 2. **`POST /rooms`:**
-   - Body is JSON, at most 4 KiB. Empty body counts as `{}`.
-   - `passwordHash` is optional and must be 64 lowercase hex, else `400 {error:'bad-request', detail}`.
+   - Body: JSON, at most 4 KiB; an empty body counts as `{}`.
+   - `passwordHash` is optional. If present it must be 64 lowercase hex, else `400 {error:'bad-request', detail}`.
    - Success → `201 {uuid, code}`.
-   - Codes come from `generateRoomCode` (ADR-0008) and are unique across live rooms through a compare-and-swap claim on `Codes`. A code is reusable only after its room is deleted or tombstoned.
-   - After `init`, the room is registered best-effort with `Expiry(<UTC day>)`. A failure there never fails the create.
+   - Codes come from `generateRoomCode` (ADR-0008) and stay unique across live rooms through a CAS claim on `Codes`. A code becomes reusable only once its room is deleted or tombstoned.
+   - After `init`, the room is registered with `Expiry(<UTC day>)` on a best-effort basis; a failure there never fails the create.
 3. **`GET /rooms/:code`:**
-   - Input is normalised with `normalizeRoomCode`.
+   - The code is normalised with `normalizeRoomCode`.
    - Returns `200 {uuid, accessMode}` or `404 {reason:'unknown-room'}`.
-   - Unauthenticated. Never rate-limited (R7, ADR-0050).
+   - Unauthenticated and never rate-limited (R7, ADR-0050).
 4. **`PATCH /rooms/:uuid/access`:**
    - `passwordHash` may be hex, `null` or absent.
    - Returns `200 {accessMode}` or `404 {reason:'unknown-room'}`.
@@ -50,137 +55,127 @@ Rooms now survive relay deploys. They persist (EU-pinned) until 24–25 h after 
    - Non-upgrade request → `426`.
    - Unknown or tombstoned UUID → HTTP `404` before the upgrade.
    - Password room with no `pw` → HTTP `400` before the upgrade.
-   - Wrong `pw` → accept, then close `4002 wrong-password` (constant-time compare).
+   - Wrong `pw` → accept, then close `4002 wrong-password`. The comparison is constant-time against the stored digest (item 16).
    - Open sockets ≥ cap → accept, then close `4006 room-full`.
-   - Refused sockets never count as peers.
-   - Codes come from `JOIN_REJECTION_CLOSE_CODES`. Never rate-limited (R7: a 429 or 5xx on the upgrade makes y-websocket retry every ~2.5 s forever).
+   - Refused sockets never count as peers. Close codes come from `JOIN_REJECTION_CLOSE_CODES`.
+   - Never rate-limited (settled 2026-10-28; R7: a 429 or 5xx on the upgrade makes y-websocket retry every ~2.5 s forever).
 6. **Failure mapping:**
-   - Any DO call that throws (overload, exceeded daily limit, storage error, RPC failure) → `503 {error:'unavailable'}` with **no `reason`**, both on HTTP routes and pre-upgrade.
-   - `404` is sent only when a DO positively reports that the room or code is unknown.
-   - ADR-0050 treats any non-404 as "no verdict" and keeps retrying, so a platform failure never evicts sessions from client caches.
+   - Any DO call that throws (overload, daily limit, storage error, RPC failure) → `503 {error:'unavailable'}` with **no `reason`**. This applies to HTTP routes and to the pre-upgrade check.
+   - `404` is returned only when a DO positively reports that the room or code is unknown.
+   - ADR-0050 treats any non-404 as "no verdict" and keeps retrying, so a platform failure never evicts sessions from clients.
 7. **Sync:**
-   - y-websocket wire format: `0` is sync, `1` is awareness, unknown types are ignored.
+   - y-websocket wire format: `0` is sync, `1` is awareness; unknown types are ignored.
    - On accept, the relay sends sync-step-1, then every awareness state it holds.
-   - It never echoes a sender's own update or awareness change back to it.
-   - Doc updates go to every other open socket immediately; storage writes are coalesced separately (item 10).
+   - It never echoes a sender's own update or awareness back to it.
+   - Doc updates fan out immediately; storage writes are coalesced (item 10).
 8. **Presence (load-bearing for ADR-0050):**
-   - A fresh socket gets every awareness state the room holds, right away. That includes after the DO hibernated, was evicted or restarted.
-   - States survive hibernation through per-socket attachments (16 KiB cap per attachment).
-   - A state not renewed for 30 s is neither replayed nor kept (parity with the y-protocols outdated timeout). This is checked lazily on inbound events.
+   - A fresh socket gets every awareness state the room holds, immediately, including after the DO hibernated, was evicted or restarted.
+   - States survive hibernation through per-socket attachments (16 KiB cap).
+   - A state not renewed for 30 s is neither replayed nor kept. This is checked lazily on inbound events.
    - When a socket closes, the states it announced are removed and the removal is broadcast.
 9. **Keepalive (hard requirement; R4, measured):**
-   - **Evidence:**
-     - y-websocket 3.0.0 closes any socket that receives no app message for more than 30 s (checked every 3 s), then reconnects.
-     - The Node relay's own `Awareness` renews its `{}` state every 15 s to every socket.
-     - Measured with one lone client for 120 s: Node relay 0 reconnects; prototype 3.
-   - **Requirement:** every open socket whose client is renewing receives an app-level frame at least every ≤ 15 s, including a lone peer. Protocol pings do not count.
-   - **Mechanism (settled, owner may veto): piggyback.**
-     - When the relay handles any inbound message on socket S, and S has been sent nothing for ≥ 10 s, it sends S one relay-own awareness renewal: state `{}`, the same bytes the Node relay emits.
-     - This costs 0 extra DO requests and 0 extra duration; outgoing messages are free.
-     - Clients drop states without a `participantId` (R5).
-     - The relay should keep one clientID per room across wakes, stored at init, with a time-derived clock.
-   - **Known residual:** under Chrome intensive throttling (tabs hidden for more than 5 min, timers batched about 1/min), a renewal and y-websocket's check land in the same wake-up. Lone hidden tabs, and rooms of 2–3 all-hidden peers (common during a call), may then reconnect about once a minute. That means presence churn, an ADR-0050 reconnect each time, and about 4 DO requests per reconnect.
-     - Measured on `next` in Phase 2 (1, 2 and 3 hidden tabs, 15 min each).
-     - Local workerd never hibernates. Whether the vitest plugin simulates hibernation is unverified, so hibernation behaviour is verified on `next` only.
-   - **Pre-agreed fallback.** Trigger: any 2- or 3-peer all-hidden room shows more than 2 reconnects per 10 min in that measurement.
-     - Add an alarm keepalive that is armed only while every open socket has been quiet for more than 20 s.
-     - It sends the renewal to all sockets and shares the single alarm slot with the TTL: `alarm = min(ttlCheck, keepaliveDue)`.
-     - It costs 1 DO request per 20 s, and only for all-quiet rooms.
-     - It ships in Phase 1b behind a constant, default off, and is switched on before Phase 3a if the trigger fires.
+   - **Evidence:** y-websocket 3.0.0 closes any socket that receives no app message for more than 30 s, then reconnects. The Node relay renews its own `{}` awareness state every 15 s to every socket. With one lone client over 120 s, the Node relay caused 0 reconnects; the prototype caused 3.
+   - **Requirement:** every open socket whose client is renewing gets an app-level frame at least every 15 s, including a lone peer.
+   - **Mechanism (settled; owner may veto): piggyback.**
+     - When the relay handles any inbound message on socket S, and S has been sent nothing for at least 10 s, the relay sends S one relay-own awareness renewal (`{}`, the same bytes the Node relay emits).
+     - This costs 0 extra DO requests and 0 extra duration.
+     - Clients drop states that have no `participantId` (R5).
+     - The relay should keep one clientID per room across wakes (stored at init, with a time-derived clock).
+   - **Known residual:** Chrome's intensive throttling batches timers in tabs hidden for more than 5 min. Lone hidden tabs, and rooms of 2–3 peers whose tabs are all hidden, may then reconnect about once a minute, at roughly 4 DO requests per reconnect.
+     - Local workerd never hibernates, so this is measured on `hnch.dev` after the switch (Phase 3).
+   - **Pre-agreed fallback:**
+     - Trigger: any 2- or 3-peer room with all tabs hidden shows more than 2 reconnects per 10 min.
+     - Fix: an alarm keepalive, armed only while every open socket has been quiet for more than 20 s. It shares the alarm slot with the TTL: `alarm = min(ttlCheck, keepaliveDue)`.
+     - It ships in 1b behind a constant, default off. If the trigger fires, a fix-forward relay release switches it on.
    - **Tests:**
      - `packages/relay/src/room.keepalive.test.ts`, with an injected clock:
-       - (a) a lone socket renewing 10 s after its last frame gets exactly one relay frame;
-       - (b) a socket sent a peer update 3 s ago gets none;
+       - (a) a lone socket that renews 10 s after its last frame gets exactly one relay frame;
+       - (b) a socket that got a peer update 3 s ago gets none;
        - (c) the first message after a forced DO restart gets one;
-       - (d) with the fallback on, an all-quiet room arms the alarm and the TTL deadline is kept.
-     - e2e `packages/e2e/tests/lone-peer-keepalive.spec.ts`: a lone host stays in the lobby for 75 s, with exactly one `/ws/` socket in `page.on('websocket')` and no "Reconnecting…". It uses `test.setTimeout(120_000)` and passes on the Node relay today.
-     - On `next`: `smoke.mjs hold` with 1 client for 120 s → 0 reconnects; plus the Phase 2 hidden-tab measurement.
+       - (d) with the fallback on, an all-quiet room arms the alarm and keeps the TTL deadline.
+     - e2e `packages/e2e/tests/lone-peer-keepalive.spec.ts`: a lone host stays in the lobby for 75 s. It must see exactly one `/ws/` socket in `page.on('websocket')` and no "Reconnecting…". Uses `test.setTimeout(120_000)`; it already passes on the Node relay.
 10. **Persistence (coalesced writes):**
-    - Applied updates are broadcast at once and buffered for storage.
-    - The buffer is flushed as one row (`Y.mergeUpdates`) when any of these happens:
+    - Updates are broadcast at once and buffered for storage.
+    - The buffer is flushed as one row (`Y.mergeUpdates`) when the first of these happens:
       - the oldest buffered update is 5 s old;
       - the buffer reaches 512 KiB;
       - the last socket closes;
-      - before compaction;
-      - on any alarm.
-    - No flush runs once the room is tombstoned or deleted (item 11).
-    - **Durability trade:** a deploy or eviction inside the 5 s window loses those updates from relay storage only. Reconnecting clients re-supply them through sync-step-2.
-    - **Compaction:** once the log has more than 32 rows, one transaction writes snapshot chunks of at most 1 MiB each (platform row maximum 2 MB) and deletes the log.
-    - `meta.schemaVersion` is set at init, so future format changes can expand and contract (see "Deploy coexistence").
-    - **Lazy doc load:** the Y.Doc is loaded only for a new socket, a sync message, compaction or deletion. Awareness-only wakes read no doc rows.
+      - a compaction is about to run;
+      - any alarm fires.
+    - No flush happens after the room is tombstoned.
+    - **Durability trade:** if a deploy or eviction lands inside the 5 s window, those updates are lost from relay storage only. Reconnecting clients re-supply them through sync-step-2.
+    - **Compaction:** once the log has more than 32 rows, one transaction writes snapshot chunks of at most 1 MiB each (the platform row maximum is 2 MB) and deletes the log.
+    - `meta.schemaVersion` is set at init.
+    - **Lazy doc load:** the doc is loaded only for a new socket, a sync message, compaction or deletion.
     - **Storage-write failure:** the room keeps relaying from memory, logs once, and never closes sockets because of it.
-11. **TTL and deletion (ADR-0012; Node parity: deletion 24–25 h after the last peer leaves).** Settled design, owner may veto.
-    - **State:** `meta.lastOccupiedAt`, `meta.tombstone`, plus the single DO alarm. Close events are never relied on.
+11. **TTL and deletion (ADR-0012; deletion 24–25 h after the last peer leaves).** Settled design; owner may veto.
+    - **State:** `meta.lastOccupiedAt`, `meta.tombstone` and the single alarm. Close events are never relied on.
     - **init:** `lastOccupiedAt = now`; alarm at `now + 1 h`.
-    - **Alarm handler:**
-      - First flush. Then:
-        - sockets open → `lastOccupiedAt = now`, alarm at `now + 1 h`;
-        - tombstoned → resume deletion;
-        - `now ≥ lastOccupiedAt + TTL + 1 h` → delete;
-        - else → alarm at `lastOccupiedAt + TTL + 1 h`.
-      - If the handler throws, its `catch` tries to set the alarm to `now + 10 min` before re-throwing, which feeds the platform's own retries.
-    - **Re-arm on any entry:** `fetch`, upgrade, `webSocketMessage`, `webSocketClose`, `info`, `setPassword`, `expireIfDue`.
-      - At most once per 10 min per instance (an in-memory stamp; also on every constructor run): if `meta` exists and `getAlarm()` is null → alarm at `now + 1 h`.
-      - When accepting a socket, an alarm later than `now + 1 h` is pulled in to `now + 1 h`.
-      - This recovers a room whose alarm died, for example after retries ran out during a row-write-cap outage, as soon as anything touches it.
-    - **Lazy expiry:** `info`, `fetch`/upgrade and `setPassword` first check the condition "no open sockets and `now ≥ lastOccupiedAt + TTL + 1 h`". If it holds, they start deletion and answer as an unknown room (`404`).
-    - **Deletion (order matters):**
-      1. Write `meta.tombstone = now` in one transaction and drop the flush buffer. From here on every entry answers unknown (`404`), upgrades are refused, and flushes write nothing.
-      2. `await Codes(code).release(uuid)`.
-         - The release is idempotent: delete only if the stored value equals `uuid`; succeed if the entry is absent or holds another UUID.
-         - On failure, keep the tombstone and set the alarm to `now + 10 min`.
-      3. `deleteAll()` (storage and alarm), then drop in-memory state.
-      - A `Codes.claim` treats a holder whose `Room.info()` is null (deleted or tombstoned) as free.
-    - **Backstop sweep** (planner-decided, owner may veto):
-      - `Expiry(<UTC creation day>)` stores the UUIDs created that day (+1 row per room).
-      - A daily Cron Trigger on `hnch-relay` (04:00 UTC) calls `Expiry(day).sweep()` for each of the last 30 days. That is about 30 DO requests a day; an empty day costs 1 request and no storage.
-      - `sweep()` calls `Room(uuid).expireIfDue()` → `deleted | gone | live`, and drops `deleted` and `gone` entries.
-      - This catches rooms whose alarm died and that nobody touches again.
-      - **Residual:** a room re-occupied for more than 30 days leaves the sweep window, but its own alarm and re-arm still apply.
-      - The sweep uses one of the account's free-plan cron trigger slots.
+    - **Alarm handler.** It flushes first, then:
+      - sockets open → set `lastOccupiedAt = now` and re-arm at `now + 1 h`;
+      - tombstoned → resume deletion;
+      - `now ≥ lastOccupiedAt + TTL + 1 h` → delete;
+      - otherwise → alarm at `lastOccupiedAt + TTL + 1 h`.
+      - Its `catch` tries `setAlarm(now + 10 min)` before re-throwing.
+    - **Re-arm on any entry** (`fetch`, upgrade, `webSocketMessage`, `webSocketClose`, `info`, `setPassword`, `expireIfDue`), at most once every 10 min per instance and on every constructor run:
+      - if `meta` exists and `getAlarm()` is null → alarm at `now + 1 h`;
+      - when accepting a socket, an alarm later than `now + 1 h` is pulled in to `now + 1 h`.
+    - **Lazy expiry:** `info`, `fetch`/upgrade and `setPassword` first check "no open sockets and `now ≥ lastOccupiedAt + TTL + 1 h`". If it holds, they start deletion and answer `404`.
+    - **Deletion, in this order:**
+      1. Write `meta.tombstone = now` and drop the flush buffer. From then on every entry answers unknown, upgrades are refused and flushes write nothing.
+      2. `await Codes(code).release(uuid)`. It is idempotent: it deletes only if the stored value equals `uuid`, and succeeds if the entry is absent or holds another UUID. On failure, keep the tombstone and set the alarm to `now + 10 min`.
+      3. `deleteAll()`.
+      - A `Codes.claim` treats a holder whose `Room.info()` is null as free.
+    - **Backstop sweep** (planner-decided; owner may veto):
+      - `Expiry(<UTC creation day>)` lists the UUIDs created that day (one row per room).
+      - A daily cron on `hnch-relay` at 04:00 UTC runs `sweep()` for each of the last 30 days, about 30 DO requests a day. `sweep()` calls `Room(uuid).expireIfDue()` → `deleted | gone | live`, and drops the `deleted` and `gone` entries.
+      - It uses one of the account's free cron slots.
     - **Tests:**
-      - alarm handler throws 7 times in a row → the room still expires through lazy expiry and through the sweep;
-      - storage writes throw during the alarm (simulated row-write cap) → re-armed on the next entry;
-      - an upgrade or `GET /rooms/:code` arriving between tombstone and `Codes.release` → `404`;
-      - a flush timer firing after the tombstone writes nothing;
-      - `Codes.release` failing → tombstone kept, retried, code later freed;
-      - `release` called twice, or with a foreign UUID → no-op;
+      - the alarm throws 7 times → the room still expires through lazy expiry and through the sweep;
+      - storage writes throw during the alarm → re-armed on the next entry;
+      - an upgrade or `GET /rooms/:code` between tombstone and release → `404`;
+      - a flush after the tombstone writes nothing;
+      - a failing release → retried, code freed later;
+      - a double release, or one with a foreign UUID → no-op;
       - an unjoined room is deleted at about 25 h;
       - a room re-occupied at 23 h survives.
 12. **Deploy coexistence (G0, measured):**
     - DO code updates roll out gradually.
-      - A busy room kept running the **old** Room code with sockets intact for about 3–5 min after `deploy`. Then all its sockets closed with `1006` at once, reconnected and synced in 0.35–0.45 s on the new version, with state kept.
-      - A hibernated room woke on new code with its sockets still attached and no close.
-    - **Requirement:** old and new code must work side by side for **at least 5 min** after every relay deploy. That covers new-front-Worker → old-DO calls, old-DO ↔ new-DO calls, and old code reading rows written by new code.
+      - A busy room kept running the **old** code for about 3–5 min after deploy. Then all its sockets closed with `1006` together and resynced on the new version in 0.35–0.45 s, with state kept.
+      - Hibernated rooms woke on the new code without a close.
+    - **Requirement:** old and new code must work side by side for **at least 5 min** after every relay deploy. That covers a new front Worker calling an old DO, old and new DOs calling each other, and old code reading rows written by new code.
       - RPC methods and meta fields are additive only.
       - Format changes go through expand/contract over **two releases at least 10 min apart**.
-      - DO class renames or deletes need a migration, and `wrangler rollback` cannot cross one.
-    - The `/health` smoke retries for up to 60 s until `version` = tag.
-    - Release rules go into `docs/deployment.md` (Phase 1b).
+      - Renaming or deleting a DO class needs a migration, and `wrangler rollback` cannot cross one.
+    - Post-switch deploy smokes retry `/health` for up to 60 s.
+    - These rules go into `docs/deployment.md` in 1b.
 13. **Data location:**
     - DOs are created in the `eu` jurisdiction.
-    - The pin is on by default. Only an explicit `JURISDICTION=none` (dev and e2e) turns it off.
-    - The deploy workflow fails if the deployed config turns it off.
-14. **`/health`:** `200 {status:'ok', version}`, with `version` = `packages/relay/package.json#version` at build time. It is shallow: no DO call, no room or peer counts, no config or gate state. The deploy smoke also runs `GET /rooms/000000` (`0` is outside the code alphabet, so it is never minted) and expects `404 {reason:'unknown-room'}`. That proves the Worker → DO path.
+    - The pin is on by default. Only an explicit `JURISDICTION=none` turns it off, and only in dev and e2e.
+    - The deploy job fails if the deployed config turns it off.
+14. **`/health`:** `200 {status:'ok', version}`, with `version` = `packages/relay/package.json#version` at build time.
+    - It is shallow: no DO call, no counts, no config or gate state.
+    - The deploy smoke additionally checks `GET /rooms/000000` → `404 {reason:'unknown-room'}` (`0` is outside the code alphabet). That exercises the Worker → DO path.
 15. **Test-only surfaces** (ADR-0027, partially superseded by ADR-0051):
-    - `HNCH_ENABLE_TEST_ROUTES='1'` mounts `DELETE /test/rooms/:uuid`. It runs the deletion of item 11 and returns `200 {evicted}`.
-    - Gate off, malformed UUID and unknown UUID all return `404 {error:'not-found'}`.
-    - `HNCH_ROOM_CAP` can only lower the cap: clamped to [1, 20], invalid → 20.
-    - Values are fixed per deployed version. Non-prod values are logged at WARN.
-    - Only `scripts/dev.mjs` passes them. The deploy workflow asserts both are absent from `wrangler.jsonc`.
-16. **Password hash at rest (D16, pending owner):**
-    - Recommended: store `SHA-256(roomUuid ‖ passwordHash)` and compare the submitted `pw` the same way, in constant time. `PATCH` stores the digest too.
+    - `HNCH_ENABLE_TEST_ROUTES='1'` mounts `DELETE /test/rooms/:uuid`, which runs item 11's deletion and returns `200 {evicted}`.
+    - With the gate off, or for a malformed or unknown UUID, the route returns `404 {error:'not-found'}`.
+    - `HNCH_ROOM_CAP` can only lower the cap: clamped to [1, 20], invalid values → 20.
+    - Values are fixed per deployed version, and non-prod values are logged at WARN.
+    - Only `scripts/dev.mjs` passes them. The deploy job asserts both are absent from `wrangler.jsonc`.
+16. **Password hash at rest (D16-B, settled):**
+    - The room stores `SHA-256(roomUuid ‖ passwordHash)` and compares the submitted `pw` the same way, in constant time. `PATCH` stores the digest too.
     - Nothing changes on the wire, and a leaked row is not the `pw` credential.
-17. **Logs:**
-    - `observability.logs.invocation_logs = false`; `console` logs stay content-free.
-    - Phase 1b exit test: send markers to `/health?probe=<m>` and to a WS upgrade `?pw=<m>`, then search Workers Logs after 5 min. They must be absent; otherwise fall back to D12-B.
+17. **Logs (D12-A, settled):**
+    - Workers Logs on, with `observability.logs.invocation_logs = false`. `console` lines stay content-free.
+    - Free-plan limits: today 200k events per day and 3-day retention. From 2026-12-01: 0.5 GB per day of ingest and 7-day retention, with no overage; ingestion just stops at the limit and resets at 00:00 UTC ([Cloudflare Observability pricing](https://developers.cloudflare.com/observability/pricing/)).
+    - Marker test after the switch: send markers to `/health?probe=<m>` and to a WS upgrade with `?pw=<m>`, then search Workers Logs after 5 min. They must be absent. If they show up, turn observability off as a fix-forward.
 
 ### Data flow
 
 ```
 GET  /rooms/:code ─▶ hnch-relay ─▶ Codes(code).lookup ─▶ Room(uuid).info (lazy expiry) ─▶ 200 | 404 | 503
 POST /rooms ──────▶ hnch-relay ─▶ Codes(code).claim (CAS, retry ≤64) ─▶ Room(uuid).init ─▶ Expiry(day).register (best-effort)
-PATCH …/access ───▶ hnch-relay ─▶ Room(uuid).setPassword (digest, D16)
+PATCH …/access ───▶ hnch-relay ─▶ Room(uuid).setPassword (digest)
 WS   /ws/:uuid ───▶ hnch-relay ─▶ Room(uuid).fetch: 404/400 pre-upgrade │ accept → 4002/4006 │ hibernatable socket
 Room DO: Y.Doc (lazy) + Awareness ⇄ SQLite (meta{schemaVersion,lastOccupiedAt,tombstone,digest}, log ≤32, snapshot ≤1 MiB chunks)
 inbound msg on S ─▶ apply/broadcast ─▶ buffer (≤5 s) ─▶ S quiet ≥10 s? relay renewal to S
@@ -188,85 +183,68 @@ alarm (hourly while occupied) ─▶ occupied? stamp : due? tombstone → Codes.
 cron 04:00 UTC ─▶ Expiry(day−1…day−30).sweep ─▶ Room.expireIfDue
 ```
 
-### Free-plan budget (per account, daily, reset 00:00 UTC; plan 1:1 for inbound WS messages)
+### Free-plan budget (information; per account, daily, reset 00:00 UTC; inbound WS counted 1:1)
 
-Reference session: 8 peers, 1 h, 20 rounds, ~300 doc updates.
+Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). Growth is watched through Cloudflare usage notifications (Phase 0). There is no gate. The reference session below is 8 peers for 1 h, 20 rounds and about 300 doc updates.
 
 | Budget (Free) | Per reference session | Sessions/day that fit | Notes |
 |---|---|---|---|
-| DO duration 13,000 GB-s (128 MB billed per awake DO) | 450 GB-s | **≈ 29 occupied room-hours** | **Binding.** With ≥ 2 visible peers renewing, the DO never hibernates (inferred; measured in the 1b exit). **One room with two tabs left open all day costs ≈ 83 % if the tabs stay unthrottled (≈ 30 % if hidden and throttled).** |
-| DO requests 100k | ≈ 2,300 (renewals 1,920 + sync 320 + HTTP/upgrade 30 + alarms 3) | ≈ 43 | Hidden-tab reconnect churn: about 240 per hidden peer-hour. Sweep about 30 a day. 20:1 accounting would give about 600. |
-| Rows written 100k | ≈ 200 (create 4 + flushes 90 + compactions 100 + TTL 2 + delete 5) | ≈ 500 | Coalescing caps one room at ≤ 12 flushes/min. |
-| Rows read 5M | ≈ 750 | ≈ 6,600 | Lazy load. |
-| Storage 5 GB/account; plan **1 GB per DO** | KBs (stress room 1 MB) | n/a | |
+| DO duration 13,000 GB-s (128 MB billed per awake DO) | 450 GB-s | **≈ 29 occupied room-hours** | **Binding.** With 2 or more visible peers the DO never hibernates (inferred; measured after the switch). One room with two unthrottled tabs open all day uses about 83 % of the daily budget. |
+| DO requests 100k | ≈ 2,300 | ≈ 43 | Hidden-tab reconnect churn adds about 240 per hidden peer-hour; the sweep adds about 30 a day. |
+| Rows written 100k | ≈ 200 | ≈ 500 | Coalescing caps a room at 12 flushes per minute or fewer. |
+| Rows read 5M | ≈ 750 | ≈ 6,600 | Lazy load keeps this low. |
+| Storage 5 GB/account; plan **1 GB per DO** | KBs (stress room: 1 MB) | n/a | |
 | Workers requests 100k | ≈ 30 | ≈ 3,000 | Static assets are free (no `run_worker_first`). |
+| Workers Logs | small | n/a | 200k events/day now; 0.5 GB/day from 2026-12-01. Hitting it stops logging, not the relay. |
 
-- **Abuse exposure (stated, not mitigated):**
-  - Anyone can take hnch down until 00:00 UTC. Holding about 29 rooms open for an hour does it, so does about 100k cheap requests, and so does creation spam against rows written.
-  - The single free rate-limit rule (10 s window, 10 s block) only slows one IP. It cannot protect a daily quota.
-  - The caps are **per account**, shared with the account's other Workers (P0.7).
-- **Gate (moved earlier):** P0.6 (7-day usage baseline from the VPS `/health`) plus P0.7 (other Workers' usage) must be done, and D17 answered, **before the Phase 1b merge**. Phase 1b is the point of no return: it freezes the VPS relay and flips ADR-0029.
-  - Go on Free if the peak day, including other Workers, is ≤ 50 % of every row.
+- **Abuse exposure (stated, not mitigated):** anyone can take hnch down until 00:00 UTC.
+  - Ways to do it: hold about 29 rooms open for an hour, send about 100k cheap requests, or spam room creation.
+  - The single free rate-limit rule only slows one IP down.
+  - The caps are **per account**, so the account's other Workers draw from the same budget (P0.7 inventory).
+  - Owner accepted: free plan only.
 
 ### Local dev, tests, e2e
 
-- **Tooling (D5, settled):**
-  - `wrangler.jsonc` plus wrangler pinned at **4.151.3** everywhere.
-  - Compatibility date ≤ 2026-10-19.
-  - `WRANGLER_SEND_METRICS=false`.
-  - `cf` covered everything in G0 but cannot list or delete routes, and the vitest plugin needs a Wrangler config.
-- **Vitest (settled):** relay only moves to vitest 4.1.x with `@cloudflare/vitest-plugin` 1.4.6 and `@vitest/coverage-istanbul`. The other packages stay on `^3.2.7` (pinned per package; no catalog). Fallback is `pool-workers` 0.12.21 on vitest 3, with workerd 7 months older; record the skew if used.
-- **Shared imports (R16):** the relay imports leaf subpaths `@hnch/shared/room-code`, `@hnch/shared/auth` and `@hnch/shared/health`, which are new `exports` entries. `room-code.ts` and `auth.ts` import nothing.
-- **Dev wrapper `packages/relay/scripts/dev.mjs`** (`pnpm --filter @hnch/relay dev`):
-  - maps env to `wrangler dev`: `PORT` → `--port`; the ADR-0027 vars → `--var` (only if set); always `JURISDICTION:none`;
-  - uses a fresh temp `--persist-to` when the test vars are set;
+- **Tooling (D5, settled):** `wrangler.jsonc` plus wrangler pinned at **4.151.3**, compatibility date no later than 2026-10-19, and `WRANGLER_SEND_METRICS=false`.
+- **Vitest:** only the relay moves to vitest 4.1.x, with `@cloudflare/vitest-plugin` 1.4.6 and `@vitest/coverage-istanbul`. The other packages stay on `^3.2.7`. If the plugin can't be used, fall back to `pool-workers` 0.12.21 on vitest 3 and record the workerd version skew.
+- **Shared imports:** the relay imports the leaf subpaths `@hnch/shared/room-code`, `@hnch/shared/auth` and `@hnch/shared/health` (new `exports` entries), not the barrel.
+- **`packages/relay/scripts/dev.mjs`** (`pnpm --filter @hnch/relay dev`):
+  - maps `PORT` → `--port`, and the ADR-0027 env vars → `--var` (only if set);
+  - always passes `JURISDICTION:none`;
+  - uses a fresh temporary `--persist-to` when the test vars are set;
   - leaves the Playwright `webServer` contract and `pnpm dev:relay` unchanged;
   - needs no `.dev.vars`.
-- **Relay test harness for other packages (fixes the CLI blocker):** `@hnch/relay/testing`, a new `exports` subpath, `startTestRelay(opts?) → Promise<{ httpUrl, wsUrl, stop() }>`.
-  - **Node relay (1a):** creates the in-process server on port 0.
-  - **Worker relay (1b):** baseline is to spawn `scripts/dev.mjs` on a free port with a temp persist dir, poll `GET /health` with a 30 s timeout, and have `stop()` kill the process tree (also on process exit). wrangler's programmatic `unstable_startWorker` may replace the spawn behind the same API if it proves stable under vitest.
-  - `packages/cli/src/session.test.ts` (today it imports `../../relay/src/{code-pool,room-store,server}.js`) uses only this helper. `@hnch/relay` becomes a CLI devDependency (`workspace:*`).
+- **`@hnch/relay/testing`** (fixes the CLI blocker): `startTestRelay(opts?) → Promise<{ httpUrl, wsUrl, stop() }>`.
+  - 1a backs it with the in-process Node relay.
+  - 1b spawns `scripts/dev.mjs` on a free port with a temporary persist dir, polls `/health` with a 30 s timeout, and makes `stop()` kill the process tree. `unstable_startWorker` may replace the spawn behind the same API.
+  - `packages/cli/src/session.test.ts` uses only this helper.
   - `ci.yml` `detect-changes`: a relay change now also sets `cli=true`.
-- **e2e specs exercising ADR-0027 surfaces on workerd (R10):**
-  - `expired-recent-session`, `recent-rooms-list`, `room-full`, `vote-dots-196`;
-  - `_screenshots/participant-cap`, `_screenshots/vote-bars-shot`;
-  - plus `lone-peer-keepalive`.
-  - The known pre-push reuse footgun stays (CONTRIBUTING).
-- **`packages/relay/scripts/smoke.mjs`** runs one client per process (a shared BroadcastChannel hides relay behaviour). Modes: basic, cap, hold, deploy-hold, preflight.
+- **e2e on workerd:** the ADR-0027 specs (`expired-recent-session`, `recent-rooms-list`, `room-full`, `vote-dots-196`, `_screenshots/participant-cap`, `_screenshots/vote-bars-shot`) plus `lone-peer-keepalive`.
+- **`packages/relay/scripts/smoke.mjs`:** one client per process. Modes: `basic`, `cap`, `hold`, `deploy-hold`, `preflight`. It takes `BASE=https://hnch.dev`.
 
 ### CI/CD and release flow
 
-- **Relay:** a `relay-v*` release dispatches `deploy-relay.yml` on the pool (ADR-0049; workerd linux-arm64 needs GLIBC 2.35, bookworm has 2.36). It runs `wrangler deploy` with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+- **Relay:** a `relay-v*` release dispatches `deploy-relay.yml` on the pool, which runs `wrangler deploy` with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
   - **Pre-deploy asserts:**
-    - ADR-0027 vars absent;
-    - `JURISDICTION` ≠ `none`;
-    - **route-removal guard:** read the zone's current routes for this script, and fail if the config would remove any `hnch.dev/*` route. `wrangler deploy` deletes routes missing from config (R2). Only a manual dispatch with input `allow_route_removal=true` bypasses the guard. This stops a re-dispatched old tag from silently detaching prod.
-  - **Post-deploy smoke:**
-    - `/health` (retry ≤ 60 s for `version` = tag; coexistence window);
-    - `GET /rooms/000000` → `404 {reason:'unknown-room'}`.
-  - **Rollback:** code via `wrangler rollback` only (routes are not part of a version). Never re-dispatch tags older than current prod routes; the guard blocks it.
-- **Freeze (D9):**
-  - From the Phase 1b merge, relay releases deploy only to Cloudflare, and the VPS relay is frozen at `relay-v1.2.1`.
-  - **Freeze length:** target ≤ 14 days, **hard max 28 days**, from the 1b merge to 3a. Past that the owner decides: push 3a, or hot-fix the VPS.
-  - Emergency VPS relay fix during the freeze: branch from tag `relay-v1.2.1`, build locally, and ship with the `infra/README.md` ssh/symlink runbook (still present until Phase 4).
-- **Client (D10):**
-  - A `client-v*` release dispatches `deploy-client.yml`.
-  - From Phase 2 until 3b: build `production` → VPS, and build `next` (relay = `next.hnch.dev`, D3-A) → `hnch-web`.
-  - From 3b until Phase 4: the `production` build goes to the VPS and to `hnch-web`.
-  - Input `targets: all | web-only` (default `all`). Manual verification dispatches use `web-only`, so unreleased `main` never reaches the prod VPS.
-- **Secrets (D14, settled):**
-  - Repo secret, referenced only by the two deploy jobs (release dispatch or manual dispatch). Environment secrets are unavailable on GitHub Free private repos.
-  - Fork PRs get no secrets, and the only same-repo PR author is the owner (and their agents).
-  - The token holds Workers Scripts: Edit, which is **account-wide** (it also covers the account's other Workers), plus Workers Routes: Edit on `hnch.dev`. No DNS permission is needed under D1-A.
+    - the ADR-0027 vars are absent;
+    - `JURISDICTION` is not `none`;
+    - **route-removal guard:** fail if the deploy would remove any live `hnch.dev/*` route of this script. `wrangler deploy` deletes routes missing from config (R2). Only a manual dispatch with `allow_route_removal=true` bypasses the guard.
+  - **Post-deploy smoke**, gated on the repo variable `HNCH_LIVE == 'true'`, which is set at the switch: `/health` (retry for up to 60 s until `version` matches the tag), plus `GET /rooms/000000` → `404 {reason:'unknown-room'}`. Before the switch the job only checks that the deploy succeeded (`wrangler deployments list`).
+  - **Rollback of code:** `wrangler rollback` only. Never re-dispatch an old tag; the guard blocks it.
+- **From the 1b merge, the relay no longer ships to the VPS (D9).** The VPS relay stays at `relay-v1.2.1`. Usage is about 0, so no VPS hot-fix path is planned.
+- **Client (D10):** a `client-v*` release dispatches `deploy-client.yml`.
+  - It builds `production` once and ships it to the VPS (as today; that keeps the incidental rollback current) and to `hnch-web` (from Phase 2).
+  - Input `targets: all | web-only` (default `all`). Manual dispatches of unreleased `main` use `web-only`.
+  - The `hnch-web` smoke is gated on `HNCH_LIVE`.
+- **Secrets (D14):**
+  - Stored as a repo secret, referenced only by the two deploy jobs; environment secrets are unavailable on GitHub Free private repos. Fork PRs get no secrets.
+  - The token has Workers Scripts: Edit (account-wide, so it also covers the account's other Workers) and Workers Routes: Edit on `hnch.dev`. It has no DNS permission.
 - The `npm_config_target_*` cross-arch pin is deleted (ADR-0051 supersedes that ADR-0049 clause).
 
-### Static headers (R8, R-HDR; D13 settled)
+### Static headers (D13)
 
-- The prod build has 1,386 files.
-  - Exactly 24 are hashed (`<name>.<16 hex>.js|css`).
-  - The rest are unhashed: `index.html`, `3rdpartylicenses.txt`, `assets/*`, `svg/*.svg`.
-  - No manifest, no service worker, no wasm or fonts on origin.
-- `packages/client/src/_headers` is copied to the `www` root through the `angular.json` assets:
+- 24 files in the prod build are hashed (`<name>.<16 hex>.js|css`). Everything else is unhashed: `index.html`, `3rdpartylicenses.txt`, `assets/*`, `svg/*.svg`. There is no manifest, no service worker, and no wasm or fonts served from origin.
+- `packages/client/src/_headers` is copied to the root of `www`:
 
   ```
   /*
@@ -279,379 +257,305 @@ Reference session: 8 peers, 1 h, 20 rounds, ~300 doc updates.
     Cache-Control: public, max-age=31536000, immutable
   ```
 
-  Rules are cumulative; `! Cache-Control` detaches the `/*` value, so each response carries exactly one `Cache-Control`.
-- **Parity guard** (`deploy-client.yml`): fail if any `www/**/*.js|css` does not match `\.[A-Za-z0-9]{8,}\.(js|css)$`.
-- **Tests on `next`** (Phase 2 exit):
-  - shell and SPA-fallback paths (`/`, `/join`, `/lobby/x`, `/r/ABCD`) → exactly one `no-cache, must-revalidate` (G0 saw `no-cache` on the fallback);
-  - hashed `.js` and the `.css` → `immutable` only;
-  - `/svg/…`, `/assets/…`, `/3rdpartylicenses.txt` → `no-cache`.
-  - A missing `/x.<hash>.js` gets `index.html` with `immutable`: Caddy parity, unchanged.
+  Rules are cumulative. `! Cache-Control` detaches the `/*` value, so each response carries exactly one `Cache-Control`.
+- **Parity guard** in `deploy-client.yml`: fail if any `www/**/*.js|css` does not match `\.[A-Za-z0-9]{8,}\.(js|css)$`.
+- **Header matrix**, checked on `hnch.dev` after the switch:
+  - `/`, `/join`, `/lobby/x` and `/r/ABCD` → exactly one `no-cache, must-revalidate`;
+  - hashed `.js` and `.css` → `immutable`;
+  - `/svg/…`, `/assets/…` and `/3rdpartylicenses.txt` → `no-cache`;
+  - a missing `/x.<hash>.js` → `index.html` with `immutable`, the same as Caddy today.
 
-### Cutover (D2-A recommended)
+### Cutover (D2: one full switch, settled)
 
-1. **Pre-steps, days before, invisible to users:**
-   - Zone: SSL/TLS Full (strict), minimum TLS 1.2, **Always Use HTTPS on** (Caddy redirected HTTP → HTTPS). Keep Browser Integrity Check and Bot Fight Mode as found (G0: no challenge for `ws`, Node fetch or empty-UA curl) unless the Phase 2 browser tests show a problem.
-   - `hnch.dev` A → proxied (VPS origin). Check PWA, WS, CLI and native through the proxy.
-   - **IONOS no longer serves the zone:** delete or disable the zone at IONOS DNS, keeping the registration with NS → Cloudflare. Check that IONOS's authoritative servers stop answering `hnch.dev`. Otherwise stale-NS resolvers (registry TTL 10,800 s) reach the VPS directly.
-   - The rate-limit rule (D11). Usage notifications on, wherever Free offers them.
-   - `www.hnch.dev` TLS fails on the VPS today (pre-existing; filed as a separate bug). Add a proxied `www` record and a Single Redirect `www` → apex (301).
-   - VPS cert `notAfter` is 2027-01-22, with renewal around 2026-12-23 (HTTP-01 works behind the proxy, inferred). Keep the rollback window clear of that date.
-2. **3a, relay first (in the window, D15):**
-   - Merge PR 3a → release → `deploy-relay.yml` attaches `hnch.dev/{health*,rooms*,ws/*}`.
-   - Verify: smoke, the CLI matrix, and the PWA from the VPS, whose relay calls now go to the Worker.
-   - Then right away run `ssh hnch-vps sudo systemctl stop hnch-relay`. This ends the split brain: proxied sockets still open to the VPS would otherwise survive, and a peer that blips would land on the Worker with `404` while its team stayed on the VPS.
-   - Rooms live on the VPS are lost once, at this moment (spec).
-3. **3b, web second:** merge PR 3b → release → `deploy-client.yml` deploys the `production` build to `hnch-web` and attaches `hnch.dev/*`. Verify.
-4. **Rollback (7 days):**
-   - Detach `hnch.dev/*` (web), then the relay routes (dashboard or API, seconds).
-   - `systemctl start hnch-relay` on the VPS.
-   - Revert 3b, then 3a. Their release deploys pass the route guard because the routes are already detached.
-   - **Every room created on Cloudflare since 3a is lost to users on rollback** (the VPS cannot read DO storage).
+1. **Before (Phase 0 ops, no effect until the records are proxied):**
+   - zone settings, including Always Use HTTPS;
+   - the rate-limit rule;
+   - usage notifications;
+   - the `www` redirect rule;
+   - lower the apex and `www` DNS-only TTL to 60 s at least a day ahead.
+2. **Preconditions:**
+   - 1b and 2 are merged, and their releases have deployed both Workers, with `hnch.dev` routes present but inert.
+   - A route check via API shows `hnch.dev/health*`, `/rooms*` and `/ws/*` → `hnch-relay`, and `hnch.dev/*` → `hnch-web`.
+3. **Switch:**
+   - set the apex A (and AAAA, if present) records and `www` to **proxied**;
+   - set `HNCH_LIVE=true`;
+   - re-dispatch both deploy jobs (relay at its latest tag; client `web-only` at its latest tag) to run the gated smokes.
+4. **Verify on `hnch.dev` and fix forward:** run the Phase 3 checklist. Problems are fixed by releases.
+5. **During propagation:**
+   - Resolvers that cached the old A record reach the VPS until the TTL runs out.
+   - Sockets already open to the VPS stay on it (relay 1.2.1) until they reconnect. With usage at about 0 this is accepted, and the VPS is not touched.
+   - Stale-NS resolvers: IONOS now serves an empty zone, so on 2026-10-28 resolvers that had cached the IONOS NS got NODATA for `hnch.dev`. This heals within the NS TTL (3–24 h) and should be long gone by the switch.
+6. **Incidental rollback (not planned, only available because the VPS is untouched):**
+   - set the records back to DNS-only and `HNCH_LIVE=false`;
+   - Caddy serves the PWA (kept current by `deploy-client.yml`) and relay 1.2.1;
+   - every room created on Cloudflare is lost to users.
 
 ## ADR impact
 
-- **ADR-0051 (Proposed): amendments for adr-writer, after the owner answers.**
-  - **a. Topology (D1/D2):**
-    - routes only: web `hnch.dev/*`; relay `hnch.dev/health*`, `/rooms*`, `/ws/*`;
-    - no Custom Domain;
-    - proxied apex to the VPS until decommission;
-    - G0 evidence (both variants passed; routes run in front of a Custom Domain);
-    - a Custom Domain's DNS record is Cloudflare-owned and read-only, which is why it is avoided.
-  - **b. "B sees A leave":** reword the "blocks the e2e criterion" line as a pre-existing, smoke-only finding. The e2e suite is green.
-  - **c. Test vars:** replace "`.dev.vars`" with "`scripts/dev.mjs` passes the test vars per invocation".
-  - **d. Keepalive:** the requirement (ADR-0050 conformance), the piggyback mechanism, the measured hidden-tab residual, and the pre-agreed alarm fallback.
-  - **e. Logs:** `invocation_logs = false` (D12).
-  - **f. Rate limit:**
-    - the free plan cannot match on method, so the rule is `path eq "/rooms"` (it counts the native `OPTIONS` preflight);
-    - never on `/ws/*` or `/rooms/:code`;
-    - it is a speed bump, not quota protection.
-  - **g. Password at rest:** per D16 (a digest, if recommended).
-  - **h. Abuse exposure, stated explicitly:**
-    - the free daily caps (≈ 29 occupied room-hours of DO duration, 100k DO requests, 100k rows written) are **per account** and shared with other Workers;
-    - they can be exhausted on purpose (about 29 rooms held for an hour) or by accident (tabs left open all day);
-    - when exhausted, the relay is down for everyone until 00:00 UTC.
-  - **i. Credentials:**
-    - drop the stale "same posture as `NPM_TOKEN`" analogy (`release.yml` publishes through OIDC);
-    - the Cloudflare token is the pool's only long-lived deploy credential;
-    - Workers Scripts: Edit is account-wide;
-    - repo secret, because environments are unavailable on GitHub Free private repos;
-    - deploy jobs only; no DNS permission.
-  - **j. ADR-0027:** **partial supersession** of its "MUST NOT … persist outside in-memory store" clause, instead of reinterpreting it. Add the env var → Worker var mapping (`scripts/dev.mjs`).
-  - **k. ADR-0017:** caveat that a digest of the hash, or the hash itself, now persists. This is ADR-0017's second partial caveat (ADR-0035 is the first).
-  - **l. Registration:** stays at IONOS (transfer dropped 2026-10-28). Only DNS is at Cloudflare. The IONOS DNS zone is disabled before cutover.
-  - **m. Route pattern:** `/health*`, because exact `/health` misses query strings and a trailing slash. Route matching is case-sensitive.
-  - **n. Deploy coexistence:** old and new DO code run side by side for ≥ 5 min. Storage and RPC changes expand/contract across two releases. Deploys drop and resync sockets in about 0.4 s (G0), so the prototype's "~250 ms" line needs updating.
-  - **o. Health and failure mapping:**
-    - `/health` stays shallow;
-    - the deploy smoke checks a DO through `GET /rooms/000000`;
-    - DO failures → `503` with no `reason` (ADR-0050 safety).
-  - **p. TTL robustness:**
-    - deletion at 24–25 h;
-    - tombstone before the cross-DO release;
-    - lazy expiry plus re-arm on entry;
-    - the `Expiry` cron backstop.
-  - **q. Cutover:**
-    - relay → web, in order;
-    - the VPS relay is stopped right after the relay routes attach;
-    - rooms are lost once at cutover, and rooms created on Cloudflare are lost on rollback.
-  - **r. Binding limit:** DO duration, ≈ 29 occupied room-hours/day, replaces "≈ 400 peer-hours/day" as the headline.
-  - **s. ADR-0049 caveat:** ADR-0051's cross-arch caveat is merged with ADR-0052's pool-size caveat into one parenthetical and one index cell. The consolidate-forward question is answered at Phase 1b.
-- **ADR-0029:** superseded by ADR-0051 (flipped in Phase 1b; status note "VPS decommissioned" in Phase 4).
-- **ADR-0012:** storage clause superseded by ADR-0051. TTL, keying and content-blindness hold.
-- **ADR-0049:** the `deploy-relay.yml` cross-arch clause is superseded by ADR-0051.
-  - ADR-0052 (another session, branch `worktree-runner-pool-2`, not yet on main) already partially supersedes its pool-size clause.
-  - Merge both caveats into one header parenthetical, `Accepted (pool-size clause superseded by ADR-0052; deploy-relay cross-arch clause superseded by ADR-0051)`, and one index cell, `ADR-0051 (partial), ADR-0052 (partial)`.
-  - Index rows go in number order: 0050, 0051, 0052.
-  - Two caveats hit the README consolidate-forward threshold. Decide at Phase 1b whether to consolidate 0049 forward (see Phase 1b).
-- **ADR-0027:** header `Accepted (in-memory-store clause superseded by ADR-0051)`. Editorial: the audit hint points at `scripts/dev.mjs`; the stale `expired-jump-back-in.spec.ts` becomes `expired-recent-session.spec.ts`.
-- **ADR-0017:** second partial caveat (ADR-0035, ADR-0051). The README consolidation guideline applies at 2+ caveats. Recommendation: don't consolidate now, since the two clauses are distinct; adr-writer confirms.
+- **ADR-0051 (Proposed): final amendments for adr-writer.**
+  - **a. Topology and cutover:**
+    - Routes only: web `hnch.dev/*`; relay `hnch.dev/health*`, `/rooms*`, `/ws/*`. No Custom Domain, because its DNS record is Cloudflare-owned and read-only. G0 passed both variants.
+    - Routes deploy early and stay inert while DNS-only. The cutover is one full switch: proxy the apex and `www` records.
+    - No `next` proving ground; test on `hnch.dev` and fix forward.
+    - Replace the "Custom Domain" wording.
+  - **b. VPS:** stays untouched and idle. Decommissioning is out of scope. Un-proxying the records is an incidental rollback; rooms created on Cloudflare are lost on it. Sockets already open to the VPS stay until they reconnect. The VPS relay is frozen at 1.2.1.
+  - **c. "B sees A leave":** reword the "blocks the e2e criterion" line as a pre-existing finding seen only in the smoke test, tracked in #542 (related #531).
+  - **d. Test vars:** `.dev.vars` → `scripts/dev.mjs` passes them per invocation.
+  - **e. Keepalive:** the requirement (ADR-0050 conformance), the piggyback mechanism, the hidden-tab residual measured after the switch, and the pre-agreed alarm fallback.
+  - **f. Logs:** `invocation_logs = false`; the free observability limits (200k events/day with 3-day retention; from 2026-12-01, 0.5 GB/day with 7-day retention, ingestion stops at the limit); the marker test.
+  - **g. Rate limit:** the free plan can't match on method, so the rule is `path eq "/rooms"` at 10 per 10 s per IP (it also counts the native `OPTIONS` preflight). It is a speed bump, not quota protection. `GET /rooms/:code` and `/ws/*` are never limited (owner, 2026-10-28; R7 retry storm, ADR-0050).
+  - **h. Password at rest:** `SHA-256(roomUuid ‖ passwordHash)` (D16-B).
+  - **i. Abuse exposure:**
+    - The caps are per account and shared with other Workers: about 29 occupied room-hours of DO duration, 100k DO requests and 100k rows written.
+    - They can be exhausted on purpose or by accident (tabs left open all day), which takes the relay down until 00:00 UTC.
+    - Usage is about 0 today; usage notifications are on.
+  - **j. Credentials:**
+    - Drop the stale `NPM_TOKEN` analogy (`release.yml` publishes via OIDC).
+    - The Cloudflare token is the pool's only long-lived deploy credential, and Workers Scripts: Edit is account-wide.
+    - It is a repo secret (no environment secrets on GitHub Free private repos), used by the deploy jobs only, with no DNS permission.
+  - **k. ADR-0027:** partial supersession of its "MUST NOT … persist outside in-memory store" clause, instead of reinterpreting it. Add the env var → Worker var mapping (`scripts/dev.mjs`).
+  - **l. ADR-0017:** a caveat that a digest of the hash now persists. This is its second partial caveat.
+  - **m. Registration:** stays at IONOS; only DNS is at Cloudflare. IONOS serves an empty zone, so stale-NS resolvers got NODATA, which heals within the NS TTL.
+  - **n. Route pattern:** `/health*` (exact `/health` misses query strings and a trailing slash); route matching is case-sensitive.
+  - **o. Deploy coexistence:** old and new DO code run side by side for at least 5 min. Storage and RPC changes expand and contract across two releases. Sockets resync in about 0.4 s (G0); update the "~250 ms".
+  - **p. Health and failures:** `/health` stays shallow. The deploy smoke reaches a DO via `GET /rooms/000000`. DO failures → `503` with no `reason`.
+  - **q. TTL robustness:** deletion at 24–25 h; tombstone before the cross-DO release; lazy expiry and re-arm on entry; the `Expiry` cron backstop.
+  - **r. Binding limit:** DO duration (about 29 occupied room-hours/day) replaces "≈ 400 peer-hours/day" as the headline figure.
+  - **s. ADR-0049:** ADR-0051's cross-arch caveat is merged with ADR-0052's pool-size caveat into one parenthetical and one index cell. Consolidating 0049 forward is decided at 1b.
+  - **t. Edge behaviour:** Always Use HTTPS on (parity with Caddy's redirect), and a `www` → apex 301 redirect rule (closes #543, the pre-existing `www` TLS failure).
+- **ADR-0029:** superseded by ADR-0051, flipped in 1b. Optional status note at the switch: "VPS left idle, not decommissioned (owner, 2026-10-28)".
+- **ADR-0012:** storage clause superseded by ADR-0051; TTL, keying and content-blindness hold.
+- **ADR-0049:**
+  - Its cross-arch clause is superseded by ADR-0051. ADR-0052 (another session, branch `worktree-runner-pool-2`) already supersedes its pool-size clause.
+  - Merge both into one parenthetical, `Accepted (pool-size clause superseded by ADR-0052; deploy-relay cross-arch clause superseded by ADR-0051)`, and one index cell, `ADR-0051 (partial), ADR-0052 (partial)`.
+  - Index order: 0050, 0051, 0052.
+  - Two caveats hit the README threshold. Recommendation: don't consolidate yet, because the two clauses are independent. Consolidate when a third arrives; adr-writer confirms at 1b.
+- **ADR-0027:** header `Accepted (in-memory-store clause superseded by ADR-0051)`. Editorial: the audit hint now points at `scripts/dev.mjs`, and `expired-jump-back-in.spec.ts` becomes `expired-recent-session.spec.ts`.
+- **ADR-0017:** second partial caveat (ADR-0035 and ADR-0051). Recommendation: don't consolidate, because the clauses are distinct.
 - **ADR-0050:** conforms (items 3, 5, 6, 8 and 9).
-- **ADR-0001:** conforms in code; TLS terminates at Cloudflare.
-- **ADR-0008, -0009, -0016, -0024, -0035:** unchanged (compatibility contract).
-- **ADR-0028:** decision unaffected; its context goes stale. The P0.6 sampling is operator monitoring of an existing aggregate endpoint.
-- **ADR-0014:** `packages/relay` keeps its name; it gains a `./testing` export.
+- **ADR-0001:** conforms in code; TLS now terminates at Cloudflare.
+- **ADR-0008, -0009, -0016, -0024, -0035:** unchanged.
+- **ADR-0028:** decision unaffected; its "in-memory" context goes stale.
+- **ADR-0014:** `packages/relay` keeps its name and gains a `./testing` export.
 
 ## Decisions resolved
 
 - Settled 2026-10-28 (owner, spec):
-  - DNS moves to Cloudflare, with DNS-only records until the cutover pre-steps.
-  - The registration stays at IONOS (registrar transfer out of scope by owner decision 2026-10-28). No `@hnch.dev` mail.
+  - DNS moves to Cloudflare.
+  - The registration stays at IONOS (registrar transfer out of scope by owner decision). No `@hnch.dev` mail.
   - Room state is stored at Cloudflare (EU) and deleted 24 h after the last peer leaves.
-  - Free plan only. Workers Paid is a fallback only if limits bite.
-- Settled 2026-10-28 (owner): G0 approved and run. P0.4 approved.
+  - Free plan only.
+- Settled 2026-10-28 (owner): G0 approved and run.
+- Settled 2026-10-28 (owner, D1/D2): two Workers on `hnch.dev` attached by routes (web `hnch.dev/*`; relay `/health*`, `/rooms*`, `/ws/*`), switched over **in one full cutover** with no staged proxy-to-VPS step. There is no customer base yet, so downtime during the switch is acceptable.
+- Settled 2026-10-28 (owner, D3/D4): no `next.hnch.dev` proving ground and no pre-cutover browser or native test build. Test directly on `hnch.dev` after the cutover and fix forward. The `next.hnch.dev` placeholder record was deleted on 2026-10-28.
+- Settled 2026-10-28 (owner, P0.6/D17): no usage baseline and no usage gate. Usage is about 0 today. Cloudflare usage notifications cover later growth.
+- Settled 2026-10-28 (owner): the VPS stays as it is. No shutdown, rollback window or cancellation is planned in these phases. Decommissioning stays out of scope until the owner reopens it. Before any cancellation, check that `hnch.dev` isn't bundled with the IONOS VPS contract.
+- Settled 2026-10-28 (owner, D11): one rate-limit rule, on path `/rooms` only, 10 per 10 s per IP.
+- Settled 2026-10-28 (owner): no rate limit on `/ws/*`; `GET /rooms/:code` is not limited either.
+- Settled 2026-10-28 (owner, D12): Workers Logs on with `invocation_logs = false`, plus the marker test.
+- Settled 2026-10-28 (owner, D15): moot; the switch happens when the PRs are ready.
+- Settled 2026-10-28 (owner, D16): store `SHA-256(roomUuid ‖ passwordHash)`.
+- Settled 2026-10-28 (owner): replace the Node relay in place, with no self-host fallback.
 - Settled 2026-10-28 by orchestrator (owner may veto):
-  - **D5 A:** wrangler 4.151.3 plus `wrangler.jsonc`.
+  - **D5 A:** wrangler 4.151.3 with `wrangler.jsonc`.
   - **D6 A:** `/health` = `{status, version}`.
   - **D7 A:** ADR-0051 is accepted before the 1b merge.
   - **D8 A:** 1b is atomic.
-  - **D9 A:** relay → Cloudflare only from 1b; VPS frozen with a hard max of 28 days.
-  - **D10 A:** dual client deploy, with `targets` input.
-  - **D13 A:** splat `_headers` plus hash guard.
-  - **D14 A:** one repo-secret token, deploy jobs only.
-  - Keepalive by piggyback, plus the hidden-tab measurement and the pre-agreed alarm fallback.
-  - TTL robustness design (item 11).
+  - **D9 A:** the relay goes to Cloudflare only from 1b.
+  - **D10 A:** the client deploys to both the VPS and `hnch-web`, with a `targets` input.
+  - **D13 A:** splat rules in `_headers`, plus a hash guard.
+  - **D14 A:** a repo-secret token used by the deploy jobs only.
+  - Keepalive by piggyback, plus the hidden-tab measurement and the alarm fallback.
+  - The TTL robustness design.
 - Planner-decided (owner may veto):
-  - coalesced writes plus lazy load;
-  - shared leaf subpaths;
-  - dev wrapper;
-  - `@hnch/relay/testing` harness (1a);
-  - route-removal guard;
-  - ordered 3a/3b cutover with the VPS relay stopped after 3a;
-  - `www` redirect in the Phase 3 pre-steps;
+  - coalesced writes with lazy load;
+  - leaf subpath imports from shared;
+  - the dev wrapper;
+  - the `@hnch/relay/testing` harness (1a);
+  - the route-removal guard;
+  - routes deployed inert with the switch done by proxying;
+  - smokes gated on `HNCH_LIVE`;
+  - the `www` redirect;
   - relay-only vitest 4.
-- **Pending owner:** D1, D2, D3, D4, D11, D12, D15, D16, D17, and replacing the Node relay in place (no self-host fallback). See the orchestrator's question list.
 
 ## Phases
 
-### Phase 0: Preconditions (owner-run, no PR)
+### Phase 0: Ops (owner-run, no PR)
 
 - **Scope:**
-  - **P0.1 DNSSEC — done.** Nothing to remove. Optional later: Cloudflare DNSSEC, with the DS record set at IONOS.
-  - **P0.2 NS switch — done.** Active since 2026-10-28 14:17 UTC (NS `amy` / `rayden.ns.cloudflare.com`).
-  - **P0.3 Zone settings:**
-    - read in G0: `security_level=medium`, `browser_check=on`, `fight_mode=false`, `websockets=on`, `ssl=full`, `always_use_https=off`, `min_tls_version=1.0`;
-    - to set before 1b: SSL Full (strict), min TLS 1.2, Rocket Loader and Email Obfuscation off;
-    - Always Use HTTPS is set in the Phase 3 pre-steps.
-  - **P0.4 `next.hnch.dev` — done.** Proxied `AAAA 100::`; the `next-cd` test host was torn down.
-  - **P0.5 secrets:** `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repo secrets (D14).
-  - **P0.6 usage baseline:**
-    - sample `https://hnch.dev/health` (`rooms.active`, `peers.connected`) every 15 min for at least 7 days, with a temporary local cron writing to a CSV (deleted afterwards);
-    - compute peak-day occupied room-hours and peer-hours, plus all-day "forgotten tab" rooms.
-  - **P0.7 account inventory:** list every Worker, Pages Function, DO namespace and cron trigger on the Cloudflare account (for example `app.pdfofen.de`), with their daily usage from analytics. Free caps are per account.
-  - **G0 topology gate: PASS, both variants (2026-10-28; throwaway spike, torn down; evidence in the job's `g0/` folder).**
-    - **Variant A** (routes only; web `next.hnch.dev/*`, relay `/health`, `/rooms*`, `/ws/*`):
-      - (a) every relay path, including the WS `101`, was answered by the relay. `/`, `/r/ABCD` and `/join?…` came from the web Worker with `no-cache`; hashed JS was `immutable`; `GET /rooms/ZZZZZZ` → relay JSON `404`.
-      - (b) two separate Node processes using the real `connectToRelay` plus `ws` 8.20.1 synced votes and presence, with 0 closes and no challenge.
-      - (c) holders kept their sockets for 300 s across a web redeploy: 0 closes, maximum tick gap 3.03 s.
-    - **Variant B** (Custom Domain web plus relay routes on `next-cd.hnch.dev`): (a)–(c) passed the same way. Routes run in front of the Custom Domain Worker.
-    - **Lessons, applied above:**
-      - use `/health*`;
-      - matching is case-sensitive;
-      - deploy coexistence is ≥ 5 min;
-      - a Custom Domain's DNS record is Cloudflare-owned and read-only, so it forces a hard apex switch → **D1-A**;
-      - zone defaults did not challenge `ws`, Node fetch or empty-UA curl.
-- **Exit bar:**
-  - G0 recorded (done).
-  - P0.3–P0.5 done.
-  - P0.6 and P0.7 results recorded here, with D17 answered: this gates the 1b merge.
-- **PR title scope:** none (ops only).
-- **Closes:** `Closes #TBD` (tracking issue for the plan, closed by Phase 4)
-- **Worktree:** none
-- **Depends on:** none
+  - **Done:**
+    - P0.1 DNSSEC: nothing to remove.
+    - P0.2 NS switch: Active since 2026-10-28 14:17 UTC.
+    - G0: PASS for both variants. Details:
+      - (a) every relay path, including the WS `101`, was answered by the relay; SPA and headers were correct;
+      - (b) two Node processes using the real `connectToRelay` plus `ws` 8.20.1 synced, with 0 closes and no challenge;
+      - (c) held sockets survived 300 s across a web redeploy, with 0 closes.
+      - Lessons: use `/health*`; matching is case-sensitive; deploy coexistence is 5 min or more; a Custom Domain's record is read-only; zone defaults challenge neither `ws` nor Node requests.
+    - `next.hnch.dev` / `next-cd.hnch.dev`: torn down; placeholder deleted.
+  - **P0.3 zone settings** (inert until the switch):
+    - SSL/TLS Full (strict), minimum TLS 1.2;
+    - Always Use HTTPS on;
+    - Rocket Loader and Email Obfuscation off;
+    - keep Browser Integrity Check and Bot Fight Mode as found;
+    - rate-limit rule: `http.request.uri.path eq "/rooms"`, 10 per 10 s per IP, block for 10 s (no rule on `/ws/*`, settled);
+    - Single Redirect `www.hnch.dev/*` → `https://hnch.dev/$1` (301). It takes effect at the switch, and the cutover closes #543.
+  - **P0.4 secrets:** `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (D14). Repo variable `HNCH_LIVE=false`.
+  - **P0.5 usage notifications:** turn on the Workers and DO usage notifications that Free offers.
+  - **P0.6 account inventory** (one-time note, not a gate): list the account's other Workers, Pages Functions, DO namespaces and cron triggers (for example `app.pdfofen.de`) and their usage, since the caps are shared. _Result: ___._
+- **Exit bar:** P0.3–P0.5 done; P0.6 recorded.
+- **PR title scope:** none.
+- **Closes:** tracking issue `#544`, closed by Phase 3.
+- **Worktree:** none.
+- **Depends on:** none.
 
 ### Phase 1a: Relay test harness (prep PR)
 
 - **Scope:**
-  - **`packages/relay`:**
-    - `testing/start-relay.mjs` (`startTestRelay`, backed by today's Node relay);
-    - `package.json` `exports` `./testing` (plus `.` → `./dist/index.js`).
-  - **`packages/cli`:**
-    - `src/session.test.ts` uses `startTestRelay` instead of importing `relay/src/*`;
-    - `package.json` devDependency `@hnch/relay: workspace:*`.
-  - **`packages/shared/src/relay-client.test.ts`:** fix the stale `relay/src/ws-connection.ts` comment (or defer it to 1b).
-  - **Root:** `pnpm-lock.yaml`.
+  - `packages/relay`: `testing/start-relay.mjs` (Node relay); `package.json` `exports` `./testing` and `.`.
+  - `packages/cli`: `src/session.test.ts` uses `startTestRelay`; devDependency `@hnch/relay: workspace:*`.
+  - `packages/shared/src/relay-client.test.ts`: fix the stale comment.
+  - `pnpm-lock.yaml`.
 - **Exit bar:**
-  - CLI, relay and shared lanes green.
-  - `rg "relay/src" packages/cli packages/shared packages/client` finds nothing outside comments.
-- **PR title scope:** `test(cli,relay,repo): start the relay for CLI session tests through @hnch/relay/testing`. `test` cuts no release, which avoids a spurious CLI npm publish. Adding `cli` to 1b's `feat` title would publish a no-op CLI minor.
-- **Closes:** `Refs #TBD`
+  - The CLI, relay and shared lanes are green.
+  - No `relay/src` imports remain outside `packages/relay`.
+- **PR title scope:** `test(cli,relay,repo): start the relay for CLI session tests through @hnch/relay/testing`. There is no release, which avoids a no-op CLI npm publish.
+- **Closes:** `Refs #544`
 - **Worktree:** `git fetch origin && pnpm worktree:add cloudflare-hosting-phase-1a main`
-- **Depends on:** none (can merge today).
+- **Depends on:** none.
 
-### Phase 1b: Relay on Workers + Durable Objects (proving ground `next.hnch.dev`)
+### Phase 1b: Relay on Workers + Durable Objects (deployed, routes inert)
 
 - **Scope:**
   - **`packages/relay`, replaced in place:**
-    - Worker router (`src/index.ts`, `scheduled` handler for the sweep);
-    - `Room` DO (contract items 7–12, 16);
-    - `Codes` DO (CAS claim, idempotent release);
-    - `Expiry` DO (register, sweep);
-    - protocol module ported from `ws-connection.ts`;
-    - config parsing;
+    - Worker router plus a `scheduled` handler.
+    - `Room`, `Codes` and `Expiry` DOs (contract items 1–17).
+    - The protocol module ported from `ws-connection.ts`, plus config parsing.
     - `wrangler.jsonc`:
-      - `hnch-relay`, sqlite DO migration v1 for `Room`, `Codes` and `Expiry`, `JURISDICTION=eu`;
-      - routes `next.hnch.dev/{health*,rooms*,ws/*}`;
+      - `hnch-relay` with SQLite migration v1;
+      - `JURISDICTION=eu`;
+      - routes `hnch.dev/{health*,rooms*,ws/*}`;
       - cron `0 4 * * *`;
-      - `observability.logs.invocation_logs = false`;
-    - `scripts/dev.mjs`, `scripts/smoke.mjs`;
-    - `testing/start-relay.mjs` reimplemented with the same API;
-    - `vitest.config.ts` (vitest 4, `@cloudflare/vitest-plugin`, istanbul), `tsconfig.json`;
-    - `package.json`: drops `ws`, `@types/ws`, `tsx`, `@types/node`; adds `wrangler@4.151.3`, the vitest stack and Workers types;
-    - deletes `server.ts`, `room-store.ts`, `code-pool.ts`, `snapshot.ts`, `ws-connection.ts` and their tests;
-    - tests for items 1–17, including the keepalive and TTL robustness tests listed.
-  - **`packages/shared`:** `exports` `./room-code`, `./auth`, `./health`; `src/health.ts` → `{status, version}`.
+      - `invocation_logs = false`;
+      - `workers_dev = false`.
+    - `scripts/dev.mjs` and `scripts/smoke.mjs`; `testing/start-relay.mjs` reimplemented on workerd.
+    - Vitest 4 with the plugin and istanbul; `tsconfig.json`.
+    - `package.json`: drop `ws`, `@types/ws`, `tsx` and `@types/node`; add `wrangler@4.151.3`, the vitest stack and Workers types.
+    - Delete `server.ts`, `room-store.ts`, `code-pool.ts`, `snapshot.ts`, `ws-connection.ts` and their tests.
+    - Tests for every item, including the keepalive and TTL tests.
+  - **`packages/shared`:** `exports` `./room-code`, `./auth` and `./health`; `health.ts` → `{status, version}`.
   - **`packages/e2e`:** `tests/lone-peer-keepalive.spec.ts`.
   - **`.github/workflows/deploy-relay.yml`:**
-    - Cloudflare deploy;
-    - asserts (ADR-0027, jurisdiction, route-removal guard with `allow_route_removal` input);
-    - smoke (`/health` with retry, `GET /rooms/000000`) on `next.hnch.dev`;
+    - deploy with `wrangler`;
+    - asserts: ADR-0027 vars, jurisdiction, route-removal guard (with an `allow_route_removal` input);
+    - smoke gated on `HNCH_LIVE`;
     - cross-arch env removed.
-  - **`.github/workflows/ci.yml`:** `detect-changes` relay → `cli=true`.
+  - **`.github/workflows/ci.yml`:** a relay change now also sets `cli=true`.
   - **Root:** `.gitignore` (`.wrangler/`), `pnpm-lock.yaml`.
   - **Docs:**
-    - `CONTRIBUTING.md`: `relay` scope row → "Cloudflare Worker"; dev notes.
-    - `docs/deployment.md`:
-      - the Cloudflare relay on `next`;
-      - secrets and token scope;
-      - relay release rules (coexistence, expand/contract, no old-tag re-dispatch);
-      - the freeze and the emergency VPS fix path.
+    - `CONTRIBUTING.md`: `relay` scope = Cloudflare Worker; dev notes.
+    - `docs/deployment.md`: the Cloudflare relay, secrets and token scope, and the relay release rules (coexistence, expand/contract, no old-tag re-dispatch, `wrangler rollback`).
   - **ADRs:**
     - 0051 → Accepted (amended); 0029 → Superseded;
     - partial caveats on 0012, 0027 and 0017;
-    - 0049 gets one merged parenthetical and one index cell with ADR-0052 (rebase on 0052 if it lands first);
-    - `adr/README.md` index in order 0050, 0051, 0052.
-    - **Phase 1b decision:** consolidate 0049 forward per the README, or keep two caveats. Recommendation: keep the two caveats. The clauses are independent, and both are one line. Consolidate once a third caveat arrives. adr-writer confirms.
+    - 0049: merged caveat with 0052 (rebase if 0052 lands first);
+    - `adr/README.md` index in the order 0050, 0051, 0052.
 - **Exit bar:**
-  - CI green: relay, cli (through the harness), shared and e2e chromium on local workerd, including the ADR-0027 specs and `lone-peer-keepalive`.
-  - Merge cuts a `relay-v*` minor; `deploy-relay.yml` deploys; both smokes pass on `next.hnch.dev`.
-  - `smoke.mjs` plus the CLI matrix on `next` (1.1.1 with `HNCH_RELAY_URL=wss://next.hnch.dev`; 1.1.2 and latest with `https://next.hnch.dev`). Checks:
-    - create, join, vote, reveal;
-    - 4002;
-    - 400 → lookup;
-    - 404 → lookup;
-    - 21st peer → 4006;
-    - case-insensitive code;
-    - fresh device after the room emptied;
-    - lone hold for 120 s → 0 reconnects.
-  - **Deploy coexistence:** a busy room held across a `deploy-relay.yml` re-dispatch survives the old-code window and the `1006` resync, with state intact.
-  - **Preflight:** `curl -X OPTIONS https://next.hnch.dev/rooms` with `Origin: capacitor://localhost` and with `Origin: https://localhost`, plus `Access-Control-Request-Method: POST` and `Access-Control-Request-Headers: content-type`. Each → `204` with ACAO `*` and the methods and headers listed.
-  - Logs marker test passes.
-  - A 2-peer room held 30 min shows ≈ 225 GB-s of duration.
-  - `https://hnch.dev/health` is still `1.2.1`.
-  - security-reviewer sign-off.
-- **PR shape (D8):** one atomic PR. Otherwise the release-dispatched deploy would ship Worker code to the VPS.
-- **PR title scope:** `feat(relay,shared,e2e,ci,docs,repo): run the relay on Cloudflare Workers and Durable Objects`. No `cli`: 1a moved the CLI to the harness, and the harness lives in `packages/relay`.
-- **Closes:** `Closes #TBD`
+  - CI is green: the relay, cli (through the harness) and shared lanes, plus e2e chromium on local workerd (the ADR-0027 specs and `lone-peer-keepalive`).
+  - The merge cuts a `relay-v*` minor, and `deploy-relay.yml` deploys `hnch-relay` with its routes present but inert. The guard and asserts pass.
+  - `https://hnch.dev/health` is still answered by the VPS (`1.2.1`).
+  - Security review signed off.
+- **PR shape (D8):** atomic.
+- **PR title scope:** `feat(relay,shared,e2e,ci,docs,repo): run the relay on Cloudflare Workers and Durable Objects`
+- **Closes:** `Refs #544`
 - **Worktree:** `git fetch origin && pnpm worktree:add cloudflare-hosting-phase-1b main`
-- **Depends on:**
-  - 1a merged;
-  - Phase 0 exit (P0.6, P0.7, D17);
-  - the owner's answers on D16 and on replacing the Node relay in place;
-  - the amended ADR-0051 accepted (D7).
+- **Depends on:** 1a merged; P0.4; amended ADR-0051 accepted (D7).
 
-### Phase 2: PWA on Workers Static Assets, validated against the Worker relay (`next.hnch.dev`)
+### Phase 2: PWA on Workers Static Assets (deployed, route inert)
 
 - **Scope:**
   - **`packages/client`:**
-    - `wrangler.jsonc` (`hnch-web`, assets `./www`, SPA not-found handling, no `run_worker_first`, route `next.hnch.dev/*`);
-    - `src/_headers` plus the `angular.json` assets entry;
-    - **D3-A:** `src/environments/environment.next.ts` (relay `https://next.hnch.dev` / `wss://next.hnch.dev`) plus an `angular.json` `next` configuration (`fileReplacements`, same optimisation as `production`);
-    - `package.json` (wrangler dev dependency).
+    - `wrangler.jsonc`: `hnch-web`, assets `./www`, SPA not-found handling, no `run_worker_first`, route `hnch.dev/*`, `workers_dev = false`.
+    - `src/_headers` plus an entry in the `angular.json` assets.
+    - `package.json`: wrangler as a dev dependency.
   - **`.github/workflows/deploy-client.yml`:**
-    - keep the VPS ship of the `production` build;
-    - add the hash parity guard;
-    - add a `next` build → `wrangler deploy` to `hnch-web`;
-    - add the `targets: all | web-only` input;
-    - smoke `https://next.hnch.dev/` (`<app-root`, header matrix).
-  - **Docs:** `docs/deployment.md`, the PWA section.
+    - keep the VPS ship;
+    - add the hash guard;
+    - add `wrangler deploy` of the same `www` to `hnch-web`;
+    - add the `targets: all | web-only` input and the route-removal guard;
+    - smoke gated on `HNCH_LIVE`.
+  - **Docs:** the PWA section of `docs/deployment.md`.
   - **Root:** `pnpm-lock.yaml`.
 - **Exit bar:**
-  - The header tests pass on `next`.
-  - G0 (a)–(c) re-run on the real Workers.
-  - A manual `targets=web-only` dispatch on `main` deploys to `next` only; the VPS is untouched.
-  - **Browser matrix on `next`** (Chrome, Firefox, Safari desktop; iOS Safari; Android Chrome): create, join, vote, reveal, password room, reload mid-round, presence across two devices; no Browser Integrity Check or Bot Fight Mode challenge.
-  - **Hidden-tab measurement:** 1, 2 and 3 hidden Chrome tabs in one room for 15 min each. Record reconnects per 10 min. The fallback trigger (item 9) is decided and recorded here, and its request cost is added to the budget.
-  - `hnch.dev` is unchanged.
-- **PR title scope:** `build(client,ci,docs,repo): serve a next build of the PWA from Workers Static Assets on next.hnch.dev`. No client release; verification uses `web-only` dispatches.
-- **Closes:** `Closes #TBD`
+  - CI is green.
+  - A manual `targets=web-only` dispatch deploys `hnch-web` with `hnch.dev/*` present but inert. The API route check shows all four routes.
+  - `hnch.dev` is still served by the VPS.
+- **PR title scope:** `build(client,ci,docs,repo): deploy the PWA to Workers Static Assets`. There is no client release; the first deploy is a `web-only` dispatch.
+- **Closes:** `Refs #544`
 - **Worktree:** `git fetch origin && pnpm worktree:add cloudflare-hosting-phase-2 main`
-- **Depends on:** 1b merged. Implementation can run in parallel with 1b.
+- **Depends on:** 1b merged (the shared token and guard). It can be built in parallel with 1b.
 
-### Phase 3a: Cutover, relay paths on `hnch.dev`
-
-- **Scope:**
-  - **Owner pre-steps:** the Cutover list, step 1.
-  - **Repo:**
-    - `packages/relay/wrangler.jsonc` adds `hnch.dev/{health*,rooms*,ws/*}`;
-    - `deploy-relay.yml` smoke targets `https://hnch.dev`;
-    - `docs/deployment.md`: prod topology, cutover and rollback runbook, rate-limit rule, free-plan budget, and the `www` redirect.
-- **Exit bar:**
-  - `https://hnch.dev/health` returns the Worker version, and `GET /rooms/000000` returns the relay JSON `404`.
-  - CLI matrix on default config (1.1.1 with default `wss://hnch.dev`, 1.1.2, latest), and the current iOS and Android store builds: create, join, vote, reveal, password, room-full.
-  - The PWA, still served by the VPS through the proxy, works against the Worker relay.
-  - The VPS `hnch-relay` is stopped.
-  - Rate-limit probe: the 11th request to `/rooms` within 10 s from one IP → `429`; `GET /rooms/:code` and WS are unaffected.
-- **PR title scope:** `feat(relay,ci,docs): serve the relay on hnch.dev from Cloudflare`. Merge only in the window (D15).
-- **Closes:** `Refs #TBD`
-- **Worktree:** `git fetch origin && pnpm worktree:add cloudflare-hosting-phase-3a main`
-- **Depends on:**
-  - Phases 1b and 2 exit bars met;
-  - the fallback keepalive switched on, if the Phase 2 trigger fired;
-  - pre-steps done;
-  - D15.
-
-### Phase 3b: Cutover, PWA on `hnch.dev`
+### Phase 3: Cutover (owner switch) + docs PR
 
 - **Scope:**
-  - `packages/client/wrangler.jsonc` adds `hnch.dev/*`.
-  - `deploy-client.yml`: `hnch-web` now gets the `production` build (the `next` build retires; `next.hnch.dev` keeps serving the prod build until Phase 4). The VPS ship stays for the rollback window. Smoke targets `https://hnch.dev`.
-  - `packages/client/src/environments/environment.prod.ts` comment (no longer VPS/Caddy).
-  - `docs/project.md` (snapshot wording: persisted, EU, 24 h) and `docs/roadmap.md:241`.
-- **Exit bar:**
-  - `/` is served by `hnch-web` (`cf-ray`, no `Server: Caddy`).
-  - The header matrix passes on `hnch.dev`.
-  - Browser smoke on `hnch.dev`: create, join, vote, reveal.
-  - A room created before a relay redeploy rejoins intact.
-  - The rollback runbook is written and was rehearsed on `next`.
-- **PR title scope:** `feat(client,ci,docs): serve the PWA on hnch.dev from Cloudflare`. Merge in the same window, after the 3a exit bar.
-- **Closes:** `Closes #TBD`
-- **Worktree:** `git fetch origin && pnpm worktree:add cloudflare-hosting-phase-3b main`
-- **Depends on:** 3a exit bar met.
-
-### Phase 4: Decommission the VPS (≥ 7 days after 3b, no rollback used)
-
-- **Scope** (R15 delete list):
-  - **Delete:** `infra/Caddyfile`, `infra/bootstrap-vps.sh`, `infra/hnch-relay.service`, `infra/deploy.pub`, `plans/plan-pwa-deploy.md`.
-  - **`infra/README.md`:** drop the VPS and PWA-host halves; keep the runner section.
-  - **`infra/runner/**` untouched**, including the stale `Dockerfile:24` comment.
-  - **`deploy-client.yml`:** drop the VPS steps and the `next` remnants.
-  - **`packages/relay/testing`:** drop the Node-relay remnants, if any.
-  - **Both `wrangler.jsonc`:** drop the `next.hnch.dev` routes.
-  - **Docs:**
-    - `docs/deployment.md`: drop the VPS sections.
-    - `CONTRIBUTING.md:56`: `infra` = runner only.
+  - **Switch:** Cutover steps 2–3: route check, proxy the apex and `www` records, set `HNCH_LIVE=true`, re-dispatch both deploys.
+  - **Post-switch verification on `hnch.dev`, fixing forward:**
+    - Smokes: `/health` returns the tag version; `GET /rooms/000000` → JSON `404`. HTTP → HTTPS redirect, and `www` → apex 301 (closes #543).
+    - The header matrix.
+    - CLI matrix on default config: 1.1.1 (default `wss://hnch.dev`), 1.1.2 and the latest version. Each must pass:
+      - create, join, vote, reveal;
+      - `4002`, `400` → lookup, `404` → lookup;
+      - 21st peer → `4006`;
+      - case-insensitive code;
+      - fresh device after the room emptied;
+      - `smoke.mjs hold` 120 s → 0 reconnects.
+    - **Native preflight:**
+      - `curl -X OPTIONS https://hnch.dev/rooms`, once with `Origin: capacitor://localhost` and once with `Origin: https://localhost`, plus `Access-Control-Request-Method: POST` and `Access-Control-Request-Headers: content-type`;
+      - expect `204`, ACAO `*`, and the methods and headers listed.
+      - Then the current iOS and Android store builds: create, join, vote, reveal, password.
+    - **Browser matrix:** Chrome, Firefox and Safari on desktop; iOS Safari; Android Chrome. Covers create, join, vote, reveal, password room, reload mid-round, and presence across two devices, with no challenge.
+    - **Hidden-tab measurement:** 1, 2 and 3 hidden Chrome tabs, 15 min each. If the item-9 trigger fires, a relay release turns the fallback on.
+    - **Deploy coexistence:** a busy room held across a `deploy-relay.yml` re-dispatch keeps its state through the old-code window and the `1006` resync.
+    - Logs marker test.
+    - **Duration check:** a 2-peer room held 30 min shows about 225 GB-s.
+    - **Rate limit:** the 11th `/rooms` request within 10 s from one IP → `429`. `GET /rooms/:code` and WS are unaffected.
+  - **Docs PR:**
+    - `docs/deployment.md`: prod topology, the switch and incidental rollback, the rate-limit rule, the free-plan budget and abuse exposure, usage notifications.
+    - `docs/project.md`: snapshot wording (persisted, EU, 24 h).
+    - `docs/roadmap.md:241`.
+    - `packages/client/src/environments/environment.prod.ts`: comment only.
     - `adr/0029` status note.
-  - **Owner ops:**
-    - **Precondition:** confirm in the IONOS contract that the `hnch.dev` registration is **not bundled with the VPS**. Cancelling could release the domain, and that cannot be undone. If it is bundled, move the domain to a standalone IONOS domain contract first.
-    - Then cancel the VPS.
-    - Delete the `VPS_*` secrets.
-    - Replace the `hnch.dev` A record with a proxied `AAAA 100::`.
-    - Remove `next.hnch.dev` and its routes (dispatch with `allow_route_removal=true`).
-    - Remove the P0.6 cron.
+  - **Issues:** #542 ("B sees A leave": a cleanly disconnected peer stays present until the 30 s awareness timeout; related #531) stays open as a separate bug. #543 (`www` TLS) is closed by the cutover's redirect.
 - **Exit bar:**
-  - No `hnch-vps`, `VPS_*` or Caddy references remain outside `docs/plans/`, `docs/specs/`, `plans/archive/`, CHANGELOGs, superseded ADRs and `infra/runner/Dockerfile`.
-  - IONOS appears only as the registrar.
-  - CI green; `hnch.dev` is unaffected.
-  - The VPS is cancelled and the domain is still registered.
-- **PR title scope:** `chore(relay,client,infra,ci,docs,repo): decommission the VPS`
-- **Closes:** `Closes #TBD` (tracking issue)
-- **Worktree:** `git fetch origin && pnpm worktree:add cloudflare-hosting-phase-4 main`
-- **Depends on:** 3b merged, plus 7 days with no rollback.
+  - Every check above passes, or has a fix-forward issue linked to the tracking issue.
+  - `hnch.dev` is served by Cloudflare (`cf-ray`, no `Server: Caddy`).
+  - The docs PR is merged.
+- **PR title scope:** `docs(client,docs): document Cloudflare hosting of hnch.dev`. `docs` type, so no release.
+- **Closes:** `Closes #544, Closes #543` (the tracking issue; #543 closes once the `www` redirect is verified live)
+- **Worktree:** `git fetch origin && pnpm worktree:add cloudflare-hosting-phase-3 main`
+- **Depends on:** 1b and 2 deployed with their routes present (Cutover step 2), and Phase 0 done.
 
 ## Open questions
 
-- **Inbound WS accounting** on Free (1:1 or 20:1): undocumented, so the plan assumes 1:1.
-- **Open sockets when a daily cap is hit:** undocumented.
-- **"B sees A leave"** (a cleanly closed peer stays shown as present): pre-existing on the Node relay. File it as a separate issue; not a blocker.
-- **`www.hnch.dev` TLS failure** on the VPS: pre-existing. File it as a separate bug; it is fixed by the Phase 3 redirect.
-- **Outbound WS frame size limit:** undocumented (inbound is 32 MiB).
-- **Cloudflare DPA and data-location terms:** not reviewed; owner, outside the plan.
-- **Registrar:** `hnch.dev` stays at IONOS (out of scope by owner decision 2026-10-28). Keep the IONOS NS setting pointing at Cloudflare.
+- **Inbound WS accounting on Free:** 1:1 or 20:1? Undocumented; the budget assumes 1:1.
+- **What happens to open sockets when a daily cap is hit:** undocumented.
+- **"B sees A leave":** also present on the Node relay. Tracked in #542 (related #531).
+- **Outbound WS frame size limit:** undocumented. The inbound limit is 32 MiB.
+- **Cloudflare DPA and data-location terms:** not reviewed. That is the owner's call, outside this plan.
+- **VPS:** left idle. Decommission and the `infra/` and docs cleanup are deferred by owner decision. Before any cancellation, check that the domain isn't bundled with the VPS contract.
 
 ## Verification plan
 
-- **1a:** `pnpm --filter @xauyxau/hnch test typecheck`, `pnpm --filter @hnch/relay test typecheck`.
+- **1a:** `pnpm --filter @xauyxau/hnch test typecheck`; `pnpm --filter @hnch/relay test typecheck`.
 - **1b:**
-  - relay `typecheck`, `format:check`, `lint`, `test:coverage`, `build`;
-  - shared `test`, `typecheck`;
-  - cli `test` (through the harness against workerd), `typecheck`;
+  - relay `typecheck`, `format:check`, `lint`, `test:coverage` and `build`;
+  - shared `test` and `typecheck`;
+  - cli `test` (harness on workerd) and `typecheck`;
   - client `typecheck`;
   - `pnpm test:e2e` (chromium);
-  - on `next`: `smoke.mjs` (all modes), the CLI matrix, deploy coexistence, preflight curl, logs marker, duration check.
-- **2:** production and `next` builds; hash guard; header matrix; browser matrix; hidden-tab measurement; `web-only` dispatch.
-- **3a/3b:** smoke (shallow plus DO); CLI matrix on default config; iOS and Android store builds; rate-limit probe; header matrix; browser smoke; rollback rehearsal beforehand.
-- **4:** full CI and e2e; reference inventory.
-- **Every PR:** CI `Verify` plus `E2E (Playwright)` green. No telemetry (ADR-0028).
+  - deploy job: asserts, guard and inert routes.
+- **2:** production build; hash guard; `web-only` dispatch; route check.
+- **3:** the post-switch checklist on `hnch.dev`.
+- **Every PR:** CI `Verify` and `E2E (Playwright)` green. No telemetry (ADR-0028).
 
 ## Screenshots
 
@@ -662,8 +566,7 @@ Reference session: 8 peers, 1 h, 20 rounds, ~300 doc updates.
 ## References
 
 - Spec: `docs/specs/cloudflare-hosting.md`
-- ADR-0051 (Proposed), ADR-0029, ADR-0012, ADR-0001, ADR-0008, ADR-0009, ADR-0016, ADR-0017, ADR-0024, ADR-0027, ADR-0035, ADR-0049, ADR-0050
+- ADR-0051 (Proposed), ADR-0029, ADR-0012, ADR-0001, ADR-0008, ADR-0009, ADR-0016, ADR-0017, ADR-0024, ADR-0027, ADR-0035, ADR-0049, ADR-0050, ADR-0052 (branch `worktree-runner-pool-2`)
 - Prototype (throwaway, never merge): branch `prototype/cloudflare-relay`
 - Research digest, G0 result and plan critique, 2026-10-28 (orchestrator job notes)
-- Today's deploy: `docs/deployment.md`, `infra/README.md`, `infra/Caddyfile`, `.github/workflows/deploy-relay.yml`, `.github/workflows/deploy-client.yml`
-- Cloudflare docs: [Workers routes](https://developers.cloudflare.com/workers/configuration/routing/routes/), [Custom Domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/)
+- Cloudflare docs: [Workers routes](https://developers.cloudflare.com/workers/configuration/routing/routes/), [Observability pricing](https://developers.cloudflare.com/observability/pricing/)
