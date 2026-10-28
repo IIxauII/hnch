@@ -208,9 +208,12 @@ describe('wireSession — session events', () => {
     expect(kept).toHaveLength(1);
     expect(dropped).toEqual([]);
 
-    s.disconnect();
+    // A later end is detected, then the session disconnects before the
+    // deferred delivery runs: only the driver's stop() can drop it, since
+    // the detection already happened before disconnect() unobserves the doc.
     endSession(hostDoc, 'p-host', () => Date.now() + 1_000);
     sync(hostDoc, doc);
+    s.disconnect();
     await settle();
     expect(kept).toHaveLength(1);
   });
