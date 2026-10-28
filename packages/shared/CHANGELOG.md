@@ -1,3 +1,10 @@
+## [1.16.2](https://github.com/IIxauII/hnch/compare/shared-v1.16.1...shared-v1.16.2) (2026-10-28)
+
+
+### Bug Fixes
+
+* **shared,cli,docs,repo:** one shared live-session module, with the CLI on it ([#534](https://github.com/IIxauII/hnch/issues/534)) ([e1df629](https://github.com/IIxauII/hnch/commit/e1df629fd952df355cb8e19340f354065a774559))
+
 ## [1.16.1](https://github.com/IIxauII/hnch/compare/shared-v1.16.0...shared-v1.16.1) (2026-10-28)
 
 
