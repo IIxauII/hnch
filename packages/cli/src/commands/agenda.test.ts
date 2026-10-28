@@ -190,7 +190,7 @@ vi.mock('../session.js', async () => {
           setTimeout(() => cb('connected'), 10);
           return () => {};
         },
-        onHostChange: () => () => {},
+        onSessionEvent: () => () => {},
         disconnect: vi.fn(),
       };
     },

@@ -34,7 +34,6 @@ import {
   type LastSessionEntry,
 } from './last-session.js';
 import { onSessionExpired } from './session-expired.js';
-import { observeSessionEnd } from './session-end-observer.js';
 import { promptPassword } from './prompt-password.js';
 import { validatePassword } from './password-validation.js';
 import { refusalVerdict, watchForRefusal, type EndingRefusal } from './refusal.js';
@@ -176,16 +175,13 @@ async function handleCreate(argv: {
   );
   refusal.attach(inkInstance.unmount);
 
-  observeSessionEnd({
-    doc: session.doc,
-    localParticipantId: config.participantId,
-    onEnded: (info) => {
-      console.error(info.isLocal ? 'Session ended.' : `Session ended by ${info.hostName}.`);
-      inkInstance.unmount();
-      forgetSession(session.roomUuid);
-      session.disconnect();
-      process.exit(0);
-    },
+  session.onSessionEvent((event) => {
+    if (event.kind === 'host-changed') return;
+    console.error(event.message);
+    inkInstance.unmount();
+    forgetSession(session.roomUuid);
+    session.disconnect();
+    process.exit(0);
   });
 
   await inkInstance.waitUntilExit();
@@ -260,16 +256,13 @@ async function handleJoin(argv: { code: string; password?: boolean }): Promise<v
   );
   refusal.attach(inkInstance.unmount);
 
-  observeSessionEnd({
-    doc: session.doc,
-    localParticipantId: config.participantId,
-    onEnded: (info) => {
-      console.error(info.isLocal ? 'Session ended.' : `Session ended by ${info.hostName}.`);
-      inkInstance.unmount();
-      forgetSession(session.roomUuid);
-      session.disconnect();
-      process.exit(0);
-    },
+  session.onSessionEvent((event) => {
+    if (event.kind === 'host-changed') return;
+    console.error(event.message);
+    inkInstance.unmount();
+    forgetSession(session.roomUuid);
+    session.disconnect();
+    process.exit(0);
   });
 
   await inkInstance.waitUntilExit();
@@ -395,16 +388,13 @@ async function resumeEntry(
   );
   refusal.attach(inkInstanceResume.unmount);
 
-  observeSessionEnd({
-    doc: session.doc,
-    localParticipantId: config.participantId,
-    onEnded: (info) => {
-      console.error(info.isLocal ? 'Session ended.' : `Session ended by ${info.hostName}.`);
-      inkInstanceResume.unmount();
-      forgetSession(entry.roomUuid);
-      session.disconnect();
-      process.exit(0);
-    },
+  session.onSessionEvent((event) => {
+    if (event.kind === 'host-changed') return;
+    console.error(event.message);
+    inkInstanceResume.unmount();
+    forgetSession(entry.roomUuid);
+    session.disconnect();
+    process.exit(0);
   });
 
   await inkInstanceResume.waitUntilExit();
