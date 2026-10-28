@@ -153,7 +153,10 @@ export interface LiveSessionReadings {
   readonly onProjectionChange?: ((projection: DocProjection) => void) | undefined;
   /** The set of participant ids present on the relay changed. */
   readonly onOnlineIdsChange?: ((onlineIds: ReadonlySet<string>) => void) | undefined;
-  /** The socket's status, as `relay-client` reports it. Starts at `connecting`. */
+  /**
+   * The socket's status, as `relay-client` reports it — and `connecting`
+   * while the session opens, before there is a socket.
+   */
   readonly onStatusChange?: ((status: SyncStatus) => void) | undefined;
   /** The relay turned the connection away for good, or `null` once it takes it again. */
   readonly onRejectionChange?: ((reason: JoinRejectionReason | null) => void) | undefined;
@@ -334,8 +337,12 @@ export function openLiveSession(options: OpenLiveSessionOptions): LiveSession {
   };
   awareness.on('change', onPresenceChange);
 
+  // The first readings, so a surface's mirror is never empty — the status
+  // included: the attempt is under way from now, not from when the socket
+  // opens (after `beforeConnect`).
   options.onProjectionChange?.(projection);
   options.onOnlineIdsChange?.(onlineIds);
+  options.onStatusChange?.('connecting');
 
   // 3. The command set. Dropped on teardown, so a late call refuses through
   // `UNBOUND_SESSION_COMMANDS` rather than writing to a destroyed doc.

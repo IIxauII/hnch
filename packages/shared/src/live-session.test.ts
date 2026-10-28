@@ -117,7 +117,15 @@ function makeLink(): Link {
     opened: () => opened,
     cut() {
       isCut = true;
-      for (const socket of sockets) socket.close();
+      for (const socket of sockets) {
+        // How a runtime treats close() on a socket still connecting varies
+        // (Node 22's may never report the close); let it open, then drop it.
+        if (socket.readyState === WebSocket.CONNECTING) {
+          socket.addEventListener('open', () => socket.close());
+        } else {
+          socket.close();
+        }
+      }
     },
     restore() {
       isCut = false;
@@ -333,7 +341,7 @@ describe('live session — presence', () => {
     const peer = openPeer({ id: 'solo', room: { uuid: 'room-x', code: 'ABCDEF' }, seed: CREATE });
 
     // Nothing has come back from the relay yet: this is all synchronous.
-    expect(peer.log).toEqual(['projection', 'online']);
+    expect(peer.log).toEqual(['projection', 'online', 'status:connecting']);
     expect(peer.onlineIds()).toEqual(new Set(['solo']));
   });
 
@@ -563,9 +571,8 @@ describe('live session — before connect', () => {
 
     await vi.waitFor(() => expect(peer.synced()).toBe(true), { timeout: SYNC_TIMEOUT });
     expect(socketsWhenLoaded).toBe(0);
-    expect(peer.log.indexOf('projection', 2)).toBeLessThan(
-      peer.log.findIndex((l) => l.startsWith('status')),
-    );
+    // The cache's projection — after the first one — precedes any socket.
+    expect(peer.log.indexOf('projection', 1)).toBeLessThan(peer.log.indexOf('status:connected'));
     expect(peer.projection().settings.name).toBe('From the cache');
   });
 
@@ -594,7 +601,8 @@ describe('live session — before connect', () => {
     await held.release();
 
     expect(link.opened()).toBe(0);
-    expect(peer.statuses).toEqual([]);
+    // Only the opening one: nothing from a socket.
+    expect(peer.statuses).toEqual(['connecting']);
   });
 
   it('a teardown before the hook has started runs no hook', async () => {
@@ -624,6 +632,23 @@ describe('live session — before connect', () => {
     await vi.waitFor(() => expect(peer.synced()).toBe(true), { timeout: SYNC_TIMEOUT });
     expect(peer.rejections.filter((r) => r !== null)).toEqual([]);
   });
+
+  it('a password taken off again while the hook runs is not sent', async () => {
+    const { room } = await hostedRoom();
+    const passwordHash = await hashPassword('correct horse', room.uuid);
+    await patchRoomAccess(relayUrl(), room.uuid, passwordHash);
+    const held = heldConnect();
+    const peer = openPeer({ id: 'peer', room, seed: JOIN, passwordHash, beforeConnect: held.hook });
+
+    peer.session.updateCredentials(null);
+    await held.release();
+
+    // The room is protected and the socket brings no password: turned away.
+    await vi.waitFor(() => expect(peer.rejections).toContain('wrong-password'), {
+      timeout: SYNC_TIMEOUT,
+    });
+    expect(peer.synced()).toBe(false);
+  });
 });
 
 describe('live session — credentials', () => {
@@ -632,12 +657,18 @@ describe('live session — credentials', () => {
     const passwordHash = await hashPassword('correct horse', room.uuid);
     await patchRoomAccess(relayUrl(), room.uuid, passwordHash);
 
+    const syncs = (): number => host.log.filter((entry) => entry === 'synced:true').length;
+    const before = syncs();
+
+    // The socket re-handshakes with the new hash, and is taken.
     host.session.updateCredentials(passwordHash);
+    await vi.waitFor(() => expect(syncs()).toBe(before + 1), { timeout: SYNC_TIMEOUT });
+    // Then it drops, and comes back on the hash it now holds.
     host.link.cut();
     await vi.waitFor(() => expect(host.synced()).toBe(false), { timeout: SYNC_TIMEOUT });
     host.link.restore();
 
-    await vi.waitFor(() => expect(host.synced()).toBe(true), { timeout: SYNC_TIMEOUT });
+    await vi.waitFor(() => expect(syncs()).toBe(before + 2), { timeout: SYNC_TIMEOUT });
     expect(host.rejections.filter((r) => r !== null)).toEqual([]);
   });
 
