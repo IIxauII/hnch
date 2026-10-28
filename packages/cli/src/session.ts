@@ -1,46 +1,33 @@
 /**
- * Session orchestrator for the CLI client.
+ * The CLI's adapter over the shared live session (#529).
  *
- * Manages the full lifecycle: mint/resolve room → init/join doc →
- * connect sync → wire host election + unanimous auto-reveal + session events →
- * expose mutation API.
+ * Joining a session and keeping it live — the doc, presence, the relay
+ * connection, the drivers, the bound commands, teardown — is `@hnch/shared`'s
+ * `live-session`, the same module the web client runs on. What stays here is
+ * the CLI's own: minting a room, hashing a password and changing a room's
+ * access (each with a terminal step between the calls), the console messages,
+ * and fanning the readings out to the Ink listeners.
  */
 
-import * as Y from 'yjs';
-import { Awareness } from 'y-protocols/awareness';
 import {
-  initDoc,
-  joinDoc,
-  projectDoc,
   currentRound,
-  patchRoundDescriptor,
-  patchSettings,
-  hashPassword,
-  normalizePassword,
-  promoteHost as promoteHostCommand,
-  bindSessionCommands,
-  type SessionCommands,
-  startAutoReveal,
-  type AutoRevealHandle,
-  onlineIdsFrom,
-  AWARENESS_PARTICIPANT_ID_FIELD,
-  startElection,
-  type ElectionHandle,
-  startSessionEvents,
-  type SessionEvent,
-  type SessionEventsHandle,
   FIBONACCI_SCALE,
-  type DocProjection,
-  type Scale,
-  type Round,
-  type JoinRejectionReason,
-  connectToRelay,
+  hashPassword,
   mintRoom,
-  resolveRoom,
+  normalizePassword,
+  openLiveSession,
   patchRoomAccess,
-  rejoin as rejoinRoster,
-  type RelayConnection,
+  resolveRoom,
+  type DocProjection,
+  type JoinRejectionReason,
+  type LiveSessionSeed,
+  type PatchRoundDescriptorInit,
+  type Round,
+  type Scale,
+  type SessionCommands,
+  type SessionEvent,
   type SyncStatus,
+  type WebSocketConstructorLike,
 } from '@hnch/shared';
 import WebSocket from 'ws';
 import { validatePassword } from './password-validation.js';
@@ -68,9 +55,23 @@ export interface JoinSessionOptions {
   readonly avatarColor?: string | undefined;
 }
 
+/**
+ * Join a room already in hand — remembered by `hnch resume`, or by an
+ * `hnch agenda` command — with the hash remembered for it.
+ */
+export interface OpenSessionOptions {
+  readonly participantId: string;
+  readonly displayName: string;
+  readonly relayUrl: string;
+  readonly roomCode: string;
+  readonly roomUuid: string;
+  readonly passwordHash?: string | undefined;
+  readonly onRejection?: ((reason: JoinRejectionReason) => void) | undefined;
+  /** Avatar color wire value (ADR-0043). Pre-validated by caller. */
+  readonly avatarColor?: string | undefined;
+}
+
 export interface SessionHandle {
-  readonly doc: Y.Doc;
-  readonly awareness: Awareness;
   readonly roomCode: string;
   readonly roomUuid: string;
   /**
@@ -79,23 +80,15 @@ export interface SessionHandle {
    */
   readonly passwordHash: string | undefined;
   /**
-   * The whole UI-facing writer seam, bound once to this doc and this
-   * participant (#516). Eleven forwards used to re-spell each command's name
-   * under this handle; `reveal(): void` / `skip(): void` /
-   * `discardCurrentRound(): void` went further and discarded the
-   * `TerminalResult` those commands return, so a lost race (someone else
-   * terminated the round first) was indistinguishable from a successful
-   * write on this surface. Reaching the command directly through `commands`
-   * puts that result back within reach of every call site — the TUI still
-   * ignores it where it has nothing to gate (no router, no haptics; a
-   * re-render already arrives via the doc-change subscription), but the
-   * information is no longer thrown away by the handle itself.
+   * The session commands, bound to this session (#516). Every write the TUI
+   * makes goes through them — or through the two patches below, which carry
+   * their own gate — so every write meets its rule. Refuse once torn down.
    */
   readonly commands: SessionCommands;
 
-  /** Get current projection snapshot. */
+  /** The latest projection. */
   projection(): DocProjection;
-  /** Get current round (or null). */
+  /** Current round (or null). */
   current(): Round | null;
   /** Whether this client is the host. */
   isHost(): boolean;
@@ -105,19 +98,21 @@ export interface SessionHandle {
    * relay takes it before it turns a wrong password away (ADR-0035).
    */
   hasJoined(): boolean;
-  /** Online participant IDs from awareness. */
-  onlineIds(): Set<string>;
+  /** Resolves when {@link hasJoined} first turns true. */
+  whenJoined(): Promise<void>;
+  /** Participant ids present on the relay. */
+  onlineIds(): ReadonlySet<string>;
 
   /** Update a round's title and/or description. */
-  updateRoundDescriptor(roundId: string, fields: { title?: string; description?: string }): void;
+  updateRoundDescriptor(roundId: string, fields: PatchRoundDescriptorInit): void;
   /** Update the room name. Pass undefined to remove. */
-  updateName(name: string | undefined): void;
+  updateName(name?: string): void;
   /** Update the default estimation scale. */
   updateScale(scale: Scale): void;
   /** Update room access mode (open or password-protected). */
   updateAccess(mode: 'open' | 'password', password?: string): Promise<void>;
 
-  /** Subscribe to doc changes. Returns unsubscribe fn. */
+  /** Subscribe to projection and online-set changes. Returns unsubscribe fn. */
   onChange(cb: () => void): () => void;
   /** Subscribe to sync status changes. Returns unsubscribe fn. */
   onStatusChange(cb: (status: SyncStatus) => void): () => void;
@@ -128,48 +123,34 @@ export interface SessionHandle {
    */
   onSessionEvent(listener: (event: SessionEvent) => void): () => void;
 
-  /** Disconnect and clean up. */
-  disconnect(): void;
+  /** Close the session here: the socket, the drivers, the doc. Writes nothing. */
+  teardown(): void;
 }
 
 export async function createSession(opts: CreateSessionOptions): Promise<SessionHandle> {
-  let passwordHash: string | undefined;
-  // Mint room first to get UUID (needed as salt for password hash)
+  // Mint first: the room's UUID is the password's salt.
   const minted = await mintRoom(opts.relayUrl);
 
+  let passwordHash: string | undefined;
   // Whitespace alone is no password: the hash would be that of nothing.
   if (opts.password !== undefined && normalizePassword(opts.password) !== '') {
     passwordHash = await hashPassword(opts.password, minted.uuid);
-    // Update room with password
     await patchRoomAccess(opts.relayUrl, minted.uuid, passwordHash);
   }
 
-  const doc = new Y.Doc();
-  const awareness = new Awareness(doc);
-
-  const now = Date.now();
-  initDoc(doc, {
-    roomUuid: minted.uuid,
-    createdAt: now,
-    participantId: opts.participantId,
-    displayName: opts.displayName,
-    defaultScale: opts.defaultScale ?? FIBONACCI_SCALE,
-    ...(opts.sessionName !== undefined && { sessionName: opts.sessionName }),
-    ...(opts.avatarColor !== undefined && { avatarColor: opts.avatarColor }),
-  });
-
-  awareness.setLocalStateField(AWARENESS_PARTICIPANT_ID_FIELD, opts.participantId);
-
-  return wireSession({
-    doc,
-    awareness,
-    roomCode: minted.code,
-    roomUuid: minted.uuid,
-    participantId: opts.participantId,
-    relayUrl: opts.relayUrl,
-    passwordHash,
-    onRejection: opts.onRejection,
-  });
+  return open(
+    {
+      ...opts,
+      roomCode: minted.code,
+      roomUuid: minted.uuid,
+      passwordHash,
+    },
+    {
+      kind: 'create',
+      defaultScale: opts.defaultScale ?? FIBONACCI_SCALE,
+      sessionName: opts.sessionName,
+    },
+  );
 }
 
 export async function joinSession(opts: JoinSessionOptions): Promise<SessionHandle> {
@@ -183,238 +164,132 @@ export async function joinSession(opts: JoinSessionOptions): Promise<SessionHand
     passwordHash = await hashPassword(opts.password, resolved.uuid);
   }
 
-  const doc = new Y.Doc();
-  const awareness = new Awareness(doc);
-
-  joinDoc(doc, {
-    participantId: opts.participantId,
-    displayName: opts.displayName,
-    joinedAt: Date.now(),
-    ...(opts.avatarColor !== undefined && { avatarColor: opts.avatarColor }),
-  });
-
-  awareness.setLocalStateField(AWARENESS_PARTICIPANT_ID_FIELD, opts.participantId);
-
-  return wireSession({
-    doc,
-    awareness,
-    roomCode: opts.roomCode,
-    roomUuid: resolved.uuid,
-    participantId: opts.participantId,
-    relayUrl: opts.relayUrl,
-    passwordHash,
-    onRejection: opts.onRejection,
-    // This client is rejoining a room it may have left before — clear the
-    // stale `leftAt` once the relay snapshot has applied (ADR-0036 §6).
-    clearLeftStatusOnSync: true,
-  });
+  return openSession({ ...opts, roomUuid: resolved.uuid, passwordHash });
 }
 
-export interface WireOptions {
-  doc: Y.Doc;
-  awareness: Awareness;
-  roomCode: string;
-  roomUuid: string;
-  participantId: string;
-  relayUrl: string;
-  passwordHash?: string | undefined;
-  onRejection?: ((reason: JoinRejectionReason) => void) | undefined;
-  /**
-   * Clear this participant's stale `leftAt` / `removedBy` once the relay
-   * snapshot has synced (ADR-0036 §6). Set when rejoining a room, not when
-   * minting one — a fresh room has no prior record to clear.
-   */
-  clearLeftStatusOnSync?: boolean | undefined;
+/**
+ * A join like {@link joinSession}'s, for a room already resolved: the same
+ * seed, so the same `rejoin` after the first sync clears a stale `leftAt`
+ * (ADR-0036 §6).
+ */
+export function openSession(opts: OpenSessionOptions): SessionHandle {
+  return open(opts, { kind: 'join' });
 }
 
-export function wireSession(opts: WireOptions): SessionHandle {
-  const { doc, awareness, participantId, relayUrl, roomUuid } = opts;
-
-  const statusCallbacks = new Set<(status: SyncStatus) => void>();
-  const changeCallbacks = new Set<() => void>();
+function open(opts: OpenSessionOptions, seed: LiveSessionSeed): SessionHandle {
+  const { relayUrl, roomUuid } = opts;
+  const changeListeners = new Set<() => void>();
+  const statusListeners = new Set<(status: SyncStatus) => void>();
   const sessionEventListeners = new Set<(event: SessionEvent) => void>();
+  const joinedWaiters: Array<() => void> = [];
 
-  // Whether awareness can be believed: the relay's state has applied on the
-  // current socket. Until then this peer is the only one it can see, and a
-  // rule that counts who is online (unanimous auto-reveal) must wait.
-  let presenceTrusted = false;
-  // Set by the first sync, and for good.
+  // Both are reported while the session opens, before `openLiveSession`
+  // returns, so neither is ever read unset.
+  let projection: DocProjection | undefined;
+  let onlineIds: ReadonlySet<string> = new Set();
   let joined = false;
 
-  // Connect to relay
-  const conn: RelayConnection = connectToRelay({
-    httpBaseUrl: opts.relayUrl,
-    roomUuid: opts.roomUuid,
-    doc,
+  const notifyChange = (): void => {
+    for (const cb of changeListeners) cb();
+  };
+
+  const live = openLiveSession({
+    httpBaseUrl: relayUrl,
+    room: { uuid: roomUuid, code: opts.roomCode },
     credentials: {
-      roomCode: opts.roomCode,
-      deviceId: participantId,
+      deviceId: opts.participantId,
       ...(opts.passwordHash !== undefined && { passwordHash: opts.passwordHash }),
     },
-    awareness,
-    WebSocketPolyfill: WebSocket as unknown as typeof globalThis.WebSocket,
+    self: {
+      participantId: opts.participantId,
+      displayName: opts.displayName,
+      ...(opts.avatarColor !== undefined && { avatarColor: opts.avatarColor }),
+    },
+    seed,
+    WebSocketPolyfill: WebSocket as unknown as WebSocketConstructorLike,
+    onProjectionChange(next) {
+      projection = next;
+      notifyChange();
+    },
+    onOnlineIdsChange(next) {
+      onlineIds = next;
+      notifyChange();
+    },
     onStatusChange(status) {
-      statusCallbacks.forEach((cb) => cb(status));
+      for (const cb of statusListeners) cb(status);
     },
     onRejectionChange(reason) {
       if (reason === null) return;
       console.error(`Connection rejected: ${reason}`);
       opts.onRejection?.(reason);
     },
-    // Repeated transient closes are worth surfacing — otherwise "still
-    // retrying" and "hung" look identical from the terminal.
+    // Otherwise "still retrying" and "hung" look the same from the terminal.
     onRepeatRejection() {
       console.error('Trouble reaching the room — retrying.');
     },
-    // Both edges re-evaluate: a round that went unanimous while the socket
-    // was down reveals on the way back up, and nothing does on the way down.
-    onSyncedChange(synced) {
-      presenceTrusted = synced;
-      if (synced) joined = true;
-      changeCallbacks.forEach((cb) => cb());
+    onFirstSync() {
+      joined = true;
+      for (const resolve of joinedWaiters.splice(0)) resolve();
     },
-    // The post-sync timing is the rule, not an optimisation: the relay's ops
-    // are already applied when `onSynced` fires, so `rejoin`'s delete outranks
-    // the snapshot's `leftAt` in the LWW merge (ADR-0036 §6). The refusal is
-    // ignored on purpose — no record means nothing to clear.
-    ...(opts.clearLeftStatusOnSync === true && {
-      onSynced: () => {
-        rejoinRoster(doc, participantId);
-      },
-    }),
-  });
-
-  // Observe doc changes
-  const observeHandler = (): void => {
-    changeCallbacks.forEach((cb) => cb());
-  };
-  doc.getMap('meta').observeDeep(observeHandler);
-  doc.getMap('settings').observeDeep(observeHandler);
-  doc.getMap('participants').observeDeep(observeHandler);
-  doc.getArray('rounds').observeDeep(observeHandler);
-
-  function getOnlineIds(): Set<string> {
-    return onlineIdsFrom(awareness.getStates());
-  }
-
-  // One fan-out for every driver: doc changes, presence changes and the
-  // sync edges (onSyncedChange above) — the counterpart of DocService.subscribeDriver.
-  function subscribeDriver(cb: () => void): () => void {
-    changeCallbacks.add(cb);
-    awareness.on('change', cb);
-    return (): void => {
-      changeCallbacks.delete(cb);
-      awareness.off('change', cb);
-    };
-  }
-
-  // The whole writer seam, bound once for this session (#516). `onlineIds`
-  // is threaded as the getter itself, not a snapshot, so `handoffHost` reads
-  // the live online set at call time rather than the set at wiring time.
-  const bound = bindSessionCommands({ doc, participantId, onlineIds: getOnlineIds });
-  // "Ended locally" is this peer's own end applying — never "this peer created
-  // the session" — the CLI counterpart of DocService.endSessionForEveryone.
-  let endedLocally = false;
-  const commands: SessionCommands = {
-    ...bound,
-    endSession() {
-      const result = bound.endSession();
-      if (result.applied) endedLocally = true;
-      return result;
-    },
-  };
-
-  // Wire host election. The driver (debounce, missing-host state, promotion
-  // decision) lives in `@hnch/shared`; this is the adapter. It re-uses the
-  // doc-change fan-out above, so no new Yjs observer is introduced.
-  const election: ElectionHandle = startElection({
-    projection: () => projectDoc(doc),
-    onlineIds: getOnlineIds,
-    myId: () => participantId,
-    subscribe: subscribeDriver,
-    promote(winnerId) {
-      promoteHostCommand(doc, winnerId);
-    },
-  });
-
-  // Unanimous auto-reveal. The rule *and* the driver (when to re-evaluate,
-  // the terminal guard that makes a dedupe set unnecessary) live in
-  // `@hnch/shared`; this is the adapter. It re-uses the doc-change fan-out
-  // above plus awareness, so no new observer and no poll loop is introduced
-  // (ADR-0018 / ADR-0020 / ADR-0036 / ADR-0041).
-  const autoReveal: AutoRevealHandle = startAutoReveal({
-    projection: () => projectDoc(doc),
-    onlineIds: getOnlineIds,
-    presenceTrusted: () => presenceTrusted,
-    selfId: () => participantId,
-    subscribe: subscribeDriver,
-    reveal() {
-      commands.revealCurrentRound();
-    },
-  });
-
-  // Session end, host change and removal (ADR-0023, ADR-0036 §5–6). The rules,
-  // their guards and their wording live in `@hnch/shared`; this is the
-  // adapter. Presence trust is the live reading, first sync the sticky one —
-  // a host is "disconnected" only to a peer that is in sync itself.
-  const sessionEvents: SessionEventsHandle = startSessionEvents({
-    projection: () => projectDoc(doc),
-    onlineIds: getOnlineIds,
-    presenceTrusted: () => presenceTrusted,
-    firstSyncCompleted: () => joined,
-    endedLocally: () => endedLocally,
-    selfId: participantId,
-    subscribe: subscribeDriver,
-    emit: (event) => {
+    onSessionEvent(event) {
       for (const listener of sessionEventListeners) listener(event);
     },
   });
 
-  let disposed = false;
+  function latest(): DocProjection {
+    if (projection === undefined) throw new Error('session: no projection reported');
+    return projection;
+  }
 
   return {
-    doc,
-    awareness,
     roomCode: opts.roomCode,
-    roomUuid: opts.roomUuid,
+    roomUuid,
     passwordHash: opts.passwordHash,
-    commands,
 
-    projection() {
-      return projectDoc(doc);
+    get commands(): SessionCommands {
+      return live.commands;
     },
 
+    projection: latest,
+
     current() {
-      return currentRound(projectDoc(doc));
+      return currentRound(latest());
+    },
+
+    isHost() {
+      return latest().settings.hostParticipantId === opts.participantId;
     },
 
     hasJoined() {
       return joined;
     },
 
-    isHost() {
-      const p = projectDoc(doc);
-      return p.settings.hostParticipantId === participantId;
+    whenJoined() {
+      if (joined) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        joinedWaiters.push(resolve);
+      });
     },
 
-    onlineIds: getOnlineIds,
-
-    updateRoundDescriptor(roundId: string, fields: { title?: string; description?: string }) {
-      patchRoundDescriptor(doc, roundId, fields);
+    onlineIds() {
+      return onlineIds;
     },
 
-    updateName(name: string | undefined) {
-      // patchSettings interprets undefined values as "delete the key";
-      // cast is required because exactOptionalPropertyTypes rejects explicit undefined
-      // in Partial<Settings> even though the runtime behavior is intentional.
-      patchSettings(doc, { name } as { name?: string });
+    updateRoundDescriptor(roundId, fields) {
+      live.updateRoundDescriptor(roundId, fields);
     },
 
-    updateScale(scale: Scale) {
-      patchSettings(doc, { defaultScale: scale });
+    updateName(name) {
+      // An undefined value deletes the key. The cast is needed because
+      // exactOptionalPropertyTypes rejects an explicit undefined here.
+      live.updateSettings({ name } as { name?: string });
     },
 
-    async updateAccess(mode: 'open' | 'password', password?: string) {
+    updateScale(scale) {
+      live.updateSettings({ defaultScale: scale });
+    },
+
+    async updateAccess(mode, password) {
       let passwordHash: string | null = null;
       if (mode === 'password') {
         // Same rule as every other password entry point (`validatePassword`):
@@ -426,38 +301,29 @@ export function wireSession(opts: WireOptions): SessionHandle {
         passwordHash = await hashPassword(validated.password, roomUuid);
       }
       await patchRoomAccess(relayUrl, roomUuid, passwordHash);
-      // Update stored credentials so reconnect uses new passwordHash
-      conn.updateCredentials({ passwordHash });
+      // So this client's own reconnects present the new hash.
+      live.updateCredentials(passwordHash);
     },
 
-    onChange(cb: () => void) {
-      changeCallbacks.add(cb);
-      return () => changeCallbacks.delete(cb);
+    onChange(cb) {
+      changeListeners.add(cb);
+      return () => changeListeners.delete(cb);
     },
 
-    onStatusChange(cb: (status: SyncStatus) => void) {
-      statusCallbacks.add(cb);
-      return () => statusCallbacks.delete(cb);
+    onStatusChange(cb) {
+      statusListeners.add(cb);
+      return () => statusListeners.delete(cb);
     },
 
-    onSessionEvent(listener: (event: SessionEvent) => void) {
+    onSessionEvent(listener) {
       sessionEventListeners.add(listener);
       return () => {
         sessionEventListeners.delete(listener);
       };
     },
 
-    disconnect() {
-      if (disposed) return;
-      disposed = true;
-      sessionEvents.stop();
-      autoReveal.stop();
-      election.stop();
-      doc.getMap('meta').unobserveDeep(observeHandler);
-      doc.getMap('settings').unobserveDeep(observeHandler);
-      doc.getMap('participants').unobserveDeep(observeHandler);
-      doc.getArray('rounds').unobserveDeep(observeHandler);
-      conn.disconnect();
+    teardown() {
+      live.teardown();
     },
   };
 }

@@ -12,14 +12,10 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import React from 'react';
 import { render } from 'ink';
-import * as Y from 'yjs';
-import { Awareness } from 'y-protocols/awareness';
 import { loadConfig, readConfig, updateConfig } from './config.js';
-import { createSession, joinSession, wireSession, type SessionHandle } from './session.js';
+import { createSession, joinSession, openSession, type SessionHandle } from './session.js';
 import {
-  AWARENESS_PARTICIPANT_ID_FIELD,
   BUILTIN_SCALES,
-  joinDoc,
   parseAvatarColor,
   RelayRejectionError,
   resolveRoom,
@@ -77,7 +73,7 @@ function endRefused(
   if (verdict.remembered === 'forget-password') clearPasswordHash(session.roomUuid);
   if (verdict.remembered === 'forget-session') removeEntry(session.roomUuid);
   console.error(verdict.message);
-  session.disconnect();
+  session.teardown();
   process.exit(verdict.exitCode);
 }
 
@@ -180,7 +176,7 @@ async function handleCreate(argv: {
     console.error(event.message);
     inkInstance.unmount();
     forgetSession(session.roomUuid);
-    session.disconnect();
+    session.teardown();
     process.exit(0);
   });
 
@@ -192,7 +188,7 @@ async function handleCreate(argv: {
     endRefused(refused, session, { wasIn: true, typedPassword: password !== undefined });
   }
 
-  session.disconnect();
+  session.teardown();
   forgetSession(session.roomUuid);
   process.exit(0);
 }
@@ -261,7 +257,7 @@ async function handleJoin(argv: { code: string; password?: boolean }): Promise<v
     console.error(event.message);
     inkInstance.unmount();
     forgetSession(session.roomUuid);
-    session.disconnect();
+    session.teardown();
     process.exit(0);
   });
 
@@ -275,7 +271,7 @@ async function handleJoin(argv: { code: string; password?: boolean }): Promise<v
     });
   }
 
-  session.disconnect();
+  session.teardown();
   forgetSession(session.roomUuid);
   process.exit(0);
 }
@@ -338,31 +334,18 @@ async function resumeEntry(
   console.error(`Rejoining room ${entry.roomCode}…`);
   console.error('');
 
-  const doc = new Y.Doc();
-  const awareness = new Awareness(doc);
-
-  joinDoc(doc, {
-    participantId: config.participantId,
-    displayName: config.displayName,
-    joinedAt: Date.now(),
-    ...(config.avatarColor !== undefined && { avatarColor: config.avatarColor }),
-  });
-
-  awareness.setLocalStateField(AWARENESS_PARTICIPANT_ID_FIELD, config.participantId);
-
   const refusal = watchForRefusal();
 
-  const session = wireSession({
-    doc,
-    awareness,
+  // `hnch resume` is a join like `hnch join`: if this participant left the
+  // room earlier, the first sync clears the `leftAt` it carries (ADR-0036 §6).
+  const session = openSession({
+    participantId: config.participantId,
+    displayName: config.displayName,
+    relayUrl: config.relayUrl,
     roomCode: entry.roomCode,
     roomUuid: entry.roomUuid,
-    participantId: config.participantId,
-    relayUrl: config.relayUrl,
     passwordHash: entry.passwordHash,
-    // `hnch resume` is a rejoin: if this participant left the room earlier,
-    // the snapshot still carries their `leftAt` (ADR-0036 §6).
-    clearLeftStatusOnSync: true,
+    ...(config.avatarColor !== undefined && { avatarColor: config.avatarColor }),
     onRejection(reason) {
       if (reason === 'unknown-room') endExpired(entry.roomUuid);
       else refusal.note(reason);
@@ -393,7 +376,7 @@ async function resumeEntry(
     console.error(event.message);
     inkInstanceResume.unmount();
     forgetSession(entry.roomUuid);
-    session.disconnect();
+    session.teardown();
     process.exit(0);
   });
 
@@ -405,7 +388,7 @@ async function resumeEntry(
     endRefused(refused, session, { wasIn: true, typedPassword: false });
   }
 
-  session.disconnect();
+  session.teardown();
   forgetSession(entry.roomUuid);
   process.exit(0);
 }

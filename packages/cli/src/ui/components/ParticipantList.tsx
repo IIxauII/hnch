@@ -4,7 +4,7 @@ import { participantRole, type ParticipantSnapshot } from '@hnch/shared';
 
 interface Props {
   participants: readonly ParticipantSnapshot[];
-  onlineIds: Set<string>;
+  onlineIds: ReadonlySet<string>;
   hostId?: string;
   votes: Record<string, string>;
   revealed: boolean;
