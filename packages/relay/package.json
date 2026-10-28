@@ -4,6 +4,13 @@
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./testing": {
+      "types": "./testing/start-relay.d.mts",
+      "default": "./testing/start-relay.mjs"
+    }
+  },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",

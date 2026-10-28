@@ -1429,8 +1429,8 @@ describe('connectToRelay presence across a reconnect', () => {
 
   // The other side of forgetting a clock, pinned down so nobody relies on the
   // opposite: once forgotten, a state is taken at any clock. What keeps a
-  // departed peer gone is the relay replaying only the states it still holds
-  // (`relay/src/ws-connection.ts`), not anything in this module.
+  // departed peer gone is the relay replaying only the states it still holds,
+  // not anything in this module.
   it('takes any state for a peer whose clock it forgot, however old', () => {
     const conn = makeConnection();
     conn.awareness.setLocalStateField('participantId', 'me');

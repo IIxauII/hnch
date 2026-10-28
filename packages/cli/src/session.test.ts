@@ -1,5 +1,5 @@
 /**
- * The CLI's session adapter against a real relay, started in this process.
+ * The CLI's session adapter against a real relay from the `@hnch/relay/testing` harness.
  *
  * How a live session behaves — rejoin, presence, the drivers, the gates,
  * teardown — is `@hnch/shared`'s `live-session` and is pinned once in its own
@@ -12,41 +12,25 @@
  * same URL over an in-memory channel.
  */
 
-import type { Server } from 'node:http';
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
-import { createCodePool } from '../../relay/src/code-pool.js';
-import { createRoomStore } from '../../relay/src/room-store.js';
-import { createRelayServer } from '../../relay/src/server.js';
+import { startTestRelay, type TestRelay } from '@hnch/relay/testing';
 import { createSession, joinSession, openSession, type SessionHandle } from './session.js';
 import { FIBONACCI_SCALE, isActiveParticipant, TSHIRT_SCALE, type SyncStatus } from '@hnch/shared';
 
-let server: Server;
-let port: number;
+let relay: TestRelay;
 /** The relay as the host reaches it. */
 let relayUrl: string;
 /** The relay under another name, for a second peer. */
 let otherRelayUrl: string;
 
 beforeAll(async () => {
-  const codePool = createCodePool();
-  const roomStore = createRoomStore(codePool);
-  server = createRelayServer({ roomStore });
-
-  await new Promise<void>((resolve) => {
-    server.listen(0, () => {
-      const addr = server.address();
-      port = typeof addr === 'object' && addr !== null ? addr.port : 0;
-      relayUrl = `http://localhost:${port}`;
-      otherRelayUrl = `http://127.0.0.1:${port}`;
-      resolve();
-    });
-  });
+  relay = await startTestRelay();
+  relayUrl = relay.httpUrl;
+  otherRelayUrl = relay.httpUrl.replace('//localhost:', '//127.0.0.1:');
 });
 
 afterAll(async () => {
-  await new Promise<void>((resolve) => {
-    server.close(() => resolve());
-  });
+  await relay.stop();
 });
 
 /** Wait timeout for cross-client CRDT propagation over a local loopback relay. */
@@ -270,7 +254,7 @@ describe('session integration', () => {
       await joinSession({
         participantId: 'third-acc',
         displayName: 'Cy',
-        relayUrl: `http://LOCALHOST:${port}`,
+        relayUrl: relayUrl.replace('//localhost:', '//LOCALHOST:'),
         roomCode: host.roomCode,
       }),
     );
