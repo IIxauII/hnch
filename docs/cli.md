@@ -150,6 +150,7 @@ packages/cli/
       agenda.ts               — hnch agenda subcommand handlers
     session.ts                — createSession / joinSession / openSession: the adapter over the shared live session
     session-exit.ts           — the one way out of a live session: quit, ended, removed, refused
+    refusal.ts                — what a refusal does: when it ends the session, and its verdict
     config.ts                 — config read/write helpers
     last-session.ts           — last-session cache read/write
     room-code-input.ts        — room-code parsing / formatting helpers

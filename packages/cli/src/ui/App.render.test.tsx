@@ -382,8 +382,8 @@ describe('App — Lobby handoff reaches the bound command', () => {
 });
 
 // Quitting takes the UI down; the entry flow's session exit (`session-exit`)
-// then closes the session, so that whatever `left` writes first still has a
-// session to write to.
+// then closes the session. The exit owns that order, so App must not close
+// the session ahead of it.
 describe('App — quit', () => {
   it('q → y quits without closing the session itself', async () => {
     const { session } = makeSession();

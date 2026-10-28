@@ -116,6 +116,33 @@ describe('SessionExitService — left', () => {
     ]);
   });
 
+  // The leave has to leave the socket before the socket is closed.
+  it('tears down only once the flush is over', async () => {
+    const { exit, doc, calls } = mount();
+    let release: () => void = () => {};
+    doc.flushUpdates.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          calls.push('flush');
+          release = resolve;
+        }),
+    );
+
+    const leaving = exit.exit({ kind: 'left' });
+    await flushMicrotasks();
+    expect(doc.teardown).not.toHaveBeenCalled();
+
+    release();
+    await leaving;
+    expect(calls).toEqual([
+      'leave',
+      'flush',
+      'teardown',
+      'removeByUuid:uuid-1',
+      'navigate:["/home"]',
+    ]);
+  });
+
   it('writes no leave and waits for no flush without a participant id', async () => {
     const { exit, calls } = mount({ myId: null });
 
@@ -257,6 +284,29 @@ describe('SessionExitService — refused', () => {
 
     expect(nav.navigateRoot).toHaveBeenCalledWith(['/home'], { replaceUrl: true });
     expect(toast.error).toHaveBeenCalledOnce();
+  });
+
+  it('is over only once the forget is', async () => {
+    const { exit, lastSession, nav } = mount();
+    let release: () => void = () => {};
+    lastSession.removeByUuid.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    );
+    let over = false;
+
+    const leaving = exit.exit({ kind: 'refused', reason: 'unknown-room' }).then(() => {
+      over = true;
+    });
+    await flushMicrotasks();
+    expect(nav.navigateRoot).toHaveBeenCalled();
+    expect(over).toBe(false);
+
+    release();
+    await leaving;
+    expect(over).toBe(true);
   });
 
   it.each([

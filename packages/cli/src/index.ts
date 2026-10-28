@@ -11,9 +11,9 @@
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import React from 'react';
-import { render, type Instance } from 'ink';
+import { render } from 'ink';
 import { loadConfig, readConfig, updateConfig } from './config.js';
-import { createSession, joinSession, openSession, type SessionHandle } from './session.js';
+import { createSession, joinSession, openSession } from './session.js';
 import {
   BUILTIN_SCALES,
   parseAvatarColor,
@@ -32,8 +32,8 @@ import {
 import { onSessionExpired } from './session-expired.js';
 import { promptPassword } from './prompt-password.js';
 import { validatePassword } from './password-validation.js';
-import { watchForRefusal, type RefusalWatch } from './refusal.js';
-import { sessionExit, type SessionExit } from './session-exit.js';
+import { watchForRefusal } from './refusal.js';
+import { onRejectionFor, runUntilExit, sessionExit } from './session-exit.js';
 import { App } from './ui/App.js';
 import { ConfigSettings } from './ui/components/ConfigSettings.js';
 import { createInterface } from 'node:readline';
@@ -59,32 +59,6 @@ async function promptValidPassword(): Promise<string> {
     process.exit(1);
   }
   return result.password;
-}
-
-/**
- * The terminal UI is up: from here on the session ends through `exiting`
- * alone — the host ends it or removes this peer, the relay refuses the
- * connection (which takes the UI down first, see `watchForRefusal`), or the
- * user quits.
- */
-async function runUntilExit(
-  session: SessionHandle,
-  ui: Instance,
-  refusal: RefusalWatch,
-  exiting: SessionExit,
-): Promise<never> {
-  exiting.attach(ui);
-  refusal.attach(ui.unmount);
-
-  session.onSessionEvent((event) => {
-    if (event.kind === 'host-changed') return;
-    void exiting.end({ kind: event.kind, message: event.message });
-  });
-
-  await ui.waitUntilExit();
-
-  const refused = refusal.refused();
-  return exiting.end(refused === null ? { kind: 'left' } : { kind: 'refused', reason: refused });
 }
 
 async function handleCreate(argv: {
@@ -127,10 +101,7 @@ async function handleCreate(argv: {
     password,
     defaultScale: scale,
     ...(config.avatarColor !== undefined && { avatarColor: config.avatarColor }),
-    onRejection(reason) {
-      if (reason === 'unknown-room') void exiting.end({ kind: 'refused', reason });
-      else refusal.note(reason);
-    },
+    onRejection: onRejectionFor(refusal, exiting),
   });
   exiting.bind(session);
 
@@ -195,10 +166,7 @@ async function handleJoin(argv: { code: string; password?: boolean }): Promise<v
     roomCode: code,
     password: passwordInput,
     ...(config.avatarColor !== undefined && { avatarColor: config.avatarColor }),
-    onRejection(reason) {
-      if (reason === 'unknown-room') void exiting.end({ kind: 'refused', reason });
-      else refusal.note(reason);
-    },
+    onRejection: onRejectionFor(refusal, exiting),
   });
   exiting.bind(session);
 
@@ -301,10 +269,7 @@ async function resumeEntry(
     roomUuid: entry.roomUuid,
     passwordHash: entry.passwordHash,
     ...(config.avatarColor !== undefined && { avatarColor: config.avatarColor }),
-    onRejection(reason) {
-      if (reason === 'unknown-room') void exiting.end({ kind: 'refused', reason });
-      else refusal.note(reason);
-    },
+    onRejection: onRejectionFor(refusal, exiting),
   });
   exiting.bind(session);
 

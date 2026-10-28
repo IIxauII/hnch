@@ -25,18 +25,21 @@ export type SessionEnding =
   | { readonly kind: 'ended' | 'removed'; readonly message: string }
   | { readonly kind: 'refused'; readonly reason: JoinRejectionReason };
 
-/** What the device forgets of the session on the way out. */
-type Forgetting = 'session' | 'password-hash' | 'nothing';
+/**
+ * What becomes of the session's entry in the local cache on the way out.
+ * The same words as the CLI's refusal verdict.
+ */
+type Remembered = 'keep' | 'forget-password' | 'forget-session';
 
 /**
  * What the device keeps of a session the relay refused follows the relay
  * (ADR-0044): a password it no longer takes is forgotten (§6), and so is a
  * session it no longer has. Any other refusal keeps the entry.
  */
-function refusalForgets(reason: JoinRejectionReason): Forgetting {
-  if (reason === 'wrong-password') return 'password-hash';
-  if (reason === 'unknown-room') return 'session';
-  return 'nothing';
+function refusalRemembers(reason: JoinRejectionReason): Remembered {
+  if (reason === 'wrong-password') return 'forget-password';
+  if (reason === 'unknown-room') return 'forget-session';
+  return 'keep';
 }
 
 /**
@@ -79,7 +82,7 @@ export class SessionExitService {
     }
     this.docService.teardown();
     // Home does not offer the session again (ADR-0044).
-    await this.forget('session', uuid);
+    await this.forget('forget-session', uuid);
     if (ending.kind !== 'left') await this.toastService.info(ending.message);
     await this.router.navigate(['/home']);
   }
@@ -93,7 +96,7 @@ export class SessionExitService {
     // showing has no session left to show. Home lists what the device
     // remembers, but the cache takes what is asked of it in turn — a list
     // read from now on is read after this.
-    const forgotten = this.forget(refusalForgets(reason), uuid);
+    const forgotten = this.forget(refusalRemembers(reason), uuid);
 
     if (reason === 'wrong-password' && code !== null) {
       await this.nav.navigateRoot(['/join'], { queryParams: { code }, replaceUrl: true });
@@ -104,10 +107,10 @@ export class SessionExitService {
     await forgotten;
   }
 
-  private async forget(what: Forgetting, uuid: string | null): Promise<void> {
-    if (uuid === null || what === 'nothing') return;
+  private async forget(remembered: Remembered, uuid: string | null): Promise<void> {
+    if (uuid === null || remembered === 'keep') return;
     try {
-      if (what === 'password-hash') await this.lastSession.clearPasswordHash(uuid);
+      if (remembered === 'forget-password') await this.lastSession.clearPasswordHash(uuid);
       else await this.lastSession.removeByUuid(uuid);
     } catch (err) {
       console.warn('Failed to update the remembered session:', err);

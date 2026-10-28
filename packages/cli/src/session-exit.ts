@@ -14,10 +14,10 @@
  * reported, and the exit goes on.
  */
 
-import type { JoinRejectionReason } from '@hnch/shared';
+import type { JoinRejectionReason, SessionEvent } from '@hnch/shared';
 
 import { clearPasswordHash, removeEntry } from './last-session.js';
-import { refusalVerdict, type RefusalVerdict } from './refusal.js';
+import { refusalVerdict, type RefusalVerdict, type RefusalWatch } from './refusal.js';
 import { onSessionExpired } from './session-expired.js';
 
 /**
@@ -61,7 +61,7 @@ export interface SessionExitOptions {
   /** Default: stderr. */
   readonly print?: (line: string) => void;
   /** Default: `process.exit`. */
-  readonly exit?: (code: number) => never;
+  readonly exitProcess?: (code: number) => never;
   /** Default: the last-session cache. */
   readonly cache?: {
     removeEntry(roomUuid: string): void;
@@ -78,16 +78,16 @@ export interface SessionExit {
    * Leave the session, for this reason, and end the process. Only the first
    * ending counts: one that arrives while an exit is under way is dropped.
    */
-  end(ending: SessionEnding): Promise<never>;
+  exit(ending: SessionEnding): Promise<never>;
 }
 
 export function sessionExit(opts: SessionExitOptions): SessionExit {
   const print = opts.print ?? ((line: string) => console.error(line));
-  const exit = opts.exit ?? ((code: number) => process.exit(code));
+  const exitProcess = opts.exitProcess ?? ((code: number) => process.exit(code));
   const cache = opts.cache ?? { removeEntry, clearPasswordHash };
   let session: ExitingSession | undefined;
   let ui: { unmount(): void } | undefined;
-  let exiting = false;
+  let underWay = false;
 
   /** Forget what the verdict says to. Never throws. */
   function forget(remembered: RefusalVerdict['remembered'], room: ExitingRoom | undefined): void {
@@ -107,10 +107,10 @@ export function sessionExit(opts: SessionExitOptions): SessionExit {
     attach(u) {
       ui = u;
     },
-    async end(ending) {
+    async exit(ending) {
       // The process ends at the end of this; nothing after it is to run.
-      if (exiting) return new Promise<never>(() => {});
-      exiting = true;
+      if (underWay) return new Promise<never>(() => {});
+      underWay = true;
 
       const room: ExitingRoom | undefined = session ?? opts.room;
       // Decided on the session as it was, before it is closed. A refusal
@@ -135,17 +135,57 @@ export function sessionExit(opts: SessionExitOptions): SessionExit {
               if (room !== undefined) cache.removeEntry(room.roomUuid);
             },
             logger: { error: print },
-            exit,
+            exit: exitProcess,
           });
         }
         forget(verdict.remembered, room);
         print(verdict.message);
-        return exit(verdict.exitCode);
+        return exitProcess(verdict.exitCode);
       }
 
       forget('forget-session', room);
       if (ending.kind === 'ended' || ending.kind === 'removed') print(ending.message);
-      return exit(0);
+      return exitProcess(0);
     },
   };
+}
+
+/**
+ * The relay's refusal, as `create`, `join` and `resume` all route it: a room
+ * the relay no longer has ends the session at once; any other refusal is for
+ * the watch, which takes the UI down and so ends it in {@link runUntilExit}.
+ */
+export function onRejectionFor(
+  refusal: Pick<RefusalWatch, 'note'>,
+  exiting: Pick<SessionExit, 'exit'>,
+): (reason: JoinRejectionReason) => void {
+  return (reason) => {
+    if (reason === 'unknown-room') void exiting.exit({ kind: 'refused', reason });
+    else refusal.note(reason);
+  };
+}
+
+/**
+ * The terminal UI is up: from here on the session ends through `exiting`
+ * alone — the host ends it or removes this peer, the relay refuses the
+ * connection (the watch takes the UI down first), or the user quits.
+ */
+export async function runUntilExit(
+  session: { onSessionEvent(listener: (event: SessionEvent) => void): () => void },
+  ui: { unmount(): void; waitUntilExit(): Promise<unknown> },
+  refusal: Pick<RefusalWatch, 'attach' | 'refused'>,
+  exiting: Pick<SessionExit, 'attach' | 'exit'>,
+): Promise<never> {
+  exiting.attach(ui);
+  refusal.attach(() => ui.unmount());
+
+  session.onSessionEvent((event) => {
+    if (event.kind === 'host-changed') return;
+    void exiting.exit({ kind: event.kind, message: event.message });
+  });
+
+  await ui.waitUntilExit();
+
+  const refused = refusal.refused();
+  return exiting.exit(refused === null ? { kind: 'left' } : { kind: 'refused', reason: refused });
 }
