@@ -1,42 +1,31 @@
 /**
- * Integration test: spin up relay, create + join session via CLI
- * session API, verify votes sync and reveal works.
+ * The CLI's session adapter against a real relay, started in this process.
  *
- * Uses `vi.waitFor` instead of fixed sleeps so tests are as fast as the
- * underlying WS sync allows rather than being gated on a worst-case
- * duration baked in at write-time.
+ * How a live session behaves — rejoin, presence, the drivers, the gates,
+ * teardown — is `@hnch/shared`'s `live-session` and is pinned once in its own
+ * suite. What stays here is what the CLI adds on top: minting a room and
+ * resolving one from its code, hashing the password, the settings patches the
+ * TUI makes, changing the room's access, and `hnch resume`'s way in.
  *
- * The round/vote/roster *rules* — descriptor carry-over, `parentRoundId`
- * linking, the terminal and active-round gates, the not-host refusal — are
- * pinned once in `@hnch/shared`'s `round-commands.test.ts`,
- * `vote-commands.test.ts` and `roster-commands.test.ts`; re-asserting them
- * here through a real relay would test the same gate twice while adding
- * nothing about the wire. What stays here is what only a real relay can
- * show: doc state actually propagating over a live WebSocket between two
- * independently-wired clients, and the CLI's own adapter-level wiring
- * (auto-reveal, rejoin) that `session.election.test.ts` /
- * `session.roster.test.ts` don't cover with a real socket.
+ * Peers that must not see each other except through the relay reach it under
+ * different hostnames: `y-websocket` links same-process providers on the
+ * same URL over an in-memory channel.
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import type { Server } from 'node:http';
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import { createCodePool } from '../../relay/src/code-pool.js';
 import { createRoomStore } from '../../relay/src/room-store.js';
 import { createRelayServer } from '../../relay/src/server.js';
-import { createSession, joinSession, wireSession, type SessionHandle } from './session.js';
-import * as Y from 'yjs';
-import { Awareness } from 'y-protocols/awareness';
-import {
-  AWARENESS_PARTICIPANT_ID_FIELD,
-  FIBONACCI_SCALE,
-  joinDoc,
-  leave,
-  TSHIRT_SCALE,
-  type StartRoundInit,
-} from '@hnch/shared';
+import { createSession, joinSession, openSession, type SessionHandle } from './session.js';
+import { FIBONACCI_SCALE, isActiveParticipant, TSHIRT_SCALE, type SyncStatus } from '@hnch/shared';
 
 let server: Server;
 let port: number;
+/** The relay as the host reaches it. */
 let relayUrl: string;
+/** The relay under another name, for a second peer. */
+let otherRelayUrl: string;
 
 beforeAll(async () => {
   const codePool = createCodePool();
@@ -48,6 +37,7 @@ beforeAll(async () => {
       const addr = server.address();
       port = typeof addr === 'object' && addr !== null ? addr.port : 0;
       relayUrl = `http://localhost:${port}`;
+      otherRelayUrl = `http://127.0.0.1:${port}`;
       resolve();
     });
   });
@@ -62,363 +52,278 @@ afterAll(async () => {
 /** Wait timeout for cross-client CRDT propagation over a local loopback relay. */
 const SYNC_TIMEOUT = 5_000;
 
-/**
- * Start a round through the bound command seam and return its id. Every
- * caller here is the session's own host, so a refusal would mean the test
- * fixture is wrong, not the code under test — throwing surfaces that loudly
- * instead of the id silently coming back `undefined`.
- */
-function startRound(session: SessionHandle, init: StartRoundInit = {}): string {
-  const result = session.commands.startRound(init);
-  if (!result.applied) throw new Error(`startRound refused: ${result.reason}`);
-  return result.id;
+const open: SessionHandle[] = [];
+
+afterEach(() => {
+  for (const session of open.splice(0)) session.teardown();
+});
+
+function track(session: SessionHandle): SessionHandle {
+  open.push(session);
+  return session;
 }
 
 describe('session integration', () => {
   it('create + join + vote + reveal', async () => {
-    // Host creates session
-    const host = await createSession({
-      participantId: 'host-1',
-      displayName: 'Alice',
-      relayUrl,
-      sessionName: 'Test Sprint',
-      defaultScale: FIBONACCI_SCALE,
+    const host = track(
+      await createSession({
+        participantId: 'host-1',
+        displayName: 'Alice',
+        relayUrl,
+        sessionName: 'Test Sprint',
+        defaultScale: FIBONACCI_SCALE,
+      }),
+    );
+    expect(host.roomCode).toHaveLength(6);
+    await host.whenJoined();
+
+    const joiner = track(
+      await joinSession({
+        participantId: 'joiner-1',
+        displayName: 'Bob',
+        relayUrl: otherRelayUrl,
+        roomCode: host.roomCode,
+      }),
+    );
+    await joiner.whenJoined();
+    expect(joiner.hasJoined()).toBe(true);
+    expect(joiner.projection().settings.name).toBe('Test Sprint');
+    await vi.waitFor(() => expect(host.onlineIds()).toEqual(new Set(['host-1', 'joiner-1'])), {
+      timeout: SYNC_TIMEOUT,
     });
 
-    expect(host.roomCode).toBeTruthy();
-    expect(host.roomCode.length).toBe(6);
-
-    // Wait for host's own doc sync to stabilise before joiner connects.
-    await vi.waitFor(
-      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(1),
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    // Joiner joins
-    const joiner = await joinSession({
-      participantId: 'joiner-1',
-      displayName: 'Bob',
-      relayUrl,
-      roomCode: host.roomCode,
+    const started = host.commands.startRound({ title: 'Test Story' });
+    if (!started.applied) throw new Error(`startRound refused: ${started.reason}`);
+    await vi.waitFor(() => expect(joiner.current()?.id).toBe(started.id), {
+      timeout: SYNC_TIMEOUT,
     });
 
-    // Wait until both clients are visible in each other's projection.
-    await vi.waitFor(
-      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(2),
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    // Host starts a round
-    const roundId = startRound(host, { title: 'Test Story' });
-
-    // Wait until the round appears in the host projection.
-    await vi.waitFor(
-      () => expect(host.projection().rounds.find((x) => x.id === roundId)).toBeDefined(),
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    // Both vote
     host.commands.toggleCurrentVote('5');
     joiner.commands.toggleCurrentVote('8');
 
-    // Wait for both votes to be visible to both clients.
     await vi.waitFor(
       () => {
-        const r = host.projection().rounds.find((x) => x.id === roundId);
-        expect(r?.votes['host-1']).toBe('5');
-        expect(r?.votes['joiner-1']).toBe('8');
+        expect(host.current()?.status).toBe('revealed');
+        expect(joiner.current()?.votes).toEqual({ 'host-1': '5', 'joiner-1': '8' });
       },
       { timeout: SYNC_TIMEOUT },
     );
-    await vi.waitFor(
-      () => {
-        const r = joiner.projection().rounds.find((x) => x.id === roundId);
-        expect(r?.votes['host-1']).toBe('5');
-        expect(r?.votes['joiner-1']).toBe('8');
-      },
-      { timeout: SYNC_TIMEOUT },
-    );
+  });
 
-    // Host reveals
-    host.commands.revealCurrentRound();
-    await vi.waitFor(
-      () => expect(host.projection().rounds.find((x) => x.id === roundId)?.status).toBe('revealed'),
-      { timeout: SYNC_TIMEOUT },
+  it('onChange fires as presence changes and as the agenda changes', async () => {
+    const host = track(
+      await createSession({ participantId: 'host-oc', displayName: 'Alice', relayUrl }),
     );
+    await host.whenJoined();
+    const online: Array<ReadonlySet<string>> = [];
+    const agenda: string[][] = [];
+    host.onChange(() => {
+      online.push(host.onlineIds());
+      agenda.push(host.projection().agenda.map((item) => item.title ?? ''));
+    });
 
-    // Cleanup
-    host.disconnect();
-    joiner.disconnect();
+    const joiner = track(
+      await joinSession({
+        participantId: 'joiner-oc',
+        displayName: 'Bob',
+        relayUrl: otherRelayUrl,
+        roomCode: host.roomCode,
+      }),
+    );
+    await vi.waitFor(() => expect(online.at(-1)).toEqual(new Set(['host-oc', 'joiner-oc'])), {
+      timeout: SYNC_TIMEOUT,
+    });
+
+    expect(host.commands.addItem({ title: 'Mine' }).applied).toBe(true);
+    expect(agenda.at(-1)).toEqual(['Mine']);
+    // Appended after what the joiner has seen, so it must have seen 'Mine'.
+    await vi.waitFor(() => expect(joiner.projection().agenda).toHaveLength(1), {
+      timeout: SYNC_TIMEOUT,
+    });
+    expect(joiner.commands.addItem({ title: 'Theirs' }).applied).toBe(true);
+    await vi.waitFor(() => expect(agenda.at(-1)).toEqual(['Mine', 'Theirs']), {
+      timeout: SYNC_TIMEOUT,
+    });
+
+    joiner.teardown();
+    await vi.waitFor(() => expect(online.at(-1)).toEqual(new Set(['host-oc'])), {
+      timeout: SYNC_TIMEOUT,
+    });
+  });
+
+  it('delivers session events to each listener until it unsubscribes', async () => {
+    const host = track(
+      await createSession({ participantId: 'host-ev', displayName: 'Alice', relayUrl }),
+    );
+    const kept: string[] = [];
+    const dropped: string[] = [];
+    host.onSessionEvent((event) => kept.push(event.message));
+    const unsubscribe = host.onSessionEvent((event) => dropped.push(event.message));
+
+    unsubscribe();
+    expect(host.commands.endSession().applied).toBe(true);
+
+    await vi.waitFor(() => expect(kept).toEqual(['Session ended.']));
+    expect(dropped).toEqual([]);
   });
 
   it('create password-protected room + join with password', async () => {
-    const host = await createSession({
-      participantId: 'host-pw',
-      displayName: 'Alice',
-      relayUrl,
-      password: 'secret123',
-    });
+    const host = track(
+      await createSession({
+        participantId: 'host-pw',
+        displayName: 'Alice',
+        relayUrl,
+        password: 'secret123',
+      }),
+    );
+    expect(host.passwordHash).toBeTypeOf('string');
+    await host.whenJoined();
 
-    await vi.waitFor(
-      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(1),
-      { timeout: SYNC_TIMEOUT },
+    await expect(
+      joinSession({
+        participantId: 'joiner-pw',
+        displayName: 'Bob',
+        relayUrl: otherRelayUrl,
+        roomCode: host.roomCode,
+      }),
+    ).rejects.toThrow('Room requires a password');
+
+    const joiner = track(
+      await joinSession({
+        participantId: 'joiner-pw',
+        displayName: 'Bob',
+        relayUrl: otherRelayUrl,
+        roomCode: host.roomCode,
+        password: 'secret123',
+      }),
     );
 
-    const joiner = await joinSession({
-      participantId: 'joiner-pw',
-      displayName: 'Bob',
-      relayUrl,
-      roomCode: host.roomCode,
-      password: 'secret123',
-    });
-
-    await vi.waitFor(
-      () => expect(joiner.projection().participants.length).toBeGreaterThanOrEqual(1),
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    host.disconnect();
-    joiner.disconnect();
+    await joiner.whenJoined();
+    expect(joiner.passwordHash).toBe(host.passwordHash);
   });
 
   it('updateName sets and removes room name', async () => {
-    const host = await createSession({
-      participantId: 'host-name',
-      displayName: 'Alice',
-      relayUrl,
-    });
-
-    await vi.waitFor(
-      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(1),
-      { timeout: SYNC_TIMEOUT },
+    const host = track(
+      await createSession({ participantId: 'host-name', displayName: 'Alice', relayUrl }),
     );
 
-    // Set a name
     host.updateName('Sprint 42');
-    await vi.waitFor(() => expect(host.projection().settings.name).toBe('Sprint 42'), {
-      timeout: SYNC_TIMEOUT,
-    });
+    expect(host.projection().settings.name).toBe('Sprint 42');
 
-    // Update name
     host.updateName('Sprint 43');
-    await vi.waitFor(() => expect(host.projection().settings.name).toBe('Sprint 43'), {
-      timeout: SYNC_TIMEOUT,
-    });
+    expect(host.projection().settings.name).toBe('Sprint 43');
 
-    // Remove name by passing undefined
     host.updateName();
-    await vi.waitFor(() => expect(host.projection().settings.name).toBeUndefined(), {
-      timeout: SYNC_TIMEOUT,
-    });
-
-    host.disconnect();
+    expect(host.projection().settings.name).toBeUndefined();
   });
 
   it('updateScale changes default scale', async () => {
-    const host = await createSession({
-      participantId: 'host-scale',
-      displayName: 'Alice',
-      relayUrl,
-      defaultScale: FIBONACCI_SCALE,
-    });
-
-    await vi.waitFor(() => expect(host.projection().settings.defaultScale.id).toBe('fibonacci'), {
-      timeout: SYNC_TIMEOUT,
-    });
+    const host = track(
+      await createSession({
+        participantId: 'host-scale',
+        displayName: 'Alice',
+        relayUrl,
+        defaultScale: FIBONACCI_SCALE,
+      }),
+    );
+    expect(host.projection().settings.defaultScale.id).toBe('fibonacci');
 
     host.updateScale(TSHIRT_SCALE);
 
-    await vi.waitFor(() => expect(host.projection().settings.defaultScale.id).toBe('t-shirt'), {
-      timeout: SYNC_TIMEOUT,
-    });
-
-    host.disconnect();
+    expect(host.projection().settings.defaultScale.id).toBe('t-shirt');
   });
 
-  it('endSession writes meta.sessionEndedAt and propagates to joiner', async () => {
-    const host = await createSession({
-      participantId: 'host-es',
-      displayName: 'Alice',
-      relayUrl,
-    });
-
-    await vi.waitFor(
-      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(1),
-      { timeout: SYNC_TIMEOUT },
+  it('updateAccess protects the room, and the host stays in on the new password', async () => {
+    const host = track(
+      await createSession({ participantId: 'host-acc', displayName: 'Alice', relayUrl }),
     );
+    await host.whenJoined();
+    const statuses: SyncStatus[] = [];
+    host.onStatusChange((status) => statuses.push(status));
 
-    const joiner = await joinSession({
-      participantId: 'joiner-es',
-      displayName: 'Bob',
-      relayUrl,
-      roomCode: host.roomCode,
-    });
+    await host.updateAccess('password', 'new secret');
 
-    await vi.waitFor(
-      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(2),
-      { timeout: SYNC_TIMEOUT },
+    // Its own socket re-handshakes with the new hash, and is taken.
+    await vi.waitFor(() => expect(statuses.at(-1)).toBe('connected'), { timeout: SYNC_TIMEOUT });
+    await expect(
+      joinSession({
+        participantId: 'joiner-acc',
+        displayName: 'Bob',
+        relayUrl: otherRelayUrl,
+        roomCode: host.roomCode,
+      }),
+    ).rejects.toThrow('Room requires a password');
+    const joiner = track(
+      await joinSession({
+        participantId: 'joiner-acc',
+        displayName: 'Bob',
+        relayUrl: otherRelayUrl,
+        roomCode: host.roomCode,
+        password: 'new secret',
+      }),
     );
+    await joiner.whenJoined();
 
-    // Sanity: sessionEndedAt not set initially
-    expect(host.projection().meta.sessionEndedAt).toBeUndefined();
-    expect(joiner.projection().meta.sessionEndedAt).toBeUndefined();
+    await host.updateAccess('open');
 
-    host.commands.endSession();
-
-    // Both sides should see sessionEndedAt set
-    await vi.waitFor(() => expect(host.projection().meta.sessionEndedAt).toBeTypeOf('number'), {
-      timeout: SYNC_TIMEOUT,
-    });
-    await vi.waitFor(() => expect(joiner.projection().meta.sessionEndedAt).toBeTypeOf('number'), {
-      timeout: SYNC_TIMEOUT,
-    });
-
-    host.disconnect();
-    joiner.disconnect();
+    const third = track(
+      await joinSession({
+        participantId: 'third-acc',
+        displayName: 'Cy',
+        relayUrl: `http://LOCALHOST:${port}`,
+        roomCode: host.roomCode,
+      }),
+    );
+    await third.whenJoined();
   });
 
-  it('host skip propagates skippedAt to joiner', async () => {
-    const host = await createSession({
-      participantId: 'host-skip',
-      displayName: 'Alice',
-      relayUrl,
-    });
-
-    await vi.waitFor(
-      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(1),
-      { timeout: SYNC_TIMEOUT },
+  it('updateAccess refuses a blank password before reaching the relay', async () => {
+    const host = track(
+      await createSession({ participantId: 'host-blank', displayName: 'Alice', relayUrl }),
     );
 
-    const joiner = await joinSession({
-      participantId: 'joiner-skip',
-      displayName: 'Bob',
-      relayUrl,
-      roomCode: host.roomCode,
-    });
-
-    await vi.waitFor(
-      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(2),
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    const roundId = startRound(host, { title: 'Skip me' });
-
-    await vi.waitFor(
-      () => expect(host.projection().rounds.find((x) => x.id === roundId)).toBeDefined(),
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    host.commands.skipCurrentRound();
-
-    await vi.waitFor(
-      () => expect(host.projection().rounds.find((x) => x.id === roundId)?.status).toBe('skipped'),
-      { timeout: SYNC_TIMEOUT },
-    );
-    await vi.waitFor(
-      () =>
-        expect(joiner.projection().rounds.find((x) => x.id === roundId)?.status).toBe('skipped'),
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    host.disconnect();
-    joiner.disconnect();
+    await expect(host.updateAccess('password', '   ')).rejects.toThrow();
   });
 
-  it('unanimous vote auto-reveals without a manual reveal call', async () => {
-    const host = await createSession({
-      participantId: 'host-auto',
-      displayName: 'Alice',
-      relayUrl,
-      defaultScale: FIBONACCI_SCALE,
-    });
-
-    const roundId = startRound(host, { title: 'Auto-reveal' });
-    await vi.waitFor(
-      () => expect(host.projection().rounds.find((x) => x.id === roundId)).toBeDefined(),
-      { timeout: SYNC_TIMEOUT },
+  it('a resumed session clears the leftAt its last visit left, like any join', async () => {
+    const host = track(
+      await createSession({ participantId: 'host-rejoin', displayName: 'Alice', relayUrl }),
     );
-
-    // Single online voter casts a numeric vote — unanimity. No manual reveal:
-    // the 250ms auto-reveal interval must fire the terminal transition itself.
-    host.commands.toggleCurrentVote('5');
-
-    await vi.waitFor(
-      () => expect(host.projection().rounds.find((x) => x.id === roundId)?.status).toBe('revealed'),
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    host.disconnect();
-  });
-
-  // -------------------------------------------------------------------------
-  // ADR-0036 §6 — a rejoining participant comes back active
-  // -------------------------------------------------------------------------
-
-  /**
-   * Build a joiner the way `hnch resume` does — the CLI's rejoin path calls
-   * `wireSession` directly, so the flag under test is the one it passes.
-   */
-  function rejoin(roomUuid: string, roomCode: string) {
-    const doc = new Y.Doc();
-    const awareness = new Awareness(doc);
-    joinDoc(doc, { participantId: 'rejoiner', displayName: 'Bob', joinedAt: Date.now() });
-    awareness.setLocalStateField(AWARENESS_PARTICIPANT_ID_FIELD, 'rejoiner');
-    return wireSession({
-      doc,
-      awareness,
-      roomCode,
-      roomUuid,
-      participantId: 'rejoiner',
-      relayUrl,
-      clearLeftStatusOnSync: true,
-    });
-  }
-
-  it('clears a stale leftAt after the snapshot syncs on rejoin', async () => {
-    const host = await createSession({
-      participantId: 'host-rejoin',
-      displayName: 'Alice',
-      relayUrl,
-      defaultScale: FIBONACCI_SCALE,
-    });
-
     const first = await joinSession({
       participantId: 'rejoiner',
       displayName: 'Bob',
-      relayUrl,
+      relayUrl: otherRelayUrl,
       roomCode: host.roomCode,
     });
-    await vi.waitFor(
-      () => expect(host.projection().participants.length).toBeGreaterThanOrEqual(2),
-      { timeout: SYNC_TIMEOUT },
-    );
-
-    // Bob leaves deliberately — the host sees the soft-delete.
-    leave(first.doc, 'rejoiner');
+    await first.whenJoined();
+    expect(first.commands.leave().applied).toBe(true);
     await vi.waitFor(
       () => {
         const bob = host.projection().participants.find((p) => p.id === 'rejoiner');
-        expect(bob).toBeDefined();
         expect(bob?.leftAt).toBeDefined();
       },
       { timeout: SYNC_TIMEOUT },
     );
-    first.disconnect();
+    first.teardown();
 
-    const second = rejoin(host.roomUuid, host.roomCode);
+    // As `hnch resume` opens it: the room and hash it remembered.
+    const resumed = track(
+      openSession({
+        participantId: 'rejoiner',
+        displayName: 'Bob',
+        relayUrl: otherRelayUrl,
+        roomCode: host.roomCode,
+        roomUuid: host.roomUuid,
+      }),
+    );
 
-    // The clear rides a higher Lamport clock than the snapshot's `leftAt`,
-    // so the host sees Bob active again rather than greyed out.
+    await resumed.whenJoined();
     await vi.waitFor(
       () => {
         const bob = host.projection().participants.find((p) => p.id === 'rejoiner');
-        expect(bob).toBeDefined();
-        expect(bob?.leftAt).toBeUndefined();
+        expect(bob !== undefined && isActiveParticipant(bob)).toBe(true);
       },
       { timeout: SYNC_TIMEOUT },
     );
-
-    second.disconnect();
-    host.disconnect();
   });
 });

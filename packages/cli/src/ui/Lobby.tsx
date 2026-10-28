@@ -19,7 +19,7 @@ import type { AgendaItem, DocProjection, Round } from '@hnch/shared';
 
 interface Props {
   projection: DocProjection;
-  onlineIds: Set<string>;
+  onlineIds: ReadonlySet<string>;
   isHost: boolean;
   participantId: string;
   rounds: readonly Round[];

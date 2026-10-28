@@ -209,7 +209,7 @@ Each connected client publishes an awareness entry with at least:
 |---|---|---|
 | `participantId` | `string` | So other clients can map this awareness entry to a participant record in the doc. |
 
-The online set is exactly the set of awareness entries. A participant who appears in `participants` but has no awareness entry is offline.
+The online set is exactly the set of awareness entries. A participant who appears in `participants` but has no awareness entry is offline. The field name and the online-set derivation are defined once, in `live-session` in `@hnch/shared` (`AWARENESS_PARTICIPANT_ID_FIELD`, `onlineIdsFrom`).
 
 Future awareness fields (typing indicators, cursor positions, "is currently editing the round title") will be added here, not in the doc, so they don't bloat the CRDT history.
 

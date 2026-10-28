@@ -4,29 +4,20 @@
  *
  * Each handler:
  *  1. Loads config + last session cache.
- *  2. Resolves the room and opens a Yjs connection via wireSession.
- *  3. Waits for the first sync flush.
- *  4. Performs the mutation.
- *  5. Waits briefly for the write to propagate then disconnects.
+ *  2. Resolves the room and joins it — a session like any other, so a stale
+ *     `leftAt` is cleared after the first sync (ADR-0036 §6).
+ *  3. Waits for the first sync, with a fallback for a relay that never answers.
+ *  4. Performs the mutation through the session commands.
+ *  5. Waits briefly for the write to propagate, then tears the session down.
  */
 
-import * as Y from 'yjs';
-import { Awareness } from 'y-protocols/awareness';
-import {
-  AWARENESS_PARTICIPANT_ID_FIELD,
-  addItem,
-  cancelItem,
-  joinDoc,
-  moveItem,
-  projectDoc,
-  skipItem,
-  resolveRoom,
-  type AgendaItem,
-  type AgendaResult,
-} from '@hnch/shared';
+import { resolveRoom, type AgendaItem, type AgendaResult } from '@hnch/shared';
 import { loadConfig } from '../config.js';
 import { readEntries } from '../last-session.js';
-import { wireSession } from '../session.js';
+import { openSession, type OpenSessionOptions, type SessionHandle } from '../session.js';
+
+/** How long a command waits for the room's state before acting regardless. */
+export const FIRST_SYNC_FALLBACK_MS = 2000;
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -70,55 +61,21 @@ function agendaRefusal(reason: Extract<AgendaResult, { applied: false }>['reason
   }
 }
 
-interface AgendaConnectionOpts {
-  relayUrl: string;
-  participantId: string;
-  displayName: string;
-  roomCode: string;
-  roomUuid: string;
-  passwordHash?: string;
-}
+async function openAgendaSession(opts: OpenSessionOptions): Promise<SessionHandle> {
+  const session = openSession(opts);
 
-async function openAgendaConnection(
-  opts: AgendaConnectionOpts,
-): Promise<{ doc: Y.Doc; disconnect: () => void }> {
-  const doc = new Y.Doc();
-  const awareness = new Awareness(doc);
+  // Act once the room's state has arrived. A socket that is merely open has
+  // not delivered it yet; a relay that never answers must not hang the command.
+  let fallback: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([
+    session.whenJoined(),
+    new Promise<void>((resolve) => {
+      fallback = setTimeout(resolve, FIRST_SYNC_FALLBACK_MS);
+    }),
+  ]);
+  clearTimeout(fallback);
 
-  joinDoc(doc, {
-    participantId: opts.participantId,
-    displayName: opts.displayName,
-    joinedAt: Date.now(),
-  });
-
-  awareness.setLocalStateField(AWARENESS_PARTICIPANT_ID_FIELD, opts.participantId);
-
-  const session = wireSession({
-    doc,
-    awareness,
-    roomCode: opts.roomCode,
-    roomUuid: opts.roomUuid,
-    participantId: opts.participantId,
-    relayUrl: opts.relayUrl,
-    ...(opts.passwordHash !== undefined && { passwordHash: opts.passwordHash }),
-  });
-
-  // Wait for initial sync (best-effort — relay sends state vector within ~1s)
-  await new Promise<void>((resolve) => {
-    const timeout = setTimeout(resolve, 2000);
-    const unsub = session.onStatusChange((status) => {
-      if (status === 'connected') {
-        // Give Yjs a moment to flush the initial state update
-        setTimeout(() => {
-          clearTimeout(timeout);
-          unsub();
-          resolve();
-        }, 200);
-      }
-    });
-  });
-
-  return { doc, disconnect: () => session.disconnect() };
+  return session;
 }
 
 async function resolveLastSessionOrDie(): Promise<{
@@ -166,7 +123,7 @@ export async function handleAgendaAdd(argv: {
     process.exit(1);
   }
 
-  const { doc, disconnect } = await openAgendaConnection({
+  const session = await openAgendaSession({
     relayUrl: config.relayUrl,
     participantId: config.participantId,
     displayName: config.displayName,
@@ -177,7 +134,7 @@ export async function handleAgendaAdd(argv: {
 
   try {
     // The command stamps `createdAt` — no hand-rolled clock at the call site.
-    const result = addItem(doc, {
+    const result = session.commands.addItem({
       ...(argv.title?.trim() ? { title: argv.title.trim() } : {}),
       ...(argv.ticket?.trim() ? { ticketId: argv.ticket.trim() } : {}),
       ...(argv.description?.trim() ? { description: argv.description.trim() } : {}),
@@ -192,7 +149,7 @@ export async function handleAgendaAdd(argv: {
     });
     console.log(`Added agenda item: ${result.id}`);
   } finally {
-    disconnect();
+    session.teardown();
   }
 }
 
@@ -207,7 +164,7 @@ export async function handleAgendaList(): Promise<void> {
     process.exit(1);
   }
 
-  const { doc, disconnect } = await openAgendaConnection({
+  const session = await openAgendaSession({
     relayUrl: config.relayUrl,
     participantId: config.participantId,
     displayName: config.displayName,
@@ -217,7 +174,7 @@ export async function handleAgendaList(): Promise<void> {
   });
 
   try {
-    const projection = projectDoc(doc);
+    const projection = session.projection();
     const items = projection.agenda;
     if (items.length === 0) {
       console.log('No agenda items.');
@@ -227,7 +184,7 @@ export async function handleAgendaList(): Promise<void> {
       console.log(`${String(idx + 1).padStart(2)}. ${agendaItemLabel(item)}`);
     });
   } finally {
-    disconnect();
+    session.teardown();
   }
 }
 
@@ -242,7 +199,7 @@ export async function handleAgendaSkip(argv: { id: string }): Promise<void> {
     process.exit(1);
   }
 
-  const { doc, disconnect } = await openAgendaConnection({
+  const session = await openAgendaSession({
     relayUrl: config.relayUrl,
     participantId: config.participantId,
     displayName: config.displayName,
@@ -252,7 +209,7 @@ export async function handleAgendaSkip(argv: { id: string }): Promise<void> {
   });
 
   try {
-    const result = skipItem(doc, argv.id);
+    const result = session.commands.skipItem(argv.id);
     if (!result.applied) {
       console.error(`Skip failed: ${agendaRefusal(result.reason)}`);
       process.exit(1);
@@ -262,7 +219,7 @@ export async function handleAgendaSkip(argv: { id: string }): Promise<void> {
     });
     console.log(`Skipped agenda item: ${argv.id}`);
   } finally {
-    disconnect();
+    session.teardown();
   }
 }
 
@@ -277,7 +234,7 @@ export async function handleAgendaCancel(argv: { id: string }): Promise<void> {
     process.exit(1);
   }
 
-  const { doc, disconnect } = await openAgendaConnection({
+  const session = await openAgendaSession({
     relayUrl: config.relayUrl,
     participantId: config.participantId,
     displayName: config.displayName,
@@ -287,7 +244,7 @@ export async function handleAgendaCancel(argv: { id: string }): Promise<void> {
   });
 
   try {
-    const result = cancelItem(doc, argv.id);
+    const result = session.commands.cancelItem(argv.id);
     if (!result.applied) {
       console.error(`Cancel failed: ${agendaRefusal(result.reason)}`);
       process.exit(1);
@@ -297,7 +254,7 @@ export async function handleAgendaCancel(argv: { id: string }): Promise<void> {
     });
     console.log(`Cancelled agenda item: ${argv.id}`);
   } finally {
-    disconnect();
+    session.teardown();
   }
 }
 
@@ -316,7 +273,7 @@ export async function handleAgendaMv(argv: {
     process.exit(1);
   }
 
-  const { doc, disconnect } = await openAgendaConnection({
+  const session = await openAgendaSession({
     relayUrl: config.relayUrl,
     participantId: config.participantId,
     displayName: config.displayName,
@@ -326,7 +283,7 @@ export async function handleAgendaMv(argv: {
   });
 
   try {
-    const result = moveItem(doc, argv.id, argv.before, argv.after);
+    const result = session.commands.moveItem(argv.id, argv.before, argv.after);
     if (!result.applied) {
       console.error(`Move failed: ${agendaRefusal(result.reason)}`);
       process.exit(1);
@@ -336,6 +293,6 @@ export async function handleAgendaMv(argv: {
     });
     console.log(`Reordered agenda item: ${argv.id}`);
   } finally {
-    disconnect();
+    session.teardown();
   }
 }

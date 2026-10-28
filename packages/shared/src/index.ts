@@ -57,6 +57,7 @@ export * from './health.js';
 export * from './is-likely-url.js';
 export * from './last-session.js';
 export * from './lineage.js';
+export * from './live-session.js';
 export * from './password.js';
 export * from './relay-client.js';
 export * from './room-code.js';

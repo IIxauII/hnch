@@ -3,7 +3,7 @@
  *
  * Single source of truth for the host-election state machine, consumed by
  * both the Angular client and the Ink CLI per ADR-0021 parity. This module
- * owns three things:
+ * owns two things:
  *
  *  1. The pure decision functions {@link evaluateElection} and
  *     {@link resolvePromotion} — given a projection and an awareness set,
@@ -11,9 +11,9 @@
  *  2. The driver {@link startElection} — the debounce timer, the
  *     `missingHostId` state, the evaluation switch, and the decision to
  *     promote. Consumers supply five framework-free callbacks; no `Y.Doc`,
- *     `Awareness`, or Angular primitive crosses that seam.
- *  3. {@link onlineIdsFrom}, the awareness→participantId extraction both
- *     consumers feed the driver with.
+ *     `Awareness`, or Angular primitive crosses that seam. The online set it
+ *     is fed is the live session's (`live-session`), which owns the presence
+ *     shape.
  *
  * *When* to re-evaluate is part of the rule, not adapter business: both
  * adapters subscribe the driver to any projection change plus any awareness
@@ -38,34 +38,6 @@ import { isActiveParticipant } from './doc.js';
  * feel leaderless.
  */
 export const HOST_ABSENCE_ELECTION_DEBOUNCE_MS = 5_000;
-
-/**
- * Awareness field name carrying a peer's `participantId`. The awareness
- * channel is a client-side transport detail — the relay is content-blind
- * (ADR-0001) and never reads it — but both clients must agree on the key,
- * and the writers must agree with {@link onlineIdsFrom}, so it is named
- * once here and imported at every read and write site.
- */
-export const AWARENESS_PARTICIPANT_ID_FIELD = 'participantId';
-
-/**
- * Extract the set of online participantIds from a raw awareness state map
- * (`Awareness.getStates()`).
- *
- * Entries with a missing or non-string `participantId` are skipped: a peer
- * that has connected but not yet published its local state is not online for
- * election purposes. Single-sourced so a rename of the presence field cannot
- * half-land across the CLI and the client.
- */
-export function onlineIdsFrom(states: ReadonlyMap<number, unknown>): Set<string> {
-  const ids = new Set<string>();
-  for (const state of states.values()) {
-    if (typeof state !== 'object' || state === null) continue;
-    const value = (state as Record<string, unknown>)[AWARENESS_PARTICIPANT_ID_FIELD];
-    if (typeof value === 'string') ids.add(value);
-  }
-  return ids;
-}
 
 /**
  * The action a driver must take after re-evaluating the election on an
