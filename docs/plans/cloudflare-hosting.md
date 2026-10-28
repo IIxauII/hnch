@@ -26,7 +26,7 @@ Rooms now survive relay deploys. They persist, pinned to the EU, until 24–25 h
 - **Routes are inert until the switch.** Workers routes only run on proxied hostnames.
   - Both Workers deploy with their `hnch.dev` routes from their first release (1b and 2).
   - The apex stays DNS-only and points at the VPS until Phase 3, so the VPS keeps serving users.
-  - **The switch** is setting the apex records (and `www`) to proxied. Both Workers then go live at once.
+  - **The switch** is setting the apex records to proxied (`www` has been proxied since Phase 0 and only redirects). Both Workers then go live at once.
 - **No proving ground** (D3/D4, settled). There is no `next.hnch.dev` and no pre-cutover test build. Pre-cutover confidence comes from CI (unit tests on workerd, e2e against a local workerd relay) plus G0. Real-network checks run on `hnch.dev` right after the switch.
 - **The VPS is left as is.** After the switch it gets no traffic, except sockets already open to it (they stay until they reconnect) and resolvers still holding the old A record (until its TTL expires). That leaves an incidental rollback: set the records back to DNS-only and Caddy serves again, with its relay frozen at 1.2.1.
 
@@ -185,7 +185,7 @@ cron 04:00 UTC ─▶ Expiry(day−1…day−30).sweep ─▶ Room.expireIfDue
 
 ### Free-plan budget (information; per account, daily, reset 00:00 UTC; inbound WS counted 1:1)
 
-Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). Growth is watched through Cloudflare usage notifications (Phase 0). There is no gate. The reference session below is 8 peers for 1 h, 20 rounds and about 300 doc updates.
+Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no usage alerts (P0.5), so growth is checked by hand in the dashboard. There is no gate. The reference session below is 8 peers for 1 h, 20 rounds and about 300 doc updates.
 
 | Budget (Free) | Per reference session | Sessions/day that fit | Notes |
 |---|---|---|---|
@@ -200,7 +200,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). Growth is watched thro
 - **Abuse exposure (stated, not mitigated):** anyone can take hnch down until 00:00 UTC.
   - Ways to do it: hold about 29 rooms open for an hour, send about 100k cheap requests, or spam room creation.
   - The single free rate-limit rule only slows one IP down.
-  - The caps are **per account**, so the account's other Workers draw from the same budget (P0.7 inventory).
+  - The caps are **per account**, so the account's other Workers draw from the same budget (P0.6 inventory).
   - Owner accepted: free plan only.
 
 ### Local dev, tests, e2e
@@ -238,7 +238,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). Growth is watched thro
   - The `hnch-web` smoke is gated on `HNCH_LIVE`.
 - **Secrets (D14):**
   - Stored as a repo secret, referenced only by the two deploy jobs; environment secrets are unavailable on GitHub Free private repos. Fork PRs get no secrets.
-  - The token has Workers Scripts: Edit (account-wide, so it also covers the account's other Workers) and Workers Routes: Edit on `hnch.dev`. It has no DNS permission.
+  - The token (`hnch-ci-deploy`) has Workers Admin, formerly Workers Scripts: Edit (account-wide, so it also covers the account's other Workers; the narrower Workers Editor can't create the two new Workers), and Workers Routes: Write on `hnch.dev`. It has no DNS permission and no Zone: Read, so every route in `wrangler.jsonc` carries `zone_id`.
 - The `npm_config_target_*` cross-arch pin is deleted (ADR-0051 supersedes that ADR-0049 clause).
 
 ### Static headers (D13)
@@ -267,17 +267,17 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). Growth is watched thro
 
 ### Cutover (D2: one full switch, settled)
 
-1. **Before (Phase 0 ops, no effect until the records are proxied):**
+1. **Before (Phase 0 ops, done 2026-10-28):**
    - zone settings, including Always Use HTTPS;
    - the rate-limit rule;
-   - usage notifications;
-   - the `www` redirect rule;
-   - lower the apex and `www` DNS-only TTL to 60 s at least a day ahead.
+   - account alerts (Free has no usage alerts);
+   - the `www` redirect rule, live with `www` proxied;
+   - the apex DNS-only TTL lowered to 60 s.
 2. **Preconditions:**
    - 1b and 2 are merged, and their releases have deployed both Workers, with `hnch.dev` routes present but inert.
    - A route check via API shows `hnch.dev/health*`, `/rooms*` and `/ws/*` → `hnch-relay`, and `hnch.dev/*` → `hnch-web`.
 3. **Switch:**
-   - set the apex A (and AAAA, if present) records and `www` to **proxied**;
+   - set the apex A and AAAA records to **proxied** (`www` already is);
    - set `HNCH_LIVE=true`;
    - re-dispatch both deploy jobs (relay at its latest tag; client `web-only` at its latest tag) to run the gated smokes.
 4. **Verify on `hnch.dev` and fix forward:** run the Phase 3 checklist. Problems are fixed by releases.
@@ -295,7 +295,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). Growth is watched thro
 - **ADR-0051 (Proposed): final amendments for adr-writer.**
   - **a. Topology and cutover:**
     - Routes only: web `hnch.dev/*`; relay `hnch.dev/health*`, `/rooms*`, `/ws/*`. No Custom Domain, because its DNS record is Cloudflare-owned and read-only. G0 passed both variants.
-    - Routes deploy early and stay inert while DNS-only. The cutover is one full switch: proxy the apex and `www` records.
+    - Routes deploy early and stay inert while DNS-only. The cutover is one full switch: proxy the apex records.
     - No `next` proving ground; test on `hnch.dev` and fix forward.
     - Replace the "Custom Domain" wording.
   - **b. VPS:** stays untouched and idle. Decommissioning is out of scope. Un-proxying the records is an incidental rollback; rooms created on Cloudflare are lost on it. Sockets already open to the VPS stay until they reconnect. The VPS relay is frozen at 1.2.1.
@@ -308,7 +308,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). Growth is watched thro
   - **i. Abuse exposure:**
     - The caps are per account and shared with other Workers: about 29 occupied room-hours of DO duration, 100k DO requests and 100k rows written.
     - They can be exhausted on purpose or by accident (tabs left open all day), which takes the relay down until 00:00 UTC.
-    - Usage is about 0 today; usage notifications are on.
+    - Usage is about 0 today. The Free plan has no usage alerts, so usage is checked by hand.
   - **j. Credentials:**
     - Drop the stale `NPM_TOKEN` analogy (`release.yml` publishes via OIDC).
     - The Cloudflare token is the pool's only long-lived deploy credential, and Workers Scripts: Edit is account-wide.
@@ -322,7 +322,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). Growth is watched thro
   - **q. TTL robustness:** deletion at 24–25 h; tombstone before the cross-DO release; lazy expiry and re-arm on entry; the `Expiry` cron backstop.
   - **r. Binding limit:** DO duration (about 29 occupied room-hours/day) replaces "≈ 400 peer-hours/day" as the headline figure.
   - **s. ADR-0049:** ADR-0051's cross-arch caveat is merged with ADR-0052's pool-size caveat into one parenthetical and one index cell. Consolidating 0049 forward is decided at 1b.
-  - **t. Edge behaviour:** Always Use HTTPS on (parity with Caddy's redirect), and a `www` → apex 301 redirect rule (closes #543, the pre-existing `www` TLS failure).
+  - **t. Edge behaviour:** Always Use HTTPS on (parity with Caddy's redirect), and a `www` → apex 301 redirect rule (live since Phase 0; it fixed #543, the pre-existing `www` TLS failure).
 - **ADR-0029:** superseded by ADR-0051, flipped in 1b. Optional status note at the switch: "VPS left idle, not decommissioned (owner, 2026-10-28)".
 - **ADR-0012:** storage clause superseded by ADR-0051; TTL, keying and content-blindness hold.
 - **ADR-0049:**
@@ -349,6 +349,8 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). Growth is watched thro
 - Settled 2026-10-28 (owner, D1/D2): two Workers on `hnch.dev` attached by routes (web `hnch.dev/*`; relay `/health*`, `/rooms*`, `/ws/*`), switched over **in one full cutover** with no staged proxy-to-VPS step. There is no customer base yet, so downtime during the switch is acceptable.
 - Settled 2026-10-28 (owner, D3/D4): no `next.hnch.dev` proving ground and no pre-cutover browser or native test build. Test directly on `hnch.dev` after the cutover and fix forward. The `next.hnch.dev` placeholder record was deleted on 2026-10-28.
 - Settled 2026-10-28 (owner, P0.6/D17): no usage baseline and no usage gate. Usage is about 0 today. Cloudflare usage notifications cover later growth.
+- Settled 2026-10-28 (owner, P0.5): the Free plan has no Workers or DO usage alerts, so the line above's "usage notifications cover later growth" doesn't hold. Six account alerts are on instead, and usage is checked by hand in the dashboard. A scheduled usage check is deferred until there are users.
+- Settled 2026-10-28 (owner, P0.3): `www` is proxied in Phase 0, so its redirect is live before the cutover (fixing #543 early). The switch proxies only the apex records.
 - Settled 2026-10-28 (owner): the VPS stays as it is. No shutdown, rollback window or cancellation is planned in these phases. Decommissioning stays out of scope until the owner reopens it. Before any cancellation, check that `hnch.dev` isn't bundled with the IONOS VPS contract.
 - Settled 2026-10-28 (owner, D11): one rate-limit rule, on path `/rooms` only, 10 per 10 s per IP.
 - Settled 2026-10-28 (owner): no rate limit on `/ws/*`; `GET /rooms/:code` is not limited either.
@@ -392,17 +394,18 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). Growth is watched thro
       - (c) held sockets survived 300 s across a web redeploy, with 0 closes.
       - Lessons: use `/health*`; matching is case-sensitive; deploy coexistence is 5 min or more; a Custom Domain's record is read-only; zone defaults challenge neither `ws` nor Node requests.
     - `next.hnch.dev` / `next-cd.hnch.dev`: torn down; placeholder deleted.
-  - **P0.3 zone settings** (inert until the switch):
-    - SSL/TLS Full (strict), minimum TLS 1.2;
-    - Always Use HTTPS on;
-    - Rocket Loader and Email Obfuscation off;
-    - keep Browser Integrity Check and Bot Fight Mode as found;
-    - rate-limit rule: `http.request.uri.path eq "/rooms"`, 10 per 10 s per IP, block for 10 s (no rule on `/ws/*`, settled);
-    - Single Redirect `www.hnch.dev/*` → `https://hnch.dev/$1` (301). It takes effect at the switch, and the cutover closes #543.
-  - **P0.4 secrets:** `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (D14). Repo variable `HNCH_LIVE=false`.
-  - **P0.5 usage notifications:** turn on the Workers and DO usage notifications that Free offers.
-  - **P0.6 account inventory** (one-time note, not a gate): list the account's other Workers, Pages Functions, DO namespaces and cron triggers (for example `app.pdfofen.de`) and their usage, since the caps are shared. _Result: ___._
-- **Exit bar:** P0.3–P0.5 done; P0.6 recorded.
+  - **P0.3 zone settings** (done 2026-10-28 16:05 UTC; inert for DNS-only hostnames until the switch):
+    - SSL/TLS Full (strict) (was Full), minimum TLS 1.2 (was 1.0);
+    - Always Use HTTPS on (was off);
+    - Rocket Loader off (already) and Email Obfuscation off (was on);
+    - Browser Integrity Check (on) and Bot Fight Mode (off) kept as found;
+    - rate-limit rule "hnch: limit room creation": `http.request.uri.path eq "/rooms"`, 10 per 10 s per IP (`ip.src` plus the mandatory `cf.colo.id`), block for 10 s (no rule on `/ws/*`, settled). It is the one rule Free allows;
+    - Single Redirect `http.host eq "www.hnch.dev"` → `concat("https://hnch.dev", http.request.uri.path)` (301, query string kept). **Live since Phase 0:** the `www` A and AAAA records were proxied with it (owner, 2026-10-28), which fixed #543. The apex stays DNS-only until the switch;
+    - apex A and AAAA (DNS-only) TTL lowered to 60 s.
+  - **P0.4 secrets** (D14): `CLOUDFLARE_API_TOKEN`, a token `hnch-ci-deploy` with two policies (Entire Account › Workers › Admin, formerly Workers Scripts: Edit; Specified Domains `hnch.dev` › Workers Routes, "Write" in the API), and `CLOUDFLARE_ACCOUNT_ID`, both set by the owner on 2026-10-28. In the dashboard form, Workers Routes only appears in a policy scoped to Specified Domains. Repo variable `HNCH_LIVE=false` set.
+  - **P0.5 alerts:** the Free plan has no Workers or DO usage alerts. Nothing warns before a daily cap; past it, Workers return error 1027 until 00:00 UTC (the usage alert type needs Pro and pay-as-you-go). Six account alerts are on instead, by email: Universal SSL, HTTP DDoS attack, Trust & Safety block, abuse report, major or critical incidents on Workers, DO or Workers Assets, and Workers real-time issues.
+  - **P0.6 account inventory** (2026-10-28, last 7 days): besides `hnch-relay-prototype` (134 requests; deleted once 1b is live), two other Workers with about 2.2k requests combined, plus 170 requests from deleted Worker versions. No Pages projects, KV, D1, R2 or Queues; the prototype's two are the only DO namespaces. No Worker routes on any of the account's three zones, all on Free.
+- **Exit bar:** P0.3–P0.5 done; P0.6 recorded. Met 2026-10-28.
 - **PR title scope:** none.
 - **Closes:** tracking issue `#544`, closed by Phase 3.
 - **Worktree:** none.
@@ -419,7 +422,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). Growth is watched thro
   - The CLI, relay and shared lanes are green.
   - No `relay/src` imports remain outside `packages/relay`.
 - **PR title scope:** `test(cli,relay,repo): start the relay for CLI session tests through @hnch/relay/testing`. There is no release, which avoids a no-op CLI npm publish.
-- **Closes:** `Refs #544`
+- **Closes:** `Closes #546`, `Refs #544` (sub-issue #546)
 - **Worktree:** `git fetch origin && pnpm worktree:add cloudflare-hosting-phase-1a main`
 - **Depends on:** none.
 
@@ -433,7 +436,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). Growth is watched thro
     - `wrangler.jsonc`:
       - `hnch-relay` with SQLite migration v1;
       - `JURISDICTION=eu`;
-      - routes `hnch.dev/{health*,rooms*,ws/*}`;
+      - routes `hnch.dev/{health*,rooms*,ws/*}`, each with `zone_id` (the token has no Zone: Read);
       - cron `0 4 * * *`;
       - `invocation_logs = false`;
       - `workers_dev = false`.
@@ -466,7 +469,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). Growth is watched thro
   - Security review signed off.
 - **PR shape (D8):** atomic.
 - **PR title scope:** `feat(relay,shared,e2e,ci,docs,repo): run the relay on Cloudflare Workers and Durable Objects`
-- **Closes:** `Refs #544`
+- **Closes:** `Closes #547`, `Refs #544` (sub-issue #547)
 - **Worktree:** `git fetch origin && pnpm worktree:add cloudflare-hosting-phase-1b main`
 - **Depends on:** 1a merged; P0.4; amended ADR-0051 accepted (D7).
 
@@ -474,7 +477,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). Growth is watched thro
 
 - **Scope:**
   - **`packages/client`:**
-    - `wrangler.jsonc`: `hnch-web`, assets `./www`, SPA not-found handling, no `run_worker_first`, route `hnch.dev/*`, `workers_dev = false`.
+    - `wrangler.jsonc`: `hnch-web`, assets `./www`, SPA not-found handling, no `run_worker_first`, route `hnch.dev/*` with `zone_id`, `workers_dev = false`.
     - `src/_headers` plus an entry in the `angular.json` assets.
     - `package.json`: wrangler as a dev dependency.
   - **`.github/workflows/deploy-client.yml`:**
@@ -490,16 +493,16 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). Growth is watched thro
   - A manual `targets=web-only` dispatch deploys `hnch-web` with `hnch.dev/*` present but inert. The API route check shows all four routes.
   - `hnch.dev` is still served by the VPS.
 - **PR title scope:** `build(client,ci,docs,repo): deploy the PWA to Workers Static Assets`. There is no client release; the first deploy is a `web-only` dispatch.
-- **Closes:** `Refs #544`
+- **Closes:** `Closes #548`, `Refs #544` (sub-issue #548)
 - **Worktree:** `git fetch origin && pnpm worktree:add cloudflare-hosting-phase-2 main`
 - **Depends on:** 1b merged (the shared token and guard). It can be built in parallel with 1b.
 
 ### Phase 3: Cutover (owner switch) + docs PR
 
 - **Scope:**
-  - **Switch:** Cutover steps 2–3: route check, proxy the apex and `www` records, set `HNCH_LIVE=true`, re-dispatch both deploys.
+  - **Switch:** Cutover steps 2–3: route check, proxy the apex records, set `HNCH_LIVE=true`, re-dispatch both deploys.
   - **Post-switch verification on `hnch.dev`, fixing forward:**
-    - Smokes: `/health` returns the tag version; `GET /rooms/000000` → JSON `404`. HTTP → HTTPS redirect, and `www` → apex 301 (closes #543).
+    - Smokes: `/health` returns the tag version; `GET /rooms/000000` → JSON `404`. HTTP → HTTPS redirect, and `www` → apex 301 (a re-check; #543 was fixed in Phase 0).
     - The header matrix.
     - CLI matrix on default config: 1.1.1 (default `wss://hnch.dev`), 1.1.2 and the latest version. Each must pass:
       - create, join, vote, reveal;
@@ -519,18 +522,18 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). Growth is watched thro
     - **Duration check:** a 2-peer room held 30 min shows about 225 GB-s.
     - **Rate limit:** the 11th `/rooms` request within 10 s from one IP → `429`. `GET /rooms/:code` and WS are unaffected.
   - **Docs PR:**
-    - `docs/deployment.md`: prod topology, the switch and incidental rollback, the rate-limit rule, the free-plan budget and abuse exposure, usage notifications.
+    - `docs/deployment.md`: prod topology, the switch and incidental rollback, the rate-limit rule, the free-plan budget and abuse exposure, the account alerts and the missing usage alerts.
     - `docs/project.md`: snapshot wording (persisted, EU, 24 h).
     - `docs/roadmap.md:241`.
     - `packages/client/src/environments/environment.prod.ts`: comment only.
     - `adr/0029` status note.
-  - **Issues:** #542 ("B sees A leave": a cleanly disconnected peer stays present until the 30 s awareness timeout; related #531) stays open as a separate bug. #543 (`www` TLS) is closed by the cutover's redirect.
+  - **Issues:** #542 ("B sees A leave": a cleanly disconnected peer stays present until the 30 s awareness timeout; related #531) stays open as a separate bug. #543 (`www` TLS) was fixed in Phase 0 by the redirect.
 - **Exit bar:**
   - Every check above passes, or has a fix-forward issue linked to the tracking issue.
   - `hnch.dev` is served by Cloudflare (`cf-ray`, no `Server: Caddy`).
   - The docs PR is merged.
 - **PR title scope:** `docs(client,docs): document Cloudflare hosting of hnch.dev`. `docs` type, so no release.
-- **Closes:** `Closes #544, Closes #543` (the tracking issue; #543 closes once the `www` redirect is verified live)
+- **Closes:** `Closes #549, Closes #544` (sub-issue #549 and the tracking issue). #543 was closed with Phase 0.
 - **Worktree:** `git fetch origin && pnpm worktree:add cloudflare-hosting-phase-3 main`
 - **Depends on:** 1b and 2 deployed with their routes present (Cutover step 2), and Phase 0 done.
 
