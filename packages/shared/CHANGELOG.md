@@ -1,3 +1,10 @@
+# [1.16.0](https://github.com/IIxauII/hnch/compare/shared-v1.15.1...shared-v1.16.0) (2026-10-28)
+
+
+### Features
+
+* **client,shared,cli,e2e,docs,repo:** simpler screens, shorter flows, steadier presence ([#522](https://github.com/IIxauII/hnch/issues/522)) ([dd830e1](https://github.com/IIxauII/hnch/commit/dd830e1fe508da467cdc37534b07b22a67210d23))
+
 ## [1.15.1](https://github.com/IIxauII/hnch/compare/shared-v1.15.0...shared-v1.15.1) (2026-08-25)
 
 
