@@ -381,6 +381,24 @@ describe('App — Lobby handoff reaches the bound command', () => {
   });
 });
 
+// Quitting takes the UI down; the entry flow's session exit (`session-exit`)
+// then closes the session, so that whatever `left` writes first still has a
+// session to write to.
+describe('App — quit', () => {
+  it('q → y quits without closing the session itself', async () => {
+    const { session } = makeSession();
+    const { stdin, lastFrame } = await renderInk(
+      <App session={session} participantId="host" displayName="Host" accessMode="open" />,
+    );
+
+    await press(stdin, 'q');
+    expect(lastFrame()).toMatch(/quit|leave/i);
+    await press(stdin, 'y');
+
+    expect(session.teardown).not.toHaveBeenCalled();
+  });
+});
+
 describe('App — Lobby host menu reaches endSession', () => {
   it('m → Enter → y ends the session for everyone', async () => {
     const { session } = makeSession();
