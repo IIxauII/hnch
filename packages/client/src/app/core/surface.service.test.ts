@@ -19,7 +19,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // ---------------------------------------------------------------------------
 
 vi.mock('@ionic/angular/standalone', () => ({
-  ModalController: class ModalController {},
   PopoverController: class PopoverController {},
   ActionSheetController: class ActionSheetController {},
   IonList: {},
@@ -33,11 +32,7 @@ vi.mock('ionicons', () => ({ addIcons: () => {} }));
 vi.mock('ionicons/icons', () => ({}));
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false } }));
 
-import {
-  ActionSheetController,
-  ModalController,
-  PopoverController,
-} from '@ionic/angular/standalone';
+import { ActionSheetController, PopoverController } from '@ionic/angular/standalone';
 import { SurfaceService } from './surface.service';
 
 // ---------------------------------------------------------------------------
@@ -78,7 +73,6 @@ function simulateMediaChange(matches: boolean): void {
 describe('SurfaceService', () => {
   let mql: MediaQueryList;
 
-  const modalCtrlStub = { create: vi.fn() };
   const popoverCtrlStub = { create: vi.fn() };
   const actionSheetCtrlStub = { create: vi.fn() };
 
@@ -89,7 +83,6 @@ describe('SurfaceService', () => {
     TestBed.configureTestingModule({
       providers: [
         SurfaceService,
-        { provide: ModalController, useValue: modalCtrlStub },
         { provide: PopoverController, useValue: popoverCtrlStub },
         { provide: ActionSheetController, useValue: actionSheetCtrlStub },
       ],
@@ -189,6 +182,92 @@ describe('SurfaceService', () => {
     it('returns undefined on desktop', () => {
       const svc = setup(true);
       expect(svc.initialSheetBreakpointFull()).toBeUndefined();
+    });
+  });
+
+  describe('dismissMenu', () => {
+    /** An overlay as the controllers hand it out, closing when it is told to. */
+    function overlay() {
+      let closed: (() => void) | null = null;
+      const gone = new Promise<void>((resolve) => {
+        closed = resolve;
+      });
+      const menu = {
+        present: vi.fn().mockResolvedValue(undefined),
+        dismiss: vi.fn().mockImplementation(() => {
+          closed?.();
+          return Promise.resolve(true);
+        }),
+        onDidDismiss: () => gone,
+        /** The user closed it, or picked something. */
+        closeByItself: () => closed?.(),
+      };
+      return menu;
+    }
+
+    it('closes the popover it opened on desktop', async () => {
+      const svc = setup(true);
+      const menu = overlay();
+      popoverCtrlStub.create.mockResolvedValue(menu);
+
+      await svc.openSheetOrPopover({ items: [{ text: 'Leave' }] });
+      await svc.dismissMenu();
+
+      expect(menu.dismiss).toHaveBeenCalledTimes(1);
+      expect(menu.dismiss).toHaveBeenCalledWith(undefined, 'cancel');
+    });
+
+    it('closes the action sheet it opened on mobile', async () => {
+      const svc = setup(false);
+      const menu = overlay();
+      actionSheetCtrlStub.create.mockResolvedValue(menu);
+
+      await svc.openSheetOrPopover({ items: [{ text: 'Leave' }] });
+      await svc.dismissMenu();
+
+      expect(menu.dismiss).toHaveBeenCalledTimes(1);
+    });
+
+    it('does nothing when no menu is open', async () => {
+      const svc = setup(true);
+      await expect(svc.dismissMenu()).resolves.toBeUndefined();
+    });
+
+    it('lets go of a menu that closed by itself', async () => {
+      const svc = setup(true);
+      const menu = overlay();
+      popoverCtrlStub.create.mockResolvedValue(menu);
+
+      await svc.openSheetOrPopover({ items: [{ text: 'Leave' }] });
+      menu.closeByItself();
+      await Promise.resolve();
+      await Promise.resolve();
+      await svc.dismissMenu();
+
+      expect(menu.dismiss).not.toHaveBeenCalled();
+    });
+
+    it('closes a menu only once', async () => {
+      const svc = setup(true);
+      const menu = overlay();
+      popoverCtrlStub.create.mockResolvedValue(menu);
+
+      await svc.openSheetOrPopover({ items: [{ text: 'Leave' }] });
+      await svc.dismissMenu();
+      await svc.dismissMenu();
+
+      expect(menu.dismiss).toHaveBeenCalledTimes(1);
+    });
+
+    it('swallows an overlay that is already on its way out', async () => {
+      const svc = setup(true);
+      const menu = overlay();
+      menu.dismiss.mockRejectedValue(new Error('overlay does not exist'));
+      popoverCtrlStub.create.mockResolvedValue(menu);
+
+      await svc.openSheetOrPopover({ items: [{ text: 'Leave' }] });
+
+      await expect(svc.dismissMenu()).resolves.toBeUndefined();
     });
   });
 });

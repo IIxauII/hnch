@@ -28,7 +28,9 @@ import {
   fillRoomCode,
   expandRoundStartSheet,
   clickRoundStartSubmit,
+  SESSION_TOOLBAR,
 } from '../fixtures/helpers';
+import { pageSettled } from './_helpers/settled';
 
 const OUT_DIR = resolveOutDir('history');
 test.use({ trace: 'off', video: 'off', screenshot: 'off' });
@@ -45,6 +47,7 @@ async function freshCtx(
 }
 
 async function shot(page: Page, name: string): Promise<void> {
+  await pageSettled(page);
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(OUT_DIR, `round-history-${name}.png`), fullPage: false });
 }
@@ -109,12 +112,12 @@ test.describe('round history screenshots', () => {
 
       await alicePage.goto(`${BASE_URL}/join`);
       await fillRoomCode(alicePage, code);
-      await alicePage.locator('ion-button:has-text("Join")').first().click();
+      // The sixth character submits: no Join tap after a typed code.
       await alicePage.waitForURL(/\/lobby/);
 
       await bobPage.goto(`${BASE_URL}/join`);
       await fillRoomCode(bobPage, code);
-      await bobPage.locator('ion-button:has-text("Join")').first().click();
+      // The sixth character submits: no Join tap after a typed code.
       await bobPage.waitForURL(/\/lobby/);
 
       await hostPage.locator(LOBBY.participantList).waitFor({ state: 'visible' });
@@ -151,23 +154,12 @@ test.describe('round history screenshots', () => {
         });
       await shot(hostPage, 'hist-01-populated-history');
 
-      // Bob leaves — his name should still resolve in history
-      const bobMenuBtn = bobPage.locator('ion-header').locator('ion-button').last();
-      await bobMenuBtn.click();
-      const leaveSheet = bobPage.locator('ion-action-sheet button:has-text("Leave session")');
-      const leavePopover = bobPage
-        .locator('ion-popover')
-        .getByRole('button', { name: 'Leave session' });
-      await Promise.any([
-        leaveSheet.waitFor({ state: 'visible', timeout: 5_000 }),
-        leavePopover.waitFor({ state: 'visible', timeout: 5_000 }),
-      ]);
-      const isActionSheet = await leaveSheet.isVisible().catch(() => false);
-      if (isActionSheet) {
-        await leaveSheet.evaluate((el: HTMLElement) => el.click());
-      } else {
-        await leavePopover.evaluate((el: HTMLElement) => el.click());
-      }
+      // Bob leaves — his name should still resolve in history.
+      // Not the host, so Leave is a button in his toolbar.
+      await bobPage
+        .locator('app-lobby:not(.ion-page-hidden)')
+        .getByRole('button', { name: SESSION_TOOLBAR.leaveBtn })
+        .click();
       const alert = bobPage.locator('ion-alert');
       await alert.waitFor({ state: 'visible', timeout: 5_000 });
       await bobPage.locator('ion-alert button:has-text("Leave")').click();

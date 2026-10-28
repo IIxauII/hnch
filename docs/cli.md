@@ -54,6 +54,25 @@ hnch join K7P9MR [--password]
 
 If the room is password-protected and `--password` is not passed, the CLI prompts automatically after resolving the room code.
 
+### Passwords
+
+The prompt does not show what is typed — not in the terminal, its scrollback, or a screen share. Enter submits, Backspace edits, Ctrl+C aborts (exit code 130). Piped input is read as one line.
+
+A password is compared without the whitespace around it, the same as in the app (see [ux.md](ux.md)). One that was asked for and comes back empty is refused — `Password cannot be empty.`, exit code 1 — rather than taken for "no password": `hnch create --password` never opens a room that was meant to be protected. One longer than 120 characters is refused as well; the app's fields end there.
+
+### When the relay turns a session away
+
+A connection that drops is retried. One the relay refuses for good ends the session in the terminal, whichever command started it:
+
+| The relay says | The CLI |
+|---|---|
+| The room is gone | prints `Session expired (room no longer exists). Cached session cleared.`, forgets the session, exits with code 1 |
+| The password that was just typed is wrong | prints `That password is incorrect.`, exits with code 1 |
+| A password is needed by now, or the one this device had is no longer right | prints `Password changed — rejoin with: hnch join <code> --password`, forgets the stored password, exits with code 0 |
+| The room is full | prints `This room is full (max 20 participants).`, exits with code 1. The session stays remembered for `hnch resume` if this device had been in it |
+
+What is forgotten is the one session, never the others this device remembers. The same goes for leaving a session and for a session that ends.
+
 ### `hnch resume`
 
 Rejoins the most recent session from the last-session cache (`~/.config/hnch/last-session.json`). Exits cleanly if the session is no longer active on the relay.

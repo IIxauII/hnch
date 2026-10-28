@@ -110,6 +110,28 @@ describe('roundsToMarkdown', () => {
     expect(result).toContain('Avg 5.0 · Med 5.0');
   });
 
+  it('a tie names no most common card', () => {
+    const round = makeRound({
+      id: 'r1',
+      scale: TSHIRT_SCALE,
+      votes: { p1: 'S', p2: 'M' },
+      timerStartedAt: 0,
+      revealedAt: 60_000,
+    });
+    const result = roundsToMarkdown({
+      rounds: [round],
+      participants: new Map([
+        ['p1', makeParticipant('Alice')],
+        ['p2', makeParticipant('Bob')],
+      ]),
+    });
+
+    expect(result).not.toContain('Most common');
+    // The rest of the line is still there, without a stray separator.
+    expect(result).toContain('Elapsed 1:00');
+    expect(result).not.toContain('· Elapsed');
+  });
+
   it('single revealed round, T-shirt scale → Most common line, no avg/med', () => {
     const round = makeRound({
       id: 'r1',
@@ -247,6 +269,50 @@ describe('roundsToMarkdown', () => {
 
     expect(result).toContain('Visible');
     expect(result).not.toContain('Hidden');
+  });
+
+  it('a skipped round keeps its number: the export leaves it out, not its place', () => {
+    const skipped = makeRound({ id: 'r1', title: 'Skipped', skippedAt: 5_000 });
+    const revealed = makeRound({
+      id: 'r2',
+      title: 'Visible',
+      votes: { p1: '5' },
+      revealedAt: 10_000,
+    });
+    const result = roundsToMarkdown({
+      rounds: [skipped, revealed],
+      participants: new Map([['p1', makeParticipant('Alice')]]),
+    });
+
+    expect(result).toContain('## Round 2 — Visible');
+    expect(result).not.toContain('Skipped');
+  });
+
+  // A discarded round is a tombstone (ADR-0046). It is numbered nowhere, so
+  // the export matches the screens it was copied from.
+  it('a discarded round takes no number', () => {
+    const discarded = makeRound({ id: 'r1', title: 'Started by mistake', discardedAt: 5_000 });
+    const first = makeRound({
+      id: 'r2',
+      title: 'First',
+      votes: { p1: '5' },
+      revealedAt: 10_000,
+    });
+    const second = makeRound({
+      id: 'r3',
+      title: 'Second',
+      votes: { p1: '8' },
+      revealedAt: 20_000,
+    });
+    const result = roundsToMarkdown({
+      rounds: [discarded, first, second],
+      participants: new Map([['p1', makeParticipant('Alice')]]),
+    });
+
+    expect(result).toContain('## Round 1 — First');
+    expect(result).toContain('## Round 2 — Second');
+    expect(result).not.toContain('Round 3');
+    expect(result).not.toContain('Started by mistake');
   });
 
   it('accepts Record<string, Participant> as well as Map', () => {

@@ -15,11 +15,10 @@ import { render } from 'ink';
 import * as Y from 'yjs';
 import { Awareness } from 'y-protocols/awareness';
 import { loadConfig, readConfig, updateConfig } from './config.js';
-import { createSession, joinSession, wireSession } from './session.js';
+import { createSession, joinSession, wireSession, type SessionHandle } from './session.js';
 import {
   AWARENESS_PARTICIPANT_ID_FIELD,
   BUILTIN_SCALES,
-  hashPassword,
   joinDoc,
   parseAvatarColor,
   RelayRejectionError,
@@ -32,13 +31,13 @@ import {
   readEntries,
   removeEntry,
   clearPasswordHash,
-  // legacy shims — used in create/join below
-  writeLastSession,
-  clearLastSession,
   type LastSessionEntry,
 } from './last-session.js';
 import { onSessionExpired } from './session-expired.js';
 import { observeSessionEnd } from './session-end-observer.js';
+import { promptPassword } from './prompt-password.js';
+import { validatePassword } from './password-validation.js';
+import { refusalVerdict, watchForRefusal, type EndingRefusal } from './refusal.js';
 import { App } from './ui/App.js';
 import { ConfigSettings } from './ui/components/ConfigSettings.js';
 import { createInterface } from 'node:readline';
@@ -50,14 +49,61 @@ import {
   handleAgendaMv,
 } from './commands/agenda.js';
 
-async function promptPassword(): Promise<string> {
-  return new Promise((resolve) => {
-    const rl = createInterface({ input: process.stdin, output: process.stderr });
-    process.stderr.write('Password: ');
-    rl.question('', (answer) => {
-      rl.close();
-      resolve(answer);
-    });
+/**
+ * Prompt for a password (hidden — see `prompt-password.ts`) and refuse it
+ * outright if it fails the one rule every password entry point shares
+ * (`validatePassword`): blank after normalization, or longer than the web
+ * client's field allows. Exits before the caller creates or joins anything.
+ */
+async function promptValidPassword(): Promise<string> {
+  const raw = await promptPassword();
+  const result = validatePassword(raw);
+  if (!result.ok) {
+    console.error(result.message);
+    process.exit(1);
+  }
+  return result.password;
+}
+
+/**
+ * The relay has turned the connection away for good and the UI is down: say
+ * why, bring what is remembered of the session in line, and end.
+ */
+function endRefused(
+  reason: EndingRefusal,
+  session: SessionHandle,
+  ctx: { wasIn: boolean; typedPassword: boolean },
+): never {
+  const verdict = refusalVerdict(reason, { roomCode: session.roomCode, ...ctx });
+  if (verdict.remembered === 'forget-password') clearPasswordHash(session.roomUuid);
+  if (verdict.remembered === 'forget-session') removeEntry(session.roomUuid);
+  console.error(verdict.message);
+  session.disconnect();
+  process.exit(verdict.exitCode);
+}
+
+/**
+ * Forget one session. The others this device remembers are none of its
+ * business: leaving one session used to wipe them all.
+ */
+function forgetSession(roomUuid: string): void {
+  try {
+    removeEntry(roomUuid);
+  } catch (err) {
+    console.error(
+      `Failed to clear cached session: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+}
+
+/** The relay no longer has the session: forget it — it, not the others — and end. */
+function endExpired(roomUuid: string | undefined): void {
+  void onSessionExpired({
+    clearLastSession: () => {
+      if (roomUuid !== undefined) removeEntry(roomUuid);
+    },
+    logger: console,
+    exit: process.exit,
   });
 }
 
@@ -74,7 +120,7 @@ async function handleCreate(argv: {
 
   let password: string | undefined;
   if (resolvedPassword) {
-    password = await promptPassword();
+    password = await promptValidPassword();
   }
 
   const scale = resolveScale(resolvedScale, config.presetOverrides, config.customScales);
@@ -86,6 +132,12 @@ async function handleCreate(argv: {
     process.exit(1);
   }
 
+  // A reconnect can be turned away in the middle of the session — the relay
+  // has forgotten the room, or the password was changed from another device
+  // — as in `join` and `resume` (ADR-0050).
+  const refusal = watchForRefusal();
+  let roomUuid: string | undefined;
+
   const session = await createSession({
     participantId: config.participantId,
     displayName: config.displayName,
@@ -94,25 +146,25 @@ async function handleCreate(argv: {
     password,
     defaultScale: scale,
     ...(config.avatarColor !== undefined && { avatarColor: config.avatarColor }),
+    onRejection(reason) {
+      if (reason === 'unknown-room') endExpired(roomUuid);
+      else refusal.note(reason);
+    },
   });
+  roomUuid = session.roomUuid;
 
-  let passwordHash: string | undefined;
-  if (password) {
-    passwordHash = await hashPassword(password, session.roomUuid);
-  }
-
-  writeLastSession({
+  recordEntry({
     roomCode: session.roomCode,
     roomUuid: session.roomUuid,
     lastSeenAt: Date.now(),
-    ...(passwordHash !== undefined && { passwordHash }),
+    ...(session.passwordHash !== undefined && { passwordHash: session.passwordHash }),
   });
 
   console.error(`Room created: ${session.roomCode}`);
   console.error(`Share: hnch join ${session.roomCode}`);
   console.error('');
 
-  const { waitUntilExit, unmount: unmountCreate } = render(
+  const inkInstance = render(
     React.createElement(App, {
       session,
       participantId: config.participantId,
@@ -122,28 +174,30 @@ async function handleCreate(argv: {
       customScales: config.customScales,
     }),
   );
+  refusal.attach(inkInstance.unmount);
 
   observeSessionEnd({
     doc: session.doc,
     localParticipantId: config.participantId,
-    onEnded: async (info) => {
+    onEnded: (info) => {
       console.error(info.isLocal ? 'Session ended.' : `Session ended by ${info.hostName}.`);
-      unmountCreate();
-      try {
-        await clearLastSession();
-      } catch (err) {
-        console.error(
-          `Failed to clear cached session: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
+      inkInstance.unmount();
+      forgetSession(session.roomUuid);
       session.disconnect();
       process.exit(0);
     },
   });
 
-  await waitUntilExit();
+  await inkInstance.waitUntilExit();
+
+  const refused = refusal.refused();
+  if (refused !== null) {
+    // Whoever made the session was in it.
+    endRefused(refused, session, { wasIn: true, typedPassword: password !== undefined });
+  }
+
   session.disconnect();
-  clearLastSession();
+  forgetSession(session.roomUuid);
   process.exit(0);
 }
 
@@ -157,20 +211,19 @@ async function handleJoin(argv: { code: string; password?: boolean }): Promise<v
 
   let password: string | undefined;
   if (argv.password) {
-    password = await promptPassword();
+    password = await promptValidPassword();
   }
 
   const resolved = await resolveRoom(config.relayUrl, code);
 
   let passwordInput: string | undefined;
   if (resolved.accessMode === 'password' && !argv.password) {
-    passwordInput = await promptPassword();
+    passwordInput = await promptValidPassword();
   } else if (argv.password) {
     passwordInput = password;
   }
 
-  let unmountInk: (() => void) | undefined;
-  let hadRoomFull = false;
+  const refusal = watchForRefusal();
 
   const session = await joinSession({
     participantId: config.participantId,
@@ -180,27 +233,16 @@ async function handleJoin(argv: { code: string; password?: boolean }): Promise<v
     password: passwordInput,
     ...(config.avatarColor !== undefined && { avatarColor: config.avatarColor }),
     onRejection(reason) {
-      if (reason === 'unknown-room') {
-        void onSessionExpired({ clearLastSession, logger: console, exit: process.exit });
-        return;
-      }
-      if (reason === 'room-full') {
-        hadRoomFull = true;
-        unmountInk?.();
-      }
+      if (reason === 'unknown-room') endExpired(resolved.uuid);
+      else refusal.note(reason);
     },
   });
 
-  let passwordHash: string | undefined;
-  if (passwordInput) {
-    passwordHash = await hashPassword(passwordInput, session.roomUuid);
-  }
-
-  writeLastSession({
+  recordEntry({
     roomCode: session.roomCode,
     roomUuid: session.roomUuid,
     lastSeenAt: Date.now(),
-    ...(passwordHash !== undefined && { passwordHash }),
+    ...(session.passwordHash !== undefined && { passwordHash: session.passwordHash }),
   });
 
   console.error(`Joined room: ${session.roomCode}`);
@@ -216,21 +258,15 @@ async function handleJoin(argv: { code: string; password?: boolean }): Promise<v
       customScales: config.customScales,
     }),
   );
-  unmountInk = inkInstance.unmount;
+  refusal.attach(inkInstance.unmount);
 
   observeSessionEnd({
     doc: session.doc,
     localParticipantId: config.participantId,
-    onEnded: async (info) => {
+    onEnded: (info) => {
       console.error(info.isLocal ? 'Session ended.' : `Session ended by ${info.hostName}.`);
-      unmountInk?.();
-      try {
-        await clearLastSession();
-      } catch (err) {
-        console.error(
-          `Failed to clear cached session: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
+      inkInstance.unmount();
+      forgetSession(session.roomUuid);
       session.disconnect();
       process.exit(0);
     },
@@ -238,15 +274,16 @@ async function handleJoin(argv: { code: string; password?: boolean }): Promise<v
 
   await inkInstance.waitUntilExit();
 
-  if (hadRoomFull) {
-    console.error('This room is full (max 20 participants).');
-    session.disconnect();
-    clearLastSession();
-    process.exit(1);
+  const refused = refusal.refused();
+  if (refused !== null) {
+    endRefused(refused, session, {
+      wasIn: session.hasJoined(),
+      typedPassword: passwordInput !== undefined,
+    });
   }
 
   session.disconnect();
-  clearLastSession();
+  forgetSession(session.roomUuid);
   process.exit(0);
 }
 
@@ -289,8 +326,11 @@ async function resumeEntry(
     resolved = await resolveRoom(config.relayUrl, entry.roomCode);
   } catch (err) {
     if (err instanceof RelayRejectionError && err.reason === 'unknown-room') {
-      removeEntry(entry.roomUuid);
-      return await onSessionExpired({ clearLastSession, logger: console, exit: process.exit });
+      return await onSessionExpired({
+        clearLastSession: () => removeEntry(entry.roomUuid),
+        logger: console,
+        exit: process.exit,
+      });
     }
     console.error('Could not reach relay — try again later.');
     process.exit(0);
@@ -317,9 +357,7 @@ async function resumeEntry(
 
   awareness.setLocalStateField(AWARENESS_PARTICIPANT_ID_FIELD, config.participantId);
 
-  let hadWrongPassword = false;
-  let hadRoomFull = false;
-  let unmountInkResume: (() => void) | undefined;
+  const refusal = watchForRefusal();
 
   const session = wireSession({
     doc,
@@ -333,19 +371,8 @@ async function resumeEntry(
     // the snapshot still carries their `leftAt` (ADR-0036 §6).
     clearLeftStatusOnSync: true,
     onRejection(reason) {
-      if (reason === 'unknown-room') {
-        removeEntry(entry.roomUuid);
-        void onSessionExpired({ clearLastSession, logger: console, exit: process.exit });
-        return;
-      }
-      if (reason === 'wrong-password') {
-        hadWrongPassword = true;
-        unmountInkResume?.();
-      }
-      if (reason === 'room-full') {
-        hadRoomFull = true;
-        unmountInkResume?.();
-      }
+      if (reason === 'unknown-room') endExpired(entry.roomUuid);
+      else refusal.note(reason);
     },
   });
 
@@ -366,21 +393,15 @@ async function resumeEntry(
       customScales: config.customScales,
     }),
   );
-  unmountInkResume = inkInstanceResume.unmount;
+  refusal.attach(inkInstanceResume.unmount);
 
   observeSessionEnd({
     doc: session.doc,
     localParticipantId: config.participantId,
-    onEnded: async (info) => {
+    onEnded: (info) => {
       console.error(info.isLocal ? 'Session ended.' : `Session ended by ${info.hostName}.`);
-      unmountInkResume?.();
-      try {
-        removeEntry(entry.roomUuid);
-      } catch (err) {
-        console.error(
-          `Failed to clear cached session: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
+      inkInstanceResume.unmount();
+      forgetSession(entry.roomUuid);
       session.disconnect();
       process.exit(0);
     },
@@ -388,21 +409,14 @@ async function resumeEntry(
 
   await inkInstanceResume.waitUntilExit();
 
-  if (hadRoomFull) {
-    console.error('This room is full (max 20 participants).');
-    session.disconnect();
-    process.exit(1);
-  }
-
-  if (hadWrongPassword) {
-    clearPasswordHash(entry.roomUuid);
-    console.error(`Password changed — rejoin with: hnch join ${entry.roomCode} --password`);
-    session.disconnect();
-    process.exit(0);
+  const refused = refusal.refused();
+  if (refused !== null) {
+    // A session that is resumed is one this device has been in.
+    endRefused(refused, session, { wasIn: true, typedPassword: false });
   }
 
   session.disconnect();
-  removeEntry(entry.roomUuid);
+  forgetSession(entry.roomUuid);
   process.exit(0);
 }
 

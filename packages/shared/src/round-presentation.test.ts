@@ -1,4 +1,6 @@
 // Exercises: round-presentation:formatRoundLabel
+// Exercises: round-presentation:roundNumber
+// Exercises: round-presentation:nextRoundNumber
 // Exercises: round-presentation:formatRoundPosition
 // Exercises: round-presentation:computeRoundStats
 // Exercises: round-presentation:roundStatsFor
@@ -21,6 +23,8 @@ import {
   formatRoundLabel,
   formatRoundPosition,
   formatRoundStats,
+  nextRoundNumber,
+  roundNumber,
   roundStatsFor,
 } from './round-presentation.js';
 
@@ -77,6 +81,77 @@ describe('formatRoundLabel', () => {
 });
 
 // ---------------------------------------------------------------------------
+// roundNumber / nextRoundNumber
+// ---------------------------------------------------------------------------
+
+describe('roundNumber', () => {
+  it('is the 1-based position in the session', () => {
+    const r1 = makeRound({ id: 'r1' });
+    const r2 = makeRound({ id: 'r2' });
+    expect(roundNumber(r1, [r1, r2])).toBe(1);
+    expect(roundNumber(r2, [r1, r2])).toBe(2);
+  });
+
+  it('a discarded round takes no number: the next round gets it', () => {
+    const r1 = makeRound({ id: 'r1', status: 'discarded' });
+    const r2 = makeRound({ id: 'r2' });
+    expect(roundNumber(r2, [r1, r2])).toBe(1);
+  });
+
+  it('skips every discarded round before it, not just the first', () => {
+    const rounds = [
+      makeRound({ id: 'r1' }),
+      makeRound({ id: 'r2', status: 'discarded' }),
+      makeRound({ id: 'r3', status: 'skipped' }),
+      makeRound({ id: 'r4', status: 'discarded' }),
+      makeRound({ id: 'r5' }),
+    ];
+    expect(rounds.map((r) => roundNumber(r, rounds))).toEqual([1, 0, 2, 0, 3]);
+  });
+
+  it('a skipped round keeps its number — it is part of the history', () => {
+    const r1 = makeRound({ id: 'r1', status: 'skipped' });
+    const r2 = makeRound({ id: 'r2' });
+    expect(roundNumber(r1, [r1, r2])).toBe(1);
+    expect(roundNumber(r2, [r1, r2])).toBe(2);
+  });
+
+  it('is 0 for a discarded round and for one that is not in the list', () => {
+    const r1 = makeRound({ id: 'r1', status: 'discarded' });
+    expect(roundNumber(r1, [r1])).toBe(0);
+    expect(roundNumber(makeRound({ id: 'stray' }), [r1])).toBe(0);
+    expect(roundNumber(makeRound({ id: 'stray' }), [])).toBe(0);
+  });
+
+  it('matches by id, not identity', () => {
+    const r1 = makeRound({ id: 'r1' });
+    const r2 = makeRound({ id: 'r2' });
+    expect(roundNumber({ id: 'r2' }, [r1, r2])).toBe(2);
+  });
+});
+
+describe('nextRoundNumber', () => {
+  it('is 1 for a session with no rounds', () => {
+    expect(nextRoundNumber([])).toBe(1);
+  });
+
+  it('counts the rounds that happened', () => {
+    expect(nextRoundNumber([makeRound({ id: 'r1' }), makeRound({ id: 'r2' })])).toBe(3);
+  });
+
+  it("gives a cancelled round's number to the round that replaces it", () => {
+    const rounds = [makeRound({ id: 'r1' }), makeRound({ id: 'r2', status: 'discarded' })];
+    expect(nextRoundNumber(rounds)).toBe(2);
+    const replacement = makeRound({ id: 'r3' });
+    expect(roundNumber(replacement, [...rounds, replacement])).toBe(2);
+  });
+
+  it('is 1 again when the only round so far was cancelled', () => {
+    expect(nextRoundNumber([makeRound({ id: 'r1', status: 'discarded' })])).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // formatRoundPosition
 // ---------------------------------------------------------------------------
 
@@ -123,6 +198,12 @@ describe('formatRoundPosition', () => {
     const r2 = makeRound({ id: 'r2' });
     expect(formatRoundPosition(makeRound({ id: 'r2' }), [r1, r2])).toBe('Round 2');
   });
+
+  it('does not count a discarded round', () => {
+    const r1 = makeRound({ id: 'r1', status: 'discarded' });
+    const r2 = makeRound({ id: 'r2' });
+    expect(formatRoundPosition(r2, [r1, r2])).toBe('Round 1');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -163,6 +244,33 @@ describe('computeRoundStats', () => {
   it('fibonacci tie 3,5 → mode "3" (first in scale order)', () => {
     const r = computeRoundStats({ a: '3', b: '5' }, FIBONACCI_SCALE);
     expect(r).toMatchObject({ kind: 'numeric', mode: '3' });
+  });
+
+  it('says when the mode is only the first of several tied cards', () => {
+    expect(computeRoundStats({ a: '3', b: '5' }, FIBONACCI_SCALE)).toMatchObject({
+      modeTied: true,
+    });
+    expect(computeRoundStats({ a: 'S', b: 'S', c: 'M', d: 'M' }, TSHIRT_SCALE)).toMatchObject({
+      mode: 'S',
+      modeTied: true,
+    });
+    // A tie for the lead is a tie, whatever trails behind it.
+    expect(
+      computeRoundStats({ a: 'S', b: 'S', c: 'M', d: 'M', e: 'L' }, TSHIRT_SCALE),
+    ).toMatchObject({ modeTied: true });
+  });
+
+  it('a card that leads is not tied — a tie further down does not count', () => {
+    expect(computeRoundStats({ a: '5', b: '5', c: '8' }, FIBONACCI_SCALE)).toMatchObject({
+      modeTied: false,
+    });
+    expect(computeRoundStats({ a: 'M', b: 'M', c: 'M' }, TSHIRT_SCALE)).toMatchObject({
+      modeTied: false,
+    });
+    expect(computeRoundStats({ a: 'M' }, TSHIRT_SCALE)).toMatchObject({ modeTied: false });
+    expect(
+      computeRoundStats({ a: 'M', b: 'M', c: 'M', d: 'S', e: 'L' }, TSHIRT_SCALE),
+    ).toMatchObject({ mode: 'M', modeTied: false });
   });
 
   it('powers-of-2 2,4 → close', () => {
@@ -455,6 +563,34 @@ describe('formatRoundStats', () => {
     expect(formatRoundStats(unanimous)?.spread).toBe('Unanimous');
     expect(formatRoundStats(close)?.spread).toBe('Close');
     expect(formatRoundStats(spread)?.spread).toBe('Spread');
+  });
+
+  it('names no most common card when the lead is shared', () => {
+    const tied = roundStatsFor(
+      makeRound({ scale: TSHIRT_SCALE, votes: { p1: 'S', p2: 'S', p3: 'M', p4: 'M' } }),
+    );
+    expect(formatRoundStats(tied)).toEqual({ kind: 'categorical', mode: null, spread: 'Close' });
+
+    const tiedNumeric = roundStatsFor(makeRound({ votes: { p1: '5', p2: '8' } }));
+    expect(formatRoundStats(tiedNumeric)).toMatchObject({ kind: 'numeric', mode: null });
+  });
+
+  it('an abstention does not break a tie, nor make one', () => {
+    const tied = roundStatsFor(
+      makeRound({
+        scale: TSHIRT_SCALE,
+        votes: { p1: 'S', p2: 'M', p3: ABSTAIN_SENTINEL, p4: ABSTAIN_SENTINEL },
+      }),
+    );
+    expect(formatRoundStats(tied)).toMatchObject({ mode: null });
+
+    const led = roundStatsFor(
+      makeRound({
+        scale: TSHIRT_SCALE,
+        votes: { p1: 'S', p2: ABSTAIN_SENTINEL },
+      }),
+    );
+    expect(formatRoundStats(led)).toMatchObject({ mode: 'S' });
   });
 
   it('a Risk-scale round formats as categorical rather than an empty row', () => {

@@ -5,9 +5,10 @@
  *
  *  1. The pure predicate {@link shouldAutoReveal} — the single, deep owner of
  *     the "who counts toward the unanimous denominator?" decision.
- *  2. The driver {@link startAutoReveal} — when to re-evaluate, and the call
- *     to reveal. Consumers supply four framework-free callbacks; no `Y.Doc`,
- *     `Awareness`, or Angular primitive crosses that seam.
+ *  2. The driver {@link startAutoReveal} — when to re-evaluate, when *not*
+ *     to (presence that cannot be trusted yet), and the call to reveal.
+ *     Consumers supply framework-free callbacks; no `Y.Doc`, `Awareness`, or
+ *     Angular primitive crosses that seam.
  *
  * *When* to re-evaluate is part of the rule, not adapter business. Keeping
  * the driver here is what stops the two surfaces drifting on that axis — the
@@ -74,8 +75,13 @@ export function shouldAutoReveal(
 // Driver
 // ---------------------------------------------------------------------------
 
+/** True when the session has an active participant other than `selfId`. */
+function hasPeers(projection: DocProjection, selfId: string | null): boolean {
+  return projection.participants.some((p) => isActiveParticipant(p) && p.id !== selfId);
+}
+
 /**
- * The four callbacks a consumer supplies to drive auto-reveal. Deliberately
+ * The callbacks a consumer supplies to drive auto-reveal. Deliberately
  * framework-free, mirroring {@link ElectionDeps}: the client passes signal
  * reads, the CLI passes closures over its `Y.Doc` and `Awareness`, and
  * neither leaks its transport here.
@@ -89,12 +95,34 @@ export interface AutoRevealDeps {
    */
   onlineIds(): ReadonlySet<string>;
   /**
-   * Register `cb` to fire on *any* projection change and *any* awareness
-   * change. Returns an unsubscribe function.
+   * Whether {@link onlineIds} can be believed right now: the relay's state
+   * has applied on the current socket (`onSyncedChange` in `relay-client`,
+   * ADR-0050).
    *
-   * Both axes are required. A vote landing is a rounds change; a voter
+   * Unanimity is "every *online* voter has voted". The doc outlives a socket
+   * — it is loaded from disk before the socket opens and kept when it drops
+   * — but awareness does not: `y-websocket` clears every remote state when a
+   * socket closes. Between that and the next sync, a peer that has voted
+   * sees itself as the whole room, and would reveal the round for everyone:
+   * on a reload, on a network blip, on a dropped connection.
+   */
+  presenceTrusted(): boolean;
+  /**
+   * This peer's participant id, or `null` before it has one. Used for one
+   * thing: a session nobody else is part of has no one to miscount, so it
+   * evaluates whether or not presence is trusted — a solo round still
+   * reveals while offline.
+   */
+  selfId(): string | null;
+  /**
+   * Register `cb` to fire on *any* projection change, *any* awareness change
+   * and *any* change of {@link presenceTrusted}. Returns an unsubscribe
+   * function.
+   *
+   * All three are required. A vote landing is a rounds change; a voter
    * dropping out of awareness shrinks the denominator and can flip the
-   * predicate true without the doc moving at all.
+   * predicate true without the doc moving at all; and a round that went
+   * unanimous while this peer was away reveals when trust comes back.
    */
   subscribe(cb: () => void): () => void;
   /**
@@ -132,6 +160,7 @@ export function startAutoReveal(deps: AutoRevealDeps): AutoRevealHandle {
   function evaluate(): void {
     const projection = deps.projection();
     if (!projection) return;
+    if (!deps.presenceTrusted() && hasPeers(projection, deps.selfId())) return;
 
     const round = currentRound(projection);
     if (shouldAutoReveal(round, projection.participants, deps.onlineIds())) {

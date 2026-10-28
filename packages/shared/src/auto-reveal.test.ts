@@ -166,9 +166,14 @@ function makeDeps(init: {
   rounds: Round[];
   participants: ParticipantSnapshot[];
   online: string[];
+  /** Whether awareness can be believed. Default: yes. */
+  trusted?: boolean;
+  /** This peer. Default: `v1`. */
+  selfId?: string | null;
 }) {
   let current: DocProjection | null = projection(init.rounds, init.participants);
   let online: ReadonlySet<string> = new Set(init.online);
+  let trusted = init.trusted ?? true;
   let notify: (() => void) | null = null;
 
   const reveal = vi.fn();
@@ -177,6 +182,8 @@ function makeDeps(init: {
   const deps = {
     projection: () => current,
     onlineIds: () => online,
+    presenceTrusted: () => trusted,
+    selfId: () => (init.selfId === undefined ? 'v1' : init.selfId),
     subscribe: (cb: () => void) => {
       notify = cb;
       return () => {
@@ -192,8 +199,10 @@ function makeDeps(init: {
     rounds?: Round[];
     participants?: ParticipantSnapshot[];
     online?: string[];
+    trusted?: boolean;
     projection?: null;
   }): void {
+    if (next.trusted !== undefined) trusted = next.trusted;
     if (next.projection === null) {
       current = null;
     } else if (next.rounds !== undefined || next.participants !== undefined) {
@@ -352,5 +361,127 @@ describe('startAutoReveal', () => {
     change({ rounds: [projRound('r1', { v1: '5', v2: '8' })] });
 
     expect(reveal).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The trust gate. Awareness is cleared when a socket closes and refilled by
+// the relay once the next one has synced; in between, "everyone online has
+// voted" is true of a peer that has voted and sees nobody else.
+// ---------------------------------------------------------------------------
+
+describe('startAutoReveal — presence that cannot be trusted', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('does not reveal on what awareness says right after a drop', () => {
+    // v1 has voted, v2 has not. The socket drops: awareness is down to v1.
+    const { deps, reveal, change } = makeDeps({
+      rounds: [projRound('r1', { v1: '5' })],
+      participants: PAIR,
+      online: ['v1', 'v2'],
+    });
+    const handle = startAutoReveal(deps);
+
+    change({ trusted: false, online: ['v1'] });
+
+    expect(reveal).not.toHaveBeenCalled();
+    handle.stop();
+  });
+
+  it('does not reveal on construction either: a reload in the middle of a round', () => {
+    const { deps, reveal } = makeDeps({
+      rounds: [projRound('r1', { v1: '5' })],
+      participants: PAIR,
+      online: ['v1'],
+      trusted: false,
+    });
+
+    const handle = startAutoReveal(deps);
+
+    expect(reveal).not.toHaveBeenCalled();
+    handle.stop();
+  });
+
+  it('holds its verdict until the relay has said who is here', () => {
+    const { deps, reveal, change } = makeDeps({
+      rounds: [projRound('r1', { v1: '5' })],
+      participants: PAIR,
+      online: ['v1'],
+      trusted: false,
+    });
+    const handle = startAutoReveal(deps);
+
+    // Synced: v2 is here after all, and has not voted.
+    change({ trusted: true, online: ['v1', 'v2'] });
+
+    expect(reveal).not.toHaveBeenCalled();
+    handle.stop();
+  });
+
+  it('reveals a round that went unanimous while this peer was away', () => {
+    const { deps, reveal, change } = makeDeps({
+      rounds: [projRound('r1', { v1: '5' })],
+      participants: PAIR,
+      online: ['v1'],
+      trusted: false,
+    });
+    const handle = startAutoReveal(deps);
+
+    change({
+      trusted: true,
+      online: ['v1', 'v2'],
+      rounds: [projRound('r1', { v1: '5', v2: '8' })],
+    });
+
+    expect(reveal).toHaveBeenCalledOnce();
+    handle.stop();
+  });
+
+  it('evaluates a session nobody else is part of, trusted or not', () => {
+    // Nobody to miscount: a solo round still reveals while offline.
+    const { deps, reveal, change } = makeDeps({
+      rounds: [projRound('r1', {})],
+      participants: [voter('v1')],
+      online: ['v1'],
+      trusted: false,
+    });
+    const handle = startAutoReveal(deps);
+    expect(reveal).not.toHaveBeenCalled();
+
+    change({ rounds: [projRound('r1', { v1: '5' })] });
+
+    expect(reveal).toHaveBeenCalledOnce();
+    handle.stop();
+  });
+
+  it('does not count someone who left as a peer', () => {
+    const { deps, reveal } = makeDeps({
+      rounds: [projRound('r1', { v1: '5' })],
+      participants: [voter('v1'), left('v2')],
+      online: ['v1'],
+      trusted: false,
+    });
+
+    const handle = startAutoReveal(deps);
+
+    expect(reveal).toHaveBeenCalledOnce();
+    handle.stop();
+  });
+
+  it('takes any other active participant for a peer before it has an id of its own', () => {
+    const { deps, reveal } = makeDeps({
+      rounds: [projRound('r1', { v1: '5' })],
+      participants: [voter('v1')],
+      online: ['v1'],
+      trusted: false,
+      selfId: null,
+    });
+
+    const handle = startAutoReveal(deps);
+
+    expect(reveal).not.toHaveBeenCalled();
+    handle.stop();
   });
 });

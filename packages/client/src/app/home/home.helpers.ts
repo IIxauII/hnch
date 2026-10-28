@@ -4,16 +4,12 @@
  * / DI). All exports are dependency-free.
  */
 
-import type { JoinRejectionReason } from '@hnch/shared';
+import type { LastSessionScreen } from '../core/last-session.service';
 
-import type { ClientLastSessionEntry, LastSessionScreen } from '../core/last-session.service';
-import type { JumpBackInSummary } from './jump-back-in-banner.component';
-
-export function summaryFromCache(cache: ClientLastSessionEntry): JumpBackInSummary {
-  return {
-    roomCode: cache.roomCode,
-    lastScreen: cache.lastScreen ?? 'lobby',
-  };
+/** Home's headline: a greeting once the stored display name has loaded. */
+export function greetingFor(displayName: string | null): string {
+  const name = displayName?.trim() ?? '';
+  return name.length > 0 ? `Hi, ${name}` : 'Welcome';
 }
 
 export function routeForScreen(screen: LastSessionScreen, code: string): string {
@@ -22,30 +18,5 @@ export function routeForScreen(screen: LastSessionScreen, code: string): string 
       return `/lobby/${code}`;
     case 'estimating':
       return `/estimating/${code}`;
-  }
-}
-
-/**
- * Defensive fallback copy for relay rejections we don't expect in
- * Phase 3 (the only live reason is `unknown-room`, handled inline).
- * Mirrors the Join page's switch so Phase 5's enforcement turns on
- * without another round of copy work.
- */
-export function rejectionCopy(reason: JoinRejectionReason): string {
-  switch (reason) {
-    case 'unknown-room':
-      return "That session isn't active anymore.";
-    case 'wrong-password':
-      return 'That password is incorrect.';
-    case 'invalid-invite':
-      return "That invite link isn't valid.";
-    case 'expired-invite':
-      return 'That invite link has expired.';
-    case 'invite-already-redeemed':
-      return 'That invite link has already been used.';
-    case 'room-full':
-      return 'That room is full.';
-    case 'malformed-credentials':
-      return "Couldn't rejoin with the info on file.";
   }
 }

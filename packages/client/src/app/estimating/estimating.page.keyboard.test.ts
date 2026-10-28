@@ -15,49 +15,50 @@ vi.mock('@ionic/angular/standalone', async () => {
   const stub = (selector: string) =>
     Comp({ selector, template: '<ng-content/>', standalone: true })(class {});
   return {
-    IonAccordion: stub('ion-accordion'),
-    IonAccordionGroup: stub('ion-accordion-group'),
     IonButton: stub('ion-button'),
     IonButtons: stub('ion-buttons'),
     IonCard: stub('ion-card'),
     IonCardContent: stub('ion-card-content'),
     IonChip: stub('ion-chip'),
-    IonCol: stub('ion-col'),
     IonContent: stub('ion-content'),
     IonFooter: stub('ion-footer'),
-    IonGrid: stub('ion-grid'),
     IonHeader: stub('ion-header'),
     IonIcon: stub('ion-icon'),
     IonLabel: stub('ion-label'),
-    IonRow: stub('ion-row'),
     IonTitle: stub('ion-title'),
     IonToolbar: stub('ion-toolbar'),
+    // Reached through SurfaceService → MenuPopoverComponent.
     IonItem: stub('ion-item'),
     IonList: stub('ion-list'),
     IonListHeader: stub('ion-list-header'),
-    IonNote: stub('ion-note'),
-    IonModal: stub('ion-modal'),
     AlertController: class AlertController {},
     ActionSheetController: class ActionSheetController {},
     ModalController: class ModalController {},
     PopoverController: class PopoverController {},
+    ToastController: class ToastController {},
   };
 });
 vi.mock('ionicons', () => ({ addIcons: vi.fn() }));
 vi.mock('ionicons/icons', () => ({
   checkmarkCircle: '',
   chevronBackOutline: '',
+  close: '',
   closeCircleOutline: '',
-  ellipsisHorizontalCircle: '',
+  ellipsisHorizontal: '',
+  eyeOutline: '',
   logOutOutline: '',
+  playSkipForwardOutline: '',
   removeCircleOutline: '',
-  settingsOutline: '',
+  timerOutline: '',
 }));
-vi.mock('../core/connection-chip.component', async () => {
-  const { Component } = await import('@angular/core');
-  @Component({ selector: 'app-connection-chip', template: '', standalone: true })
-  class ConnectionChipComponent {}
-  return { ConnectionChipComponent };
+vi.mock('../shared/role-toggle.component', async () => {
+  const { Component, input, output } = await import('@angular/core');
+  @Component({ selector: 'app-role-toggle', template: '', standalone: true })
+  class RoleToggleComponent {
+    readonly viewer = input<boolean>(false);
+    readonly toggled = output<void>();
+  }
+  return { RoleToggleComponent };
 });
 vi.mock('../shared/connection-status-banner.component', async () => {
   const { Component } = await import('@angular/core');
@@ -103,6 +104,7 @@ async function mountEstimating(opts: MountOptions = {}) {
   const { TimerTickService } = await import('../core/timer-tick.service');
   const { SurfaceService } = await import('../core/surface.service');
   const { Router } = await import('@angular/router');
+  const { ToastService } = await import('../services/toast.service');
   const { AlertController } = await import('@ionic/angular/standalone');
 
   const toggleCurrentVote = vi.fn().mockReturnValue({ applied: true, effect: 'cast' });
@@ -136,6 +138,9 @@ async function mountEstimating(opts: MountOptions = {}) {
     roomCode: signal('AAAAAA').asReadonly(),
     meta: signal({ roomUuid: 'uuid' }).asReadonly(),
     syncStatus: signal('idle').asReadonly(),
+    relaySynced: signal(false).asReadonly(),
+    joined: signal(false).asReadonly(),
+    relayRoomUuid: signal(null).asReadonly(),
     autoRevealCount: signal(0).asReadonly(),
     commands: {
       ...UNBOUND_SESSION_COMMANDS,
@@ -186,6 +191,7 @@ async function mountEstimating(opts: MountOptions = {}) {
         },
       },
       { provide: Router, useValue: { navigate: vi.fn().mockResolvedValue(true) } },
+      { provide: ToastService, useValue: { info: vi.fn(), error: vi.fn() } },
       {
         provide: AlertController,
         useValue: { create: vi.fn().mockResolvedValue({ present: vi.fn() }) },

@@ -4,6 +4,7 @@
  *
  * Scenes:
  *   skip-01  — estimating page with overflow menu open showing "Skip round" option
+ *   skip-01b — the confirmation that follows
  *   skip-02  — lobby after skip (round-skipped label, no Re-vote, no results)
  *
  * Host + 2 players so auto-reveal doesn't fire on a single vote.
@@ -28,6 +29,7 @@ import {
   expandRoundStartSheet,
   clickRoundStartSubmit,
 } from '../fixtures/helpers';
+import { pageSettled } from './_helpers/settled';
 
 const OUT_DIR = resolveOutDir('skip');
 test.use({ trace: 'off', video: 'off', screenshot: 'off' });
@@ -44,6 +46,7 @@ async function freshCtx(
 }
 
 async function shot(page: Page, name: string): Promise<void> {
+  await pageSettled(page);
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(OUT_DIR, `${name}.png`), fullPage: false });
 }
@@ -82,7 +85,7 @@ test.describe('skip round screenshots', () => {
         await onboard(page, name);
         await page.goto(`${BASE_URL}/join`);
         await fillRoomCode(page, code);
-        await page.locator('ion-button:has-text("Join")').first().click();
+        // The sixth character submits: no Join tap after a typed code.
         await page.waitForURL(/\/lobby/);
       }
 
@@ -132,6 +135,13 @@ test.describe('skip round screenshots', () => {
       } else {
         await popoverBtn.evaluate((el: HTMLElement) => el.click());
       }
+
+      // skip-01b — the question before the round is dropped
+      const alert = hostPage.locator('ion-alert');
+      await alert.waitFor({ state: 'visible', timeout: 5_000 });
+      await hostPage.waitForTimeout(400);
+      await shot(hostPage, 'skip-01b-confirm');
+      await alert.getByRole('button', { name: 'Skip round' }).click();
 
       await hostPage.waitForURL(/\/lobby/, { timeout: 10_000 });
       const skippedLabel = hostPage.locator('p.round-skipped');

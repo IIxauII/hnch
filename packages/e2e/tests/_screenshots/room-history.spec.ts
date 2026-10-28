@@ -2,8 +2,9 @@
 /**
  * Screenshot capture for the local-room-history feature (PR for #224).
  *
- * Captures the Home screen at 0/1/2/5-entry states, the portal hover/focus
- * × affordance, and the mobile swipe-open Remove option. Light + dark.
+ * Captures the Home screen at 0/1/2/5-entry states, and the × that forgets
+ * an entry with keyboard focus on it. The × is always on screen — it used to
+ * hide behind a hover on desktop and a swipe on touch. Light + dark.
  * Output: `docs/screenshots/<sha>/history/room-history-*.png` (via shared helper).
  *
  * Run:
@@ -12,9 +13,10 @@
  *     tests/_screenshots/room-history.spec.ts
  */
 import path from 'node:path';
-import { test, type Page } from '@playwright/test';
-import { BASE_URL } from '../fixtures/helpers';
+import { expect, test, type Page } from '@playwright/test';
+import { BASE_URL, HOME } from '../fixtures/helpers';
 import { resolveOutDir } from './_helpers/out-dir';
+import { pageSettled } from './_helpers/settled';
 
 const OUT_DIR = resolveOutDir('history');
 const VP_PORTAL = { width: 1280, height: 800 };
@@ -43,6 +45,7 @@ async function seedCache(page: Page, entries: SeedEntry[]): Promise<void> {
 }
 
 async function shot(page: Page, name: string): Promise<void> {
+  await pageSettled(page);
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(OUT_DIR, `room-history-${name}.png`), fullPage: false });
 }
@@ -130,27 +133,19 @@ for (const theme of ['light', 'dark'] as const) {
     });
   }
 
-  test(`portal-${theme}-hover-x @home @history`, async ({ browser }) => {
-    const { page, close } = await newPage(browser, VP_PORTAL, theme, FIVE_ROOMS.slice(0, 3));
-    // Hover the first recent-rooms row so the × button reveals.
-    const firstRow = page.locator('app-recent-rooms-list ion-item-sliding').first();
-    await firstRow.hover();
-    await shot(page, `home-hover-x-${theme}`);
-    await close();
-  });
-
-  test(`mobile-${theme}-swipe-remove @home @history`, async ({ browser }) => {
-    const { page, close } = await newPage(browser, VP_MOBILE, theme, FIVE_ROOMS.slice(0, 3));
-    // Programmatically open the IonItemSliding to expose the Remove option.
-    await page
-      .locator('app-recent-rooms-list ion-item-sliding')
-      .first()
-      .evaluate(async (el: HTMLElement & { open?: (side: string) => Promise<void> }) => {
-        if (typeof el.open === 'function') {
-          await el.open('end');
-        }
-      });
-    await shot(page, `home-swipe-remove-${theme}`);
-    await close();
-  });
+  for (const [vpName, vp] of [
+    ['portal', VP_PORTAL],
+    ['mobile', VP_MOBILE],
+  ] as const) {
+    test(`${vpName}-${theme}-remove-focused @home @history`, async ({ browser }) => {
+      const { page, close } = await newPage(browser, vp, theme, FIVE_ROOMS.slice(0, 3));
+      // One × per row, there without hovering or swiping.
+      const removeBtns = page.locator(HOME.recentRemoveBtn);
+      await expect(removeBtns).toHaveCount(3);
+      await expect(removeBtns.first()).toBeVisible();
+      await page.getByRole('button', { name: 'Remove session K7P-9MR from this list' }).focus();
+      await shot(page, `home-remove-focused-${vpName}-${theme}`);
+      await close();
+    });
+  }
 }

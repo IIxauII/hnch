@@ -240,6 +240,160 @@ describe('AccentService', () => {
   });
 
   // -------------------------------------------------------------------------
+  // Accessible accent text — `--hnch-accent-text`
+  // -------------------------------------------------------------------------
+
+  it('contrastRatio matches the WCAG reference pairs', async () => {
+    const { contrastRatio } = await import('./accent.service');
+    expect(contrastRatio('#000000', '#ffffff')).toBeCloseTo(21, 5);
+    expect(contrastRatio('#ffffff', '#ffffff')).toBeCloseTo(1, 5);
+    // Order must not matter.
+    expect(contrastRatio('#1F6B4F', '#2C2C2E')).toBeCloseTo(
+      contrastRatio('#2C2C2E', '#1F6B4F'),
+      10,
+    );
+  });
+
+  it('dark Racing Green fails AA as a label, which is why the token exists', async () => {
+    const { contrastRatio } = await import('./accent.service');
+    expect(contrastRatio('#1F6B4F', '#2C2C2E')).toBeLessThan(3);
+  });
+
+  it('every accent clears AA as text on every surface, in both modes', async () => {
+    const { accessibleAccentText, contrastRatio, ACCENT_TEXT_SURFACES, ACCENT_TEXT_MIN_CONTRAST } =
+      await import('./accent.service');
+    const { ACCENTS, ACCENTS_DARK_OVERRIDE } = await import('./accent.tokens');
+
+    for (const key of Object.keys(ACCENTS) as (keyof typeof ACCENTS)[]) {
+      const light = accessibleAccentText(ACCENTS[key].base, false);
+      for (const surface of ACCENT_TEXT_SURFACES.light) {
+        expect(contrastRatio(light, surface), `${key} light on ${surface}`).toBeGreaterThanOrEqual(
+          ACCENT_TEXT_MIN_CONTRAST,
+        );
+      }
+
+      const darkBase = (ACCENTS_DARK_OVERRIDE[key] ?? ACCENTS[key]).base;
+      const dark = accessibleAccentText(darkBase, true);
+      for (const surface of ACCENT_TEXT_SURFACES.dark) {
+        expect(contrastRatio(dark, surface), `${key} dark on ${surface}`).toBeGreaterThanOrEqual(
+          ACCENT_TEXT_MIN_CONTRAST,
+        );
+      }
+    }
+  });
+
+  // The role switch, the "Next" badge, a voter's chip: the label in the
+  // accent, on a background tinted with 16% of that same color. The tint
+  // moves the background toward the label — blue that held 4.6:1 on the page
+  // was 3.7:1 on its own chip.
+  it('every accent clears AA on a chip tinted with itself, in both modes', async () => {
+    const { accessibleAccentText, blend, contrastRatio, ACCENT_TEXT_SURFACES, ACCENT_TINT_ALPHA } =
+      await import('./accent.service');
+    const { ACCENTS, ACCENTS_DARK_OVERRIDE } = await import('./accent.tokens');
+
+    for (const key of Object.keys(ACCENTS) as (keyof typeof ACCENTS)[]) {
+      for (const isDark of [false, true]) {
+        const base = isDark ? (ACCENTS_DARK_OVERRIDE[key] ?? ACCENTS[key]).base : ACCENTS[key].base;
+        const text = accessibleAccentText(base, isDark);
+        const [page, card] = isDark ? ACCENT_TEXT_SURFACES.dark : ACCENT_TEXT_SURFACES.light;
+        for (const surface of [page, card]) {
+          const chip = blend(text, surface, ACCENT_TINT_ALPHA);
+          expect(
+            contrastRatio(text, chip),
+            `${key} ${isDark ? 'dark' : 'light'} chip on ${surface}`,
+          ).toBeGreaterThanOrEqual(4.5);
+        }
+      }
+    }
+  });
+
+  it('blend composites one color over another', async () => {
+    const { blend } = await import('./accent.service');
+    expect(blend('#000000', '#ffffff', 0)).toBe('#ffffff');
+    expect(blend('#000000', '#ffffff', 1)).toBe('#000000');
+    expect(blend('#000000', '#ffffff', 0.5)).toBe('#808080');
+    expect(blend('#0A84FF', '#F2F2F7', 0.16)).toBe('#cde0f8');
+  });
+
+  it('keeps the surfaces it checks against in step with the stylesheet', async () => {
+    const { ACCENT_TEXT_SURFACES } = await import('./accent.service');
+    const { readFileSync } = await import('node:fs');
+    const { fileURLToPath } = await import('node:url');
+    // By where this file is, not by where the tests were started from. As
+    // text: the URL of the test environment is not the one Node knows.
+    const read = (path: string): string =>
+      readFileSync(fileURLToPath(new URL(path, import.meta.url).href), 'utf8');
+    const css = read('../../theme/variables.scss');
+    const upper = (colors: readonly string[]): string[] => colors.map((c) => c.toUpperCase());
+    const token = (name: string): string[] =>
+      upper(
+        [...css.matchAll(new RegExp(`--hnch-${name}:\\s*(#[0-9A-Fa-f]{6})`, 'gu'))].map(
+          (m) => m[1]!,
+        ),
+      );
+
+    // Each token is declared twice: light first, dark second.
+    const [lightBg, darkBg] = token('bg');
+    const [lightCard, darkCard] = token('elev-1');
+    const [lightOverlay, darkOverlay] = token('elev-2');
+    expect(upper(ACCENT_TEXT_SURFACES.light)).toEqual([lightBg, lightCard, lightOverlay]);
+    expect(upper(ACCENT_TEXT_SURFACES.dark)).toEqual([darkBg, darkCard, darkOverlay]);
+  });
+
+  // Tuned to a little more than the minimum: see ACCENT_TEXT_TARGET_CONTRAST.
+  it('leaves a margin over the minimum, for every accent in both modes', async () => {
+    const { accessibleAccentText, worstAccentTextContrast, ACCENT_TEXT_TARGET_CONTRAST } =
+      await import('./accent.service');
+    const { ACCENTS, ACCENTS_DARK_OVERRIDE } = await import('./accent.tokens');
+
+    expect(ACCENT_TEXT_TARGET_CONTRAST).toBeGreaterThan(4.5);
+    for (const key of Object.keys(ACCENTS) as (keyof typeof ACCENTS)[]) {
+      for (const isDark of [false, true]) {
+        const base = isDark ? (ACCENTS_DARK_OVERRIDE[key] ?? ACCENTS[key]).base : ACCENTS[key].base;
+        const text = accessibleAccentText(base, isDark);
+        expect(
+          worstAccentTextContrast(text, isDark),
+          `${key} ${isDark ? 'dark' : 'light'}`,
+        ).toBeGreaterThanOrEqual(ACCENT_TEXT_TARGET_CONTRAST);
+      }
+    }
+  });
+
+  it('leaves a base that already passes untouched', async () => {
+    const { accessibleAccentText } = await import('./accent.service');
+    // Racing Green on a light surface is ~11:1.
+    expect(accessibleAccentText('#0B3D2E', false)).toBe('#0b3d2e');
+  });
+
+  it('writes --hnch-accent-text lighter than the base in dark mode', async () => {
+    const { relativeLuminance } = await import('./accent.service');
+    mockPreferences.get.mockResolvedValue({ value: 'racing-green' });
+    const svc = await createService();
+
+    document.documentElement.classList.add(DARK_CLASS);
+    await svc.loadFromStorage();
+
+    const text = getCssVar('--hnch-accent-text');
+    expect(text).toBeTruthy();
+    expect(relativeLuminance(text!)).toBeGreaterThan(relativeLuminance('#1F6B4F'));
+    expect(getCssVar('--hnch-accent-text-rgb')).toMatch(/^\d+,\d+,\d+$/u);
+    // The fill is untouched — only the label variant moves.
+    expect(getCssVar('--hnch-accent')).toBe('#1F6B4F');
+  });
+
+  it('recomputes --hnch-accent-text when the theme flips', async () => {
+    mockPreferences.get.mockResolvedValue({ value: 'amber' });
+    const svc = await createService();
+    await svc.loadFromStorage();
+    const lightText = getCssVar('--hnch-accent-text');
+
+    document.documentElement.classList.add(DARK_CLASS);
+    triggerClassMutation();
+
+    expect(getCssVar('--hnch-accent-text')).not.toBe(lightText);
+  });
+
+  // -------------------------------------------------------------------------
   // Persistence round-trip
   // -------------------------------------------------------------------------
 

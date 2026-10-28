@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/app.fixture';
-import { LOBBY } from './fixtures/helpers';
+import { LOBBY, ROUND_FIELD } from './fixtures/helpers';
 
 // ---------------------------------------------------------------------------
 // Selectors
@@ -11,11 +11,8 @@ import { LOBBY } from './fixtures/helpers';
 // and pierces shadow DOM, or scope by CSS class + container.
 const ROUND_EDIT = {
   modal: 'app-round-edit-sheet',
-  // ion-input[aria-label="..."] does not work as a CSS selector on the host
-  // element (Ionic shadow DOM). The native <input> inside the shadow root
-  // does carry aria-label — use input[aria-label="Round title"] scoped under
-  // the modal, or page.getByRole('textbox', { name: 'Round title' }).
-  titleInputNative: 'app-round-edit-sheet input[aria-label="Round title"]',
+  // The field is named by its label, which is also what is on screen.
+  titleInputNative: `app-round-edit-sheet ion-input[label="${ROUND_FIELD.title}"] input`,
   saveBtn: 'app-round-edit-sheet ion-button:has-text("Save")',
   /** Pencil scoped to the inline results section (latest revealed round). */
   currentRoundPencil: '.results-descriptor-row ion-button.edit-btn',

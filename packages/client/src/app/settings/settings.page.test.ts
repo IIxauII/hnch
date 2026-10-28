@@ -106,19 +106,17 @@ vi.mock('@ionic/angular/standalone', async () => {
   return {
     IonBackButton: stub('ion-back-button'),
     IonButtons: stub('ion-buttons'),
-    IonCol: stub('ion-col'),
     IonContent: stub('ion-content'),
-    IonGrid: stub('ion-grid'),
     IonHeader: stub('ion-header'),
     IonIcon: stub('ion-icon'),
     IonInput: stub('ion-input'),
     IonItem: stub('ion-item'),
     IonLabel: stub('ion-label'),
     IonList: stub('ion-list'),
+    // Not used by the page itself — SurfaceService pulls in MenuPopoverComponent.
     IonListHeader: stub('ion-list-header'),
     IonModal: stub('ion-modal'),
     IonNote: stub('ion-note'),
-    IonRow: stub('ion-row'),
     IonSelect: stub('ion-select'),
     IonSelectOption: stub('ion-select-option'),
     IonTitle: stub('ion-title'),
@@ -128,6 +126,7 @@ vi.mock('@ionic/angular/standalone', async () => {
 });
 vi.mock('ionicons', () => ({ addIcons: vi.fn() }));
 vi.mock('ionicons/icons', () => ({
+  chevronBackOutline: 'chevron-back-outline',
   contrastOutline: 'contrast-outline',
   moonOutline: 'moon-outline',
   sunnyOutline: 'sunny-outline',

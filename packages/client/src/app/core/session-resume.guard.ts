@@ -29,11 +29,12 @@ export interface SessionResumeGuardDeps {
     clearPasswordHash(roomUuid: string): Promise<void>;
     removeByUuid(roomUuid: string): Promise<void>;
     setPendingPasswordHash(roomUuid: string, passwordHash: string): void;
-    /** @deprecated back-compat — still used if no uuid available */
-    clearAll(): Promise<void>;
   };
   roomJoinService: {
-    rejoin(rawCode: string, opts?: { passwordHash?: string }): Promise<RejoinOutcome>;
+    rejoin(
+      rawCode: string,
+      opts?: { passwordHash?: string; expectedUuid?: string },
+    ): Promise<RejoinOutcome>;
   };
 }
 
@@ -54,6 +55,7 @@ export interface SessionResumeGuardDeps {
  *     - `unknown-room` or handshake failure → removeByUuid, redirect to `/home`.
  *     - `timeout` → allow (WS will reconnect in background; guard gives the
  *       benefit of the doubt rather than killing the route on a slow network).
+ *     - `superseded` → redirect to `/home`; the session is gone.
  *
  * Applied after `displayNameGuard` in the route config so we know we have
  * a display name before trying to create a session.
@@ -74,7 +76,7 @@ export async function sessionResumeGuardLogic(
   const code = normalizeRoomCode(rawCode);
 
   // Validate before touching the cache — an invalid code (typo URL) must
-  // not wipe a legitimate Jump-back-in pointer for a different room.
+  // not wipe a legitimate "Jump back in" entry for a different session.
   if (!isValidRoomCode(code)) {
     return router.createUrlTree(['/home']);
   }
@@ -89,7 +91,12 @@ export async function sessionResumeGuardLogic(
   const cached = entries.find((e) => normalizeRoomCode(e.roomCode) === code);
   const passwordHash = cached?.passwordHash;
 
-  const outcome = await roomJoinService.rejoin(rawCode, passwordHash ? { passwordHash } : {});
+  const outcome = await roomJoinService.rejoin(rawCode, {
+    ...(passwordHash ? { passwordHash } : {}),
+    // What the device remembers under this code, if anything. A code that
+    // has gone to another session since is not that session.
+    ...(cached ? { expectedUuid: cached.roomUuid } : {}),
+  });
 
   switch (outcome.type) {
     case 'connected':
@@ -105,17 +112,21 @@ export async function sessionResumeGuardLogic(
       // local state is available; the reconnecting banner handles the UX.
       return true;
 
+    case 'superseded':
+      // The session was torn down while this was waiting on it — the host
+      // had already ended it, say. Whoever tore it down has told the user
+      // and is sending them on; there is nothing to show here.
+      return router.createUrlTree(['/home']);
+
     case 'password-required':
       // No cached hash; redirect to Join page which auto-fills the code
       // and shows the password field.
       return router.createUrlTree(['/join'], { queryParams: { code } });
 
     case 'unknown-room':
-      if (cached) {
-        await lastSessionService.removeByUuid(cached.roomUuid);
-      } else {
-        await lastSessionService.clearAll();
-      }
+      // Only the session that is gone. With no entry for it there is nothing
+      // to forget — the other sessions this device remembers are not it.
+      if (cached) await lastSessionService.removeByUuid(cached.roomUuid);
       return router.createUrlTree(['/home']);
 
     case 'rejected':
@@ -132,7 +143,7 @@ export async function sessionResumeGuardLogic(
       return router.createUrlTree(['/home']);
 
     case 'network-error':
-      // Preserve cache; let user retry via the Jump-back-in banner.
+      // Preserve cache; let user retry from Home's "Jump back in" list.
       return router.createUrlTree(['/home']);
   }
 }

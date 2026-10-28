@@ -4,45 +4,21 @@
  * Full component-mount tests (DI heavy) are deferred to e2e.
  * Tests here cover:
  * - shouldAutoSubmitDeepLink: deep-link auto-submit gate
- * - rejectionCopy: close-code → user-visible copy mapping (regression lock)
+ * - joinLinkAction: what entering the page with a link means
+ * - isJoinUrl: whether the router has arrived on the page
+ * - shouldAutoSubmitTypedCode: typed-code auto-submit gate
+ * - qrScanErrorCopy: reason → user-visible copy (regression lock)
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-vi.mock('@ionic/angular/standalone', () => ({
-  IonBackButton: {},
-  IonButton: {},
-  IonButtons: {},
-  IonCol: {},
-  IonContent: {},
-  IonFooter: {},
-  IonGrid: {},
-  IonHeader: {},
-  IonIcon: {},
-  IonInput: {},
-  IonItem: {},
-  IonLabel: {},
-  IonList: {},
-  IonRow: {},
-  IonTitle: {},
-  IonToolbar: {},
-}));
-vi.mock('ionicons', () => ({}));
-vi.mock('ionicons/icons', () => ({ qrCodeOutline: '' }));
-vi.mock('@hnch/shared', () => ({
-  formatRoomCode: (s: string) => s,
-  hashPassword: vi.fn(),
-  isValidRoomCode: (s: string) => s.length === 6,
-  normalizeRoomCode: (s: string) => s.toUpperCase().replaceAll(/-/g, ''),
-  parseInviteContent: vi.fn(),
-  // last-session service imports
-  LAST_SESSION_TTL_MS: 24 * 60 * 60 * 1000,
-  LAST_SESSION_MAX_ENTRIES: 5,
-  migrateLastSessionCache: (_input: unknown) => ({ version: 2, entries: {} }),
-  pruneLastSessionEntries: (cache: unknown) => cache,
-}));
-
-import { rejectionCopy, shouldAutoSubmitDeepLink } from './join.page';
+import {
+  isJoinUrl,
+  joinLinkAction,
+  qrScanErrorCopy,
+  shouldAutoSubmitDeepLink,
+  shouldAutoSubmitTypedCode,
+} from './join.helpers';
 
 describe('shouldAutoSubmitDeepLink', () => {
   it('returns false when no code param', () => {
@@ -74,38 +50,237 @@ describe('shouldAutoSubmitDeepLink', () => {
   });
 });
 
-describe('rejectionCopy', () => {
-  it('maps malformed-credentials (close code 4010) to expected copy', () => {
-    expect(rejectionCopy('malformed-credentials')).toBe("Couldn't join with the info provided.");
+describe('joinLinkAction', () => {
+  const followed = { id: 4, trigger: 'imperative' } as const;
+
+  it('joins when a link has just been followed', () => {
+    expect(
+      joinLinkAction({
+        codeParam: 'K7P9MR',
+        navigation: followed,
+        lastNavigationId: undefined,
+        routerIsHere: true,
+      }),
+    ).toBe('join');
   });
 
-  it('maps unknown-room to expected copy', () => {
-    expect(rejectionCopy('unknown-room')).toBe(
-      "That room code isn't active. Double-check with your host.",
-    );
+  it('has nothing to act on when it is first entered without a code', () => {
+    expect(
+      joinLinkAction({
+        codeParam: null,
+        navigation: followed,
+        lastNavigationId: undefined,
+        routerIsHere: true,
+      }),
+    ).toBe('none');
+    expect(
+      joinLinkAction({
+        codeParam: '',
+        navigation: followed,
+        lastNavigationId: undefined,
+        routerIsHere: true,
+      }),
+    ).toBe('none');
   });
 
-  it('maps wrong-password to expected copy', () => {
-    expect(rejectionCopy('wrong-password')).toBe('That password is incorrect.');
+  // "Join session" on Home, with the page still in the stack from the last
+  // session: the form, not the code and the password typed back then.
+  it('starts over when it is sent to again without a code', () => {
+    expect(
+      joinLinkAction({
+        codeParam: null,
+        navigation: { id: 9, trigger: 'imperative' },
+        lastNavigationId: 4,
+        routerIsHere: true,
+      }),
+    ).toBe('reset');
   });
 
-  it('maps room-full to expected copy', () => {
-    expect(rejectionCopy('room-full')).toBe(
-      'This room is full (max 20 participants). Navigate back and try another room.',
-    );
+  it('is left as it was when it is gone back to without a code', () => {
+    expect(
+      joinLinkAction({
+        codeParam: null,
+        navigation: { id: 9, trigger: 'popstate' },
+        lastNavigationId: 4,
+        routerIsHere: true,
+      }),
+    ).toBe('none');
   });
 
-  it('maps invalid-invite to expected copy', () => {
-    expect(rejectionCopy('invalid-invite')).toBe("That invite link isn't valid.");
+  // Back from the Lobby. Joining again would put the user straight back
+  // where they are backing out of.
+  it('only puts the code back when the page is gone back to', () => {
+    expect(
+      joinLinkAction({
+        codeParam: 'K7P9MR',
+        navigation: { id: 7, trigger: 'popstate' },
+        lastNavigationId: 4,
+        routerIsHere: true,
+      }),
+    ).toBe('fill');
+    // Also when the page had to be created again for it
+    expect(
+      joinLinkAction({
+        codeParam: 'K7P9MR',
+        navigation: { id: 7, trigger: 'popstate' },
+        lastNavigationId: undefined,
+        routerIsHere: true,
+      }),
+    ).toBe('fill');
   });
 
-  it('maps expired-invite to expected copy', () => {
-    expect(rejectionCopy('expired-invite')).toBe('That invite link has expired.');
+  // The page is kept in the stack. Sent to it again — by a session that
+  // turned the user away, by a second invite — it is entered, not created.
+  it('joins when the page is sent to anew, with the same code or another', () => {
+    expect(
+      joinLinkAction({
+        codeParam: 'K7P9MR',
+        navigation: { id: 9, trigger: 'imperative' },
+        lastNavigationId: 4,
+        routerIsHere: true,
+      }),
+    ).toBe('join');
+    expect(
+      joinLinkAction({
+        codeParam: 'A2B3C4',
+        navigation: { id: 9, trigger: 'imperative' },
+        lastNavigationId: 4,
+        routerIsHere: true,
+      }),
+    ).toBe('join');
   });
 
-  it('maps invite-already-redeemed to expected copy', () => {
-    expect(rejectionCopy('invite-already-redeemed')).toBe(
-      'That invite link has already been used.',
-    );
+  it('acts on one navigation once, however often the page says it was entered', () => {
+    expect(
+      joinLinkAction({
+        codeParam: 'K7P9MR',
+        navigation: followed,
+        lastNavigationId: 4,
+        routerIsHere: true,
+      }),
+    ).toBe('none');
+  });
+
+  // A swipe back from the Lobby. Ionic runs the page transition first and
+  // the navigation after it: the router is still on the Lobby, its last
+  // navigation is the one that led there, and there is no code in its URL.
+  // Read as "sent here anew without a code", that emptied the form the user
+  // was coming back to.
+  describe('entered ahead of the router', () => {
+    const leadingToTheLobby = { id: 5, trigger: 'imperative' } as const;
+
+    it('leaves the form as it was', () => {
+      expect(
+        joinLinkAction({
+          codeParam: null,
+          navigation: leadingToTheLobby,
+          lastNavigationId: 4,
+          routerIsHere: false,
+        }),
+      ).toBe('none');
+    });
+
+    it('acts on nothing the router says, whatever it says', () => {
+      for (const codeParam of [null, 'K7P9MR']) {
+        for (const navigation of [
+          leadingToTheLobby,
+          { id: 5, trigger: 'popstate' } as const,
+          null,
+        ]) {
+          for (const lastNavigationId of [undefined, null, 4]) {
+            expect(
+              joinLinkAction({ codeParam, navigation, lastNavigationId, routerIsHere: false }),
+            ).toBe('none');
+          }
+        }
+      }
+    });
+  });
+
+  it('joins once where the router has no navigation to show', () => {
+    expect(
+      joinLinkAction({
+        codeParam: 'K7P9MR',
+        navigation: null,
+        lastNavigationId: undefined,
+        routerIsHere: true,
+      }),
+    ).toBe('join');
+    expect(
+      joinLinkAction({
+        codeParam: 'K7P9MR',
+        navigation: null,
+        lastNavigationId: null,
+        routerIsHere: true,
+      }),
+    ).toBe('none');
+  });
+});
+
+describe('isJoinUrl', () => {
+  it('is true for the Join page, with a link on it or without', () => {
+    expect(isJoinUrl('/join')).toBe(true);
+    expect(isJoinUrl('/join?code=K7P9MR')).toBe(true);
+    expect(isJoinUrl('/join?code=K7P9MR&pw=1')).toBe(true);
+    expect(isJoinUrl('/join#x')).toBe(true);
+  });
+
+  it('is false everywhere else', () => {
+    expect(isJoinUrl('/lobby/K7P9MR')).toBe(false);
+    expect(isJoinUrl('/estimating/K7P9MR')).toBe(false);
+    expect(isJoinUrl('/home')).toBe(false);
+    expect(isJoinUrl('/')).toBe(false);
+    expect(isJoinUrl('')).toBe(false);
+  });
+
+  it('is not fooled by a path that merely starts the same', () => {
+    expect(isJoinUrl('/joined')).toBe(false);
+    expect(isJoinUrl('/join/K7P9MR')).toBe(false);
+  });
+});
+
+describe('shouldAutoSubmitTypedCode', () => {
+  const base = {
+    codeIsValid: true,
+    code: 'K7P9MR',
+    lastAttemptedCode: null,
+    isSubmitting: false,
+  };
+
+  it('submits as soon as the sixth character lands', () => {
+    expect(shouldAutoSubmitTypedCode(base)).toBe(true);
+  });
+
+  it('waits while the code is still incomplete', () => {
+    expect(shouldAutoSubmitTypedCode({ ...base, codeIsValid: false, code: 'K7P9M' })).toBe(false);
+  });
+
+  it('does not stack a second attempt on one that is in flight', () => {
+    expect(shouldAutoSubmitTypedCode({ ...base, isSubmitting: true })).toBe(false);
+  });
+
+  it('does not retry a code that was already attempted', () => {
+    // Backspace-then-retype of the same character must not re-toast the
+    // same "code isn't active" failure; Join is there for a deliberate retry.
+    expect(shouldAutoSubmitTypedCode({ ...base, lastAttemptedCode: 'K7P9MR' })).toBe(false);
+  });
+
+  it('submits again once the user has corrected the code', () => {
+    expect(shouldAutoSubmitTypedCode({ ...base, lastAttemptedCode: 'K7P9MX' })).toBe(true);
+  });
+});
+
+describe('qrScanErrorCopy', () => {
+  it('has distinct copy for every failure reason', () => {
+    const reasons = [
+      'permission-denied',
+      'no-camera',
+      'camera-busy',
+      'unavailable',
+      'unknown',
+    ] as const;
+    const copies = reasons.map((r) => qrScanErrorCopy(r));
+    expect(new Set(copies).size).toBe(reasons.length);
+    for (const copy of copies) expect(copy.length).toBeGreaterThan(0);
   });
 });

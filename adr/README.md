@@ -65,6 +65,7 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0046](0046-round-discard-tombstone.md) | Round record — three terminal fields (`revealedAt`/`skippedAt`/`discardedAt`) + tombstone semantics (supersedes ADR-0013) | Accepted |  |
 | [0048](0048-host-election-eligible-peer-set.md) | Host election eligible peer set — online ∩ active, single-sourced in `shared/election.ts` (refines ADR-0010) | Accepted |  |
 | [0049](0049-self-hosted-runner-pool-current-state-consolidation.md) | Self-hosted runner pool — current-state consolidation | Accepted |  |
+| [0050](0050-reconnect-reconciliation.md) | Reconnect reconciliation — presence re-announce, sync-gated auto-reveal, HTTP refusal lookup | Accepted |  |
 
 ## When to write an ADR
 

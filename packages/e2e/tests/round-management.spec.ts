@@ -18,7 +18,7 @@ test.describe('Round management', () => {
     await player.page.waitForURL(/\/lobby/, { timeout: 10_000 });
 
     // Verify Round 1 results visible on lobby
-    await expect(host.page.locator(LOBBY.resultsHeading)).toContainText('Round 1 Results');
+    await expect(host.page.locator(LOBBY.resultsHeading)).toContainText('Round 1 results');
 
     // Start Round 2
     await host.nextRound();
@@ -26,8 +26,8 @@ test.describe('Round management', () => {
 
     // Verify we're in Round 2 — scope to app-estimating to avoid strict-mode
     // violation (lobby stays in Ionic's DOM stack alongside estimating)
-    await expect(host.page.locator('app-estimating h1.title')).toContainText('Round 2');
-    await expect(player.page.locator('app-estimating h1.title')).toContainText('Round 2');
+    await expect(host.page.locator(ESTIMATING.roundTitle)).toHaveText('Round 2');
+    await expect(player.page.locator(ESTIMATING.roundTitle)).toHaveText('Round 2');
 
     // No votes cast yet — card grid should have no selected cards
     await expect(host.page.locator(ESTIMATING.selectedCard)).not.toBeVisible();

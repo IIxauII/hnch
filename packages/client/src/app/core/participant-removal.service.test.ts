@@ -45,7 +45,10 @@ function makeDocMock(_selfId: string) {
     hasFirstSyncCompleted: hasFirstSyncCompletedSignal.asReadonly(),
     _hasFirstSyncCompletedSignal: hasFirstSyncCompletedSignal,
     teardown: vi.fn(),
-    meta: vi.fn(() => ({ roomUuid: 'test-uuid' })),
+    // What the doc says its UUID is — which any participant can rewrite...
+    meta: vi.fn(() => ({ roomUuid: 'uuid-from-the-doc' })),
+    // ...and the one the relay issued, which the entry was recorded under.
+    relayRoomUuid: vi.fn<() => string | null>(() => 'test-uuid'),
   };
 }
 
@@ -129,9 +132,23 @@ describe('ParticipantRemovalService', () => {
     expect(routerMock.navigate).toHaveBeenCalledWith(['/home']);
   });
 
-  it('kick: calls clearAll when meta returns no roomUuid', async () => {
-    // Override meta to return no roomUuid
-    docMock.meta = vi.fn(() => ({ roomUuid: undefined as unknown as string }));
+  // The doc is writable by everyone in the session. Whoever rewrote its UUID
+  // would otherwise decide which of this device's sessions is forgotten.
+  it('kick: forgets the session by the UUID the relay issued, not the one in the doc', async () => {
+    setup();
+
+    docMock._participantsSignal.set([
+      { id: SELF_ID, displayName: 'Me', joinedAt: NOW, leftAt: NOW + 1, removedBy: 'host-1' },
+    ]);
+
+    await flushAll();
+
+    expect(lastSessionMock.removeByUuid).toHaveBeenCalledExactlyOnceWith('test-uuid');
+    expect(lastSessionMock.clearAll).not.toHaveBeenCalled();
+  });
+
+  it('kick: forgets nothing else when there is no UUID to go by', async () => {
+    docMock.relayRoomUuid = vi.fn(() => null);
     setup();
 
     docMock._participantsSignal.set([
@@ -141,7 +158,7 @@ describe('ParticipantRemovalService', () => {
     await flushAll();
 
     expect(docMock.teardown).toHaveBeenCalledOnce();
-    expect(lastSessionMock.clearAll).toHaveBeenCalledOnce();
+    expect(lastSessionMock.clearAll).not.toHaveBeenCalled();
     expect(lastSessionMock.removeByUuid).not.toHaveBeenCalled();
   });
 

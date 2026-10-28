@@ -1,0 +1,10 @@
+// App-wide component rules — third global stylesheet entry (angular.json →
+// styles), loaded after global.scss so it follows Ionic's sheets in the cascade.
+//
+//   _ionic-overrides.scss — Ionic hosts: buttons, toolbars, chips, overlays,
+//                           the desktop centered modal.
+//   _surfaces.scss        — hnch primitives: card, section label, icon tile,
+//                           CTA bar.
+
+@use 'ionic-overrides';
+@use 'surfaces';

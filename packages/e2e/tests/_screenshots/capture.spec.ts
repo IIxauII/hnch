@@ -27,11 +27,16 @@ import {
   APP_SETTINGS,
   APP_SETTINGS_SCALE_PICKER,
   PRESET_CARD_EDITOR,
-  CONNECTION_CHIP,
+  CONNECTION_BANNER,
+  QR_MODAL,
+  SESSION_TOOLBAR,
+  expectToast,
   expandRoundStartSheet,
   clickRoundStartSubmit,
   fillRoomCode,
+  rememberedSessionCodes,
 } from '../fixtures/helpers';
+import { pageSettled } from './_helpers/settled';
 
 const OUT_DIR = resolveOutDir('baseline');
 const NAME = 'Alex';
@@ -50,6 +55,7 @@ async function freshContext(
 }
 
 async function shot(page: Page, name: string): Promise<void> {
+  await pageSettled(page);
   await page.waitForTimeout(200); // settle animations
   await page.screenshot({ path: path.join(OUT_DIR, `${name}.png`), fullPage: false });
 }
@@ -58,6 +64,7 @@ async function onboard(page: Page): Promise<void> {
   await page.locator(ONBOARDING.nameInput).locator('input').fill(NAME);
   await page.locator(ONBOARDING.continueBtn).click();
   await page.waitForURL(/\/home/);
+  await pageSettled(page);
 }
 
 async function gotoFresh(page: Page, urlPath: string): Promise<void> {
@@ -73,9 +80,12 @@ async function createSession(page: Page): Promise<string> {
   return code.replaceAll(/[^A-Z0-9]/gi, '');
 }
 
-async function openHeaderMenu(page: Page): Promise<void> {
-  const headerBtn = page.locator('ion-header').locator('ion-button').last();
-  await headerBtn.click();
+/** Open the host's ⋯ menu on the Lobby. */
+async function openHostMenu(page: Page): Promise<void> {
+  await page
+    .locator('app-lobby:not(.ion-page-hidden)')
+    .getByRole('button', { name: SESSION_TOOLBAR.menuBtn })
+    .click();
   // Either popover (desktop) or action-sheet (mobile) appears.
   await page
     .locator('ion-popover, ion-action-sheet')
@@ -83,9 +93,17 @@ async function openHeaderMenu(page: Page): Promise<void> {
     .waitFor({ state: 'visible', timeout: 5_000 });
 }
 
+/**
+ * Close the open menu through the overlay's own API. Escape does it for a
+ * person, but only once the overlay holds focus — and with a second browser
+ * context open beside this one, as in the desktop tour, that is not a given.
+ */
 async function closeOverlay(page: Page): Promise<void> {
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
+  const overlay = page.locator('ion-popover, ion-action-sheet').first();
+  await overlay.evaluate((el: HTMLElement & { dismiss?: () => Promise<boolean> }) =>
+    el.dismiss?.(),
+  );
+  await overlay.waitFor({ state: 'hidden', timeout: 5_000 });
 }
 
 /**
@@ -107,7 +125,7 @@ async function joinAsCoVoter(page: Page, code: string, name: string): Promise<vo
   if (page.url().includes('/home')) {
     await page.goto(`${BASE_URL}/join`);
     await fillRoomCode(page, code);
-    await page.locator(JOIN.joinBtn).click();
+    // The sixth character submits: no Join tap after a typed code.
     await page.waitForURL(/\/(lobby|estimating)/);
   }
 }
@@ -142,10 +160,8 @@ test.describe('screenshot capture', () => {
       await onboard(page);
       await shot(page, '02-home-1440');
 
-      // 03 — home overflow menu
-      await openHeaderMenu(page);
-      await shot(page, '03-home-overflow-1440');
-      await closeOverlay(page);
+      // (03 was the Home overflow menu. Its one item, Settings, is a button
+      // in the Home toolbar now — visible in 02.)
 
       // 04 — settings page
       await gotoFresh(page, '/settings');
@@ -194,19 +210,33 @@ test.describe('screenshot capture', () => {
       await page.locator('app-scale-picker-sheet ion-button:has-text("Done")').click();
       await page.locator('app-scale-picker-sheet').waitFor({ state: 'hidden' });
 
-      // 09 — access picker sheet (from settings sheet → tap Access)
-      await page.locator(SETTINGS_SHEET.accessRow).click();
-      await page.locator('app-access-picker-sheet').waitFor({ state: 'visible' });
-      await page.waitForTimeout(400);
-      await shot(page, '09-access-sheet');
-      await page.locator('app-access-picker-sheet ion-button:has-text("Done")').click();
-      await page.locator('app-access-picker-sheet').waitFor({ state: 'hidden' });
+      // 09 — session settings with a password set. The password is a field on
+      // the settings sheet itself; there is no separate access sheet.
+      const pwInput = page.locator(SETTINGS_SHEET.passwordInput).locator('input');
+      await pwInput.fill('hunter2');
+      await pwInput.press('Enter');
+      await expectToast(page, 'Password set');
+      await page.locator(SETTINGS_SHEET.removePasswordBtn).waitFor({ state: 'visible' });
+      // Let the toast go so the sheet is what the shot shows. Any toast that
+      // is up: the first `ion-toast` in the page is the banner's own, which
+      // is hidden whenever nothing has just reconnected.
+      await expect(page.locator('ion-toast:not(.overlay-hidden)')).toHaveCount(0, {
+        timeout: 5_000,
+      });
+      await shot(page, '09-session-settings-password-set');
+      // Back to an open session so the rest of the tour is unchanged.
+      await page.locator(SETTINGS_SHEET.removePasswordBtn).click();
+      await expectToast(page, 'Password removed');
+      await page.locator(SETTINGS_SHEET.removePasswordBtn).waitFor({ state: 'hidden' });
+      await expect(page.locator('ion-toast:not(.overlay-hidden)')).toHaveCount(0, {
+        timeout: 5_000,
+      });
       // Close settings sheet
       await page.locator(SETTINGS_SHEET.doneBtn).click();
       await page.locator('app-session-settings-sheet').waitFor({ state: 'hidden' });
 
       // 10 — QR modal
-      await page.locator('ion-item:has-text("Show QR code")').click();
+      await page.locator(QR_MODAL.showBtn).click();
       await page.locator('app-qr-display-sheet').waitFor({ state: 'visible' });
       await page.locator('app-qr-display-sheet img').waitFor({ state: 'visible' });
       await page.waitForTimeout(400);
@@ -214,8 +244,8 @@ test.describe('screenshot capture', () => {
       await page.locator('app-qr-display-sheet ion-button:has-text("Done")').click();
       await page.locator('app-qr-display-sheet').waitFor({ state: 'hidden' });
 
-      // 11 — lobby overflow menu
-      await openHeaderMenu(page);
+      // 11 — lobby host menu
+      await openHostMenu(page);
       await shot(page, '11-lobby-overflow');
       await closeOverlay(page);
 
@@ -266,7 +296,7 @@ test.describe('screenshot capture', () => {
       // Note: redundant with 15-lobby-results-1440; kept per plan §4a for completeness.
       await shot(page, '4a-lobby-no-history-yet-1440');
 
-      // 6a — custom scale editor sheet
+      // 6a — preset card editor sheet
       // Path: App Settings → Default scale row → Edit button on a preset.
       await gotoFresh(page, '/settings');
       await page.waitForURL(/\/settings/);
@@ -278,7 +308,7 @@ test.describe('screenshot capture', () => {
       await page.locator(APP_SETTINGS_SCALE_PICKER.editBtn('Fibonacci')).click();
       await page.locator('app-scale-editor-sheet').waitFor({ state: 'visible' });
       await page.waitForTimeout(400);
-      await shot(page, '6a-custom-scale-editor-sheet');
+      await shot(page, '6a-preset-card-editor-sheet');
 
       // 6b — preset overrides toggle (one card toggled off)
       const toggle = page.locator(PRESET_CARD_EDITOR.cardToggle('21'));
@@ -292,9 +322,35 @@ test.describe('screenshot capture', () => {
         await page.waitForTimeout(300);
       }
       await shot(page, '6b-preset-override-card-toggled');
-      // Close editor + picker
+      // Close the editor; the picker stays for the next scene
       await page.locator(PRESET_CARD_EDITOR.doneBtn).click();
       await page.locator('app-scale-editor-sheet').waitFor({ state: 'hidden' });
+
+      // 6c — custom scale editor, before there is a scale: Cancel, and what is missing
+      await page
+        .locator('app-scale-picker-sheet ion-item', { hasText: 'Create custom scale' })
+        .click();
+      const customEditor = page.locator('app-custom-scale-editor-sheet');
+      await customEditor.waitFor({ state: 'visible' });
+      await page.waitForTimeout(400);
+      await shot(page, '6c-custom-scale-editor-new');
+
+      // 6d — the same sheet once the scale exists: Done, the cards, Delete
+      await customEditor.getByRole('textbox', { name: 'Scale name' }).fill('Team sizes');
+      const newCard = customEditor.getByRole('textbox', { name: 'New card' });
+      for (const card of ['S', 'M', 'L', 'XL']) {
+        await newCard.fill(card);
+        await newCard.press('Enter');
+      }
+      await expect(customEditor.locator('.card-face')).toHaveCount(4);
+      await expect(customEditor.locator('ion-toolbar ion-button')).toHaveText('Done');
+      await newCard.blur();
+      await shot(page, '6d-custom-scale-editor-saved');
+
+      // Leave nothing behind for the scenes that follow
+      await customEditor.locator('ion-button.delete-btn').click();
+      await page.locator('ion-alert').getByRole('button', { name: 'Delete' }).click();
+      await customEditor.waitFor({ state: 'hidden' });
       await page.locator(APP_SETTINGS_SCALE_PICKER.doneBtn).click();
       await page.locator('app-scale-picker-sheet').waitFor({ state: 'hidden' });
 
@@ -382,44 +438,41 @@ test.describe('screenshot capture', () => {
   });
 
   /**
-   * Connection chip states — offline then reconnected.
+   * Connection banner — offline then reconnected.
    *
    * Ordering invariant: setOffline(true) fires before screenshot; setOffline(false)
-   * fires and we poll for chip disappearance before reconnected shot. The chip only
-   * renders after the 5 s DISCONNECTED_WARNING_DELAY_MS debounce, so we sustain
-   * offline for ≥5,500 ms. Reconnected state: chip returns to null → absent from DOM.
-   *
-   * TODO Phase 1 verification: confirm app-connection-chip appears in lobby header
-   * and that ion-chip.connection-chip selector matches after 5.5 s offline.
+   * fires and we wait for the banner to go before the reconnected shot. The
+   * banner is the one connection indicator: a bar at the top of the page, there
+   * as soon as the socket is known to be down.
    */
-  test('connection chip — offline + reconnected @connection', async ({ browser }) => {
+  test('connection banner — offline + reconnected @connection', async ({ browser }) => {
     test.setTimeout(60_000);
     const { ctx, page } = await freshContext(browser, { width: 1440, height: 900 });
     try {
       await gotoFresh(page, '/home');
       await page.waitForURL(/\/onboarding/);
       await onboard(page);
-      // Create a session so we're on /lobby (connection chip lives there)
+      // Create a session so we're on /lobby (the banner lives in session pages)
       await page.locator(HOME.createCard).click();
       await page.waitForURL(/\/lobby/);
       await page.locator(LOBBY.participantList).waitFor({ state: 'visible' });
+      // Let the connection come up first: a connection that was never up has
+      // nothing to *re*connect, and the banner would say "Connecting…". The
+      // device remembers a session once it is connected to it and in sync.
+      await expect.poll(() => rememberedSessionCodes(page), { timeout: 15_000 }).toHaveLength(1);
 
-      // 8a — connection chip offline
-      // Sustain offline for 5.5 s so DISCONNECTED_WARNING_DELAY_MS debounce fires.
+      // 8a — reconnecting
       await ctx.setOffline(true);
-      await page.waitForTimeout(5_500);
-      await shot(page, '8a-connection-chip-reconnecting');
+      const banner = page.locator(`app-lobby:not(.ion-page-hidden) ${CONNECTION_BANNER.banner}`);
+      await banner.waitFor({ state: 'visible', timeout: 15_000 });
+      await expect(banner).toContainText('Reconnecting');
+      await shot(page, '8a-connection-banner-reconnecting');
 
-      // 8c — connection chip reconnected
+      // 8c — reconnected
       await ctx.setOffline(false);
-      // Wait for chip to disappear (status returns to 'connected' → null display)
-      const chip = page.locator(CONNECTION_CHIP.chip);
-      // Chip may take a moment to clear; poll up to 10 s
-      await chip.waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => {
-        // If chip stays visible, still capture the current state
-      });
+      await banner.waitFor({ state: 'hidden', timeout: 15_000 });
       await page.waitForTimeout(500);
-      await shot(page, '8c-connection-chip-reconnected');
+      await shot(page, '8c-connection-reconnected');
     } finally {
       await ctx.close();
     }

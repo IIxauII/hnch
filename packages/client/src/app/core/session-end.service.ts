@@ -65,15 +65,13 @@ export class SessionEndService {
       message = `Session ended by ${hostName}`;
     }
 
-    const uuid = this.docService.meta()?.roomUuid;
+    // The UUID the relay issued, which is what the entry was recorded under.
+    // Not the one in the doc: any participant can rewrite that.
+    const uuid = this.docService.relayRoomUuid();
     this.docService.teardown();
 
     try {
-      if (uuid) {
-        await this.lastSession.removeByUuid(uuid);
-      } else {
-        await this.lastSession.clearAll();
-      }
+      if (uuid !== null) await this.lastSession.removeByUuid(uuid);
     } catch (err) {
       console.warn('Failed to clear lastSession cache:', err);
     }

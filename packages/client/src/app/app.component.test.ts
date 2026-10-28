@@ -9,7 +9,8 @@
  *  - hostId changes → toast + haptic
  *  - hostId transitions to null → reset tracking, no toast
  *
- * SessionEndService / ParticipantRemovalService / ThemeService are
+ * SessionEndService / SessionRejectionService / ParticipantRemovalService /
+ * ThemeService are
  * provided as empty stubs because they are eagerly injected but their
  * own behaviour is tested in dedicated suites.
  */
@@ -71,6 +72,7 @@ import { HapticService } from './core/haptic.service';
 import { ParticipantIdService } from './core/participant-id.service';
 import { ParticipantRemovalService } from './core/participant-removal.service';
 import { SessionEndService } from './core/session-end.service';
+import { SessionRejectionService } from './core/session-rejection.service';
 import { ThemeService } from './core/theme.service';
 import { ToastService } from './services/toast.service';
 
@@ -81,12 +83,18 @@ import { ToastService } from './services/toast.service';
 function makeDocMock() {
   const settingsSig = signal<SessionSettings | null>(null);
   const participantsSig = signal<readonly ParticipantSnapshot[]>([]);
+  const onlineSig = signal<ReadonlySet<string>>(new Set());
+  const relaySyncedSig = signal(true);
   return {
     settings: settingsSig.asReadonly(),
     participants: participantsSig.asReadonly(),
+    onlineParticipantIds: onlineSig.asReadonly(),
+    relaySynced: relaySyncedSig.asReadonly(),
     // writable handles for test scenarios
     _settings: settingsSig,
     _participants: participantsSig,
+    _online: onlineSig,
+    _relaySynced: relaySyncedSig,
   };
 }
 
@@ -112,6 +120,7 @@ describe('AppComponent — host-change toast effect', () => {
         { provide: ToastService, useValue: { info: toastInfoSpy } },
         // Eagerly-instantiated services that must be injectable but are not exercised here
         { provide: SessionEndService, useValue: {} },
+        { provide: SessionRejectionService, useValue: {} },
         { provide: ParticipantRemovalService, useValue: {} },
         { provide: ThemeService, useValue: {} },
       ],
@@ -237,5 +246,80 @@ describe('AppComponent — host-change toast effect', () => {
 
     const message = String(toastInfoSpy.mock.calls[0]![0]);
     expect(message).toContain('You are now the host');
+  });
+
+  describe('says why', () => {
+    const defaultScale = { id: 'fibonacci', cards: ['1'] };
+    const alice = { id: 'host-1', displayName: 'Alice', joinedAt: 0, role: 'voter' } as const;
+    const bob = { id: 'host-2', displayName: 'Bob', joinedAt: 0, role: 'voter' } as const;
+
+    /** Alice is the host; then someone else is. What the toast says about it. */
+    async function handover(
+      participants: readonly ParticipantSnapshot[],
+      online: string[],
+      opts: { to?: string; inSync?: boolean } = {},
+    ): Promise<string> {
+      TestBed.createComponent(AppComponent);
+      docMock._settings.set({ hostParticipantId: alice.id, defaultScale });
+      docMock._participants.set(participants);
+      docMock._online.set(new Set(online));
+      docMock._relaySynced.set(opts.inSync ?? true);
+      TestBed.flushEffects();
+      await Promise.resolve();
+
+      docMock._settings.set({ hostParticipantId: opts.to ?? bob.id, defaultScale });
+      TestBed.flushEffects();
+      await Promise.resolve();
+
+      expect(toastInfoSpy).toHaveBeenCalledOnce();
+      return String(toastInfoSpy.mock.calls[0]![0]);
+    }
+
+    it('a host whose connection is gone has disconnected', async () => {
+      expect(await handover([alice, bob], [bob.id])).toBe(
+        'Alice disconnected. Bob is now the host.',
+      );
+    });
+
+    // "Make host" — or a peer that lost sight of the room and elected
+    // itself. Either way nobody went anywhere, and which of the two it was
+    // is not this client's to say.
+    it('a host who is still here is no reason', async () => {
+      expect(await handover([alice, bob], [alice.id, bob.id])).toBe('Bob is now the host');
+    });
+
+    it('a host who left the session has left', async () => {
+      const gone = { ...alice, leftAt: 1 };
+      expect(await handover([gone, bob], [bob.id])).toBe('Alice left. Bob is now the host.');
+    });
+
+    // To a client that is not in sync, nobody is online. It is the one that
+    // is disconnected.
+    it('nobody has disconnected as far as a client can tell that is not in sync', async () => {
+      expect(await handover([alice, bob], [], { inSync: false })).toBe('Bob is now the host');
+    });
+
+    it('but who has left is in the doc, in sync or not', async () => {
+      const gone = { ...alice, leftAt: 1 };
+      expect(await handover([gone, bob], [], { inSync: false })).toBe(
+        'Alice left. Bob is now the host.',
+      );
+    });
+
+    it('the host that was is told who the host is now, and nothing about themselves', async () => {
+      const me = { id: 'me', displayName: 'Me', joinedAt: 0, role: 'voter' } as const;
+      TestBed.createComponent(AppComponent);
+      docMock._settings.set({ hostParticipantId: me.id, defaultScale });
+      docMock._participants.set([me, bob]);
+      docMock._online.set(new Set([bob.id]));
+      TestBed.flushEffects();
+      await Promise.resolve();
+
+      docMock._settings.set({ hostParticipantId: bob.id, defaultScale });
+      TestBed.flushEffects();
+      await Promise.resolve();
+
+      expect(String(toastInfoSpy.mock.calls[0]![0])).toBe('Bob is now the host');
+    });
   });
 });

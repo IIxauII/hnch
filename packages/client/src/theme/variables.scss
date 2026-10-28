@@ -7,6 +7,14 @@
 // ---------------------------------------------------------------------------
 
 :root {
+  // What the browser draws itself — scrollbars, native controls — follows
+  // the app's theme, which is not always the OS's (ThemeService).
+  color-scheme: light;
+
+  // One system stack for both Ionic modes, so md and ios share a typeface.
+  --ion-font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+
   // Ionic substrate — drives stepped-color derivation + native component bg/text
   --ion-background-color:      #F2F2F7;
   --ion-background-color-rgb:  242,242,247;
@@ -29,8 +37,10 @@
   --hnch-text:         #000000;
   --hnch-text-2:       #1C1C1E;
 
-  // Muted text (tertiary / quaternary)
-  --hnch-muted:        rgba(60, 60, 67, 0.60);
+  // Muted text. `--hnch-muted` carries labels, so it clears WCAG AA (4.5:1)
+  // on every light surface and on a neutral chip (`--hnch-fill`) over the
+  // page or a card; `--hnch-muted-2` is for hairlines and glyphs only.
+  --hnch-muted:        rgba(60, 60, 67, 0.80);
   --hnch-muted-2:      rgba(60, 60, 67, 0.30);
 
   // Separators — tighter per web best-practice
@@ -39,13 +49,20 @@
 
   // Fill (input backgrounds, tinted hits)
   --hnch-fill:         rgba(120, 120, 128, 0.16);
-  --hnch-fill-strong:  rgba(120, 120, 128, 0.24);
 
   // Semantic — light
   // Values from ionic-screens.jsx:24–28
   --hnch-success:      #30D158;
   --hnch-warning:      #FF9F0A;
   --hnch-danger:       #FF453A;
+
+  // Semantic *label* colors. The three above are fills (3:1 or worse as text
+  // on white); these are the same hues darkened to clear AA on the page, a
+  // card and an overlay — and on a chip tinted with the fill of the same
+  // name, over the page or a card.
+  --hnch-success-text: #1B7538;
+  --hnch-warning-text: #945700;
+  --hnch-danger-text:  #BA2018;
 
   // Ionic semantic color sets — wired to --hnch-* so toasts, badges, chips match.
   // shade = mix(#000, base, 12%); tint = mix(#fff, base, 10%) per Ionic color generator.
@@ -70,14 +87,15 @@
   --ion-color-danger-shade:          #E03D33;
   --ion-color-danger-tint:           #FF584E;
 
-  // Apple system gray — aligns with --hnch-muted intent for native Ionic components
-  // (segment, chip) while solid hex satisfies Ionic's contrast/shade/tint requirement.
-  --ion-color-medium:                #8E8E93;
-  --ion-color-medium-rgb:            142,142,147;
-  --ion-color-medium-contrast:       #000000;
-  --ion-color-medium-contrast-rgb:   0,0,0;
-  --ion-color-medium-shade:          #7D7D81;
-  --ion-color-medium-tint:           #99999E;
+  // Neutral gray for native Ionic components (chip, badge, note). Solid hex
+  // satisfies Ionic's contrast/shade/tint requirement; darker than Apple's
+  // #8E8E93 so it clears AA as text on every light surface.
+  --ion-color-medium:                #6B6B70;
+  --ion-color-medium-rgb:            107,107,112;
+  --ion-color-medium-contrast:       #FFFFFF;
+  --ion-color-medium-contrast-rgb:   255,255,255;
+  --ion-color-medium-shade:          #5E5E63;
+  --ion-color-medium-tint:           #7A7A7E;
 
   // Disabled-button tokens — light mode
   // PR 3 will apply these to ion-button via --background-disabled/--color-disabled.
@@ -100,6 +118,8 @@
 // ---------------------------------------------------------------------------
 
 :root.ion-palette-dark {
+  color-scheme: dark;
+
   // Ionic substrate — dark mode (Apple HIG #1C1C1E for perceived depth)
   --ion-background-color:      #1C1C1E;
   --ion-background-color-rgb:  28,28,30;
@@ -122,8 +142,8 @@
   --hnch-text:         #FFFFFF;
   --hnch-text-2:       #F2F2F7;
 
-  // Muted text
-  --hnch-muted:        rgba(235, 235, 245, 0.60);
+  // Muted text — AA on every dark surface and on a neutral chip, as in light.
+  --hnch-muted:        rgba(235, 235, 245, 0.70);
   --hnch-muted-2:      rgba(235, 235, 245, 0.30);
 
   // Separators — tighter per web best-practice
@@ -132,12 +152,17 @@
 
   // Fill
   --hnch-fill:         rgba(120, 120, 128, 0.32);
-  --hnch-fill-strong:  rgba(118, 118, 128, 0.40);
 
   // Semantic — dark
   --hnch-success:      #30D158;
   --hnch-warning:      #FF9F0A;
   --hnch-danger:       #FF453A;
+
+  // Semantic label colors — the fills already read on dark, except danger.
+  // Same surfaces and chips as in light.
+  --hnch-success-text: #30D158;
+  --hnch-warning-text: #FF9F0A;
+  --hnch-danger-text:  #FF8A82;
 
   // Ionic semantic color sets — dark mode.
   // Re-declared to override Ionic dark.class.css defaults; values unchanged from light
@@ -163,12 +188,12 @@
   --ion-color-danger-shade:          #E03D33;
   --ion-color-danger-tint:           #FF584E;
 
-  --ion-color-medium:                #8E8E93;
-  --ion-color-medium-rgb:            142,142,147;
+  --ion-color-medium:                #AEAEB2;
+  --ion-color-medium-rgb:            174,174,178;
   --ion-color-medium-contrast:       #000000;
   --ion-color-medium-contrast-rgb:   0,0,0;
-  --ion-color-medium-shade:          #7D7D81;
-  --ion-color-medium-tint:           #99999E;
+  --ion-color-medium-shade:          #99999D;
+  --ion-color-medium-tint:           #B6B6BA;
 
   // Disabled-button tokens — dark mode (fg bumped 0.40 → 0.50 for WCAG 4.5:1)
   --hnch-btn-disabled-bg: rgba(255, 255, 255, 0.08);
@@ -189,8 +214,7 @@
 // Centralized here so per-component .scss can stay focused on layout.
 // Tokens resolve per mode via the :root / :root.ion-palette-dark cascade.
 // Component-scoped overrides (Angular view encapsulation) still win where
-// intentional (e.g. transparent toolbars in onboarding/CTA bar, accent-tinted
-// items in custom-scale-editor).
+// intentional (e.g. transparent toolbars in onboarding/CTA bar).
 // ---------------------------------------------------------------------------
 
 ion-card {

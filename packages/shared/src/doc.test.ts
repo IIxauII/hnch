@@ -102,6 +102,12 @@ describe('formatScaleId', () => {
     expect(formatScaleId('')).toBe('');
   });
 
+  // What every participant but the scale's owner has to go by.
+  it('calls a custom scale it knows only by its id "Custom scale"', () => {
+    expect(formatScaleId('custom-1b4e28ba-2fa1-11d2-883f-0016d3cca427')).toBe('Custom scale');
+    expect(formatScaleId('custom-1B4E28BA-2FA1-11D2-883F-0016D3CCA427')).toBe('Custom scale');
+  });
+
   it('strips custom- prefix from a single-word custom ID', () => {
     expect(formatScaleId('custom-alpha')).toBe('Alpha');
   });

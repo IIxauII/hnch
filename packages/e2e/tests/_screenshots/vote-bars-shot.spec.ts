@@ -14,6 +14,7 @@
 import path from 'node:path';
 import { test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { resolveOutDir } from './_helpers/out-dir';
+import { pageSettled } from './_helpers/settled';
 import {
   BASE_URL,
   ONBOARDING,
@@ -69,7 +70,7 @@ async function hostCreate(page: Page): Promise<string> {
 async function joinerJoin(page: Page, code: string): Promise<void> {
   await page.goto(`${BASE_URL}/join`);
   await fillRoomCode(page, code);
-  await page.locator('ion-button:has-text("Join")').first().click();
+  // The sixth character submits: no Join tap after a typed code.
   await page.waitForURL(/\/lobby/);
 }
 
@@ -124,6 +125,7 @@ async function runScenario(
     // Unanimous auto-reveal → /lobby on host
     await hostPage.waitForURL(/\/lobby/, { timeout: 15_000 });
     await hostPage.locator(LOBBY.resultsSection).waitFor({ state: 'visible' });
+    await pageSettled(hostPage);
     await hostPage.waitForTimeout(800); // settle stagger + bar
     await hostPage.screenshot({
       path: path.join(OUT_DIR, `${outName}.png`),

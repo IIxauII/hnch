@@ -30,6 +30,92 @@ export async function expectToast(
   );
 }
 
+/** What {@link watchForToast} hands back. */
+export interface ToastWatch {
+  /**
+   * Whether the toast has been on screen at any time since the watch began.
+   * Throws when the watch is gone — the page was reloaded — rather than
+   * answer "no" for a page it has not been watching.
+   */
+  seen(): Promise<boolean>;
+}
+
+/**
+ * Watch the page for a toast, from now on. For a toast that must NOT be
+ * shown: `expectToast` can only wait for one, and a toast that came and went
+ * is not there to be found afterwards.
+ *
+ * The watch lives in the document: it sees navigation inside the app, and
+ * ends with a reload.
+ */
+export async function watchForToast(page: Page, message: string): Promise<ToastWatch> {
+  const key = `hnchToastWatch${Date.now()}${Math.floor(Math.random() * 1e6)}`;
+  await page.evaluate(
+    (watched: { slot: string; text: string }) => {
+      const watch = { seen: false };
+      (window as unknown as Record<string, { seen: boolean }>)[watched.slot] = watch;
+      const look = (): void => {
+        for (const toast of document.querySelectorAll('ion-toast:not(.overlay-hidden)')) {
+          const shown = (toast as unknown as { message?: string }).message ?? '';
+          if (shown.includes(watched.text)) watch.seen = true;
+        }
+      };
+      look();
+      new MutationObserver(look).observe(document.documentElement, {
+        attributeFilter: ['class'],
+        attributes: true,
+        childList: true,
+        subtree: true,
+      });
+    },
+    { slot: key, text: message },
+  );
+  return {
+    seen: async () => {
+      const watch = await page.evaluate(
+        (slot: string) =>
+          (window as unknown as Record<string, { seen: boolean } | undefined>)[slot] ?? null,
+        key,
+      );
+      if (watch === null) {
+        throw new Error(
+          `The watch for the toast "${message}" did not survive: the page was reloaded.`,
+        );
+      }
+      return watch.seen;
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// The sessions this device remembers
+// ---------------------------------------------------------------------------
+
+/** Capacitor Preferences on the web is localStorage under this prefix. */
+const LAST_SESSION_STORAGE_KEY = 'CapacitorStorage.hnch.lastSession';
+
+/**
+ * Codes of the sessions this device can get back into, read from where they
+ * are kept rather than from Home.
+ *
+ * Home reads the list when it is entered and renders it a moment later, so
+ * "there is no row for this session" is true of every Home that has not
+ * finished loading — an assertion on the rows passes whether or not the
+ * session was forgotten. What is in the cache is what Home will show.
+ */
+export async function rememberedSessionCodes(page: Page): Promise<string[]> {
+  return page.evaluate((key: string) => {
+    const raw = localStorage.getItem(key);
+    if (raw === null) return [];
+    try {
+      const cache = JSON.parse(raw) as { entries?: Record<string, { roomCode?: string }> };
+      return Object.values(cache.entries ?? {}).map((entry) => entry.roomCode ?? '');
+    } catch {
+      return [];
+    }
+  }, LAST_SESSION_STORAGE_KEY);
+}
+
 // ---------------------------------------------------------------------------
 // Onboarding
 // ---------------------------------------------------------------------------
@@ -42,8 +128,12 @@ export const ONBOARDING = {
 // Home
 // ---------------------------------------------------------------------------
 export const HOME = {
-  createCard: 'ion-item:has(h2:text-is("Create Room"))',
-  joinCard: 'ion-item:has(h2:text-is("Join Room"))',
+  createCard: 'ion-item:has(h3:text-is("New session"))',
+  joinCard: 'ion-item:has(h3:text-is("Join session"))',
+  /** One row per session this device can jump back into, newest first. */
+  recentRow: 'app-recent-rooms-list ion-item.recent-room-row',
+  /** The × beside a row: forget the session on this device. */
+  recentRemoveBtn: 'app-recent-rooms-list ion-button.remove-btn',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -56,15 +146,23 @@ export const JOIN = {
    * native `.fill()` is clamped to one tile by the maxlength attribute.
    */
   codeInput: 'app-segmented-code-input',
-  passwordInput: 'ion-input[type="password"]',
-  scanQrBtn: 'ion-item:has-text("Scan QR code")',
-  joinBtn: 'ion-button:has-text("Join")',
+  /**
+   * The password row. Addressed by its label rather than `type="password"`:
+   * the show/hide toggle flips the type.
+   */
+  passwordInput: 'app-join ion-input[label="Password"]',
+  scanQrBtn: 'app-join ion-button.scan-btn',
+  joinBtn: 'app-join ion-button.join-btn',
 } as const;
 
 /**
  * Type a room code into the segmented join-code input. Focuses the
  * first tile and types characters one at a time so the component's
  * onInput handler advances focus to the next tile after each character.
+ *
+ * The sixth character submits the form: an open session goes straight to the
+ * lobby, a protected one reveals the password field. There is no Join tap
+ * after a typed code.
  */
 export async function fillRoomCode(page: Page, code: string): Promise<void> {
   const firstTile = page.locator(JOIN.codeInput).locator('input').first();
@@ -78,20 +176,25 @@ export async function fillRoomCode(page: Page, code: string): Promise<void> {
 export const LOBBY = {
   roomCode: 'button.room-code',
   roomCodeText: 'button.room-code span',
-  // Host renders subtitle as a tappable button (opens session settings).
-  // Non-host renders as a read-only ion-chip (no settings affordance).
+  // Host renders the summary line as a tappable button (opens session
+  // settings). Non-host renders it as plain text (no settings affordance).
   // Selector matches both so role-agnostic reads work; host-only click
   // helpers should use `subtitleHostBtn` explicitly.
-  subtitle: 'button.subtitle, ion-chip.subtitle-chip',
+  subtitle: 'button.subtitle, .subtitle-chip',
   subtitleHostBtn: 'button.subtitle',
   participantList: 'ion-list.participants',
   participantItems: 'ion-list.participants ion-item',
-  participantCount: 'ion-accordion[value="participants"] ion-item[slot="header"] ion-label',
+  /** Heading of the roster card: "Participants (3)". */
+  participantCount: 'app-lobby:not(.ion-page-hidden) .participants-card .lobby-section__heading',
   hostIcon: '.host-icon',
-  startRoundBtn: /Start Round \d+/,
+  /** Host-only ⋯ on another participant's row. */
+  participantMenuBtn: 'ion-list.participants ion-button.participant-menu-btn',
+  /** In the session card, for everyone but the host: who the round waits for. */
+  waitingNote: 'app-lobby:not(.ion-page-hidden) .waiting-note',
+  startRoundBtn: /Start round \d+/,
   /** Results section shown after a round is revealed */
   resultsSection: '.results-section',
-  resultsHeading: 'ion-accordion[value="results"] .lobby-section__heading',
+  resultsHeading: 'app-lobby:not(.ion-page-hidden) .results-heading',
   voteGroups: '.results-section ion-item-group.group:not(.didnt-vote)',
   groupCard: '.results-section ion-item-group .card',
   voterChips: '.results-section ion-chip ion-label',
@@ -99,14 +202,22 @@ export const LOBBY = {
   /** Abstained group shown after reveal when at least one participant abstained. */
   abstainedGroup: '.results-section ion-item-group.group.abstained',
   revoteBtn: 'ion-button:has-text("Re-vote")',
-  nextRoundBtn: /Next Round \d+/,
+  nextRoundBtn: /Next round \d+/,
+} as const;
+
+/** The toolbar's trailing buttons on Lobby and Estimating. */
+export const SESSION_TOOLBAR = {
+  /** Host only. */
+  menuBtn: 'More options',
+  /** Everyone else: one tap, then a confirmation. */
+  leaveBtn: 'Leave session',
 } as const;
 
 // ---------------------------------------------------------------------------
 // QR display modal
 // ---------------------------------------------------------------------------
 export const QR_MODAL = {
-  showBtn: 'ion-item:has-text("Show QR code")',
+  showBtn: 'app-lobby:not(.ion-page-hidden) ion-button.qr-btn',
   img: 'app-qr-display-sheet img',
   codeText: 'app-qr-display-sheet .room-code',
   doneBtn: 'app-qr-display-sheet ion-button:has-text("Done")',
@@ -115,11 +226,20 @@ export const QR_MODAL = {
 // ---------------------------------------------------------------------------
 // Round-start modal
 // ---------------------------------------------------------------------------
+/**
+ * What the fields of the round form are called on screen — and therefore to
+ * assistive tech: the label *is* the accessible name. The round-edit sheet
+ * has the same title field; a ticket ID is only asked for when a round is
+ * started. Use with `getByRole('textbox', { name })`.
+ */
+export const ROUND_FIELD = {
+  title: 'What are you estimating?',
+  ticketId: 'Ticket ID',
+} as const;
+
 export const ROUND_START = {
-  /** Round title input. Ionic projects the wrapper's aria-label to the inner native input, so we address it there. */
-  titleInput: 'app-round-start-sheet ion-input:has(input[aria-label="Round title"])',
-  /** Ticket ID input (optional tracker reference). */
-  ticketIdInput: 'app-round-start-sheet ion-input:has(input[aria-label="Ticket ID"])',
+  /** The round's title, addressed by its label. */
+  titleInput: `app-round-start-sheet ion-input[label="${ROUND_FIELD.title}"]`,
   startBtn: 'app-round-start-sheet ion-button:has-text("Start")',
 } as const;
 
@@ -165,16 +285,19 @@ export async function clickRoundStartSubmit(page: Page): Promise<void> {
 // Estimating
 // ---------------------------------------------------------------------------
 export const ESTIMATING = {
-  roundTitle: 'h1.title',
-  elapsed: 'p.elapsed',
+  /** "Round N", in the toolbar. */
+  roundTitle: 'app-estimating:not(.ion-page-hidden) ion-title',
+  /** What is being estimated: the round's title. */
+  descriptor: 'app-estimating:not(.ion-page-hidden) .descriptor',
   cardGrid: 'div.grid',
   card: (value: string) => `app-estimating ion-card.card:has(ion-card-content:text-is("${value}"))`,
   selectedCard: 'ion-card.card.selected',
   voteDots: 'app-avatar-vote-row .dot',
   votedDots: 'app-avatar-vote-row .dot.voted',
   voteCount: 'app-estimating:not(.ion-page-hidden) app-avatar-vote-row .count',
-  revealBtn: 'ion-button:has-text("Reveal Votes")',
-  roleChip: 'app-estimating:not(.ion-page-hidden) ion-header ion-chip',
+  revealBtn: 'ion-button:has-text("Reveal votes")',
+  /** Voter ⇄ Observer switch. Text is "Voter" or "Observer". */
+  roleChip: 'app-estimating:not(.ion-page-hidden) app-role-toggle ion-button',
   /** Abstain button on the estimating page. */
   abstainBtn:
     'app-estimating ion-button.abstain-btn, app-estimating ion-button[aria-label="Abstain this round"]',
@@ -187,21 +310,17 @@ export const ESTIMATING = {
 // ---------------------------------------------------------------------------
 export const SETTINGS_SHEET = {
   scaleRow: 'app-session-settings-sheet ion-item:has(h3:text-is("Scale"))',
-  accessRow: 'app-session-settings-sheet ion-item:has(h3:text-is("Access"))',
   scaleValue: 'app-session-settings-sheet ion-item:has(h3:text-is("Scale")) ion-note',
-  accessValue: 'app-session-settings-sheet ion-item:has(h3:text-is("Access")) ion-note',
+  /** Typing here and leaving the field sets the password. */
+  passwordInput: 'app-session-settings-sheet ion-input[label="Password"]',
+  /** Only there while the session has a password. */
+  removePasswordBtn: 'app-session-settings-sheet ion-button.remove-password-btn',
   doneBtn: 'app-session-settings-sheet ion-button:has-text("Done")',
 } as const;
 
 export const SCALE_PICKER = {
   option: (label: string) => `app-scale-picker-sheet ion-item:has(h3:text-is("${label}"))`,
   doneBtn: 'app-scale-picker-sheet ion-button:has-text("Done")',
-} as const;
-
-export const ACCESS_PICKER = {
-  option: (label: string) => `app-access-picker-sheet ion-item:has(h3:text-is("${label}"))`,
-  passwordInput: 'app-access-picker-sheet ion-input[type="password"]',
-  doneBtn: 'app-access-picker-sheet ion-button:has-text("Done")',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -248,69 +367,25 @@ export const PRESET_CARD_EDITOR = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// Password sheet (join page — password prompt + error display)
-// ---------------------------------------------------------------------------
-export const PASSWORD_SHEET = {
-  /** Password input on the join page (appears after first join submit on a pwd-protected room). */
-  passwordInput: 'ion-input[type="password"]',
-  /** Error text shown after wrong-password rejection (WS close 4002). */
-  errorText: 'p.error-text, ion-note.error, .join-error',
-} as const;
-
-// ---------------------------------------------------------------------------
-// Viewer role toggle
-// ---------------------------------------------------------------------------
-export const VIEWER_ROLE = {
-  /**
-   * Role chip on the estimating page. Text is "Voter" or "Observing".
-   * Use `.filter({ hasText: ... })` to assert specific state.
-   */
-  chip: ESTIMATING.roleChip,
-} as const;
-
-// ---------------------------------------------------------------------------
-// Kick affordance (swipe-left → Remove on participant row)
+// Host actions on a participant (⋯ on their roster row → Make host / Remove)
 // ---------------------------------------------------------------------------
 export const KICK_AFFORDANCE = {
-  /** IonItemSliding wrapping a participant row — call `.open('end')` via evaluate(). */
-  slidingItem: (name: string) =>
-    `ion-item-sliding:has(ion-label:text-is("${name}"), ion-label:has-text("${name}"))`,
-  /** Remove option button revealed after swipe. */
-  removeBtn: 'ion-item-option:has-text("Remove")',
+  /** A participant's roster row, by the name it shows. */
+  row: (name: string) =>
+    `app-lobby:not(.ion-page-hidden) ion-list.participants ion-item:has(.participant-name:text-is("${name}"))`,
+  /** The ⋯ button on that row. Host only, never on the host's own row. */
+  menuBtn: (name: string) =>
+    `app-lobby:not(.ion-page-hidden) ion-list.participants ion-item:has(.participant-name:text-is("${name}")) ion-button.participant-menu-btn`,
 } as const;
 
 // ---------------------------------------------------------------------------
-// Custom scale editor (scale-editor-sheet)
+// Connection banner
 // ---------------------------------------------------------------------------
-// Entry path: App Settings → Default scale row → Edit button next to a preset.
-// Selector for the sheet itself; card toggles use PRESET_CARD_EDITOR.
-export const CUSTOM_SCALE_EDITOR = {
-  sheet: 'app-scale-editor-sheet',
-  cardList: PRESET_CARD_EDITOR.cardList,
-  cardToggle: PRESET_CARD_EDITOR.cardToggle,
-  doneBtn: PRESET_CARD_EDITOR.doneBtn,
-} as const;
-
-// ---------------------------------------------------------------------------
-// Session-ended toast
-// ---------------------------------------------------------------------------
-// Use expectToast(page, /session ended/i) from helpers.ts for assertions.
-// Selector for the visible ion-toast element (if direct DOM access is needed).
-export const SESSION_ENDED_TOAST = {
-  toast: 'ion-toast:not(.overlay-hidden)',
-} as const;
-
-// ---------------------------------------------------------------------------
-// Connection chip
-// ---------------------------------------------------------------------------
-// app-connection-chip renders an ion-chip.connection-chip only when non-connected.
-// States: "Connecting…" (medium, sync-outline) | "Reconnecting…" (warning, cloud-offline).
-// Connected state: chip not rendered (null from computeChipDisplay).
-export const CONNECTION_CHIP = {
-  host: 'app-connection-chip',
-  chip: 'app-connection-chip ion-chip.connection-chip',
-  reconnecting: 'app-connection-chip ion-chip.connection-chip[color="warning"]',
-  connecting: 'app-connection-chip ion-chip.connection-chip[color="medium"]',
+// app-connection-status-banner renders its bar only while the session is not
+// connected: "Reconnecting…" as soon as a connection that was up drops,
+// "Connecting…" once a first connection is taking a while. Connected: no bar.
+export const CONNECTION_BANNER = {
+  banner: '[data-testid="connection-status-banner"]',
 } as const;
 
 // ---------------------------------------------------------------------------

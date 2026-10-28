@@ -5,11 +5,14 @@ import {
   HOME,
   JOIN,
   LOBBY,
+  ROUND_FIELD,
   ROUND_START,
   ESTIMATING,
+  expectToast,
   SETTINGS_SHEET,
   SCALE_PICKER,
-  ACCESS_PICKER,
+  SESSION_TOOLBAR,
+  KICK_AFFORDANCE,
   APP_SETTINGS,
   APP_SETTINGS_SCALE_PICKER,
   PRESET_CARD_EDITOR,
@@ -21,7 +24,8 @@ import {
 // ---------------------------------------------------------------------------
 
 /**
- * Open the header ⋯ menu and click a named item.
+ * Click a named item in a menu that is already opening — the host's ⋯ menu,
+ * a roster row's, or an agenda item's.
  *
  * On mobile (action-sheet): finds `ion-action-sheet button` with matching text.
  * On desktop (popover): `ion-item[button]` inside `ion-popover` renders its
@@ -32,12 +36,13 @@ import {
  * Ordering invariant: the overlay must already be opening when this is called
  * (caller clicks the trigger button first).
  */
-async function clickMenuOption(page: import('@playwright/test').Page, text: string): Promise<void> {
+export async function clickMenuOption(page: Page, text: string): Promise<void> {
   const actionSheetBtn = page.locator(`ion-action-sheet button:has-text("${text}")`);
   // ion-item[button] renders a native <button> in shadow DOM; getByRole() pierces shadow.
-  // Scoped to ion-popover so unrelated page buttons don't match.
+  // Scoped to ion-popover so unrelated page buttons don't match. Exact, so
+  // "Move up" can never pick "Move up" out of a longer label.
   const popoverContainer = page.locator('ion-popover');
-  const popoverBtn = popoverContainer.getByRole('button', { name: text });
+  const popoverBtn = popoverContainer.getByRole('button', { name: text, exact: true });
 
   // Promise.any: resolves as soon as one overlay becomes visible; rejects only if both fail.
   await Promise.any([
@@ -120,7 +125,10 @@ export class Participant {
     return code.replaceAll(/[^A-Z0-9]/gi, ''); // strip dash formatting
   }
 
-  /** Join an existing session from /home using a room code. */
+  /**
+   * Join an existing session from /home using a room code. Typing the sixth
+   * character submits; there is no Join tap.
+   */
   async joinSession(code: string): Promise<void> {
     await this.page.goto(`${BASE_URL}/home`);
     await this.page.waitForURL(/\/(home|onboarding)/);
@@ -130,13 +138,12 @@ export class Participant {
     await this.page.locator(HOME.joinCard).click();
     await this.page.waitForURL(/\/join/);
     await fillRoomCode(this.page, code);
-    await this.page.locator(JOIN.joinBtn).click();
     await this.page.waitForURL(/\/lobby/);
   }
 
   // -- Lobby actions --------------------------------------------------------
 
-  /** Tap "Start Round N" and confirm the modal. */
+  /** Tap "Start round N" and confirm the modal. */
   async startRound(title?: string, ticketId?: string): Promise<void> {
     // Scope to the active Ionic page so a hidden /join in the navigation
     // stack can't intercept the click via pointer-event bubbling.
@@ -149,10 +156,10 @@ export class Participant {
     const modal = this.page.locator('app-round-start-sheet');
     await modal.waitFor({ state: 'visible' });
     if (title) {
-      await modal.locator('ion-input').first().locator('input').fill(title);
+      await modal.getByRole('textbox', { name: ROUND_FIELD.title }).fill(title);
     }
     if (ticketId) {
-      await modal.locator('ion-input').nth(1).locator('input').fill(ticketId);
+      await modal.getByRole('textbox', { name: ROUND_FIELD.ticketId }).fill(ticketId);
     }
     const startBtn = this.page.locator(ROUND_START.startBtn);
     await startBtn.waitFor({ state: 'visible' });
@@ -212,17 +219,17 @@ export class Participant {
 
   /** Toggle role between voter and viewer on the estimating page. */
   async toggleRole(): Promise<void> {
-    // Chip shows either "Voter" or "Observing" text — use evaluate to force click
+    // The switch reads either "Voter" or "Observer".
     // .first() ensures we target the active (topmost) app-estimating page in the Ionic stack
     const chip = this.page
       .locator(ESTIMATING.roleChip)
-      .filter({ hasText: /Voter|Observing/ })
+      .filter({ hasText: /Voter|Observer/ })
       .first();
     await chip.waitFor({ state: 'visible' });
     await chip.click();
   }
 
-  /** Tap the Reveal Votes button (host only). Navigates to /lobby with results.
+  /** Tap the "Reveal votes" button (host only). Navigates to /lobby with results.
    * Idempotent: if unanimous auto-reveal (ADR-0018) already navigated to /lobby
    * before this is called, just waits for the results section.
    */
@@ -239,26 +246,49 @@ export class Participant {
     await this.page.locator(LOBBY.resultsSection).waitFor({ state: 'visible', timeout: 5_000 });
   }
 
-  /** Tap the ⋯ menu, click "Skip round" (host only). Navigates to /lobby with skipped label. */
+  /**
+   * Open the host's ⋯ menu on the active page (Lobby or Estimating). Everyone
+   * else has no menu — their one action, Leave, is a toolbar button.
+   */
+  async openHostMenu(): Promise<void> {
+    await this.activePage().getByRole('button', { name: SESSION_TOOLBAR.menuBtn }).click();
+  }
+
+  /**
+   * The Lobby or Estimating page the user is on. Picked by URL, not by
+   * `:not(.ion-page-hidden)` alone: while a page transition runs, the page
+   * being left is still unhidden and both would match.
+   */
+  private activePage() {
+    const onEstimating = this.page.url().includes('/estimating');
+    return this.page.locator(
+      onEstimating ? 'app-estimating:not(.ion-page-hidden)' : 'app-lobby:not(.ion-page-hidden)',
+    );
+  }
+
+  /**
+   * Tap the ⋯ menu, "Skip round", and confirm (host only). Navigates to
+   * /lobby with the skipped label.
+   */
   async skipRound(): Promise<void> {
-    const actionBtn = this.page.locator('ion-header').locator('ion-button').last();
-    await actionBtn.click();
+    await this.openHostMenu();
     await clickMenuOption(this.page, 'Skip round');
+    await this.confirmAlert('Skip round');
     await this.page.waitForURL(/\/lobby/, { timeout: 10_000 });
   }
 
   // -- Lobby results actions -------------------------------------------------
 
-  /** Tap "Next Round N" from the lobby results section and confirm the modal. */
+  /** Tap "Next round N" in the lobby footer and confirm the modal. */
   async nextRound(title?: string, ticketId?: string): Promise<void> {
     await this.page.locator('ion-button', { hasText: LOBBY.nextRoundBtn }).click();
     const modal = this.page.locator('app-round-start-sheet');
     await modal.waitFor({ state: 'visible' });
     if (title) {
-      await modal.locator('ion-input').first().locator('input').fill(title);
+      await modal.getByRole('textbox', { name: ROUND_FIELD.title }).fill(title);
     }
     if (ticketId) {
-      await modal.locator('ion-input').nth(1).locator('input').fill(ticketId);
+      await modal.getByRole('textbox', { name: ROUND_FIELD.ticketId }).fill(ticketId);
     }
     const startBtn = this.page.locator(ROUND_START.startBtn);
     await startBtn.waitFor({ state: 'visible' });
@@ -272,7 +302,7 @@ export class Participant {
     await this.waitForEstimating();
   }
 
-  /** Tap "Re-vote" from the lobby results section — navigates to /estimating. */
+  /** Tap "Re-vote" in the lobby footer — navigates to /estimating. */
   async revote(): Promise<void> {
     await this.page.locator(LOBBY.revoteBtn).click();
     await this.waitForEstimating();
@@ -295,19 +325,38 @@ export class Participant {
     await doneBtn.click();
   }
 
-  /** Change the access mode. Assumes settings sheet is open. */
-  async changeAccess(modeLabel: string, password?: string): Promise<void> {
-    await this.page.locator(SETTINGS_SHEET.accessRow).click();
-    await this.page.locator(ACCESS_PICKER.option(modeLabel)).click();
-    if (password) {
-      const input = this.page.locator(ACCESS_PICKER.passwordInput).locator('input');
-      await input.fill(password);
-      // Trigger commit (blur)
-      await input.press('Enter');
-    }
-    const doneBtn = this.page.locator(ACCESS_PICKER.doneBtn);
-    await doneBtn.waitFor({ state: 'visible' });
-    await doneBtn.click();
+  /** The relay's answer to the next access change made from this page. */
+  private accessChangeAccepted(): Promise<unknown> {
+    return this.page.waitForResponse(
+      (res) => res.url().includes('/access') && res.request().method() === 'PATCH' && res.ok(),
+      { timeout: 10_000 },
+    );
+  }
+
+  /**
+   * Set or change the session password. Assumes settings sheet is open.
+   * Resolves once the relay has accepted it — its answer to *this* change,
+   * not the toast, which may still be up from the change before.
+   */
+  async setPassword(password: string): Promise<void> {
+    const accepted = this.accessChangeAccepted();
+    const input = this.page.locator(SETTINGS_SHEET.passwordInput).locator('input');
+    await input.fill(password);
+    // Enter commits, the same as leaving the field.
+    await input.press('Enter');
+    await accepted;
+    await expectToast(this.page, 'Password set');
+  }
+
+  /**
+   * Remove the session password. Assumes settings sheet is open and the
+   * session has one. Resolves once the relay has accepted it.
+   */
+  async removePassword(): Promise<void> {
+    const accepted = this.accessChangeAccepted();
+    await this.page.locator(SETTINGS_SHEET.removePasswordBtn).click();
+    await accepted;
+    await expectToast(this.page, 'Password removed');
   }
 
   /** Join with a password — enters code, waits for password field, fills it. */
@@ -319,14 +368,12 @@ export class Participant {
     }
     await this.page.locator(HOME.joinCard).click();
     await this.page.waitForURL(/\/join/);
+    // The sixth character resolves the code and reveals the password field
     await fillRoomCode(this.page, code);
-    // First submit resolves the room and reveals the password field
-    await this.page.locator(JOIN.joinBtn).click();
-    // Wait for the password input to appear
     const pwInput = this.page.locator(JOIN.passwordInput).locator('input');
     await pwInput.waitFor({ state: 'visible', timeout: 5_000 });
     await pwInput.fill(password);
-    // Second submit connects with the password
+    // Join connects with the password
     await this.page.locator(JOIN.joinBtn).click();
     await this.page.waitForURL(/\/lobby/, { timeout: 10_000 });
   }
@@ -358,14 +405,23 @@ export class Participant {
     await this.page.locator('app-session-settings-sheet').waitFor({ state: 'hidden' });
   }
 
-  /** Leave the current session via menu overlay → confirm. Navigates to /home. */
+  /**
+   * Leave the current session → confirm. Navigates to /home. The host leaves
+   * through the ⋯ menu; everyone else has a Leave button in the toolbar.
+   */
   async leaveSession(): Promise<void> {
-    // Open menu by clicking the last button in the header (menu/more button)
-    const actionBtn = this.page.locator('ion-header').locator('ion-button').last();
-    await actionBtn.click();
+    const active = this.activePage();
+    const menuBtn = active.getByRole('button', { name: SESSION_TOOLBAR.menuBtn });
+    const leaveBtn = active.getByRole('button', { name: SESSION_TOOLBAR.leaveBtn });
+    await menuBtn.or(leaveBtn).first().waitFor({ state: 'visible' });
 
-    // Click "Leave session" — works for both action-sheet (mobile) and popover (desktop)
-    await clickMenuOption(this.page, 'Leave session');
+    if (await menuBtn.isVisible()) {
+      await menuBtn.click();
+      // Works for both action-sheet (mobile) and popover (desktop)
+      await clickMenuOption(this.page, 'Leave session');
+    } else {
+      await leaveBtn.click();
+    }
 
     // Confirm in alert
     const alert = this.page.locator('ion-alert');
@@ -375,6 +431,46 @@ export class Participant {
 
     // Navigate to /home
     await this.page.waitForURL(/\/home/, { timeout: 5_000 });
+  }
+
+  // -- Host actions on a participant --------------------------------------
+
+  /**
+   * Open the ⋯ menu on a participant's roster row (host only). An action
+   * sheet on touch, a popover with a pointer — `clickMenuOption` handles both.
+   */
+  async openParticipantMenu(name: string): Promise<void> {
+    const btn = this.page.locator(KICK_AFFORDANCE.menuBtn(name));
+    await btn.waitFor({ state: 'visible', timeout: 5_000 });
+    await btn.click();
+  }
+
+  /**
+   * Remove a participant from the session: ⋯ → Remove → confirm.
+   *
+   * Ordering invariant: the alert is awaited before the confirm tap, so the
+   * menu → alert hand-off is complete when the confirm lands.
+   */
+  async removeParticipant(name: string): Promise<void> {
+    await this.openParticipantMenu(name);
+    await clickMenuOption(this.page, 'Remove');
+    await this.confirmAlert('Remove');
+  }
+
+  /** Hand the host role to a participant: ⋯ → Make host → confirm. */
+  async makeHost(name: string): Promise<void> {
+    await this.openParticipantMenu(name);
+    await clickMenuOption(this.page, 'Make host');
+    await this.confirmAlert('Make host');
+  }
+
+  /** Wait for the confirmation alert and tap the button labelled `text`. */
+  async confirmAlert(text: string): Promise<void> {
+    const alert = this.page.locator('ion-alert');
+    await alert.waitFor({ state: 'visible', timeout: 5_000 });
+    const confirmBtn = alert.locator(`button:has-text("${text}")`);
+    await pwExpect(confirmBtn).toHaveCount(1);
+    await confirmBtn.click();
   }
 
   // -- App settings (device-level preferences) -----
@@ -428,27 +524,31 @@ export class Participant {
 
   // -- Agenda ---------------------------------------------------------------
 
-  /**
-   * On mobile viewport the panel is collapsed. Tap the "Next up" chip to expand.
-   * On desktop the panel is always visible — no-op.
-   *
-   * Ordering invariant: call this before interacting with any agenda panel
-   * content on a mobile-sized page. Idempotent if already expanded.
-   */
-  async openAgendaPanelIfCollapsed(): Promise<void> {
-    // The collapsed chip is only rendered when surface.mode() === 'mobile'.
-    const chip = this.page.locator('app-agenda-panel ion-chip.next-up-chip');
-    const isCollapsed = await chip.isVisible().catch(() => false);
-    if (isCollapsed) {
-      await chip.click();
-      // Wait for the expanded panel to appear
-      await this.page.locator('app-agenda-panel .agenda-panel').waitFor({ state: 'visible' });
-    }
+  /** The agenda list on the active Lobby. One layout on every surface. */
+  private agendaList() {
+    return this.page.locator(
+      'app-lobby:not(.ion-page-hidden) app-agenda-panel ion-list.agenda-list',
+    );
+  }
+
+  /** The add / edit story sheet, and the fields on it. */
+  private agendaForm() {
+    const sheet = this.page.locator('app-agenda-item-form-sheet');
+    return {
+      sheet,
+      title: sheet.locator('ion-title'),
+      titleInput: sheet.locator('ion-input[formcontrolname="title"] input').first(),
+      ticketInput: sheet.locator('ion-input[formcontrolname="ticketId"] input').first(),
+      descriptionInput: sheet
+        .locator('ion-textarea[formcontrolname="description"] textarea')
+        .first(),
+      submit: sheet.locator('ion-buttons[slot="end"] ion-button'),
+    };
   }
 
   /**
-   * Add an agenda item via the host-only "Add" button and form sheet.
-   * At least one of `title` or `ticketId` is required by the validator.
+   * Add a story to the agenda via the host-only "Add story" button and form
+   * sheet. At least one of `title` or `ticketId` is required by the validator.
    */
   async addAgendaItem(input: {
     title?: string;
@@ -462,45 +562,24 @@ export class Participant {
       .filter({ hasText: LOBBY.startRoundBtn });
     await startBtn.waitFor({ state: 'visible', timeout: 10_000 });
 
-    // Find the add button in the expanded agenda panel header.
-    // getByRole pierces Ionic web component shadow DOM; searches by accessible name
-    // derived from aria-label on the ion-button host element.
-    const panel = this.page.locator('app-agenda-panel .agenda-panel');
-    await panel.waitFor({ state: 'visible' });
-    const addBtn = panel.getByRole('button', { name: 'Add agenda item' });
+    const addBtn = this.page.locator(
+      'app-lobby:not(.ion-page-hidden) app-agenda-panel ion-button.add-btn',
+    );
     await addBtn.waitFor({ state: 'visible', timeout: 10_000 });
     await addBtn.click();
 
     // Wait for the form sheet dialog to appear (Ionic modal opens asynchronously).
     // Use the dialog title text as a reliable signal that the sheet is ready.
-    const sheetTitle = this.page.locator('app-agenda-item-form-sheet ion-title');
-    await sheetTitle.waitFor({ state: 'visible', timeout: 10_000 });
+    const form = this.agendaForm();
+    await form.title.waitFor({ state: 'visible', timeout: 10_000 });
 
-    if (input.title !== undefined) {
-      const titleInput = this.page.getByRole('textbox', { name: 'Story title' });
-      await titleInput.waitFor({ state: 'visible', timeout: 5_000 });
-      await titleInput.fill(input.title);
-    }
-    if (input.ticketId !== undefined) {
-      const ticketInput = this.page.getByRole('textbox', { name: 'Issue tracker ticket ID' });
-      await ticketInput.waitFor({ state: 'visible', timeout: 5_000 });
-      await ticketInput.fill(input.ticketId);
-    }
-    if (input.description !== undefined) {
-      const descInput = this.page.getByRole('textbox', { name: 'Story description' });
-      await descInput.waitFor({ state: 'visible', timeout: 5_000 });
-      await descInput.fill(input.description);
-    }
+    if (input.title !== undefined) await form.titleInput.fill(input.title);
+    if (input.ticketId !== undefined) await form.ticketInput.fill(input.ticketId);
+    if (input.description !== undefined) await form.descriptionInput.fill(input.description);
 
-    // Submit via the "Add" button in the sheet footer.
-    // Aria label: "Add agenda item" (matches mode='add').
-    const submitBtn = this.page.locator('app-agenda-item-form-sheet').getByRole('button', {
-      name: /^(Add|Save) agenda item$/u,
-    });
-    await submitBtn.waitFor({ state: 'visible', timeout: 5_000 });
-    await submitBtn.click();
+    await form.submit.click();
     // Wait for sheet to close — the ion-title disappears when modal dismisses.
-    await sheetTitle.waitFor({ state: 'hidden', timeout: 5_000 });
+    await form.title.waitFor({ state: 'hidden', timeout: 5_000 });
   }
 
   /**
@@ -508,14 +587,14 @@ export class Participant {
    * Each entry can specify `title` (text content), `ticketId` (badge text),
    * or `state` (`pending` | `consumed` | `skipped` | `cancelled`).
    *
-   * Cancelled items are hidden by default; pass `state:'cancelled'` only
-   * after toggling "Show cancelled".
+   * Removed (cancelled) items are hidden by default; pass `state:'cancelled'`
+   * only after toggling "Show removed".
    */
   async expectAgendaItems(
     expected: Array<{ title?: string; ticketId?: string; state?: string }>,
   ): Promise<void> {
     const { expect } = await import('@playwright/test');
-    const list = this.page.locator('app-agenda-panel ion-list.agenda-list');
+    const list = this.agendaList();
     await list.waitFor({ state: 'visible' });
     const items = list.locator('ion-item.agenda-item');
     await expect(items).toHaveCount(expected.length);
@@ -535,95 +614,66 @@ export class Participant {
   }
 
   /**
+   * Open the ⋯ menu of the nth agenda item (0-based) and pick an action:
+   * `Move up`, `Move down`, `Edit`, `Skip` or `Remove`. Host only, and only
+   * on a story that is still pending.
+   */
+  async agendaItemAction(index: number, action: string): Promise<void> {
+    const item = this.agendaList().locator('ion-item.agenda-item').nth(index);
+    const menuBtn = item.locator('ion-button.item-menu-btn');
+    await menuBtn.waitFor({ state: 'visible' });
+    await menuBtn.click();
+    await clickMenuOption(this.page, action);
+  }
+
+  /**
    * Open the edit form for the nth agenda item (0-based) and apply a patch.
-   * Clears each field before typing the new value.
+   * `fill` replaces whatever the field held.
    */
   async editAgendaItem(
     index: number,
     patch: { title?: string; ticketId?: string; description?: string },
   ): Promise<void> {
-    const list = this.page.locator('app-agenda-panel ion-list.agenda-list');
-    const item = list.locator('ion-item.agenda-item').nth(index);
-    const editBtn = item.getByRole('button', { name: /^Edit /u });
-    await editBtn.waitFor({ state: 'visible' });
-    await editBtn.click();
+    await this.agendaItemAction(index, 'Edit');
 
-    const sheetTitle = this.page.locator('app-agenda-item-form-sheet ion-title');
-    await sheetTitle.waitFor({ state: 'visible', timeout: 10_000 });
+    const form = this.agendaForm();
+    await form.title.waitFor({ state: 'visible', timeout: 10_000 });
 
-    if (patch.title !== undefined) {
-      const input = this.page.getByRole('textbox', { name: 'Story title' });
-      await input.clear();
-      await input.fill(patch.title);
-    }
-    if (patch.ticketId !== undefined) {
-      const input = this.page.getByRole('textbox', { name: 'Issue tracker ticket ID' });
-      await input.clear();
-      await input.fill(patch.ticketId);
-    }
-    if (patch.description !== undefined) {
-      const textarea = this.page.getByRole('textbox', { name: 'Story description' });
-      await textarea.clear();
-      await textarea.fill(patch.description);
-    }
+    if (patch.title !== undefined) await form.titleInput.fill(patch.title);
+    if (patch.ticketId !== undefined) await form.ticketInput.fill(patch.ticketId);
+    if (patch.description !== undefined) await form.descriptionInput.fill(patch.description);
 
-    const saveBtn = this.page.locator('app-agenda-item-form-sheet').getByRole('button', {
-      name: /^(Add|Save) agenda item$/u,
-    });
-    await saveBtn.waitFor({ state: 'visible', timeout: 5_000 });
-    await saveBtn.click();
-    await sheetTitle.waitFor({ state: 'hidden', timeout: 5_000 });
+    await form.submit.click();
+    await form.title.waitFor({ state: 'hidden', timeout: 5_000 });
   }
 
   /**
-   * Cancel the nth agenda item (0-based) via the host-only ban button.
-   * The item will be soft-deleted (state='cancelled') and hidden from
-   * the default view.
+   * Remove the nth agenda item (0-based). The item is soft-deleted
+   * (state='cancelled') and hidden from the default view.
    */
   async cancelAgendaItem(index: number): Promise<void> {
-    const list = this.page.locator('app-agenda-panel ion-list.agenda-list');
-    const item = list.locator('ion-item.agenda-item').nth(index);
-    // getByRole pierces ion-button shadow DOM; aria-label "Cancel {title}" exposed via host attr.
-    const btn = item.getByRole('button', { name: /^Cancel /u });
-    await btn.waitFor({ state: 'visible' });
-    await btn.click();
+    await this.agendaItemAction(index, 'Remove');
   }
 
   /**
-   * Skip the nth agenda item (0-based) via the host-only skip button.
-   * Sets state='skipped' without creating a round.
+   * Skip the nth agenda item (0-based). Sets state='skipped' without
+   * creating a round.
    */
   async skipAgendaItem(index: number): Promise<void> {
-    const list = this.page.locator('app-agenda-panel ion-list.agenda-list');
-    const item = list.locator('ion-item.agenda-item').nth(index);
-    // getByRole pierces ion-button shadow DOM; aria-label "Skip {title}" exposed via host attr.
-    const btn = item.getByRole('button', { name: /^Skip /u });
-    await btn.waitFor({ state: 'visible' });
-    await btn.click();
+    await this.agendaItemAction(index, 'Skip');
   }
 
-  /**
-   * Reorder the nth agenda item (0-based) by one position in the given direction.
-   * Uses the host-only arrow buttons.
-   */
+  /** Move the nth agenda item (0-based) one position up or down. */
   async reorderAgendaItem(index: number, dir: 'up' | 'down'): Promise<void> {
-    const list = this.page.locator('app-agenda-panel ion-list.agenda-list');
-    const item = list.locator('ion-item.agenda-item').nth(index);
-    const pattern = dir === 'up' ? /^Move .+ up$/u : /^Move .+ down$/u;
-    const btn = item.getByRole('button', { name: pattern });
-    await btn.waitFor({ state: 'visible' });
-    await btn.click();
+    await this.agendaItemAction(index, dir === 'up' ? 'Move up' : 'Move down');
   }
 
-  /**
-   * Assert the "Next up" chip text on a mobile-sized viewport.
-   * Chip text format: "Next up: {title}".
-   */
-  async expectNextUpChip(expectedTitle: string): Promise<void> {
+  /** Assert which story carries the "Next" badge — the one a round picks up. */
+  async expectNextAgendaItem(expectedTitle: string): Promise<void> {
     const { expect } = await import('@playwright/test');
-    const chip = this.page.locator('app-agenda-panel ion-chip.next-up-chip');
-    await chip.waitFor({ state: 'visible' });
-    await expect(chip).toContainText(expectedTitle);
+    const next = this.agendaList().locator('ion-item.agenda-item:has(ion-badge.next-badge)');
+    await expect(next).toHaveCount(1);
+    await expect(next.locator('span.item-title')).toContainText(expectedTitle);
   }
 
   // -- Disconnect / reconnect -----------------------------------------------
@@ -645,8 +695,8 @@ export class Participant {
     }
     await this.page.locator(HOME.joinCard).click();
     await this.page.waitForURL(/\/join/);
+    // The sixth character submits.
     await fillRoomCode(this.page, code);
-    await this.page.locator(JOIN.joinBtn).click();
     // After joining, the player lands on /lobby. If there's an active
     // round the lobby's auto-navigate effect may redirect to /estimating.
     await this.page.waitForURL(/\/(lobby|estimating)/, { timeout: 10_000 });
@@ -696,7 +746,7 @@ export class Participant {
 
   /** Assert this participant sees host controls. */
   async expectIsHost(): Promise<void> {
-    // Host sees "Reveal Votes" on estimating or "Start Round" / "Next Round" on lobby
+    // Host sees "Reveal votes" on estimating or "Start round" / "Next round" on lobby
     const url = this.page.url();
     if (url.includes('/estimating')) {
       await this.page.locator(ESTIMATING.revealBtn).waitFor({ state: 'visible' });

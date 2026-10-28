@@ -49,16 +49,16 @@ export async function onboardMobile(
 
 /**
  * Create a session and navigate to the Lobby. Returns the 6-char room code.
- * Waits until the host "Start Round N" button is visible so callers know
+ * Waits until the host "Start round N" button is visible so callers know
  * host authority has been established.
  */
 export async function createSessionMobile(page: Page): Promise<string> {
-  await page.locator('ion-item:has(h2:text-is("Create Room"))').click();
+  await page.locator('ion-item:has(h3:text-is("New session"))').click();
   await page.waitForURL(/\/lobby/);
   await page.locator('ion-list.participants').waitFor({ state: 'visible' });
   await page
     .locator('app-lobby:not(.ion-page-hidden) ion-button')
-    .filter({ hasText: /Start Round \d+/ })
+    .filter({ hasText: /Start round \d+/ })
     .waitFor({ state: 'visible', timeout: 12_000 });
   const code = (await page.locator('button.room-code span').textContent()) ?? '';
   return code.replaceAll(/[^A-Z0-9]/gi, '');
@@ -77,7 +77,7 @@ export async function createSessionMobile(page: Page): Promise<string> {
 export async function openRoundStartSheetMobile(page: Page) {
   const startRoundBtn = page
     .locator('app-lobby:not(.ion-page-hidden) ion-button')
-    .filter({ hasText: /Start Round \d+/ });
+    .filter({ hasText: /Start round \d+/ });
   await startRoundBtn.waitFor({ state: 'visible' });
   await startRoundBtn.click();
   const sheet = page.locator('app-round-start-sheet');
@@ -86,9 +86,9 @@ export async function openRoundStartSheetMobile(page: Page) {
 }
 
 /**
- * Enable "Password by default" in app settings, then return to Home and
- * create a room so the set-password half-sheet opens. Returns a locator
- * scoped to the sheet element once it is visible.
+ * Turn on "Ask for a password" in app settings, then return to Home and
+ * create a session so the session-password half-sheet opens. Returns a
+ * locator scoped to the sheet element once it is visible.
  *
  * Precondition: `page` is on the Home screen (after `onboardMobile`).
  * The caller is responsible for closing the browser context in a finally block.
@@ -96,10 +96,10 @@ export async function openRoundStartSheetMobile(page: Page) {
  * 0.6 breakpoint.
  */
 export async function openSetPasswordSheetMobile(page: Page, baseUrl: string) {
-  // Enable the "Password by default" toggle in app settings.
+  // Turn on the "Ask for a password" toggle in app settings.
   await page.goto(`${baseUrl}/settings`);
   await page.waitForURL(/\/settings/);
-  const toggle = page.locator('ion-toggle[aria-label="Enable password by default"]');
+  const toggle = page.locator('app-settings ion-toggle:has-text("Ask for a password")');
   await toggle.waitFor({ state: 'visible' });
   const isChecked = await toggle.evaluate(
     (el: HTMLElement & { checked?: boolean }) => el.checked === true,
@@ -113,61 +113,55 @@ export async function openSetPasswordSheetMobile(page: Page, baseUrl: string) {
   await page.goto(`${baseUrl}/home`);
   await page.waitForURL(/\/home/);
 
-  // Create Room — the password-prompt sheet opens automatically.
-  await page.locator('ion-item:has(h2:text-is("Create Room"))').click();
+  // New session — the password-prompt sheet opens automatically.
+  await page.locator('ion-item:has(h3:text-is("New session"))').click();
   const sheet = page.locator('app-password-prompt-sheet');
   await sheet.waitFor({ state: 'visible', timeout: 15_000 });
   return sheet;
 }
 
 /**
- * Open the agenda item form sheet (Add mode) on a mobile page already on the
- * Lobby screen. Returns a locator scoped to the sheet element once visible.
+ * Open the story form sheet (Add mode) on a mobile page already on the Lobby
+ * screen. Returns a locator scoped to the sheet element once visible.
  *
- * On mobile the agenda panel is collapsed by default (AgendaPanelComponent
- * renders the expanded `.agenda-panel` only when `expanded()` is true). In a
- * fresh session with no items, the host sees a collapsed "Add agenda" chip
- * (`aria-label="No agenda items. Tap to add."`) that emits `addRequested`
- * directly — there is no `.agenda-panel` / "Add agenda item" button to wait
- * for. This helper opens the sheet via whichever affordance is present:
- *   - empty session: the "Add agenda" chip → opens the sheet directly;
- *   - non-empty session: the "Next up" chip → expand → "Add agenda item" btn.
+ * The agenda is a card on the Lobby with the same layout on every surface:
+ * the list (or a line saying there is none yet), then the host's "Add story"
+ * button. Nothing to expand first.
  *
  * The sheet opens at the `0.6` initial breakpoint — do NOT expand it, because
  * the regression guard is specifically about visibility at that breakpoint.
  */
 export async function openAgendaItemSheetMobile(page: Page) {
   const sheet = page.locator('app-agenda-item-form-sheet');
-
-  // Empty-session host: a single collapsed "Add agenda" chip opens the sheet.
-  const addChip = page.getByRole('button', { name: 'No agenda items. Tap to add.' });
-  // Non-empty session: a "Next up" chip expands the panel.
-  const nextUpChip = page.locator('app-agenda-panel ion-chip.next-up-chip');
-  const panel = page.locator('app-agenda-panel .agenda-panel');
-
-  await Promise.race([
-    addChip.waitFor({ state: 'visible', timeout: 10_000 }),
-    nextUpChip.waitFor({ state: 'visible', timeout: 10_000 }),
-    panel.waitFor({ state: 'visible', timeout: 10_000 }),
-  ]);
-
-  if (await addChip.isVisible()) {
-    await addChip.click();
-    await sheet.waitFor({ state: 'visible', timeout: 10_000 });
-    return sheet;
-  }
-
-  // Non-empty / already-expanded path: ensure the panel is expanded, then
-  // use the host "Add agenda item" button inside it.
-  if (!(await panel.isVisible()) && (await nextUpChip.isVisible())) {
-    await nextUpChip.click();
-  }
-  await panel.waitFor({ state: 'visible', timeout: 10_000 });
-  const addBtn = panel.getByRole('button', { name: 'Add agenda item' });
+  const addBtn = page.locator(
+    'app-lobby:not(.ion-page-hidden) app-agenda-panel ion-button.add-btn',
+  );
   await addBtn.waitFor({ state: 'visible', timeout: 10_000 });
+  await addBtn.scrollIntoViewIfNeeded();
   await addBtn.click();
   await sheet.waitFor({ state: 'visible', timeout: 10_000 });
   return sheet;
+}
+
+/**
+ * Open the ⋯ menu of the nth story on the agenda (0-based) and pick an
+ * action. On a phone the menu is an action sheet.
+ */
+export async function agendaItemActionMobile(
+  page: Page,
+  index: number,
+  action: string,
+): Promise<void> {
+  const item = page
+    .locator('app-lobby:not(.ion-page-hidden) app-agenda-panel ion-item.agenda-item')
+    .nth(index);
+  const menuBtn = item.locator('ion-button.item-menu-btn');
+  await menuBtn.waitFor({ state: 'visible', timeout: 10_000 });
+  await menuBtn.scrollIntoViewIfNeeded();
+  await menuBtn.click();
+  const option = page.locator(`ion-action-sheet button:has-text("${action}")`);
+  await option.waitFor({ state: 'visible', timeout: 5_000 });
+  await option.click();
 }
 
 /**
@@ -175,7 +169,7 @@ export async function openAgendaItemSheetMobile(page: Page) {
  * screen after at least one round has been revealed.
  *
  * Drives the full single-host flow to produce a revealed round:
- *   1. Clicks "Start Round N" and submits the sheet (with an optional title).
+ *   1. Clicks "Start round N" and submits the sheet (with an optional title).
  *   2. Waits for /estimating, casts a vote — auto-reveal fires for a solo host.
  *   3. Waits for the Lobby results section to appear.
  *   4. Clicks the pencil ("Edit round descriptor") button.
@@ -189,7 +183,7 @@ export async function openRoundEditSheetMobile(page: Page, roundTitle = 'Test ro
   // 1. Open the round-start sheet and submit it.
   const startRoundBtn = page
     .locator('app-lobby:not(.ion-page-hidden) ion-button')
-    .filter({ hasText: /Start Round \d+/ });
+    .filter({ hasText: /Start round \d+/ });
   await startRoundBtn.waitFor({ state: 'visible' });
   await startRoundBtn.click();
   const startSheet = page.locator('app-round-start-sheet');

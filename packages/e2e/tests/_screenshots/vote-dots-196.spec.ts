@@ -19,7 +19,6 @@ import {
   BASE_URL,
   ONBOARDING,
   HOME,
-  JOIN,
   LOBBY,
   ROUND_START,
   ESTIMATING,
@@ -27,6 +26,7 @@ import {
   expandRoundStartSheet,
   clickRoundStartSubmit,
 } from '../fixtures/helpers';
+import { pageSettled } from './_helpers/settled';
 
 const OUT_DIR = resolveOutDir('vote-dots');
 test.use({ trace: 'off', video: 'off', screenshot: 'off' });
@@ -64,7 +64,7 @@ async function joinSession(page: Page, code: string): Promise<void> {
   await page.locator(HOME.joinCard).click();
   await page.waitForURL(/\/join/);
   await fillRoomCode(page, code);
-  await page.locator(JOIN.joinBtn).click();
+  // The sixth character submits: no Join tap after a typed code.
   await page.waitForURL(/\/lobby/);
 }
 
@@ -86,12 +86,14 @@ async function castVote(page: Page, value: string): Promise<void> {
 }
 
 async function shotRow(page: Page, name: string): Promise<void> {
+  await pageSettled(page);
   await page.waitForTimeout(300);
   const row = page.locator('app-avatar-vote-row').first();
   await row.screenshot({ path: path.join(OUT_DIR, `${name}.png`) });
 }
 
 async function shotFull(page: Page, name: string): Promise<void> {
+  await pageSettled(page);
   await page.waitForTimeout(300);
   await page.screenshot({ path: path.join(OUT_DIR, `${name}.png`), fullPage: false });
 }

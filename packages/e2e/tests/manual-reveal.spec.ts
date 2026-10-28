@@ -21,7 +21,7 @@ test.describe('Manual reveal', () => {
     await host.expectRevealedVotes(['5', '8']);
     await player.expectRevealedVotes(['5', '8']);
 
-    // Host sees "Next Round" and "Re-vote" buttons
+    // Host sees "Next round" and "Re-vote" buttons
     await expect(host.page.locator('ion-button', { hasText: LOBBY.nextRoundBtn })).toBeVisible();
     await expect(host.page.locator(LOBBY.revoteBtn)).toBeVisible();
 

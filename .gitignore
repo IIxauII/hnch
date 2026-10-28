@@ -54,6 +54,10 @@ Thumbs.db
 .claude/scheduled_tasks.lock
 .claude/.state/
 
+# Code review receipts — local cache of "this commit was reviewed", keyed by
+# sha. The review itself lives on the PR.
+.review-receipts/
+
 # Node.js compile cache (runtime artefact, not source)
 node-compile-cache/
 

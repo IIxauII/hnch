@@ -1,6 +1,11 @@
 import type { Participant, Round } from './doc.js';
 import { isAbstainVote } from './abstain.js';
-import { formatRoundElapsed, formatRoundStats, roundStatsFor } from './round-presentation.js';
+import {
+  formatRoundElapsed,
+  formatRoundStats,
+  roundNumber,
+  roundStatsFor,
+} from './round-presentation.js';
 import { isLikelyUrl } from './is-likely-url.js';
 
 /** Escape pipe characters in Markdown table cell content. */
@@ -132,7 +137,7 @@ function buildStatsLine(round: Round): string {
 
   if (stats?.kind === 'numeric') {
     parts.push(`Avg ${stats.mean} · Med ${stats.median}`);
-  } else if (stats?.kind === 'categorical') {
+  } else if (stats?.kind === 'categorical' && stats.mode !== null) {
     parts.push(`Most common: ${stats.mode}`);
   }
 
@@ -162,9 +167,10 @@ export function roundsToMarkdown(input: RoundExportInput): string {
   const revealedRounds = rounds.filter((r) => r.status === 'revealed');
   if (revealedRounds.length === 0) return '';
 
-  // Only group revealed rounds; index into original full rounds array for numbering
-  const roundIndex = new Map<string, number>();
-  rounds.forEach((r, i) => roundIndex.set(r.id, i + 1)); // 1-based
+  // Only revealed rounds are grouped, but each keeps the number it goes by in
+  // the session — the same one every screen shows for it.
+  const numberOf = new Map<string, number>();
+  for (const r of rounds) numberOf.set(r.id, roundNumber(r, rounds));
 
   // Group by chain root (ADR-0013), preserving original array order within buckets
   const buckets = groupByChainRoot(revealedRounds);
@@ -189,7 +195,7 @@ export function roundsToMarkdown(input: RoundExportInput): string {
     const chain = buckets.get(rootId)!;
     const root = chain.find((r) => r.id === rootId)!;
     const revotes = chain.filter((r) => r.id !== rootId);
-    const rootNum = roundIndex.get(root.id) ?? 0;
+    const rootNum = numberOf.get(root.id) ?? 0;
 
     const rootHeading = root.title
       ? `## Round ${rootNum} — ${root.title}${formatTicket(root.ticketId)}`
@@ -206,7 +212,7 @@ export function roundsToMarkdown(input: RoundExportInput): string {
 
     // Subsequent re-votes in the chain — render as ### Re-vote (ADR-0013)
     for (const revote of revotes) {
-      const revoteNum = roundIndex.get(revote.id) ?? 0;
+      const revoteNum = numberOf.get(revote.id) ?? 0;
       const revoteHeading = `### Re-vote ${revoteNum}${formatTicket(revote.ticketId)}`;
       const revoteTable = buildVoteTable(revote, nameById);
       const revoteStats = buildStatsLine(revote);

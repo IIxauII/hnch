@@ -264,4 +264,12 @@ describe('buildResultsHeader', () => {
     const r2 = makeRound({ id: 'r2', revealedAt: 2000 });
     expect(buildResultsHeader(r2, [r1, r2])).toBe('Round 2 — Results');
   });
+
+  // A discarded round is a tombstone (ADR-0046): it takes no number, so the
+  // round that replaces it is called what it would have been.
+  it('a discarded round does not count towards the ordinal', () => {
+    const r1 = makeRound({ id: 'r1', discardedAt: 1000 });
+    const r2 = makeRound({ id: 'r2', revealedAt: 2000 });
+    expect(buildResultsHeader(r2, [r1, r2])).toBe('Round 1 — Results');
+  });
 });

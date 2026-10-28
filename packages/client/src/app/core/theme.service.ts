@@ -8,12 +8,22 @@ const PREF_KEY = 'hnch.theme';
 const DARK_CLASS = 'ion-palette-dark';
 
 /**
+ * `--hnch-bg` per mode (variables.scss), for the browser's own chrome — the
+ * address bar on a phone, the title bar of the installed app.
+ */
+const CHROME_COLOR = { light: '#F2F2F7', dark: '#1C1C1E' } as const;
+
+/**
  * Manages the app's colour scheme preference (system / light / dark).
  *
  * Persists the choice via Capacitor Preferences and controls dark mode
  * by toggling `.ion-palette-dark` on `<html>`. An `APP_INITIALIZER` in
  * `main.ts` calls {@link ensureLoaded} so the class is applied before
  * first paint — no flash-of-wrong-theme once Angular renders.
+ *
+ * What the browser draws itself follows the choice too, not the OS: the
+ * `theme-color` of the chrome around the page here, and the scrollbars and
+ * native controls through `color-scheme` in variables.scss.
  *
  * See ionic.md (dark-mode / theming section) and ux.md §7.
  */
@@ -63,11 +73,13 @@ export class ThemeService {
 
     if (value === 'dark') {
       el.classList.add(DARK_CLASS);
+      this.paintChrome('dark');
       return;
     }
 
     if (value === 'light') {
       el.classList.remove(DARK_CLASS);
+      this.paintChrome('light');
       return;
     }
 
@@ -75,11 +87,25 @@ export class ThemeService {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     this.mediaQuery = mq;
     el.classList.toggle(DARK_CLASS, mq.matches);
+    this.paintChrome('system');
 
     this.mediaListener = (e: MediaQueryListEvent) => {
       document.documentElement.classList.toggle(DARK_CLASS, e.matches);
     };
     mq.addEventListener('change', this.mediaListener);
+  }
+
+  /**
+   * index.html carries one `theme-color` per OS scheme. With the theme left
+   * to the system that is right as it stands; with a theme chosen here, both
+   * say the chosen one — whichever of them the OS picks, the chrome matches
+   * the page.
+   */
+  private paintChrome(value: Theme): void {
+    for (const meta of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) {
+      const scheme = value === 'system' ? (meta.media.includes('dark') ? 'dark' : 'light') : value;
+      meta.content = CHROME_COLOR[scheme];
+    }
   }
 
   private detachMediaListener(): void {

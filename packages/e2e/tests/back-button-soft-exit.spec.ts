@@ -1,26 +1,26 @@
 import { test, expect } from './fixtures/app.fixture';
-import { LOBBY } from './fixtures/helpers';
+import { HOME, LOBBY } from './fixtures/helpers';
 
 /**
  * Back-chevron soft exit
  *
  * Invariants:
  * 1. Lobby back chevron → /home (soft exit): last-session cache preserved →
- *    Jump-back-in banner visible → tap banner → /lobby/:code restored.
+ *    the session is listed under "Jump back in" → tap it → /lobby/:code restored.
  * 2. Estimating back chevron → /lobby/:code (in-session nav, NOT home):
  *    session NOT torn down, lobby state intact.
  *
  * These are separate tests so failures are reported independently.
  *
- * Ordering (test 1): create → soft-exit lobby → assert banner → tap → assert
- * lobby restored. The banner must be visible before tap; the restored lobby
+ * Ordering (test 1): create → soft-exit lobby → assert row → tap → assert
+ * lobby restored. The row must be visible before tap; the restored lobby
  * must show the same code.
  *
  * Ordering (test 2): create → start round → assert estimating → soft-exit
  * estimating → assert lobby/:code (not home), session alive.
  */
 test.describe('Back-chevron soft exit', () => {
-  test('lobby back chevron navigates to /home with Jump-back-in banner, tap returns to /lobby/:code', async ({
+  test('lobby back chevron navigates to /home with the session listed, tap returns to /lobby/:code', async ({
     host,
   }) => {
     const code = await host.createSession();
@@ -42,15 +42,14 @@ test.describe('Back-chevron soft exit', () => {
     // Soft exit → /home, cache preserved
     await host.page.waitForURL(/\/home/);
 
-    // Jump-back-in banner must appear (cache intact)
-    const banner = host.page.locator('app-jump-back-in-banner');
-    await banner.waitFor({ state: 'visible', timeout: 5_000 });
+    // The session is offered under "Jump back in" (cache intact)
+    const row = host.page.locator(HOME.recentRow);
+    await expect(row).toHaveCount(1);
 
-    // Banner row shows the room code
-    const row = banner.locator('ion-item');
-    await expect(row).toContainText(code);
+    // The row shows the code the way the lobby does: "XXX-XXX"
+    await expect(row).toContainText(`${code.slice(0, 3)}-${code.slice(3)}`);
 
-    // Tap banner → navigate back to /lobby/:code
+    // Tap the row → navigate back to /lobby/:code
     await row.click();
     await host.page.waitForURL(/\/lobby\//, { timeout: 15_000 });
 
@@ -92,9 +91,8 @@ test.describe('Back-chevron soft exit', () => {
     // Participant count still 1 — session not torn down
     await host.expectParticipantCount(1);
 
-    // No Jump-back-in banner visible (we are still in-session, not on home)
-    const banner = host.page.locator('app-jump-back-in-banner');
-    const bannerVisible = await banner.isVisible().catch(() => false);
-    expect(bannerVisible).toBe(false);
+    // Still in-session: the lobby is the page showing, not home
+    await expect(host.page.locator('app-lobby:not(.ion-page-hidden)')).toHaveCount(1);
+    await expect(host.page.locator('app-home:not(.ion-page-hidden)')).toHaveCount(0);
   });
 });
