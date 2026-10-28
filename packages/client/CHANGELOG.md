@@ -1,3 +1,10 @@
+## [1.45.1](https://github.com/IIxauII/hnch/compare/client-v1.45.0...client-v1.45.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **shared,client,cli,e2e,docs,repo:** one session events driver for session end, host change and removal ([#533](https://github.com/IIxauII/hnch/issues/533)) ([0a601ac](https://github.com/IIxauII/hnch/commit/0a601ac977343343f85939c863af543e6fd54441))
+
 # [1.45.0](https://github.com/IIxauII/hnch/compare/client-v1.44.1...client-v1.45.0) (2026-10-28)
 
 

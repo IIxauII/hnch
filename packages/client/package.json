@@ -1,6 +1,6 @@
 {
   "name": "@hnch/client",
-  "version": "1.45.0",
+  "version": "1.45.1",
   "author": "xau",
   "scripts": {
     "generate-version": "node scripts/generate-version.mjs",
