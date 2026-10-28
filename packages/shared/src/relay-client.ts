@@ -187,6 +187,9 @@ export type SyncStatus = 'connecting' | 'connected' | 'disconnected';
  */
 export type WebSocketConstructorLike = new (url: string, protocols?: string | string[]) => unknown;
 
+/** `WebSocket.OPEN`, spelled out: the constructor in use may not carry it. */
+const OPEN = 1;
+
 /** Milliseconds of history the repeat-rejection throttle looks back over. */
 const REPEAT_REJECTION_WINDOW_MS = 60_000;
 
@@ -336,6 +339,13 @@ export interface RelayConnection {
    * session down. A no-op when the hash is unchanged; `null` drops `pw`.
    */
   updateCredentials(opts: { passwordHash?: string | null }): void;
+  /**
+   * Resolve once the open socket has handed everything queued on it to the
+   * network, or after `capMs`, whichever is first; at once with no socket
+   * open. Never rejects. Called between a last write (a leave) and the
+   * teardown that closes the socket, so the write gets a chance to go out.
+   */
+  flush(capMs: number): Promise<void>;
   /**
    * Stop reconnecting, close the socket, and release observers. Safe to
    * call multiple times; suppresses any further reconnecting signal.
@@ -665,6 +675,19 @@ export function connectToRelay(opts: ConnectToRelayOptions): RelayConnection {
       closeSocket();
       provider.params = credentialsToParams(credentials);
       provider.connect();
+    },
+
+    async flush(capMs: number): Promise<void> {
+      const deadline = Date.now() + capMs;
+      for (;;) {
+        const ws = provider.ws;
+        if (disposed || ws === null || ws.readyState !== OPEN || ws.bufferedAmount === 0) return;
+        if (Date.now() >= deadline) return;
+        // About one frame.
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, 16);
+        });
+      }
     },
 
     disconnect(): void {
