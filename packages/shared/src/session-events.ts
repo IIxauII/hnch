@@ -294,14 +294,23 @@ export function startSessionEvents(deps: SessionEventsDeps): SessionEventsHandle
     const previousHostId = prevHostId;
     prevHostId = hostId;
 
+    // No record for the previous host: no name, and no reason is given.
     const prev = p.participants.find((x) => x.id === previousHostId);
-    let previousHostName: string | null = null;
-    let cause: HostChangeCause | null = null;
-    if (prev !== undefined) {
-      previousHostName = prev.displayName || previousHostId;
-      if (!isActiveParticipant(prev)) {
+    const previousHostName = prev === undefined ? null : prev.displayName || previousHostId;
+    const previousHostLeft = prev !== undefined && !isActiveParticipant(prev);
+
+    const hostName = nameOf(p.participants, hostId) ?? hostId;
+    const wasSelf = previousHostId === deps.selfId;
+    const isSelf = hostId === deps.selfId;
+    pending.push(() => {
+      // Presence is read at delivery, not detection. A change that arrives with
+      // a reconnect's sync is seen before that sync is reported: y-websocket
+      // applies sync step 2, then flips `synced` in the same task.
+      let cause: HostChangeCause | null = null;
+      if (previousHostLeft) {
         cause = 'left';
       } else if (
+        prev !== undefined &&
         // Who is online is only known to a peer that is in sync itself: to one
         // that is not, everybody is gone.
         deps.presenceTrusted() &&
@@ -309,30 +318,24 @@ export function startSessionEvents(deps: SessionEventsDeps): SessionEventsHandle
       ) {
         cause = 'disconnected';
       }
-    }
-    // No record for the previous host: no name, and no reason is given.
-
-    const hostName = nameOf(p.participants, hostId) ?? hostId;
-    const wasSelf = previousHostId === deps.selfId;
-    const isSelf = hostId === deps.selfId;
-    const event: HostChangedEvent = {
-      kind: 'host-changed',
-      previousHostId,
-      previousHostName,
-      hostId,
-      hostName,
-      cause,
-      wasSelf,
-      isSelf,
-      message: formatHostChangeMessage({
-        prevName: previousHostName,
-        newName: hostName,
-        isSelf,
-        wasSelf,
+      return {
+        kind: 'host-changed',
+        previousHostId,
+        previousHostName,
+        hostId,
+        hostName,
         cause,
-      }),
-    };
-    pending.push(() => event);
+        wasSelf,
+        isSelf,
+        message: formatHostChangeMessage({
+          prevName: previousHostName,
+          newName: hostName,
+          isSelf,
+          wasSelf,
+          cause,
+        }),
+      };
+    });
   }
 
   // Delivery is a microtask after detection, never inside the change that

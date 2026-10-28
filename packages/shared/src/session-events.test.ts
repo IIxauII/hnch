@@ -447,6 +447,33 @@ describe('startSessionEvents — host changed, cause', () => {
     handle.stop();
   });
 
+  it('a change carried in a reconnect sync gets its cause from the trust reported later in the same task', async () => {
+    const { deps, events, change } = makeDeps({
+      hostId: 'p-bob',
+      participants: [BOB, ALICE, ME],
+      online: ['p-bob', 'p-alice', SELF],
+    });
+    const handle = startSessionEvents(deps);
+
+    // This peer drops; Bob drops too and Alice is elected while it is away.
+    change({ trusted: false, online: [SELF] });
+    // Reconnect: the relay's awareness states land first, then y-websocket
+    // applies sync step 2 and only after that reports the sync, all in one task.
+    change({ online: ['p-alice', SELF] });
+    change({ hostId: 'p-alice' });
+    change({ trusted: true });
+    await settle();
+
+    expect(events).toEqual([
+      expect.objectContaining({
+        kind: 'host-changed',
+        cause: 'disconnected',
+        message: 'Bob disconnected. Alice is now the host.',
+      }),
+    ]);
+    handle.stop();
+  });
+
   it('a hand-off from a host who is present gives no cause', async () => {
     const { deps, events, change } = makeDeps({
       hostId: 'p-bob',
