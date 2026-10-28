@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * `@hnch/relay/testing` — start a relay for a test suite.
  *
@@ -17,21 +18,37 @@ import { createRelayServer } from '../src/server.ts';
  */
 export async function startTestRelay(_opts = {}) {
   const server = createRelayServer({ roomStore: createRoomStore(createCodePool()) });
+
+  // Every TCP socket, including ones later upgraded to WebSocket (which
+  // `closeAllConnections()` skips), so `stop()` can end them.
+  /** @type {Set<import('node:net').Socket>} */
+  const sockets = new Set();
+  server.on('connection', (socket) => {
+    sockets.add(socket);
+    socket.once('close', () => sockets.delete(socket));
+  });
+
   const port = await new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen(0, () => {
+      server.off('error', reject);
       const addr = server.address();
-      resolve(typeof addr === 'object' && addr !== null ? addr.port : 0);
+      if (typeof addr === 'object' && addr !== null && addr.port > 0) {
+        resolve(addr.port);
+      } else {
+        reject(new Error(`test relay did not report a listening port (address: ${String(addr)})`));
+      }
     });
   });
+
   const httpUrl = `http://localhost:${port}`;
   return {
     httpUrl,
     wsUrl: httpUrl.replace(/^http/, 'ws'),
     stop: () =>
-      new Promise((resolve) => {
-        server.close(() => resolve());
-        server.closeAllConnections?.();
+      new Promise((resolve, reject) => {
+        server.close((err) => (err ? reject(err) : resolve()));
+        for (const socket of sockets) socket.destroy();
       }),
   };
 }

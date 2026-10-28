@@ -18,6 +18,7 @@ import { createSession, joinSession, openSession, type SessionHandle } from './s
 import { FIBONACCI_SCALE, isActiveParticipant, TSHIRT_SCALE, type SyncStatus } from '@hnch/shared';
 
 let relay: TestRelay;
+let relayPort: string;
 /** The relay as the host reaches it. */
 let relayUrl: string;
 /** The relay under another name, for a second peer. */
@@ -25,8 +26,10 @@ let otherRelayUrl: string;
 
 beforeAll(async () => {
   relay = await startTestRelay();
+  relayPort = new URL(relay.httpUrl).port;
+  if (relayPort === '') throw new Error(`test relay URL has no port: ${relay.httpUrl}`);
   relayUrl = relay.httpUrl;
-  otherRelayUrl = relay.httpUrl.replace('//localhost:', '//127.0.0.1:');
+  otherRelayUrl = `http://127.0.0.1:${relayPort}`;
 });
 
 afterAll(async () => {
@@ -254,7 +257,7 @@ describe('session integration', () => {
       await joinSession({
         participantId: 'third-acc',
         displayName: 'Cy',
-        relayUrl: relayUrl.replace('//localhost:', '//LOCALHOST:'),
+        relayUrl: `http://LOCALHOST:${relayPort}`,
         roomCode: host.roomCode,
       }),
     );

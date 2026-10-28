@@ -57,9 +57,12 @@ const SYNC_TIMEOUT = 8_000;
 vi.setConfig({ testTimeout: 20_000 });
 
 let relay: TestRelay;
+let relayPort: string;
 
 beforeAll(async () => {
   relay = await startTestRelay();
+  relayPort = new URL(relay.httpUrl).port;
+  if (relayPort === '') throw new Error(`test relay URL has no port: ${relay.httpUrl}`);
 });
 
 afterAll(async () => {
@@ -73,8 +76,7 @@ afterAll(async () => {
  */
 function relayUrl(n = 0): string {
   const hosts = ['localhost', '127.0.0.1', 'LOCALHOST', 'Localhost'];
-  const { port } = new URL(relay.httpUrl);
-  return `http://${hosts[n % hosts.length]}:${port}`;
+  return `http://${hosts[n % hosts.length]}:${relayPort}`;
 }
 
 function pause(ms: number): Promise<void> {

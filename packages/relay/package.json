@@ -5,7 +5,11 @@
   "type": "module",
   "main": "./dist/index.js",
   "exports": {
-    ".": "./dist/index.js",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json",
     "./testing": {
       "types": "./testing/start-relay.d.mts",
       "default": "./testing/start-relay.mjs"
@@ -13,7 +17,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.testing.json",
     "dev": "tsx watch src/index.ts",
     "start": "node ./dist/index.js",
     "test": "vitest run",
