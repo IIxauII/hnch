@@ -21,6 +21,7 @@ import path from 'node:path';
 import { test, type BrowserContext, type Page } from '@playwright/test';
 import { resolveOutDir } from './_helpers/out-dir';
 import { BASE_URL, HOME, LOBBY } from '../fixtures/helpers';
+import { pageSettled } from './_helpers/settled';
 
 const OUT_DIR = resolveOutDir('lobby-hierarchy');
 test.use({ trace: 'off', video: 'off', screenshot: 'off' });
@@ -65,6 +66,7 @@ async function createSession(page: Page): Promise<void> {
 }
 
 async function shot(page: Page, name: string): Promise<void> {
+  await pageSettled(page);
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(OUT_DIR, `${name}.png`), fullPage: false });
 }

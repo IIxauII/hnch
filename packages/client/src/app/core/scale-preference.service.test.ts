@@ -143,6 +143,33 @@ describe('ScalePreferenceService', () => {
       await svc.ensureLoaded();
       expect(svc.defaultScaleId()).toBe('t-shirt');
     });
+
+    it('restores a default that is one of the custom scales', async () => {
+      mockPreferences.get.mockImplementation(({ key }) => {
+        if (key === 'hnch.defaultScaleId') return Promise.resolve({ value: 'custom-mine' });
+        if (key === 'hnch.customScales') {
+          return Promise.resolve({
+            value: JSON.stringify([{ id: 'custom-mine', label: 'Mine', cards: ['1', '2'] }]),
+          });
+        }
+        return Promise.resolve({ value: null });
+      });
+      const svc = await createService();
+      await svc.ensureLoaded();
+      expect(svc.defaultScaleId()).toBe('custom-mine');
+    });
+
+    // The picker goes by the id: with one that matches nothing, it has
+    // nothing checked.
+    it('takes a default that points at a scale that is gone back to Fibonacci', async () => {
+      mockPreferences.get.mockImplementation(({ key }) => {
+        if (key === 'hnch.defaultScaleId') return Promise.resolve({ value: 'custom-deleted' });
+        return Promise.resolve({ value: null });
+      });
+      const svc = await createService();
+      await svc.ensureLoaded();
+      expect(svc.defaultScaleId()).toBe('fibonacci');
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -314,6 +341,36 @@ describe('ScalePreferenceService', () => {
       expect(mockPreferences.set).not.toHaveBeenCalled();
     });
 
+    it('takes the default back to Fibonacci when the default is what was deleted', async () => {
+      mockPreferences.get.mockImplementation(allKeysNull());
+      mockPreferences.set.mockResolvedValue();
+      const svc = await createService();
+      const id = await svc.addCustomScale('Mine', ['1', '2']);
+      await svc.setDefaultScaleId(id);
+      expect(svc.defaultScale().id).toBe(id);
+
+      await svc.deleteCustomScale(id);
+
+      expect(svc.defaultScaleId()).toBe('fibonacci');
+      expect(svc.defaultScale().id).toBe('fibonacci');
+      expect(mockPreferences.set).toHaveBeenLastCalledWith({
+        key: 'hnch.defaultScaleId',
+        value: 'fibonacci',
+      });
+    });
+
+    it('leaves the default alone when another scale is deleted', async () => {
+      mockPreferences.get.mockImplementation(allKeysNull());
+      mockPreferences.set.mockResolvedValue();
+      const svc = await createService();
+      const id = await svc.addCustomScale('Mine', ['1', '2']);
+      await svc.setDefaultScaleId('t-shirt');
+
+      await svc.deleteCustomScale(id);
+
+      expect(svc.defaultScaleId()).toBe('t-shirt');
+    });
+
     it('does not remove other scales', async () => {
       vi.stubGlobal('crypto', {
         randomUUID: vi.fn().mockReturnValueOnce('keep').mockReturnValueOnce('remove'),
@@ -406,6 +463,108 @@ describe('ScalePreferenceService', () => {
       const svc = await createService();
       await svc.setDefaultScaleId('t-shirt');
       expect(svc.defaultScale().id).toBe('t-shirt');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // A device that cannot store
+  // -------------------------------------------------------------------------
+
+  // The screen is changed before the device has stored the change. What is
+  // on screen and not on the device is gone with the next start of the app —
+  // and a scale that is there without having been created is created again.
+  describe('a change that cannot be stored', () => {
+    const SAVED = { id: 'custom-mine', label: 'Mine', cards: ['1', '2'] };
+
+    async function loaded() {
+      mockPreferences.get.mockImplementation(({ key }) => {
+        if (key === 'hnch.customScales') {
+          return Promise.resolve({ value: JSON.stringify([SAVED]) });
+        }
+        return Promise.resolve({ value: null });
+      });
+      const svc = await createService();
+      await svc.ensureLoaded();
+      mockPreferences.set.mockRejectedValue(new Error('storage is full'));
+      return svc;
+    }
+
+    it('fails for whoever asked for it', async () => {
+      const svc = await loaded();
+
+      await expect(svc.addCustomScale('Sizes', ['S', 'M'])).rejects.toThrow('storage is full');
+      await expect(svc.updateCustomScale(SAVED.id, 'Ours', ['1', '2'])).rejects.toThrow();
+      await expect(svc.deleteCustomScale(SAVED.id)).rejects.toThrow();
+      await expect(svc.setDefaultScaleId('t-shirt')).rejects.toThrow();
+      await expect(svc.togglePresetCard('fibonacci', 0)).rejects.toThrow();
+    });
+
+    it('leaves no scale behind that was not created', async () => {
+      const svc = await loaded();
+
+      await svc.addCustomScale('Sizes', ['S', 'M']).catch(() => undefined);
+
+      expect(svc.customScales()).toEqual([SAVED]);
+    });
+
+    it('creates it once when it is tried again', async () => {
+      const svc = await loaded();
+      await svc.addCustomScale('Sizes', ['S', 'M']).catch(() => undefined);
+      mockPreferences.set.mockResolvedValue();
+
+      await svc.addCustomScale('Sizes', ['S', 'M']);
+
+      expect(svc.customScales().map((s) => s.label)).toEqual(['Mine', 'Sizes']);
+    });
+
+    it('takes an edit back', async () => {
+      const svc = await loaded();
+
+      await svc.updateCustomScale(SAVED.id, 'Ours', ['1', '2', '3']).catch(() => undefined);
+
+      expect(svc.customScales()).toEqual([SAVED]);
+    });
+
+    it('keeps a scale that could not be deleted, and the default that points at it', async () => {
+      const svc = await loaded();
+      mockPreferences.set.mockResolvedValueOnce();
+      await svc.setDefaultScaleId(SAVED.id);
+
+      await svc.deleteCustomScale(SAVED.id).catch(() => undefined);
+
+      expect(svc.customScales()).toEqual([SAVED]);
+      expect(svc.defaultScaleId()).toBe(SAVED.id);
+    });
+
+    it('takes a default back, and a card that was turned off', async () => {
+      const svc = await loaded();
+
+      await svc.setDefaultScaleId('t-shirt').catch(() => undefined);
+      await svc.togglePresetCard('fibonacci', 0).catch(() => undefined);
+
+      expect(svc.defaultScaleId()).toBe('fibonacci');
+      expect(svc.presetOverrides()).toEqual({});
+    });
+
+    // Two changes, the first of which fails after the second was made: the
+    // second is what is shown, and it stays.
+    it('does not take back what was changed after it', async () => {
+      const svc = await loaded();
+      let fail!: (err: Error) => void;
+      mockPreferences.set.mockImplementationOnce(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            fail = reject;
+          }),
+      );
+      mockPreferences.set.mockResolvedValueOnce();
+
+      const first = svc.setDefaultScaleId('t-shirt');
+      await svc.setDefaultScaleId('linear');
+      fail(new Error('storage is full'));
+      await first.catch(() => undefined);
+
+      expect(svc.defaultScaleId()).toBe('linear');
     });
   });
 });

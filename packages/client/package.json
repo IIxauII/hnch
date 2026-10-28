@@ -1,8 +1,7 @@
 {
   "name": "@hnch/client",
   "version": "1.44.1",
-  "author": "Ionic Framework",
-  "homepage": "https://ionicframework.com/",
+  "author": "xau",
   "scripts": {
     "generate-version": "node scripts/generate-version.mjs",
     "postinstall": "node scripts/generate-version.mjs",
@@ -71,5 +70,5 @@
     "typescript": "~5.9.0",
     "vitest": "^3.2.7"
   },
-  "description": "An Ionic project"
+  "description": "Pointing poker web and mobile client for agile teams"
 }

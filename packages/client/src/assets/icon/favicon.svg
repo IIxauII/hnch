@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="hnch">
+  <style>
+    .tile { fill: #1c1c1e; }
+    .ink { stroke: #f2f2f7; }
+    @media (prefers-color-scheme: dark) {
+      .tile { fill: #f2f2f7; }
+      .ink { stroke: #1c1c1e; }
+    }
+  </style>
+  <defs>
+    <mask id="notch">
+      <rect width="64" height="64" fill="#fff" />
+      <circle cx="51" cy="51" r="15" fill="#000" />
+    </mask>
+  </defs>
+  <rect class="tile" x="2" y="2" width="56" height="56" rx="16" mask="url(#notch)" />
+  <g class="ink" fill="none" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" mask="url(#notch)">
+    <path d="M21 15v30" />
+    <path d="M21 34c0-5 4-8 9-8s9 3 9 8v11" />
+  </g>
+  <circle cx="51" cy="51" r="11" fill="#1f6b4f" />
+</svg>

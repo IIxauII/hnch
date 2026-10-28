@@ -20,7 +20,7 @@ test.describe('Re-vote full cycle', () => {
     await host.page.locator(LOBBY.resultsSection).waitFor({ state: 'visible', timeout: 5_000 });
 
     // Verify Round 1 results are visible
-    await expect(host.page.locator(LOBBY.resultsHeading)).toContainText('Round 1 Results');
+    await expect(host.page.locator(LOBBY.resultsHeading)).toContainText('Round 1 results');
 
     // Re-vote from results
     await host.revote();
@@ -39,10 +39,18 @@ test.describe('Re-vote full cycle', () => {
     await host.expectRevealedVotes(['3', '5']);
     await player.expectRevealedVotes(['3', '5']);
 
-    // Verify we're on Round 2 now
+    // Verify we're on Round 2 now — its number in the session, with a note
+    // that it re-votes an earlier round
     const resultsHeading = host.page.locator(LOBBY.resultsHeading);
-    const headingText = await resultsHeading.textContent();
-    expect(headingText).toContain('Round 2');
+    await expect(resultsHeading).toContainText('Round 2 results');
+    await expect(resultsHeading.locator('.hnch-card__title-note')).toHaveText('Re-vote');
+    await expect(player.page.locator(LOBBY.resultsHeading)).toContainText('Round 2 results');
+
+    // Round 1 moved to the history, under the number it always had
+    const history = host.page.locator('app-round-history li.history-item');
+    await expect(history).toHaveCount(1);
+    await expect(history.locator('.round-label')).toHaveText('Round 1');
+    await expect(history.locator('.revote-badge')).toHaveCount(0);
   });
 
   test('re-vote preserves title and does not affect prior round', async ({ host, player }) => {

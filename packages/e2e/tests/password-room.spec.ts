@@ -1,17 +1,13 @@
 import { test, expect } from './fixtures/app.fixture';
-import { BASE_URL, HOME, JOIN, fillRoomCode } from './fixtures/helpers';
+import { BASE_URL, HOME, JOIN, expectToast, fillRoomCode } from './fixtures/helpers';
 
 test.describe('Password-protected rooms', () => {
   test('joiner must enter correct password to join', async ({ host, player }) => {
     const code = await host.createSession();
 
     // Host sets a password — wait for the relay PATCH to complete
-    const patchDone = host.page.waitForResponse(
-      (res) => res.url().includes('/access') && res.request().method() === 'PATCH',
-    );
     await host.openSettings();
-    await host.changeAccess('Password', 'secret123');
-    await patchDone;
+    await host.setPassword('secret123');
     await host.closeSettings();
 
     // Player joins with the correct password
@@ -26,12 +22,8 @@ test.describe('Password-protected rooms', () => {
     const code = await host.createSession();
 
     // Host sets a password
-    const patchDone = host.page.waitForResponse(
-      (res) => res.url().includes('/access') && res.request().method() === 'PATCH',
-    );
     await host.openSettings();
-    await host.changeAccess('Password', 'correctpw');
-    await patchDone;
+    await host.setPassword('correctpw');
     await host.closeSettings();
 
     // Player tries to join with the wrong password
@@ -42,39 +34,81 @@ test.describe('Password-protected rooms', () => {
     }
     await player.page.locator(HOME.joinCard).click();
     await player.page.waitForURL(/\/join/);
+    // The sixth character resolves the code and reveals the password field
     await fillRoomCode(player.page, code);
-    await player.page.locator(JOIN.joinBtn).click();
 
-    // Wait for password field
+    // Wait for password field. It takes the focus: the next thing typed is
+    // the password, with no tap in between.
     const pwInput = player.page.locator(JOIN.passwordInput).locator('input');
     await pwInput.waitFor({ state: 'visible', timeout: 5_000 });
-    await pwInput.fill('wrongpassword');
+    await expect(pwInput).toBeFocused();
+    await player.page.keyboard.type('wrongpassword');
+    await expect(pwInput).toHaveValue('wrongpassword');
     await player.page.locator(JOIN.joinBtn).click();
 
-    // Should stay on join page (not navigate to lobby)
-    await player.page.waitForTimeout(2000);
+    // Says so, and stays on the join page (does not navigate to lobby)
+    await expectToast(player.page, 'That password is incorrect');
     expect(player.page.url()).toContain('/join');
+
+    // The code is kept and the password field is emptied for another go —
+    // and has the focus again
+    await expect(pwInput).toHaveValue('');
+    await expect(pwInput).toBeFocused();
+    await expect(player.page.locator('app-lobby')).toHaveCount(0);
+  });
+
+  // Leading and trailing whitespace is not part of a password, on either side.
+  // What was typed to get in is not kept on the page for whoever comes back
+  // to it: on a shared screen, Back would show the field filled in.
+  test('the password is asked for again by a Join page that is come back to', async ({
+    host,
+    player,
+  }) => {
+    const code = await host.createSession();
+    await host.openSettings();
+    await host.setPassword('secret123');
+    await host.closeSettings();
+    await player.joinSessionWithPassword(code, 'secret123');
+    await player.expectParticipantCount(2);
+
+    await player.page.goBack();
+    await player.page.waitForURL(/\/join/);
+    await expect(player.page.locator('app-join:not(.ion-page-hidden)')).toBeVisible();
+
+    // The code is what was typed, and may stay. The password may not.
+    await expect(player.page.locator(JOIN.passwordInput)).toHaveCount(0);
+    const typed = await player.page
+      .locator('app-join input')
+      .evaluateAll((els) => els.map((el) => (el as HTMLInputElement).value));
+    expect(typed).not.toContain('secret123');
+  });
+
+  test('a password pasted with a space after it still opens the session', async ({
+    host,
+    player,
+  }) => {
+    const code = await host.createSession();
+    await host.openSettings();
+    await host.setPassword('  secret123 ');
+    await host.closeSettings();
+
+    await player.joinSessionWithPassword(code, 'secret123  ');
+
+    await host.expectParticipantCount(2);
+    await player.expectParticipantCount(2);
   });
 
   test('removing password lets joiner in without one', async ({ host, player }) => {
     const code = await host.createSession();
 
     // Host sets a password
-    const setPatch = host.page.waitForResponse(
-      (res) => res.url().includes('/access') && res.request().method() === 'PATCH',
-    );
     await host.openSettings();
-    await host.changeAccess('Password', 'temppass');
-    await setPatch;
+    await host.setPassword('temppass');
     await host.closeSettings();
 
     // Host removes the password via the UI
-    const removePatch = host.page.waitForResponse(
-      (res) => res.url().includes('/access') && res.request().method() === 'PATCH',
-    );
     await host.openSettings();
-    await host.changeAccess('Open');
-    await removePatch;
+    await host.removePassword();
     await host.closeSettings();
 
     // Player joins normally (no password needed)

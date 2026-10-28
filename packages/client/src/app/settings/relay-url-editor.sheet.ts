@@ -1,7 +1,13 @@
-import { ChangeDetectionStrategy, Component, input, OnInit, output } from '@angular/core';
+import {
+  afterNextRender,
+  ChangeDetectionStrategy,
+  Component,
+  input,
+  OnInit,
+  output,
+  viewChild,
+} from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
-
-import { validateRelayUrl } from './relay-url-editor.helpers';
 import {
   IonButton,
   IonButtons,
@@ -9,22 +15,24 @@ import {
   IonHeader,
   IonInput,
   IonItem,
-  IonLabel,
   IonList,
   IonNote,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
 
+import { focusField } from '../utils/focus-field';
+import { validateRelayUrl } from './relay-url-editor.helpers';
+import { isComposingKey } from '../utils/composing-key';
+
 /**
  * Relay URL editor half-sheet.
  *
  * Pre-fills an `ion-input` with the current relay URL override.
- * The Done button validates the URL and emits the value; it is disabled
- * when the input is empty/whitespace-only or invalid URL format.
- * Clear button emits undefined to remove the override (fallback to
- * environment). Parent (Settings page) is responsible for persisting
- * via AppPreferenceService.
+ * Save validates the URL and emits the value; a blank field saves as "no
+ * override". "Use the default relay" emits undefined to remove the
+ * override (fallback to environment). Parent (Settings page) is responsible
+ * for persisting via AppPreferenceService.
  */
 @Component({
   selector: 'app-relay-url-editor-sheet',
@@ -36,7 +44,6 @@ import {
     IonHeader,
     IonInput,
     IonItem,
-    IonLabel,
     IonList,
     IonNote,
     IonTitle,
@@ -47,58 +54,81 @@ import {
   template: `
     <ion-header>
       <ion-toolbar>
+        <ion-buttons slot="start">
+          <ion-button (click)="closeRequested.emit()">Cancel</ion-button>
+        </ion-buttons>
         <ion-title>Relay URL</ion-title>
         <ion-buttons slot="end">
-          @if (urlCtrl.value.trim()) {
-            <ion-button
-              (click)="onClear()"
-              aria-label="Clear relay URL override"
-            >
-              Clear
-            </ion-button>
-          }
           <ion-button
+            strong="true"
+            color="primary"
             (click)="onDone()"
             [disabled]="urlCtrl.invalid"
             aria-label="Save relay URL"
           >
-            Done
+            Save
           </ion-button>
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding">
-      <ion-list lines="none">
+      <ion-list inset="true" lines="none">
         <ion-item>
-          <ion-label position="stacked">Relay HTTP URL (optional)</ion-label>
           <ion-input
+            #urlField
             [formControl]="urlCtrl"
+            label="Relay URL"
+            labelPlacement="stacked"
             type="url"
+            inputmode="url"
+            autocapitalize="off"
+            autocorrect="off"
+            spellcheck="false"
+            enterkeyhint="done"
             placeholder="https://relay.example.com"
-            aria-label="Relay HTTP URL"
+            (keydown.enter)="composing($event) || onDone()"
           ></ion-input>
         </ion-item>
       </ion-list>
-      <ion-note class="ion-padding-start">
-        Leave blank to use default relay. URL must start with http:// or https://
+      <ion-note class="helper">
+        Only needed for a self-hosted relay. Starts with http:// or https://.
       </ion-note>
+      @if (currentUrl()) {
+        <ion-button
+          fill="clear"
+          class="reset-btn"
+          (click)="onClear()"
+        >
+          Use the default relay
+        </ion-button>
+      }
     </ion-content>
   `,
   styles: [
     `
-      ion-note {
+      .helper {
         display: block;
-        font-size: 0.85rem;
-        margin-top: 1rem;
+        padding: 8px 16px 0;
+        font-size: 13px;
+        line-height: 1.4;
+      }
+      .reset-btn {
+        margin: 12px 0 0 4px;
       }
     `,
   ],
 })
 export class RelayUrlEditorSheetComponent implements OnInit {
+  /**
+   * For the Enter handlers: the Enter that confirms a choice in an input
+   * method is part of typing, and commits nothing.
+   */
+  protected readonly composing = isComposingKey;
+
   /** Current relay URL override — pre-fills the input. */
   readonly currentUrl = input<string | undefined>();
 
-  /** Emits the trimmed new URL on Done, or undefined on Clear. */
+  /** Emits the trimmed new URL on Save, or undefined when the override is removed. */
   readonly saved = output<string | undefined>();
 
   /** Emits when the sheet should close. */
@@ -109,11 +139,19 @@ export class RelayUrlEditorSheetComponent implements OnInit {
     validators: [(ctrl) => validateRelayUrl(ctrl.value)],
   });
 
+  private readonly urlField = viewChild<IonInput>('urlField');
+
+  constructor() {
+    // The sheet is there to be typed into.
+    afterNextRender(() => void focusField(this.urlField()));
+  }
+
   ngOnInit(): void {
     this.urlCtrl.setValue(this.currentUrl() ?? '');
   }
 
   protected onDone(): void {
+    if (this.urlCtrl.invalid) return;
     const trimmed = this.urlCtrl.value.trim();
     this.saved.emit(trimmed || undefined);
     this.closeRequested.emit();

@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/app.fixture';
-import { ESTIMATING } from './fixtures/helpers';
+import { ESTIMATING, KICK_AFFORDANCE, LOBBY } from './fixtures/helpers';
 
 test.describe('Viewer role', () => {
   test('can toggle between voter and observer roles', async ({ player }) => {
@@ -16,7 +16,7 @@ test.describe('Viewer role', () => {
     // Toggle to observer
     await player.toggleRole();
     await expect(
-      player.page.locator(ESTIMATING.roleChip).filter({ hasText: 'Observing' }).first(),
+      player.page.locator(ESTIMATING.roleChip).filter({ hasText: 'Observer' }).first(),
     ).toBeVisible();
 
     // Toggle back to voter
@@ -44,7 +44,7 @@ test.describe('Viewer role', () => {
     // Observer toggles to viewer role — excluded from denominator
     await observer.toggleRole();
     await expect(
-      observer.page.locator(ESTIMATING.roleChip).filter({ hasText: 'Observing' }).first(),
+      observer.page.locator(ESTIMATING.roleChip).filter({ hasText: 'Observer' }).first(),
     ).toBeVisible();
 
     // Player votes — host has not, so auto-reveal won't fire (2 online voters)
@@ -70,7 +70,7 @@ test.describe('Viewer role', () => {
     // Player toggles to observer role — now excluded from the voter count
     await player.toggleRole();
     await expect(
-      player.page.locator(ESTIMATING.roleChip).filter({ hasText: 'Observing' }).first(),
+      player.page.locator(ESTIMATING.roleChip).filter({ hasText: 'Observer' }).first(),
     ).toBeVisible();
 
     // Host votes — host is now the ONLY online voter.
@@ -84,5 +84,40 @@ test.describe('Viewer role', () => {
     // Only host's vote appears — observer's non-vote is not in results
     await host.expectRevealedVotes(['5']);
     await player.expectRevealedVotes(['5']);
+
+    // ...and is not held against them: nobody was waiting for an observer's
+    // vote, so they are not listed under "Didn't vote" (ADR-0041 §3).
+    await expect(host.page.locator(LOBBY.didntVoteGroup)).toHaveCount(0);
+    await expect(player.page.locator(LOBBY.didntVoteGroup)).toHaveCount(0);
+
+    // The roster says who is observing
+    await expect(host.page.locator(`${KICK_AFFORDANCE.row('Player')} ion-note`)).toHaveText(
+      'Observer',
+    );
+  });
+
+  test('the role can be switched from the lobby as well', async ({ host, player }) => {
+    const code = await host.createSession();
+    await player.joinSession(code);
+    await host.expectParticipantCount(2);
+
+    const toggle = player.page.locator(
+      'app-lobby:not(.ion-page-hidden) app-role-toggle ion-button',
+    );
+    await expect(toggle).toHaveText(/Voter/);
+    await toggle.click();
+    await expect(toggle).toHaveText(/Observer/);
+    await expect(host.page.locator(`${KICK_AFFORDANCE.row('Player')} ion-note`)).toHaveText(
+      'Observer',
+    );
+
+    // It carries into the round
+    await host.startRound();
+    await player.waitForEstimating();
+    await expect(
+      player.page.locator(ESTIMATING.roleChip).filter({ hasText: 'Observer' }).first(),
+    ).toBeVisible();
+    await expect(player.page.locator(ESTIMATING.cardGrid)).toHaveCount(0);
+    await expect(host.page.locator(ESTIMATING.voteCount)).toContainText('0 of 1');
   });
 });

@@ -47,9 +47,6 @@ vi.mock('@ionic/angular/standalone', async () => {
     IonHeader: stub('ion-header'),
     IonIcon,
     IonItem,
-    IonItemOption: stub('ion-item-option'),
-    IonItemOptions: stub('ion-item-options'),
-    IonItemSliding: stub('ion-item-sliding'),
     IonLabel: stub('ion-label'),
     IonList: stub('ion-list'),
     IonListHeader: stub('ion-list-header'),
@@ -62,7 +59,7 @@ vi.mock('@ionic/angular/standalone', async () => {
   };
 });
 vi.mock('ionicons', () => ({ addIcons: vi.fn() }));
-vi.mock('ionicons/icons', () => ({ addOutline: '', createOutline: '', trashOutline: '' }));
+vi.mock('ionicons/icons', () => ({ addOutline: '', createOutline: '' }));
 vi.mock('./custom-scale-editor.sheet', async () => {
   const { Component } = await import('@angular/core');
   @Component({ selector: 'app-custom-scale-editor-sheet', template: '', standalone: true })

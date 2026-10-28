@@ -5,6 +5,9 @@
  * 1. Host taps back chevron on Estimating during an active round → lands on
  *    Lobby (no auto-bounce back into Estimating), linked agenda item stays
  *    `pending`, item is re-startable.
+ * 1b. Nobody is left guessing: the host is told the round was cancelled,
+ *    everyone else that the host cancelled it. The cancelled round takes no
+ *    number — the round that replaces it is called what it would have been.
  * 2. Non-host player does NOT see the back chevron during an active round.
  * 3. Reveal still consumes the linked agenda item.
  * 4. Skip still consumes the linked agenda item.
@@ -14,7 +17,7 @@
  * Tag: @host — exercises the host-only Estimating back chevron path.
  */
 import { test, expect } from './fixtures/app.fixture';
-import { LOBBY, ROUND_START } from './fixtures/helpers';
+import { ESTIMATING, LOBBY, ROUND_FIELD, ROUND_START, expectToast } from './fixtures/helpers';
 
 test.describe('Host discard round @host', () => {
   test('back chevron discards in-flight round; agenda item stays pending and is re-startable', async ({
@@ -33,7 +36,7 @@ test.describe('Host discard round @host', () => {
     await startRoundBtn.click();
     const modal = host.page.locator('app-round-start-sheet');
     await modal.waitFor({ state: 'visible' });
-    const titleInput = host.page.getByRole('textbox', { name: 'Round title' });
+    const titleInput = host.page.getByRole('textbox', { name: ROUND_FIELD.title });
     await expect(titleInput).toHaveValue('Login redesign');
     const startBtn = host.page.locator(ROUND_START.startBtn);
     await startBtn.click();
@@ -66,6 +69,59 @@ test.describe('Host discard round @host', () => {
     // Dismiss without starting.
     await host.page.keyboard.press('Escape');
     await modal.waitFor({ state: 'hidden' });
+  });
+
+  test('cancelling says so on both sides, and the round takes no number', async ({
+    host,
+    player,
+  }) => {
+    const code = await host.createSession();
+    await player.joinSession(code);
+    await host.expectParticipantCount(2);
+
+    await host.startRound('Started by mistake');
+    await player.waitForEstimating();
+    await expect(host.page.locator(ESTIMATING.roundTitle)).toHaveText('Round 1');
+    await player.castVote('5');
+
+    // The chevron says what it will do before it does it
+    const backBtn = host.page
+      .locator('app-estimating:not(.ion-page-hidden)')
+      .getByRole('button', { name: 'Cancel round and go back to the lobby' });
+    await backBtn.click();
+
+    await expectToast(host.page, 'Round cancelled');
+    await expectToast(player.page, 'The host cancelled the round');
+    await host.page.waitForURL(/\/lobby\//, { timeout: 10_000 });
+    await player.page.waitForURL(/\/lobby\//, { timeout: 10_000 });
+
+    // Nothing of the round is left: no result, no history, and its number is free
+    await expect(host.page.locator(LOBBY.resultsSection)).toHaveCount(0);
+    await expect(host.page.locator('app-round-history')).toHaveCount(0);
+    await expect(
+      host.page
+        .locator('app-lobby:not(.ion-page-hidden) ion-button')
+        .filter({ hasText: LOBBY.startRoundBtn }),
+    ).toHaveText('Start round 1');
+    await expect(player.page.locator(LOBBY.waitingNote)).toHaveText(
+      'Waiting for Host to start the first round.',
+    );
+
+    // The round that replaces it is round 1, on every screen
+    await host.startRound('The one we meant');
+    await player.waitForEstimating();
+    await expect(host.page.locator(ESTIMATING.roundTitle)).toHaveText('Round 1');
+    await expect(player.page.locator(ESTIMATING.roundTitle)).toHaveText('Round 1');
+
+    await host.castVote('3');
+    await player.castVote('3');
+    await host.page.waitForURL(/\/lobby/, { timeout: 10_000 });
+    await expect(host.page.locator(LOBBY.resultsHeading)).toContainText('Round 1 results');
+    await expect(
+      host.page
+        .locator('app-lobby:not(.ion-page-hidden) ion-button')
+        .filter({ hasText: LOBBY.nextRoundBtn }),
+    ).toHaveText('Next round 2');
   });
 
   test('non-host player does not see back chevron during active round', async ({

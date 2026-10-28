@@ -17,12 +17,8 @@ import {
   IonHeader,
   IonIcon,
   IonItem,
-  IonItemOption,
-  IonItemOptions,
-  IonItemSliding,
   IonLabel,
   IonList,
-  IonListHeader,
   IonModal,
   IonNote,
   IonRadio,
@@ -31,9 +27,8 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { addOutline, createOutline, trashOutline } from 'ionicons/icons';
+import { addOutline, createOutline } from 'ionicons/icons';
 
-import { HapticService } from '../core/haptic.service';
 import { ScalePreferenceService } from '../core/scale-preference.service';
 import { SurfaceService } from '../core/surface.service';
 import { CustomScaleEditorSheetComponent } from './custom-scale-editor.sheet';
@@ -52,7 +47,8 @@ import { previewBuiltinCards, previewCards } from './scale-picker.helpers';
  *
  * In both modes:
  * - Builtin preset rows carry a card-toggle edit button (ScaleEditorSheetComponent)
- * - Custom rows carry a full edit button and swipe-delete capability (CustomScaleEditorSheetComponent)
+ * - Custom rows carry an edit button; the editor is also where a custom scale
+ *   is deleted (CustomScaleEditorSheetComponent)
  * - "Create/Add custom scale" row at bottom opens the editor in create mode
  * - Selection or updates commit immediately (no Save button)
  */
@@ -66,12 +62,8 @@ import { previewBuiltinCards, previewCards } from './scale-picker.helpers';
     IonHeader,
     IonIcon,
     IonItem,
-    IonItemOption,
-    IonItemOptions,
-    IonItemSliding,
     IonLabel,
     IonList,
-    IonListHeader,
     IonModal,
     IonNote,
     IonRadio,
@@ -87,14 +79,16 @@ import { previewBuiltinCards, previewCards } from './scale-picker.helpers';
       <ion-toolbar>
         <ion-title>{{ showPickerMode() ? 'Scale' : 'Scales' }}</ion-title>
         <ion-buttons slot="end">
-          <ion-button (click)="closeRequested.emit()">Done</ion-button>
+          <ion-button strong="true" color="primary" (click)="closeRequested.emit()">
+            Done
+          </ion-button>
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
-    <ion-content class="ion-padding-top">
+    <ion-content class="ion-padding">
       @if (showPickerMode()) {
         <!-- Picker mode: radio group -->
-        <ion-list lines="inset">
+        <ion-list inset="true" lines="inset">
           <ion-radio-group
             aria-label="Estimation scale"
             [value]="selectedScaleId()"
@@ -137,10 +131,8 @@ import { previewBuiltinCards, previewCards } from './scale-picker.helpers';
         </ion-list>
       } @else {
         <!-- Management mode: presets section -->
-        <ion-list-header>
-          <ion-label>Presets</ion-label>
-        </ion-list-header>
-        <ion-list lines="inset">
+        <h2 class="section-label">Presets</h2>
+        <ion-list inset="true" lines="inset">
           @for (scale of presetScales; track scale.id) {
             <ion-item>
               <ion-label>
@@ -161,37 +153,24 @@ import { previewBuiltinCards, previewCards } from './scale-picker.helpers';
         </ion-list>
 
         <!-- Management mode: custom section -->
-        <ion-list-header>
-          <ion-label>Custom</ion-label>
-        </ion-list-header>
-        <ion-list lines="inset">
+        <h2 class="section-label">Custom</h2>
+        <ion-list inset="true" lines="inset">
           @for (scale of scalePrefs.customScales(); track scale.id) {
-            <ion-item-sliding>
-              <ion-item>
-                <ion-label>
-                  <h3>{{ scale.label }}</h3>
-                  <ion-note>{{ previewCards(scale.cards) }}</ion-note>
-                </ion-label>
-                <ion-button
-                  fill="clear"
-                  slot="end"
-                  size="small"
-                  [attr.aria-label]="'Edit custom scale ' + scale.label"
-                  (click)="openCustomEditor(scale)"
-                >
-                  <ion-icon slot="icon-only" name="create-outline" aria-hidden="true"></ion-icon>
-                </ion-button>
-              </ion-item>
-              <ion-item-options side="end">
-                <ion-item-option
-                  color="danger"
-                  (click)="onDeleteCustomScale(scale)"
-                  [attr.aria-label]="'Delete ' + scale.label"
-                >
-                  <ion-icon slot="icon-only" name="trash-outline" aria-hidden="true"></ion-icon>
-                </ion-item-option>
-              </ion-item-options>
-            </ion-item-sliding>
+            <ion-item>
+              <ion-label>
+                <h3>{{ scale.label }}</h3>
+                <ion-note>{{ previewCards(scale.cards) }}</ion-note>
+              </ion-label>
+              <ion-button
+                fill="clear"
+                slot="end"
+                size="small"
+                [attr.aria-label]="'Edit custom scale ' + scale.label"
+                (click)="openCustomEditor(scale)"
+              >
+                <ion-icon slot="icon-only" name="create-outline" aria-hidden="true"></ion-icon>
+              </ion-button>
+            </ion-item>
           } @empty {
             <ion-item>
               <ion-label color="medium">No custom scales yet</ion-label>
@@ -210,9 +189,10 @@ import { previewBuiltinCards, previewCards } from './scale-picker.helpers';
     <!-- Builtin preset card-toggle editor -->
     <ion-modal
       #editorModal
+      cssClass="modal-centered"
       [isOpen]="editorOpen()"
-      [breakpoints]="surface.sheetBreakpoints()"
-      [initialBreakpoint]="surface.initialSheetBreakpoint()"
+      [breakpoints]="surface.sheetBreakpointsFull()"
+      [initialBreakpoint]="surface.initialSheetBreakpointFull()"
       (didDismiss)="editorOpen.set(false)"
     >
       <ng-template>
@@ -228,6 +208,7 @@ import { previewBuiltinCards, previewCards } from './scale-picker.helpers';
     <!-- Custom scale creator / editor -->
     <ion-modal
       #customEditorModal
+      cssClass="modal-centered"
       [isOpen]="customEditorOpen()"
       [breakpoints]="surface.sheetBreakpointsFull()"
       [initialBreakpoint]="surface.initialSheetBreakpointFull()"
@@ -248,15 +229,11 @@ import { previewBuiltinCards, previewCards } from './scale-picker.helpers';
       ion-note {
         font-size: 0.85rem;
       }
-      ion-list-header {
-        margin-top: 0.5rem;
-      }
     `,
   ],
 })
 export class ScalePickerSheetComponent {
   protected readonly scalePrefs = inject(ScalePreferenceService);
-  private readonly haptics = inject(HapticService);
   protected readonly surface = inject(SurfaceService);
   private readonly editorModalRef = viewChild<IonModal>('editorModal');
   private readonly customEditorModalRef = viewChild<IonModal>('customEditorModal');
@@ -297,7 +274,6 @@ export class ScalePickerSheetComponent {
     addIcons({
       'create-outline': createOutline,
       'add-outline': addOutline,
-      'trash-outline': trashOutline,
     });
   }
 
@@ -365,10 +341,5 @@ export class ScalePickerSheetComponent {
   protected onCustomScaleUpdated(id: string): void {
     const scale = this.availableScales().find((s) => s.id === id);
     if (scale) this.scaleSelected.emit(scale);
-  }
-
-  protected onDeleteCustomScale(scale: CustomScale): void {
-    this.haptics.notificationWarning();
-    void this.scalePrefs.deleteCustomScale(scale.id);
   }
 }

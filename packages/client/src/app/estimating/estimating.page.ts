@@ -9,6 +9,7 @@ import {
   effect,
   inject,
   signal,
+  untracked,
 } from '@angular/core';
 import { Router } from '@angular/router';
 import {
@@ -18,26 +19,21 @@ import {
   isAbstainVote,
   isTerminalStatus,
   participantRole,
+  roundNumber,
   type ParticipantSnapshot,
 } from '@hnch/shared';
 import {
   AlertController,
-  IonAccordion,
-  IonAccordionGroup,
   IonButton,
   IonButtons,
   IonCard,
   IonCardContent,
   IonChip,
-  IonCol,
   IonContent,
   IonFooter,
-  IonGrid,
   IonHeader,
   IonIcon,
-  IonItem,
   IonLabel,
-  IonRow,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
@@ -46,13 +42,14 @@ import {
   checkmarkCircle,
   chevronBackOutline,
   closeCircleOutline,
-  ellipsisHorizontalCircle,
+  ellipsisHorizontal,
+  eyeOutline,
   logOutOutline,
+  playSkipForwardOutline,
   removeCircleOutline,
-  settingsOutline,
+  timerOutline,
 } from 'ionicons/icons';
 
-import { ConnectionChipComponent } from '../core/connection-chip.component';
 import { ConnectionStatusBannerComponent } from '../shared/connection-status-banner.component';
 import { DocService } from '../core/doc/doc.service';
 import { SurfaceService } from '../core/surface.service';
@@ -62,7 +59,15 @@ import { assertRoomCode } from '../core/room-join.service';
 import { shouldRecordCache } from '../core/cache-record-guard';
 import { ParticipantIdService } from '../core/participant-id.service';
 import { TimerTickService } from '../core/timer-tick.service';
+import { ToastService } from '../services/toast.service';
+import type { MenuItem } from '../shared/menu-popover/menu-popover.component';
+import { RoleToggleComponent } from '../shared/role-toggle.component';
 import { AvatarVoteRowComponent } from './avatar-vote-row.component';
+import {
+  buildCancelledRoundToast,
+  buildEstimatingTitle,
+  parseTicketIdHref,
+} from './estimating.helpers';
 import { resolveKeyboardCardAction, shouldHandleKeyEvent } from './estimating.keyboard';
 
 /**
@@ -72,12 +77,13 @@ import { resolveKeyboardCardAction, shouldHandleKeyEvent } from './estimating.ke
  * avatar row); the value stays hidden until reveal.
  *
  * Features:
- *  - Title "Round N" uses the current round's 1-based index.
+ *  - Toolbar title "Round N" uses the current round's 1-based index.
+ *  - What is being estimated: ticket, title and description, all in view.
  *  - Elapsed time stopwatch counting up from round start.
  *  - Card grid with tap-to-vote / tap-again-to-unvote (ADR-0013).
  *  - Unanimous auto-reveal: when all online participants have voted,
  *    `revealedAt` is written automatically (ADR-0018).
- *  - Host-only manual Reveal button.
+ *  - Host-only manual Reveal button, and a host-only menu.
  *  - Auto-navigation to Lobby (with inline results) when `revealedAt` is written.
  */
 @Component({
@@ -85,26 +91,20 @@ import { resolveKeyboardCardAction, shouldHandleKeyEvent } from './estimating.ke
   host: { class: 'ion-page' },
   imports: [
     AvatarVoteRowComponent,
-    ConnectionChipComponent,
     ConnectionStatusBannerComponent,
-    IonAccordion,
-    IonAccordionGroup,
     IonButton,
     IonButtons,
     IonCard,
     IonCardContent,
     IonChip,
-    IonCol,
     IonContent,
     IonFooter,
-    IonGrid,
     IonHeader,
     IonIcon,
-    IonItem,
     IonLabel,
-    IonRow,
     IonTitle,
     IonToolbar,
+    RoleToggleComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -123,147 +123,144 @@ import { resolveKeyboardCardAction, shouldHandleKeyEvent } from './estimating.ke
             </ion-button>
           }
         </ion-buttons>
-        <ion-title>Estimating</ion-title>
+        <ion-title role="heading" aria-level="1">{{ pageTitle() }}</ion-title>
         <ion-buttons slot="end">
-          <ion-chip
-            [color]="isViewer() ? 'medium' : 'primary'"
-            [attr.aria-label]="isViewer() ? 'You are observing. Tap to switch to voter.' : 'You are a voter. Tap to switch to observer.'"
-            [attr.aria-pressed]="isViewer()"
-            (click)="onToggleRole()"
-          >
-            <ion-label>{{ isViewer() ? 'Observing' : 'Voter' }}</ion-label>
-          </ion-chip>
-          <app-connection-chip></app-connection-chip>
-          <ion-button
-            aria-label="More options"
-            (click)="openActionSheet($event)"
-          >
-            <ion-icon slot="icon-only" name="ellipsis-horizontal-circle"></ion-icon>
-          </ion-button>
+          @if (isHost()) {
+            <ion-button
+              aria-label="More options"
+              (click)="openActionSheet($event)"
+            >
+              <ion-icon slot="icon-only" name="ellipsis-horizontal"></ion-icon>
+            </ion-button>
+          } @else {
+            <ion-button
+              aria-label="Leave session"
+              (click)="confirmLeave()"
+            >
+              <ion-icon slot="icon-only" name="log-out-outline"></ion-icon>
+            </ion-button>
+          }
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
-    <ion-content class="ion-padding">
-      <ion-grid fixed class="page-container">
-        <ion-row><ion-col>
-      <app-connection-status-banner />
-      @if (currentRound(); as round) {
-        <h1 class="title">Round {{ roundIndex() }}</h1>
-
-        @if (round.ticketId) {
-          @if (ticketIdHref(); as href) {
-            <a
-              class="ticket-link"
-              [href]="href"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <ion-chip class="ticket-chip" color="primary">
-                <ion-label>{{ round.ticketId }}</ion-label>
-              </ion-chip>
-            </a>
-          } @else {
-            <ion-chip class="ticket-chip">
-              <ion-label>{{ round.ticketId }}</ion-label>
-            </ion-chip>
+    <ion-content>
+      <div class="page-container">
+        <app-connection-status-banner />
+        @if (currentRound(); as round) {
+          @if (round.ticketId || round.title || round.description) {
+            <section class="story" aria-label="What is being estimated">
+              @if (round.ticketId) {
+                @if (ticketIdHref(); as href) {
+                  <a
+                    class="ticket-link"
+                    [href]="href"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ion-chip class="ticket-chip" color="primary">
+                      <ion-label>{{ round.ticketId }}</ion-label>
+                    </ion-chip>
+                  </a>
+                } @else {
+                  <ion-chip class="ticket-chip">
+                    <ion-label>{{ round.ticketId }}</ion-label>
+                  </ion-chip>
+                }
+              }
+              @if (round.title) {
+                <h2 class="descriptor">{{ round.title }}</h2>
+              }
+              @if (round.description) {
+                <p class="description-body">{{ round.description }}</p>
+              }
+            </section>
           }
-        }
 
-        @if (round.title) {
-          <p class="descriptor">{{ round.title }}</p>
-        }
-
-        @if (round.description) {
-          <ion-accordion-group class="description-accordion-group">
-            <ion-accordion value="description">
-              <ion-item slot="header" lines="none" class="description-header">
-                <ion-label>Details</ion-label>
-              </ion-item>
-              <div slot="content" class="description-body">
-                {{ round.description }}
-              </div>
-            </ion-accordion>
-          </ion-accordion-group>
-        }
-
-        @if (elapsedLabel(); as label) {
-          <p class="elapsed" role="status" aria-live="off">{{ label }}</p>
-        }
-
-        <app-avatar-vote-row
-          [participants]="onlineVoterParticipants()"
-          [votedIds]="votedIds()"
-        />
-
-        @if (isViewer()) {
-          <p class="observer-notice" role="status" aria-live="polite">
-            You're observing this round
-          </p>
-        } @else if (activeRound(); as activeR) {
-          <h2 class="section">Pick your estimate</h2>
-
-          <div
-            class="grid"
-            [class.abstained]="isAbstained()"
-            role="group"
-            aria-label="Choose your estimate"
-          >
-            @for (card of activeR.scale.cards; track card; let i = $index) {
-              <ion-card
-                #cardEl
-                button
-                class="card"
-                [class.selected]="card === myVote()"
-                [class.focused]="i === focusedIndex()"
-                [attr.aria-pressed]="card === myVote()"
-                [attr.aria-label]="'Card ' + card"
-                [attr.aria-keyshortcuts]="ariaKeyShortcut(i)"
-                [attr.tabindex]="i === rovingTabIndex() ? 0 : -1"
-                (click)="onCardTap(card)"
-              >
-                <ion-card-content class="card-face">
-                  {{ card }}
-                </ion-card-content>
-              </ion-card>
-            }
+          <div class="status">
+            <div class="status-main">
+              <app-avatar-vote-row
+                [participants]="onlineVoterParticipants()"
+                [votedIds]="votedIds()"
+              />
+              @if (elapsedLabel(); as label) {
+                <p class="elapsed" role="status" aria-live="off">
+                  <ion-icon name="timer-outline" aria-hidden="true"></ion-icon>
+                  <span>{{ label }}</span>
+                </p>
+              }
+            </div>
+            <app-role-toggle [viewer]="isViewer()" (toggled)="onToggleRole()" />
           </div>
 
-          <ion-button
-            expand="block"
-            [fill]="isAbstained() ? 'solid' : 'clear'"
-            color="medium"
-            class="abstain-btn"
-            [attr.aria-pressed]="isAbstained()"
-            aria-label="Abstain this round"
-            (click)="onAbstain()"
-          >
-            @if (isAbstained()) {
-              <ion-icon slot="start" name="checkmark-circle" aria-hidden="true"></ion-icon>
-              Abstained
-            } @else {
-              <ion-icon slot="start" name="remove-circle-outline" aria-hidden="true"></ion-icon>
-              Abstain this round
-            }
-          </ion-button>
+          @if (isViewer()) {
+            <div class="observer-notice" role="status" aria-live="polite">
+              <ion-icon name="eye-outline" aria-hidden="true"></ion-icon>
+              <p>You're observing this round</p>
+              <p class="observer-hint">Switch to voter to pick a card.</p>
+            </div>
+          } @else if (activeRound(); as activeR) {
+            <h2 class="section">Pick your estimate</h2>
+
+            <div
+              class="grid"
+              [class.abstained]="isAbstained()"
+              role="group"
+              aria-label="Choose your estimate"
+            >
+              @for (card of activeR.scale.cards; track card; let i = $index) {
+                <ion-card
+                  #cardEl
+                  button
+                  class="card"
+                  [class.selected]="card === myVote()"
+                  [class.focused]="i === focusedIndex()"
+                  [attr.aria-pressed]="card === myVote()"
+                  [attr.aria-label]="'Card ' + card"
+                  [attr.aria-keyshortcuts]="ariaKeyShortcut(i)"
+                  [attr.tabindex]="i === rovingTabIndex() ? 0 : -1"
+                  (click)="onCardTap(card)"
+                >
+                  <ion-card-content class="card-face">{{ card }}</ion-card-content>
+                </ion-card>
+              }
+            </div>
+
+            <ion-button
+              expand="block"
+              [fill]="isAbstained() ? 'solid' : 'clear'"
+              color="medium"
+              class="abstain-btn"
+              [attr.aria-pressed]="isAbstained()"
+              aria-label="Abstain this round"
+              (click)="onAbstain()"
+            >
+              @if (isAbstained()) {
+                <ion-icon slot="start" name="checkmark-circle" aria-hidden="true"></ion-icon>
+                Abstained
+              } @else {
+                <ion-icon slot="start" name="remove-circle-outline" aria-hidden="true"></ion-icon>
+                Abstain this round
+              }
+            </ion-button>
+          }
+        } @else {
+          <p class="empty">No active round.</p>
         }
-      } @else {
-        <p class="empty">No active round.</p>
-      }
-        </ion-col></ion-row>
-      </ion-grid>
+      </div>
     </ion-content>
 
     @if (isHost()) {
       <ion-footer class="cta-bar">
         <ion-toolbar>
-          <ion-button
-            expand="block"
-            color="primary"
-            [disabled]="!currentRound()"
-            (click)="onReveal()"
-          >
-            Reveal Votes
-          </ion-button>
+          <div class="cta-inner">
+            <ion-button
+              color="primary"
+              [disabled]="!activeRound()"
+              (click)="onReveal()"
+            >
+              Reveal votes
+            </ion-button>
+          </div>
         </ion-toolbar>
       </ion-footer>
     }
@@ -276,67 +273,106 @@ import { resolveKeyboardCardAction, shouldHandleKeyEvent } from './estimating.ke
       @use '../../theme/a11y' as *;
       @include page-container(800px);
 
-      .title {
-        font-size: 1.75rem;
-        font-weight: 700;
-        margin: 0.25rem 0 0.25rem;
+      .story {
+        margin-block-end: 16px;
+      }
+      /* The ticket chip itself is a shared surface (theme/_surfaces.scss). */
+      .ticket-link,
+      ion-chip.ticket-chip {
+        margin: 0 0 8px;
+      }
+      .ticket-link ion-chip.ticket-chip {
+        margin: 0;
       }
       .descriptor {
-        margin: 0 0 0.75rem;
-        color: var(--hnch-text-2);
-        font-weight: 500;
-      }
-      .elapsed {
-        font-size: 0.875rem;
-        font-weight: 400;
-        font-variant-numeric: tabular-nums;
-        margin: 0.5rem 0 1rem;
-        color: var(--hnch-muted);
-      }
-      .ticket-link {
-        text-decoration: none;
-        display: inline-block;
-      }
-      .ticket-chip {
-        --background: var(--hnch-elev-1);
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        margin: 0 0 0.5rem;
-      }
-      .description-accordion-group {
-        margin: 0 0 0.75rem;
-        background: var(--hnch-elev-1);
-        border-radius: 8px;
-        overflow: hidden;
-      }
-      .description-header {
-        --background: var(--hnch-elev-1);
+        margin: 0;
+        color: var(--hnch-text);
+        font-size: 1.375rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        line-height: 1.25;
+        overflow-wrap: anywhere;
       }
       .description-body {
-        padding: 0.75rem 1rem 1rem;
-        color: var(--hnch-text-2);
+        margin: 6px 0 0;
+        color: var(--hnch-muted);
+        font-size: 0.9375rem;
+        line-height: 1.45;
+        overflow-wrap: anywhere;
         white-space: pre-wrap;
       }
+
+      /* Who has voted and for how long, with the role switch beside it. */
+      .status {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+      }
+      .status-main {
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-width: 0;
+      }
+      .elapsed {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin: 0;
+        color: var(--hnch-muted);
+        font-size: 0.875rem;
+        font-variant-numeric: tabular-nums;
+      }
+      .elapsed ion-icon {
+        font-size: 1rem;
+      }
+
       .section {
-        margin: 1.5rem 0 0.5rem;
+        margin: 24px 0 12px;
         font-size: 1.0625rem;
         font-weight: 600;
       }
+      /* Three columns on a narrow phone, four from about 400px. */
       .grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-        gap: 0.75rem;
+        grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+        gap: 10px;
+      }
+      @media (min-width: $bp-md) {
+        .grid {
+          grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+          gap: 12px;
+        }
       }
       .card {
         margin: 0;
         border: 2px solid transparent;
+        border-radius: 14px;
+        background: var(--hnch-elev-1);
+        box-shadow: var(--hnch-shadow-1);
         transition: border-color 0.15s ease, background 0.15s ease,
-          transform 0.15s ease, box-shadow 0.15s ease;
+          transform 0.15s ease;
+      }
+      .card-face {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 72px;
+        padding: 0 4px;
+        color: var(--hnch-text);
+        font-size: 1.625rem;
+        font-variant-numeric: tabular-nums;
+        font-weight: 700;
+        line-height: 1;
       }
       .card.selected {
-        border-color: var(--ion-color-primary);
-        background: var(--ion-color-primary-tint);
+        border-color: var(--hnch-accent-text);
+        background: rgba(var(--hnch-accent-text-rgb), 0.16);
         transform: scale(1.02);
-        box-shadow: 0 2px 8px rgba(var(--ion-color-primary-rgb), 0.3);
+      }
+      .card.selected .card-face {
+        color: var(--hnch-accent-text);
       }
       @include hover-only {
         .grid:not(.abstained) .card:not(.selected):not(:focus-visible):hover {
@@ -345,48 +381,55 @@ import { resolveKeyboardCardAction, shouldHandleKeyEvent } from './estimating.ke
           cursor: pointer;
         }
       }
-      .card.focused:not(.selected) {
-        outline: 2px solid var(--ion-color-primary);
-        outline-offset: 2px;
-      }
+      .card.focused:not(.selected),
       .card:focus-visible {
-        outline: 2px solid var(--ion-color-primary);
+        outline: 2px solid var(--hnch-accent-text);
         outline-offset: 2px;
-      }
-      .card-face {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 4.5rem;
-        font-size: 1.75rem;
-        font-weight: 700;
-      }
-      @media (prefers-reduced-motion: reduce) {
-        .card {
-          transition: none;
-        }
       }
       .grid.abstained {
         opacity: 0.4;
       }
       @media (prefers-reduced-motion: reduce) {
-        .grid.abstained {
+        .card {
           transition: none;
+        }
+        .card.selected {
+          transform: none;
         }
       }
       .abstain-btn {
-        margin-top: 1rem;
+        min-height: 44px;
+        margin: 12px 0 0;
       }
+
       .empty {
-        color: var(--ion-color-medium);
-        margin: 2rem 0;
+        margin: 32px 0;
+        color: var(--hnch-muted);
         text-align: center;
       }
       .observer-notice {
-        margin: 2rem 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        margin: 40px 0;
+        color: var(--hnch-muted);
         text-align: center;
-        color: var(--ion-color-medium);
-        font-size: 1.1rem;
+      }
+      .observer-notice ion-icon {
+        margin-block-end: 4px;
+        font-size: 2rem;
+      }
+      .observer-notice p {
+        margin: 0;
+        color: var(--hnch-text);
+        font-size: 1.0625rem;
+        font-weight: 600;
+      }
+      .observer-notice .observer-hint {
+        color: var(--hnch-muted);
+        font-size: 0.9375rem;
+        font-weight: 400;
       }
     `,
   ],
@@ -400,10 +443,12 @@ export class EstimatingPage {
   private readonly timerTick = inject(TimerTickService);
   private readonly surface = inject(SurfaceService);
   private readonly alertCtrl = inject(AlertController);
+  /** The "Skip this round?" question, while it is up. */
+  private skipAlert: HTMLIonAlertElement | null = null;
+  private readonly toast = inject(ToastService);
 
   protected readonly currentRound = this.docService.currentRound;
   protected readonly activeRound = this.docService.activeRound;
-  protected readonly onlineParticipants = this.docService.onlineParticipants;
 
   // Tracks the last uuid written to the cache so the effect does not
   // re-fire on every Yjs doc mutation while connected to the same room.
@@ -411,15 +456,27 @@ export class EstimatingPage {
   // re-writes and bumps the TTL.
   private lastRecordedUuid: string | null = null;
 
+  // The round this page last showed as active. When the page is sent back to
+  // the Lobby it looks the round up again to tell a cancelled round — which
+  // leaves nothing behind on the Lobby — from one that ended with a result.
+  private lastActiveRoundId: string | null = null;
+
   constructor() {
     addIcons({
       'checkmark-circle': checkmarkCircle,
       'chevron-back-outline': chevronBackOutline,
       'close-circle-outline': closeCircleOutline,
-      'ellipsis-horizontal-circle': ellipsisHorizontalCircle,
+      'ellipsis-horizontal': ellipsisHorizontal,
+      'eye-outline': eyeOutline,
       'log-out-outline': logOutOutline,
+      'play-skip-forward-outline': playSkipForwardOutline,
       'remove-circle-outline': removeCircleOutline,
-      'settings-outline': settingsOutline,
+      'timer-outline': timerOutline,
+    });
+
+    effect(() => {
+      const round = this.docService.activeRound();
+      if (round) this.lastActiveRoundId = round.id;
     });
 
     // Bump `hnch.lastSession` so a reopen lands on Estimating rather
@@ -428,13 +485,14 @@ export class EstimatingPage {
     // (ADR-0022 §5).
     effect(() => {
       const code = this.docService.roomCode();
-      const uuid = this.docService.meta()?.roomUuid;
-      const status = this.docService.syncStatus();
-      if (status !== 'connected') {
+      const uuid = this.docService.relayRoomUuid();
+      // Up *and* synced: an open socket is not yet the relay saying yes.
+      const joined = this.docService.joined();
+      if (!joined) {
         this.lastRecordedUuid = null;
         return;
       }
-      if (shouldRecordCache(code, uuid, status, this.lastRecordedUuid)) {
+      if (shouldRecordCache(code, uuid, joined, this.lastRecordedUuid)) {
         this.lastRecordedUuid = uuid ?? null;
         void this.lastSessionService.record({
           roomCode: code!,
@@ -458,6 +516,7 @@ export class EstimatingPage {
       if (screen === null || screen === 'estimating') return;
       const activeCode = this.docService.roomCode();
       assertRoomCode(activeCode, 'estimating.autoNav');
+      untracked(() => this.announceCancelledRound());
       void this.router.navigate(['/lobby', activeCode], { replaceUrl: true });
     });
 
@@ -491,6 +550,20 @@ export class EstimatingPage {
         this.haptic.notificationSuccess();
       }
     });
+  }
+
+  /**
+   * A cancelled round is a tombstone (ADR-0046): it shows up nowhere on the
+   * Lobby, so without a word the voters would be moved off the cards for no
+   * visible reason. The host is told by `softExit`, at the tap.
+   */
+  private announceCancelledRound(): void {
+    const roundId = this.lastActiveRoundId;
+    this.lastActiveRoundId = null;
+    if (roundId === null || this.isHost()) return;
+    const round = this.docService.rounds().find((r) => r.id === roundId);
+    if (round?.status !== 'discarded') return;
+    void this.toast.info(buildCancelledRoundToast(false));
   }
 
   private readonly myId = this.participantIdService.id;
@@ -531,18 +604,19 @@ export class EstimatingPage {
   }
 
   /**
-   * 1-based index of the current round within `rounds()`. Re-votes and
-   * Next Round both append, so the array-index lookup is exact. Returns
-   * `null` when there's no active round (transient — we just navigated
-   * in).
+   * The number the current round goes by — the same one the Lobby and the
+   * history show for it later. Returns `null` when there's no active round
+   * (transient — we just navigated in).
    */
-  protected readonly roundIndex = computed(() => {
+  protected readonly currentRoundNumber = computed(() => {
     const round = this.currentRound();
     if (!round) return null;
-    const rounds = this.docService.rounds();
-    const idx = rounds.findIndex((r) => r.id === round.id);
-    return idx >= 0 ? idx + 1 : null;
+    const number = roundNumber(round, this.docService.rounds());
+    return number > 0 ? number : null;
   });
+
+  /** Toolbar title: "Round 3". */
+  protected readonly pageTitle = computed(() => buildEstimatingTitle(this.currentRoundNumber()));
 
   /** The current user's card, or `null` when they haven't voted yet. */
   protected readonly myVote = computed<string | null>(() => {
@@ -612,7 +686,7 @@ export class EstimatingPage {
   protected readonly backChevronLabel = computed<string>(() => {
     const round = this.currentRound();
     if (this.isHost() && round && canEnterTerminal(round.status)) {
-      return 'Discard round and return to lobby';
+      return 'Cancel round and go back to the lobby';
     }
     return 'Back to lobby';
   });
@@ -625,10 +699,6 @@ export class EstimatingPage {
     return me ? participantRole(me) === 'viewer' : false;
   });
 
-  /**
-   * Elapsed voting time label (M:SS counting up), or `null` before the
-   * round's stopwatch has started. Driven by the 4 Hz wall-clock tick.
-   */
   /**
    * Reactive http(s) URL parsed from `round.ticketId`, or `null` when
    * the value is missing or non-URL. Single parse point — template uses
@@ -759,20 +829,39 @@ export class EstimatingPage {
     assertRoomCode(code, 'estimating.softExit');
     if (this.isHost() && this.docService.commands.discardCurrentRound().applied) {
       this.haptic.impactLight();
+      void this.toast.info(buildCancelledRoundToast(true));
     }
     void this.router.navigate(['/lobby', code]);
   }
 
+  /**
+   * The host's ⋯ menu. Everyone else has nothing to choose between — their
+   * one action, Leave, is a button in the toolbar instead. Session settings
+   * are not offered here: they live on the Lobby, and nobody can be on the
+   * Lobby while a round is running.
+   */
   protected async openActionSheet(event: Event): Promise<void> {
-    const items: { text: string; icon?: string; role?: string; handler?: () => void }[] = [
-      {
-        text: 'Session settings',
-        icon: 'settings-outline',
+    if (!this.isHost()) return;
+    const items: MenuItem[] = [];
+
+    const round = this.currentRound();
+    if (round && canEnterTerminal(round.status)) {
+      items.push({
+        text: 'Skip round',
+        icon: 'play-skip-forward-outline',
         handler: () => {
-          // Navigate to lobby (session settings sheet lives there).
-          const code = this.docService.roomCode();
-          assertRoomCode(code, 'estimating.openActionSheet[Session settings]');
-          void this.router.navigate(['/lobby', code]);
+          void this.confirmSkip();
+        },
+      });
+    }
+
+    items.push(
+      {
+        text: 'End session for everyone',
+        icon: 'close-circle-outline',
+        role: 'destructive',
+        handler: () => {
+          void this.confirmEndSession();
         },
       },
       {
@@ -783,40 +872,17 @@ export class EstimatingPage {
           void this.confirmLeave();
         },
       },
-    ];
+      { text: 'Cancel', role: 'cancel' },
+    );
 
-    if (this.isHost()) {
-      const round = this.currentRound();
-      if (round && canEnterTerminal(round.status)) {
-        items.splice(1, 0, {
-          text: 'Skip round',
-          icon: 'close-circle-outline',
-          role: 'destructive',
-          handler: () => {
-            this.onSkip();
-          },
-        });
-      }
-      items.splice(items.length - 1, 0, {
-        text: 'End session for everyone',
-        icon: 'close-circle-outline',
-        role: 'destructive',
-        handler: () => {
-          void this.confirmEndSession();
-        },
-      });
-    }
-
-    items.push({ text: 'Cancel', role: 'cancel' });
-
-    await this.surface.openSheetOrPopover({
-      header: 'Session',
-      triggerEvent: event,
-      items,
-    });
+    await this.surface.openSheetOrPopover({ triggerEvent: event, items });
   }
 
-  private async confirmLeave(): Promise<void> {
+  /**
+   * Destructive-action confirmation (ux.md §2). Reached from the host's menu
+   * and from everyone else's toolbar button.
+   */
+  protected async confirmLeave(): Promise<void> {
     const alert = await this.alertCtrl.create({
       header: 'Leave session?',
       message: "You'll need the code to rejoin.",
@@ -836,27 +902,80 @@ export class EstimatingPage {
   }
 
   private async leaveSession(): Promise<void> {
+    // The UUID the relay issued, which is what the entry was recorded under.
+    // Not the one in the doc: any participant can rewrite that. Read before
+    // anything is waited for — the session may be gone by the time it is over.
+    const uuid = this.docService.relayRoomUuid();
     if (this.myId()) {
       // Write the soft-delete before disconnecting so peers see the removal (ADR-0036).
       this.docService.commands.leave();
       // Flush the Yjs update through the WebSocket before closing (best-effort, 500 ms cap).
       await this.docService.flushUpdates();
     }
-    const uuid = this.docService.meta()?.roomUuid;
     this.docService.teardown();
-    // Destructive leave — remove entry so Jump-back-in banner does not reappear (ADR-0044).
-    if (uuid) {
-      await this.lastSessionService.removeByUuid(uuid);
-    } else {
-      await this.lastSessionService.clearAll();
-    }
+    // Destructive leave — remove the entry, so Home does not offer the session again (ADR-0044).
+    if (uuid !== null) await this.lastSessionService.removeByUuid(uuid);
     await this.router.navigate(['/home']);
+  }
+
+  /**
+   * A skip cannot be taken back (ADR-0040): the votes cast so far are dropped
+   * and the story is marked as done. It sits first in the menu, one slip of
+   * the thumb from closing it, so it asks first.
+   */
+  private async confirmSkip(): Promise<void> {
+    // The question is about this round. By the time it is answered the
+    // round may be over and another one running, or the host someone else.
+    const roundId = this.activeRound()?.id;
+    if (roundId === undefined) return;
+
+    const alert = await this.alertCtrl.create({
+      header: 'Skip this round?',
+      message: 'Votes cast so far are dropped. The round cannot be reopened.',
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        {
+          text: 'Skip round',
+          role: 'destructive',
+          handler: () => {
+            if (this.isHost() && this.activeRound()?.id === roundId) this.onSkip();
+          },
+        },
+      ],
+    });
+    // Making the question takes a moment, and the round may have ended in
+    // it — with the page left for the Lobby, where the question would come
+    // up over the results.
+    if (!this.isHost() || this.activeRound()?.id !== roundId) {
+      alert.remove();
+      return;
+    }
+    this.skipAlert = alert;
+    void alert.onDidDismiss().then(() => {
+      if (this.skipAlert === alert) this.skipAlert = null;
+    });
+    await alert.present();
   }
 
   private onSkip(): void {
     if (this.docService.commands.skipCurrentRound().applied) {
       this.haptic.impactHeavy();
     }
+  }
+
+  /**
+   * A menu belongs to the screen it was opened on, and so does a question
+   * about the round. This page is left without the user doing anything when
+   * the round reveals, and either would otherwise stay up over the Lobby,
+   * offering to skip a round that is over.
+   */
+  ionViewWillLeave(): void {
+    void this.surface.dismissMenu();
+    const alert = this.skipAlert;
+    this.skipAlert = null;
+    void alert?.dismiss(undefined, 'cancel').catch(() => {
+      // Already on its way out.
+    });
   }
 
   private async confirmEndSession(): Promise<void> {
@@ -880,25 +999,5 @@ export class EstimatingPage {
       ],
     });
     await alert.present();
-  }
-}
-
-// ---------------------------------------------------------------------------
-/**
- * Pure: parse a raw `ticketId` field into an http(s) URL string suitable
- * for an `<a href>`, or `null` when the value is absent or not a URL.
- * Trims whitespace, requires `http:` or `https:` protocol.
- */
-export function parseTicketIdHref(raw: string | undefined | null): string | null {
-  if (raw === undefined || raw === null) return null;
-  const trimmed = raw.trim();
-  if (trimmed === '') return null;
-  try {
-    const parsed = new URL(trimmed);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
-    if (parsed.host === '') return null;
-    return trimmed;
-  } catch {
-    return null;
   }
 }

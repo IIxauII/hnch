@@ -55,7 +55,9 @@ statistics at all rather than empty ones.
 
 ### Re-voting
 
-Re-votes are always allowed. A re-vote creates a *new* round with `parentRoundId` pointing at the previous round and title/metadata inherited by default, preserving the progression of estimates across rounds (e.g. 5 → 8 → 13) for retrospective value. The UI walks the parent chain to render lineage like "Round 2 of 3 on 'Auth migration'."
+Re-votes are always allowed. A re-vote creates a *new* round with `parentRoundId` pointing at the previous round and title/metadata inherited by default, preserving the progression of estimates across rounds (e.g. 5 → 8 → 13) for retrospective value. The UI walks the parent chain to tell a re-vote from a fresh round: the mobile client marks it "Re-vote" beside the round's number, the CLI renders the chain position ("Round 2/3 [re-vote]").
+
+A round goes by one number: its place among the session's rounds that were not cancelled. A round the host cancels leaves no trace — no history entry, no number — so the round that replaces it takes the number it would have had. (In its results and its history the CLI also gives a re-vote's position in its chain, which counts within the chain: there the same round reads "Round 2/3 [re-vote]".)
 
 Before a round's reveal, a user may change their vote any number of times by tapping a different card — only the selection at reveal time counts. This matches physical planning poker (you can flip your card back over before everyone shows).
 
@@ -71,7 +73,7 @@ Users can define their own scales with arbitrary labels — numeric, text, or mi
 - `S, M, L, XXXXL`
 - `Easy, Medium, Hard, Impossible`
 
-Custom scales can be created per-session and shared with all participants automatically.
+Custom scales can be created per-session and shared with all participants automatically. What is shared is the cards: a scale's name stays on the device that made it (ADR-0019), so to everyone else — and to its owner, once the scale is deleted — it is "Custom scale". Deleting a scale does not touch a session that is running on it; deleting the one that was the device's default puts the default back to Fibonacci.
 
 ## Joining a Session
 
@@ -102,13 +104,13 @@ A session is always ephemeral (per meeting) regardless of whether it was started
 
 Sessions are open by default (anyone with the link/code can join). Host can optionally enable:
 
-- **Password-protected** — on session creation, the host registers a password hash with the relay. Joiners submit their password as a hash; the relay compares and accepts or rejects at socket connect time.
+- **Password-protected** — on session creation, the host registers a password hash with the relay. Joiners submit their password as a hash; the relay compares and accepts or rejects at socket connect time. What is hashed is the password without the whitespace around it, in Unicode's NFC form — the same string wherever it is typed (see [ux.md](ux.md)).
 
 Access control is *relay-enforced*, not client-side. The relay holds a small amount of per-active-room metadata (password hash) but remains **content-blind** — it never parses session data, votes, or user identity. The password hash is opaque to the relay's semantics.
 
 ## Participants
 
-Hard cap of 20 participants per session — more than enough for any real planning poker session and keeps relay bandwidth bounded. Participants can switch between **voter** and **viewer** roles at any time. Viewers observe but are not required to vote.
+Hard cap of 20 participants per session — more than enough for any real planning poker session and keeps relay bandwidth bounded. Participants can switch between **voter** and **viewer** roles at any time. Viewers observe but are not required to vote: they are left out of the vote count, of unanimous auto-reveal, and of the "Didn't vote" list on the results. On screen the viewer role reads **Observer**.
 
 ## Session Lifetime & Persistence
 
@@ -153,7 +155,7 @@ The session *creator* is the initial host. If the host disconnects, election pro
 
 Peer ID is the device identifier from *Identity*. Election happens in the shared Yjs doc; the relay is not involved.
 
-Host responsibilities — manual-reveal trigger, access-mode and password management — are scoped to the current elected host. A subtle crown icon in the participant list surfaces who holds the role.
+Host responsibilities — manual-reveal trigger, access-mode and password management — are scoped to the current elected host. A "Host" badge in the participant list surfaces who holds the role.
 
 ## UX
 

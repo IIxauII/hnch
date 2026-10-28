@@ -1,23 +1,27 @@
-@use 'breakpoints' as *;
-
-/// Per-page centered container mixin.
+/// Per-page centered column.
 ///
 /// Usage in a page's component SCSS:
 ///   @use '../../theme/page-container' as *;  (adjust path as needed)
 ///   @include page-container(560px);
 ///
-/// The page template should wrap scrollable content in:
-///   <ion-grid fixed class="page-container">
-///     <ion-row><ion-col>...</ion-col></ion-row>
-///   </ion-grid>
+/// The page template wraps its scrollable content in:
+///   <ion-content>
+///     <div class="page-container">...</div>
+///   </ion-content>
 ///
-/// On mobile the grid is full-width (ion-grid default).
-/// On desktop (≥ $bp-md) the grid is capped and centered.
+/// The column is full-width with a 16px gutter until the viewport outgrows
+/// `$max`, then it is capped and centered. A `cta-bar` footer on the same
+/// page lines its buttons up with the column.
 @mixin page-container($max: 640px) {
-  @media (min-width: $bp-md) {
-    ion-grid.page-container {
-      max-width: $max;
-      margin-inline: auto;
-    }
+  .page-container {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: $max;
+    margin-inline: auto;
+    padding: 16px 16px 32px;
+  }
+
+  ion-footer.cta-bar .cta-inner {
+    max-width: $max;
   }
 }

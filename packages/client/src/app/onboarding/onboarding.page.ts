@@ -4,33 +4,30 @@ import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
   IonButton,
-  IonCol,
   IonContent,
-  IonFooter,
-  IonGrid,
   IonHeader,
   IonInput,
   IonItem,
   IonList,
-  IonNote,
-  IonRow,
   IonToolbar,
 } from '@ionic/angular/standalone';
 
 import { DisplayNameService } from '../core/display-name.service';
 import { BrandMarkComponent } from '../shared/brand-mark.component';
+import { isComposingKey } from '../utils/composing-key';
 import { canContinue } from './onboarding.helpers';
 
 /**
  * First-run Onboarding: capture a display name and persist it before
- * the user can reach any other screen. Wireframe in ux.md §5.1; flow
- * in §4.1. The name is attached to the ADR-0005 `participantId`
- * later, once a session is created or joined.
+ * the user can reach any other screen (ux.md §1.1). The name is attached
+ * to the ADR-0005 `participantId` later, once a session is created or
+ * joined.
  *
- * Continue is disabled while the trimmed input is empty. On tap the
- * name is persisted via `DisplayNameService`, and we resume any
- * pending /join deep-link (stashed by `displayNameGuard`) or
- * otherwise navigate to /home.
+ * Continue sits directly under the field it submits, on every surface, so it
+ * stays in view above an on-screen keyboard and next to the input on a wide
+ * one. It is disabled while the trimmed input is empty. On tap the name is
+ * persisted via `DisplayNameService`, and we resume any pending /join
+ * deep-link (stashed by `displayNameGuard`) or otherwise navigate to /home.
  */
 @Component({
   selector: 'app-onboarding',
@@ -38,119 +35,93 @@ import { canContinue } from './onboarding.helpers';
   imports: [
     BrandMarkComponent,
     IonButton,
-    IonCol,
     IonContent,
-    IonFooter,
-    IonGrid,
     IonHeader,
     IonInput,
     IonItem,
     IonList,
-    IonNote,
-    IonRow,
     IonToolbar,
     ReactiveFormsModule,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <ion-header [translucent]="true">
+    <!-- Empty on purpose: the header only reserves the top safe area. -->
+    <ion-header class="ion-no-border">
       <ion-toolbar></ion-toolbar>
     </ion-header>
     <ion-content>
-      <ion-grid fixed class="page-container">
-        <ion-row><ion-col>
-          <div class="hero">
-            <app-brand-mark [size]="64" />
-            <h1>Welcome to hnch</h1>
-            <p class="subtitle">Pick a name your team will see next to your votes.</p>
-          </div>
+      <div class="page-container">
+        <div class="hero">
+          <app-brand-mark [size]="64" />
+          <h1>Welcome to hnch</h1>
+          <p class="subtitle">
+            Planning poker for your team. Pick the name they'll see next to your votes.
+          </p>
+        </div>
 
-          <ion-list inset="true">
-            <ion-item lines="none">
-              <ion-input
-                [formControl]="displayName"
-                label="Display name"
-                labelPlacement="stacked"
-                autocapitalize="words"
-                autocomplete="name"
-                enterkeyhint="done"
-                maxlength="40"
-                placeholder="Your name"
-                (keydown.enter)="submit()"
-              ></ion-input>
-            </ion-item>
-            <ion-note class="footer-note">You can change this later in Settings.</ion-note>
-          </ion-list>
-        </ion-col></ion-row>
-      </ion-grid>
-    </ion-content>
-    <ion-footer class="cta-bar">
-      <ion-toolbar>
+        <ion-list inset="true" lines="none">
+          <ion-item>
+            <ion-input
+              [formControl]="displayName"
+              label="Display name"
+              labelPlacement="stacked"
+              autocapitalize="words"
+              autocomplete="name"
+              enterkeyhint="done"
+              maxlength="40"
+              placeholder="Your name"
+              (keydown.enter)="composing($event) || submit()"
+            ></ion-input>
+          </ion-item>
+        </ion-list>
+        <p class="hint">You can change this later in Settings.</p>
+
         <ion-button
           expand="block"
-          size="large"
           class="continue-btn"
           [disabled]="!canContinue() || isSubmitting()"
           (click)="submit()"
         >
           Continue
         </ion-button>
-      </ion-toolbar>
-    </ion-footer>
+      </div>
+    </ion-content>
   `,
   styles: [
     `
-      @use '../../theme/breakpoints' as *;
       @use '../../theme/page-container' as *;
       @include page-container(480px);
 
-      ion-header ion-toolbar {
-        --background: transparent;
-        --border-width: 0;
-      }
-      ion-content {
-        --padding-start: 24px;
-        --padding-end: 24px;
-        --padding-top: 64px;
-        --padding-bottom: 24px;
-      }
       .hero {
         display: flex;
         flex-direction: column;
         gap: 16px;
-        padding-block-end: 32px;
+        padding: 24px 4px 28px;
       }
       h1 {
         margin: 0;
+        color: var(--hnch-text);
         font-size: 34px;
         font-weight: 700;
-        letter-spacing: 0.36px;
-        line-height: 1.05;
-        color: var(--hnch-text);
+        letter-spacing: -0.02em;
+        line-height: 1.1;
       }
       .subtitle {
         margin: 0;
+        color: var(--hnch-muted);
         font-size: 17px;
-        letter-spacing: -0.4px;
+        line-height: 1.4;
+      }
+      .hint {
+        margin: 8px 16px 0;
         color: var(--hnch-muted);
-      }
-      ion-list {
-        background: transparent;
-      }
-      .footer-note {
-        display: block;
-        padding: 8px 16px 0;
         font-size: 13px;
-        color: var(--hnch-muted);
+        line-height: 1.4;
       }
-      ion-footer ion-toolbar {
-        --background: transparent;
-        --border-width: 0;
-        padding: 12px 16px 16px;
-      }
-      ion-button.continue-btn {
-        --background-disabled: var(--hnch-btn-disabled-bg);
-        --color-disabled: var(--hnch-btn-disabled-fg);
+      .continue-btn {
+        min-height: 50px;
+        margin: 24px 0 0;
+        font-size: 17px;
       }
     `,
   ],
@@ -168,6 +139,12 @@ export class OnboardingPage {
   protected readonly canContinue = computed(() => canContinue(this.rawValue()));
 
   protected readonly isSubmitting = signal(false);
+
+  /**
+   * For the Enter handler: the Enter that confirms a choice in an input
+   * method is part of typing the name, and continues nowhere.
+   */
+  protected readonly composing = isComposingKey;
 
   protected async submit(): Promise<void> {
     if (!this.canContinue() || this.isSubmitting()) {

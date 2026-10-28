@@ -1,27 +1,5 @@
-import { test, expect } from './fixtures/app.fixture';
-import { LOBBY } from './fixtures/helpers';
-
-/**
- * Click a named item in the header ⋯ menu overlay.
- * Works for both ion-action-sheet (mobile) and ion-popover/app-menu-popover (desktop).
- */
-async function clickMenuOption(page: import('@playwright/test').Page, text: string): Promise<void> {
-  const actionSheetBtn = page.locator(`ion-action-sheet button:has-text("${text}")`);
-  // ion-item[button] renders a native <button> in shadow DOM; getByRole() pierces shadow.
-  const popoverBtn = page.locator('ion-popover').getByRole('button', { name: text });
-
-  await Promise.any([
-    actionSheetBtn.waitFor({ state: 'visible', timeout: 5_000 }),
-    popoverBtn.waitFor({ state: 'visible', timeout: 5_000 }),
-  ]);
-
-  const isActionSheet = await actionSheetBtn.isVisible().catch(() => false);
-  if (isActionSheet) {
-    await actionSheetBtn.click();
-  } else {
-    await popoverBtn.click();
-  }
-}
+import { clickMenuOption, test, expect } from './fixtures/app.fixture';
+import { HOME, LOBBY, rememberedSessionCodes } from './fixtures/helpers';
 
 test.describe('Leave session flow', () => {
   test('host leaves session via action sheet → confirm → navigates to Home', async ({ host }) => {
@@ -41,25 +19,30 @@ test.describe('Leave session flow', () => {
   });
 
   test('after explicit leave, last session cache is cleared', async ({ host }) => {
-    // Create a session
-    await host.createSession();
+    // Create a session, which the device remembers once it is in it
+    const code = await host.createSession();
     await host.page.waitForURL(/\/lobby/);
+    await expect.poll(() => rememberedSessionCodes(host.page)).toContain(code);
 
     // Leave the session
     await host.leaveSession();
 
     // Verify we are on home
     await host.page.waitForURL(/\/home/);
+    await host.page.locator(HOME.createCard).waitFor({ state: 'visible' });
 
-    // The "Jump back in" banner should NOT appear (last session was explicitly cleared)
-    // Wait a moment for any potential banner to render
+    // Forgotten: nothing to jump back into...
+    await expect.poll(() => rememberedSessionCodes(host.page)).toEqual([]);
+
+    // ...and a Home that has read that shows no rows, and no "Jump back in"
+    // heading over an empty list either. The list is read after the page is
+    // up: looked at straight away, it is empty whatever is remembered.
+    await host.page.reload();
+    await host.page.locator(HOME.createCard).waitFor({ state: 'visible' });
+    expect(await rememberedSessionCodes(host.page)).toEqual([]);
     await host.page.waitForTimeout(500);
-
-    // Check that there's no jump-back-in banner/card
-    // (The banner typically shows the room code from the last session)
-    const jumpBackBanner = host.page.locator('ion-card:has-text("Jump back in")');
-    const isVisible = await jumpBackBanner.isVisible().catch(() => false);
-    expect(isVisible).toBe(false);
+    await expect(host.page.locator(HOME.recentRow)).toHaveCount(0);
+    await expect(host.page.locator('app-home')).not.toContainText('Jump back in');
   });
 
   test('cancel on leave alert dismisses dialog without leaving', async ({ host }) => {

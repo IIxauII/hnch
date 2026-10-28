@@ -172,29 +172,3 @@ export function clearPasswordHash(roomUuid: string): void {
 
   persistEntries(entries);
 }
-
-// ---------------------------------------------------------------------------
-// Legacy shims — kept for callers that haven't migrated yet.
-// Deprecated; prefer readEntries / recordEntry / clearAll.
-// ---------------------------------------------------------------------------
-
-/** @deprecated Use readEntries()[0] or iterate entries. */
-export function readLastSession(): LastSessionEntry | null {
-  const entries = readEntries();
-  return entries[0] ?? null;
-}
-
-/** @deprecated Use recordEntry(). */
-export function writeLastSession(cache: {
-  roomCode: string;
-  roomUuid: string;
-  lastSeenAt?: number;
-  passwordHash?: string;
-}): void {
-  recordEntry(cache);
-}
-
-/** @deprecated Use clearAll(). */
-export function clearLastSession(): void {
-  clearAll();
-}

@@ -47,10 +47,19 @@ async function goHomePreservingCache(page: import('@playwright/test').Page): Pro
 // ---------------------------------------------------------------------------
 const RECENT_ROOMS = {
   list: 'app-recent-rooms-list',
-  rows: 'app-recent-rooms-list ion-item.recent-room-row',
-  removeBtn: (code: string) =>
-    `app-recent-rooms-list ion-item[aria-label="Remove room ${code} from history"]`,
+  rows: HOME.recentRow,
+  /** A row by the code it shows ("XXX-XXX"). */
+  row: (formattedCode: string) => `${HOME.recentRow}:has(h3:text-is("${formattedCode}"))`,
 } as const;
+
+/** The codes the list shows, top to bottom, dash stripped. */
+async function listedCodes(page: import('@playwright/test').Page): Promise<string[]> {
+  return page
+    .locator(RECENT_ROOMS.rows)
+    .evaluateAll((els) =>
+      els.map((el) => (el.querySelector('h3')?.textContent ?? '').replace('-', '')),
+    );
+}
 
 // ---------------------------------------------------------------------------
 
@@ -72,9 +81,9 @@ test.describe('Recent rooms list', () => {
     await host.page.reload();
     await host.page.waitForURL(/\/home/);
 
-    // Only one entry at this point — jump-back-in banner (not list)
-    const bannerA = host.page.locator('app-jump-back-in-banner');
-    await bannerA.waitFor({ state: 'visible', timeout: 5_000 });
+    // One entry is a one-row list — the same component as for five.
+    await expect(host.page.locator(RECENT_ROOMS.rows)).toHaveCount(1);
+    expect(await listedCodes(host.page)).toEqual([codeA]);
 
     // Room B (must wait at least 1 ms after A so lastSeenAt differs)
     const codeB = await host.createSession();
@@ -85,7 +94,6 @@ test.describe('Recent rooms list', () => {
     await host.page.reload();
     await host.page.waitForURL(/\/home/);
 
-    // Two entries → recent-rooms-list (not banner)
     const list = host.page.locator(RECENT_ROOMS.list);
     await list.waitFor({ state: 'visible', timeout: 5_000 });
 
@@ -93,11 +101,7 @@ test.describe('Recent rooms list', () => {
     await expect(rows).toHaveCount(2);
 
     // First row is B (most-recent), second row is A.
-    // Row identity via h2 text (formatted "XXX-XXX").
-    const firstH2 = (await rows.nth(0).locator('h2').textContent()) ?? '';
-    const secondH2 = (await rows.nth(1).locator('h2').textContent()) ?? '';
-    expect(firstH2.replace('-', '')).toBe(codeB);
-    expect(secondH2.replace('-', '')).toBe(codeA);
+    expect(await listedCodes(host.page)).toEqual([codeB, codeA]);
 
     // Create / Join cards are still present
     await expect(host.page.locator(HOME.createCard)).toBeVisible();
@@ -140,15 +144,11 @@ test.describe('Recent rooms list', () => {
     await expect(rows).toHaveCount(5);
 
     // Oldest room (codes[0]) must NOT appear
-    // Row identity via h2 text (formatted "XXX-XXX").
-    const allH2s = await rows.evaluateAll((els) =>
-      els.map((el) => (el.querySelector('h2')?.textContent ?? '').replace('-', '')),
-    );
-    const firstRoomPresent = allH2s.some((h) => h === codes[0]!);
-    expect(firstRoomPresent).toBe(false);
+    const listed = await listedCodes(host.page);
+    expect(listed).not.toContain(codes[0]!);
 
     // Most-recent room (codes[5]) IS first in list
-    expect(allH2s[0]).toBe(codes[5]!);
+    expect(listed[0]).toBe(codes[5]!);
   });
 
   /**
@@ -170,7 +170,7 @@ test.describe('Recent rooms list', () => {
     await host.page.waitForURL(/\/home/);
 
     // Room B
-    await host.createSession();
+    const codeB = await host.createSession();
     await host.page.waitForURL(/\/lobby/);
     await goHomePreservingCache(host.page);
     await host.page.reload();
@@ -184,24 +184,17 @@ test.describe('Recent rooms list', () => {
     // Evict room A from relay
     await evictRoom(uuidA);
 
-    // Find and tap row A (identified by its formatted room code in h2)
-    const rowA = host.page.locator('app-recent-rooms-list ion-item.recent-room-row').filter({
-      has: host.page.locator(`h2:text-is("${formatCode(codeA)}")`),
-    });
+    // Find and tap row A (identified by the code it shows)
+    const rowA = host.page.locator(RECENT_ROOMS.row(formatCode(codeA)));
     await rowA.waitFor({ state: 'visible', timeout: 5_000 });
     await rowA.evaluate((el: HTMLElement) => el.click());
 
     // Toast: expired / not active message
     await expectToast(host.page, "That session isn't active anymore", { timeout: 8_000 });
 
-    // Entry A should be removed from the list (only 1 remaining)
-    // After removal the list collapses to banner if only 1 entry left
-    // OR stays as list if >1. Here we had 2, now 1 → banner replaces list.
-    await list.waitFor({ state: 'hidden', timeout: 5_000 });
-
-    // Jump-back-in banner (single-entry path) should now appear
-    const banner = host.page.locator('app-jump-back-in-banner');
-    await banner.waitFor({ state: 'visible', timeout: 5_000 });
+    // Entry A is gone; B is still offered.
+    await expect(host.page.locator(RECENT_ROOMS.rows)).toHaveCount(1);
+    expect(await listedCodes(host.page)).toEqual([codeB]);
 
     // Create / Join cards still present
     await expect(host.page.locator(HOME.createCard)).toBeVisible();
@@ -243,9 +236,7 @@ test.describe('Recent rooms list', () => {
     // Cut the network before tapping room A
     await host.page.context().setOffline(true);
 
-    const rowA = host.page.locator('app-recent-rooms-list ion-item.recent-room-row').filter({
-      has: host.page.locator(`h2:text-is("${formatCode(codeA)}")`),
-    });
+    const rowA = host.page.locator(RECENT_ROOMS.row(formatCode(codeA)));
     await rowA.waitFor({ state: 'visible', timeout: 5_000 });
     await rowA.evaluate((el: HTMLElement) => el.click());
 
@@ -257,11 +248,39 @@ test.describe('Recent rooms list', () => {
 
     // Entry A must STILL be present (network-error does not remove the entry)
     await expect(host.page.locator(RECENT_ROOMS.rows)).toHaveCount(2);
-    const rowAStillPresent = host.page
-      .locator('app-recent-rooms-list ion-item.recent-room-row')
-      .filter({
-        has: host.page.locator(`h2:text-is("${formatCode(codeA)}")`),
-      });
-    await expect(rowAStillPresent).toBeVisible();
+    await expect(host.page.locator(RECENT_ROOMS.row(formatCode(codeA)))).toBeVisible();
+  });
+
+  /**
+   * The × beside a row forgets that session on this device and nothing else:
+   * the row goes, the other stays, and no session is joined.
+   */
+  test('× forgets one entry and leaves the rest', async ({ host }) => {
+    const codeA = await host.createSession();
+    await host.page.waitForURL(/\/lobby/);
+    await goHomePreservingCache(host.page);
+    await host.page.reload();
+    await host.page.waitForURL(/\/home/);
+
+    const codeB = await host.createSession();
+    await host.page.waitForURL(/\/lobby/);
+    await goHomePreservingCache(host.page);
+    await host.page.reload();
+    await host.page.waitForURL(/\/home/);
+    await expect(host.page.locator(RECENT_ROOMS.rows)).toHaveCount(2);
+
+    await host.page
+      .getByRole('button', { name: `Remove session ${formatCode(codeA)} from this list` })
+      .click();
+
+    await expect(host.page.locator(RECENT_ROOMS.rows)).toHaveCount(1);
+    expect(await listedCodes(host.page)).toEqual([codeB]);
+    await expect(host.page).toHaveURL(/\/home/);
+
+    // Forgotten for good: a reload does not bring it back.
+    await host.page.reload();
+    await host.page.waitForURL(/\/home/);
+    await expect(host.page.locator(RECENT_ROOMS.rows)).toHaveCount(1);
+    expect(await listedCodes(host.page)).toEqual([codeB]);
   });
 });

@@ -14,7 +14,7 @@ import {
   addItem as addAgendaItem,
   canEnterTerminal,
   currentRound,
-  isTerminalStatus,
+  isRecordedStatus,
   nextPendingAgendaItem,
   participantRole,
   screenFor,
@@ -378,12 +378,13 @@ export function App({
     [session.roomCode, shareNotice],
   );
 
-  // The latest terminal round (revealed or skipped) for results display in Lobby
-  const terminalRounds = projection.rounds.filter((r) => isTerminalStatus(r.status));
+  // The latest round with something to show (revealed or skipped), for the
+  // Lobby's results. A cancelled round is a tombstone and shows nowhere.
+  const recordedRounds = projection.rounds.filter((r) => isRecordedStatus(r.status));
   const latestRevealedRound: Round | null =
-    terminalRounds.length > 0 ? terminalRounds.at(-1)! : null;
+    recordedRounds.length > 0 ? recordedRounds.at(-1)! : null;
 
-  const canExport = terminalRounds.length > 0;
+  const canExport = recordedRounds.length > 0;
 
   const handleExportResults = useCallback(
     () => exportResultsToClipboard(projection, (s) => clipboard.write(s), exportNotice.show),

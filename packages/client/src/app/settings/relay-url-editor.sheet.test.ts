@@ -19,7 +19,6 @@ vi.mock('@ionic/angular/standalone', async () => {
     'IonHeader',
     'IonInput',
     'IonItem',
-    'IonLabel',
     'IonList',
     'IonNote',
     'IonTitle',
@@ -131,6 +130,14 @@ describe('RelayUrlEditorSheetComponent.onDone()', () => {
     const { internals, saved } = await mount('  https://relay.example.com  ');
     internals.onDone();
     expect(saved).toHaveBeenCalledWith('https://relay.example.com');
+  });
+
+  it('saves nothing and stays open when the URL is invalid', async () => {
+    // Enter reaches onDone() without passing through the disabled Save button.
+    const { internals, saved, closeRequested } = await mount('relay.example.com');
+    internals.onDone();
+    expect(saved).not.toHaveBeenCalled();
+    expect(closeRequested).not.toHaveBeenCalled();
   });
 });
 

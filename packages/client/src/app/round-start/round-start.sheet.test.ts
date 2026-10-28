@@ -2,35 +2,57 @@
 // and the RoundStartSheetComponent's submit() emission shape.
 
 import { TestBed } from '@angular/core/testing';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildRoundStartTicketId, buildRoundStartTitle } from './round-start.helpers';
 
+// Which surface the sheet finds itself on, and what it asked to be focused.
+const surface = vi.hoisted(() => ({ mode: 'mobile' as 'mobile' | 'desktop' }));
+const focusFieldMock = vi.hoisted(() => vi.fn<(field: unknown) => Promise<void>>());
+
+vi.mock('../core/surface.service', () => ({ SurfaceService: class SurfaceService {} }));
+vi.mock('../utils/focus-field', () => ({ focusField: focusFieldMock }));
+
 vi.mock('@ionic/angular/standalone', async () => {
-  const { Component: Comp } = await import('@angular/core');
+  const { Component: Comp, forwardRef } = await import('@angular/core');
+  const { NG_VALUE_ACCESSOR } = await import('@angular/forms');
+  const selectorOf = (tag: string): string =>
+    tag
+      .replace(/([A-Z])/g, '-$1')
+      .toLowerCase()
+      .slice(1);
+
   const stubs: Record<string, unknown> = {};
   for (const tag of [
     'IonButton',
     'IonButtons',
     'IonContent',
     'IonHeader',
-    'IonInput',
     'IonItem',
-    'IonLabel',
+    'IonList',
     'IonNote',
-    'IonTextarea',
     'IonTitle',
     'IonToolbar',
   ]) {
-    @Comp({
-      selector: tag
-        .replace(/([A-Z])/g, '-$1')
-        .toLowerCase()
-        .slice(1),
-      template: '<ng-content/>',
-      standalone: true,
-    })
+    @Comp({ selector: selectorOf(tag), template: '<ng-content/>', standalone: true })
     class Stub {}
     stubs[tag] = Stub;
+  }
+  // The two that carry a form control need to be able to take one.
+  for (const tag of ['IonInput', 'IonTextarea']) {
+    @Comp({
+      selector: selectorOf(tag),
+      template: '',
+      standalone: true,
+      providers: [
+        { provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => Field), multi: true },
+      ],
+    })
+    class Field {
+      writeValue(): void {}
+      registerOnChange(): void {}
+      registerOnTouched(): void {}
+    }
+    stubs[tag] = Field;
   }
   return stubs;
 });
@@ -42,6 +64,13 @@ interface SheetInternals {
   isSubmitting: { (): boolean };
   submit(): void;
 }
+
+beforeEach(async () => {
+  const { SurfaceService } = await import('../core/surface.service');
+  TestBed.configureTestingModule({
+    providers: [{ provide: SurfaceService, useValue: { mode: () => surface.mode } }],
+  });
+});
 
 async function mount() {
   const { RoundStartSheetComponent } = await import('./round-start.sheet');
@@ -262,5 +291,66 @@ describe('RoundStartSheetComponent.ngOnInit() — prefill absent fields', () => 
     internals.submit();
 
     expect(submitted).toHaveBeenCalledWith(expect.objectContaining({ agendaItemId: 'item-3' }));
+  });
+});
+
+describe('RoundStartSheetComponent — where the cursor starts', () => {
+  beforeEach(() => {
+    focusFieldMock.mockReset();
+    focusFieldMock.mockResolvedValue(undefined);
+    surface.mode = 'mobile';
+  });
+
+  async function open() {
+    const mounted = await mount();
+    mounted.fixture.detectChanges();
+    await mounted.fixture.whenStable();
+    return mounted;
+  }
+
+  it('in the title, where there is a keyboard to type it with', async () => {
+    surface.mode = 'desktop';
+    const { fixture } = await open();
+
+    expect(focusFieldMock).toHaveBeenCalledOnce();
+    // The first field of the form: what is being estimated
+    const field = focusFieldMock.mock.calls[0]![0];
+    const first = fixture.debugElement.query((el) => el.name === 'ion-input');
+    expect(field).toBe(first.componentInstance);
+    expect((first.nativeElement as HTMLElement).getAttribute('label')).toBe(
+      'What are you estimating?',
+    );
+  });
+
+  // Every field is optional. On a phone the keyboard would cover a form that
+  // mostly goes out as it is.
+  it('nowhere on a phone', async () => {
+    await open();
+
+    expect(focusFieldMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('RoundStartSheetComponent — Enter', () => {
+  type Internals = { onEnter(e: Event): void };
+
+  it('starts the round', async () => {
+    const { fixture, submitted } = await mount();
+
+    (fixture.componentInstance as unknown as Internals).onEnter(new KeyboardEvent('keydown'));
+
+    expect(submitted).toHaveBeenCalledTimes(1);
+  });
+
+  // With an input method editor, Enter picks the candidate. It is part of
+  // typing the title, not the end of it.
+  it('does not start it while a composition is being confirmed', async () => {
+    const { fixture, submitted } = await mount();
+
+    (fixture.componentInstance as unknown as Internals).onEnter(
+      new KeyboardEvent('keydown', { isComposing: true }),
+    );
+
+    expect(submitted).not.toHaveBeenCalled();
   });
 });

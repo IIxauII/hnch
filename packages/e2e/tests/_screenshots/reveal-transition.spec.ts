@@ -70,7 +70,7 @@ async function onboard(page: Page, name: string): Promise<void> {
 async function joinSession(page: Page, code: string): Promise<void> {
   await page.goto(`${BASE_URL}/join`);
   await fillRoomCode(page, code);
-  await page.locator('ion-button:has-text("Join")').first().click();
+  // The sixth character submits: no Join tap after a typed code.
   await page.waitForURL(/\/lobby/);
 }
 

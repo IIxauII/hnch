@@ -13,26 +13,20 @@ vi.mock('@ionic/angular/standalone', async () => {
 
   @Comp({ selector: 'ion-list', template: '<ng-content/>', standalone: true })
   class IonList {
-    @Input() inset: boolean | undefined;
+    @Input() inset: boolean | string | undefined;
+    @Input() lines: string | undefined;
   }
-
-  @Comp({ selector: 'ion-item-sliding', template: '<ng-content/>', standalone: true })
-  class IonItemSliding {}
 
   @Comp({ selector: 'ion-item', template: '<ng-content/>', standalone: true })
   class IonItem {
     @Input() button: string | undefined;
-    @Input() detail: string | undefined;
+    @Input() detail: boolean | undefined;
+    @Input() disabled: boolean | undefined;
   }
 
-  @Comp({ selector: 'ion-item-options', template: '<ng-content/>', standalone: true })
-  class IonItemOptions {
-    @Input() side: string | undefined;
-  }
-
-  @Comp({ selector: 'ion-item-option', template: '<ng-content/>', standalone: true })
-  class IonItemOption {
-    @Input() color: string | undefined;
+  @Comp({ selector: 'ion-button', template: '<ng-content/>', standalone: true })
+  class IonButton {
+    @Input() fill: string | undefined;
   }
 
   @Comp({ selector: 'ion-label', template: '<ng-content/>', standalone: true })
@@ -43,28 +37,11 @@ vi.mock('@ionic/angular/standalone', async () => {
     @Input() name: string | undefined;
   }
 
-  return { IonList, IonItemSliding, IonItem, IonItemOptions, IonItemOption, IonLabel, IonIcon };
+  return { IonList, IonItem, IonButton, IonLabel, IonIcon };
 });
 
 vi.mock('ionicons', () => ({ addIcons: vi.fn() }));
-vi.mock('ionicons/icons', () => ({ returnUpBackOutline: '', trashOutline: '' }));
-vi.mock('@hnch/shared', async (importOriginal) => {
-  const real = (await importOriginal()) as Record<string, unknown>;
-  return { ...real, formatRoomCode: (code: string) => code };
-});
-
-// ---------------------------------------------------------------------------
-// Surface mock — desktop by default for most tests
-// ---------------------------------------------------------------------------
-
-vi.mock('../core/surface.service', async () => {
-  const { Injectable, signal } = await import('@angular/core');
-  @Injectable({ providedIn: 'root' })
-  class SurfaceService {
-    readonly mode = signal<'mobile' | 'desktop'>('desktop');
-  }
-  return { SurfaceService };
-});
+vi.mock('ionicons/icons', () => ({ closeOutline: '', returnUpBackOutline: '' }));
 
 // ---------------------------------------------------------------------------
 // Imports (after mocks)
@@ -123,10 +100,11 @@ function makeEntry(overrides: Partial<ClientLastSessionEntry> = {}): ClientLastS
   };
 }
 
-async function mountComponent(entries: ClientLastSessionEntry[]) {
+async function mountComponent(entries: ClientLastSessionEntry[], busy = false) {
   const { RecentRoomsListComponent } = await import('./recent-rooms-list.component');
   const fixture = TestBed.createComponent(RecentRoomsListComponent);
   fixture.componentRef.setInput('entries', entries);
+  fixture.componentRef.setInput('busy', busy);
   fixture.detectChanges();
   return fixture;
 }
@@ -137,8 +115,20 @@ describe('RecentRoomsListComponent', () => {
       makeEntry({ roomUuid: 'u1', roomCode: 'AAA111' }),
       makeEntry({ roomUuid: 'u2', roomCode: 'BBB222' }),
     ]);
-    const items = fixture.nativeElement.querySelectorAll('ion-item');
+    const items = fixture.nativeElement.querySelectorAll('ion-item.recent-room-row');
     expect(items.length).toBe(2);
+  });
+
+  it('renders a single entry as a one-row list', async () => {
+    const fixture = await mountComponent([makeEntry()]);
+    expect(fixture.nativeElement.querySelectorAll('ion-item.recent-room-row').length).toBe(1);
+  });
+
+  it('shows the dash-formatted code, in the label and in the accessible name', async () => {
+    const fixture = await mountComponent([makeEntry({ roomCode: 'K7P9MR' })]);
+    const item = fixture.nativeElement.querySelector('ion-item.recent-room-row');
+    expect(item.querySelector('h3').textContent).toBe('K7P-9MR');
+    expect(item.getAttribute('aria-label')).toBe('Rejoin session K7P-9MR');
   });
 
   it('emits joinRequested with entry when row clicked', async () => {
@@ -156,7 +146,19 @@ describe('RecentRoomsListComponent', () => {
     expect(emitted[0]!.roomUuid).toBe('u1');
   });
 
-  it('emits removeRequested with roomUuid from desktop × button', async () => {
+  it('swallows row taps while a rejoin is in flight', async () => {
+    const fixture = await mountComponent([makeEntry()], true);
+
+    const emitted: ClientLastSessionEntry[] = [];
+    fixture.componentInstance.joinRequested.subscribe((e: ClientLastSessionEntry) =>
+      emitted.push(e),
+    );
+
+    fixture.nativeElement.querySelector('ion-item').click();
+    expect(emitted).toHaveLength(0);
+  });
+
+  it('emits removeRequested with roomUuid from the × button', async () => {
     const entry = makeEntry({ roomUuid: 'u1' });
     const fixture = await mountComponent([entry]);
 
@@ -170,26 +172,22 @@ describe('RecentRoomsListComponent', () => {
     expect(removed[0]).toBe('u1');
   });
 
-  it('emits removeRequested from ion-item-option on mobile', async () => {
-    // Switch surface to mobile
-    const { SurfaceService } = await import('../core/surface.service');
-    const svc = TestBed.inject(SurfaceService) as SurfaceService & {
-      mode: ReturnType<typeof import('@angular/core').signal<'mobile' | 'desktop'>>;
-    };
-    svc.mode.set('mobile');
+  it('keeps the × a sibling of the row, not a control nested inside it', async () => {
+    const fixture = await mountComponent([makeEntry()]);
+    const row = fixture.nativeElement.querySelector('ion-item.recent-room-row');
+    expect(row.querySelector('.remove-btn')).toBeNull();
+  });
 
-    const entry = makeEntry({ roomUuid: 'u2' });
-    const fixture = await mountComponent([entry]);
-    fixture.detectChanges();
+  it('removing does not also rejoin', async () => {
+    const fixture = await mountComponent([makeEntry()]);
 
-    const removed: string[] = [];
-    fixture.componentInstance.removeRequested.subscribe((id: string) => removed.push(id));
+    const joined: ClientLastSessionEntry[] = [];
+    fixture.componentInstance.joinRequested.subscribe((e: ClientLastSessionEntry) =>
+      joined.push(e),
+    );
 
-    const option = fixture.nativeElement.querySelector('ion-item-option');
-    expect(option).toBeTruthy();
-    option.click();
-    expect(removed).toHaveLength(1);
-    expect(removed[0]).toBe('u2');
+    fixture.nativeElement.querySelector('.remove-btn').click();
+    expect(joined).toHaveLength(0);
   });
 
   it('shows no rows for empty entries', async () => {

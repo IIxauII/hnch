@@ -1,51 +1,5 @@
-import { test, expect } from './fixtures/app.fixture';
-import { LOBBY, expectToast } from './fixtures/helpers';
-
-/**
- * Click a named item in the header ⋯ menu overlay.
- * Works for both ion-action-sheet (mobile) and ion-popover/app-menu-popover (desktop).
- */
-async function clickMenuOption(page: import('@playwright/test').Page, text: string): Promise<void> {
-  const actionSheetBtn = page.locator(`ion-action-sheet button:has-text("${text}")`);
-  // ion-item[button] renders a native <button> in shadow DOM; getByRole() pierces shadow.
-  const popoverBtn = page.locator('ion-popover').getByRole('button', { name: text });
-
-  await Promise.any([
-    actionSheetBtn.waitFor({ state: 'visible', timeout: 5_000 }),
-    popoverBtn.waitFor({ state: 'visible', timeout: 5_000 }),
-  ]);
-
-  const isActionSheet = await actionSheetBtn.isVisible().catch(() => false);
-  if (isActionSheet) {
-    await actionSheetBtn.click();
-  } else {
-    await popoverBtn.click();
-  }
-}
-
-/**
- * Dismiss the open menu without selecting any item.
- * Action-sheet: clicks "Cancel". Popover: presses Escape.
- */
-async function dismissMenu(page: import('@playwright/test').Page): Promise<void> {
-  const actionSheet = page.locator('ion-action-sheet');
-  const popover = page.locator('ion-popover');
-
-  await Promise.any([
-    actionSheet.waitFor({ state: 'visible', timeout: 5_000 }),
-    popover.waitFor({ state: 'visible', timeout: 5_000 }),
-  ]);
-
-  const isActionSheet = await actionSheet.isVisible().catch(() => false);
-  if (isActionSheet) {
-    const cancelBtn = page.locator('ion-action-sheet button:has-text("Cancel")');
-    await cancelBtn.click();
-    await actionSheet.waitFor({ state: 'hidden', timeout: 5_000 });
-  } else {
-    await page.keyboard.press('Escape');
-    await popover.waitFor({ state: 'hidden', timeout: 5_000 });
-  }
-}
+import { clickMenuOption, test, expect } from './fixtures/app.fixture';
+import { LOBBY, SESSION_TOOLBAR, expectToast } from './fixtures/helpers';
 
 /**
  * Helper: open ⋯ menu and trigger "End session for everyone" flow.
@@ -131,7 +85,7 @@ test.describe('End session for everyone', () => {
     expect(player.page.url()).toContain('/home');
   });
 
-  test('"End session for everyone" is NOT visible to joiner (non-host)', async ({
+  test('a joiner (non-host) has no menu to end the session from — only Leave', async ({
     host,
     player,
   }) => {
@@ -140,32 +94,33 @@ test.describe('End session for everyone', () => {
 
     await host.page.waitForURL(/\/lobby/);
     await player.page.waitForURL(/\/lobby/);
+    await player.expectParticipantCount(2);
 
-    // Open menu on joiner
-    const actionBtn = player.page.locator('ion-header').locator('ion-button').last();
-    await actionBtn.click();
+    const joinerLobby = player.page.locator('app-lobby:not(.ion-page-hidden)');
 
-    // Wait for whichever overlay appears
-    const actionSheet = player.page.locator('ion-action-sheet');
-    const popover = player.page.locator('ion-popover app-menu-popover');
-    await Promise.any([
-      actionSheet.waitFor({ state: 'visible', timeout: 5_000 }),
-      popover.waitFor({ state: 'visible', timeout: 5_000 }),
-    ]);
+    // The host's ⋯ menu is where "End session for everyone" lives. The joiner
+    // has no such menu...
+    await expect(
+      host.page
+        .locator('app-lobby:not(.ion-page-hidden)')
+        .getByRole('button', { name: SESSION_TOOLBAR.menuBtn }),
+    ).toBeVisible();
+    await expect(joinerLobby.getByRole('button', { name: SESSION_TOOLBAR.menuBtn })).toHaveCount(0);
 
-    // "End session for everyone" must not appear in either overlay
-    const endActionSheetBtn = player.page.locator(
-      'ion-action-sheet button:has-text("End session for everyone")',
-    );
-    // Popover: ion-item[button] native button in shadow DOM, found via getByRole
-    const endPopoverBtn = player.page
-      .locator('ion-popover')
-      .getByRole('button', { name: 'End session for everyone' });
-    await expect(endActionSheetBtn).not.toBeVisible();
-    await expect(endPopoverBtn).not.toBeVisible();
+    // ...their one action is a button, and it opens the Leave confirmation
+    // directly rather than a one-item menu.
+    await joinerLobby.getByRole('button', { name: SESSION_TOOLBAR.leaveBtn }).click();
+    const alert = player.page.locator('ion-alert');
+    await alert.waitFor({ state: 'visible', timeout: 5_000 });
+    await expect(alert).toContainText('Leave session?');
+    await expect(player.page.locator('ion-action-sheet')).toHaveCount(0);
+    await expect(player.page.locator('ion-popover')).toHaveCount(0);
 
-    // Dismiss
-    await dismissMenu(player.page);
+    // Cancel keeps the joiner in the session
+    await alert.locator('button:has-text("Cancel")').click();
+    await alert.waitFor({ state: 'hidden', timeout: 5_000 });
+    await expect(player.page).toHaveURL(/\/lobby/);
+    await host.expectParticipantCount(2);
   });
 
   test('cancel on confirmation alert keeps session alive', async ({ host }) => {

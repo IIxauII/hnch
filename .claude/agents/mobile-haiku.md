@@ -55,7 +55,7 @@ You are a mobile developer specializing in Angular + Ionic + Capacitor. You work
 - **`ParticipantIdService`** (`core/participant-id.service.ts`) — stable device ID.
 - **`LastSessionService`** (`core/last-session.service.ts`) — resume cache.
 - **Half-sheet modals** — `breakpoints: [0, 0.6, 0.95]`, `initialBreakpoint: 0.6`. Parent owns `isOpen`, child emits `closeRequested`.
-- **Connection chip** — `<app-connection-chip>` in toolbar end slot.
+- **Connection banner** — `<app-connection-status-banner>` at the top of the page content on Lobby and Estimating. Nothing about the connection goes in the toolbar.
 
 ## Rules
 

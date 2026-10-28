@@ -1,0 +1,343 @@
+// Ionic component harmonization — app-wide.
+//
+// Ionic's `mode` is left unset (ionic.md), so the same screen renders with
+// Material defaults on Android / desktop and iOS defaults on iPhone. These
+// rules pin the handful of properties where the two diverge enough to read
+// as different products: button casing and shape, toolbar chrome, overlay
+// button colors. Everything here styles a component *host* from the light
+// DOM, which outranks the `:host` rules inside its shadow tree.
+//
+// Accent rule of thumb: `--hnch-accent` (== `--ion-color-primary`) is a
+// FILL. A label or icon sitting on a surface uses `--hnch-accent-text`,
+// which AccentService keeps at WCAG AA for the active mode.
+
+@use 'a11y' as *;
+@use 'breakpoints' as *;
+
+// ---------------------------------------------------------------------------
+// Buttons
+// ---------------------------------------------------------------------------
+
+ion-button {
+  --box-shadow: none;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+// In a toolbar the weight is what tells the action that completes a sheet
+// (`strong`) from the one that leaves it.
+ion-button.in-buttons:not(.button-strong) {
+  font-weight: 400;
+}
+
+// Toolbar buttons keep Ionic's own compact radius, and a round button stays
+// round.
+ion-button:not(.in-buttons):not(.button-round) {
+  --border-radius: 12px;
+}
+
+// Hover, focus and press are a wash of the label's own color, light enough
+// for the label to stay readable on it. `currentColor` is that color
+// whatever set it: the accent, or a `color` (the red of "Delete scale").
+// All three opacities are spelled out: iOS leaves some of them unset, and an
+// unset opacity is 1 — a solid block in the color of the label.
+//
+// Not for a button inside `ion-buttons` — the ones in a header. Ionic's own
+// rules for those outrank these (two classes to a class and a tag), and
+// give them what a toolbar button has on each platform: dimmed while
+// pressed on iOS, a ripple on Android.
+ion-button.button-clear,
+ion-button.button-outline {
+  --color: var(--hnch-accent-text);
+  --color-hover: var(--hnch-accent-text);
+  --color-focused: var(--hnch-accent-text);
+  --color-activated: var(--hnch-accent-text);
+  --background-hover: currentColor;
+  --background-hover-opacity: 0.06;
+  --background-focused: currentColor;
+  --background-focused-opacity: 0.12;
+  --background-activated: currentColor;
+  --background-activated-opacity: 0.12;
+}
+
+ion-button.button-outline {
+  --border-color: var(--hnch-accent-text);
+}
+
+// iOS turns the label of a pressed outline button into the contrast color,
+// expecting a solid fill behind it.
+ion-button.button-outline.ion-color.ion-activated::part(native) {
+  color: var(--ion-color-base);
+}
+
+// In a toolbar Ionic does fill it, in both modes, with the color of the
+// label — and takes the label's color from the toolbar's own variables,
+// which the app leaves unset. What is left is a pill with nothing on it.
+// The wash above is the press state here as well.
+ion-button.button-outline.in-toolbar:not(.ion-color).ion-activated::part(native) {
+  background: transparent;
+  color: var(--color-activated);
+}
+
+// `color="primary"` pins `--ion-color-base` with !important inside Ionic's
+// own sheet, so the label variant has to be re-pinned the same way.
+ion-button.ion-color-primary.button-clear,
+ion-button.ion-color-primary.button-outline {
+  --ion-color-base: var(--hnch-accent-text) !important;
+  --ion-color-base-rgb: var(--hnch-accent-text-rgb) !important;
+}
+
+ion-button.ion-color-danger.button-clear,
+ion-button.ion-color-danger.button-outline {
+  --ion-color-base: var(--hnch-danger-text) !important;
+}
+
+// Ionic disables by dimming the host to 0.5, which turns an accent fill into
+// a muddy tint of itself. A solid button swaps to the neutral disabled tokens
+// instead, so "not yet" reads as a state rather than a washed-out CTA.
+ion-button.button-disabled.button-solid {
+  --background: var(--hnch-btn-disabled-bg);
+  --color: var(--hnch-btn-disabled-fg);
+  opacity: 1;
+}
+
+// With a `color`, Ionic paints from the color's own pair and reads neither
+// of the two above.
+ion-button.button-disabled.button-solid.ion-color {
+  --ion-color-base: var(--hnch-btn-disabled-bg) !important;
+  --ion-color-contrast: var(--hnch-btn-disabled-fg) !important;
+}
+
+// Page-chrome icon buttons (back, overflow, settings) are neutral: they are
+// navigation, not the screen's accent action.
+ion-header ion-buttons ion-button.button-has-icon-only,
+ion-back-button {
+  --color: var(--hnch-text);
+  --color-hover: var(--hnch-text);
+  --color-focused: var(--hnch-text);
+}
+
+// Ionic draws several of its controls smaller than a fingertip — a 24px back
+// chevron and 32px toolbar buttons on iOS, 28px icon buttons everywhere.
+ion-button,
+ion-back-button,
+ion-toggle {
+  @include touch-target;
+}
+
+// ---------------------------------------------------------------------------
+// Toolbars — flat, hairline-separated, same in both modes
+// ---------------------------------------------------------------------------
+
+ion-toolbar {
+  --background: var(--hnch-bg);
+  --color: var(--hnch-text);
+  --border-color: var(--hnch-sep);
+}
+
+ion-header.header-md,
+ion-footer.footer-md {
+  box-shadow: none;
+}
+
+ion-header ion-toolbar:last-of-type {
+  --border-width: 0 0 0.55px;
+}
+
+ion-header.ion-no-border ion-toolbar:last-of-type {
+  --border-width: 0;
+}
+
+ion-modal ion-toolbar {
+  --background: var(--hnch-elev-1);
+}
+
+ion-title {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+// ---------------------------------------------------------------------------
+// Chips — tinted background, AA label
+// ---------------------------------------------------------------------------
+
+ion-chip {
+  font-weight: 500;
+}
+
+ion-chip.ion-color-primary {
+  background: rgba(var(--hnch-accent-text-rgb), 0.16);
+  color: var(--hnch-accent-text);
+}
+
+ion-chip.ion-color-success {
+  background: rgba(var(--ion-color-success-rgb), 0.16);
+  color: var(--hnch-success-text);
+}
+
+ion-chip.ion-color-warning {
+  background: rgba(var(--ion-color-warning-rgb), 0.18);
+  color: var(--hnch-warning-text);
+}
+
+ion-chip.ion-color-danger {
+  background: rgba(var(--ion-color-danger-rgb), 0.16);
+  color: var(--hnch-danger-text);
+}
+
+ion-chip.ion-color-medium {
+  background: var(--hnch-fill);
+  color: var(--hnch-muted);
+}
+
+// ---------------------------------------------------------------------------
+// Form controls
+// ---------------------------------------------------------------------------
+
+// `ion-input` and `ion-textarea` are scoped, not shadowed: what Ionic sets on
+// them is an ordinary rule with a class in it, which a bare tag does not
+// outrank. The mode class is on every Ionic host.
+ion-input.md,
+ion-input.ios,
+ion-textarea.md,
+ion-textarea.ios,
+ion-select {
+  --highlight-color-focused: var(--hnch-accent-text);
+  // Material tints the label success-green once a field is "valid", which
+  // reads as a status the app never meant to report.
+  --highlight-color-valid: var(--hnch-accent-text);
+  --highlight-color-invalid: var(--hnch-danger-text);
+  --placeholder-color: var(--hnch-muted);
+  --placeholder-opacity: 1;
+}
+
+ion-radio {
+  --color-checked: var(--hnch-accent-text);
+}
+
+ion-toggle.ios {
+  --track-background-checked: var(--hnch-accent-text);
+}
+
+ion-toggle.md {
+  --handle-background-checked: var(--hnch-accent-text);
+  --track-background-checked: rgba(var(--hnch-accent-text-rgb), 0.5);
+}
+
+// A note with a `color` keeps it: an error must not read as a hint.
+ion-note:not(.ion-color) {
+  color: var(--hnch-muted);
+}
+
+ion-note.ion-color-danger {
+  --ion-color-base: var(--hnch-danger-text) !important;
+}
+
+// ---------------------------------------------------------------------------
+// Lists
+// ---------------------------------------------------------------------------
+
+// Inset lists are the app's "card of rows". Both modes get the same shape:
+// flush with the page column, no margin or padding of their own (what sits
+// around a list spaces it), and the card's surface edge to edge — Material
+// pads the list in the page color, which leaves the corners square.
+ion-list.list-inset.list-ios,
+ion-list.list-inset.list-md {
+  margin-block: 0;
+  margin-inline: 0;
+  padding-block: 0;
+  border-radius: 16px;
+  background: var(--hnch-elev-1);
+}
+
+ion-list-header {
+  --color: var(--hnch-muted);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  min-height: 32px;
+  text-transform: uppercase;
+}
+
+// ---------------------------------------------------------------------------
+// Overlays
+// ---------------------------------------------------------------------------
+
+ion-action-sheet {
+  --button-color: var(--hnch-text);
+  --button-color-hover: var(--hnch-text);
+  --button-color-focused: var(--hnch-text);
+  --button-color-activated: var(--hnch-text);
+  --button-color-selected: var(--hnch-text);
+  --color: var(--hnch-muted);
+}
+
+// Scoped (not shadow) components: out-specify `.x.sc-ion-*` with the full path.
+ion-action-sheet .action-sheet-container .action-sheet-group .action-sheet-destructive {
+  color: var(--hnch-danger-text);
+}
+
+ion-alert {
+  --background: var(--hnch-elev-2);
+}
+
+ion-alert .alert-wrapper .alert-button-group .alert-button {
+  color: var(--hnch-accent-text);
+  font-weight: 600;
+  text-transform: none;
+}
+
+ion-alert .alert-wrapper .alert-button-group .alert-button.alert-button-role-destructive {
+  color: var(--hnch-danger-text);
+}
+
+ion-alert .alert-wrapper .alert-button-group .alert-button.alert-button-role-cancel {
+  color: var(--hnch-text);
+  font-weight: 400;
+}
+
+// One inverse surface in every mode. Ionic's defaults differ per mode and
+// palette, which left the dismiss icon accent-on-dark on iOS.
+ion-toast {
+  --background: var(--hnch-text);
+  --border-radius: 12px;
+  --button-color: var(--hnch-bg);
+  --color: var(--hnch-bg);
+  --max-width: 480px;
+}
+
+// The dismiss button is an icon the size of a letter.
+ion-toast::part(button) {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+// ---------------------------------------------------------------------------
+// Desktop modal — centered dialog
+// Applied by the `modal-centered` class (`cssClass` on an inline
+// `ion-modal`). Lives here rather than in component SCSS because ion-modal
+// is portalled outside the component tree.
+//
+// The query is SurfaceService's own pivot. On anything else — a tablet is
+// wide, but it is touched — the modal is a sheet, with a sheet's size and
+// its handle.
+// ---------------------------------------------------------------------------
+
+@media (min-width: $bp-md) and (pointer: fine) {
+  ion-modal.modal-centered {
+    --width: min(480px, 90vw);
+    --height: min(560px, 80vh);
+    --border-radius: 16px;
+    --box-shadow: var(--hnch-shadow-3);
+  }
+
+  // Short forms: one or two fields.
+  ion-modal.modal-centered.modal-compact {
+    --height: min(340px, 80vh);
+  }
+
+  ion-modal.modal-centered::part(handle) {
+    display: none;
+  }
+}

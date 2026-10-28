@@ -11,7 +11,10 @@
  * combination.
  *
  * Rules:
- *  - Only write when `status === 'connected'`.
+ *  - Only write once the session is `joined`: the socket is up *and* the
+ *    relay has synced. An open socket alone is not the relay saying yes — it
+ *    accepts the socket before it refuses a wrong password (ADR-0035) — and
+ *    a record made on it would store a hash the relay is about to reject.
  *  - Skip when `code` or `uuid` is falsy.
  *  - Skip when `uuid === lastRecordedUuid` (already written for this room
  *    on this screen mount — avoids a Preferences write on every Yjs doc
@@ -20,10 +23,10 @@
 export function shouldRecordCache(
   code: string | null | undefined,
   uuid: string | null | undefined,
-  status: string,
+  joined: boolean,
   lastRecordedUuid: string | null,
 ): boolean {
-  if (status !== 'connected') return false;
+  if (!joined) return false;
   if (!code || !uuid) return false;
   return uuid !== lastRecordedUuid;
 }

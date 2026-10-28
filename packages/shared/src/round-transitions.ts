@@ -16,12 +16,28 @@
 
 import type { RoundStatus, TerminalRoundStatus } from './doc.js';
 
+/** A terminal state that leaves something to show: a result, or a skip. */
+export type RecordedRoundStatus = Exclude<TerminalRoundStatus, 'discarded'>;
+
 /**
  * Type guard: the round has reached a terminal state (`revealed` / `skipped`
  * / `discarded`) and can no longer transition or accept votes.
  */
 export function isTerminalStatus(s: RoundStatus): s is TerminalRoundStatus {
   return s === 'revealed' || s === 'skipped' || s === 'discarded';
+}
+
+/**
+ * Type guard: the round ended with something to show for it — `revealed` or
+ * `skipped`.
+ *
+ * A `discarded` round is terminal too, but it is a tombstone (ADR-0046): it
+ * appears in no list, under no heading and in no export, and it takes no
+ * round number. Anything that *lists* finished rounds filters on this, not on
+ * {@link isTerminalStatus}.
+ */
+export function isRecordedStatus(s: RoundStatus): s is RecordedRoundStatus {
+  return s === 'revealed' || s === 'skipped';
 }
 
 /**

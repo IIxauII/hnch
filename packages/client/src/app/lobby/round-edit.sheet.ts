@@ -1,5 +1,18 @@
-import { ChangeDetectionStrategy, Component, effect, input, output, signal } from '@angular/core';
+import {
+  afterNextRender,
+  ChangeDetectionStrategy,
+  Component,
+  effect,
+  inject,
+  input,
+  output,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
+import { SurfaceService } from '../core/surface.service';
+import { isComposingKey } from '../utils/composing-key';
+import { focusField } from '../utils/focus-field';
 import { buildRoundEditSubmission } from './round-edit.helpers';
 import {
   IonButton,
@@ -8,8 +21,8 @@ import {
   IonHeader,
   IonInput,
   IonItem,
-  IonLabel,
-  IonNote,
+  IonList,
+  IonTextarea,
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
@@ -19,6 +32,19 @@ export interface RoundEditSubmission {
   readonly description: string | null;
 }
 
+/**
+ * Round edit half-sheet — the host renames a finished round or rewrites its
+ * description. Same field labels as the round-start sheet it mirrors, and,
+ * like every form sheet, Cancel on the left and the primary action on the
+ * right (ionic.md).
+ *
+ * A round that has a title keeps one: Save stays disabled while the title
+ * field is blank.
+ *
+ * The cursor starts in the title where there is a keyboard to type with, as
+ * in the round-start sheet. On a phone the sheet opens as it is: bringing
+ * the keyboard up would cover the description that may be what is edited.
+ */
 @Component({
   selector: 'app-round-edit-sheet',
   host: { class: 'ion-page' },
@@ -29,8 +55,8 @@ export interface RoundEditSubmission {
     IonHeader,
     IonInput,
     IonItem,
-    IonLabel,
-    IonNote,
+    IonList,
+    IonTextarea,
     IonTitle,
     IonToolbar,
     ReactiveFormsModule,
@@ -39,7 +65,10 @@ export interface RoundEditSubmission {
   template: `
     <ion-header>
       <ion-toolbar>
-        <ion-title>Edit Round {{ roundNumber() }}</ion-title>
+        <ion-buttons slot="start">
+          <ion-button (click)="closeRequested.emit()">Cancel</ion-button>
+        </ion-buttons>
+        <ion-title>Edit round {{ roundNumber() }}</ion-title>
         <ion-buttons slot="end">
           <ion-button
             strong="true"
@@ -52,51 +81,44 @@ export interface RoundEditSubmission {
       </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding">
-      <ion-item>
-        <ion-label position="stacked">What are you estimating?</ion-label>
-        <ion-input
-          [formControl]="titleControl"
-          placeholder="e.g., Login redesign"
-          autocapitalize="sentences"
-          aria-label="Round title"
-        ></ion-input>
-      </ion-item>
-      <ion-item>
-        <ion-label position="stacked">Notes (optional)</ion-label>
-        <ion-input
-          [formControl]="descriptionControl"
-          placeholder="Optional details"
-          autocapitalize="sentences"
-          aria-label="Round notes"
-        ></ion-input>
-      </ion-item>
-      @if (titleControl.invalid && titleControl.touched) {
-        <ion-note class="error" color="danger" aria-live="polite">
-          Title must be 120 characters or fewer.
-        </ion-note>
-      }
-      @if (descriptionControl.invalid && descriptionControl.touched) {
-        <ion-note class="error" color="danger" aria-live="polite">
-          Notes must be 500 characters or fewer.
-        </ion-note>
-      }
+      <ion-list inset="true" lines="inset">
+        <ion-item>
+          <ion-input
+            #titleField
+            [formControl]="titleControl"
+            label="What are you estimating?"
+            labelPlacement="stacked"
+            placeholder="e.g. Login redesign"
+            autocapitalize="sentences"
+            enterkeyhint="done"
+            maxlength="120"
+            (keydown.enter)="onEnter($event)"
+          ></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-textarea
+            [formControl]="descriptionControl"
+            label="Description"
+            labelPlacement="stacked"
+            placeholder="Optional context for the team"
+            autocapitalize="sentences"
+            [autoGrow]="true"
+            [counter]="true"
+            maxlength="500"
+            [rows]="2"
+          ></ion-textarea>
+        </ion-item>
+      </ion-list>
     </ion-content>
   `,
-  styles: [
-    `
-      .error {
-        display: block;
-        margin-top: 0.25rem;
-        padding: 0 1rem;
-      }
-    `,
-  ],
 })
 export class RoundEditSheetComponent {
   readonly roundNumber = input.required<number>();
   readonly initialTitle = input<string | null>(null);
   readonly initialDescription = input<string | null>(null);
   readonly submitted = output<RoundEditSubmission>();
+  /** Fires when the user taps Cancel. The modal host must dismiss. */
+  readonly closeRequested = output<void>();
 
   protected readonly titleControl = new FormControl<string>('', {
     nonNullable: true,
@@ -110,7 +132,14 @@ export class RoundEditSheetComponent {
 
   protected readonly isSubmitting = signal(false);
 
+  private readonly surface = inject(SurfaceService);
+  private readonly titleField = viewChild<IonInput>('titleField');
+
   constructor() {
+    afterNextRender(() => {
+      if (this.surface.mode() === 'desktop') void focusField(this.titleField());
+    });
+
     effect(
       () => {
         const t = this.initialTitle();
@@ -120,6 +149,15 @@ export class RoundEditSheetComponent {
       },
       { allowSignalWrites: true },
     );
+  }
+
+  /**
+   * Enter in the title saves, and the key says so (`enterkeyhint`). The Enter
+   * that confirms an IME composition is part of typing, not a submit.
+   */
+  protected onEnter(event: Event): void {
+    if (isComposingKey(event)) return;
+    this.submit();
   }
 
   protected submit(): void {

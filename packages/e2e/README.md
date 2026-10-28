@@ -51,6 +51,12 @@ const OUT_DIR = resolveOutDir('reveal'); // → docs/screenshots/<sha>/reveal/
 
 The helper writes `mkdir -p` only when called — never at module import — so it is safe to import from non-test modules.
 
+### Taking the shot
+
+A spec's `shot()` waits for `pageSettled(page)` (`_helpers/settled.ts`) before it captures: exactly one page showing, fully in. Ionic keeps the page being left on screen while the new one slides in, and a shot taken then shows the two on top of each other. Call `shot()` once the content of the new page is known to be there — until then the one page showing is still the old one. (A few specs wait a fixed moment instead: `reveal-transition.spec.ts`, which is there to catch the reveal *while* it moves, and the two phone form specs, `round-start-mobile.spec.ts` and `agenda-item-form-mobile.spec.ts`, which capture a sheet over a page that has not changed.)
+
+A toast that should not be in the picture is waited out with `expect(page.locator('ion-toast:not(.overlay-hidden)')).toHaveCount(0)`. Count the ones that are showing, never the elements: the Lobby and the round screen each carry an `ion-toast` of the connection banner's, which stays in the page and is hidden unless the connection has just come back.
+
 ### Local manual run
 
 ```sh
@@ -84,7 +90,7 @@ Every `test()` under `_screenshots/` is annotated with one or more Playwright ta
 | `@scale` | scale picker, custom scale editor, preset overrides |
 | `@connection` | online / reconnecting / offline / disconnected |
 | `@session-end` | host End Session → joiner toast |
-| `@home` | home and last-session card |
+| `@home` | home and the list of recent sessions |
 | `@onboarding` | first-run name entry |
 | `@agenda` | agenda states (`agenda-states.spec.ts`) |
 | `@keyboard` | keyboard shortcuts surfaces (`keyboard-shortcuts.spec.ts`) |
@@ -134,18 +140,18 @@ Every `test()` under `_screenshots/` is annotated with one or more Playwright ta
 
 | File | Subfolder | Scenes |
 |---|---|---|
-| `capture.spec.ts` | `baseline/` | Onboarding, home, home overflow, settings page, join page, lobby, session-settings sheet, scale picker, access picker, QR modal, lobby overflow, round-start modal, estimating, estimating w/ card selected, lobby results, custom scale editor, preset toggle, round-history empty, empty home, connection chip offline + reconnected |
-| `password-flow.spec.ts` | `password/` | password sheet on join; wrong-password reject |
+| `capture.spec.ts` | `baseline/` | Onboarding, home, settings page, join page, lobby, session-settings sheet, scale picker, session settings with a password set, QR modal, lobby host menu, round-start modal, estimating, estimating w/ card selected, lobby results, custom scale editor, preset toggle, round-history empty, empty home, connection banner reconnecting + reconnected |
+| `password-flow.spec.ts` | `password/` | session settings with the password set; protected lobby; password field on join; wrong-password reject |
 | `reveal-transition.spec.ts` | `reveal/` | pre-reveal all-voted; post-reveal lobby |
 | `skip-round.spec.ts` | `skip/` | host skip action; lobby skipped row; suppressed pre-skip votes |
 | `round-history.spec.ts` | `history/` (prefixed `round-history-`) | populated history; departed-name resolution |
-| `room-history.spec.ts` | `history/` (prefixed `room-history-`) | home empty / one / two / five rooms; swipe-remove; hover-x |
-| `participants.spec.ts` | `participants/` (prefixed `participants-`) | viewer role badge + toggle; swipe-kick (mobile); leave-session confirm |
+| `room-history.spec.ts` | `history/` (prefixed `room-history-`) | home empty / one / two / five sessions; × focused (desktop + mobile) |
+| `participants.spec.ts` | `participants/` (prefixed `participants-`) | observer role switch; host actions menu on a row (mobile action sheet, desktop popover); leave-session confirm |
 | `participant-cap.spec.ts` | `participants/` (prefixed `participant-cap-`) | 4th joiner vs `HNCH_ROOM_CAP=3` → close 4006 |
 | `session-ended.spec.ts` | `session-end/` | joiner-side toast on host's End Session |
-| `connection-states.spec.ts` | `connection/` | sustained disconnected (≥5,500 ms) |
+| `connection-states.spec.ts` | `connection/` | reconnecting banner (desktop + mobile) |
 | `avatar-color.spec.ts` | `theming/` | settings palette default + Pink; lobby + estimating with chosen color |
-| `agenda-states.spec.ts` | `agenda/` | empty agenda; add sheet open/filled; 3-item list; edit sheet; mid-session consumed; skipped/cancelled; joiner mobile collapsed/expanded |
+| `agenda-states.spec.ts` | `agenda/` | empty agenda; add sheet open/filled; 3-item list; story menu; edit sheet; mid-session consumed; skipped/removed; joiner on mobile |
 | `keyboard-shortcuts.spec.ts` | `keyboard/` | shortcuts overlay |
 | `vote-bars-shot.spec.ts` | `vote-bars/` | vote distribution bars (light/dark, desktop/mobile) |
 | `vote-dots-196.spec.ts` | `vote-dots/` | vote dot layout (issue #196) |

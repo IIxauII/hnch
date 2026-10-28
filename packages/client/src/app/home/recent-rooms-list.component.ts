@@ -1,18 +1,9 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { formatRoomCode } from '@hnch/shared';
-import {
-  IonIcon,
-  IonItem,
-  IonItemOption,
-  IonItemOptions,
-  IonItemSliding,
-  IonLabel,
-  IonList,
-} from '@ionic/angular/standalone';
+import { IonButton, IonIcon, IonItem, IonLabel, IonList } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { returnUpBackOutline, trashOutline } from 'ionicons/icons';
+import { closeOutline, returnUpBackOutline } from 'ionicons/icons';
 
-import { SurfaceService } from '../core/surface.service';
 import type { ClientLastSessionEntry } from '../core/last-session.service';
 
 /**
@@ -42,64 +33,51 @@ export function formatRelativeTime(lastSeenAt: number, now: number): string {
 }
 
 /**
- * Recent rooms list — renders up to 5 room history entries as swipeable
- * rows (ADR-0044). Used on Home when `entries.length >= 2`; replaced by
- * JumpBackInBanner for single-entry case.
+ * Recent sessions — the rooms this device can still get back into, up to 5
+ * (ADR-0044). One row per session, whatever the count: a single entry is a
+ * one-row list rather than a separate banner component.
+ *
+ * Each row is two sibling controls, not one nested in the other: the row
+ * itself rejoins, the trailing × forgets the entry. The × is always visible —
+ * it used to hide behind a swipe on touch and a hover on desktop.
  *
  * Outputs:
  *   - `joinRequested` — emitted with the entry when a row is tapped.
- *   - `removeRequested` — emitted with the roomUuid when swipe-Remove or
- *     × button is activated.
- *
- * Mobile: swipe-left reveals Ionic IonItemOption "Remove" button.
- * Portal/web: a × button is shown on `:hover` / `:focus-within`.
+ *   - `removeRequested` — emitted with the roomUuid when × is activated.
  */
 @Component({
   selector: 'app-recent-rooms-list',
-  standalone: true,
-  imports: [IonList, IonItemSliding, IonItem, IonItemOptions, IonItemOption, IonLabel, IonIcon],
+  imports: [IonButton, IonIcon, IonItem, IonLabel, IonList],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <ion-list inset="true" class="recent-rooms" aria-label="Recent rooms">
+    <ion-list inset="true" lines="none" class="recent-rooms" aria-label="Recent sessions">
       @for (entry of entries(); track entry.roomUuid) {
-        <ion-item-sliding>
+        <div class="row">
           <ion-item
             button="true"
-            detail="true"
+            [detail]="false"
             class="recent-room-row"
-            [attr.aria-label]="'Rejoin room ' + entry.roomCode"
+            [disabled]="busy()"
+            [attr.aria-label]="'Rejoin session ' + displayCode(entry.roomCode)"
             (click)="onJoin(entry)"
           >
             <div class="icon-tile icon-tile--accent" slot="start" aria-hidden="true">
               <ion-icon name="return-up-back-outline"></ion-icon>
             </div>
             <ion-label>
-              <h2>{{ displayCode(entry.roomCode) }}</h2>
-              <p>{{ relativeTime(entry.lastSeenAt) }}</p>
+              <h3>{{ displayCode(entry.roomCode) }}</h3>
+              <p>Active {{ relativeTime(entry.lastSeenAt) }}</p>
             </ion-label>
-            @if (!isMobile()) {
-              <button
-                class="remove-btn"
-                slot="end"
-                [attr.aria-label]="'Remove room ' + entry.roomCode + ' from history'"
-                (click)="onRemove($event, entry.roomUuid)"
-              >
-                <ion-icon name="trash-outline" aria-hidden="true"></ion-icon>
-              </button>
-            }
           </ion-item>
-          @if (isMobile()) {
-            <ion-item-options side="end">
-              <ion-item-option
-                color="danger"
-                [attr.aria-label]="'Remove room ' + entry.roomCode"
-                (click)="onRemove($event, entry.roomUuid)"
-              >
-                Remove
-              </ion-item-option>
-            </ion-item-options>
-          }
-        </ion-item-sliding>
+          <ion-button
+            fill="clear"
+            class="remove-btn"
+            [attr.aria-label]="'Remove session ' + displayCode(entry.roomCode) + ' from this list'"
+            (click)="onRemove($event, entry.roomUuid)"
+          >
+            <ion-icon slot="icon-only" name="close-outline" aria-hidden="true"></ion-icon>
+          </ion-button>
+        </div>
       }
     </ion-list>
   `,
@@ -109,72 +87,64 @@ export function formatRelativeTime(lastSeenAt: number, now: number): string {
         display: block;
       }
       ion-list.recent-rooms {
-        background: transparent;
-        margin-block-start: 8px;
+        margin-block: 0;
+        padding-block: 0;
+        background: var(--hnch-elev-1);
+      }
+      .row {
+        display: flex;
+        align-items: center;
+      }
+      .row + .row {
+        border-top: 0.55px solid var(--hnch-sep);
       }
       ion-item.recent-room-row {
         --inner-padding-top: 12px;
         --inner-padding-bottom: 12px;
+        --inner-padding-end: 0;
         --padding-start: 16px;
+        flex: 1 1 auto;
+        min-width: 0;
       }
-      ion-item h2 {
-        font-size: 17px;
-        font-weight: 600;
-        color: var(--hnch-text);
+      ion-item h3 {
         margin: 0 0 2px;
+        color: var(--hnch-text);
+        font-size: 17px;
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+        letter-spacing: 0.04em;
       }
       ion-item p {
-        font-size: 14px;
-        color: var(--hnch-muted);
         margin: 0;
-      }
-      .icon-tile {
-        width: 36px;
-        height: 36px;
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-inline-end: 12px;
-      }
-      .icon-tile--accent {
-        background: var(--hnch-accent);
-        color: var(--hnch-accent-ink);
-      }
-      .icon-tile ion-icon {
-        font-size: 20px;
-      }
-      /* × remove button — portal/web only, hidden by default */
-      .remove-btn {
-        display: none;
-        background: transparent;
-        border: none;
-        cursor: pointer;
-        padding: 8px;
         color: var(--hnch-muted);
-        font-size: 18px;
+        font-size: 14px;
       }
-      ion-item:hover .remove-btn,
-      ion-item:focus-within .remove-btn {
-        display: flex;
-        align-items: center;
-        justify-content: center;
+      .remove-btn {
+        --color: var(--hnch-muted);
+        --padding-end: 10px;
+        --padding-start: 10px;
+        flex: 0 0 auto;
+        min-width: 44px;
+        min-height: 44px;
+        margin: 0 4px 0 0;
       }
     `,
   ],
 })
 export class RecentRoomsListComponent {
-  private readonly surface = inject(SurfaceService);
-
   readonly entries = input.required<ClientLastSessionEntry[]>();
+
+  /**
+   * Home is busy getting into a session — this one, another of the list, or
+   * one it is creating: rows stop accepting taps until it settles.
+   */
+  readonly busy = input<boolean>(false);
 
   readonly joinRequested = output<ClientLastSessionEntry>();
   readonly removeRequested = output<string>();
 
-  protected readonly isMobile = computed(() => this.surface.mode() === 'mobile');
-
   constructor() {
-    addIcons({ 'return-up-back-outline': returnUpBackOutline, 'trash-outline': trashOutline });
+    addIcons({ 'close-outline': closeOutline, 'return-up-back-outline': returnUpBackOutline });
   }
 
   protected displayCode(roomCode: string): string {
@@ -186,6 +156,7 @@ export class RecentRoomsListComponent {
   }
 
   protected onJoin(entry: ClientLastSessionEntry): void {
+    if (this.busy()) return;
     this.joinRequested.emit(entry);
   }
 

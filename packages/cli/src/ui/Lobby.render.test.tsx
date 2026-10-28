@@ -227,6 +227,20 @@ describe('Lobby render — issue #111 patch lines', () => {
     expect(frame).not.toContain('- / -');
   });
 
+  it('ResultsSection names no most common card on a tie', () => {
+    const tshirt: Scale = { id: 'tshirt', cards: ['XS', 'S', 'M', 'L', 'XL'] };
+    const r1 = makeRound({
+      id: 'r1',
+      revealedAt: 1000,
+      scale: tshirt,
+      votes: { host: 'S', p2: 'S', p3: 'M', p4: 'M' },
+    });
+    const { lastFrame } = render(<Lobby {...baseProps([r1], r1)} />);
+    const frame = lastFrame() ?? '';
+    expect(frame).not.toContain('Most common:');
+    expect(plain(frame)).toContain('Spread: Close');
+  });
+
   it('ResultsSection hides the stat row entirely when nobody voted', () => {
     const r1 = makeRound({ id: 'r1', revealedAt: 1000 });
     const { lastFrame } = render(<Lobby {...baseProps([r1], r1)} />);
@@ -353,6 +367,61 @@ describe('Lobby render — issue #111 patch lines', () => {
     // r2 falls into history; its row shows `Round 2/2 [re-vote]` from compactRoundSummary.
     expect(frame).toContain('Round 2/2 [re-vote]');
     expect(frame).toContain('History');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cancelled rounds (ADR-0046). A cancelled round is a tombstone: it is listed
+// nowhere and takes no number. Shown, it came out as "Round 0".
+// ---------------------------------------------------------------------------
+
+describe('Lobby render — cancelled rounds', () => {
+  it('leaves a cancelled round out of the history', () => {
+    const r1 = makeRound({ id: 'r1', revealedAt: 1000, votes: { host: '3' } });
+    const cancelled = makeRound({ id: 'r2', discardedAt: 2000, title: 'Never mind' });
+    const r3 = makeRound({ id: 'r3', revealedAt: 3000, votes: { host: '5' } });
+
+    const { lastFrame } = render(<Lobby {...baseProps([r1, cancelled, r3], r3)} />);
+    const frame = plain(lastFrame() ?? '');
+
+    expect(frame).toContain('History');
+    expect(frame).toContain('Round 1');
+    expect(frame).not.toContain('Round 0');
+    expect(frame).not.toContain('Never mind');
+  });
+
+  it('numbers the round after it as if it had not been there', () => {
+    const r1 = makeRound({ id: 'r1', revealedAt: 1000 });
+    const cancelled = makeRound({ id: 'r2', discardedAt: 2000 });
+    const r3 = makeRound({ id: 'r3', revealedAt: 3000, votes: { host: '5' } });
+
+    const { lastFrame } = render(<Lobby {...baseProps([r1, cancelled, r3], r3)} />);
+
+    expect(plain(lastFrame() ?? '')).toContain('Round 2 — Results');
+  });
+
+  it('shows no history at all when the only other round was cancelled', () => {
+    const cancelled = makeRound({ id: 'r1', discardedAt: 1000 });
+    const r2 = makeRound({ id: 'r2', revealedAt: 2000, votes: { host: '5' } });
+
+    const { lastFrame } = render(<Lobby {...baseProps([cancelled, r2], r2)} />);
+    const frame = plain(lastFrame() ?? '');
+
+    expect(frame).toContain('Round 1 — Results');
+    expect(frame).not.toContain('History');
+  });
+
+  it('shows the empty-session state when the only round in the session was cancelled', () => {
+    const cancelled = makeRound({ id: 'r1', discardedAt: 1000 });
+
+    // No round survives to be "current" either — same as a session that
+    // never started a round at all (App.tsx passes `null` in that case).
+    const { lastFrame } = render(<Lobby {...baseProps([cancelled], null)} />);
+    const frame = plain(lastFrame() ?? '');
+
+    expect(frame).toContain('Waiting for participants...');
+    expect(frame).toContain('No rounds started yet.');
+    expect(frame).not.toContain('Session');
   });
 });
 

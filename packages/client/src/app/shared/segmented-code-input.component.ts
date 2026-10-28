@@ -27,7 +27,6 @@ const TILE_COUNT = 6;
  */
 @Component({
   selector: 'app-segmented-code-input',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [
     {
@@ -37,7 +36,7 @@ const TILE_COUNT = 6;
     },
   ],
   template: `
-    <div class="code-row" role="group" aria-label="Room code, 6 characters">
+    <div class="code-row" role="group" aria-label="Session code, 6 characters">
       @for (tile of tiles(); track $index) {
         @if ($index === 3) {
           <span class="separator" aria-hidden="true"></span>
@@ -57,7 +56,8 @@ const TILE_COUNT = 6;
           [disabled]="isDisabled()"
           [attr.aria-label]="'Character ' + ($index + 1) + ' of 6'"
           [attr.aria-required]="true"
-          (focus)="onFocus($index)"
+          (focus)="onFocus($index, $event)"
+          (click)="selectTile($event)"
           (blur)="onBlur()"
           (keydown)="onKeyDown($event, $index)"
           (input)="onInput($event, $index)"
@@ -83,26 +83,47 @@ const TILE_COUNT = 6;
     .tile {
       flex: 1 1 0;
       min-width: 0;
-      height: 48px;
+      height: 52px;
+      padding: 0;
       border-radius: 10px;
       background: var(--hnch-fill);
       border: 1.5px solid transparent;
       outline: none;
       text-align: center;
-      font-family: 'SF Mono', 'Fira Mono', 'Roboto Mono', monospace;
-      font-size: 26px;
+      font-family: ui-monospace, 'SF Mono', 'Roboto Mono', Menlo, Consolas, monospace;
+      /* Never below 16px: iOS zooms the page when a smaller input takes focus. */
+      font-size: clamp(20px, 7vw, 26px);
       font-weight: 600;
       color: var(--hnch-text);
       text-transform: uppercase;
       caret-color: transparent;
-      transition: border-color 0.15s ease;
+      transition: border-color 0.15s ease, background 0.15s ease;
       -webkit-appearance: none;
       appearance: none;
     }
 
     .tile.focused,
     .tile:focus {
-      border-color: var(--hnch-accent);
+      border-color: var(--hnch-accent-text);
+      background: var(--hnch-elev-1);
+    }
+
+    /* The character of the tile that has the focus is selected, so that the
+       next one typed replaces it. The border says which tile that is; a
+       highlight behind the character would say it a second time. */
+    .tile::selection {
+      background: transparent;
+      color: inherit;
+    }
+
+    .tile:disabled {
+      opacity: 0.5;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .tile {
+        transition: none;
+      }
     }
 
     .separator {
@@ -151,10 +172,29 @@ export class SegmentedCodeInputComponent implements ControlValueAccessor {
     this.isDisabled.set(disabled);
   }
 
+  /** Move focus to the first empty tile, or the last one when all are filled. */
+  focus(): void {
+    const firstEmpty = this.tiles().findIndex((t) => t === '');
+    this.focusTile(firstEmpty === -1 ? TILE_COUNT - 1 : firstEmpty);
+  }
+
   // Event handlers -------------------------------------------------------
 
-  protected onFocus(index: number): void {
+  protected onFocus(index: number, event?: Event): void {
     this.focusedIndex.set(index);
+    if (event !== undefined) this.selectTile(event);
+  }
+
+  /**
+   * A tile holds one character, and a tile that holds one takes no second:
+   * typing into it did nothing at all. With its character selected, the
+   * next one typed takes its place — from a keyboard on screen too, which
+   * sends no keys to go by. On a click as well as on focus: the click puts
+   * the cursor down again after the focus has selected.
+   */
+  protected selectTile(event: Event): void {
+    const tile = event.target;
+    if (tile instanceof HTMLInputElement) tile.select();
   }
 
   protected onBlur(): void {
@@ -179,6 +219,13 @@ export class SegmentedCodeInputComponent implements ControlValueAccessor {
       event.preventDefault();
     } else if (event.key === 'ArrowRight' && index < TILE_COUNT - 1) {
       this.focusTile(index + 1);
+      event.preventDefault();
+    } else if (this.tiles()[index] !== '' && isCodeCharacter(event)) {
+      // Typed over: a wrong character is corrected by typing the right one,
+      // whether or not the one that is there is still selected.
+      this.setTile(index, event.key.toUpperCase());
+      this.emitChange();
+      if (index < TILE_COUNT - 1) this.focusTile(index + 1);
       event.preventDefault();
     }
   }
@@ -246,4 +293,10 @@ export class SegmentedCodeInputComponent implements ControlValueAccessor {
       this.focusedIndex.set(index);
     }
   }
+}
+
+/** True for a key that types a character a code can have — not a shortcut that happens to use one. */
+function isCodeCharacter(event: KeyboardEvent): boolean {
+  if (event.ctrlKey || event.metaKey || event.altKey) return false;
+  return /^[a-zA-Z0-9]$/u.test(event.key);
 }

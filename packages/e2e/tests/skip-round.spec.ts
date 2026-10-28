@@ -1,5 +1,5 @@
-import { test, expect } from './fixtures/app.fixture';
-import { LOBBY } from './fixtures/helpers';
+import { clickMenuOption, test, expect } from './fixtures/app.fixture';
+import { ESTIMATING, LOBBY, SESSION_TOOLBAR } from './fixtures/helpers';
 
 test.describe('Skip round', () => {
   test('host skips a round and both clients navigate to lobby with skipped label', async ({
@@ -31,7 +31,7 @@ test.describe('Skip round', () => {
     await expect(skippedLabel).toContainText('Round skipped');
     await expect(player.page.locator('p.round-skipped')).toContainText('Round skipped');
 
-    // Host sees "Next Round" button, NOT "Re-vote"
+    // Host sees "Next round" button, NOT "Re-vote"
     await expect(host.page.locator('ion-button', { hasText: LOBBY.nextRoundBtn })).toBeVisible();
     await expect(host.page.locator(LOBBY.revoteBtn)).not.toBeVisible();
 
@@ -42,34 +42,50 @@ test.describe('Skip round', () => {
     await expect(player.page.locator(LOBBY.revoteBtn)).not.toBeVisible();
   });
 
-  test('joiner does not see skip round option in action sheet', async ({ host, player }) => {
+  // Skip sits one row from "End session" and cannot be undone.
+  test('skipping asks first, and cancelling leaves the round running', async ({ host, player }) => {
+    const code = await host.createSession();
+    await player.joinSession(code);
+    await host.startRound();
+    await player.waitForEstimating();
+    await player.castVote('5');
+    await expect(host.page.locator(ESTIMATING.voteCount)).toContainText('1 of 2');
+
+    await host.openHostMenu();
+    await clickMenuOption(host.page, 'Skip round');
+    const alert = host.page.locator('ion-alert');
+    await expect(alert).toContainText('Skip this round?');
+    await expect(alert).toContainText('Votes cast so far are dropped');
+    await alert.getByRole('button', { name: 'Cancel' }).click();
+    await expect(alert).toHaveCount(0);
+
+    // The round goes on, with the vote that was in it...
+    await expect(host.page).toHaveURL(/\/estimating/);
+    await expect(player.page).toHaveURL(/\/estimating/);
+    await expect(host.page.locator(ESTIMATING.voteCount)).toContainText('1 of 2');
+
+    // ...to its end: the vote that completes it reveals both.
+    await host.castVote('8');
+    await host.page.waitForURL(/\/lobby/, { timeout: 10_000 });
+    await host.expectRevealedVotes(['5', '8']);
+  });
+
+  test('joiner has no round menu, so nothing to skip a round from', async ({ host, player }) => {
     const code = await host.createSession();
     await player.joinSession(code);
     await host.startRound();
     await player.waitForEstimating();
 
-    // Player opens the ⋯ menu
-    const playerMenuBtn = player.page.locator('ion-header').locator('ion-button').last();
-    await playerMenuBtn.click();
+    const hostPage = host.page.locator('app-estimating:not(.ion-page-hidden)');
+    const joinerPage = player.page.locator('app-estimating:not(.ion-page-hidden)');
 
-    // Wait for either overlay (action-sheet on mobile, popover on desktop) to render.
-    // Anchor on "Leave session" — present for every participant — so the test isn't
-    // racing the overlay's open animation.
-    const leaveSheet = player.page.locator(`ion-action-sheet button:has-text("Leave session")`);
-    const leavePopover = player.page
-      .locator('ion-popover')
-      .getByRole('button', { name: 'Leave session' });
-    await Promise.any([
-      leaveSheet.waitFor({ state: 'visible', timeout: 5_000 }),
-      leavePopover.waitFor({ state: 'visible', timeout: 5_000 }),
-    ]);
+    // "Skip round" lives in the host's ⋯ menu...
+    await expect(hostPage.getByRole('button', { name: SESSION_TOOLBAR.menuBtn })).toBeVisible();
 
-    // Once the menu is open, "Skip round" must NOT be present (host-only).
-    const skipSheet = player.page.locator(`ion-action-sheet button:has-text("Skip round")`);
-    const skipPopover = player.page
-      .locator('ion-popover')
-      .getByRole('button', { name: 'Skip round' });
-    await expect(skipSheet).toHaveCount(0);
-    await expect(skipPopover).toHaveCount(0);
+    // ...which the joiner does not have. Their toolbar holds Leave, and no
+    // Reveal button waits at the bottom.
+    await expect(joinerPage.getByRole('button', { name: SESSION_TOOLBAR.menuBtn })).toHaveCount(0);
+    await expect(joinerPage.getByRole('button', { name: SESSION_TOOLBAR.leaveBtn })).toBeVisible();
+    await expect(joinerPage.locator('ion-footer')).toHaveCount(0);
   });
 });

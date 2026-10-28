@@ -86,4 +86,122 @@ describe('SegmentedCodeInputComponent', () => {
       expect(onChange).toHaveBeenCalledWith('XYZ');
     });
   });
+
+  // A tile holds one character, and the browser lets no second one in. A
+  // wrong character used to be corrected with Backspace or not at all.
+  describe('typing into a tile that holds a character', () => {
+    type Internals = {
+      onKeyDown(e: KeyboardEvent, i: number): void;
+      onFocus(i: number, e?: Event): void;
+      selectTile(e: Event): void;
+    };
+
+    function filled(code = 'A2B3C4') {
+      const cmp = buildComponent();
+      cmp.writeValue(code);
+      const onChange = vi.fn<[string], void>();
+      cmp.registerOnChange(onChange);
+      return { cmp, onChange, internals: cmp as unknown as Internals };
+    }
+
+    function key(init: KeyboardEventInit): KeyboardEvent {
+      return new KeyboardEvent('keydown', { cancelable: true, ...init });
+    }
+
+    it('replaces it', () => {
+      const { cmp, onChange, internals } = filled();
+      const event = key({ key: 'k' });
+
+      internals.onKeyDown(event, 0);
+
+      expect(cmp['tiles']()).toEqual(['K', '2', 'B', '3', 'C', '4']);
+      expect(onChange).toHaveBeenCalledExactlyOnceWith('K2B3C4');
+      expect(event.defaultPrevented).toBe(true);
+    });
+
+    it('moves on to the next tile, so that a whole code can be typed over', () => {
+      const { cmp, internals } = filled();
+
+      [...'k7p9mr'].forEach((char, index) => internals.onKeyDown(key({ key: char }), index));
+
+      expect(cmp['tiles']().join('')).toBe('K7P9MR');
+    });
+
+    it('leaves an empty tile to the browser, which has the character to put in', () => {
+      const cmp = buildComponent();
+      const event = key({ key: 'k' });
+
+      (cmp as unknown as Internals).onKeyDown(event, 0);
+
+      expect(event.defaultPrevented).toBe(false);
+      expect(cmp['tiles']()).toEqual(['', '', '', '', '', '']);
+    });
+
+    it('takes nothing that is not a character of a code', () => {
+      const { cmp, onChange, internals } = filled();
+
+      for (const init of [
+        { key: '-' },
+        { key: ' ' },
+        { key: 'Tab' },
+        { key: 'Enter' },
+        { key: 'é' },
+      ]) {
+        const event = key(init);
+        internals.onKeyDown(event, 0);
+        expect(event.defaultPrevented, init.key).toBe(false);
+      }
+
+      expect(cmp['tiles']().join('')).toBe('A2B3C4');
+      expect(onChange).not.toHaveBeenCalled();
+    });
+
+    // Paste, select all, reload.
+    it('leaves a shortcut alone that happens to use a letter', () => {
+      const { cmp, internals } = filled();
+
+      for (const init of [
+        { key: 'v', ctrlKey: true },
+        { key: 'v', metaKey: true },
+        { key: 'a', altKey: true },
+      ]) {
+        const event = key(init);
+        internals.onKeyDown(event, 0);
+        expect(event.defaultPrevented).toBe(false);
+      }
+
+      expect(cmp['tiles']().join('')).toBe('A2B3C4');
+    });
+
+    // A keyboard on screen sends no keys to go by. What it enters replaces
+    // what is selected.
+    it('selects the character of the tile that takes the focus', () => {
+      const { internals } = filled();
+      const tile = document.createElement('input');
+      tile.value = 'A';
+      document.body.append(tile);
+      const event = new Event('focus');
+      Object.defineProperty(event, 'target', { value: tile });
+
+      internals.onFocus(0, event);
+
+      expect([tile.selectionStart, tile.selectionEnd]).toEqual([0, 1]);
+      tile.remove();
+    });
+
+    it('selects it again on a click, which puts the cursor down', () => {
+      const { internals } = filled();
+      const tile = document.createElement('input');
+      tile.value = 'A';
+      document.body.append(tile);
+      tile.setSelectionRange(1, 1);
+      const event = new Event('click');
+      Object.defineProperty(event, 'target', { value: tile });
+
+      internals.selectTile(event);
+
+      expect([tile.selectionStart, tile.selectionEnd]).toEqual([0, 1]);
+      tile.remove();
+    });
+  });
 });

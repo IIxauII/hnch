@@ -1,15 +1,16 @@
 import { Injectable, computed, inject, signal, type Signal } from '@angular/core';
-import {
-  ActionSheetController,
-  ModalController,
-  PopoverController,
-  type ModalOptions,
-} from '@ionic/angular/standalone';
+import { ActionSheetController, PopoverController } from '@ionic/angular/standalone';
 
 import { MenuPopoverComponent, type MenuItem } from '../shared/menu-popover/menu-popover.component';
 
 /** Surface mode — mobile (touch/narrow) vs desktop (pointer-fine + wide). */
 export type SurfaceMode = 'mobile' | 'desktop';
+
+/** What a menu is presented as: the part of either overlay this service uses. */
+interface MenuOverlay {
+  dismiss(data?: unknown, role?: string): Promise<boolean>;
+  onDidDismiss(): Promise<unknown>;
+}
 
 /**
  * Options for the unified sheet-or-popover helper.
@@ -29,6 +30,12 @@ export interface SheetOrPopoverOptions {
  * Pivot condition: `(min-width: 768px) and (pointer: fine)`.
  * Fine-pointer check means touch laptops keep the mobile UX.
  *
+ * Sheets are inline `ion-modal`s in the page that owns them (ionic.md):
+ * they take their breakpoints from here and their desktop shape from the
+ * `modal-centered` class. Menus are opened from here, in code, like alerts
+ * and toasts. (One sheet is made in code as well: the QR scanner's camera
+ * overlay, which belongs to a service, not to a page.)
+ *
  * Pattern mirrors ThemeService: matchMedia subscription updates a signal.
  */
 @Injectable({ providedIn: 'root' })
@@ -39,9 +46,11 @@ export class SurfaceService {
     this.modeSignal.set(e.matches ? 'desktop' : 'mobile');
   };
 
-  private readonly modalCtrl = inject(ModalController);
   private readonly popoverCtrl = inject(PopoverController);
   private readonly actionSheetCtrl = inject(ActionSheetController);
+
+  /** The menu `openSheetOrPopover` presented last, while it is still up. */
+  private openMenu: MenuOverlay | null = null;
 
   constructor() {
     this.mq.addEventListener('change', this.mqListener);
@@ -83,32 +92,6 @@ export class SurfaceService {
   );
 
   /**
-   * Create and present a modal. On desktop, adds `modal-centered` CSS class
-   * so `global.scss` styles it as a centered dialog; removes sheet breakpoints.
-   * On mobile, passes `opts` unchanged (breakpoints/initialBreakpoint preserved).
-   */
-  async openModal(opts: ModalOptions): Promise<HTMLIonModalElement> {
-    let resolvedOpts: ModalOptions = { ...opts };
-
-    if (this.modeSignal() === 'desktop') {
-      const existing = resolvedOpts.cssClass;
-      const classes = Array.isArray(existing) ? existing : existing ? [existing] : [];
-
-      // Remove sheet-specific keys before spreading so exactOptionalPropertyTypes
-      // does not reject `undefined` where the type requires a concrete value.
-      const { breakpoints: _bp, initialBreakpoint: _ibp, ...rest } = resolvedOpts;
-      resolvedOpts = {
-        ...rest,
-        cssClass: [...classes, 'modal-centered'],
-      };
-    }
-
-    const modal = await this.modalCtrl.create(resolvedOpts);
-    await modal.present();
-    return modal;
-  }
-
-  /**
    * Present a contextual menu. Mobile → ActionSheet anchored to bottom.
    * Desktop → MenuPopover anchored to the trigger event's target.
    */
@@ -126,31 +109,56 @@ export class SurfaceService {
         popoverOpts.event = opts.triggerEvent;
       }
       const popover = await this.popoverCtrl.create(popoverOpts);
+      this.track(popover);
       await popover.present();
       return;
     }
 
     // Mobile: ActionSheet
-    const buttons = opts.items
-      .filter((item) => item.role !== 'cancel' || true) // keep all including cancel for ActionSheet
-      .map((item) => {
-        type Btn = {
-          text: string;
-          role?: string;
-          icon?: string;
-          handler?: () => void | boolean | Promise<void | boolean>;
-        };
-        const btn: Btn = { text: item.text };
-        if (item.role !== undefined) btn.role = item.role;
-        if (item.icon !== undefined) btn.icon = item.icon;
-        if (item.handler !== undefined) btn.handler = item.handler;
-        return btn;
-      });
+    const buttons = opts.items.map((item) => {
+      type Btn = {
+        text: string;
+        role?: string;
+        icon?: string;
+        handler?: () => void | boolean | Promise<void | boolean>;
+      };
+      const btn: Btn = { text: item.text };
+      if (item.role !== undefined) btn.role = item.role;
+      if (item.icon !== undefined) btn.icon = item.icon;
+      if (item.handler !== undefined) btn.handler = item.handler;
+      return btn;
+    });
 
     const sheetOpts: Parameters<typeof this.actionSheetCtrl.create>[0] = { buttons };
     if (opts.header !== undefined) sheetOpts.header = opts.header;
     const sheet = await this.actionSheetCtrl.create(sheetOpts);
+    this.track(sheet);
     await sheet.present();
+  }
+
+  /**
+   * Close the menu opened through `openSheetOrPopover`, if it is still up.
+   *
+   * A menu belongs to the screen it was opened on. Pages call this when they
+   * are left, so a menu opened on Estimating does not end up floating over
+   * the Lobby after the round reveals underneath it.
+   */
+  async dismissMenu(): Promise<void> {
+    const menu = this.openMenu;
+    if (menu === null) return;
+    this.openMenu = null;
+    try {
+      await menu.dismiss(undefined, 'cancel');
+    } catch {
+      // Already on its way out.
+    }
+  }
+
+  private track(menu: MenuOverlay): void {
+    this.openMenu = menu;
+    void menu.onDidDismiss().then(() => {
+      if (this.openMenu === menu) this.openMenu = null;
+    });
   }
 
   private detect(): SurfaceMode {
