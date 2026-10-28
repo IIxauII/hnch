@@ -100,14 +100,8 @@ export function App({
       setOnlineIds(session.onlineIds());
     });
     const unsub2 = session.onStatusChange(setStatus);
-    const unsub3 = session.onHostChange((newHostId) => {
-      const proj = session.projection();
-      const newHost = proj.participants.find((p) => p.id === newHostId);
-      const message =
-        newHostId === participantId
-          ? 'You are now the host'
-          : `${newHost?.displayName || 'Unknown'} is now the host`;
-      hostNotice.show(message);
+    const unsub3 = session.onSessionEvent((event) => {
+      if (event.kind === 'host-changed') hostNotice.show(event.message);
     });
 
     // Poll awareness for online IDs and update elapsed time each second
@@ -128,7 +122,7 @@ export function App({
       unsub3();
       clearInterval(awarenessInterval);
     };
-  }, [session, participantId, hostNotice.show]);
+  }, [session, hostNotice.show]);
 
   // Global quit handler — inactive when settings panel or title prompt is open
   useInput(

@@ -6,12 +6,19 @@
  * session.commands.startRound was called with the trimmed args.
  */
 
-import { press, renderInk } from './test-harness.js';
+import { flush, press, renderInk } from './test-harness.js';
 import * as Y from 'yjs';
 import { Awareness } from 'y-protocols/awareness';
+import { act } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { ABSTAIN_SENTINEL, type DocProjection, type Round, type Scale } from '@hnch/shared';
+import {
+  ABSTAIN_SENTINEL,
+  type DocProjection,
+  type Round,
+  type Scale,
+  type SessionEvent,
+} from '@hnch/shared';
 import type { SessionHandle } from '../session.js';
 import { App } from './App.js';
 
@@ -42,6 +49,7 @@ function makeSession(
     participants?: DocProjection['participants'];
     onlineIds?: Set<string>;
     isHost?: boolean;
+    onSessionEvent?: SessionHandle['onSessionEvent'];
   } = {},
 ): {
   session: SessionHandle;
@@ -88,7 +96,7 @@ function makeSession(
     updateAccess: vi.fn().mockResolvedValue(undefined),
     onChange: () => () => undefined,
     onStatusChange: () => () => undefined,
-    onHostChange: () => () => undefined,
+    onSessionEvent: overrides.onSessionEvent ?? (() => () => undefined),
     disconnect: vi.fn(),
   };
 
@@ -375,5 +383,74 @@ describe('App — Lobby host menu reaches endSession', () => {
     await press(stdin, 'y');
 
     expect(session.commands.endSession).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('App — host notice is the sink for the host-changed session event', () => {
+  /** A session whose `onSessionEvent` hands the test the listener App registers. */
+  function sessionWithEvents() {
+    let listener: ((event: SessionEvent) => void) | null = null;
+    const { session } = makeSession({
+      onSessionEvent: (l) => {
+        listener = l;
+        return () => {
+          listener = null;
+        };
+      },
+    });
+    async function push(event: SessionEvent): Promise<void> {
+      await act(async () => {
+        listener?.(event);
+        await flush();
+      });
+    }
+    return { session, push };
+  }
+
+  it("shows a host-changed event's message", async () => {
+    const { session, push } = sessionWithEvents();
+    const { lastFrame } = await renderInk(
+      <App session={session} participantId="host" displayName="Host" accessMode="open" />,
+    );
+
+    await push({
+      kind: 'host-changed',
+      previousHostId: 'bob',
+      previousHostName: 'Bob',
+      hostId: 'alice',
+      hostName: 'Alice',
+      cause: 'left',
+      wasSelf: false,
+      isSelf: false,
+      message: 'Bob left. Alice is now the host.',
+    });
+
+    expect(lastFrame()).toContain('Bob left. Alice is now the host.');
+  });
+
+  it('shows no notice for an ended or removed event', async () => {
+    const { session, push } = sessionWithEvents();
+    const { lastFrame } = await renderInk(
+      <App session={session} participantId="host" displayName="Host" accessMode="open" />,
+    );
+
+    await push({
+      kind: 'ended',
+      endedAt: 100,
+      endedLocally: false,
+      hostId: 'bob',
+      hostName: 'Bob',
+      message: 'Session ended by Bob',
+    });
+    await push({
+      kind: 'removed',
+      leftAt: 10,
+      removedBy: 'bob',
+      removedByName: 'Bob',
+      message: 'Removed by host',
+    });
+
+    expect(lastFrame()).not.toContain('Session ended by Bob');
+    expect(lastFrame()).not.toContain('Removed by host');
   });
 });

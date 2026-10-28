@@ -18,8 +18,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   connectToRelay,
   FIBONACCI_SCALE,
+  joinDoc,
+  kick,
+  promoteHost,
+  rejoin,
   type ConnectToRelayOptions,
   type RelayConnection,
+  type SessionEvent,
 } from '@hnch/shared';
 
 vi.mock('@ionic/angular/standalone', () => ({
@@ -60,6 +65,12 @@ const SESSION = {
 };
 
 const CREDENTIALS = { roomCode: 'ABC123', deviceId: 'p-host' };
+
+/** Let the session events driver's deferred delivery run. */
+const settle = (): Promise<void> =>
+  new Promise((r) => {
+    setTimeout(r, 0);
+  });
 
 describe('DocService — relay wiring', () => {
   let svc: DocService;
@@ -189,5 +200,37 @@ describe('DocService — relay wiring', () => {
     opts.onSynced?.();
 
     expect(svc.hasFirstSyncCompleted()).toBe(true);
+  });
+
+  it('delivers a removal by the host only once the first sync has landed (ADR-0036 §6)', async () => {
+    await connect();
+    const removals: SessionEvent[] = [];
+    svc.onSessionEvent((event) => {
+      if (event.kind === 'removed') removals.push(event);
+    });
+
+    // Another peer becomes host and removes this one — before the first sync,
+    // as a removal carried in the snapshot would arrive.
+    joinDoc(opts.doc, { participantId: 'p-other', displayName: 'Ola', joinedAt: 1 });
+    promoteHost(opts.doc, 'p-other');
+    kick(opts.doc, 'p-other', 'p-host');
+    await settle();
+    expect(removals).toEqual([]);
+
+    // After the sync, a fresh removal is a live one.
+    opts.onSynced?.();
+    opts.onSyncedChange?.(true);
+    rejoin(opts.doc, 'p-host');
+    kick(opts.doc, 'p-other', 'p-host');
+    await settle();
+
+    expect(removals).toEqual([
+      expect.objectContaining({
+        kind: 'removed',
+        removedBy: 'p-other',
+        removedByName: 'Ola',
+        message: 'Removed by host',
+      }),
+    ]);
   });
 });

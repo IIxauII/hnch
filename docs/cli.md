@@ -1,6 +1,6 @@
 # cli.md — CLI conventions for hnch
 
-The CLI (`packages/cli`, package `@xauyxau/hnch`) is a shipping surface alongside the mobile/PWA client. It targets developers and automation users who prefer a terminal workflow, and serves as a parity smoke-test client — it speaks the same Yjs-over-WebSocket protocol as the mobile client with no feature delta in core session behavior.
+The CLI (`packages/cli`, package `@xauyxau/hnch`) is a shipping surface alongside the mobile/PWA client. It targets developers and automation users who prefer a terminal workflow, and serves as a parity smoke-test client — it speaks the same Yjs-over-WebSocket protocol as the mobile client with no feature delta in core session behavior — except that quitting writes no `leave` yet (ADR-0036).
 
 Consult [`angular.md`](angular.md) and [`ionic.md`](ionic.md) when working on the mobile client. This document covers the CLI surface only.
 
@@ -136,7 +136,7 @@ The CLI is keyboard-driven end to end via Ink's input handling.
 
 ## Protocol parity
 
-The CLI uses the same `@hnch/shared` Yjs doc schema, the same `hashPassword()` function, and the same relay WebSocket handshake (`GET /rooms/:code` → `WS /ws/:uuid?did=...&pw=...`) as the mobile client. There is no feature delta in core session behavior: rounds (ADR-0013), voting and reveal (ADR-0018, ADR-0020), host election (ADR-0010), and access control (ADR-0009, ADR-0017) all behave identically.
+The CLI uses the same `@hnch/shared` Yjs doc schema, the same `hashPassword()` function, and the same relay WebSocket handshake (`GET /rooms/:code` → `WS /ws/:uuid?did=...&pw=...`) as the mobile client. There is no feature delta in core session behavior: rounds (ADR-0013), voting and reveal (ADR-0018, ADR-0020), host election (ADR-0010), session end (ADR-0023), removal by the host (ADR-0036 §5), host-change notices, and access control (ADR-0009, ADR-0017) all behave identically, through the same shared drivers. One delta remains: `Q` disconnects without writing a `leave`, so peers see the CLI as offline rather than gone (ADR-0036 Trade-offs).
 
 Scale customization (preset overrides, custom scales) is persisted in `config.json` under `presetOverrides` and `customScales` keys, matching the `PresetOverrides` / `CustomScale` types from `@hnch/shared` (ADR-0019).
 
@@ -152,7 +152,6 @@ packages/cli/
     config.ts                 — config read/write helpers
     last-session.ts           — last-session cache read/write
     room-code-input.ts        — room-code parsing / formatting helpers
-    session-end-observer.ts   — observer for meta.sessionEndedAt (ADR-0023)
     session-expired.ts        — expired-room error handling
     share.ts                  — invite-URL generation for terminal output
     ui/
@@ -172,4 +171,4 @@ packages/cli/
 pnpm --filter @xauyxau/hnch test
 ```
 
-Unit tests are spread across `src/*.test.ts` files (`session`, `session.election`, `session.rejoin`, `session.roster`, `config`, `last-session`, `room-code-input`, `session-end-observer`, `session-expired`, `share`), `src/commands/agenda.test.ts`, and `src/ui/components/settings.test.ts`. A terminal-level e2e harness (node-pty + vitest, covering `create`/`join`/`resume` against a live relay) is planned but not yet implemented — see `docs/backlog.md` §5.2.
+Unit tests are spread across `src/*.test.ts` files (`session`, `session.election`, `session.rejoin`, `session.roster`, `session.session-events`, `config`, `last-session`, `room-code-input`, `session-expired`, `share`), `src/commands/agenda.test.ts`, and `src/ui/components/settings.test.ts`. A terminal-level e2e harness (node-pty + vitest, covering `create`/`join`/`resume` against a live relay) is planned but not yet implemented — see `docs/backlog.md` §5.2.

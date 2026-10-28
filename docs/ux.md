@@ -234,6 +234,7 @@ Lobby → ⋯ on a participant row (host only, target is not self)
       → Target client observes own `leftAt` set with `removedBy !== self`
         → Toast: "Removed by host"
         → Clear jump-back-in cache, navigate to Home
+        (CLI: prints "Removed by host", forgets the room, exits)
     → Cancel: dismiss alert
   → Tap "Make host"
     → Confirmation alert: "Make {name} the host?" — [Cancel] [Make host]
@@ -251,7 +252,7 @@ No relay-side ban: a kicked user can re-enter the room code (their `leftAt` is c
 ```
 ⋯ menu (host, Lobby or Estimating) → End session for everyone
   → Confirmation alert: "End this session? All participants will be disconnected."
-    → Confirm: write session-ended event to doc, all clients navigate to Home (with toast)
+    → Confirm: write session-ended event to doc, all clients navigate to Home (with toast); the CLI prints the same line and exits
     → Cancel: dismiss
 ```
 
@@ -265,8 +266,8 @@ Host's connection is lost
   → 5-second debounce (ADR-0010)
   → Lowest peer-ID elected as new host
   → Everyone in the app sees a toast: "Bob disconnected. Alice is now the host."
-    (the new host: "Bob disconnected. You are now the host."). The CLI says who
-    the host is now, without the reason.
+    (the new host: "Bob disconnected. You are now the host."). The CLI prints
+    the same line.
   → If former host rejoins within snapshot window: they rejoin as a regular participant
 ```
 
