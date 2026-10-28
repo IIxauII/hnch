@@ -29,6 +29,7 @@ import {
   screenFor,
   startAutoReveal,
   startElection,
+  startSessionEvents,
   UNBOUND_SESSION_COMMANDS,
   type AgendaItem,
   type DocProjection,
@@ -45,6 +46,8 @@ import {
   type PublicSettingsPatch,
   type RosterResult,
   type SessionCommands,
+  type SessionEvent,
+  type SessionEventsHandle,
   type Settings,
 } from '@hnch/shared';
 import { Capacitor } from '@capacitor/core';
@@ -177,10 +180,10 @@ export class DocService {
   private readonly reconnectingSignal: WritableSignal<boolean> = signal(false);
   /**
    * Flips to true after the relay sends its first sync_step_2 and y-websocket
-   * fires `onSynced`. Resets on `teardown`. Used by
-   * `ParticipantRemovalService` to gate kick handling: any `leftAt` observed
+   * fires `onSynced`. Resets on `teardown`. Fed to the session events driver
+   * as its first-sync reading, which gates removal: any `leftAt` observed
    * before this flips came in via the snapshot apply (prior kick), not a live
-   * host action on this connection.
+   * host action on this connection (ADR-0036 §6).
    */
   private readonly hasFirstSyncCompletedSignal: WritableSignal<boolean> = signal(false);
   /**
@@ -195,9 +198,9 @@ export class DocService {
   private readonly sessionEpochSignal: WritableSignal<number> = signal(0);
   private readonly relayRoomUuidSignal: WritableSignal<string | null> = signal<string | null>(null);
   /**
-   * True while `endSessionForEveryone()` is in flight locally — guards the
-   * `SessionEndService` observer from treating a self-triggered end as a
-   * remote one.
+   * True once this peer's own `endSessionForEveryone()` write has applied —
+   * the session events driver's "ended locally" reading, so a self-triggered
+   * end reads "Session ended." rather than naming the host.
    */
   readonly endingSessionLocally: WritableSignal<boolean> = signal(false);
   private awareness: Awareness | null = null;
@@ -214,6 +217,17 @@ export class DocService {
    * session, not just while the Estimating page happens to be mounted.
    */
   private autoRevealHandle: AutoRevealHandle | null = null;
+  /**
+   * Session-scoped session events handle (ADR-0023, ADR-0036 §5). Started
+   * and stopped alongside {@link electionHandle}: stopping it drops any
+   * event not yet delivered, so nothing reaches a listener after teardown.
+   */
+  private sessionEventsHandle: SessionEventsHandle | null = null;
+  /**
+   * Listeners on {@link onSessionEvent}. App-lifetime, unlike the driver:
+   * the app-level sinks register once and outlive every session.
+   */
+  private readonly sessionEventListeners = new Set<(event: SessionEvent) => void>();
   /**
    * Change callbacks of every live shared driver. One fan-out, so there is a
    * single place deciding what counts as a change — the axis two hand-wired
@@ -396,9 +410,10 @@ export class DocService {
 
   /**
    * True once the relay has completed its first sync (y-websocket `onSynced`).
-   * Resets to false on `teardown`. Consumers should not act on `leftAt`
-   * transitions observed before this is true — those came from the snapshot
-   * apply, not a live host action on this connection (ADR-0036 §6).
+   * Resets to false on `teardown`. The session events driver reads it to
+   * ignore `leftAt` transitions observed before this is true — those came
+   * from the snapshot apply, not a live host action on this connection
+   * (ADR-0036 §6).
    */
   readonly hasFirstSyncCompleted: Signal<boolean> = this.hasFirstSyncCompletedSignal.asReadonly();
 
@@ -462,6 +477,20 @@ export class DocService {
    */
   get commands(): SessionCommands {
     return this.boundCommands ?? UNBOUND_SESSION_COMMANDS;
+  }
+
+  /**
+   * Listen to the session events driver: the session *ended*, the *host
+   * changed*, or this peer was *removed* by the host — each once, with the
+   * text to show already written. Delivered a microtask after the doc change
+   * that raised it, never inside it, and only while a session's driver runs;
+   * there is no replay. Listeners outlive sessions. Returns unsubscribe.
+   */
+  onSessionEvent(listener: (event: SessionEvent) => void): () => void {
+    this.sessionEventListeners.add(listener);
+    return (): void => {
+      this.sessionEventListeners.delete(listener);
+    };
   }
 
   // ---------------------------------------------------------------------------
@@ -612,7 +641,7 @@ export class DocService {
         void this.toastService.error('Trouble reaching the session. Still trying.');
       },
       // ADR-0036 §6 LWW fix: flip `hasFirstSyncCompleted` before clearing any
-      // stale `leftAt`/`removedBy` so that `ParticipantRemovalService` can
+      // stale `leftAt`/`removedBy` so that the session events driver can
       // distinguish snapshot-apply observations from live host kicks. When this
       // client joined (not created) the session, the delete carries a higher
       // Lamport clock than the snapshot's `set('leftAt', ...)` and wins the
@@ -756,13 +785,14 @@ export class DocService {
 
   /**
    * Write `sessionEndedAt` to meta, broadcasting session termination to all
-   * peers, via `commands.endSession()`. Sets `endingSessionLocally` so
-   * `SessionEndService` can distinguish this local trigger from a remote one
-   * — but only once the shared host gate has actually applied the write, or
+   * peers, via `commands.endSession()`. Sets `endingSessionLocally` so the
+   * session events driver can tell this local trigger from a remote one —
+   * but only once the shared host gate has actually applied the write, or
    * a refused mis-tap would leave the end-session banner armed for a session
-   * that is still running. This is the one act that is genuinely not a
-   * forward, which is why it keeps its name rather than folding into
-   * `commands`.
+   * that is still running. The flag is set after the write has notified the
+   * driver; that is safe because the driver reads it at delivery, a
+   * microtask later. This is the one act that is genuinely not a forward,
+   * which is why it keeps its name rather than folding into `commands`.
    */
   endSessionForEveryone(): RosterResult {
     const result = this.commands.endSession();
@@ -794,6 +824,7 @@ export class DocService {
     this.rebuildProjection();
     this.startElectionDriver();
     this.startAutoRevealDriver();
+    this.startSessionEventsDriver(participantId);
 
     const rebuild = (): void => this.rebuildProjection();
     const meta = doc.getMap(DOC_META_KEY);
@@ -822,6 +853,8 @@ export class DocService {
     this.electionHandle = null;
     this.autoRevealHandle?.stop();
     this.autoRevealHandle = null;
+    this.sessionEventsHandle?.stop();
+    this.sessionEventsHandle = null;
     for (const off of this.observers) off();
     this.observers = [];
     // Drop the bound set so a late call after leaving refuses through
@@ -890,6 +923,33 @@ export class DocService {
         if (this.commands.revealCurrentRound().applied) {
           this.autoRevealCountSignal.update((n) => n + 1);
         }
+      },
+    });
+  }
+
+  /**
+   * Wire the shared session events driver to this session (ADR-0023,
+   * ADR-0036 §5–6). The rules for session end, host change and removal —
+   * their guards and their wording — live in `@hnch/shared`; this is the
+   * adapter, and {@link onSessionEvent} is where its events leave.
+   *
+   * `selfId` goes by value: the participant id `attach` received is fixed for
+   * the session. Presence trust is the live `relaySynced` reading, not the
+   * sticky first-sync flag — a host is "disconnected" only to a peer that is
+   * in sync itself.
+   */
+  private startSessionEventsDriver(participantId: string): void {
+    this.sessionEventsHandle?.stop();
+    this.sessionEventsHandle = startSessionEvents({
+      projection: () => this.projection(),
+      onlineIds: () => this.onlineParticipantIdsSignal(),
+      presenceTrusted: () => this.relaySyncedSignal(),
+      firstSyncCompleted: () => this.hasFirstSyncCompletedSignal(),
+      endedLocally: () => this.endingSessionLocally(),
+      selfId: participantId,
+      subscribe: (cb) => this.subscribeDriver(cb),
+      emit: (event) => {
+        for (const listener of this.sessionEventListeners) listener(event);
       },
     });
   }

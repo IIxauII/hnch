@@ -2,7 +2,8 @@
  * Session orchestrator for the CLI client.
  *
  * Manages the full lifecycle: mint/resolve room → init/join doc →
- * connect sync → wire host election + unanimous auto-reveal → expose mutation API.
+ * connect sync → wire host election + unanimous auto-reveal + session events →
+ * expose mutation API.
  */
 
 import * as Y from 'yjs';
@@ -25,6 +26,9 @@ import {
   AWARENESS_PARTICIPANT_ID_FIELD,
   startElection,
   type ElectionHandle,
+  startSessionEvents,
+  type SessionEvent,
+  type SessionEventsHandle,
   FIBONACCI_SCALE,
   type DocProjection,
   type Scale,
@@ -117,8 +121,12 @@ export interface SessionHandle {
   onChange(cb: () => void): () => void;
   /** Subscribe to sync status changes. Returns unsubscribe fn. */
   onStatusChange(cb: (status: SyncStatus) => void): () => void;
-  /** Subscribe to host changes. Skips initial value, fires only on actual changes. Returns unsubscribe fn. */
-  onHostChange(cb: (newHostId: string) => void): () => void;
+  /**
+   * Subscribe to the session events driver: ended, host changed, removed —
+   * each once, with the text to print already written. Delivered a microtask
+   * after the doc change, never inside it; no replay. Returns unsubscribe.
+   */
+  onSessionEvent(listener: (event: SessionEvent) => void): () => void;
 
   /** Disconnect and clean up. */
   disconnect(): void;
@@ -224,7 +232,7 @@ export function wireSession(opts: WireOptions): SessionHandle {
 
   const statusCallbacks = new Set<(status: SyncStatus) => void>();
   const changeCallbacks = new Set<() => void>();
-  const hostChangeCallbacks = new Set<(newHostId: string) => void>();
+  const sessionEventListeners = new Set<(event: SessionEvent) => void>();
 
   // Whether awareness can be believed: the relay's state has applied on the
   // current socket. Until then this peer is the only one it can see, and a
@@ -289,10 +297,32 @@ export function wireSession(opts: WireOptions): SessionHandle {
     return onlineIdsFrom(awareness.getStates());
   }
 
+  // One fan-out for every driver: doc changes, presence changes and the
+  // sync edges (onSyncedChange above) — the counterpart of DocService.subscribeDriver.
+  function subscribeDriver(cb: () => void): () => void {
+    changeCallbacks.add(cb);
+    awareness.on('change', cb);
+    return (): void => {
+      changeCallbacks.delete(cb);
+      awareness.off('change', cb);
+    };
+  }
+
   // The whole writer seam, bound once for this session (#516). `onlineIds`
   // is threaded as the getter itself, not a snapshot, so `handoffHost` reads
   // the live online set at call time rather than the set at wiring time.
-  const commands = bindSessionCommands({ doc, participantId, onlineIds: getOnlineIds });
+  const bound = bindSessionCommands({ doc, participantId, onlineIds: getOnlineIds });
+  // "Ended locally" is this peer's own end applying — never "this peer created
+  // the session" — the CLI counterpart of DocService.endSessionForEveryone.
+  let endedLocally = false;
+  const commands: SessionCommands = {
+    ...bound,
+    endSession() {
+      const result = bound.endSession();
+      if (result.applied) endedLocally = true;
+      return result;
+    },
+  };
 
   // Wire host election. The driver (debounce, missing-host state, promotion
   // decision) lives in `@hnch/shared`; this is the adapter. It re-uses the
@@ -301,14 +331,7 @@ export function wireSession(opts: WireOptions): SessionHandle {
     projection: () => projectDoc(doc),
     onlineIds: getOnlineIds,
     myId: () => participantId,
-    subscribe(cb) {
-      changeCallbacks.add(cb);
-      awareness.on('change', cb);
-      return (): void => {
-        changeCallbacks.delete(cb);
-        awareness.off('change', cb);
-      };
-    },
+    subscribe: subscribeDriver,
     promote(winnerId) {
       promoteHostCommand(doc, winnerId);
     },
@@ -324,29 +347,28 @@ export function wireSession(opts: WireOptions): SessionHandle {
     onlineIds: getOnlineIds,
     presenceTrusted: () => presenceTrusted,
     selfId: () => participantId,
-    subscribe(cb) {
-      changeCallbacks.add(cb);
-      awareness.on('change', cb);
-      return (): void => {
-        changeCallbacks.delete(cb);
-        awareness.off('change', cb);
-      };
-    },
+    subscribe: subscribeDriver,
     reveal() {
       commands.revealCurrentRound();
     },
   });
 
-  // Track host changes: record initial value, fire callback only on actual changes
-  let lastHostId = doc.getMap('settings').get('hostParticipantId') as string | undefined;
-  const hostChangeHandler = (): void => {
-    const currentHostId = doc.getMap('settings').get('hostParticipantId') as string | undefined;
-    if (currentHostId !== lastHostId && currentHostId !== undefined) {
-      hostChangeCallbacks.forEach((cb) => cb(currentHostId));
-    }
-    lastHostId = currentHostId;
-  };
-  doc.getMap('settings').observe(hostChangeHandler);
+  // Session end, host change and removal (ADR-0023, ADR-0036 §5–6). The rules,
+  // their guards and their wording live in `@hnch/shared`; this is the
+  // adapter. Presence trust is the live reading, first sync the sticky one —
+  // a host is "disconnected" only to a peer that is in sync itself.
+  const sessionEvents: SessionEventsHandle = startSessionEvents({
+    projection: () => projectDoc(doc),
+    onlineIds: getOnlineIds,
+    presenceTrusted: () => presenceTrusted,
+    firstSyncCompleted: () => joined,
+    endedLocally: () => endedLocally,
+    selfId: participantId,
+    subscribe: subscribeDriver,
+    emit: (event) => {
+      for (const listener of sessionEventListeners) listener(event);
+    },
+  });
 
   let disposed = false;
 
@@ -418,19 +440,21 @@ export function wireSession(opts: WireOptions): SessionHandle {
       return () => statusCallbacks.delete(cb);
     },
 
-    onHostChange(cb: (newHostId: string) => void) {
-      hostChangeCallbacks.add(cb);
-      return () => hostChangeCallbacks.delete(cb);
+    onSessionEvent(listener: (event: SessionEvent) => void) {
+      sessionEventListeners.add(listener);
+      return () => {
+        sessionEventListeners.delete(listener);
+      };
     },
 
     disconnect() {
       if (disposed) return;
       disposed = true;
+      sessionEvents.stop();
       autoReveal.stop();
       election.stop();
       doc.getMap('meta').unobserveDeep(observeHandler);
       doc.getMap('settings').unobserveDeep(observeHandler);
-      doc.getMap('settings').unobserve(hostChangeHandler);
       doc.getMap('participants').unobserveDeep(observeHandler);
       doc.getArray('rounds').unobserveDeep(observeHandler);
       conn.disconnect();

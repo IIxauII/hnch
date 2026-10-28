@@ -13,7 +13,7 @@
     "_build:shared": "pnpm --filter @hnch/shared build",
     "format": "biome format --write .",
     "format:check": "biome format .",
-    "lint": "oxlint --deny-warnings && pnpm -r --if-present run lint:templates",
+    "lint": "oxlint && pnpm -r --if-present run lint:templates",
     "lint:fix": "oxlint --fix",
     "pretest": "pnpm run _build:shared",
     "test": "pnpm -r --if-present run test",

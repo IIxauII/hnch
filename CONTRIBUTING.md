@@ -129,6 +129,8 @@ It is three and not one because Biome 2.x has no Angular HTML support and Oxlint
 
 Root commands: `pnpm format` / `pnpm format:check`, `pnpm lint` / `pnpm lint:fix`, `pnpm typecheck`. Each runs in ~100-150 ms over the tree. Every package has `typecheck` + `lint` + `format:check`, so the CI matrix has uniform per-package visibility.
 
+The per-package `lint` / `format:check` scripts call the root's `oxlint` / `biome`. pnpm only puts the root's `node_modules/.bin` on a package script's PATH when `ignore-scripts` is off, so with `ignore-scripts=true` in your npmrc they fail with `spawn ENOENT`. Run the root commands instead, or pass `--config.ignore-scripts=false`.
+
 ### Oxlint calibration
 
 - `correctness` / `suspicious` / `perf` → **error**

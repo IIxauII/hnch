@@ -1,16 +1,17 @@
 /**
- * SessionEndService unit tests.
+ * SessionEndService unit tests — the client's sink for the session events
+ * driver's `ended` event.
  *
- * Uses Angular TestBed so the real service instance (including its
- * effect() wiring) is exercised. Driving the effect by mutating the
- * DocService signal mock proves the production sequencing — not a
- * hand-rolled copy of it.
+ * The rule (once per `sessionEndedAt`, local vs remote, the name chain) is
+ * the shared driver's and is tested there. What is tested here is the sink:
+ * a fake `onSessionEvent` captures the service's listener and hand-built
+ * events are pushed through it, as `DocService` would deliver them.
  */
 
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { signal } from '@angular/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { SessionEvent } from '@hnch/shared';
 
 vi.mock('@ionic/angular/standalone', () => ({}));
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false } }));
@@ -24,28 +25,36 @@ import { ToastService } from '../services/toast.service';
 // Helpers
 // ---------------------------------------------------------------------------
 
-type MetaLike = { sessionEndedAt?: number | null; createdBy?: string; roomUuid?: string } | null;
+const ENDED: SessionEvent = {
+  kind: 'ended',
+  endedAt: 100,
+  endedLocally: false,
+  hostId: 'p-host',
+  hostName: 'Hana',
+  message: 'Session ended by Hana',
+};
 
 function makeDocMock() {
-  const metaSignal = signal<MetaLike>(null);
-
+  let listener: ((event: SessionEvent) => void) | null = null;
   return {
-    meta: metaSignal.asReadonly(),
-    _metaSignal: metaSignal,
-    hasSession: vi.fn(() => true),
-    endingSessionLocally: vi.fn(() => false),
+    onSessionEvent: vi.fn((l: (event: SessionEvent) => void) => {
+      listener = l;
+      return () => {
+        listener = null;
+      };
+    }),
     // The UUID the relay issued. `meta().roomUuid` is the doc's word for it.
     relayRoomUuid: vi.fn<() => string | null>(() => 'relay-uuid'),
     teardown: vi.fn(),
-    participants: vi.fn(() => []),
-    settings: vi.fn(() => null),
+    /** Deliver an event as `DocService` would. */
+    push(event: SessionEvent): void {
+      listener?.(event);
+    },
   };
 }
 
-/** Flush Angular effects + drain the microtask queue enough for async handlers. */
+/** Drain the microtask queue enough for the async sink chain. */
 async function flushAll(): Promise<void> {
-  TestBed.flushEffects();
-  // drain microtask queue for async handleSessionEnd chain
   for (let i = 0; i < 8; i++) {
     await Promise.resolve();
   }
@@ -90,7 +99,7 @@ describe('SessionEndService', () => {
     TestBed.resetTestingModule();
   });
 
-  it('happy path: teardown → forget the session → toast → navigate in order', async () => {
+  it("happy path: teardown → forget the session → toast the event's message → navigate, in order", async () => {
     const callOrder: string[] = [];
     docMock.teardown.mockImplementation(() => {
       callOrder.push('teardown');
@@ -106,15 +115,13 @@ describe('SessionEndService', () => {
       return true;
     });
 
-    // Instantiate the real service — its effect() registers but hasn't fired yet.
     TestBed.inject(SessionEndService);
-
-    // Drive a remote session-end: write sessionEndedAt into meta signal.
-    docMock._metaSignal.set({ sessionEndedAt: Date.now(), createdBy: 'host-1' });
-
+    docMock.push(ENDED);
     await flushAll();
 
     expect(callOrder).toEqual(['teardown', 'clear', 'toast', 'navigate']);
+    expect(toastMock.info).toHaveBeenCalledExactlyOnceWith('Session ended by Hana');
+    expect(routerMock.navigate).toHaveBeenCalledWith(['/home']);
   });
 
   it('failure path: the cache cannot be written → warn logged, toast + navigate still called', async () => {
@@ -138,9 +145,7 @@ describe('SessionEndService', () => {
     });
 
     TestBed.inject(SessionEndService);
-
-    docMock._metaSignal.set({ sessionEndedAt: Date.now(), createdBy: 'host-1' });
-
+    docMock.push(ENDED);
     await flushAll();
 
     expect(warnSpy).toHaveBeenCalledWith('Failed to clear lastSession cache:', clearError);
@@ -154,13 +159,7 @@ describe('SessionEndService', () => {
   // The doc is writable by everyone in the session, its UUID included.
   it('forgets the session by the UUID the relay issued, not the one in the doc', async () => {
     TestBed.inject(SessionEndService);
-
-    docMock._metaSignal.set({
-      sessionEndedAt: Date.now(),
-      createdBy: 'host-1',
-      roomUuid: 'uuid-from-the-doc',
-    });
-
+    docMock.push(ENDED);
     await flushAll();
 
     expect(lastSessionMock.removeByUuid).toHaveBeenCalledExactlyOnceWith('relay-uuid');
@@ -170,9 +169,7 @@ describe('SessionEndService', () => {
   it('forgets nothing else when there is no UUID to go by', async () => {
     docMock.relayRoomUuid.mockReturnValue(null);
     TestBed.inject(SessionEndService);
-
-    docMock._metaSignal.set({ sessionEndedAt: Date.now(), createdBy: 'host-1' });
-
+    docMock.push(ENDED);
     await flushAll();
 
     expect(docMock.teardown).toHaveBeenCalledOnce();
@@ -180,17 +177,29 @@ describe('SessionEndService', () => {
     expect(lastSessionMock.clearAll).not.toHaveBeenCalled();
   });
 
-  it('no-op when no active session: clear/toast/navigate never called', async () => {
-    docMock.hasSession.mockReturnValue(false);
-
+  it('ignores the other kinds of session event', async () => {
     TestBed.inject(SessionEndService);
-
-    docMock._metaSignal.set({ sessionEndedAt: Date.now(), createdBy: 'host-1' });
-
+    docMock.push({
+      kind: 'removed',
+      leftAt: 10,
+      removedBy: 'p-host',
+      removedByName: 'Hana',
+      message: 'Removed by host',
+    });
+    docMock.push({
+      kind: 'host-changed',
+      previousHostId: 'p-host',
+      previousHostName: 'Hana',
+      hostId: 'p-jo',
+      hostName: 'Jo',
+      cause: null,
+      wasSelf: false,
+      isSelf: false,
+      message: 'Jo is now the host',
+    });
     await flushAll();
 
-    expect(lastSessionMock.clearAll).not.toHaveBeenCalled();
-    expect(lastSessionMock.removeByUuid).not.toHaveBeenCalled();
+    expect(docMock.teardown).not.toHaveBeenCalled();
     expect(toastMock.info).not.toHaveBeenCalled();
     expect(routerMock.navigate).not.toHaveBeenCalled();
   });

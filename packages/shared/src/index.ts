@@ -67,5 +67,9 @@ export * from './round-presentation.js';
 export * from './round-transitions.js';
 export * from './scales.js';
 export * from './session-commands.js';
+// `host-change-message` stays package-internal: both surfaces reach its text
+// through `SessionEvent.message`, so the wording has one path. Only its
+// `HostChangeCause` type is re-exported, through `session-events`.
+export * from './session-events.js';
 export * from './screen-for.js';
 export * from './vote-commands.js';

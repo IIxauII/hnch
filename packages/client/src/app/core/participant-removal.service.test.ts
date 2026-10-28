@@ -1,15 +1,17 @@
 /**
- * ParticipantRemovalService unit tests (ADR-0036).
+ * ParticipantRemovalService unit tests (ADR-0036 §5) — the client's sink for
+ * the session events driver's `removed` event.
  *
- * Uses Angular TestBed so the real service (including its effect() wiring)
- * is exercised. Each scenario mutates the DocService signal mock and then
- * flushes effects + microtasks to observe the side-effects.
+ * The rule (voluntary leave, the first-sync gate, stale and double-fire
+ * guards) is the shared driver's and is tested there. What is tested here is
+ * the sink: a fake `onSessionEvent` captures the service's listener and
+ * hand-built events are pushed through it, as `DocService` would deliver them.
  */
 
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { signal } from '@angular/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { SessionEvent } from '@hnch/shared';
 
 vi.mock('@ionic/angular/standalone', () => ({}));
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false } }));
@@ -17,51 +19,47 @@ vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false }
 import { ParticipantRemovalService } from './participant-removal.service';
 import { DocService } from './doc/doc.service';
 import { LastSessionService } from './last-session.service';
-import { ParticipantIdService } from './participant-id.service';
 import { ToastService } from '../services/toast.service';
 
 // ---------------------------------------------------------------------------
-// Types + helpers
+// Helpers
 // ---------------------------------------------------------------------------
 
-interface ParticipantLike {
-  id: string;
-  displayName: string;
-  joinedAt: number;
-  leftAt?: number;
-  removedBy?: string;
-}
+const REMOVED: SessionEvent = {
+  kind: 'removed',
+  leftAt: 1_700_000_000_001,
+  removedBy: 'host-1',
+  removedByName: 'Hana',
+  message: 'Removed by host',
+};
 
-function makeDocMock(_selfId: string) {
-  const participantsSignal = signal<ParticipantLike[]>([]);
-  const hasSessionSignal = signal(true);
-  const hasFirstSyncCompletedSignal = signal(true);
-
+function makeDocMock() {
+  let listener: ((event: SessionEvent) => void) | null = null;
   return {
-    participants: participantsSignal.asReadonly(),
-    _participantsSignal: participantsSignal,
-    hasSession: hasSessionSignal.asReadonly(),
-    _hasSessionSignal: hasSessionSignal,
-    hasFirstSyncCompleted: hasFirstSyncCompletedSignal.asReadonly(),
-    _hasFirstSyncCompletedSignal: hasFirstSyncCompletedSignal,
+    onSessionEvent: vi.fn((l: (event: SessionEvent) => void) => {
+      listener = l;
+      return () => {
+        listener = null;
+      };
+    }),
     teardown: vi.fn(),
     // What the doc says its UUID is — which any participant can rewrite...
     meta: vi.fn(() => ({ roomUuid: 'uuid-from-the-doc' })),
     // ...and the one the relay issued, which the entry was recorded under.
     relayRoomUuid: vi.fn<() => string | null>(() => 'test-uuid'),
+    /** Deliver an event as `DocService` would. */
+    push(event: SessionEvent): void {
+      listener?.(event);
+    },
   };
 }
 
-/** Flush Angular effects and drain the microtask queue. */
+/** Drain the microtask queue enough for the async sink chain. */
 async function flushAll(): Promise<void> {
-  TestBed.flushEffects();
   for (let i = 0; i < 8; i++) {
     await Promise.resolve();
   }
 }
-
-const SELF_ID = 'device-self';
-const NOW = 1_700_000_000_000;
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -77,15 +75,8 @@ describe('ParticipantRemovalService', () => {
   let toastMock: { info: ReturnType<typeof vi.fn> };
   let routerMock: { navigate: ReturnType<typeof vi.fn> };
 
-  function setup() {
-    TestBed.inject(ParticipantRemovalService);
-    // ensure the initial effect run with no record sees nothing
-    docMock._participantsSignal.set([{ id: SELF_ID, displayName: 'Me', joinedAt: NOW }]);
-    TestBed.flushEffects();
-  }
-
   beforeEach(() => {
-    docMock = makeDocMock(SELF_ID);
+    docMock = makeDocMock();
     lastSessionMock = {
       clear: vi.fn(async () => {}),
       removeByUuid: vi.fn(async () => {}),
@@ -99,10 +90,6 @@ describe('ParticipantRemovalService', () => {
         ParticipantRemovalService,
         { provide: DocService, useValue: docMock },
         { provide: LastSessionService, useValue: lastSessionMock },
-        {
-          provide: ParticipantIdService,
-          useValue: { id: () => SELF_ID },
-        },
         { provide: ToastService, useValue: toastMock },
         { provide: Router, useValue: routerMock },
       ],
@@ -114,47 +101,47 @@ describe('ParticipantRemovalService', () => {
     vi.clearAllMocks();
   });
 
-  it('kick (leftAt set, removedBy !== self) triggers toast + nav + teardown exactly once', async () => {
-    setup();
+  it('removal: teardown → forget → toast → navigate, in order and exactly once', async () => {
+    const callOrder: string[] = [];
+    docMock.teardown.mockImplementation(() => {
+      callOrder.push('teardown');
+    });
+    lastSessionMock.removeByUuid.mockImplementation(async () => {
+      callOrder.push('clear');
+    });
+    toastMock.info.mockImplementation(async () => {
+      callOrder.push('toast');
+    });
+    routerMock.navigate.mockImplementation(async () => {
+      callOrder.push('navigate');
+      return true;
+    });
 
-    // Host kicks us
-    docMock._participantsSignal.set([
-      { id: SELF_ID, displayName: 'Me', joinedAt: NOW, leftAt: NOW + 1, removedBy: 'host-1' },
-    ]);
-
+    TestBed.inject(ParticipantRemovalService);
+    docMock.push(REMOVED);
     await flushAll();
 
-    expect(docMock.teardown).toHaveBeenCalledOnce();
+    expect(callOrder).toEqual(['teardown', 'clear', 'toast', 'navigate']);
     expect(lastSessionMock.removeByUuid).toHaveBeenCalledWith('test-uuid');
-    expect(toastMock.info).toHaveBeenCalledOnce();
-    expect(toastMock.info).toHaveBeenCalledWith('Removed by host');
-    expect(routerMock.navigate).toHaveBeenCalledOnce();
-    expect(routerMock.navigate).toHaveBeenCalledWith(['/home']);
+    expect(toastMock.info).toHaveBeenCalledExactlyOnceWith('Removed by host');
+    expect(routerMock.navigate).toHaveBeenCalledExactlyOnceWith(['/home']);
   });
 
   // The doc is writable by everyone in the session. Whoever rewrote its UUID
   // would otherwise decide which of this device's sessions is forgotten.
-  it('kick: forgets the session by the UUID the relay issued, not the one in the doc', async () => {
-    setup();
-
-    docMock._participantsSignal.set([
-      { id: SELF_ID, displayName: 'Me', joinedAt: NOW, leftAt: NOW + 1, removedBy: 'host-1' },
-    ]);
-
+  it('removal: forgets the session by the UUID the relay issued, not the one in the doc', async () => {
+    TestBed.inject(ParticipantRemovalService);
+    docMock.push(REMOVED);
     await flushAll();
 
     expect(lastSessionMock.removeByUuid).toHaveBeenCalledExactlyOnceWith('test-uuid');
     expect(lastSessionMock.clearAll).not.toHaveBeenCalled();
   });
 
-  it('kick: forgets nothing else when there is no UUID to go by', async () => {
-    docMock.relayRoomUuid = vi.fn(() => null);
-    setup();
-
-    docMock._participantsSignal.set([
-      { id: SELF_ID, displayName: 'Me', joinedAt: NOW, leftAt: NOW + 1, removedBy: 'host-1' },
-    ]);
-
+  it('removal: forgets nothing else when there is no UUID to go by', async () => {
+    docMock.relayRoomUuid.mockReturnValue(null);
+    TestBed.inject(ParticipantRemovalService);
+    docMock.push(REMOVED);
     await flushAll();
 
     expect(docMock.teardown).toHaveBeenCalledOnce();
@@ -162,111 +149,31 @@ describe('ParticipantRemovalService', () => {
     expect(lastSessionMock.removeByUuid).not.toHaveBeenCalled();
   });
 
-  it('voluntary leave (removedBy === self) does NOT trigger kick handler', async () => {
-    setup();
-
-    docMock._participantsSignal.set([
-      { id: SELF_ID, displayName: 'Me', joinedAt: NOW, leftAt: NOW + 1, removedBy: SELF_ID },
-    ]);
-
-    await flushAll();
-
-    expect(docMock.teardown).not.toHaveBeenCalled();
-    expect(toastMock.info).not.toHaveBeenCalled();
-    expect(routerMock.navigate).not.toHaveBeenCalled();
-  });
-
-  it('double-fire guard: same leftAt value observed twice fires handler once', async () => {
-    setup();
-
-    const kicked: ParticipantLike = {
-      id: SELF_ID,
-      displayName: 'Me',
-      joinedAt: NOW,
-      leftAt: NOW + 1,
-      removedBy: 'host-1',
-    };
-
-    docMock._participantsSignal.set([kicked]);
-    await flushAll();
-
-    // Same signal value again (simulate spurious re-emission)
-    docMock._participantsSignal.set([{ ...kicked }]);
-    await flushAll();
-
-    expect(docMock.teardown).toHaveBeenCalledOnce();
-    expect(toastMock.info).toHaveBeenCalledOnce();
-  });
-
-  it('stale-rejoin guard: leftAt already set at subscription time does NOT fire', async () => {
-    // Simulate IDB loading a prior-session record that already has leftAt set
-    // when the service first sees it — must not trigger the kick handler.
-    docMock._participantsSignal.set([
-      { id: SELF_ID, displayName: 'Me', joinedAt: NOW, leftAt: NOW - 1000, removedBy: 'host-1' },
-    ]);
-
-    // Instantiate the service — effect runs immediately with leftAt already set
+  it('ignores the other kinds of session event', async () => {
     TestBed.inject(ParticipantRemovalService);
+    docMock.push({
+      kind: 'ended',
+      endedAt: 100,
+      endedLocally: false,
+      hostId: 'host-1',
+      hostName: 'Hana',
+      message: 'Session ended by Hana',
+    });
+    docMock.push({
+      kind: 'host-changed',
+      previousHostId: 'host-1',
+      previousHostName: 'Hana',
+      hostId: 'p-jo',
+      hostName: 'Jo',
+      cause: null,
+      wasSelf: false,
+      isSelf: false,
+      message: 'Jo is now the host',
+    });
     await flushAll();
 
     expect(docMock.teardown).not.toHaveBeenCalled();
     expect(toastMock.info).not.toHaveBeenCalled();
     expect(routerMock.navigate).not.toHaveBeenCalled();
-  });
-
-  it('no-op when hasSession is false', async () => {
-    docMock._hasSessionSignal.set(false);
-    TestBed.inject(ParticipantRemovalService);
-    await flushAll();
-
-    expect(docMock.teardown).not.toHaveBeenCalled();
-    expect(toastMock.info).not.toHaveBeenCalled();
-  });
-
-  it('first-sync gate: leftAt transition before sync completes does NOT fire kick handler', async () => {
-    // Simulate the rejoin race: hasFirstSyncCompleted is false (snapshot still applying)
-    docMock._hasFirstSyncCompletedSignal.set(false);
-    setup();
-
-    // Snapshot apply brings in a prior-kick leftAt
-    docMock._participantsSignal.set([
-      { id: SELF_ID, displayName: 'Me', joinedAt: NOW, leftAt: NOW + 1, removedBy: 'host-1' },
-    ]);
-
-    await flushAll();
-
-    expect(docMock.teardown).not.toHaveBeenCalled();
-    expect(toastMock.info).not.toHaveBeenCalled();
-    expect(routerMock.navigate).not.toHaveBeenCalled();
-  });
-
-  it('first-sync gate: kick fires after sync completes and a fresh undefined→number transition', async () => {
-    // Start with sync not yet complete
-    docMock._hasFirstSyncCompletedSignal.set(false);
-    setup();
-
-    // Snapshot apply — stale leftAt arrives; gate suppresses it
-    docMock._participantsSignal.set([
-      { id: SELF_ID, displayName: 'Me', joinedAt: NOW, leftAt: NOW - 500, removedBy: 'host-1' },
-    ]);
-    await flushAll();
-
-    // clearOwnLeftStatus fires — participant is now active again
-    docMock._participantsSignal.set([{ id: SELF_ID, displayName: 'Me', joinedAt: NOW }]);
-    await flushAll();
-
-    // Sync complete — gate opens
-    docMock._hasFirstSyncCompletedSignal.set(true);
-    await flushAll();
-
-    // Live kick arrives now (undefined → defined after sync)
-    docMock._participantsSignal.set([
-      { id: SELF_ID, displayName: 'Me', joinedAt: NOW, leftAt: NOW + 1000, removedBy: 'host-1' },
-    ]);
-    await flushAll();
-
-    expect(docMock.teardown).toHaveBeenCalledOnce();
-    expect(toastMock.info).toHaveBeenCalledWith('Removed by host');
-    expect(routerMock.navigate).toHaveBeenCalledWith(['/home']);
   });
 });
