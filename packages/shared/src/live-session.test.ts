@@ -7,10 +7,9 @@
  * That is what lets this one suite stand for both surfaces: the client's
  * `DocService` and the CLI's session module are adapters over exactly this.
  *
- * The relay is the real server, started in this process and loaded from its
- * source by relative path. The relay resolves `@hnch/shared` through that
- * package's build output, so shared must be built first (the root
- * `pnpm test` does it).
+ * The relay is the real server, started through the `@hnch/relay/testing`
+ * harness; the vitest config aliases `@hnch/shared` to source, so the relay
+ * runs against the code under test and no build is needed first.
  *
  * Two details of the harness matter:
  *
@@ -27,13 +26,10 @@
  *    left those retries hanging.
  */
 
-import type { Server } from 'node:http';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as Y from 'yjs';
 import WebSocket from 'ws';
-import { createCodePool } from '../../relay/src/code-pool.js';
-import { createRoomStore } from '../../relay/src/room-store.js';
-import { createRelayServer } from '../../relay/src/server.js';
+import { startTestRelay, type TestRelay } from '@hnch/relay/testing';
 import type { JoinRejectionReason } from './auth.js';
 import { initDoc, type DocProjection } from './doc-projection.js';
 import { FIBONACCI_SCALE, isActiveParticipant } from './doc.js';
@@ -60,24 +56,17 @@ const SYNC_TIMEOUT = 8_000;
 // 5 s debounce for real.
 vi.setConfig({ testTimeout: 20_000 });
 
-let server: Server;
-let port: number;
+let relay: TestRelay;
+let relayPort: string;
 
 beforeAll(async () => {
-  server = createRelayServer({ roomStore: createRoomStore(createCodePool()) });
-  await new Promise<void>((resolve) => {
-    server.listen(0, () => {
-      const addr = server.address();
-      port = typeof addr === 'object' && addr !== null ? addr.port : 0;
-      resolve();
-    });
-  });
+  relay = await startTestRelay();
+  relayPort = new URL(relay.httpUrl).port;
+  if (relayPort === '') throw new Error(`test relay URL has no port: ${relay.httpUrl}`);
 });
 
 afterAll(async () => {
-  await new Promise<void>((resolve) => {
-    server.close(() => resolve());
-  });
+  await relay.stop();
 });
 
 /**
@@ -87,7 +76,7 @@ afterAll(async () => {
  */
 function relayUrl(n = 0): string {
   const hosts = ['localhost', '127.0.0.1', 'LOCALHOST', 'Localhost'];
-  return `http://${hosts[n % hosts.length]}:${port}`;
+  return `http://${hosts[n % hosts.length]}:${relayPort}`;
 }
 
 function pause(ms: number): Promise<void> {

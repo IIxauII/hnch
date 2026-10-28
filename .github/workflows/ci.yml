@@ -118,6 +118,12 @@ jobs:
           if [[ "$shared" == "true" ]]; then
             relay=true; client=true; cli=true; e2e=true
           fi
+          # relay change re-runs the CLI and shared suites, which test against
+          # the relay through the @hnch/relay/testing harness. After the shared
+          # block so it does not fan out to client/e2e via shared.
+          if [[ "$relay" == "true" ]]; then
+            cli=true; shared=true
+          fi
           # client or relay change requires e2e.
           if [[ "$client" == "true" || "$relay" == "true" ]]; then
             e2e=true
