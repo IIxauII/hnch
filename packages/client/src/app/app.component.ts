@@ -51,7 +51,7 @@ export class AppComponent {
   private readonly theme = inject(ThemeService);
 
   constructor() {
-    // Consume effect services to mark them as used
+    // Consume the eagerly created services to mark them as used
     void this.sessionEnd;
     void this.sessionRejection;
     void this.participantRemoval;
