@@ -14,6 +14,7 @@
  *   peer's y-protocols would throw on it otherwise) and never reads it.
  */
 
+import { MAX_ROOM_PARTICIPANTS } from '@hnch/shared/auth';
 import * as decoding from 'lib0/decoding';
 import * as encoding from 'lib0/encoding';
 
@@ -67,7 +68,7 @@ export const MAX_STATES_PER_SOCKET = 8;
 export const MAX_STATE_BYTES = 1024;
 
 /** Sockets one room admits (ADR-0024); the relay's own frames are sized for it. */
-const ROOM_CAP = 20;
+const ROOM_CAP = MAX_ROOM_PARTICIPANTS;
 
 /**
  * The most an awareness update may weigh. A joiner's y-websocket echoes the
@@ -115,7 +116,9 @@ export class Presence {
     if (update.byteLength > MAX_AWARENESS_BYTES) {
       throw new AwarenessTooLargeError(`awareness update over ${MAX_AWARENESS_BYTES} bytes`);
     }
-    const decoder = decoding.createDecoder(update);
+    // A copy: `update` is a view into the whole frame, and lib0 bounds-checks a
+    // string's length only against the buffer, so it could read past the update.
+    const decoder = decoding.createDecoder(update.slice());
     const count = decoding.readVarUint(decoder);
     const entries: Entry[] = [];
     for (let i = 0; i < count; i++) {

@@ -8,6 +8,8 @@ import { evictDurableObject, runInDurableObject } from 'cloudflare:test';
 import * as decoding from 'lib0/decoding';
 import * as encoding from 'lib0/encoding';
 import { describe, expect, it } from 'vitest';
+import { MAX_ROOM_PARTICIPANTS } from '@hnch/shared/auth';
+import { MAX_STATES_PER_SOCKET } from './presence';
 import type { RoomMeta } from './room';
 import { Peer, createRoom, eventually } from './test-support/peer';
 
@@ -181,17 +183,20 @@ describe('a full room', () => {
   it('accepts the echo of a joiner that was sent every state at the largest size', async () => {
     const { uuid } = await createRoom();
     const holders: Peer[] = [];
-    // 19 sockets x 8 states of nearly the largest size; the 20th seat is the joiner's.
-    for (let i = 0; i < 19; i++) {
+    // Every seat but the joiner's holds as many states as it may, of nearly the
+    // largest size.
+    const seats = MAX_ROOM_PARTICIPANTS - 1;
+    const per = MAX_STATES_PER_SOCKET;
+    for (let i = 0; i < seats; i++) {
       const peer = await Peer.join(uuid);
-      const ids = Array.from({ length: 8 }, (_, j) => 100_000 + i * 8 + j);
+      const ids = Array.from({ length: per }, (_, j) => 100_000 + i * per + j);
       peer.send(announceFrame(ids, 990));
       holders.push(peer);
     }
     await settle();
 
     const joiner = await Peer.join(uuid);
-    await eventually(() => expect(joiner.awareness.getStates().size).toBe(19 * 8 + 1), 5_000);
+    await eventually(() => expect(joiner.awareness.getStates().size).toBe(seats * per + 1), 5_000);
 
     // The joiner's y-protocols echoed the whole opening presence in one update.
     // Frames are handled in order, so once the room relays what the joiner sends

@@ -82,7 +82,7 @@ packages/relay/
 3. **Check ADRs** before structural changes. Flag conflicts.
 4. **Extensionless relative imports** — wrangler bundles the Worker (`moduleResolution: Bundler`). Import shared only via `@hnch/shared/room-code`, `/auth`, `/health`.
 5. **Constant-time comparison** for password hashes — use existing helpers, do NOT introduce `===` on hash strings.
-6. **Close codes**: app-defined codes are 4001–4099 only (private use). RFC 6455 codes keep their RFC meaning and never carry an app meaning: the relay uses 1003 (frame it can't read), 1008 (policy, e.g. too many presence states) and 1011 (internal error).
+6. **Close codes**: app-defined codes are 4001–4099 only (private use). RFC 6455 codes keep their RFC meaning and never carry an app meaning: the relay uses 1003 (frame it can't read), 1008 (policy, e.g. too many presence states), 1009 (awareness state or frame too big) and 1011 (internal error).
 7. **Storage per ADR-0051.** Additive-only meta/RPC changes (old and new code run side by side ≥5 min). New storage kinds need an ADR.
 8. **Test edge cases.** Half-open sockets, simultaneous joins, pool exhaustion, expired snapshots.
 

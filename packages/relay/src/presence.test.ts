@@ -13,6 +13,7 @@ import {
   encodeAwarenessUpdate,
   removeAwarenessStates,
 } from 'y-protocols/awareness';
+import { MAX_ROOM_PARTICIPANTS } from '@hnch/shared/auth';
 import {
   AwarenessTooLargeError,
   MAX_AWARENESS_BYTES,
@@ -329,6 +330,28 @@ describe('Presence', () => {
       (_, i) => [1000 + i, 1, 'null'] as [number, number, string],
     );
     expect(() => presence.apply('socket-a', frameOf(entries), 0)).toThrow(AwarenessTooLargeError);
+  });
+
+  it('admits any update a full room can send, so no joiner echo is refused', () => {
+    // Per state: the text plus a client ID and a clock (varUint, at most 8 bytes each).
+    const largest = MAX_ROOM_PARTICIPANTS * MAX_STATES_PER_SOCKET * (MAX_STATE_BYTES + 16) + 16;
+    expect(MAX_AWARENESS_BYTES).toBeGreaterThanOrEqual(largest);
+  });
+
+  it('never reads a state past the end of the update', () => {
+    // The update is a view into a larger frame; its one state claims more bytes
+    // than the update holds, and the bytes after it would parse as JSON.
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, 1);
+    encoding.writeVarUint(encoder, 7);
+    encoding.writeVarUint(encoder, 1);
+    encoding.writeVarUint(encoder, 4);
+    const head = encoding.toUint8Array(encoder);
+    const frame = new Uint8Array([...head, ...new TextEncoder().encode('"ab"')]);
+    const update = frame.subarray(0, head.length);
+    const presence = new Presence();
+    expect(() => presence.apply('socket-a', update, 0)).toThrow();
+    expect(presence.clientIds()).toEqual([]);
   });
 
   it(`refuses a state over ${MAX_STATE_BYTES} bytes, and admits one just under`, () => {
