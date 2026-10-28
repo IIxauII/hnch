@@ -8,7 +8,6 @@ import {
   RISK_SCALE,
   SCALE_DISPLAY_NAMES,
   formatScaleId,
-  type AwarenessPayload,
   type Meta,
   type Participant,
   type Round,
@@ -150,20 +149,18 @@ describe('shape types', () => {
     expect(round.votes['device-abc']).toBe('5');
   });
 
-  it('Meta, Participant, and AwarenessPayload expose the documented fields', () => {
+  it('Meta and Participant expose the documented fields', () => {
     const meta: Meta = {
       roomUuid: 'uuid-1',
       createdAt: 0,
       createdBy: 'device-abc',
     };
     const participant: Participant = { displayName: 'Alice', joinedAt: 0 };
-    const awareness: AwarenessPayload = { participantId: 'device-abc' };
     // eslint-disable-next-line @typescript-eslint/no-unused-expressions
     const scale: Scale = FIBONACCI_SCALE;
 
     expect(meta.createdBy).toBe('device-abc');
     expect(participant.displayName).toBe('Alice');
-    expect(awareness.participantId).toBe('device-abc');
     expect(scale.cards.length).toBeGreaterThan(0);
   });
 });

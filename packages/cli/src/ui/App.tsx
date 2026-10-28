@@ -11,7 +11,6 @@ import type {
   SyncStatus,
 } from '@hnch/shared';
 import {
-  addItem as addAgendaItem,
   canEnterTerminal,
   currentRound,
   isRecordedStatus,
@@ -66,7 +65,7 @@ export function App({
   const { exit } = useApp();
   const [projection, setProjection] = useState<DocProjection>(session.projection());
   const [status, setStatus] = useState<SyncStatus>('connecting');
-  const [onlineIds, setOnlineIds] = useState<Set<string>>(session.onlineIds());
+  const [onlineIds, setOnlineIds] = useState<ReadonlySet<string>>(session.onlineIds());
   const [elapsedMs, setElapsedMs] = useState<number | undefined>();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [accessMode, setAccessMode] = useState<'open' | 'password'>(
@@ -95,18 +94,22 @@ export function App({
   const agendaNotice = useTransientNotice(3000);
 
   useEffect(() => {
-    const unsub1 = session.onChange(() => {
+    const sync = (): void => {
       setProjection(session.projection());
       setOnlineIds(session.onlineIds());
-    });
+    };
+    const unsub1 = session.onChange(sync);
+    // What changed between the first render and this subscription would
+    // otherwise wait for the next change to show.
+    sync();
     const unsub2 = session.onStatusChange(setStatus);
     const unsub3 = session.onSessionEvent((event) => {
       if (event.kind === 'host-changed') hostNotice.show(event.message);
     });
 
-    // Poll awareness for online IDs and update elapsed time each second
-    const awarenessInterval = setInterval(() => {
-      setOnlineIds(session.onlineIds());
+    // The online set arrives through `onChange` as presence changes; only the
+    // elapsed time needs a clock.
+    const elapsedInterval = setInterval(() => {
       const proj = session.projection();
       const round = currentRound(proj);
       if (round?.timerStartedAt !== undefined && canEnterTerminal(round.status)) {
@@ -120,7 +123,7 @@ export function App({
       unsub1();
       unsub2();
       unsub3();
-      clearInterval(awarenessInterval);
+      clearInterval(elapsedInterval);
     };
   }, [session, hostNotice.show]);
 
@@ -148,7 +151,7 @@ export function App({
   useInput(
     (input, key) => {
       if (input === 'y' || input === 'Y') {
-        session.disconnect();
+        session.teardown();
         exit();
       } else if (input === 'n' || input === 'N' || key.escape) {
         setConfirmingQuit(false);
@@ -423,7 +426,7 @@ export function App({
       // result is reported rather than dropped, so this path keeps parity with
       // the mobile form and the one-shot `hnch agenda add` instead of eating
       // the user's typing if that guard and the command ever disagree (#507).
-      const result = addAgendaItem(session.doc, {
+      const result = session.commands.addItem({
         ...(pendingAgendaTitle !== undefined && { title: pendingAgendaTitle }),
         ...(normalizedTicket !== undefined && { ticketId: normalizedTicket }),
       });
@@ -433,7 +436,7 @@ export function App({
       }
       setPendingAgendaTitle(undefined);
     },
-    [session.doc, pendingAgendaTitle, agendaNotice],
+    [session, pendingAgendaTitle, agendaNotice],
   );
 
   const handleAgendaAddTicketIdCancel = useCallback(() => {

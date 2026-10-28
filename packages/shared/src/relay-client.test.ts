@@ -50,6 +50,8 @@ class FakeWebSocket {
   readonly url: string;
   readyState = FakeWebSocket.CONNECTING;
   binaryType = 'blob';
+  /** Bytes queued but not yet handed to the network. */
+  bufferedAmount = 0;
   send = vi.fn();
   close = vi.fn(() => {
     this.readyState = FakeWebSocket.CLOSED;
@@ -1490,6 +1492,68 @@ describe('connectToRelay disconnect', () => {
     conn.disconnect();
 
     expect(onReconnectingChange).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// connectToRelay — flush
+// ---------------------------------------------------------------------------
+
+describe('connectToRelay flush', () => {
+  /** Start a flush and report whether it has resolved yet. */
+  function flushing(conn: RelayConnection, capMs: number): () => boolean {
+    let done = false;
+    void conn.flush(capMs).then(() => {
+      done = true;
+    });
+    return () => done;
+  }
+
+  it('resolves at once when nothing is waiting to be sent', async () => {
+    const conn = makeConnection();
+    connectSuccessfully();
+
+    const done = flushing(conn, 500);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(done()).toBe(true);
+  });
+
+  it('waits until what was queued has left the socket', async () => {
+    const conn = makeConnection();
+    connectSuccessfully();
+    latestSocket().bufferedAmount = 64;
+
+    const done = flushing(conn, 500);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(done()).toBe(false);
+
+    latestSocket().bufferedAmount = 0;
+    await vi.advanceTimersByTimeAsync(20);
+    expect(done()).toBe(true);
+  });
+
+  it('gives up at the cap rather than hold up a teardown', async () => {
+    const conn = makeConnection();
+    connectSuccessfully();
+    latestSocket().bufferedAmount = 64;
+
+    const done = flushing(conn, 200);
+    await vi.advanceTimersByTimeAsync(150);
+    expect(done()).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(70);
+    expect(done()).toBe(true);
+  });
+
+  it('resolves at once with no socket open', async () => {
+    const conn = makeConnection();
+    latestSocket().bufferedAmount = 64;
+
+    const done = flushing(conn, 500);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(done()).toBe(true);
   });
 });
 
