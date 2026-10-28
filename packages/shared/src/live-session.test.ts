@@ -437,6 +437,21 @@ describe('live session — projection', () => {
     expect(host.projection().meta.sessionEndedAt).toBeTypeOf('number');
   });
 
+  it('reports one projection for a write that touches two containers', async () => {
+    const { host } = await hostedRoom();
+    const item = host.session.commands.addItem({ title: 'Consumed' });
+    if (!item.applied) throw new Error(`addItem refused: ${item.reason}`);
+    expect(host.session.commands.startRound({ agendaItemId: item.id }).applied).toBe(true);
+    const before = host.log.filter((entry) => entry === 'projection').length;
+
+    // The reveal stamps the round and consumes the item, in one transaction.
+    expect(host.session.commands.revealCurrentRound().applied).toBe(true);
+
+    expect(host.log.filter((entry) => entry === 'projection').length).toBe(before + 1);
+    expect(host.projection().agenda[0]?.state).toBe('consumed');
+    expect(host.projection().rounds[0]?.status).toBe('revealed');
+  });
+
   it("a peer's agenda edit reaches the host", async () => {
     const { host, room } = await hostedRoom();
     const peer = await joinedPeer(room, 'peer');
@@ -554,6 +569,21 @@ describe('live session — before connect', () => {
     expect(peer.projection().settings.name).toBe('From the cache');
   });
 
+  it('a hook that fails, even at once, does not keep the session offline', async () => {
+    const room = await mintRoom(relayUrl());
+
+    const peer = openPeer({
+      id: 'host',
+      room,
+      seed: CREATE,
+      beforeConnect: () => {
+        throw new Error('no local cache here');
+      },
+    });
+
+    await vi.waitFor(() => expect(peer.synced()).toBe(true), { timeout: SYNC_TIMEOUT });
+  });
+
   it('a teardown while the hook runs opens no socket', async () => {
     const room = await mintRoom(relayUrl());
     const held = heldConnect();
@@ -630,16 +660,18 @@ describe('live session — host election', () => {
       timeout: HOST_ABSENCE_ELECTION_DEBOUNCE_MS + SYNC_TIMEOUT,
     });
     // In sync, this peer can vouch that the host's connection went.
-    await vi.waitFor(() =>
-      expect(peer.events).toContainEqual(
-        expect.objectContaining({
-          kind: 'host-changed',
-          hostId: 'peer',
-          isSelf: true,
-          cause: 'disconnected',
-          message: 'Hana disconnected. You are now the host.',
-        }),
-      ),
+    await vi.waitFor(
+      () =>
+        expect(peer.events).toContainEqual(
+          expect.objectContaining({
+            kind: 'host-changed',
+            hostId: 'peer',
+            isSelf: true,
+            cause: 'disconnected',
+            message: 'Hana disconnected. You are now the host.',
+          }),
+        ),
+      { timeout: SYNC_TIMEOUT },
     );
   });
 });
@@ -679,10 +711,12 @@ describe('live session — session events', () => {
     });
 
     expect(host.session.commands.handoffHost('peer').applied).toBe(true);
-    await vi.waitFor(() =>
-      expect(peer.events).toContainEqual(
-        expect.objectContaining({ kind: 'host-changed', previousHostId: 'host', isSelf: true }),
-      ),
+    await vi.waitFor(
+      () =>
+        expect(peer.events).toContainEqual(
+          expect.objectContaining({ kind: 'host-changed', previousHostId: 'host', isSelf: true }),
+        ),
+      { timeout: SYNC_TIMEOUT },
     );
     expect(peer.session.commands.kick('other').applied).toBe(true);
 

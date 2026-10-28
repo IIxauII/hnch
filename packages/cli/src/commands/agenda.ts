@@ -14,7 +14,7 @@
 import { resolveRoom, type AgendaItem, type AgendaResult } from '@hnch/shared';
 import { loadConfig } from '../config.js';
 import { readEntries } from '../last-session.js';
-import { openSession, type SessionHandle } from '../session.js';
+import { openSession, type OpenSessionOptions, type SessionHandle } from '../session.js';
 
 /** How long a command waits for the room's state before acting regardless. */
 export const FIRST_SYNC_FALLBACK_MS = 2000;
@@ -61,16 +61,7 @@ function agendaRefusal(reason: Extract<AgendaResult, { applied: false }>['reason
   }
 }
 
-interface AgendaConnectionOpts {
-  relayUrl: string;
-  participantId: string;
-  displayName: string;
-  roomCode: string;
-  roomUuid: string;
-  passwordHash?: string;
-}
-
-async function openAgendaConnection(opts: AgendaConnectionOpts): Promise<SessionHandle> {
+async function openAgendaConnection(opts: OpenSessionOptions): Promise<SessionHandle> {
   const session = openSession(opts);
 
   // Act once the room's state has arrived. A socket that is merely open has

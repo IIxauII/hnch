@@ -94,10 +94,14 @@ export function App({
   const agendaNotice = useTransientNotice(3000);
 
   useEffect(() => {
-    const unsub1 = session.onChange(() => {
+    const sync = (): void => {
       setProjection(session.projection());
       setOnlineIds(session.onlineIds());
-    });
+    };
+    const unsub1 = session.onChange(sync);
+    // What changed between the first render and this subscription would
+    // otherwise wait for the next change to show.
+    sync();
     const unsub2 = session.onStatusChange(setStatus);
     const unsub3 = session.onSessionEvent((event) => {
       if (event.kind === 'host-changed') hostNotice.show(event.message);

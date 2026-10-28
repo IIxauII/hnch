@@ -299,20 +299,30 @@ export function openLiveSession(options: OpenLiveSessionOptions): LiveSession {
     };
   };
 
-  // 2. Change tracking on every top-level container.
-  const containers = [
+  // 2. Change tracking on every top-level container. Once per transaction,
+  // after its observers have run: the first sync, for one, touches all five
+  // at once, and one projection of the final state is all anyone needs.
+  const containers: ReadonlySet<unknown> = new Set([
     doc.getMap(DOC_META_KEY),
     doc.getMap(DOC_SETTINGS_KEY),
     doc.getMap(DOC_PARTICIPANTS_KEY),
     doc.getArray(DOC_ROUNDS_KEY),
     doc.getArray(DOC_AGENDA_KEY),
-  ];
-  const onDocChange = (): void => {
+  ]);
+  const touchesContainers = (transaction: Y.Transaction): boolean => {
+    // Every type a change sits under, up to its root.
+    for (const type of transaction.changedParentTypes.keys()) {
+      if (containers.has(type)) return true;
+    }
+    return false;
+  };
+  const onTransaction = (transaction: Y.Transaction): void => {
+    if (!touchesContainers(transaction)) return;
     projection = projectDoc(doc);
     options.onProjectionChange?.(projection);
     notifyDrivers();
   };
-  for (const container of containers) container.observeDeep(onDocChange);
+  doc.on('afterTransaction', onTransaction);
 
   const onPresenceChange = (): void => {
     const next = onlineIdsFrom(awareness.getStates());
@@ -392,8 +402,12 @@ export function openLiveSession(options: OpenLiveSessionOptions): LiveSession {
     connect();
   } else {
     // A hook that fails does not keep the session offline: what it loads is a
-    // head start (ADR-0004), not a precondition. Its errors are its own.
-    void beforeConnect(doc).then(connect, connect);
+    // head start (ADR-0004), not a precondition. Its errors are its own — a
+    // synchronous throw included, which must not escape with the drivers
+    // already running and no handle to tear them down by.
+    void Promise.resolve()
+      .then(() => beforeConnect(doc))
+      .then(connect, connect);
   }
 
   function connect(): void {
@@ -476,7 +490,7 @@ export function openLiveSession(options: OpenLiveSessionOptions): LiveSession {
       sessionEvents.stop();
       autoReveal.stop();
       election.stop();
-      for (const container of containers) container.unobserveDeep(onDocChange);
+      doc.off('afterTransaction', onTransaction);
       awareness.off('change', onPresenceChange);
       connection?.disconnect();
       connection = null;

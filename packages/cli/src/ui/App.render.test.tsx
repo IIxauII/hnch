@@ -99,6 +99,7 @@ function makeSession(
     },
     onStatusChange: () => () => undefined,
     onSessionEvent: overrides.onSessionEvent ?? (() => () => undefined),
+    flushUpdates: vi.fn().mockResolvedValue(undefined),
     teardown: vi.fn(),
   };
 
@@ -480,6 +481,23 @@ describe('App — follows the live session', () => {
     await act(async () => {
       setOnline(new Set(['host', 'ada']));
     });
+    await flush();
+
+    expect(lastFrame()).toMatch(/● Ada/);
+  });
+
+  it('shows a change reported between its first render and its subscription', async () => {
+    const { session } = makeSession({ participants: ROSTER });
+    // Ada arrives after the first read, with no change event to say so.
+    let reads = 0;
+    session.onlineIds = () => {
+      reads += 1;
+      return reads === 1 ? new Set(['host']) : new Set(['host', 'ada']);
+    };
+
+    const { lastFrame } = await renderInk(
+      <App session={session} participantId="host" displayName="Host" accessMode="open" />,
+    );
     await flush();
 
     expect(lastFrame()).toMatch(/● Ada/);
