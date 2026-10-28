@@ -60,10 +60,30 @@ interface Entry {
  */
 export const MAX_STATES_PER_SOCKET = 8;
 
-/** The most an awareness update may weigh: a few dozen small states at most. */
-export const MAX_AWARENESS_BYTES = 64 * 1024;
+/**
+ * The most one state may weigh (its JSON text and length prefix). A hnch client
+ * announces `{"participantId": "<uuid>"}`, about 60 bytes.
+ */
+export const MAX_STATE_BYTES = 1024;
 
-/** An awareness update past {@link MAX_AWARENESS_BYTES}. */
+/** Sockets one room admits (ADR-0024); the relay's own frames are sized for it. */
+const ROOM_CAP = 20;
+
+/**
+ * The most an awareness update may weigh. A joiner's y-websocket echoes the
+ * whole opening presence as one update, so this must fit every state a full
+ * room can hold: cap x states per socket x (state + client ID and clock).
+ * That is about 163 KiB.
+ */
+export const MAX_AWARENESS_BYTES = 192 * 1024;
+
+/**
+ * Clients whose clock is remembered after removal, room-wide. Enough for a full
+ * room to turn over several times within the timeout; past it, the oldest go.
+ */
+export const MAX_REMEMBERED = 4 * ROOM_CAP * MAX_STATES_PER_SOCKET;
+
+/** An awareness update, or a state in it, past its size limit. */
 export class AwarenessTooLargeError extends Error {
   override readonly name = 'AwarenessTooLargeError';
 }
@@ -101,7 +121,11 @@ export class Presence {
     for (let i = 0; i < count; i++) {
       const clientId = decoding.readVarUint(decoder);
       const clock = decoding.readVarUint(decoder);
+      const stateStart = decoder.pos;
       const state = decoding.readVarString(decoder);
+      if (decoder.pos - stateStart > MAX_STATE_BYTES) {
+        throw new AwarenessTooLargeError(`awareness state over ${MAX_STATE_BYTES} bytes`);
+      }
       const isNull = JSON.parse(state) === null; // throws on text a peer could not parse
       if (clientId !== this.relay?.clientId) entries.push({ clientId, clock, state, isNull });
     }
@@ -112,7 +136,8 @@ export class Presence {
     // change it applies, so a joiner repeats the whole opening presence, and
     // those entries are not newer than what the room holds.
     const overlay = new Map<number, { clock: number | undefined; held: Held | undefined }>();
-    const staged: { entry: Entry; known: boolean; previous: Held | undefined }[] = [];
+    // Per client, what the store held before the frame and the frame's last word.
+    const staged = new Map<number, { known: boolean; previous: Held | undefined; entry: Entry }>();
     const owned = new Set(this.ownedBy(owner).map((e) => e.clientId));
     for (const entry of entries) {
       const { clientId, clock, isNull } = entry;
@@ -122,10 +147,14 @@ export class Presence {
       };
       const newer = (seen.clock ?? 0) < clock;
       const sameClockRemoval = seen.clock === clock && isNull && seen.held !== undefined;
-      // A removal of a client the room never heard of has nothing to revive.
-      if ((!newer && !sameClockRemoval) || (isNull && seen.clock === undefined)) continue;
+      // A removal of a state the room doesn't hold has nothing to take away.
+      if ((!newer && !sameClockRemoval) || (isNull && seen.held === undefined)) continue;
 
-      staged.push({ entry, known: seen.clock !== undefined, previous: seen.held });
+      staged.set(clientId, {
+        known: staged.get(clientId)?.known ?? seen.clock !== undefined,
+        previous: staged.has(clientId) ? staged.get(clientId)!.previous : seen.held,
+        entry,
+      });
       overlay.set(clientId, {
         clock,
         held: isNull ? undefined : { clientId, clock, state: entry.state, updatedAt: now, owner },
@@ -137,24 +166,44 @@ export class Presence {
       throw new PresenceLimitError(`more than ${MAX_STATES_PER_SOCKET} states on one socket`);
     }
 
+    // Commit each client's last word. One that went from nothing to nothing
+    // within the frame (added, then removed) leaves no trace.
     const change: PresenceChange = { added: [], updated: [], removed: [], previousOwners: [] };
-    for (const { entry, known, previous } of staged) {
+    for (const { known, previous, entry } of staged.values()) {
       const { clientId, clock, state, isNull } = entry;
+      if (isNull && previous === undefined) continue;
       if (previous !== undefined && previous.owner !== owner) {
         change.previousOwners.push(previous.owner);
       }
       this.clocks.set(clientId, clock);
       if (isNull) {
-        this.removedAt.set(clientId, now);
+        this.forget(clientId, now);
         this.held.delete(clientId);
-        if (known && previous !== undefined) change.removed.push(clientId);
+        change.removed.push(clientId);
       } else {
         this.removedAt.delete(clientId);
         this.held.set(clientId, { clientId, clock, state, updatedAt: now, owner });
         (!known || previous === undefined ? change.added : change.updated).push(clientId);
       }
     }
+    this.prune();
     return change;
+  }
+
+  /** Remembers a removal, as the newest of the removed. */
+  private forget(clientId: number, now: number): void {
+    // Delete first so the map's insertion order is the order of removal.
+    this.removedAt.delete(clientId);
+    this.removedAt.set(clientId, now);
+  }
+
+  /** Holds the removed clients' clocks to {@link MAX_REMEMBERED}, oldest first. */
+  private prune(): void {
+    for (const clientId of this.removedAt.keys()) {
+      if (this.removedAt.size <= MAX_REMEMBERED) break;
+      this.removedAt.delete(clientId);
+      this.clocks.delete(clientId);
+    }
   }
 
   /**
@@ -253,8 +302,9 @@ export class Presence {
       // The clock stays: y-protocols' removeAwarenessStates bumps it only for
       // the local client, and peers apply a removal at the clock they hold.
       this.clocks.set(clientId, clock);
-      this.removedAt.set(clientId, now);
+      this.forget(clientId, now);
     }
+    this.prune();
     return states.map((s) => s.clientId);
   }
 }

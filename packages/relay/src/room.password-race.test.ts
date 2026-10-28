@@ -110,7 +110,9 @@ describe('a password that keeps changing during the check', () => {
     const arm = holdNextDigest();
 
     const release1 = arm();
-    const joining = Peer.join(uuid, `?pw=${OLD}`);
+    // The joiner sends the password of the second change, so its last (stale)
+    // check matches while the third is in force; it must still not be admitted.
+    const joining = Peer.join(uuid, `?pw=${'02'.repeat(32)}`);
     await settle();
     await setPassword(uuid, '01'.repeat(32));
     const release2 = arm();

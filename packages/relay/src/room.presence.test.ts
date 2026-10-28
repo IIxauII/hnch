@@ -161,3 +161,44 @@ describe('presence across an eviction', () => {
     expect(carol.participants()).toEqual([]);
   });
 });
+
+describe('a full room', () => {
+  /** An awareness frame announcing `ids`, each with a state of `size` characters. */
+  function announceFrame(ids: number[], size: number): Uint8Array {
+    const update = encoding.createEncoder();
+    encoding.writeVarUint(update, ids.length);
+    for (const id of ids) {
+      encoding.writeVarUint(update, id);
+      encoding.writeVarUint(update, 1);
+      encoding.writeVarString(update, JSON.stringify({ participantId: 'x'.repeat(size) }));
+    }
+    const frame = encoding.createEncoder();
+    encoding.writeVarUint(frame, 1);
+    encoding.writeVarUint8Array(frame, encoding.toUint8Array(update));
+    return encoding.toUint8Array(frame);
+  }
+
+  it('accepts the echo of a joiner that was sent every state at the largest size', async () => {
+    const { uuid } = await createRoom();
+    const holders: Peer[] = [];
+    // 19 sockets x 8 states of nearly the largest size; the 20th seat is the joiner's.
+    for (let i = 0; i < 19; i++) {
+      const peer = await Peer.join(uuid);
+      const ids = Array.from({ length: 8 }, (_, j) => 100_000 + i * 8 + j);
+      peer.send(announceFrame(ids, 990));
+      holders.push(peer);
+    }
+    await settle();
+
+    const joiner = await Peer.join(uuid);
+    await eventually(() => expect(joiner.awareness.getStates().size).toBe(19 * 8 + 1), 5_000);
+
+    // The joiner's y-protocols echoed the whole opening presence in one update.
+    // Frames are handled in order, so once the room relays what the joiner sends
+    // next, it has dealt with the echo too.
+    joiner.announce({ participantId: 'p-joiner' });
+    await eventually(() => expect(holders[0]!.participants()).toContain('p-joiner'), 5_000);
+    expect(joiner.closeEvent).toBeNull();
+    expect(holders.map((p) => p.closeEvent)).toEqual(holders.map(() => null));
+  }, 20_000);
+});

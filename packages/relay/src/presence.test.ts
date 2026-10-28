@@ -16,6 +16,8 @@ import {
 import {
   AwarenessTooLargeError,
   MAX_AWARENESS_BYTES,
+  MAX_REMEMBERED,
+  MAX_STATE_BYTES,
   MAX_STATES_PER_SOCKET,
   Presence,
   PresenceLimitError,
@@ -297,7 +299,7 @@ describe('Presence', () => {
       expect(presence.ownedBy('victim-0')).toHaveLength(1);
     });
 
-    it('applies a removal after a state in order, as y-protocols does', () => {
+    it('nets a state followed by its removal to nothing, as y-protocols would', () => {
       const presence = new Presence();
       const change = presence.apply(
         'socket-a',
@@ -308,8 +310,8 @@ describe('Presence', () => {
         0,
       );
       expect(presence.clientIds()).toEqual([]);
-      expect(change.added).toEqual([9]);
-      expect(change.removed).toEqual([9]);
+      expect(change).toEqual({ added: [], updated: [], removed: [], previousOwners: [] });
+      expect(presence.remembered()).toBe(0);
     });
   });
 
@@ -327,5 +329,58 @@ describe('Presence', () => {
       (_, i) => [1000 + i, 1, 'null'] as [number, number, string],
     );
     expect(() => presence.apply('socket-a', frameOf(entries), 0)).toThrow(AwarenessTooLargeError);
+  });
+
+  it(`refuses a state over ${MAX_STATE_BYTES} bytes, and admits one just under`, () => {
+    const presence = new Presence();
+    const state = (n: number) => JSON.stringify({ p: 'x'.repeat(n) });
+    expect(() => presence.apply('socket-a', frameOf([[1, 1, state(MAX_STATE_BYTES)]]), 0)).toThrow(
+      AwarenessTooLargeError,
+    );
+    presence.apply('socket-a', frameOf([[1, 1, state(MAX_STATE_BYTES - 20)]]), 0);
+    expect(presence.clientIds()).toEqual([1]);
+  });
+
+  it('leaves no trace of clients added and removed within one frame', () => {
+    const presence = new Presence();
+    const churn = Array.from({ length: 4_000 }, (_, i) => [
+      [10_000 + i, 1, '{}'],
+      [10_000 + i, 2, 'null'],
+    ]).flat() as [number, number, string][];
+
+    const change = presence.apply('socket-a', frameOf(churn), 0);
+
+    expect(change).toEqual({ added: [], updated: [], removed: [], previousOwners: [] });
+    expect(presence.remembered()).toBeLessThanOrEqual(MAX_REMEMBERED);
+    expect(presence.clientIds()).toEqual([]);
+  });
+
+  it('does not re-stamp or record a removal of a client it does not hold', () => {
+    const presence = new Presence();
+    presence.apply('socket-a', frameOf([[5, 1, '{}']]), 0);
+    presence.removeOwnedBy('socket-a', 1_000);
+    const change = presence.apply('socket-b', frameOf([[5, 9, 'null']]), 25_000);
+    expect(change.removed).toEqual([]);
+    // Still forgotten on the original schedule.
+    presence.expire(1_000 + PRESENCE_TIMEOUT_MS);
+    expect(presence.remembered()).toBe(0);
+  });
+
+  it(`remembers at most ${MAX_REMEMBERED} removed clients, dropping the oldest`, () => {
+    const presence = new Presence();
+    const total = MAX_REMEMBERED + 50;
+    for (let i = 0; i < total; i += MAX_STATES_PER_SOCKET) {
+      const ids = Array.from({ length: MAX_STATES_PER_SOCKET }, (_, j) => 20_000 + i + j);
+      presence.apply(
+        'socket-a',
+        frameOf(ids.map((id) => [id, 1, '{}'] as [number, number, string])),
+        i,
+      );
+      presence.removeOwnedBy('socket-a', i);
+    }
+    expect(presence.remembered()).toBeLessThanOrEqual(MAX_REMEMBERED);
+    // A late state of the oldest removed client is no longer refused.
+    const late = presence.apply('socket-b', frameOf([[20_000, 1, '{}']]), total);
+    expect(late.added).toEqual([20_000]);
   });
 });
