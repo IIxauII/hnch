@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowJs": true,
+    "checkJs": true,
+    "allowImportingTsExtensions": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "rootDir": "."
+  },
+  "include": ["testing/start-relay.test.ts"],
+  "files": ["testing/start-relay.mjs"]
+}

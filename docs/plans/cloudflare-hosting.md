@@ -217,8 +217,8 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
 - **`@hnch/relay/testing`** (fixes the CLI blocker): `startTestRelay(opts?) → Promise<{ httpUrl, wsUrl, stop() }>`.
   - 1a backs it with the in-process Node relay.
   - 1b spawns `scripts/dev.mjs` on a free port with a temporary persist dir, polls `/health` with a 30 s timeout, and makes `stop()` kill the process tree. `unstable_startWorker` may replace the spawn behind the same API.
-  - `packages/cli/src/session.test.ts` uses only this helper.
-  - `ci.yml` `detect-changes`: a relay change now also sets `cli=true`.
+  - `packages/cli/src/session.test.ts` and `packages/shared/src/live-session.test.ts` use only this helper. Shared reaches it through a vitest alias, not a package dependency, because a shared → relay dependency would be a workspace cycle.
+  - `ci.yml` `detect-changes`: a relay change now also sets `cli=true` and `shared=true`.
 - **e2e on workerd:** the ADR-0027 specs (`expired-recent-session`, `recent-rooms-list`, `room-full`, `vote-dots-196`, `_screenshots/participant-cap`, `_screenshots/vote-bars-shot`) plus `lone-peer-keepalive`.
 - **`packages/relay/scripts/smoke.mjs`:** one client per process. Modes: `basic`, `cap`, `hold`, `deploy-hold`, `preflight`. It takes `BASE=https://hnch.dev`.
 
@@ -416,12 +416,13 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
 - **Scope:**
   - `packages/relay`: `testing/start-relay.mjs` (Node relay); `package.json` `exports` `./testing` and `.`.
   - `packages/cli`: `src/session.test.ts` uses `startTestRelay`; devDependency `@hnch/relay: workspace:*`.
-  - `packages/shared/src/relay-client.test.ts`: fix the stale comment.
+  - `packages/shared`: `src/live-session.test.ts` uses `startTestRelay` through a vitest alias (it landed in #534 after this plan was drafted); `src/relay-client.test.ts`: fix the stale comment.
+  - `.github/workflows/ci.yml`: a relay change also runs the CLI and shared lanes.
   - `pnpm-lock.yaml`.
 - **Exit bar:**
   - The CLI, relay and shared lanes are green.
   - No `relay/src` imports remain outside `packages/relay`.
-- **PR title scope:** `test(cli,relay,repo): start the relay for CLI session tests through @hnch/relay/testing`. There is no release, which avoids a no-op CLI npm publish.
+- **PR title scope:** `test(cli,relay,shared,ci,repo,docs): start the relay for CLI and shared tests through @hnch/relay/testing`. There is no release, which avoids a no-op CLI npm publish.
 - **Closes:** `Closes #546`, `Refs #544` (sub-issue #546)
 - **Worktree:** `git fetch origin && pnpm worktree:add cloudflare-hosting-phase-1a main`
 - **Depends on:** none.
@@ -548,7 +549,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
 
 ## Verification plan
 
-- **1a:** `pnpm --filter @xauyxau/hnch test typecheck`; `pnpm --filter @hnch/relay test typecheck`.
+- **1a:** `test` and `typecheck`, run as separate commands, for `@xauyxau/hnch`, `@hnch/relay` and `@hnch/shared`. A combined `pnpm --filter <pkg> test typecheck` would hand `typecheck` to vitest as a test filter.
 - **1b:**
   - relay `typecheck`, `format:check`, `lint`, `test:coverage` and `build`;
   - shared `test` and `typecheck`;

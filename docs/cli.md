@@ -171,4 +171,4 @@ packages/cli/
 pnpm --filter @xauyxau/hnch test
 ```
 
-Unit tests are spread across `src/*.test.ts` files (`session` — against an in-process relay, `config`, `last-session`, `room-code-input`, `session-expired`, `share`), `src/commands/agenda.test.ts`, and `src/ui/components/settings.test.ts`. A terminal-level e2e harness (node-pty + vitest, covering `create`/`join`/`resume` against a live relay) is planned but not yet implemented — see `docs/backlog.md` §5.2.
+Unit tests are spread across `src/*.test.ts` files (`session` — against a relay from the `@hnch/relay/testing` harness, `config`, `last-session`, `room-code-input`, `session-expired`, `share`), `src/commands/agenda.test.ts`, and `src/ui/components/settings.test.ts`. A terminal-level e2e harness (node-pty + vitest, covering `create`/`join`/`resume` against a live relay) is planned but not yet implemented — see `docs/backlog.md` §5.2.

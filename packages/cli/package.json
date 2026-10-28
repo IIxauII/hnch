@@ -58,6 +58,7 @@
     "yjs": "^13.6.30"
   },
   "devDependencies": {
+    "@hnch/relay": "workspace:*",
     "@hnch/shared": "workspace:*",
     "@types/node": "^22.0.0",
     "@types/react": "^18.3.0",
