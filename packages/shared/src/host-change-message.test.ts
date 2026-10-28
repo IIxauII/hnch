@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatHostChangeMessage } from './host-change-message';
+import { formatHostChangeMessage } from './host-change-message.js';
 
 describe('formatHostChangeMessage', () => {
   it('formats disconnect with other peer promoted', () => {

@@ -15,7 +15,7 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { FIBONACCI_SCALE } from '@hnch/shared';
+import { FIBONACCI_SCALE, type SessionEvent } from '@hnch/shared';
 
 vi.mock('@ionic/angular/standalone', () => ({
   ToastController: class {
@@ -124,5 +124,54 @@ describe('DocService — endSessionForEveryone', () => {
     // No settings synced yet, so there is no host record to authorise against.
     expect(svc.endSessionForEveryone().applied).toBe(false);
     expect(svc.endingSessionLocally()).toBe(false);
+  });
+});
+
+describe('DocService — session events', () => {
+  /** Let the driver's deferred delivery run. */
+  const settle = (): Promise<void> =>
+    new Promise((r) => {
+      setTimeout(r, 0);
+    });
+
+  it("delivers the host's own end as 'Session ended.' — the flag is set after the write, read at delivery", async () => {
+    const svc = mount('p-host');
+    svc.createSession(HOST_SESSION);
+    const events: SessionEvent[] = [];
+    svc.onSessionEvent((event) => events.push(event));
+
+    svc.endSessionForEveryone();
+    expect(events).toEqual([]);
+    await settle();
+
+    expect(events).toEqual([
+      expect.objectContaining({ kind: 'ended', endedLocally: true, message: 'Session ended.' }),
+    ]);
+  });
+
+  it('delivers nothing when the session is torn down before the flush', async () => {
+    const svc = mount('p-host');
+    svc.createSession(HOST_SESSION);
+    const events: SessionEvent[] = [];
+    svc.onSessionEvent((event) => events.push(event));
+
+    svc.endSessionForEveryone();
+    svc.teardown();
+    await settle();
+
+    expect(events).toEqual([]);
+  });
+
+  it('stops delivering to a listener once it unsubscribes', async () => {
+    const svc = mount('p-host');
+    svc.createSession(HOST_SESSION);
+    const events: SessionEvent[] = [];
+    const off = svc.onSessionEvent((event) => events.push(event));
+
+    off();
+    svc.endSessionForEveryone();
+    await settle();
+
+    expect(events).toEqual([]);
   });
 });
