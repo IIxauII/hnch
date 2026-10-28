@@ -597,6 +597,20 @@ describe('live session — before connect', () => {
     expect(peer.statuses).toEqual([]);
   });
 
+  it('a teardown before the hook has started runs no hook', async () => {
+    const room = await mintRoom(relayUrl());
+    const hook = vi.fn(() => Promise.resolve());
+    const link = makeLink();
+    const peer = openPeer({ id: 'peer', room, seed: JOIN, link, beforeConnect: hook });
+
+    peer.session.teardown();
+    await pause(50);
+
+    // A hook run now would load a cache into a destroyed doc.
+    expect(hook).not.toHaveBeenCalled();
+    expect(link.opened()).toBe(0);
+  });
+
   it('credentials changed while the hook runs are the ones the socket opens with', async () => {
     const { room } = await hostedRoom();
     const passwordHash = await hashPassword('correct horse', room.uuid);

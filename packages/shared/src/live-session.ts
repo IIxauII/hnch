@@ -405,8 +405,10 @@ export function openLiveSession(options: OpenLiveSessionOptions): LiveSession {
     // head start (ADR-0004), not a precondition. Its errors are its own — a
     // synchronous throw included, which must not escape with the drivers
     // already running and no handle to tear them down by.
+    // Deferred a microtask, so a teardown straight after open beats it: the
+    // hook then never runs against the destroyed doc.
     void Promise.resolve()
-      .then(() => beforeConnect(doc))
+      .then(() => (tornDown ? undefined : beforeConnect(doc)))
       .then(connect, connect);
   }
 
