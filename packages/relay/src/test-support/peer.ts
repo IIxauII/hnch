@@ -44,15 +44,24 @@ export interface Frame {
 }
 
 export class Peer {
-  readonly doc = new Y.Doc();
+  readonly doc: Y.Doc;
   readonly awareness: Awareness;
   readonly frames: Frame[] = [];
   closeEvent: { code: number; reason: string } | null = null;
 
-  private constructor(readonly ws: WebSocket) {
-    this.awareness = new Awareness(this.doc);
-    clearInterval((this.awareness as unknown as { _checkInterval: number })._checkInterval);
-    this.awareness.setLocalState(null);
+  private constructor(
+    readonly ws: WebSocket,
+    awareness?: Awareness,
+  ) {
+    this.awareness = awareness ?? new Awareness(new Y.Doc());
+    this.doc = this.awareness.doc;
+    if (awareness === undefined) {
+      clearInterval((this.awareness as unknown as { _checkInterval: number })._checkInterval);
+      this.awareness.setLocalState(null);
+    }
+    // As y-websocket's provider: every awareness change, whatever its origin
+    // (local, or applied from the relay), goes back out to the relay.
+    this.awareness.on('update', this.onAwarenessUpdate);
     ws.addEventListener('message', (event) => this.receive(event.data as ArrayBuffer));
     ws.addEventListener('close', (event) => {
       this.closeEvent = { code: event.code, reason: event.reason };
@@ -66,8 +75,11 @@ export class Peer {
     });
   }
 
-  /** Opens a socket to room `uuid`; throws unless the upgrade is accepted. */
-  static async join(uuid: string, query = ''): Promise<Peer> {
+  /**
+   * Opens a socket to room `uuid`; throws unless the upgrade is accepted. Pass
+   * an `awareness` kept from an earlier peer to reconnect as the same client.
+   */
+  static async join(uuid: string, query = '', awareness?: Awareness): Promise<Peer> {
     const res = await upgrade(uuid, query);
     if (res.status !== 101 || res.webSocket === null) {
       throw new Error(`upgrade answered ${res.status}`);
@@ -75,12 +87,16 @@ export class Peer {
     // Binary frames as ArrayBuffer, as browsers and y-websocket set it.
     res.webSocket.binaryType = 'arraybuffer';
     res.webSocket.accept();
-    const peer = new Peer(res.webSocket);
+    const peer = new Peer(res.webSocket, awareness);
     // As y-websocket's provider does on open: ask for what the relay holds.
     const encoder = encoding.createEncoder();
     encoding.writeVarUint(encoder, 0);
     syncProtocol.writeSyncStep1(encoder, peer.doc);
     peer.send(encoding.toUint8Array(encoder));
+    // And, as its `onopen` does, the local state at its current clock.
+    if (awareness !== undefined && awareness.getLocalState() !== null) {
+      peer.sendAwareness([awareness.clientID]);
+    }
     return peer;
   }
 
@@ -91,13 +107,17 @@ export class Peer {
   /** Announces (or renews) this peer's awareness state. */
   announce(state: Record<string, unknown> | null): void {
     this.awareness.setLocalState(state);
-    const encoder = encoding.createEncoder();
-    encoding.writeVarUint(encoder, 1);
-    encoding.writeVarUint8Array(
-      encoder,
-      encodeAwarenessUpdate(this.awareness, [this.awareness.clientID]),
-    );
-    this.send(encoding.toUint8Array(encoder));
+  }
+
+  /** Drops the socket without touching this peer's awareness, as a lost link does. */
+  drop(): void {
+    this.mute();
+    this.close();
+  }
+
+  /** Stops echoing and renewing awareness, as a client that went quiet. */
+  mute(): void {
+    this.awareness.off('update', this.onAwarenessUpdate);
   }
 
   /** Remote awareness states that carry a participantId (what hnch clients keep). */
@@ -121,6 +141,21 @@ export class Peer {
       if (this.closeEvent === null) throw new Error('not closed yet');
     });
     return this.closeEvent!;
+  }
+
+  private readonly onAwarenessUpdate = (
+    { added, updated, removed }: { added: number[]; updated: number[]; removed: number[] },
+    _origin: unknown,
+  ): void => {
+    this.sendAwareness([...added, ...updated, ...removed]);
+  };
+
+  private sendAwareness(clientIds: number[]): void {
+    if (this.ws.readyState !== WebSocket.OPEN) return;
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, 1);
+    encoding.writeVarUint8Array(encoder, encodeAwarenessUpdate(this.awareness, clientIds));
+    this.send(encoding.toUint8Array(encoder));
   }
 
   private receive(data: ArrayBuffer): void {

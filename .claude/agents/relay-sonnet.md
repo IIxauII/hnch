@@ -63,6 +63,10 @@ packages/relay/
 │   ├── protocol.ts             # y-websocket framing
 │   ├── digest.ts               # SHA-256(uuid ‖ hash) at rest, constant-time compare
 │   ├── config.ts               # Worker vars (JURISDICTION, ADR-0027 test vars)
+│   ├── http.ts                 # Worker HTTP helpers (CORS, JSON bodies, responses)
+│   ├── stubs.ts                # DO addressing, utcDay, content-free logEvent
+│   ├── clock.ts                # injectable wall clock (tests move time)
+│   ├── env.d.ts                # bindings + vars from wrangler.jsonc
 │   ├── test-support/peer.ts    # test-only y-websocket peer inside workerd
 │   └── *.test.ts               # Vitest on workerd (*.test-vars.test.ts: cap 3 + test routes)
 ├── scripts/dev.mjs             # wrangler dev wrapper (pnpm dev:relay, e2e, harness)
@@ -78,7 +82,7 @@ packages/relay/
 3. **Check ADRs** before structural changes. Draft new ADR via `adr-writer` if shape changes.
 4. **Extensionless relative imports** — wrangler bundles the Worker (`moduleResolution: Bundler`). Import shared only via `@hnch/shared/room-code`, `/auth`, `/health`.
 5. **Constant-time comparison** for password digests (`digest.ts`, `crypto.subtle.timingSafeEqual`). Store only `SHA-256(uuid ‖ hash)`.
-6. **Close codes** in 4001–4099 range only (private use). Document new codes in ADR-0016 successor.
+6. **Close codes**: app-defined codes are 4001–4099 only (private use); document new ones in an ADR-0016 successor. RFC 6455 codes keep their RFC meaning and never carry an app meaning: the relay uses 1003 (frame it can't read), 1008 (policy, e.g. too many presence states) and 1011 (internal error).
 7. **Storage per ADR-0051.** Coalesced writes, tombstone-first deletion, additive-only meta/RPC changes (deploy coexistence ≥5 min; expand/contract across two releases). New storage kinds need an ADR.
 8. **Race conditions** — half-open sockets, simultaneous joins, pool exhaustion, expired snapshots, host election concurrency. Reason about ordering.
 9. **Backpressure** — large doc updates over slow links. Don't block event loop on broadcast.

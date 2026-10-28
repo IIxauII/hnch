@@ -3,7 +3,7 @@
 **Status:** Accepted
 **Date:** 2026-10-28
 
-Supersedes [ADR-0029](0029-relay-deployment.md) (fully; VPS left idle, not decommissioned). Supersedes the storage clause of [ADR-0012](0012-snapshot-policy.md) (TTL, keying and content-blindness hold). Partially supersedes [ADR-0027](0027-test-only-relay-surfaces.md) (its "persist outside in-memory store" clause). Caveats [ADR-0017](0017-password-hashing-drop-invite-only.md) ("persisting hashes" trade-off; a digest of the hash now persists). Partially supersedes the `deploy-relay.yml` cross-arch clause of [ADR-0049](0049-self-hosted-runner-pool-current-state-consolidation.md). ADR-0052 (runner pool size; not yet on main) will also partially supersede ADR-0049. When it lands, the two ADR-0049 caveats merge into one parenthetical and one index cell, `ADR-0051 (partial), ADR-0052 (partial)`. Source: [spec](../docs/specs/cloudflare-hosting.md). Plan: [plan](../docs/plans/cloudflare-hosting.md).
+Supersedes [ADR-0029](0029-relay-deployment.md) (fully; VPS left idle, not decommissioned). Supersedes the storage clause of [ADR-0012](0012-snapshot-policy.md) (TTL, keying and content-blindness hold). Partially supersedes [ADR-0027](0027-test-only-relay-surfaces.md) (its "persist outside in-memory store" clause). Partially supersedes [ADR-0017](0017-password-hashing-drop-invite-only.md) ("persisting hashes" trade-off). Partially supersedes the `deploy-relay.yml` cross-arch clause of [ADR-0049](0049-self-hosted-runner-pool-current-state-consolidation.md). Source: [spec](../docs/specs/cloudflare-hosting.md). Plan: [plan](../docs/plans/cloudflare-hosting.md).
 
 ## Context
 
@@ -40,7 +40,7 @@ Supersedes [ADR-0029](0029-relay-deployment.md) (fully; VPS left idle, not decom
   - Inbound WS accounting on Free: 1:1 (plan budget assumes it) or 20:1. Undocumented.
   - Behaviour of open sockets when a daily cap is hit. Undocumented.
   - Outbound WS frame size limit. Undocumented.
-  - Static asset requests counted against Worker requests: plan assumes not (no `run_worker_first`). Verify after switch.
+  - Static asset requests counted against Worker requests: unverified; plan assumes not (no `run_worker_first`).
   - Cloudflare-side deletion and backup of DO storage after the alarm.
   - Cloudflare DPA and data-location terms: owner's call; not reviewed here.
 
@@ -54,8 +54,8 @@ PWA and relay move from the IONOS VPS to the Cloudflare free plan, served from r
   - `/health*`, not `/health`: exact match misses query strings and trailing slashes. Matching is case-sensitive; `/Rooms` and bare `/ws` fall through to the SPA, as today.
   - Single origin, no CORS ([ADR-0029](0029-relay-deployment.md) property).
   - A client release redeploys only `hnch-web`; relay DOs are not restarted.
-- **Switch:** routes deploy inert while the apex records are DNS-only (VPS still serves). Cutover is one full switch: proxy the apex records and set `HNCH_LIVE`. Workers routes run only on proxied hostnames. `www` is proxied from Phase 0 and only redirects. No `next` proving ground: test on `hnch.dev`, fix forward.
-- **Edge:** Always Use HTTPS on (parity with Caddy's redirect). `www` → apex 301 redirect rule, live since Phase 0 (fixed #543, pre-existing `www` TLS failure).
+- **Switch:** routes deploy inert while the apex records are DNS-only (VPS still serves). Cutover is one full switch: proxy the apex records and set `HNCH_LIVE`. Workers routes run only on proxied hostnames. `www` is proxied and only redirects. No `next` proving ground: test on `hnch.dev`, fix forward.
+- **Edge:** Always Use HTTPS on (parity with Caddy's redirect). `www` → apex 301 redirect rule, live (fixes #543, pre-existing `www` TLS failure).
 - **Relay objects:**
   - `Room` DO per room UUID: Y.Doc, presence, password digest, participant cap, expiry alarm.
   - `Codes` DO per room code: unique claim, code → UUID; released on deletion.
@@ -67,10 +67,9 @@ PWA and relay move from the IONOS VPS to the Cloudflare free plan, served from r
   - Daily 04:00 UTC cron sweeps the last 30 `Expiry` days as backstop.
 - **Password at rest:** stores `SHA-256(roomUuid ‖ passwordHash)`. `pw` is hashed the same way and compared constant-time. Nothing changes on the wire. A leaked row is not the `pw` credential (the server hashes `pw` before comparing).
   - Stored so a deploy cannot silently drop a room's password. PBKDF2 scheme unchanged.
-  - Caveat to [ADR-0017](0017-password-hashing-drop-invite-only.md): a digest of the PBKDF2 output now persists, not the output itself.
+  - Partially supersedes [ADR-0017](0017-password-hashing-drop-invite-only.md) ("persisting hashes" trade-off): a digest of the PBKDF2 output now persists, not the output itself.
 - **Keepalive:** requirement under ADR-0050 (see Context): every open socket whose client is renewing gets an app-level frame at least every 15 s, lone peers included. Mechanism is piggyback: on any inbound message on socket S, if S has been sent nothing for ≥10 s, relay sends S one `{}` awareness renewal. No extra DO requests or duration.
-  - Pre-agreed fallback, default off: alarm keepalive, armed only while every socket is quiet for >20 s, behind a constant. It shares the alarm slot with TTL (`alarm = min(ttlCheck, keepaliveDue)`). A relay release turns it on if the hidden-tab trigger fires (2- or 3-peer room, all tabs hidden, >2 reconnects per 10 min).
-  - Hidden-tab residual measured on `hnch.dev` after the switch (local workerd never hibernates).
+  - Pre-agreed fallback, default off, behind the `keepaliveFallback` constant. Off: no keepalive alarm. On: while the room is occupied, its alarm fires every 20 s and renews each socket sent nothing for ≥10 s. It shares the alarm slot with the hourly occupancy check (`alarm = min(occupancyCheck, now + 20 s)`). Cost when on: ~180 extra DO invocations per occupied room-hour, which is why it stays off. A relay release turns it on if the hidden-tab trigger fires (2- or 3-peer room, all tabs hidden, >2 reconnects per 10 min).
 - **Health and failures:**
   - `/health` → `200 {status:'ok', version}`. Shallow: no DO call, no counts, no config or gate state.
   - Deploy smoke also checks `GET /rooms/000000` → `404 {reason:'unknown-room'}` (`0` is outside the code alphabet), which exercises Worker → DO.
@@ -81,7 +80,7 @@ PWA and relay move from the IONOS VPS to the Cloudflare free plan, served from r
 - **Abuse guard:** one free-plan rate-limit rule: `http.request.uri.path eq "/rooms"`, 10 per 10 s per IP, block 10 s. The free plan cannot match on method, so the rule also counts native `OPTIONS` preflights. It is a speed bump, not quota protection. `/ws/*` and `GET /rooms/:code` are never limited (owner, 2026-10-28; a 429 or 5xx on the upgrade makes y-websocket retry every ~2.5 s forever, R7 under ADR-0050).
 - **Logs:** Workers Logs on with `observability.logs.invocation_logs = false`. `console` lines stay content-free ([ADR-0028](0028-telemetry-posture.md) stdout discipline).
   - Free-plan limits: 200k events/day and 3-day retention now; from 2026-12-01, 0.5 GB/day and 7-day retention.
-  - Marker test after switch: markers sent to `/health?probe=<m>` and to a WS upgrade with `?pw=<m>` must be absent from Workers Logs after 5 min. If present, observability is turned off as a fix-forward.
+  - Request content is not logged. If it reaches Workers Logs anyway, observability is turned off as a fix-forward.
 - **Test surfaces ([ADR-0027](0027-test-only-relay-surfaces.md)):**
   - `HNCH_ENABLE_TEST_ROUTES` and `HNCH_ROOM_CAP` map to Worker vars, fixed per deployed version. `scripts/dev.mjs` passes them per invocation (as `--var`), only when set, for the e2e `webServer` and `@hnch/relay/testing`.
   - Plain local dev runs production defaults (cap 20, test routes off). `.dev.vars` is not used for them.
@@ -94,9 +93,9 @@ PWA and relay move from the IONOS VPS to the Cloudflare free plan, served from r
 - **Deploy:** CI on the self-hosted pool ([ADR-0049](0049-self-hosted-runner-pool-current-state-consolidation.md)) runs `wrangler deploy`, pinned at 4.151.3. The `npm_config_target_*` cross-arch pin is removed; no native artifact ships.
   - Deploy refuses to remove a live `hnch.dev` route.
   - Post-switch smokes are gated on `HNCH_LIVE`.
-- **DNS and registrar:** `hnch.dev` zone on Cloudflare; apex DNS-only until cutover, proxied at cutover; `www` proxied since Phase 0 (redirect only). No mail records. Registration stays at IONOS, with its NS delegation pointing at Cloudflare.
+- **DNS and registrar:** `hnch.dev` zone on Cloudflare; apex DNS-only until cutover, proxied at cutover; `www` proxied (redirect only). No mail records. Registration stays at IONOS, with its NS delegation pointing at Cloudflare.
 - **VPS and rollback:** VPS left idle, not decommissioned. Rollback = set records back to DNS-only; Caddy serves the PWA (kept current by `deploy-client.yml`) and relay 1.2.1, frozen. Rooms created on Cloudflare are lost. Sockets open to the VPS stay until they reconnect.
-- **Node relay:** replaced in place by the Worker in Phase 1b. No self-host fallback kept.
+- **Node relay:** replaced in place by the Worker. No self-host fallback kept.
 
 ## Trade-offs
 
@@ -109,7 +108,7 @@ PWA and relay move from the IONOS VPS to the Cloudflare free plan, served from r
   - Usage ≈ 0 today. The Free plan has no usage alerts, so usage is checked by hand. Stated, not mitigated. Owner accepted.
 - Storage: 5 GB per account, 1 GB per DO (plan). Not binding at expected size.
 - Write coalescing: a deploy or eviction inside the 5 s flush window loses those updates from relay storage only. Reconnecting clients re-supply them through sync-step-2.
-- Hidden-tab residual: Chrome intensive throttling batches timers in tabs hidden >5 min. Lone hidden peers, and 2–3-peer rooms with all tabs hidden, may reconnect ~once a minute at ~4 DO requests per reconnect. Measured after switch; fallback in Decision.
+- Hidden-tab residual: Chrome intensive throttling batches timers in tabs hidden >5 min. Lone hidden peers, and 2–3-peer rooms with all tabs hidden, may reconnect ~once a minute at ~4 DO requests per reconnect. Unmeasured on `hnch.dev` (local workerd never hibernates); the keepalive fallback in Decision is the response if the trigger fires.
 - Observability: no process metrics; `/health` loses counts. Workers Logs free tier: 200k events/day and 3-day retention now; from 2026-12-01, 0.5 GB/day and 7-day retention. Ingestion stops at the limit; the relay does not.
 - Vendor lock-in to Workers and DO APIs (SQLite DO, alarms, hibernating WebSockets).
 - Dev and prod diverge: no `eu` jurisdiction locally.

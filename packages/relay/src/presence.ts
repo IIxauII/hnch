@@ -68,7 +68,7 @@ export class Presence {
    * Applies an awareness update that arrived on socket `owner`. Throws, leaving
    * the store unchanged, on malformed input or past {@link MAX_STATES_PER_SOCKET}.
    */
-  apply(owner: string, update: Uint8Array, now: number): PresenceChange {
+  apply(owner: string, update: Uint8Array, now: number, ignoreClientId?: number): PresenceChange {
     const decoder = decoding.createDecoder(update);
     const count = decoding.readVarUint(decoder);
     const entries: { clientId: number; clock: number; state: string }[] = [];
@@ -77,10 +77,15 @@ export class Presence {
       const clock = decoding.readVarUint(decoder);
       const state = decoding.readVarString(decoder);
       JSON.parse(state); // throws on text a peer could not parse
-      entries.push({ clientId, clock, state });
+      // A peer echoes the relay's own state back; the relay never adopts it.
+      if (clientId !== ignoreClientId) entries.push({ clientId, clock, state });
     }
+    // Only entries this socket would take over count toward its cap. y-websocket
+    // echoes every change it applies, so a joiner repeats the whole opening
+    // presence; those are not newer than what the room holds and cost nothing.
     const owned = new Set(this.ownedBy(owner).map((e) => e.clientId));
-    for (const { clientId, state } of entries) {
+    for (const { clientId, clock, state } of entries) {
+      if (!this.takesOver(clientId, clock, state)) continue;
       if (isNullState(state)) owned.delete(clientId);
       else owned.add(clientId);
     }
@@ -90,12 +95,9 @@ export class Presence {
 
     const change: PresenceChange = { added: [], updated: [], removed: [] };
     for (const { clientId, clock, state } of entries) {
+      if (!this.takesOver(clientId, clock, state)) continue;
       const known = this.clocks.get(clientId);
-      const current = known ?? 0;
       const isNull = isNullState(state);
-      const newer = current < clock;
-      const sameClockRemoval = current === clock && isNull && this.held.has(clientId);
-      if (!newer && !sameClockRemoval) continue;
 
       this.clocks.set(clientId, clock);
       if (isNull) {
@@ -110,6 +112,12 @@ export class Presence {
       }
     }
     return change;
+  }
+
+  /** y-protocols' rule: a newer clock, or a removal at the held clock. */
+  private takesOver(clientId: number, clock: number, state: string): boolean {
+    const current = this.clocks.get(clientId) ?? 0;
+    return current < clock || (current === clock && isNullState(state) && this.held.has(clientId));
   }
 
   /**
@@ -191,9 +199,9 @@ export class Presence {
   private remove(states: readonly Held[], now: number): number[] {
     for (const { clientId, clock } of states) {
       this.held.delete(clientId);
-      // One past the last clock, as y-protocols' removeAwarenessStates does,
-      // so clients holding the state apply the removal.
-      this.clocks.set(clientId, clock + 1);
+      // The clock stays: y-protocols' removeAwarenessStates bumps it only for
+      // the local client, and peers apply a removal at the clock they hold.
+      this.clocks.set(clientId, clock);
       this.removedAt.set(clientId, now);
     }
     return states.map((s) => s.clientId);

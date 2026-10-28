@@ -47,8 +47,8 @@ export class Codes extends DurableObject<Env> {
     }
     // Other requests ran during the await. Take the code only if nobody else
     // did; the dead holder may have released it meanwhile.
-    const now = this.lookup();
-    if (now !== null && now !== holder) return false;
+    const current = this.lookup();
+    if (current !== null && current !== holder) return false;
     this.ctx.storage.kv.put(HOLDER, uuid);
     this.ctx.storage.kv.put(CLAIMED_AT, clock.now());
     return true;

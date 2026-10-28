@@ -234,7 +234,7 @@ describe('deletion', () => {
     setNow(t0 + DEADLINE_MS);
     expect(await status(code)).toBe(404);
     expect((await upgrade(uuid)).status).toBe(404);
-    expect((await metaOf(uuid))?.tombstone).toBe(t0 + DEADLINE_MS);
+    expect((await metaOf(uuid))?.tombstonedAt).toBe(t0 + DEADLINE_MS);
     // The content went with the tombstone; the code is still held, and a retry
     // is scheduled.
     expect(await docRows(uuid)).toBe(0);

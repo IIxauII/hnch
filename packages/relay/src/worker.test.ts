@@ -251,4 +251,15 @@ describe('when a Durable Object call fails', () => {
   it('still answers /health, which touches no object', async () => {
     expect((await brokenCall('/health')).status).toBe(200);
   });
+
+  it('still creates a room when only the Expiry registration fails', async () => {
+    const onlyExpiryBroken = { ...env, EXPIRY: failingNamespace() } as unknown as Env;
+    const res = await handleFetch(
+      new Request('http://relay.test/rooms', { method: 'POST', body: '{}' }),
+      onlyExpiryBroken,
+    );
+    expect(res.status).toBe(201);
+    const { uuid } = (await res.json()) as { uuid: string };
+    expect((await call(`/ws/${uuid}`, { headers: { Upgrade: 'websocket' } })).status).toBe(101);
+  });
 });

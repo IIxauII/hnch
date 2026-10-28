@@ -186,6 +186,9 @@ describe('presence', () => {
     const bob = await Peer.join(uuid);
     alice.announce({ participantId: 'p-alice' });
     await eventually(() => expect(bob.participants()).toEqual(['p-alice']));
+    // y-protocols re-announces a client that is told it was removed; a client
+    // that went quiet does not.
+    alice.mute();
 
     setNow(start + PRESENCE_TIMEOUT_MS);
     const carol = await Peer.join(uuid);

@@ -78,7 +78,7 @@ export interface RoomMeta {
   /** Last time the room was seen with a socket open (stamped hourly). */
   readonly lastOccupiedAt: number;
   /** Set when deletion starts; from then on the room answers unknown. */
-  readonly tombstone: number | null;
+  readonly tombstonedAt: number | null;
   /** The relay's own awareness client ID, stable across wakes. */
   readonly relayClientId: number;
 }
@@ -138,7 +138,7 @@ export class Room extends DurableObject<Env> {
       digest,
       createdAt: now,
       lastOccupiedAt: now,
-      tombstone: null,
+      tombstonedAt: null,
       relayClientId: crypto.getRandomValues(new Uint32Array(1))[0]!,
     };
     this.ctx.storage.transactionSync(() => {
@@ -164,7 +164,7 @@ export class Room extends DurableObject<Env> {
     if (meta === null) return null;
     const digest = passwordHash === null ? null : await passwordDigest(meta.uuid, passwordHash);
     const current = this.loadMeta();
-    if (current === null || current.tombstone !== null) return null;
+    if (isGone(current)) return null;
     const updated = { ...current, digest };
     this.writeMeta(updated);
     return accessModeOf(updated);
@@ -174,14 +174,14 @@ export class Room extends DurableObject<Env> {
   async expireIfDue(): Promise<ExpireOutcome> {
     const meta = await this.touch();
     if (meta === null) return 'gone';
-    if (meta.tombstone === null && !this.isDue(meta, clock.now())) return 'live';
+    if (meta.tombstonedAt === null && !this.isDue(meta, clock.now())) return 'live';
     return (await this.delete()) ? 'deleted' : 'live';
   }
 
   /** ADR-0027 `DELETE /test/rooms/:uuid`: delete now. False if the room is unknown. */
   async testEvict(): Promise<boolean> {
     const meta = this.loadMeta();
-    if (meta === null || meta.tombstone !== null) return false;
+    if (isGone(meta)) return false;
     await this.delete();
     return true;
   }
@@ -202,7 +202,7 @@ export class Room extends DurableObject<Env> {
     }
     // The room may have been deleted while the password was checked.
     const current = this.loadMeta();
-    if (current === null || current.tombstone !== null) return new Response(null, { status: 404 });
+    if (isGone(current)) return new Response(null, { status: 404 });
 
     // Everything that can fail runs before the accept: sync-step-1, then every
     // state the room holds plus the relay's own.
@@ -235,7 +235,7 @@ export class Room extends DurableObject<Env> {
 
   override async webSocketMessage(ws: WebSocket, message: ArrayBuffer | string): Promise<void> {
     const meta = this.loadMeta();
-    if (meta === null || meta.tombstone !== null) return;
+    if (isGone(meta)) return;
     const id = this.idOf(ws);
     const now = clock.now();
 
@@ -253,9 +253,7 @@ export class Room extends DurableObject<Env> {
 
     this.expirePresence(now);
     // Keepalive by piggyback: y-websocket reconnects after 30 s without a frame.
-    if (now - (this.lastSentAt.get(id) ?? Number.NEGATIVE_INFINITY) >= KEEPALIVE_AFTER_MS) {
-      this.send(ws, id, awarenessMessage(this.presence.encode([], [this.relayState(now)])), now);
-    }
+    this.renewIfQuiet(ws, id, now);
     if (this.bufferSince !== null && now - this.bufferSince >= FLUSH_AFTER_MS) this.flush();
     await this.occupied(now, false);
   }
@@ -282,7 +280,7 @@ export class Room extends DurableObject<Env> {
     const now = clock.now();
     try {
       this.flush();
-      if (meta.tombstone !== null) {
+      if (meta.tombstonedAt !== null) {
         await this.delete();
         return;
       }
@@ -293,15 +291,7 @@ export class Room extends DurableObject<Env> {
         }
         if (keepaliveFallback.enabled) {
           for (const ws of open) {
-            const id = this.idOf(ws);
-            if (now - (this.lastSentAt.get(id) ?? Number.NEGATIVE_INFINITY) >= KEEPALIVE_AFTER_MS) {
-              this.send(
-                ws,
-                id,
-                awarenessMessage(this.presence.encode([], [this.relayState(now)])),
-                now,
-              );
-            }
+            this.renewIfQuiet(ws, this.idOf(ws), now);
           }
         }
         await this.ctx.storage.setAlarm(this.nextOccupiedAlarm(now));
@@ -331,7 +321,12 @@ export class Room extends DurableObject<Env> {
       const reply = answerSync(inbound.decoder, this.loadDoc(), id);
       if (reply !== null) this.send(ws, id, reply, now);
     } else if (inbound.type === 'awareness') {
-      const { added, updated, removed } = this.presence.apply(id, inbound.update, now);
+      const { added, updated, removed } = this.presence.apply(
+        id,
+        inbound.update,
+        now,
+        this.loadMeta()!.relayClientId,
+      );
       const changed = [...added, ...updated, ...removed];
       if (changed.length > 0) {
         this.broadcast(awarenessMessage(this.presence.encode(changed)), id, now);
@@ -345,7 +340,7 @@ export class Room extends DurableObject<Env> {
     if (origin === STORAGE_ORIGIN) return;
     this.broadcast(updateMessage(update), typeof origin === 'string' ? origin : null, clock.now());
     const meta = this.loadMeta();
-    if (meta === null || meta.tombstone !== null) return;
+    if (isGone(meta)) return;
     this.buffer.push(update);
     this.bufferBytes += update.byteLength;
     if (this.bufferSince === null) {
@@ -360,12 +355,18 @@ export class Room extends DurableObject<Env> {
     const removed = this.presence.removeOwnedBy(id, clock.now());
     this.lastSentAt.delete(id);
     const meta = this.loadMeta();
-    if (meta === null || meta.tombstone !== null) return;
+    if (isGone(meta)) return;
     const now = clock.now();
     if (removed.length > 0)
       this.broadcast(awarenessMessage(this.presence.encode(removed)), id, now);
     if (this.openSockets(ws).length === 0) this.flush();
     await this.touch();
+  }
+
+  /** Sends the relay's own state to a socket that has been sent nothing for a while. */
+  private renewIfQuiet(ws: WebSocket, id: string, now: number): void {
+    if (now - (this.lastSentAt.get(id) ?? Number.NEGATIVE_INFINITY) < KEEPALIVE_AFTER_MS) return;
+    this.send(ws, id, awarenessMessage(this.presence.encode([], [this.relayState(now)])), now);
   }
 
   private expirePresence(now: number): void {
@@ -454,7 +455,7 @@ export class Room extends DurableObject<Env> {
    */
   private async liveMeta(): Promise<RoomMeta | null> {
     const meta = await this.touch();
-    if (meta === null || meta.tombstone !== null) return null;
+    if (isGone(meta)) return null;
     if (this.isDue(meta, clock.now())) {
       await this.delete();
       return null;
@@ -465,7 +466,7 @@ export class Room extends DurableObject<Env> {
   /** A socket was accepted or sent a frame: keep the room's TTL from running. */
   private async occupied(now: number, accepted: boolean): Promise<void> {
     const meta = this.loadMeta();
-    if (meta === null || meta.tombstone !== null) return;
+    if (isGone(meta)) return;
     try {
       // The hourly alarm stamps occupancy; this covers an alarm that gave up.
       if (now - meta.lastOccupiedAt >= OCCUPANCY_CHECK_MS) {
@@ -509,14 +510,14 @@ export class Room extends DurableObject<Env> {
     const meta = this.loadMeta();
     if (meta === null) return true;
     const now = clock.now();
-    if (meta.tombstone === null) {
+    if (meta.tombstonedAt === null) {
       this.dropBuffer();
       // The room's content goes with the tombstone, so a release that keeps
       // failing never keeps it past the TTL.
       this.ctx.storage.transactionSync(() => {
         this.ctx.storage.sql.exec('DELETE FROM log');
         this.ctx.storage.sql.exec('DELETE FROM snapshot');
-        this.writeMeta({ ...meta, tombstone: now });
+        this.writeMeta({ ...meta, tombstonedAt: now });
       });
       this.doc?.destroy();
       this.doc = null;
@@ -581,7 +582,7 @@ export class Room extends DurableObject<Env> {
     this.dropBuffer();
     if (updates.length === 0 && !this.compactPending) return;
     const meta = this.loadMeta();
-    if (meta === null || meta.tombstone !== null || this.doc === null) return;
+    if (isGone(meta) || this.doc === null) return;
     try {
       const merged = updates.length > 0 ? Y.mergeUpdates(updates) : null;
       if (
@@ -630,6 +631,11 @@ export class Room extends DurableObject<Env> {
     this.bufferBytes = 0;
     this.bufferSince = null;
   }
+}
+
+/** No live room: never made, deleted, or tombstoned. */
+function isGone(meta: RoomMeta | null): meta is null {
+  return meta === null || meta.tombstonedAt !== null;
 }
 
 function accessModeOf(meta: RoomMeta): AccessMode {

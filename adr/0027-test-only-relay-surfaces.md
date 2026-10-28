@@ -26,6 +26,6 @@ Env-var-gated test surfaces in the production binary are permitted. Default-off,
 
 ## Consequences
 
-- Easier: e2e tests real binary; audit via `packages/relay/scripts/dev.mjs` (passes `HNCH_ENABLE_TEST_ROUTES` / `HNCH_ROOM_CAP` to the Worker as `--var`, only when set); new test vars follow clear pattern.
+- Easier: e2e tests real binary; audit via `grep 'process.env\[.*HNCH_' packages/relay/src/` (stale after ADR-0051: vars are Worker `Env` bindings read in `packages/relay/src/config.ts`, names hard-coded in `src/`, `scripts/`, `testing/` and `vitest.config.ts`; audit by grepping the two names under `packages/relay`); new test vars follow clear pattern.
 - Harder: deploy-time vigilance non-negotiable (no in-binary refusal); new test var that weakens admission needs successor ADR with threat model.
 - Revisit when: var needs to weaken admission (write successor); relay grows beyond single binary; legitimate non-test reason to lower cap; gate-fingerprinting attack pattern.
