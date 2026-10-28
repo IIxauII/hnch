@@ -216,7 +216,7 @@ Lobby / Estimating
 
 Effect on peers: the leaver disappears from active rosters (lobby list, voter denominator, "didn't vote" set) immediately. Their votes in already-revealed rounds remain in round history because `round.votes` references `participantId`, and the raw `participants` map still resolves the displayName.
 
-If the leaver later re-enters via room code, `joinSession` clears `leftAt`/`removedBy` for self — they rejoin as an active participant with their existing record (preserves `joinedAt` and any historical vote attribution).
+If the leaver later re-enters via room code, the join clears `leftAt`/`removedBy` for self after its first sync — they rejoin as an active participant with their existing record (preserves `joinedAt` and any historical vote attribution).
 
 **Host removes a participant (kick, host only, destructive):**
 

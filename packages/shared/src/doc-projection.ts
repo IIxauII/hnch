@@ -293,8 +293,8 @@ export interface InitDocInit {
 /**
  * Seed `meta`, `settings`, and a single-entry `participants` map on
  * an empty `Y.Doc`. Throws if the doc already has a seeded `meta`
- * (idempotency is not part of this helper's contract — the DocService
- * is responsible for calling `endSession()` before `createSession()`).
+ * (idempotency is not part of this helper's contract — the live session
+ * seeds a fresh doc of its own for every session it opens).
  */
 export function initDoc(doc: Y.Doc, init: InitDocInit): void {
   if (metaMap(doc).has('roomUuid')) {

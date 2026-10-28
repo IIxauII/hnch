@@ -29,8 +29,8 @@
  * erases the distinction. `rejoin` is called only from `connectToRelay`'s
  * `onSynced`, because that moment is what guarantees the LWW merge ordering the
  * departure lifecycle depends on (ADR-0036 §6); a bound member would advertise
- * it as callable at any time. Both keep their direct call sites in the adapters
- * that own them.
+ * it as callable at any time. Both are called by `live-session`, and nowhere
+ * else.
  *
  * Session-settings patching and round-descriptor patching also stay out:
  * `patchSettings` already carries its own gate in its narrowed public parameter

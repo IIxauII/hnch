@@ -322,27 +322,21 @@ export class HomePage {
         return;
       }
 
-      // Tear down any leftover session (e.g. back-nav from a prior
-      // flow that bailed early) so createSession's single-session
-      // invariant holds.
-      this.docService.teardown();
+      // Opening tears down any leftover session first (e.g. back-nav from a
+      // prior flow that bailed early).
       const defaultSessionName = this.appPrefs.defaultSessionName();
       const avatarColor = this.avatarColorService.value();
-      this.docService.createSession({
+      this.docService.open({
+        room: { uuid: minted.uuid, code: minted.code },
         participantId,
         displayName: displayName ?? '',
-        defaultScale: this.scalePrefs.defaultScale(),
-        ...(defaultSessionName && { sessionName: defaultSessionName }),
         ...(avatarColor && { avatarColor }),
-        roomUuid: minted.uuid,
-        roomCode: minted.code,
+        seed: {
+          kind: 'create',
+          defaultScale: this.scalePrefs.defaultScale(),
+          ...(defaultSessionName && { sessionName: defaultSessionName }),
+        },
       });
-
-      // Open the sync connection so our own writes propagate.
-      this.docService.connect(
-        { roomCode: minted.code, deviceId: participantId },
-        { roomUuid: minted.uuid },
-      );
 
       // If defaultPassword is enabled, show password prompt; otherwise
       // navigate to lobby directly.

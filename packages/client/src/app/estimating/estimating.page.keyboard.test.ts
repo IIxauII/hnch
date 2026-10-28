@@ -122,7 +122,6 @@ async function mountEstimating(opts: MountOptions = {}) {
     // active round means Estimating, otherwise Lobby (issue #508).
     screen: signal(activeRoundValue ? ('estimating' as const) : ('lobby' as const)).asReadonly(),
     rounds: signal([round].filter(Boolean) as Round[]).asReadonly(),
-    onlineParticipants: signal([]).asReadonly(),
     onlineParticipantIds: signal(new Set<string>()).asReadonly(),
     participants: signal(
       opts.isViewer

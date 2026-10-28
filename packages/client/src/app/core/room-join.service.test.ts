@@ -53,8 +53,7 @@ function makeDocService(
     syncStatus: vi.fn().mockReturnValue(overrides.syncStatus ?? 'offline'),
     lastRejection: vi.fn().mockReturnValue(overrides.lastRejection ?? null),
     teardown: vi.fn(),
-    joinSession: vi.fn(),
-    connect: vi.fn(),
+    open: vi.fn(),
     // The session the rejoin opens: the same one for as long as nothing
     // else starts or ends one.
     sessionEpoch: vi.fn().mockReturnValue(1),
@@ -152,7 +151,7 @@ describe('rejoinRoom', () => {
     }
   });
 
-  it('joins session (not createSession) and connects on open room', async () => {
+  it('joins (never creates) the room the code resolved to', async () => {
     const { rejoinRoom, deps, docService, lastSessionService } = await buildDeps({
       resolveResult: { uuid: 'uuid-open', accessMode: 'open' },
       waitOutcome: 'connected',
@@ -161,15 +160,13 @@ describe('rejoinRoom', () => {
     const result = await rejoinRoom('ABC123', deps);
 
     expect(result.type).toBe('connected');
-    expect(docService.teardown).toHaveBeenCalled();
-    // Must use joinSession (not createSession) to avoid host-attribution race
-    expect(docService.joinSession).toHaveBeenCalledWith(
-      expect.objectContaining({ roomCode: 'ABC123' }),
-    );
-    // roomUuid must be passed to connect via opts, not via session init
-    expect(docService.connect).toHaveBeenCalledWith(
-      expect.objectContaining({ roomCode: 'ABC123' }),
-      expect.objectContaining({ roomUuid: 'uuid-open' }),
+    // A join seed writes only this peer's record, so the host attribution
+    // arrives with the relay's state instead of racing it.
+    expect(docService.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        room: { uuid: 'uuid-open', code: 'ABC123' },
+        seed: { kind: 'join' },
+      }),
     );
     // Cache write is now the component effect's responsibility, not rejoinRoom's
     expect(lastSessionService.record).not.toHaveBeenCalled();
@@ -217,8 +214,7 @@ describe('rejoinRoom', () => {
         passwordHash: 'hash-for-the-old-session',
       });
 
-      expect(docService.joinSession).not.toHaveBeenCalled();
-      expect(docService.connect).not.toHaveBeenCalled();
+      expect(docService.open).not.toHaveBeenCalled();
       // A session running in the background is another one, and stays
       expect(docService.teardown).not.toHaveBeenCalled();
     });
@@ -231,7 +227,7 @@ describe('rejoinRoom', () => {
       const result = await rejoinRoom('ABC123', deps, { expectedUuid: 'uuid-remembered' });
 
       expect(result.type).toBe('connected');
-      expect(docService.connect).toHaveBeenCalledOnce();
+      expect(docService.open).toHaveBeenCalledOnce();
     });
   });
 
@@ -244,8 +240,8 @@ describe('rejoinRoom', () => {
 
       await rejoinRoom('ABC123', deps);
 
-      // Once to make room for the session, once to close it again
-      expect(docService.teardown).toHaveBeenCalledTimes(2);
+      // `open` makes room for the session itself; this closes it again.
+      expect(docService.teardown).toHaveBeenCalledTimes(1);
     });
 
     it('is left alone when another session has taken its place', async () => {
@@ -258,7 +254,7 @@ describe('rejoinRoom', () => {
 
       await rejoinRoom('ABC123', deps);
 
-      expect(docService.teardown).toHaveBeenCalledTimes(1);
+      expect(docService.teardown).not.toHaveBeenCalled();
     });
 
     it('is kept on a timeout: a slow relay is not a no', async () => {
@@ -269,7 +265,8 @@ describe('rejoinRoom', () => {
 
       await rejoinRoom('ABC123', deps);
 
-      expect(docService.teardown).toHaveBeenCalledTimes(1);
+      expect(docService.open).toHaveBeenCalledOnce();
+      expect(docService.teardown).not.toHaveBeenCalled();
     });
   });
 
@@ -285,7 +282,7 @@ describe('rejoinRoom', () => {
 
       expect(result).toEqual({ type: 'superseded' });
       expect(docService.teardown).not.toHaveBeenCalled();
-      expect(docService.joinSession).not.toHaveBeenCalled();
+      expect(docService.open).not.toHaveBeenCalled();
     });
 
     it('closes the session it had opened when that happened during the wait', async () => {
@@ -301,7 +298,7 @@ describe('rejoinRoom', () => {
       const result = await rejoinRoom('ABC123', deps, { signal: attempt.signal });
 
       expect(result).toEqual({ type: 'superseded' });
-      expect(docService.teardown).toHaveBeenCalledTimes(2);
+      expect(docService.teardown).toHaveBeenCalledOnce();
     });
 
     it('closes nothing when the session went away by itself', async () => {
@@ -312,7 +309,7 @@ describe('rejoinRoom', () => {
 
       await rejoinRoom('ABC123', deps);
 
-      expect(docService.teardown).toHaveBeenCalledTimes(1);
+      expect(docService.teardown).not.toHaveBeenCalled();
     });
   });
 
@@ -329,7 +326,7 @@ describe('rejoinRoom', () => {
     }
   });
 
-  it('bypasses password-required when passwordHash opt provided and passes it to connect', async () => {
+  it('bypasses password-required when passwordHash opt provided and opens with it', async () => {
     const { rejoinRoom, deps, docService } = await buildDeps({
       resolveResult: { uuid: 'uuid-pw', accessMode: 'password' },
       waitOutcome: 'connected',
@@ -338,9 +335,11 @@ describe('rejoinRoom', () => {
     const result = await rejoinRoom('ABC123', deps, { passwordHash: 'cached-hash' });
 
     expect(result.type).toBe('connected');
-    expect(docService.connect).toHaveBeenCalledWith(
-      expect.objectContaining({ passwordHash: 'cached-hash' }),
-      expect.objectContaining({ roomUuid: 'uuid-pw' }),
+    expect(docService.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        passwordHash: 'cached-hash',
+        room: { uuid: 'uuid-pw', code: 'ABC123' },
+      }),
     );
   });
 
@@ -364,25 +363,6 @@ describe('rejoinRoom', () => {
 
     await rejoinRoom('ABC123', deps);
     expect(lastSessionService.record).not.toHaveBeenCalled();
-  });
-
-  it('passes roomUuid to connect opts, not to joinSession', async () => {
-    const { rejoinRoom, deps, docService } = await buildDeps({
-      resolveResult: { uuid: 'uuid-open', accessMode: 'open' },
-      waitOutcome: 'connected',
-    });
-
-    await rejoinRoom('ABC123', deps);
-
-    // joinSession should NOT receive roomUuid (host-attribution invariant)
-    expect(docService.joinSession).not.toHaveBeenCalledWith(
-      expect.objectContaining({ roomUuid: expect.anything() }),
-    );
-    // connect receives roomUuid in the opts (second arg)
-    expect(docService.connect).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ roomUuid: 'uuid-open' }),
-    );
   });
 });
 
