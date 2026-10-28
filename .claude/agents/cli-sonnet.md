@@ -80,7 +80,7 @@ src/
 3. **No Co-Authored-By trailer** in commits.
 4. **Check ADRs** before structural changes.
 5. **One file per screen.** Extract to `components/` only when reused.
-6. **Exit cleanly.** `session.disconnect()` before `process.exit()`. Handle `[q]` globally in App.tsx.
+6. **Exit cleanly.** `session.teardown()` before `process.exit()`. Handle `[q]` globally in App.tsx.
 7. **Errors to stderr.** `console.error()` for status, `process.exit(1)` for failures.
 
 ## Build and Test

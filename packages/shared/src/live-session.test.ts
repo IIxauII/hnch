@@ -629,9 +629,16 @@ describe('live session — host election', () => {
     await vi.waitFor(() => expect(peer.projection().settings.hostParticipantId).toBe('peer'), {
       timeout: HOST_ABSENCE_ELECTION_DEBOUNCE_MS + SYNC_TIMEOUT,
     });
+    // In sync, this peer can vouch that the host's connection went.
     await vi.waitFor(() =>
       expect(peer.events).toContainEqual(
-        expect.objectContaining({ kind: 'host-changed', hostId: 'peer', isSelf: true }),
+        expect.objectContaining({
+          kind: 'host-changed',
+          hostId: 'peer',
+          isSelf: true,
+          cause: 'disconnected',
+          message: 'Hana disconnected. You are now the host.',
+        }),
       ),
     );
   });
@@ -641,6 +648,8 @@ describe('live session — session events', () => {
   it('an end reaches every peer, and reads as their own to the host who ended it', async () => {
     const { host, room } = await hostedRoom();
     const peer = await joinedPeer(room, 'peer');
+    // A refused end is not this peer's end: the host's still names the host.
+    expect(peer.session.commands.endSession()).toEqual({ applied: false, reason: 'not-host' });
 
     expect(host.session.commands.endSession().applied).toBe(true);
 

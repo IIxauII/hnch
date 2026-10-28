@@ -9,7 +9,7 @@ import type { DocProjection, Round } from '@hnch/shared';
 interface Props {
   projection: DocProjection;
   round: Round;
-  onlineIds: Set<string>;
+  onlineIds: ReadonlySet<string>;
   isHost: boolean;
   myId: string;
   myRole: 'voter' | 'viewer';

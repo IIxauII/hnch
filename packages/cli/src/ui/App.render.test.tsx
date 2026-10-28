@@ -7,8 +7,6 @@
  */
 
 import { flush, press, renderInk } from './test-harness.js';
-import * as Y from 'yjs';
-import { Awareness } from 'y-protocols/awareness';
 import { act } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -54,18 +52,19 @@ function makeSession(
 ): {
   session: SessionHandle;
   startRound: ReturnType<typeof vi.fn>;
+  /** Report a new online set, as the live session does when presence changes. */
+  setOnline(ids: Set<string>): void;
 } {
-  const doc = new Y.Doc();
-  const awareness = new Awareness(doc);
   const startRound = vi.fn().mockReturnValue({ applied: true, id: 'new-round-id', at: 0 });
+  const changeListeners = new Set<() => void>();
+  let onlineIds = overrides.onlineIds ?? new Set(['host']);
 
   const session: SessionHandle = {
-    doc,
-    awareness,
     roomCode: 'ABC123',
     roomUuid: 'uuid-1',
     passwordHash: undefined,
     hasJoined: () => true,
+    whenJoined: () => Promise.resolve(),
     commands: {
       startRound,
       revealCurrentRound: vi.fn(() => ({ applied: true, at: 0 })),
@@ -89,18 +88,28 @@ function makeSession(
     projection: () => makeProjection(overrides.rounds ?? [], overrides.participants),
     current: () => overrides.current ?? null,
     isHost: () => overrides.isHost ?? true,
-    onlineIds: () => overrides.onlineIds ?? new Set(['host']),
+    onlineIds: () => onlineIds,
     updateRoundDescriptor: vi.fn(),
     updateName: vi.fn(),
     updateScale: vi.fn(),
     updateAccess: vi.fn().mockResolvedValue(undefined),
-    onChange: () => () => undefined,
+    onChange: (cb) => {
+      changeListeners.add(cb);
+      return () => changeListeners.delete(cb);
+    },
     onStatusChange: () => () => undefined,
     onSessionEvent: overrides.onSessionEvent ?? (() => () => undefined),
-    disconnect: vi.fn(),
+    teardown: vi.fn(),
   };
 
-  return { session, startRound };
+  return {
+    session,
+    startRound,
+    setOnline(ids) {
+      onlineIds = ids;
+      for (const cb of changeListeners) cb();
+    },
+  };
 }
 
 describe('App — round-start two-step prompt (issue #109)', () => {
@@ -452,5 +461,41 @@ describe('App — host notice is the sink for the host-changed session event', (
 
     expect(lastFrame()).not.toContain('Session ended by Bob');
     expect(lastFrame()).not.toContain('Removed by host');
+  });
+});
+
+describe('App — follows the live session', () => {
+  const ROSTER: DocProjection['participants'] = [
+    { id: 'host', displayName: 'Host', joinedAt: 0, role: 'voter' },
+    { id: 'ada', displayName: 'Ada', joinedAt: 1, role: 'voter' },
+  ];
+
+  it('redraws the online list when presence changes, without waiting for a tick', async () => {
+    const { session, setOnline } = makeSession({ participants: ROSTER });
+    const { lastFrame } = await renderInk(
+      <App session={session} participantId="host" displayName="Host" accessMode="open" />,
+    );
+    expect(lastFrame()).toMatch(/○ Ada/);
+
+    await act(async () => {
+      setOnline(new Set(['host', 'ada']));
+    });
+    await flush();
+
+    expect(lastFrame()).toMatch(/● Ada/);
+  });
+
+  it('adds an agenda item through the session commands', async () => {
+    const { session } = makeSession();
+    const { stdin } = await renderInk(
+      <App session={session} participantId="host" displayName="Host" accessMode="open" />,
+    );
+
+    await press(stdin, 'a');
+    await press(stdin, 'Login page');
+    await press(stdin, '\r');
+    await press(stdin, '\r');
+
+    expect(session.commands.addItem).toHaveBeenCalledWith({ title: 'Login page' });
   });
 });

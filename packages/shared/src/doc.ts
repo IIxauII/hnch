@@ -315,23 +315,7 @@ export interface Round extends Omit<StoredRound, 'revealedAt' | 'skippedAt' | 'd
   terminalAt?: number;
 }
 
-// ---------------------------------------------------------------------------
-// Awareness — ephemeral presence (not persisted in the doc)
-// ---------------------------------------------------------------------------
-
-/**
- * The payload each connected client publishes via Yjs awareness. The
- * online set is exactly the set of awareness entries; a participant who
- * appears in `participants` with no awareness entry is offline.
- *
- * Future fields (typing indicators, "currently editing round title",
- * cursor positions) will be added here, not in the doc, to avoid bloating
- * CRDT history.
- */
-export interface AwarenessPayload {
-  /** Maps an awareness entry back to a `participants` entry. */
-  participantId: string;
-}
+// Presence (awareness) is not in the doc: its shape is `live-session`'s.
 
 // ---------------------------------------------------------------------------
 // Builtin scales
