@@ -57,7 +57,10 @@ export interface HostChangedEvent {
   readonly hostId: string;
   /** The new host's name, else its id. */
   readonly hostName: string;
-  /** Why, where this peer can tell; `null` otherwise. See {@link HostChangeCause}. */
+  /**
+   * Why, where this peer can tell; `null` otherwise. Presence is judged at
+   * delivery, not when the change is seen. See {@link HostChangeCause}.
+   */
   readonly cause: HostChangeCause | null;
   /** The previous host is this peer. */
   readonly wasSelf: boolean;
@@ -98,13 +101,17 @@ export interface SessionEventsDeps {
    * {@link SessionEventsHandle.stop}'s job.
    */
   projection(): DocProjection | null;
-  /** Raw awareness set. Read only for the `disconnected` cause. */
+  /**
+   * Raw awareness set. Read only for the `disconnected` cause, when a
+   * `host-changed` event is delivered.
+   */
   onlineIds(): ReadonlySet<string>;
   /**
    * Whether {@link onlineIds} can be believed right now: the relay's state
    * has applied on the *current* socket (`onSyncedChange` in `relay-client`,
    * ADR-0050). The live reading, not a sticky flag — the same one auto-reveal
-   * is given.
+   * is given. Read when a `host-changed` event is delivered, not when the
+   * change is seen, so it must be a live getter rather than a snapshot.
    */
   presenceTrusted(): boolean;
   /**
@@ -346,7 +353,10 @@ export function startSessionEvents(deps: SessionEventsDeps): SessionEventsHandle
   //  - surfaces answer `ended` and `removed` by tearing the session down,
   //    which must not happen under the notification that is still fanning out;
   //  - the end write notifies before its caller can record that it applied,
-  //    so `endedLocally` is read here rather than at detection.
+  //    so `endedLocally` is read here rather than at detection;
+  //  - a host change carried in a reconnect's sync is seen before that sync
+  //    is reported, so presence (`presenceTrusted`, `onlineIds`) is read here
+  //    too.
   function flush(): void {
     flushScheduled = false;
     const batch = pending;
