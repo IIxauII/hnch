@@ -3,8 +3,9 @@
  *
  * Ordering invariant:
  * Host writes `leftAt` + `removedBy = hostId` to B's record.
- * ParticipantRemovalService on B's context observes the undefined→defined
- * transition, shows toast, clears cache, navigates Home. That observation
+ * The session events driver on B's context sees the undefined→defined
+ * transition, and ParticipantRemovalService (its sink) shows the toast,
+ * clears the cache and navigates Home. That observation
  * must happen after the host confirms the alert — the test enforces this by
  * awaiting A's alert confirm before asserting B's toast/navigation.
  *
