@@ -19,15 +19,18 @@
  *    Two peers on the same URL would reach each other without the relay, and
  *    cutting one's socket would cut nothing. Each peer therefore reaches the
  *    relay under a hostname of its own.
- *  - **A link per peer.** Each peer's sockets go through a `WebSocket`
- *    subclass the test can cut (close every socket and point new ones at a
- *    dead port) and restore. That is a dropped connection as the peer sees
- *    it: `y-websocket` reports the close and retries on its own.
+ *  - **A link per peer.** Each peer's sockets go through a subclass of the
+ *    `ws` package's `WebSocket` that the test can cut (close every socket and
+ *    point new ones at a dead port) and restore. That is a dropped connection
+ *    as the peer sees it: `y-websocket` reports the close and retries on its
+ *    own. `ws` is what the CLI ships; on CI's Node 22 the built-in WebSocket
+ *    left those retries hanging.
  */
 
 import type { Server } from 'node:http';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as Y from 'yjs';
+import WebSocket from 'ws';
 import { createCodePool } from '../../relay/src/code-pool.js';
 import { createRoomStore } from '../../relay/src/room-store.js';
 import { createRelayServer } from '../../relay/src/server.js';
@@ -42,7 +45,12 @@ import {
   type LiveSession,
   type LiveSessionSeed,
 } from './live-session.js';
-import { mintRoom, patchRoomAccess, type SyncStatus } from './relay-client.js';
+import {
+  mintRoom,
+  patchRoomAccess,
+  type SyncStatus,
+  type WebSocketConstructorLike,
+} from './relay-client.js';
 import type { SessionEvent } from './session-events.js';
 
 /** Cross-peer propagation over loopback, reconnect backoff included. */
@@ -92,7 +100,7 @@ function pause(ms: number): Promise<void> {
 const DEAD_URL = 'ws://127.0.0.1:1';
 
 interface Link {
-  readonly WebSocketPolyfill: typeof WebSocket;
+  readonly WebSocketPolyfill: WebSocketConstructorLike;
   /** Sockets constructed through this link so far. */
   opened(): number;
   /** Drop every open socket and refuse new ones until {@link restore}. */
@@ -118,8 +126,8 @@ function makeLink(): Link {
     cut() {
       isCut = true;
       for (const socket of sockets) {
-        // How a runtime treats close() on a socket still connecting varies
-        // (Node 22's may never report the close); let it open, then drop it.
+        // A socket still connecting is dropped once it opens: a drop is a
+        // connection that was up going down, not a handshake abandoned.
         if (socket.readyState === WebSocket.CONNECTING) {
           socket.addEventListener('open', () => socket.close());
         } else {
