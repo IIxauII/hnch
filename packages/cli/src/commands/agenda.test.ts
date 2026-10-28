@@ -190,6 +190,7 @@ function fakeSession(): SessionHandle {
     onChange: () => () => {},
     onStatusChange: () => () => {},
     onSessionEvent: () => () => {},
+    flushUpdates: () => Promise.resolve(),
     teardown,
   };
 }
@@ -210,6 +211,8 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  // Spies on process.exit and the console must not outlive their test.
+  vi.restoreAllMocks();
   vi.clearAllMocks();
 });
 

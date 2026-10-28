@@ -151,6 +151,22 @@ describe('session integration', () => {
     });
   });
 
+  it('delivers session events to each listener until it unsubscribes', async () => {
+    const host = track(
+      await createSession({ participantId: 'host-ev', displayName: 'Alice', relayUrl }),
+    );
+    const kept: string[] = [];
+    const dropped: string[] = [];
+    host.onSessionEvent((event) => kept.push(event.message));
+    const unsubscribe = host.onSessionEvent((event) => dropped.push(event.message));
+
+    unsubscribe();
+    expect(host.commands.endSession().applied).toBe(true);
+
+    await vi.waitFor(() => expect(kept).toEqual(['Session ended.']));
+    expect(dropped).toEqual([]);
+  });
+
   it('create password-protected room + join with password', async () => {
     const host = track(
       await createSession({

@@ -59,16 +59,9 @@ export interface JoinSessionOptions {
  * Join a room already in hand — remembered by `hnch resume`, or by an
  * `hnch agenda` command — with the hash remembered for it.
  */
-export interface OpenSessionOptions {
-  readonly participantId: string;
-  readonly displayName: string;
-  readonly relayUrl: string;
-  readonly roomCode: string;
+export interface OpenSessionOptions extends Omit<JoinSessionOptions, 'password'> {
   readonly roomUuid: string;
   readonly passwordHash?: string | undefined;
-  readonly onRejection?: ((reason: JoinRejectionReason) => void) | undefined;
-  /** Avatar color wire value (ADR-0043). Pre-validated by caller. */
-  readonly avatarColor?: string | undefined;
 }
 
 export interface SessionHandle {
@@ -123,6 +116,11 @@ export interface SessionHandle {
    */
   onSessionEvent(listener: (event: SessionEvent) => void): () => void;
 
+  /**
+   * Wait, up to `capMs`, for what was written last to leave the socket —
+   * before a {@link teardown} that would cut it off. Never rejects.
+   */
+  flushUpdates(capMs?: number): Promise<void>;
   /** Close the session here: the socket, the drivers, the doc. Writes nothing. */
   teardown(): void;
 }
@@ -181,13 +179,17 @@ function open(opts: OpenSessionOptions, seed: LiveSessionSeed): SessionHandle {
   const changeListeners = new Set<() => void>();
   const statusListeners = new Set<(status: SyncStatus) => void>();
   const sessionEventListeners = new Set<(event: SessionEvent) => void>();
-  const joinedWaiters: Array<() => void> = [];
+  // The first sync, once, for good.
+  let joined = false;
+  let markJoined = (): void => {};
+  const firstSync = new Promise<void>((resolve) => {
+    markJoined = resolve;
+  });
 
   // Both are reported while the session opens, before `openLiveSession`
   // returns, so neither is ever read unset.
   let projection: DocProjection | undefined;
   let onlineIds: ReadonlySet<string> = new Set();
-  let joined = false;
 
   const notifyChange = (): void => {
     for (const cb of changeListeners) cb();
@@ -229,7 +231,7 @@ function open(opts: OpenSessionOptions, seed: LiveSessionSeed): SessionHandle {
     },
     onFirstSync() {
       joined = true;
-      for (const resolve of joinedWaiters.splice(0)) resolve();
+      markJoined();
     },
     onSessionEvent(event) {
       for (const listener of sessionEventListeners) listener(event);
@@ -265,10 +267,7 @@ function open(opts: OpenSessionOptions, seed: LiveSessionSeed): SessionHandle {
     },
 
     whenJoined() {
-      if (joined) return Promise.resolve();
-      return new Promise<void>((resolve) => {
-        joinedWaiters.push(resolve);
-      });
+      return firstSync;
     },
 
     onlineIds() {
@@ -320,6 +319,10 @@ function open(opts: OpenSessionOptions, seed: LiveSessionSeed): SessionHandle {
       return () => {
         sessionEventListeners.delete(listener);
       };
+    },
+
+    flushUpdates(capMs) {
+      return live.flushUpdates(capMs);
     },
 
     teardown() {
