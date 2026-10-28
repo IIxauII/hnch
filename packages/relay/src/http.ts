@@ -1,5 +1,7 @@
 /** HTTP helpers for the Worker router. */
 
+import { concatBytes } from './bytes';
+
 /** Same CORS headers as the Node relay: native apps preflight `POST /rooms`. */
 export const CORS_HEADERS: Readonly<Record<string, string>> = {
   'Access-Control-Allow-Origin': '*',
@@ -36,13 +38,7 @@ export async function readJsonBody(request: Request): Promise<unknown> {
     }
     chunks.push(value);
   }
-  const bytes = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  const text = new TextDecoder().decode(bytes).trim();
+  const text = new TextDecoder().decode(concatBytes(chunks)).trim();
   if (text === '') return {};
   try {
     return JSON.parse(text) as unknown;

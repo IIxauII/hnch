@@ -41,13 +41,18 @@ function parseRoomCap(raw: string | undefined): number {
 }
 
 let warned = false;
+/** Vars are fixed for an isolate, so each env object is parsed once. */
+const configs = new WeakMap<object, RelayConfig>();
 
 /**
  * Reads the config and, the first time per isolate, warns if it is not the
  * production one, so a misconfigured deploy shows up in Workers Logs.
  */
 export function configOf(env: ConfigVars): RelayConfig {
+  const known = configs.get(env);
+  if (known !== undefined) return known;
   const config = readConfig(env);
+  configs.set(env, config);
   if (config.nonProduction && !warned) {
     warned = true;
     console.warn(

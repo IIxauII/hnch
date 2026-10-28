@@ -199,6 +199,16 @@ describe('PATCH /rooms/:uuid/access', () => {
 });
 
 describe('WS /ws/:uuid', () => {
+  it('answers 404 to an id that is not a UUID, without making a room object', async () => {
+    const junk = `${'a'.repeat(36)}`;
+    const upgrade = { headers: { Upgrade: 'websocket' } };
+    expect((await call(`/ws/${junk}`, upgrade)).status).toBe(404);
+    expect((await call(`/ws/${'-'.repeat(36)}`, upgrade)).status).toBe(404);
+    const patch = await call(`/rooms/${junk}/access`, { method: 'PATCH', body: '{}' });
+    expect(patch.status).toBe(404);
+    expect(await patch.json()).toEqual({ reason: 'unknown-room' });
+  });
+
   it('answers 426 to a request that is not an upgrade', async () => {
     const { uuid } = await createRoom();
     expect((await call(`/ws/${uuid}`)).status).toBe(426);

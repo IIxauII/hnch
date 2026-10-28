@@ -44,7 +44,7 @@ describe('Presence', () => {
 
     const changed = presence.apply('socket-a', encodeAwarenessUpdate(alice, [1]), 1_000);
 
-    expect(changed).toEqual({ added: [1], updated: [], removed: [] });
+    expect(changed).toEqual({ added: [1], updated: [], removed: [], previousOwners: [] });
     expect(seenBy(presence.encode([1]))).toEqual(
       new Map([[1, { participantId: 'p-alice', name: 'Alice' }]]),
     );
@@ -59,7 +59,7 @@ describe('Presence', () => {
     alice.setLocalState({ participantId: 'p-alice' });
     const changed = presence.apply('socket-a', encodeAwarenessUpdate(alice, [1]), 16_000);
 
-    expect(changed).toEqual({ added: [], updated: [1], removed: [] });
+    expect(changed).toEqual({ added: [], updated: [1], removed: [], previousOwners: [] });
   });
 
   it('ignores an update whose clock is not newer', () => {
@@ -72,7 +72,7 @@ describe('Presence', () => {
 
     const changed = presence.apply('socket-a', stale, 2_000);
 
-    expect(changed).toEqual({ added: [], updated: [], removed: [] });
+    expect(changed).toEqual({ added: [], updated: [], removed: [], previousOwners: [] });
     expect(seenBy(presence.encode([1])).get(1)).toEqual({ participantId: 'p-alice', v: 2 });
   });
 
@@ -87,7 +87,7 @@ describe('Presence', () => {
     removeAwarenessStates(alice, [1], 'left');
     const changed = presence.apply('socket-a', encodeAwarenessUpdate(alice, [1]), 2_000);
 
-    expect(changed).toEqual({ added: [], updated: [], removed: [1] });
+    expect(changed).toEqual({ added: [], updated: [], removed: [1], previousOwners: [] });
     expect(presence.encode(presence.clientIds())).toEqual(encodeAwarenessUpdate(client(5), []));
     expect(seenBy(presence.encode([1]), observer).has(1)).toBe(false);
   });
@@ -192,5 +192,54 @@ describe('Presence', () => {
     const bad = new Uint8Array([1, 7, 1, 5, ...new TextEncoder().encode('{oops')]);
     expect(() => presence.apply('socket-a', bad, 0)).toThrow();
     expect(presence.clientIds()).toEqual([]);
+  });
+
+  it('names the other sockets whose states an update took over or removed', () => {
+    const alice = client(1);
+    alice.setLocalState({ participantId: 'p-alice' });
+    const presence = new Presence();
+    presence.apply('socket-a', encodeAwarenessUpdate(alice, [1]), 0);
+
+    // socket-b echoes a removal of alice's state at the clock it holds.
+    const removal = client(1);
+    removal.setLocalState({}); // clock 1
+    removal.setLocalState(null);
+    removal.meta.set(1, { clock: 1, lastUpdated: 0 });
+    const echo = presence.apply('socket-b', encodeAwarenessUpdate(removal, [1]), 1);
+
+    expect(echo).toEqual({ added: [], updated: [], removed: [1], previousOwners: ['socket-a'] });
+  });
+
+  it('reports the sockets of expired states', () => {
+    const alice = client(1);
+    alice.setLocalState({ participantId: 'p-alice' });
+    const presence = new Presence();
+    presence.apply('socket-a', encodeAwarenessUpdate(alice, [1]), 0);
+
+    const owners = new Set<string>();
+    expect(presence.expire(PRESENCE_TIMEOUT_MS, owners)).toEqual([1]);
+    expect([...owners]).toEqual(['socket-a']);
+  });
+
+  it('never adopts the relay own state, and encodes it with a rising clock', () => {
+    const presence = new Presence();
+    presence.bindRelay(77);
+    const echo = client(77);
+    echo.setLocalState({});
+
+    expect(presence.apply('socket-a', encodeAwarenessUpdate(echo, [77]), 0)).toEqual({
+      added: [],
+      updated: [],
+      removed: [],
+      previousOwners: [],
+    });
+    expect(presence.clientIds()).toEqual([]);
+
+    const observer = client(999);
+    applyAwarenessUpdate(observer, presence.encode([], 5_000), 'relay');
+    expect(observer.getStates().get(77)).toEqual({});
+    const before = observer.meta.get(77)!.clock;
+    applyAwarenessUpdate(observer, presence.encode([], 5_000), 'relay');
+    expect(observer.meta.get(77)!.clock).toBeGreaterThan(before);
   });
 });

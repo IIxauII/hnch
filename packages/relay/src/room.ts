@@ -19,6 +19,7 @@ import { DurableObject } from 'cloudflare:workers';
 import * as Y from 'yjs';
 import { JOIN_REJECTION_CLOSE_CODES } from '@hnch/shared/auth';
 import { clock } from './clock';
+import { concatBytes } from './bytes';
 import { configOf, type RelayConfig } from './config';
 import { passwordDigest, passwordMatches } from './digest';
 import { Presence, PresenceLimitError, type PresenceEntry } from './presence';
@@ -63,6 +64,9 @@ export const KEEPALIVE_ALARM_MS = 20_000;
 
 /** Attachments are capped at 16 KiB; past this a socket's states are not saved. */
 const ATTACHMENT_PRESENCE_BUDGET = 15 * 1024;
+
+/** Password checks per join, if the password keeps changing while it is checked. */
+const PASSWORD_CHECKS = 3;
 
 const SCHEMA_VERSION = 1;
 const META = 'meta';
@@ -112,7 +116,6 @@ export class Room extends DurableObject<Env> {
   private writeFailureLogged = false;
 
   private lastRearmCheck: number | null = null;
-  private relayClock = 0;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -197,12 +200,24 @@ export class Room extends DurableObject<Env> {
     if (meta.digest !== null && !pw) return new Response(null, { status: 400 });
 
     const { 0: client, 1: server } = new WebSocketPair();
-    if (meta.digest !== null && !(await passwordMatches(meta.uuid, pw!, meta.digest))) {
-      return refuse(server, client, 'wrong-password');
+    // The password can be changed or cleared while it is being checked (the
+    // object's input gate stays open across this await), so a verdict counts only
+    // against the digest still in force; otherwise check again, a few times.
+    let digest = meta.digest;
+    let admitted = digest === null;
+    for (let attempt = 0; digest !== null && attempt < PASSWORD_CHECKS; attempt++) {
+      const matches = await passwordMatches(meta.uuid, pw!, digest);
+      const current = this.loadMeta();
+      // The room may have been deleted while the password was checked.
+      if (isGone(current)) return new Response(null, { status: 404 });
+      if (current.digest === digest) {
+        admitted = matches;
+        break;
+      }
+      digest = current.digest;
+      admitted = digest === null;
     }
-    // The room may have been deleted while the password was checked.
-    const current = this.loadMeta();
-    if (isGone(current)) return new Response(null, { status: 404 });
+    if (!admitted) return refuse(server, client, 'wrong-password');
 
     // Everything that can fail runs before the accept: sync-step-1, then every
     // state the room holds plus the relay's own.
@@ -210,7 +225,7 @@ export class Room extends DurableObject<Env> {
     this.expirePresence(now);
     const opening = [
       syncStep1Message(this.loadDoc()),
-      awarenessMessage(this.presence.encode(this.presence.clientIds(), [this.relayState(now)])),
+      awarenessMessage(this.presence.encode(this.presence.clientIds(), now)),
     ];
 
     // No await between the cap check and the accept, so it can't be overrun.
@@ -321,16 +336,16 @@ export class Room extends DurableObject<Env> {
       const reply = answerSync(inbound.decoder, this.loadDoc(), id);
       if (reply !== null) this.send(ws, id, reply, now);
     } else if (inbound.type === 'awareness') {
-      const { added, updated, removed } = this.presence.apply(
+      const { added, updated, removed, previousOwners } = this.presence.apply(
         id,
         inbound.update,
         now,
-        this.loadMeta()!.relayClientId,
       );
       const changed = [...added, ...updated, ...removed];
       if (changed.length > 0) {
         this.broadcast(awarenessMessage(this.presence.encode(changed)), id, now);
         this.saveAttachment(ws, id);
+        this.refreshAttachments(previousOwners);
       }
     }
   }
@@ -366,21 +381,16 @@ export class Room extends DurableObject<Env> {
   /** Sends the relay's own state to a socket that has been sent nothing for a while. */
   private renewIfQuiet(ws: WebSocket, id: string, now: number): void {
     if (now - (this.lastSentAt.get(id) ?? Number.NEGATIVE_INFINITY) < KEEPALIVE_AFTER_MS) return;
-    this.send(ws, id, awarenessMessage(this.presence.encode([], [this.relayState(now)])), now);
+    this.send(ws, id, awarenessMessage(this.presence.encode([], now)), now);
   }
 
   private expirePresence(now: number): void {
-    const expired = this.presence.expire(now);
+    const owners = new Set<string>();
+    const expired = this.presence.expire(now, owners);
     if (expired.length > 0) {
       this.broadcast(awarenessMessage(this.presence.encode(expired)), null, now);
+      this.refreshAttachments(owners);
     }
-  }
-
-  /** The relay's own `{}` awareness state, as the Node relay renewed it. */
-  private relayState(now: number): { clientId: number; clock: number; state: string } {
-    // Time-derived, so the clock keeps rising across wakes and evictions.
-    this.relayClock = Math.max(this.relayClock + 1, Math.floor(now / 1000));
-    return { clientId: this.loadMeta()!.relayClientId, clock: this.relayClock, state: '{}' };
   }
 
   private send(ws: WebSocket, id: string, frame: Uint8Array, now: number): void {
@@ -412,6 +422,16 @@ export class Room extends DurableObject<Env> {
       this.socketIds.set(ws, id);
     }
     return id;
+  }
+
+  /** Re-saves the attachments of sockets whose presence changed under them. */
+  private refreshAttachments(ids: Iterable<string>): void {
+    const stale = new Set(ids);
+    if (stale.size === 0) return;
+    for (const ws of this.ctx.getWebSockets()) {
+      const id = this.idOf(ws);
+      if (stale.has(id)) this.saveAttachment(ws, id);
+    }
   }
 
   private saveAttachment(ws: WebSocket, id: string): void {
@@ -539,13 +559,17 @@ export class Room extends DurableObject<Env> {
   // ------------------------------------------------------------ storage
 
   private loadMeta(): RoomMeta | null {
-    if (this.meta === undefined) this.meta = this.ctx.storage.kv.get<RoomMeta>(META) ?? null;
+    if (this.meta === undefined) {
+      this.meta = this.ctx.storage.kv.get<RoomMeta>(META) ?? null;
+      if (this.meta !== null) this.presence.bindRelay(this.meta.relayClientId);
+    }
     return this.meta;
   }
 
   private writeMeta(meta: RoomMeta): void {
     this.ctx.storage.kv.put(META, meta);
     this.meta = meta;
+    this.presence.bindRelay(meta.relayClientId);
   }
 
   /**
@@ -560,7 +584,7 @@ export class Room extends DurableObject<Env> {
       .exec<{ data: ArrayBuffer }>('SELECT data FROM snapshot ORDER BY chunk')
       .toArray()
       .map((row) => new Uint8Array(row.data));
-    if (chunks.length > 0) Y.applyUpdate(doc, concat(chunks), STORAGE_ORIGIN);
+    if (chunks.length > 0) Y.applyUpdate(doc, concatBytes(chunks), STORAGE_ORIGIN);
     let rows = 0;
     for (const row of sql.exec<{ data: ArrayBuffer }>('SELECT data FROM log ORDER BY seq')) {
       Y.applyUpdate(doc, new Uint8Array(row.data), STORAGE_ORIGIN);
@@ -667,14 +691,4 @@ function closeQuietly(ws: WebSocket, code: number, reason: string): void {
   } catch {
     // Already closed.
   }
-}
-
-function concat(parts: readonly Uint8Array[]): Uint8Array {
-  const out = new Uint8Array(parts.reduce((n, p) => n + p.byteLength, 0));
-  let offset = 0;
-  for (const part of parts) {
-    out.set(part, offset);
-    offset += part.byteLength;
-  }
-  return out;
 }

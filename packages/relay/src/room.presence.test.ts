@@ -6,6 +6,7 @@
 import { env } from 'cloudflare:workers';
 import { evictDurableObject, runInDurableObject } from 'cloudflare:test';
 import * as decoding from 'lib0/decoding';
+import * as encoding from 'lib0/encoding';
 import { describe, expect, it } from 'vitest';
 import type { RoomMeta } from './room';
 import { Peer, createRoom, eventually } from './test-support/peer';
@@ -123,5 +124,40 @@ describe('room metadata', () => {
     );
     expect(meta?.schemaVersion).toBe(1);
     expect(meta?.tombstonedAt).toBeNull();
+  });
+});
+
+describe('presence across an eviction', () => {
+  /** An awareness frame removing `clientId` at `clock`, as a peer echoes a removal. */
+  function removalFrame(clientId: number, clock: number): Uint8Array {
+    const update = encoding.createEncoder();
+    encoding.writeVarUint(update, 1);
+    encoding.writeVarUint(update, clientId);
+    encoding.writeVarUint(update, clock);
+    encoding.writeVarString(update, 'null');
+    const frame = encoding.createEncoder();
+    encoding.writeVarUint(frame, 1);
+    encoding.writeVarUint8Array(frame, encoding.toUint8Array(update));
+    return encoding.toUint8Array(frame);
+  }
+
+  it('does not bring back a state another socket removed', async () => {
+    const { uuid } = await createRoom();
+    const alice = await Peer.join(uuid);
+    const bob = await Peer.join(uuid);
+    alice.announce({ participantId: 'p-alice' });
+    await eventually(() => expect(bob.participants()).toEqual(['p-alice']));
+
+    // Bob's frame removes alice's state; alice's socket stays open but does not
+    // answer the removal by announcing herself again, as a live client would.
+    alice.mute();
+    const clock = alice.awareness.meta.get(alice.awareness.clientID)!.clock;
+    bob.send(removalFrame(alice.awareness.clientID, clock));
+    await settle();
+
+    await evictDurableObject(roomStub(uuid));
+    const carol = await Peer.join(uuid);
+    await settle();
+    expect(carol.participants()).toEqual([]);
   });
 });

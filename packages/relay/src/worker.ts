@@ -61,6 +61,8 @@ async function route(request: Request, env: Env): Promise<Response> {
 
   const ws = WS_PATH_RE.exec(path);
   if (ws !== null && method === 'GET') {
+    // Junk ids stop here: each distinct id would otherwise cost a Room object.
+    if (!UUID_RE.test(ws[1]!)) return new Response(null, { status: 404, headers: CORS_HEADERS });
     if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
       return new Response('Upgrade Required', { status: 426, headers: CORS_HEADERS });
     }
@@ -75,7 +77,9 @@ async function route(request: Request, env: Env): Promise<Response> {
   if (method === 'POST' && path === '/rooms') return createRoom(request, env);
 
   const access = ACCESS_PATH_RE.exec(path);
-  if (method === 'PATCH' && access !== null) return patchAccess(access[1]!, request, env);
+  if (method === 'PATCH' && access !== null) {
+    return UUID_RE.test(access[1]!) ? patchAccess(access[1]!, request, env) : unknownRoom();
+  }
 
   const code = CODE_PATH_RE.exec(path);
   if (method === 'GET' && code !== null) return resolveRoom(code[1]!, env);

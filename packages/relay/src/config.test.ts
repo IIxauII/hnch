@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readConfig } from './config';
+import { configOf, readConfig } from './config';
 
 describe('readConfig', () => {
   it('runs production defaults when no test var is set', () => {
@@ -44,5 +44,12 @@ describe('readConfig', () => {
     expect(readConfig({ HNCH_ROOM_CAP: '3' }).nonProduction).toBe(true);
     expect(readConfig({ HNCH_ENABLE_TEST_ROUTES: '1' }).nonProduction).toBe(true);
     expect(readConfig({ JURISDICTION: 'none' }).nonProduction).toBe(false);
+  });
+});
+
+describe('configOf', () => {
+  it('parses an env object once', () => {
+    const env = { JURISDICTION: 'none' as const };
+    expect(configOf(env)).toBe(configOf(env));
   });
 });

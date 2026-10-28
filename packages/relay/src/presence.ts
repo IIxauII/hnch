@@ -34,6 +34,11 @@ export interface PresenceChange {
   readonly added: number[];
   readonly updated: number[];
   readonly removed: number[];
+  /**
+   * Other sockets that held a state this update removed or took over; their
+   * attachments are out of date.
+   */
+  readonly previousOwners: string[];
 }
 
 interface Held extends PresenceEntry {
@@ -63,85 +68,105 @@ export class Presence {
    */
   private readonly clocks = new Map<number, number>();
   private readonly removedAt = new Map<number, number>();
+  private relay: { clientId: number; clock: number } | undefined;
 
   /**
    * Applies an awareness update that arrived on socket `owner`. Throws, leaving
    * the store unchanged, on malformed input or past {@link MAX_STATES_PER_SOCKET}.
+   * Entries for the relay's own client ID (see {@link bindRelay}) are ignored:
+   * peers echo it back.
    */
-  apply(owner: string, update: Uint8Array, now: number, ignoreClientId?: number): PresenceChange {
+  apply(owner: string, update: Uint8Array, now: number): PresenceChange {
     const decoder = decoding.createDecoder(update);
     const count = decoding.readVarUint(decoder);
-    const entries: { clientId: number; clock: number; state: string }[] = [];
+    const entries: { clientId: number; clock: number; state: string; isNull: boolean }[] = [];
     for (let i = 0; i < count; i++) {
       const clientId = decoding.readVarUint(decoder);
       const clock = decoding.readVarUint(decoder);
       const state = decoding.readVarString(decoder);
-      JSON.parse(state); // throws on text a peer could not parse
-      // A peer echoes the relay's own state back; the relay never adopts it.
-      if (clientId !== ignoreClientId) entries.push({ clientId, clock, state });
+      const isNull = JSON.parse(state) === null; // throws on text a peer could not parse
+      if (clientId !== this.relay?.clientId) entries.push({ clientId, clock, state, isNull });
     }
     // Only entries this socket would take over count toward its cap. y-websocket
     // echoes every change it applies, so a joiner repeats the whole opening
     // presence; those are not newer than what the room holds and cost nothing.
     const owned = new Set(this.ownedBy(owner).map((e) => e.clientId));
-    for (const { clientId, clock, state } of entries) {
-      if (!this.takesOver(clientId, clock, state)) continue;
-      if (isNullState(state)) owned.delete(clientId);
+    for (const { clientId, clock, isNull } of entries) {
+      if (!this.takesOver(clientId, clock, isNull)) continue;
+      if (isNull) owned.delete(clientId);
       else owned.add(clientId);
     }
     if (owned.size > MAX_STATES_PER_SOCKET) {
       throw new PresenceLimitError(`more than ${MAX_STATES_PER_SOCKET} states on one socket`);
     }
 
-    const change: PresenceChange = { added: [], updated: [], removed: [] };
-    for (const { clientId, clock, state } of entries) {
-      if (!this.takesOver(clientId, clock, state)) continue;
+    const change: PresenceChange = { added: [], updated: [], removed: [], previousOwners: [] };
+    for (const { clientId, clock, state, isNull } of entries) {
+      if (!this.takesOver(clientId, clock, isNull)) continue;
       const known = this.clocks.get(clientId);
-      const isNull = isNullState(state);
+      const previous = this.held.get(clientId);
+      if (previous !== undefined && previous.owner !== owner) {
+        change.previousOwners.push(previous.owner);
+      }
 
       this.clocks.set(clientId, clock);
       if (isNull) {
         this.removedAt.set(clientId, now);
-        const wasHeld = this.held.delete(clientId);
-        if (known !== undefined && wasHeld) change.removed.push(clientId);
+        this.held.delete(clientId);
+        if (known !== undefined && previous !== undefined) change.removed.push(clientId);
       } else {
         this.removedAt.delete(clientId);
-        const wasHeld = this.held.has(clientId);
         this.held.set(clientId, { clientId, clock, state, updatedAt: now, owner });
-        (known === undefined || !wasHeld ? change.added : change.updated).push(clientId);
+        (known === undefined || previous === undefined ? change.added : change.updated).push(
+          clientId,
+        );
       }
     }
     return change;
   }
 
   /** y-protocols' rule: a newer clock, or a removal at the held clock. */
-  private takesOver(clientId: number, clock: number, state: string): boolean {
+  private takesOver(clientId: number, clock: number, isNull: boolean): boolean {
     const current = this.clocks.get(clientId) ?? 0;
-    return current < clock || (current === clock && isNullState(state) && this.held.has(clientId));
+    return current < clock || (current === clock && isNull && this.held.has(clientId));
   }
 
   /**
-   * Encodes the states (or removals) of `clientIds` as one awareness update,
-   * followed by `extra` entries that are not held here (the relay's own state).
+   * Sets the relay's own awareness client ID, once the room knows it. The relay
+   * announces a `{}` state under it; peers' echoes of it are never adopted.
    */
-  encode(
-    clientIds: readonly number[],
-    extra: readonly Pick<PresenceEntry, 'clientId' | 'clock' | 'state'>[] = [],
-  ): Uint8Array {
+  bindRelay(clientId: number): void {
+    this.relay ??= { clientId, clock: 0 };
+  }
+
+  /**
+   * Encodes the states (or removals) of `clientIds` as one awareness update.
+   * With `relayAt` (the time, ms) the relay's own `{}` state follows, at a clock
+   * that keeps rising across wakes and evictions.
+   */
+  encode(clientIds: readonly number[], relayAt?: number): Uint8Array {
+    const relay = relayAt === undefined ? null : this.nextRelayState(relayAt);
     const encoder = encoding.createEncoder();
-    encoding.writeVarUint(encoder, clientIds.length + extra.length);
+    encoding.writeVarUint(encoder, clientIds.length + (relay === null ? 0 : 1));
     for (const clientId of clientIds) {
       const held = this.held.get(clientId);
       encoding.writeVarUint(encoder, clientId);
       encoding.writeVarUint(encoder, held?.clock ?? this.clocks.get(clientId) ?? 0);
       encoding.writeVarString(encoder, held?.state ?? NULL_STATE);
     }
-    for (const { clientId, clock, state } of extra) {
-      encoding.writeVarUint(encoder, clientId);
-      encoding.writeVarUint(encoder, clock);
-      encoding.writeVarString(encoder, state);
+    if (relay !== null) {
+      encoding.writeVarUint(encoder, relay.clientId);
+      encoding.writeVarUint(encoder, relay.clock);
+      encoding.writeVarString(encoder, '{}');
     }
     return encoding.toUint8Array(encoder);
+  }
+
+  private nextRelayState(now: number): { clientId: number; clock: number } {
+    const relay = this.relay;
+    if (relay === undefined) throw new Error('relay client ID not bound');
+    relay.clock = Math.max(relay.clock + 1, Math.floor(now / 1000));
+    return relay;
   }
 
   /** Drops what socket `owner` announced; returns the client IDs removed. */
@@ -154,19 +179,19 @@ export class Presence {
 
   /**
    * Drops states not renewed for {@link PRESENCE_TIMEOUT_MS}; returns their
-   * IDs. Also forgets the clocks of clients removed that long ago.
+   * IDs, adding the sockets that held them to `owners`. Also forgets the clocks
+   * of clients removed that long ago.
    */
-  expire(now: number): number[] {
+  expire(now: number, owners?: Set<string>): number[] {
     for (const [clientId, at] of this.removedAt) {
       if (now - at >= PRESENCE_TIMEOUT_MS) {
         this.removedAt.delete(clientId);
         this.clocks.delete(clientId);
       }
     }
-    return this.remove(
-      [...this.held.values()].filter((h) => now - h.updatedAt >= PRESENCE_TIMEOUT_MS),
-      now,
-    );
+    const stale = [...this.held.values()].filter((h) => now - h.updatedAt >= PRESENCE_TIMEOUT_MS);
+    for (const { owner } of stale) owners?.add(owner);
+    return this.remove(stale, now);
   }
 
   /** Clients whose clock is remembered, held or recently removed. */
@@ -206,8 +231,4 @@ export class Presence {
     }
     return states.map((s) => s.clientId);
   }
-}
-
-function isNullState(state: string): boolean {
-  return state === NULL_STATE || JSON.parse(state) === null;
 }
