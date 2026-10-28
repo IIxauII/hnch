@@ -100,7 +100,7 @@ test.describe('Host kick participant (ADR-0036)', () => {
     player,
   }) => {
     // Full ADR-0036 §6 contract: a kicked participant re-enters the room code,
-    // the post-sync leftAt clear (onSynced hook in DocService.connectWithPersistence)
+    // the post-sync leftAt clear (the live session's onSynced → rejoin)
     // runs AFTER the relay snapshot merges so the delete op carries a higher
     // Lamport clock than the snapshot's set('leftAt', ...) and wins the LWW merge.
     // The host's active roster increments back to 2 and shows Player's name.

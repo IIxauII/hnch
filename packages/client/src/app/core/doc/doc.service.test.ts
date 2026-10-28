@@ -20,6 +20,8 @@ import * as Y from 'yjs';
 import {
   FIBONACCI_SCALE,
   initDoc,
+  joinDoc,
+  leave,
   openLiveSession,
   projectDoc,
   UNBOUND_SESSION_COMMANDS,
@@ -45,20 +47,24 @@ vi.mock('@capacitor/core', () => ({
 const stores = vi.hoisted(() => ({
   opened: [] as Array<{ name: string; doc: unknown; destroyed: boolean }>,
   loaded: Promise.resolve() as Promise<void>,
+  /** Whether the database itself opens; y-indexeddb never settles `whenSynced` when it does not. */
+  opens: true,
 }));
 
 vi.mock('y-indexeddb', () => ({
   IndexeddbPersistence: class {
     readonly whenSynced: Promise<void>;
+    readonly _db: Promise<unknown>;
     private readonly record: { name: string; doc: unknown; destroyed: boolean };
     constructor(name: string, doc: unknown) {
       this.record = { name, doc, destroyed: false };
       stores.opened.push(this.record);
-      this.whenSynced = stores.loaded;
+      this._db = stores.opens ? Promise.resolve({}) : Promise.reject(new Error('blocked'));
+      this.whenSynced = stores.opens ? stores.loaded : new Promise<void>(() => {});
     }
     destroy(): Promise<void> {
       this.record.destroyed = true;
-      return Promise.resolve();
+      return this._db.then(() => undefined);
     }
   },
 }));
@@ -131,6 +137,7 @@ beforeEach(() => {
   platform.native = false;
   stores.opened = [];
   stores.loaded = Promise.resolve();
+  stores.opens = true;
   opened = [];
   openLiveSessionMock.mockImplementation((options) => {
     const commands: SessionCommands = {
@@ -193,12 +200,25 @@ describe('DocService — open', () => {
     });
   });
 
-  it('reports the room and a connection under way from the moment it opens', () => {
+  it('reports the room it opened', () => {
     svc.open(JOIN);
 
     expect(svc.roomCode()).toBe('ABC123');
     expect(svc.relayRoomUuid()).toBe('room-uuid-1');
-    expect(svc.syncStatus()).toBe('connecting');
+  });
+
+  it('leaves nothing half-open when the live session cannot be opened', () => {
+    openLiveSessionMock.mockImplementationOnce((options) => {
+      options.onStatusChange?.('connecting');
+      throw new Error('seed failed');
+    });
+
+    expect(() => svc.open(JOIN)).toThrow('seed failed');
+
+    expect(svc.roomCode()).toBeNull();
+    expect(svc.relayRoomUuid()).toBeNull();
+    expect(svc.syncStatus()).toBe('offline');
+    expect(svc.commands).toBe(UNBOUND_SESSION_COMMANDS);
   });
 
   it('tears down the session it held before it opens the next', () => {
@@ -227,6 +247,24 @@ describe('DocService — mirrors the live session', () => {
     expect(svc.settings()?.name).toBe('Sprint 42');
     expect(svc.participants().map((p) => p.id)).toEqual(['p-host']);
     expect(svc.screen()).toBe('lobby');
+  });
+
+  it('counts only those still in the session as active (ADR-0036)', () => {
+    const doc = new Y.Doc();
+    initDoc(doc, {
+      roomUuid: ROOM.uuid,
+      createdAt: 1,
+      participantId: 'p-host',
+      displayName: 'Hana',
+      defaultScale: FIBONACCI_SCALE,
+    });
+    joinDoc(doc, { participantId: 'p-gone', displayName: 'Gus', joinedAt: 2 });
+    leave(doc, 'p-gone');
+
+    latest().options.onProjectionChange?.(projectDoc(doc));
+
+    expect(svc.participants().map((p) => p.id)).toEqual(['p-host', 'p-gone']);
+    expect(svc.activeParticipants().map((p) => p.id)).toEqual(['p-host']);
   });
 
   it('holds the online set it reports', () => {
@@ -388,6 +426,16 @@ describe('DocService — the local snapshot (ADR-0004)', () => {
     svc.teardown();
 
     expect(stores.opened.map((s) => s.destroyed)).toEqual([true]);
+  });
+
+  it('goes on without a cache when IndexedDB cannot be opened', async () => {
+    stores.opens = false;
+    svc.open(JOIN);
+
+    // Settles, so the socket opens; y-indexeddb alone would wait for ever.
+    await expect(latest().options.beforeConnect?.(new Y.Doc())).resolves.toBeUndefined();
+    expect(() => svc.teardown()).not.toThrow();
+    await settle();
   });
 
   it('opens no store on a native platform', async () => {

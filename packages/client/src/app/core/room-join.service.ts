@@ -249,7 +249,7 @@ export class RoomJoinService {
   }
 
   /**
-   * Await first decisive event from doc-service signals after a connect()
+   * Await first decisive event from doc-service signals after an `open()`
    * call.
    *
    * "Connected" means connected *and synced*. The relay accepts the socket

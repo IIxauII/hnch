@@ -337,11 +337,23 @@ export class DocService {
     this.sessionEpochSignal.update((n) => n + 1);
     this.roomCodeSignal.set(init.room.code);
     this.relayRoomUuidSignal.set(init.room.uuid);
-    // Now, not one tick later when the first status arrives, so the
-    // connection banner's clock starts with the attempt.
-    this.syncStatusSignal.set('connecting');
 
-    this.live = openLiveSession({
+    try {
+      this.live = this.openLive(init);
+    } catch (err) {
+      // Nothing half-open is left to look connected.
+      this.teardown();
+      throw err;
+    }
+  }
+
+  /**
+   * The live session for {@link open}. Its first readings — the projection,
+   * this peer online, `connecting` — arrive before it returns, so the
+   * connection banner's clock starts with the attempt.
+   */
+  private openLive(init: OpenSessionInit): LiveSession {
+    return openLiveSession({
       httpBaseUrl: init.httpBaseUrl ?? this.appPrefs.resolvedRelayHttpUrl(),
       room: init.room,
       credentials: {
@@ -406,7 +418,8 @@ export class DocService {
    * closes it here and writes nothing.
    */
   teardown(): void {
-    this.persistence?.destroy();
+    // A store that never opened rejects its close too; there is nothing to close.
+    this.persistence?.destroy().catch(() => undefined);
     this.persistence = null;
     this.live?.teardown();
     this.live = null;
@@ -457,12 +470,20 @@ export class DocService {
    * The live session's `beforeConnect`: load the IndexedDB snapshot into the
    * doc before the socket opens, so the UI is populated from cache at once
    * (ADR-0004). Native: SQLite persistence is deferred to Phase 6b.
+   *
+   * A store that cannot be opened (IndexedDB blocked or missing) is no cache
+   * at all, not a reason to stay offline: `whenSynced` never settles then,
+   * so the open's own failure ends the wait.
    */
   private async loadLocalSnapshot(roomUuid: string, doc: Y.Doc): Promise<void> {
     if (Capacitor.isNativePlatform()) return;
     const persistence = new IndexeddbPersistence(roomUuid, doc);
     this.persistence = persistence;
-    await persistence.whenSynced;
+    const storeFailed = persistence._db.then(
+      () => new Promise<void>(() => {}),
+      () => undefined,
+    );
+    await Promise.race([persistence.whenSynced, storeFailed]);
   }
 
   private requireLive(op: string): LiveSession {
