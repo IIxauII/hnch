@@ -22,7 +22,8 @@
       "!**/.nyc_output/**",
       "!**/playwright-report/**",
       "!**/test-results/**",
-      "!packages/client/src/environments/version.ts"
+      "!packages/client/src/environments/version.ts",
+      "!graphify-out/**"
     ]
   },
   "formatter": {

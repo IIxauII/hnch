@@ -12,7 +12,7 @@ pre-commit:
   jobs:
     - name: biome-format
       glob: '*.{ts,tsx,js,jsx,mjs,cjs,json,jsonc}'
-      run: pnpm exec biome format --write {staged_files} && git add {staged_files}
+      run: pnpm exec biome format --write --no-errors-on-unmatched {staged_files} && git add {staged_files}
     - name: oxlint
       glob: '*.{ts,tsx,js,jsx,mjs,cjs}'
       run: pnpm exec oxlint {staged_files}
