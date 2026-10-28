@@ -532,14 +532,30 @@ describe('live session — teardown', () => {
   });
 });
 
-/** A `beforeConnect` that holds the socket back until released. */
-function heldConnect(): { hook: (doc: Y.Doc) => Promise<void>; release(): Promise<void> } {
+/**
+ * A `beforeConnect` that holds the socket back until released. The hook starts
+ * a microtask after open, so a test that acts "while the hook runs" awaits
+ * `started` first.
+ */
+function heldConnect(): {
+  hook: (doc: Y.Doc) => Promise<void>;
+  started: Promise<void>;
+  release(): Promise<void>;
+} {
   let open!: () => void;
   const gate = new Promise<void>((resolve) => {
     open = resolve;
   });
+  let markStarted!: () => void;
+  const started = new Promise<void>((resolve) => {
+    markStarted = resolve;
+  });
   return {
-    hook: () => gate,
+    hook: () => {
+      markStarted();
+      return gate;
+    },
+    started,
     async release() {
       open();
       await gate;
@@ -605,6 +621,7 @@ describe('live session — before connect', () => {
     const link = makeLink();
     const peer = openPeer({ id: 'peer', room, seed: JOIN, link, beforeConnect: held.hook });
 
+    await held.started;
     peer.session.teardown();
     await held.release();
 
@@ -634,6 +651,7 @@ describe('live session — before connect', () => {
     const held = heldConnect();
     const peer = openPeer({ id: 'peer', room, seed: JOIN, beforeConnect: held.hook });
 
+    await held.started;
     peer.session.updateCredentials(passwordHash);
     await held.release();
 
@@ -648,6 +666,7 @@ describe('live session — before connect', () => {
     const held = heldConnect();
     const peer = openPeer({ id: 'peer', room, seed: JOIN, passwordHash, beforeConnect: held.hook });
 
+    await held.started;
     peer.session.updateCredentials(null);
     await held.release();
 

@@ -392,7 +392,7 @@ describe('handleAgendaList', () => {
     logSpy.mockRestore();
   });
 
-  it('prints ordered list when doc is pre-seeded via wireSession mock', async () => {
+  it('prints the ordered list of a pre-seeded doc', async () => {
     preSeedItemId = 'list-test-seed-id'; // triggers seeding with this fixed id
     const { handleAgendaList } = await import('./agenda.js');
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});

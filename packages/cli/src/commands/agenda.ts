@@ -61,7 +61,7 @@ function agendaRefusal(reason: Extract<AgendaResult, { applied: false }>['reason
   }
 }
 
-async function openAgendaConnection(opts: OpenSessionOptions): Promise<SessionHandle> {
+async function openAgendaSession(opts: OpenSessionOptions): Promise<SessionHandle> {
   const session = openSession(opts);
 
   // Act once the room's state has arrived. A socket that is merely open has
@@ -123,7 +123,7 @@ export async function handleAgendaAdd(argv: {
     process.exit(1);
   }
 
-  const session = await openAgendaConnection({
+  const session = await openAgendaSession({
     relayUrl: config.relayUrl,
     participantId: config.participantId,
     displayName: config.displayName,
@@ -164,7 +164,7 @@ export async function handleAgendaList(): Promise<void> {
     process.exit(1);
   }
 
-  const session = await openAgendaConnection({
+  const session = await openAgendaSession({
     relayUrl: config.relayUrl,
     participantId: config.participantId,
     displayName: config.displayName,
@@ -199,7 +199,7 @@ export async function handleAgendaSkip(argv: { id: string }): Promise<void> {
     process.exit(1);
   }
 
-  const session = await openAgendaConnection({
+  const session = await openAgendaSession({
     relayUrl: config.relayUrl,
     participantId: config.participantId,
     displayName: config.displayName,
@@ -234,7 +234,7 @@ export async function handleAgendaCancel(argv: { id: string }): Promise<void> {
     process.exit(1);
   }
 
-  const session = await openAgendaConnection({
+  const session = await openAgendaSession({
     relayUrl: config.relayUrl,
     participantId: config.participantId,
     displayName: config.displayName,
@@ -273,7 +273,7 @@ export async function handleAgendaMv(argv: {
     process.exit(1);
   }
 
-  const session = await openAgendaConnection({
+  const session = await openAgendaSession({
     relayUrl: config.relayUrl,
     participantId: config.participantId,
     displayName: config.displayName,
