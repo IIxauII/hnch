@@ -54,8 +54,8 @@ PWA and relay move from the IONOS VPS to the Cloudflare free plan, served from r
   - `/health*`, not `/health`: exact match misses query strings and trailing slashes. Matching is case-sensitive; `/Rooms` and bare `/ws` fall through to the SPA, as today.
   - Single origin, no CORS ([ADR-0029](0029-relay-deployment.md) property).
   - A client release redeploys only `hnch-web`; relay DOs are not restarted.
-- **Switch:** routes deploy inert while the apex and `www` records are DNS-only (VPS still serves). Cutover = proxy the apex and `www` records together and set `HNCH_LIVE`. Workers routes run only on proxied hostnames.
-- **Edge:** Always Use HTTPS on. `www` → apex 301 redirect rule (closes #543).
+- **Switch:** routes deploy inert while the apex records are DNS-only (VPS still serves). Cutover = proxy the apex records and set `HNCH_LIVE`. Workers routes run only on proxied hostnames. `www` is proxied from Phase 0 and only redirects.
+- **Edge:** Always Use HTTPS on. `www` → apex 301 redirect rule, live since Phase 0 (fixed #543).
 - **Relay objects:**
   - `Room` DO per room UUID: Y.Doc, presence, password digest, participant cap, expiry alarm.
   - `Codes` DO per room code: unique claim, code → UUID; released on deletion.
@@ -85,13 +85,13 @@ PWA and relay move from the IONOS VPS to the Cloudflare free plan, served from r
   - Deploy asserts both are absent from `wrangler.jsonc`.
   - Gate-off, unknown UUID and malformed UUID keep the same 404 contract.
   - The ADR-0027 "persist outside in-memory store" clause is superseded: test routes write nothing new.
-- **Credentials:** `CLOUDFLARE_API_TOKEN` with Workers Scripts: Edit (account-wide) and Workers Routes: Edit on `hnch.dev`. No DNS permission.
+- **Credentials:** `CLOUDFLARE_API_TOKEN` with Workers Admin (formerly Workers Scripts: Edit; account-wide) and Workers Routes: Write on `hnch.dev`. No DNS permission.
   - Repo secret, referenced only by the deploy jobs (no environment secrets on GitHub Free private repos). Runner pool holds it per ephemeral job.
   - This is the pool's only long-lived deploy credential.
 - **Deploy:** CI on the self-hosted pool ([ADR-0049](0049-self-hosted-runner-pool-current-state-consolidation.md)) runs `wrangler deploy`, pinned at 4.151.3. The `npm_config_target_*` cross-arch pin is removed; no native artifact ships.
   - Deploy refuses to remove a live `hnch.dev` route.
   - Post-switch smokes are gated on `HNCH_LIVE`.
-- **DNS and registrar:** `hnch.dev` zone on Cloudflare; apex and `www` DNS-only until cutover, proxied at cutover. No mail records. Registration stays at IONOS, with its NS delegation pointing at Cloudflare.
+- **DNS and registrar:** `hnch.dev` zone on Cloudflare; apex DNS-only until cutover, proxied at cutover; `www` proxied since Phase 0 (redirect only). No mail records. Registration stays at IONOS, with its NS delegation pointing at Cloudflare.
 - **VPS and rollback:** VPS left idle, not decommissioned. Rollback = set records back to DNS-only; Caddy serves the PWA (kept current by `deploy-client.yml`) and relay 1.2.1, frozen. Rooms created on Cloudflare are lost. Sockets open to the VPS stay until they reconnect.
 - **Node relay:** removed with the VPS. No self-host fallback kept.
 
@@ -103,7 +103,7 @@ PWA and relay move from the IONOS VPS to the Cloudflare free plan, served from r
 - PBKDF2 is not memory-hard. Digests now at rest; exposure is whoever controls the Cloudflare account and DO storage.
 - Free-plan caps are per account and shared with the account's other Workers. Binding limit: DO duration ≈ 29 occupied room-hours/day (13,000 GB-s ÷ ~450 GB-s per 8-peer, 1-hour room). Also 100k DO requests and 100k rows written per day.
   - Exhausted on purpose (hold ~29 rooms open for an hour; ~100k cheap requests; room spam) or by accident (tabs left open all day). Result: relay down for everyone until 00:00 UTC.
-  - Usage ≈ 0 today; usage notifications on. Stated, not mitigated. Owner accepted.
+  - Usage ≈ 0 today. The Free plan has no usage alerts, so usage is checked by hand. Stated, not mitigated. Owner accepted.
 - Storage: 5 GB per account, 1 GB per DO (plan). Not binding at expected size.
 - Observability: no process metrics; `/health` loses counts. Workers Logs free tier: 200k events/day and 3-day retention now; from 2026-12-01, 0.5 GB/day and 7-day retention. Ingestion stops at the limit; the relay does not.
 - Vendor lock-in to Workers and DO APIs (SQLite DO, alarms, hibernating WebSockets).
