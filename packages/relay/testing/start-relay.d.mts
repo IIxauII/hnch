@@ -1,5 +1,10 @@
-/** Reserved: Phase 1b adds the ADR-0027 test vars here. */
-export interface StartTestRelayOptions {}
+/** The ADR-0027 test vars, for a suite that needs a non-production relay. */
+export interface StartTestRelayOptions {
+  /** `HNCH_ROOM_CAP`: lowers the participant cap (1–20). */
+  roomCap?: number;
+  /** `HNCH_ENABLE_TEST_ROUTES=1`: mounts `DELETE /test/rooms/:uuid`. */
+  testRoutes?: boolean;
+}
 
 export interface TestRelay {
   /** Base URL of the relay, e.g. `http://localhost:41234`. Serves `GET /health`. */

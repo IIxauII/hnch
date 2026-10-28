@@ -1,20 +1,12 @@
 /**
- * Operator-facing response shape for `GET /health` on the relay.
+ * Response shape for `GET /health` on the relay.
  *
- * All fields are aggregate counters — no room UUIDs, codes, participant IDs,
- * or session content. The relay stays content-blind (ADR-0001) and the
- * endpoint is outside ADR-0028's user-telemetry scope.
+ * Shallow by design (ADR-0051): the relay answers without touching a room, so
+ * there are no counts and no config or gate state — only that it is up and
+ * which release is serving.
  */
 export interface HealthResponse {
   readonly status: 'ok';
+  /** `packages/relay/package.json#version` of the deployed relay. */
   readonly version: string;
-  readonly uptime: number;
-  readonly rooms: {
-    readonly active: number;
-    readonly snapshotted: number;
-    readonly cap: number;
-  };
-  readonly peers: {
-    readonly connected: number;
-  };
 }

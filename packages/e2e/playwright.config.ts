@@ -57,7 +57,13 @@ export default defineConfig({
       command: 'pnpm --filter @hnch/relay dev',
       port: parseInt(RELAY_PORT, 10),
       reuseExistingServer: !isCI,
-      env: { HNCH_ROOM_CAP: '3', HNCH_ENABLE_TEST_ROUTES: '1', PORT: RELAY_PORT },
+      // Loopback only: test routes let anyone who can reach the relay delete rooms.
+      env: {
+        HNCH_ROOM_CAP: '3',
+        HNCH_ENABLE_TEST_ROUTES: '1',
+        PORT: RELAY_PORT,
+        HOST: '127.0.0.1',
+      },
     },
     {
       command: 'pnpm --filter @hnch/client dev',

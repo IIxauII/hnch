@@ -1,6 +1,6 @@
 # ADR-0029: Relay deployment — bare-metal VPS with Caddy reverse proxy and single-origin layout
 
-**Status:** Accepted (runner-location clause superseded by ADR-0049)
+**Status:** Superseded by ADR-0051
 **Date:** 2026-04-27
 
 ## Context

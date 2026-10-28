@@ -12,6 +12,10 @@ dist/
 build/
 *.tsbuildinfo
 
+# Wrangler local state and build output; local Worker secrets
+.wrangler/
+.dev.vars*
+
 # Angular / Ionic
 .angular/
 .ionic/

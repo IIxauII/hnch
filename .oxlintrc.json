@@ -20,6 +20,7 @@
     ".nyc_output",
     "playwright-report",
     "test-results",
+    ".wrangler",
     "packages/client/src/environments/version.ts"
   ],
   // oxlint no-undef evaluated 2026-05; not feasible — flags Node/browser globals (process/console/document/__dirname/navigator) as undefined without invasive globals config. CI verify lane (packages/e2e typecheck) covers this bug-class.
