@@ -1,3 +1,10 @@
+## [1.17.1](https://github.com/IIxauII/hnch/compare/cli-v1.17.0...cli-v1.17.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **shared,client,cli,e2e,docs,repo:** one session events driver for session end, host change and removal ([#533](https://github.com/IIxauII/hnch/issues/533)) ([0a601ac](https://github.com/IIxauII/hnch/commit/0a601ac977343343f85939c863af543e6fd54441))
+
 # [1.17.0](https://github.com/IIxauII/hnch/compare/cli-v1.16.1...cli-v1.17.0) (2026-10-28)
 
 
