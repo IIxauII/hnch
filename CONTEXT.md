@@ -153,7 +153,7 @@ _Avoid_: endSession (the collision this rename exists to end), destroy, close, r
 ## Session drivers
 
 **driver**:
-A shared module that owns *when* a rule re-evaluates, not just what the rule says — `startElection` in `election` and `startAutoReveal` in `auto-reveal`. Each takes framework-free callbacks (`projection`, `onlineIds`, `subscribe`, plus the rule's own sink — and, for auto-reveal, how far presence can be trusted) and returns a handle with `stop()`. Because a driver is fed a *reading* of the doc rather than the doc itself, no `Y.Doc`, `Awareness`, or Angular primitive crosses **a driver's** seam — a rule about drivers specifically, not a blanket rule for shared modules: `relay-client` takes a `Y.Doc` precisely because it owns a connection rather than a re-evaluation rule. Client and CLI supply adapters, nothing more. Naming a driver separately from its predicate matters because the re-evaluation axis is exactly where two hand-wired copies drift.
+A shared module that owns *when* a rule re-evaluates, not just what the rule says — `startElection` in `election`, `startAutoReveal` in `auto-reveal` and `startSessionEvents` in `session-events`. Each takes framework-free callbacks (`projection`, `onlineIds`, `subscribe`, plus the rule's own sink — and, for auto-reveal and session events, how far presence can be trusted) and returns a handle with `stop()`. Because a driver is fed a *reading* of the doc rather than the doc itself, no `Y.Doc`, `Awareness`, or Angular primitive crosses **a driver's** seam — a rule about drivers specifically, not a blanket rule for shared modules: `relay-client` takes a `Y.Doc` precisely because it owns a connection rather than a re-evaluation rule. Client and CLI supply adapters, nothing more. Naming a driver separately from its predicate matters because the re-evaluation axis is exactly where two hand-wired copies drift.
 _Avoid_: watcher, observer (Yjs owns that word), loop, poller (a driver is subscription-fed, never polls), service
 
 **auto-reveal driver**:
@@ -163,6 +163,10 @@ _Avoid_: autoRevealWatcher, revealPoller, unanimityService
 **autoRevealCount**:
 The client-side monotonic counter `DocService` bumps when its auto-reveal driver's write actually applies. An edge signal, not a timestamp — two reveals in the same millisecond must still notify, and there is nothing to reset. The Estimating page keys its success haptic off it, which is how device feedback stays out of the doc layer.
 _Avoid_: lastAutoRevealAt, autoRevealed, revealSignal
+
+**session events driver**:
+`startSessionEvents` in `session-events` — tells a surface that the session *ended*, that the *host changed*, or that this peer was *removed* by the host, each once, with the text to show already written, so both surfaces say the same thing. It holds the guards: an end fires once per distinct `sessionEndedAt` and does not wait for the first sync, so an end carried in the snapshot still lands (ADR-0023 §5); the first host seen is a seed, not a change; a host change says *left* or *disconnected* only where this peer can vouch for it (ADR-0050); a removal fires only on a live `leftAt` transition after the first sync, never on one carried in the snapshot (ADR-0036 §6). "Ended locally" means this peer's own `endSession` write applied — not that it created the session. Events are delivered a microtask after they are seen, never inside the doc change that raised them, because a surface answers two of them by tearing the session down. The surface keeps only its sink: toast and navigate on the client, print and exit on the CLI.
+_Avoid_: session-end observer, kick handler, host-change watcher, SessionEventsService, event bus, notifier
 
 ## Relay contract
 
