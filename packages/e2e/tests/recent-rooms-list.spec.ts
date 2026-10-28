@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/app.fixture';
-import { BASE_URL, HOME, expectToast } from './fixtures/helpers';
+import { BASE_URL, HOME, expectToast, rememberedSessionCodes } from './fixtures/helpers';
 
 /**
  * Format a 6-char room code to the displayed "XXX-XXX" form.
@@ -36,8 +36,16 @@ async function evictRoom(uuid: string): Promise<void> {
 /**
  * Navigate to /home without clearing the last-session cache.
  * `leaveSession()` explicitly clears the cache — avoid it here.
+ *
+ * Waits first until session `code` is remembered: the lobby writes the entry
+ * once the relay's first sync arrives, which can land after the code is on
+ * screen, so leaving at once can leave nothing to list.
  */
-async function goHomePreservingCache(page: import('@playwright/test').Page): Promise<void> {
+async function goHomePreservingCache(
+  page: import('@playwright/test').Page,
+  code: string,
+): Promise<void> {
+  await expect.poll(() => rememberedSessionCodes(page)).toContain(code);
   await page.goto(`${BASE_URL}/home`);
   await page.waitForURL(/\/home/);
 }
@@ -75,7 +83,7 @@ test.describe('Recent rooms list', () => {
     // Room A
     const codeA = await host.createSession();
     await host.page.waitForURL(/\/lobby/);
-    await goHomePreservingCache(host.page);
+    await goHomePreservingCache(host.page, codeA);
 
     // Reload to re-read cache from Preferences (ionViewWillEnter fires on real nav)
     await host.page.reload();
@@ -88,7 +96,7 @@ test.describe('Recent rooms list', () => {
     // Room B (must wait at least 1 ms after A so lastSeenAt differs)
     const codeB = await host.createSession();
     await host.page.waitForURL(/\/lobby/);
-    await goHomePreservingCache(host.page);
+    await goHomePreservingCache(host.page, codeB);
 
     // Reload to trigger ionViewWillEnter → loadEntriesFromCache()
     await host.page.reload();
@@ -123,7 +131,7 @@ test.describe('Recent rooms list', () => {
       const code = await host.createSession();
       codes.push(code);
       await host.page.waitForURL(/\/lobby/);
-      await goHomePreservingCache(host.page);
+      await goHomePreservingCache(host.page, code);
       // Brief reload between rounds so ionViewWillEnter re-reads cache.
       // On the last iteration we assert after reload below, so skip here.
       if (i < 5) {
@@ -165,14 +173,14 @@ test.describe('Recent rooms list', () => {
     const codeA = await host.createSession();
     const uuidA = await resolveRoomUuid(codeA);
     await host.page.waitForURL(/\/lobby/);
-    await goHomePreservingCache(host.page);
+    await goHomePreservingCache(host.page, codeA);
     await host.page.reload();
     await host.page.waitForURL(/\/home/);
 
     // Room B
     const codeB = await host.createSession();
     await host.page.waitForURL(/\/lobby/);
-    await goHomePreservingCache(host.page);
+    await goHomePreservingCache(host.page, codeB);
     await host.page.reload();
     await host.page.waitForURL(/\/home/);
 
@@ -217,14 +225,14 @@ test.describe('Recent rooms list', () => {
     // Room A
     const codeA = await host.createSession();
     await host.page.waitForURL(/\/lobby/);
-    await goHomePreservingCache(host.page);
+    await goHomePreservingCache(host.page, codeA);
     await host.page.reload();
     await host.page.waitForURL(/\/home/);
 
     // Room B
-    await host.createSession();
+    const codeB = await host.createSession();
     await host.page.waitForURL(/\/lobby/);
-    await goHomePreservingCache(host.page);
+    await goHomePreservingCache(host.page, codeB);
     await host.page.reload();
     await host.page.waitForURL(/\/home/);
 
@@ -258,13 +266,13 @@ test.describe('Recent rooms list', () => {
   test('× forgets one entry and leaves the rest', async ({ host }) => {
     const codeA = await host.createSession();
     await host.page.waitForURL(/\/lobby/);
-    await goHomePreservingCache(host.page);
+    await goHomePreservingCache(host.page, codeA);
     await host.page.reload();
     await host.page.waitForURL(/\/home/);
 
     const codeB = await host.createSession();
     await host.page.waitForURL(/\/lobby/);
-    await goHomePreservingCache(host.page);
+    await goHomePreservingCache(host.page, codeB);
     await host.page.reload();
     await host.page.waitForURL(/\/home/);
     await expect(host.page.locator(RECENT_ROOMS.rows)).toHaveCount(2);
