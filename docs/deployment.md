@@ -80,18 +80,20 @@ release.yml — semantic-release per package, tags client-vX.Y.Z
         ▼
 deploy-client.yml — dispatched with --ref client-vX.Y.Z (targets: all)
         │
-        ├── build   deploy-guard.mjs config   assets-only from ./www, SPA fallback, no
-        │           │                         run_worker_first, no workers.dev or preview
-        │           │                         URLs, every route on hnch.dev with a zone_id
+        ├── build   cold install (fresh store, client + shared, no install scripts)
+        │           ├── deploy-guard.mjs config  assets-only from ./www, SPA fallback, no
+        │           │                            run_worker_first, no workers.dev or preview
+        │           │                            URLs, every route on hnch.dev with a zone_id
         │           ├── ng build (production), once
-        │           └── deploy-guard.mjs www  _headers at the root of www, every .js and
-        │                                     .css content-hashed
+        │           └── deploy-guard.mjs www     _headers at the root of www, every .js and
+        │                                        .css content-hashed
         │
         ├── vps     (targets: all only) tarball → scp → atomic symlink swap;
         │           smoke: https://hnch.dev/ serves <app-root>, or after the switch the
         │           active release on the VPS does
         │
-        └── web     fresh www from the build; deploy-guard.mjs config and www again
+        └── web     cold install (fresh store, client only, no install scripts);
+                    │   fresh www from the build; deploy-guard.mjs config and www again
                     ├── deploy-guard.mjs live    no live hnch-web route removed (unless the
                     │                            allow_route_removal input)
                     ├── wrangler deploy --message "<tag or untagged> (<sha>)"
@@ -119,6 +121,7 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z (targets: all)
 - **SPA fallback.** Any path without a file answers `index.html` with `200`. `/index.html` itself redirects (`307`) to `/`.
 - **`targets`.** Releases deploy `all`: the VPS and `hnch-web`. A manual dispatch of unreleased `main` uses `web-only`.
 - **Tags and messages.** The `hnch-web` version is tagged `client-vX.Y.Z` only when the deployed commit is that release tag's commit; any other commit deploys untagged. Every version's message names the full commit SHA, and `verify` checks the version id `wrangler deploy` just uploaded (from `WRANGLER_OUTPUT_FILE_PATH`) is the one serving, so a re-dispatch can't pass on an earlier upload.
+- **Cold installs.** The `build` and `web` jobs don't use the runner pool's shared caches (the pnpm store and `node_modules` snapshots under `/cache`), which PR CI can write. Each runs `pnpm install --frozen-lockfile --ignore-scripts --store-dir "${RUNNER_TEMP}/pnpm-store"` into a fresh store, so pnpm checks every package against the lockfile; `build` filters to `@hnch/client...`, `web` to `@hnch/client` (pnpm still installs the workspace root's packages). Node is the runner image's, and pnpm's version comes from `packageManager` through Corepack.
 - **A client release never touches the relay.** In G0 (2026-10-28) relay sockets held for 300 s across a web redeploy with 0 closes.
 - **Rollback.** `hnch-web` has no Durable Objects, so both ways work: `wrangler rollback` (instant, no rebuild), or a `web-only` dispatch of an older `client-v*` tag. The VPS release rolls back by symlink (`infra/README.md`).
 
