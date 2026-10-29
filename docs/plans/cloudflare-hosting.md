@@ -283,7 +283,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
 3. **Switch:**
    - set the apex A and AAAA records to **proxied** (`www` already is);
    - set `HNCH_LIVE=true`;
-   - re-dispatch both deploy jobs to run the gated smokes: relay at its latest tag; client on `main` or a client tag cut after the ADR-0054 merge. Never a pre-ADR-0054 client tag (≤ `client-v1.46.0`): its workflow ships only to the VPS.
+   - re-dispatch both deploy jobs to run the gated smokes: relay at its latest tag; client at a client tag cut after the ADR-0054 merge. A manual dispatch bypasses the release gate, so dispatch `main` only when its latest `ci.yml` push run is green. Never a pre-ADR-0054 client tag (≤ `client-v1.46.0`): its workflow ships only to the VPS.
 4. **Verify on `hnch.dev` and fix forward:** run the Phase 3 checklist. Problems are fixed by releases.
 5. **During propagation:**
    - Resolvers that cached the old A record reach the VPS until the TTL runs out.
@@ -503,7 +503,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
     - `src/_headers` plus an entry in the `angular.json` assets.
     - `package.json`: wrangler as a dev dependency.
   - **`.github/workflows/deploy-client.yml`:**
-    - keep the VPS ship (reopened 2026-10-29: the `vps` job and the `targets` input go in the VPS-removal PR, ADR-0054);
+    - keep the VPS ship (reopened 2026-10-29: the `vps` job and the `targets` input were removed later, by the ADR-0054 change);
     - add the hash guard;
     - add `wrangler deploy` of the same `www` to `hnch-web`;
     - add the `targets: all | web-only` input and the route-removal guard;
