@@ -1,9 +1,12 @@
 /**
- * `Expiry` Durable Object: one per UTC day, listing the rooms created that day.
+ * `Expiry` Durable Object: one per UTC day, listing the rooms created that day
+ * and the rooms a sweep found still live that day.
  *
  * A backstop for room deletion (contract item 11). Each room deletes itself
  * through its alarm and through lazy expiry on entry; the daily cron sweeps the
- * last 30 days here so a room whose alarm gave up is still deleted.
+ * last 30 days here so a room whose alarm gave up is still deleted. A room the
+ * sweep finds live moves to the sweep's day, so it stays covered however long
+ * it lives.
  */
 
 import { DurableObject } from 'cloudflare:workers';
@@ -23,6 +26,9 @@ export const SWEEP_BATCH = 40;
 export interface SweepResult {
   readonly deleted: number;
   readonly gone: number;
+  /** Still live, and now listed under the sweep's day instead. */
+  readonly moved: number;
+  /** Still live, and still listed here (its move failed). */
   readonly live: number;
   readonly failed: number;
 }
@@ -32,8 +38,11 @@ export class Expiry extends DurableObject<Env> {
     this.ctx.storage.kv.put(PREFIX + uuid, 1);
   }
 
-  /** Asks each listed room to expire if due; forgets the deleted and gone ones. */
-  async sweep(): Promise<SweepResult> {
+  /**
+   * Asks each listed room to expire if due, or else to list itself under
+   * `today`; forgets the deleted, gone and moved ones.
+   */
+  async sweep(today: string): Promise<SweepResult> {
     const kv = this.ctx.storage.kv;
     const cursor = kv.get<string>(CURSOR);
     const page = (startAfter: string | undefined) =>
@@ -50,10 +59,10 @@ export class Expiry extends DurableObject<Env> {
     if (keys.length > 0) kv.put(CURSOR, keys.at(-1)!);
     const uuids = keys.map((key) => key.slice(PREFIX.length));
 
-    const result = { deleted: 0, gone: 0, live: 0, failed: 0 };
+    const result = { deleted: 0, gone: 0, moved: 0, live: 0, failed: 0 };
     for (const uuid of uuids) {
       try {
-        const outcome = await roomStub(this.env, uuid).expireIfDue();
+        const outcome = await roomStub(this.env, uuid).expireIfDue(today);
         result[outcome]++;
         if (outcome !== 'live') this.ctx.storage.kv.delete(PREFIX + uuid);
       } catch (err) {

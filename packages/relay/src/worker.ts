@@ -192,7 +192,9 @@ export async function handleScheduled(controller: ScheduledController, env: Env)
   const days = Array.from({ length: SWEEP_DAYS }, (_, i) =>
     utcDay(controller.scheduledTime - (i + 1) * DAY_MS),
   );
-  const results = await Promise.allSettled(days.map((day) => expiryStub(env, day).sweep()));
+  // A room still live moves to today's index, which tomorrow's sweep covers.
+  const today = utcDay(controller.scheduledTime);
+  const results = await Promise.allSettled(days.map((day) => expiryStub(env, day).sweep(today)));
   const failed = results.filter((r) => r.status === 'rejected').length;
   if (failed > 0) logEvent('relay-sweep-days-failed');
 }

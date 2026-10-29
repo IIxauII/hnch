@@ -127,8 +127,10 @@ Rooms now survive relay deploys. They persist, pinned to the EU, until 24–25 h
       3. `deleteAll()`.
       - A `Codes.claim` treats a holder whose `Room.info()` is null as free.
     - **Backstop sweep** (planner-decided; owner may veto):
-      - `Expiry(<UTC creation day>)` lists the UUIDs created that day (one row per room).
-      - A daily cron on `hnch-relay` at 04:00 UTC runs `sweep()` for each of the last 30 days, about 30 DO requests a day. `sweep()` calls `Room(uuid).expireIfDue()` → `deleted | gone | live`, and drops the `deleted` and `gone` entries.
+      - `Expiry(<UTC day>)` lists the UUIDs created that day, plus the rooms a sweep found live that day (one row per room).
+      - A daily cron on `hnch-relay` at 04:00 UTC runs `sweep(today)` for each of the last 30 days, about 30 DO requests a day. `sweep()` calls `Room(uuid).expireIfDue(today)` → `deleted | gone | moved | live`, and drops the `deleted`, `gone` and `moved` entries.
+        - A room that is not due registers itself under `Expiry(today)` and answers `moved`, so it stays covered however long it lives (#554). That call is the room's own subrequest, so a sweep still makes one per listed room.
+        - If the move fails, the room answers `live`, stays listed where it was, and the next sweep retries.
       - It uses one of the account's free cron slots.
     - **Tests:**
       - the alarm throws 7 times → the room still expires through lazy expiry and through the sweep;
@@ -180,7 +182,7 @@ WS   /ws/:uuid ───▶ hnch-relay ─▶ Room(uuid).fetch: 404/400 pre-upgr
 Room DO: Y.Doc (lazy) + Awareness ⇄ SQLite (meta{schemaVersion,lastOccupiedAt,tombstonedAt,digest}, log ≤32, snapshot ≤1 MiB chunks)
 inbound msg on S ─▶ apply/broadcast ─▶ buffer (≤5 s) ─▶ S quiet ≥10 s? relay renewal to S
 alarm (hourly while occupied) ─▶ occupied? stamp : due? tombstone → Codes.release → deleteAll : re-arm
-cron 04:00 UTC ─▶ Expiry(day−1…day−30).sweep ─▶ Room.expireIfDue
+cron 04:00 UTC ─▶ Expiry(day−1…day−30).sweep ─▶ Room.expireIfDue: due? delete : Expiry(today).register (moved)
 ```
 
 ### Free-plan budget (information; per account, daily, reset 00:00 UTC; inbound WS counted 1:1)
