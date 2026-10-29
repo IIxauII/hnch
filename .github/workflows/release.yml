@@ -83,8 +83,27 @@ jobs:
         run: |
           # If one package's release fails, later packages are skipped. semantic-release is idempotent on tags, so re-running the workflow after fixing the failure resumes safely.
           set -euo pipefail
+          # semantic-release publishes nothing when the remote main is ahead of
+          # the checkout. The screenshot bot pushes to main while this job runs,
+          # and its [skip ci] commits start no Release run of their own, so a
+          # race with it would drop the release. Fast-forward over commits that
+          # only touch docs/screenshots/**. Anything else is left behind: the
+          # push that brought it starts its own Release run, queued behind this one.
+          # A bot push in the seconds between this catch-up and semantic-release's
+          # own push still fails the job; re-run it, and the catch-up covers it.
+          catch_up_screenshot_commits() {
+            # Best effort: without it, semantic-release's own check decides as before.
+            git fetch --quiet origin main || return 0
+            git merge-base --is-ancestor HEAD origin/main || return 0
+            if ! git diff --quiet --no-renames HEAD origin/main -- . ':(exclude)docs/screenshots'; then
+              echo "::warning::main moved with commits outside docs/screenshots; their own Release run releases them."
+              return 0
+            fi
+            git merge --quiet --ff-only origin/main
+          }
           for PKG in shared relay client cli; do
             echo "::group::semantic-release :: $PKG"
+            catch_up_screenshot_commits
             pnpm exec semantic-release --extends ./packages/$PKG/release.config.mjs
             echo "::endgroup::"
           done
