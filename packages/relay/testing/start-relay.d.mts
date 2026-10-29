@@ -16,6 +16,12 @@ export interface TestRelay {
    * and up): the last 256 Ki characters.
    */
   output(): string;
+  /**
+   * PID of the relay process (`scripts/dev.mjs`), which leads its own process
+   * group: `process.kill(-pid, signal)` reaches wrangler and workerd too. For
+   * tests of a relay dying without `stop()`.
+   */
+  pid: number;
   /** Resolves once the relay is down and its port refuses connections. */
   stop(): Promise<void>;
 }
