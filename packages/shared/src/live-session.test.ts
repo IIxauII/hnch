@@ -7,9 +7,10 @@
  * That is what lets this one suite stand for both surfaces: the client's
  * `DocService` and the CLI's session module are adapters over exactly this.
  *
- * The relay is the real server, started through the `@hnch/relay/testing`
- * harness; the vitest config aliases `@hnch/shared` to source, so the relay
- * runs against the code under test and no build is needed first.
+ * The relay is the real server, started once per run by
+ * `vitest.relay-setup.ts` through the `@hnch/relay/testing` harness and shared
+ * with every suite in the `relay` project, so each test works in rooms it
+ * mints itself.
  *
  * Two details of the harness matter:
  *
@@ -26,10 +27,9 @@
  *    left those retries hanging.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as Y from 'yjs';
 import WebSocket from 'ws';
-import { startTestRelay, type TestRelay } from '@hnch/relay/testing';
 import type { JoinRejectionReason } from './auth.js';
 import { initDoc, type DocProjection } from './doc-projection.js';
 import { FIBONACCI_SCALE, isActiveParticipant } from './doc.js';
@@ -48,6 +48,7 @@ import {
   type WebSocketConstructorLike,
 } from './relay-client.js';
 import type { SessionEvent } from './session-events.js';
+import { testRelayUrl } from '../vitest.relay-url.js';
 
 /** Cross-peer propagation over loopback, reconnect backoff included. */
 const SYNC_TIMEOUT = 8_000;
@@ -56,18 +57,9 @@ const SYNC_TIMEOUT = 8_000;
 // 5 s debounce for real.
 vi.setConfig({ testTimeout: 20_000 });
 
-let relay: TestRelay;
-let relayPort: string;
-
-beforeAll(async () => {
-  relay = await startTestRelay();
-  relayPort = new URL(relay.httpUrl).port;
-  if (relayPort === '') throw new Error(`test relay URL has no port: ${relay.httpUrl}`);
-});
-
-afterAll(async () => {
-  await relay.stop();
-});
+/** The run's relay, from vitest.relay-setup.ts. */
+const relayPort = new URL(testRelayUrl()).port;
+if (relayPort === '') throw new Error(`test relay URL has no port: ${testRelayUrl()}`);
 
 /**
  * The relay's base URL as peer `n` reaches it. The hostnames all land on the

@@ -1,5 +1,8 @@
 import path from 'path';
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
+
+/** Suites that run against the run's test relay (see vitest.relay-setup.ts). */
+const RELAY_SUITES = ['src/live-session.test.ts'];
 
 export default defineConfig({
   resolve: {
@@ -13,6 +16,17 @@ export default defineConfig({
     },
   },
   test: {
+    projects: [
+      {
+        extends: true,
+        test: { name: 'unit', exclude: [...configDefaults.exclude, ...RELAY_SUITES] },
+      },
+      // Its own project so the relay starts only when one of these suites runs.
+      {
+        extends: true,
+        test: { name: 'relay', include: RELAY_SUITES, globalSetup: ['./vitest.relay-setup.ts'] },
+      },
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'json-summary'],

@@ -1,5 +1,6 @@
 /**
- * The CLI's session adapter against a real relay from the `@hnch/relay/testing` harness.
+ * The CLI's session adapter against a real relay: the run's, which
+ * `vitest.relay-setup.ts` starts through the `@hnch/relay/testing` harness.
  *
  * How a live session behaves — rejoin, presence, the drivers, the gates,
  * teardown — is `@hnch/shared`'s `live-session` and is pinned once in its own
@@ -12,29 +13,17 @@
  * same URL over an in-memory channel.
  */
 
-import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
-import { startTestRelay, type TestRelay } from '@hnch/relay/testing';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { createSession, joinSession, openSession, type SessionHandle } from './session.js';
 import { FIBONACCI_SCALE, isActiveParticipant, TSHIRT_SCALE, type SyncStatus } from '@hnch/shared';
+import { testRelayUrl } from '../vitest.relay-url.js';
 
-let relay: TestRelay;
-let relayPort: string;
-/** The relay as the host reaches it. */
-let relayUrl: string;
+/** The relay as the host reaches it: the run's, from vitest.relay-setup.ts. */
+const relayUrl = testRelayUrl();
+const relayPort = new URL(relayUrl).port;
+if (relayPort === '') throw new Error(`test relay URL has no port: ${relayUrl}`);
 /** The relay under another name, for a second peer. */
-let otherRelayUrl: string;
-
-beforeAll(async () => {
-  relay = await startTestRelay();
-  relayPort = new URL(relay.httpUrl).port;
-  if (relayPort === '') throw new Error(`test relay URL has no port: ${relay.httpUrl}`);
-  relayUrl = relay.httpUrl;
-  otherRelayUrl = `http://127.0.0.1:${relayPort}`;
-});
-
-afterAll(async () => {
-  await relay.stop();
-});
+const otherRelayUrl = `http://127.0.0.1:${relayPort}`;
 
 /** Wait timeout for cross-client CRDT propagation over a local loopback relay. */
 const SYNC_TIMEOUT = 5_000;

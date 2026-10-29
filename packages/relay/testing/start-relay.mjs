@@ -15,6 +15,8 @@ import { join, resolve } from 'node:path';
 
 const DEV_SCRIPT = resolve(import.meta.dirname, '../scripts/dev.mjs');
 const READY_TIMEOUT_MS = 30_000;
+/** One `/health` attempt: a relay that accepts but never answers must not hang the start. */
+const HEALTH_ATTEMPT_MS = 2_000;
 /** Lines of relay output kept for the error if it fails to start. */
 const OUTPUT_TAIL = 40;
 /** Characters of relay output kept for `TestRelay.output()`: the last 256 Ki. */
@@ -105,9 +107,29 @@ async function startOnce(opts) {
     throw new Error(`test relay did not start: ${String(err)}\n${detail}`, { cause: err });
   }
 
+  // A relay that dies mid-run shows up in its tests only as timeouts and
+  // refused connections: say so, with its last output, where the run logs.
+  const noticeDeath = (
+    /** @type {number | null} */ code,
+    /** @type {NodeJS.Signals | null} */ signal,
+  ) => {
+    if (stopped) return;
+    const detail = output.filter((line) => line.trim() !== '').join('\n');
+    process.stderr.write(
+      `test relay on ${httpUrl} exited unexpectedly (${signal ?? `code ${code}`})\n${detail}\n`,
+    );
+  };
+  child.once('exit', noticeDeath);
+  // Gone between the health check and the listener: its 'exit' has fired.
+  if (child.exitCode !== null || child.signalCode !== null) {
+    noticeDeath(child.exitCode, child.signalCode);
+  }
+
   return {
     httpUrl,
     wsUrl: httpUrl.replace(/^http/, 'ws'),
+    // Set: a process that never spawned could not have answered /health.
+    pid: /** @type {number} */ (child.pid),
     output: () => all,
     stop,
   };
@@ -138,11 +160,12 @@ async function untilHealthy(httpUrl, exited) {
   const deadline = Date.now() + READY_TIMEOUT_MS;
   while (Date.now() < deadline) {
     if (gone) throw new Error('relay process exited');
+    const attemptMs = Math.max(1, Math.min(HEALTH_ATTEMPT_MS, deadline - Date.now()));
     try {
-      const res = await fetch(`${httpUrl}/health`);
+      const res = await fetch(`${httpUrl}/health`, { signal: AbortSignal.timeout(attemptMs) });
       if (res.ok) return;
     } catch {
-      // Not listening yet.
+      // Not listening yet, or no answer within the attempt.
     }
     await new Promise((r) => setTimeout(r, 100));
   }
