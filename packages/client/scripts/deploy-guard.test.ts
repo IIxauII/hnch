@@ -9,6 +9,7 @@ import {
   deployedVersionProblems,
   HASHED,
   wwwProblems,
+  wwwReport,
 } from './deploy-guard.mjs';
 
 const ZONE = '0d0f221371c8a419c6a9d36fc3b4da23';
@@ -113,8 +114,8 @@ describe('wwwProblems', () => {
 
   afterEach(() => rmSync(www, { recursive: true, force: true }));
 
-  it('passes a production build', () => {
-    expect(wwwProblems(www, HEADERS)).toEqual([]);
+  it('passes a production build, counting its .js and .css in the same walk', () => {
+    expect(wwwReport(www, HEADERS)).toEqual({ problems: [], assets: 3 });
   });
 
   it('refuses an unhashed .js or .css anywhere in the build', () => {
@@ -138,10 +139,16 @@ describe('wwwProblems', () => {
     expect(wwwProblems(www, HEADERS)).toHaveLength(1);
   });
 
-  it("matches the webpack builder's .<hash>. form only", () => {
+  it("matches exactly the webpack builder's .<16 lowercase hex>. hashes", () => {
     expect(HASHED.test('main.66e4893120763c69.js')).toBe(true);
+    expect(HASHED.test('styles.876f054718d41689.css')).toBe(true);
+    expect(HASHED.test('assets/x/219.b341d1532e91059a.js')).toBe(true);
     expect(HASHED.test('chunk-ABCD2345.css')).toBe(false);
-    expect(HASHED.test('chunk.ABCD2345.css')).toBe(true);
+    expect(HASHED.test('chunk.ABCD2345.css')).toBe(false);
+    expect(HASHED.test('jquery.validate.js')).toBe(false);
+    expect(HASHED.test('main.66E4893120763C69.js')).toBe(false);
+    expect(HASHED.test('main.66e4893120763c6.js')).toBe(false);
+    expect(HASHED.test('main.66e4893120763c690.js')).toBe(false);
     expect(HASHED.test('polyfills.1234567.js')).toBe(false);
   });
 });

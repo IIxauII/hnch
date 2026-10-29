@@ -181,12 +181,14 @@ export async function scriptExists(script) {
 
 /**
  * The versions serving `script` now; empty only when the script doesn't exist
- * (before the first deploy).
+ * (before the first deploy). Pass `exists` when the caller already asked
+ * `scriptExists`, to read the script list once.
  * @param {string} script
+ * @param {boolean} [exists]
  * @returns {Promise<LiveVersion[]>}
  */
-export async function liveVersions(script) {
-  if (!(await scriptExists(script))) return [];
+export async function liveVersions(script, exists) {
+  if (!(exists ?? (await scriptExists(script)))) return [];
   const base = scriptPath(script);
   const deployments = await api(`${base}/deployments`);
   if (!Array.isArray(deployments.deployments))

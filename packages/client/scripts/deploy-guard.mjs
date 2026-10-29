@@ -36,7 +36,6 @@ import {
   routePatterns,
   routeProblems,
   routeRemovalProblems,
-  routeZones,
 } from '../../../scripts/cloudflare/worker-guard.mjs';
 
 const clientDir = resolve(import.meta.dirname, '..');
@@ -44,11 +43,11 @@ export const SCRIPT = 'hnch-web';
 
 /**
  * `_headers` gives `/*.js` and `/*.css` a year of `immutable`, so every one of
- * them must carry a content hash (Angular `outputHashing: all`). Matches the
- * webpack browser builder's `<name>.<hash>.js|css` form only, with the
- * Caddyfile's charset.
+ * them must carry a content hash (Angular `outputHashing: all`). Matches
+ * exactly the webpack browser builder's `<name>.<16 lowercase hex>.js|css`, so
+ * a different hash form fails the deploy instead of slipping through.
  */
-export const HASHED = /\.[A-Za-z0-9]{8,}\.(js|css)$/;
+export const HASHED = /\.[0-9a-f]{16}\.(js|css)$/;
 
 /**
  * @typedef {import('../../../scripts/cloudflare/worker-guard.mjs').RouteConfig} RouteConfig
@@ -118,13 +117,16 @@ function filesUnder(dir) {
 }
 
 /**
- * Problems that make the build in `wwwDir` unfit to deploy; empty when fit.
+ * Problems that make the build in `wwwDir` unfit to deploy (empty when fit),
+ * and how many .js/.css files it has, from one walk of the tree.
  * @param {string} wwwDir
  * @param {string} headersSource the `_headers` the build must carry
- * @returns {string[]}
+ * @returns {{ problems: string[], assets: number }}
  */
-export function wwwProblems(wwwDir, headersSource) {
-  if (!existsSync(resolve(wwwDir, 'index.html'))) return [`${wwwDir} has no index.html`];
+export function wwwReport(wwwDir, headersSource) {
+  if (!existsSync(resolve(wwwDir, 'index.html'))) {
+    return { problems: [`${wwwDir} has no index.html`], assets: 0 };
+  }
   const problems = [];
   const headers = resolve(wwwDir, '_headers');
   if (!existsSync(headers)) {
@@ -132,12 +134,22 @@ export function wwwProblems(wwwDir, headersSource) {
   } else if (readFileSync(headers, 'utf8') !== readFileSync(headersSource, 'utf8')) {
     problems.push(`${wwwDir}/_headers differs from ${headersSource}`);
   }
-  for (const file of filesUnder(wwwDir)) {
-    if (/\.(js|css)$/.test(file) && !HASHED.test(file)) {
+  const assets = filesUnder(wwwDir).filter((f) => /\.(js|css)$/.test(f));
+  for (const file of assets) {
+    if (!HASHED.test(file)) {
       problems.push(`${file} is not content-hashed but _headers serves it as immutable`);
     }
   }
-  return problems;
+  return { problems, assets: assets.length };
+}
+
+/**
+ * Problems that make the build in `wwwDir` unfit to deploy; empty when fit.
+ * @param {string} wwwDir
+ * @param {string} headersSource
+ */
+export function wwwProblems(wwwDir, headersSource) {
+  return wwwReport(wwwDir, headersSource).problems;
 }
 
 /**
@@ -203,9 +215,8 @@ async function main() {
 
   if (mode === 'www') {
     const wwwDir = resolve(clientDir, 'www');
-    const problems = wwwProblems(wwwDir, resolve(clientDir, 'src/_headers'));
+    const { problems, assets } = wwwReport(wwwDir, resolve(clientDir, 'src/_headers'));
     if (problems.length > 0) fail(problems);
-    const assets = filesUnder(wwwDir).filter((f) => /\.(js|css)$/.test(f)).length;
     console.log(`www ok: _headers in place, ${assets} .js/.css files, all content-hashed`);
     return;
   }
@@ -223,8 +234,6 @@ async function main() {
     console.log(`config ok: ${SCRIPT}, routes ${routePatterns(config).join(', ')}`);
     return;
   }
-
-  if (routeZones(config).size === 0) fail(['no route with a zone_id: nothing to check']);
 
   if (mode === 'live') {
     const problems = await routeRemovalProblems(
@@ -247,8 +256,9 @@ async function main() {
     sha: requiredEnv('DEPLOY_SHA'),
     tag: process.env['DEPLOY_TAG'] ?? '',
   };
-  const problems = deployedVersionProblems(await liveVersions(SCRIPT), expected);
-  const missing = missingRoutes(await liveRoutes(config), routePatterns(config), SCRIPT);
+  const [versions, routes] = await Promise.all([liveVersions(SCRIPT), liveRoutes(config)]);
+  const problems = deployedVersionProblems(versions, expected);
+  const missing = missingRoutes(routes, routePatterns(config), SCRIPT);
   if (missing.length > 0) problems.push(`route(s) ${missing.join(', ')} not live for ${SCRIPT}`);
   if (problems.length > 0) fail(problems);
   console.log(
@@ -256,4 +266,10 @@ async function main() {
   );
 }
 
-if (process.argv[1] === import.meta.filename) await main();
+// A thrown API or config error (no zoned route, an unreadable answer) is
+// reported like any other problem.
+if (process.argv[1] === import.meta.filename) {
+  await main().catch((/** @type {unknown} */ err) =>
+    fail([err instanceof Error ? err.message : String(err)]),
+  );
+}

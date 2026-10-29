@@ -29,7 +29,6 @@ import {
   routePatterns,
   routeProblems,
   routeRemovalProblems,
-  routeZones,
   scriptExists,
   scriptPath,
 } from '../../../scripts/cloudflare/worker-guard.mjs';
@@ -168,9 +167,6 @@ async function main() {
   }
 
   if (mode === 'live') {
-    if (routeZones(config).size === 0) {
-      fail(['no route names a zone_id, so live routes cannot be checked']);
-    }
     const problems = await routeRemovalProblems(
       config,
       script,
@@ -186,7 +182,7 @@ async function main() {
     for (const name of [...TEST_VARS, 'JURISDICTION']) {
       if (secrets.has(name)) problems.push(`secret ${name} is set on ${script}; delete it`);
     }
-    const live = await liveVersions(script);
+    const live = await liveVersions(script, exists);
     // An untagged live version can't be compared, so it can't be shown older.
     if (live.some((v) => v.tag === null)) {
       problems.push(
@@ -234,4 +230,10 @@ async function main() {
   process.exit(2);
 }
 
-if (process.argv[1] === import.meta.filename) await main();
+// A thrown API or config error (no zoned route, an unreadable answer) is
+// reported like any other problem.
+if (process.argv[1] === import.meta.filename) {
+  await main().catch((/** @type {unknown} */ err) =>
+    fail([err instanceof Error ? err.message : String(err)]),
+  );
+}

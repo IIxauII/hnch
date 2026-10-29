@@ -258,7 +258,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
   ```
 
   Rules are cumulative. `! Cache-Control` detaches the `/*` value, so each response carries exactly one `Cache-Control`.
-- **Parity guard** in `deploy-client.yml`: fail if any `www/**/*.js|css` does not match `\.[A-Za-z0-9]{8,}\.(js|css)$`.
+- **Parity guard** in `deploy-client.yml`: fail if any `www/**/*.js|css` does not match `\.[0-9a-f]{16}\.(js|css)$`, the build's exact hash form (16 lowercase hex, measured).
 - **Header matrix**, checked on `hnch.dev` after the switch:
   - `/`, `/join`, `/lobby/x` and `/r/ABCD` → exactly one `no-cache, must-revalidate`;
   - hashed `.js` and `.css` → `immutable`;
