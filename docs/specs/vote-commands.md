@@ -82,7 +82,7 @@ A caller can tell "there was nothing open to vote on" from "you are not a voter"
 - No Backspace/Delete clear added to the mobile client (CLI keeps its own).
 - No user-visible feedback on a refused vote.
 - No change to how reveal/skip/discard themselves are gated.
-- No `CONTEXT.md` entry and no ADR — module docstrings carry the vocabulary, as `round-transitions` does.
+- No `GLOSSARY.md` entry and no ADR — module docstrings carry the vocabulary, as `round-transitions` does.
 - No change to what "current round" means for the Lobby results view.
 - Not touching the other candidates from the review (host-authority commands, session-exit consolidation).
 
@@ -135,7 +135,7 @@ None. ADR-0046 (three terminal fields), ADR-0040 (skip), ADR-0041 (abstain senti
 
 - `adr/0046-round-discard-tombstone.md` — the three terminal fields the vote writer predates
 - `adr/0040-skipped-rounds.md`, `adr/0041-per-round-abstain-sentinel.md`, `adr/0020-participant-viewer-voter-role.md`
-- `CONTEXT.md` — *active* (round), *round command*, *TerminalResult*
+- `GLOSSARY.md` — *active* (round), *round command*, *TerminalResult*
 - PR #472 — the terminal-seam deepening this follows; its barrel precedent is quoted at `packages/shared/src/index.ts:6-11`
 - PR #471, #469, #465, #460 — the same deepening run
 
