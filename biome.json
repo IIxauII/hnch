@@ -22,6 +22,7 @@
       "!**/.nyc_output/**",
       "!**/playwright-report/**",
       "!**/test-results/**",
+      "!**/.wrangler/**",
       "!packages/client/src/environments/version.ts",
       "!graphify-out/**"
     ]

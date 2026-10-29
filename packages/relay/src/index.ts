@@ -1,70 +1,19 @@
 /**
- * hnch relay entry point.
+ * hnch relay on Cloudflare Workers + Durable Objects (ADR-0051).
  *
- * Content-blind y-websocket relay (ADR-0001). Owns:
- *
- *   - Room store + code/UUID minting (ADR-0008).
- *   - Join handshake with `JoinCredentials` via URL query params
- *     (ADR-0009, ADR-0016, ADR-0017).
- *   - y-websocket `setupWSConnection` handoff and 24h in-memory
- *     snapshot TTL (ADR-0012).
- *   - 20-peer hard cap on WebSocket upgrade (ADR-0024).
- *
- * Host election (ADR-0010) is client-driven and requires no relay
- * cooperation.
+ * Content-blind y-websocket relay (ADR-0001): it forwards opaque Yjs updates
+ * and awareness states and never parses them. Wire protocol, REST shape and
+ * close codes are those of the Node relay it replaces (ADR-0016, ADR-0024,
+ * ADR-0035, ADR-0050).
  */
 
-import { createCodePool } from './code-pool.js';
-import { createRoomStore } from './room-store.js';
-import { createRelayServer, logBootBanner, ROOM_CAP, TEST_ROUTES_ENABLED } from './server.js';
+import { handleFetch, handleScheduled } from './worker';
 
-const DEFAULT_PORT = 1234;
-const DEFAULT_HOST = '0.0.0.0';
+export default {
+  fetch: (request, env) => handleFetch(request, env),
+  scheduled: (controller, env) => handleScheduled(controller, env),
+} satisfies ExportedHandler<Env>;
 
-function main(): void {
-  const portEnv = process.env['PORT'];
-  const port = portEnv === undefined || portEnv === '' ? DEFAULT_PORT : Number(portEnv);
-  if (!Number.isFinite(port) || port < 0 || port > 65535) {
-    console.error(`invalid PORT: ${portEnv}`);
-    process.exit(1);
-  }
-
-  const hostEnv = process.env['HOST'];
-  const host = hostEnv === undefined || hostEnv === '' ? DEFAULT_HOST : hostEnv;
-
-  const codePool = createCodePool();
-  const roomStore = createRoomStore(codePool);
-  // The 24h snapshot TTL sweeper (ADR-0012) is owned by createRelayServer
-  // and auto-started with production defaults — no wiring step here.
-  const server = createRelayServer({ roomStore });
-  server.listen(port, host, () => {
-    const address = server.address();
-    const boundPort = typeof address === 'object' && address !== null ? address.port : port;
-    const boundHost = typeof address === 'object' && address !== null ? address.address : host;
-    logBootBanner({
-      port: boundPort,
-      host: boundHost,
-      roomCap: ROOM_CAP,
-      testRoutesEnabled: TEST_ROUTES_ENABLED,
-      logger: console,
-    });
-  });
-
-  // Graceful shutdown so `pnpm dev`'s Ctrl-C in a tsx-watch loop
-  // actually closes the socket instead of leaking handles.
-  // server.close() only stops *new* connections — open WebSockets keep
-  // the process alive indefinitely. Force-exit after a short grace
-  // period so tsx-watch restarts don't hit EADDRINUSE.
-  const shutdown = (): void => {
-    server.close(() => {
-      process.exit(0);
-    });
-    setTimeout(() => {
-      process.exit(0);
-    }, 500).unref();
-  };
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
-}
-
-main();
+export { Room } from './room';
+export { Codes } from './codes';
+export { Expiry } from './expiry';

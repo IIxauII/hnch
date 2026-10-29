@@ -1,24 +1,33 @@
 name: Deploy relay
 
-# Triggered when semantic-release cuts a `relay-vX.Y.Z` tag (see release.yml).
-# Builds the relay, ships a tarball to the VPS, swaps the release symlink,
-# restarts the systemd unit, and smoke-tests via /health.
+# Deploys hnch-relay (packages/relay) to Cloudflare Workers + Durable Objects
+# (ADR-0051). Triggered when semantic-release cuts a `relay-vX.Y.Z` tag.
 #
-# Architecture + rollback: see infra/README.md and adr/0029-relay-deployment.md.
+# Before the switch (repo variable HNCH_LIVE != 'true') the hnch.dev routes are
+# deployed but inert, so the job only checks that the deploy took. After it,
+# the job also smoke-tests https://hnch.dev.
+#
+# Rollback of code is `wrangler rollback`, never a re-dispatch of an old tag:
+# the guard refuses to deploy a version older than the live one. Release rules
+# (deploy coexistence, expand/contract): docs/deployment.md.
 
 on:
   # Dispatched explicitly by semantic-release's publishCmd in
   # packages/relay/release.config.mjs (`gh workflow run deploy-relay.yml --ref
   # relay-vX.Y.Z`). Tag-push events from PATs are not reliably delivered to
-  # other workflows, so dispatch is the canonical path. workflow_dispatch
-  # also lets an operator re-deploy a known tag from the Actions UI.
+  # other workflows, so dispatch is the canonical path. workflow_dispatch also
+  # lets an operator re-deploy the latest tag from the Actions UI.
   workflow_dispatch:
     inputs:
       ref:
         description: 'Git ref to deploy (defaults to current ref)'
         required: false
+      allow_route_removal:
+        description: 'Let this deploy remove a live hnch.dev route of hnch-relay'
+        type: boolean
+        default: false
 
-# Serialize deploys — no concurrent restarts of the same systemd unit.
+# Serialize deploys of the relay.
 concurrency:
   group: deploy-relay
   cancel-in-progress: false
@@ -28,9 +37,11 @@ permissions:
 
 jobs:
   deploy:
-    name: Build + ship relay
+    name: Deploy relay to Cloudflare
     runs-on: [self-hosted, linux, arm64, hnch-podman]
-    timeout-minutes: 5
+    timeout-minutes: 10
+    env:
+      WRANGLER_SEND_METRICS: 'false'
     steps:
       - name: Runner identity
         run: |
@@ -40,109 +51,77 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
 
-      - name: Enable Corepack
-        run: corepack enable
-
-      - uses: actions/setup-node@v4
+      - name: Install
+        uses: ./.github/actions/pnpm-install
         with:
-          node-version: 22
-          # No `cache: pnpm`: pnpm install reads the bind-mounted
-          # /cache/pnpm-store on the self-hosted pool, which is
-          # faster than the GitHub Actions cache round-trip. Same
-          # pattern as ci.yml verify lanes and release.yml.
+          ignore-scripts: 'true'
 
-      - name: Install workspace deps
-        run: pnpm install --frozen-lockfile
-
-      - name: Build @hnch/shared (consumed by relay)
+      - name: Build @hnch/shared (bundled into the relay)
         run: pnpm --filter @hnch/shared run build
 
-      - name: Build @hnch/relay
-        run: pnpm --filter @hnch/relay run build
+      - name: Relay version
+        id: version
+        run: echo "version=$(node -p "require('./packages/relay/package.json').version")" >> "$GITHUB_OUTPUT"
 
-      - name: Stage production bundle (cross-arch x86_64 target)
-        # `pnpm deploy` inlines workspace deps and prunes devDeps into a flat
-        # directory — the result is self-contained and runnable on the VPS
-        # without re-installing. The relay's build step has already populated
-        # packages/relay/dist; pnpm deploy preserves that under the target.
-        #
-        # Cross-arch pin: when this workflow runs on the arm64 self-hosted
-        # pool, optional native deps (e.g. ws's bufferutil/utf-8-validate)
-        # would otherwise be filtered for arm64 — wrong for the x86_64 VPS.
-        # `npm_config_target_*` flips pnpm's optional-dep arch filter to
-        # linux/x64, so the staged bundle matches the deploy target. On
-        # ubuntu-latest the env vars are still correct (also linux/x64) so
-        # this is a no-op in the rollback path.
+      - name: Assert production config
+        # ADR-0027 test vars absent, JURISDICTION "eu", every route on hnch.dev
+        # with a zone_id (the token has no Zone: Read).
+        working-directory: packages/relay
+        run: node scripts/deploy-guard.mjs config
+
+      - name: Guard live routes and version
+        # `wrangler deploy` deletes routes missing from the config: refuse
+        # unless allow_route_removal. Refuse a version older than the live one.
+        working-directory: packages/relay
         env:
-          npm_config_target_platform: linux
-          npm_config_target_arch: x64
-        run: |
-          rm -rf .deploy/relay
-          pnpm --filter @hnch/relay deploy --prod .deploy/relay
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ALLOW_ROUTE_REMOVAL: ${{ inputs.allow_route_removal && 'true' || 'false' }}
+        run: node scripts/deploy-guard.mjs live
 
-      - name: Pack tarball
-        id: pack
-        run: |
-          STAMP="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
-          TARBALL="hnch-relay-${STAMP}.tar.gz"
-          tar -C .deploy -czf "${TARBALL}" relay
-          echo "tarball=${TARBALL}" >> "$GITHUB_OUTPUT"
-          echo "stamp=${STAMP}" >> "$GITHUB_OUTPUT"
-
-      - name: Configure SSH
+      - name: Deploy
+        working-directory: packages/relay
         env:
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-          VPS_HOST: ${{ secrets.VPS_HOST }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          mkdir -p ~/.ssh
-          echo "${VPS_SSH_KEY}" > ~/.ssh/id_ed25519
-          chmod 0600 ~/.ssh/id_ed25519
-          ssh-keyscan -t ed25519 -H "${VPS_HOST}" >> ~/.ssh/known_hosts
+          pnpm exec wrangler deploy \
+            --tag "relay-v${VERSION}" \
+            --message "relay-v${VERSION} (${GITHUB_SHA::7})"
 
-      - name: Ship tarball
+      - name: Check the deploy took
+        working-directory: packages/relay
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          TARBALL: ${{ steps.pack.outputs.tarball }}
-        run: |
-          scp -o StrictHostKeyChecking=yes "${TARBALL}" "${VPS_USER}@${VPS_HOST}:/tmp/${TARBALL}"
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/deploy-guard.mjs verify
 
-      - name: Activate release on VPS
+      - name: Smoke test hnch.dev
+        # Only once the apex is proxied (Phase 3 sets HNCH_LIVE). DO code rolls
+        # out gradually, so /health may answer the old version for a while.
+        if: vars.HNCH_LIVE == 'true'
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          TARBALL: ${{ steps.pack.outputs.tarball }}
-          STAMP: ${{ steps.pack.outputs.stamp }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          ssh -o StrictHostKeyChecking=yes "${VPS_USER}@${VPS_HOST}" bash -se <<EOF
-          set -euo pipefail
-          BASE=/opt/hnch-relay
-          RELEASES="\${BASE}/releases"
-          TARGET="\${RELEASES}/release-${STAMP}"
-          mkdir -p "\${TARGET}"
-          tar -C "\${TARGET}" --strip-components=1 -xzf /tmp/${TARBALL}
-          rm /tmp/${TARBALL}
-          ln -sfn "\${TARGET}" "\${BASE}/current"
-          sudo /usr/bin/systemctl restart hnch-relay
-          # Keep last 3 releases, prune older.
-          ls -1dt \${RELEASES}/release-* | tail -n +4 | xargs -r rm -rf
-          EOF
-
-      - name: Smoke test /health
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-        run: |
-          # Give the relay a couple of seconds to bind. If /health doesn't
-          # respond within ~10s of the restart, fail the job — the deploy is
-          # still on the VPS but the systemd unit is unhealthy and operator
-          # attention is warranted.
-          for attempt in 1 2 3 4 5; do
-            if curl -fsS --max-time 5 https://hnch.dev/health >/dev/null; then
-              echo "relay /health OK on attempt ${attempt}"
-              exit 0
+          for attempt in $(seq 1 30); do
+            served="$(curl -fsS --max-time 5 https://hnch.dev/health | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s).version)}catch{}})' || true)"
+            if [ "${served}" = "${VERSION}" ]; then
+              echo "/health answers ${VERSION} (attempt ${attempt})"
+              break
+            fi
+            if [ "${attempt}" = 30 ]; then
+              echo "::error::/health answers '${served}', expected ${VERSION}"
+              exit 1
             fi
             sleep 2
           done
-          echo "relay /health failed after 5 attempts" >&2
-          exit 1
+          # Worker → Durable Object path: `0` is outside the code alphabet.
+          status="$(curl -sS --max-time 10 -o /tmp/unknown-room.json -w '%{http_code}' https://hnch.dev/rooms/000000)"
+          if [ "${status}" != 404 ] || ! grep -q '"reason":"unknown-room"' /tmp/unknown-room.json; then
+            echo "::error::GET /rooms/000000 answered ${status}: $(cat /tmp/unknown-room.json)"
+            exit 1
+          fi
+          echo "GET /rooms/000000 → 404 unknown-room"

@@ -1,6 +1,6 @@
 # ADR-0017: Password hashing scheme and invite-only removal
 
-**Status:** Accepted (password-enforcement clause superseded by ADR-0035)
+**Status:** Accepted (password-enforcement clause superseded by ADR-0035; "persisting hashes" trade-off superseded by ADR-0051)
 **Date:** 2026-04-22
 
 ## Context

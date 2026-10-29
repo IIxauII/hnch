@@ -1,6 +1,6 @@
 # ADR-0012: Ephemeral room snapshot policy
 
-**Status:** Accepted
+**Status:** Accepted (storage clause superseded by ADR-0051)
 **Date:** 2026-04-21
 
 ## Context

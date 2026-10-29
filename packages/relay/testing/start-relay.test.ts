@@ -27,15 +27,17 @@ describe('startTestRelay', () => {
     }
   });
 
-  it('runs two relays side by side on different ports', async () => {
-    const [a, b] = await Promise.all([startTestRelay(), startTestRelay()]);
+  it('runs two relays side by side on different ports, even started at once', async () => {
+    const started = await Promise.allSettled([startTestRelay(), startTestRelay()]);
+    const relays = started.flatMap((s) => (s.status === 'fulfilled' ? [s.value] : []));
     try {
-      expect(a.httpUrl).not.toBe(b.httpUrl);
-      for (const relay of [a, b]) {
+      expect(started.map((s) => s.status)).toEqual(['fulfilled', 'fulfilled']);
+      expect(relays[0]!.httpUrl).not.toBe(relays[1]!.httpUrl);
+      for (const relay of relays) {
         expect((await fetch(`${relay.httpUrl}/health`)).status).toBe(200);
       }
     } finally {
-      await Promise.all([a.stop(), b.stop()]);
+      await Promise.all(relays.map((r) => r.stop()));
     }
   });
 
@@ -67,6 +69,40 @@ describe('startTestRelay', () => {
         new Promise((resolve) => setTimeout(() => resolve('hung'), 2_000)),
       ]),
     ).resolves.toBe('stopped');
+  });
+
+  it('runs production defaults, whatever test vars the caller has set', async () => {
+    process.env['HNCH_ROOM_CAP'] = '1';
+    process.env['HNCH_ENABLE_TEST_ROUTES'] = '1';
+    const relay = await startTestRelay();
+    try {
+      const { uuid } = (await (
+        await fetch(`${relay.httpUrl}/rooms`, { method: 'POST' })
+      ).json()) as {
+        uuid: string;
+      };
+      const res = await fetch(`${relay.httpUrl}/test/rooms/${uuid}`, { method: 'DELETE' });
+      expect(res.status).toBe(404);
+    } finally {
+      delete process.env['HNCH_ROOM_CAP'];
+      delete process.env['HNCH_ENABLE_TEST_ROUTES'];
+      await relay.stop();
+    }
+  });
+
+  it('mounts the test routes when asked', async () => {
+    const relay = await startTestRelay({ testRoutes: true, roomCap: 3 });
+    try {
+      const { uuid } = (await (
+        await fetch(`${relay.httpUrl}/rooms`, { method: 'POST' })
+      ).json()) as {
+        uuid: string;
+      };
+      const res = await fetch(`${relay.httpUrl}/test/rooms/${uuid}`, { method: 'DELETE' });
+      expect(res.status).toBe(200);
+    } finally {
+      await relay.stop();
+    }
   });
 
   it('refuses connections once stopped', async () => {

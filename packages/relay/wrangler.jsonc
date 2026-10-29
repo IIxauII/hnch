@@ -1,0 +1,52 @@
+// hnch relay on Cloudflare Workers + Durable Objects (ADR-0051).
+//
+// Deployed by .github/workflows/deploy-relay.yml, which refuses to deploy if
+// HNCH_ENABLE_TEST_ROUTES or HNCH_ROOM_CAP appear here, if JURISDICTION is
+// "none", or if the deploy would remove a live hnch.dev route.
+// Local dev and tests go through scripts/dev.mjs, which overrides the vars.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hnch-relay",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-19",
+  "send_metrics": false,
+
+  // Reachable only through the hnch.dev routes below; no *.workers.dev URL.
+  "workers_dev": false,
+  "preview_urls": false,
+
+  // Inert while the apex records are DNS-only (Workers routes run only on
+  // proxied hostnames). zone_id instead of zone_name: the deploy token has no
+  // Zone: Read. `/health*` because an exact `/health` misses `/health?x=1`.
+  "routes": [
+    { "pattern": "hnch.dev/health*", "zone_id": "0d0f221371c8a419c6a9d36fc3b4da23" },
+    { "pattern": "hnch.dev/rooms*", "zone_id": "0d0f221371c8a419c6a9d36fc3b4da23" },
+    { "pattern": "hnch.dev/ws/*", "zone_id": "0d0f221371c8a419c6a9d36fc3b4da23" }
+  ],
+
+  "durable_objects": {
+    "bindings": [
+      { "name": "ROOM", "class_name": "Room" },
+      { "name": "CODES", "class_name": "Codes" },
+      { "name": "EXPIRY", "class_name": "Expiry" }
+    ]
+  },
+  // Renaming or deleting a class needs a new migration, and `wrangler
+  // rollback` cannot cross one.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room", "Codes", "Expiry"] }],
+
+  // Backstop sweep of the Expiry index (contract item 11).
+  "triggers": { "crons": ["0 4 * * *"] },
+
+  // Room data stays in the EU. Only scripts/dev.mjs passes "none" (local
+  // workerd has no jurisdictions).
+  "vars": { "JURISDICTION": "eu" },
+
+  // Workers Logs on, without invocation logs or traces: request URLs carry
+  // `?pw=` on WebSocket upgrades and must never be recorded.
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true, "invocation_logs": false },
+    "traces": { "enabled": false }
+  }
+}

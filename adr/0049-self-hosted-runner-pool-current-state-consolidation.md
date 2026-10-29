@@ -1,6 +1,6 @@
 # ADR-0049: Self-hosted runner pool — current-state consolidation
 
-**Status:** Accepted
+**Status:** Accepted (deploy-relay cross-arch clause superseded by ADR-0051)
 **Date:** 2026-06-13
 
 Consolidates ADR-0032, ADR-0033, ADR-0037, ADR-0047 into one current-state statement. Those four accreted the runner topology over five partial supersedes; reconstructing the live setup required reading all of them in order. This ADR restates the topology standalone and retires the chain. Those four files are deleted; this ADR is the sole record — see git history for their bodies. No live decision changes — editorial consolidation per `README.md` Conventions. The runner-location clause of [ADR-0029](0029-relay-deployment.md) is also superseded here (its ssh/symlink/systemd deploy mechanism stands).

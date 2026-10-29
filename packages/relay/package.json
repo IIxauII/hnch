@@ -3,12 +3,7 @@
   "version": "1.2.1",
   "private": true,
   "type": "module",
-  "main": "./dist/index.js",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    },
     "./package.json": "./package.json",
     "./testing": {
       "types": "./testing/start-relay.d.mts",
@@ -16,10 +11,10 @@
     }
   },
   "scripts": {
-    "build": "tsc",
-    "typecheck": "tsc --noEmit && tsc -p tsconfig.testing.json",
-    "dev": "tsx watch src/index.ts",
-    "start": "node ./dist/index.js",
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.node.json",
+    "dev": "node scripts/dev.mjs",
+    "smoke": "node scripts/smoke.mjs",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "format:check": "biome format .",
@@ -28,15 +23,16 @@
   "dependencies": {
     "@hnch/shared": "workspace:*",
     "lib0": "^0.2.117",
-    "ws": "^8.20.1",
     "y-protocols": "^1.0.7",
     "yjs": "^13.6.30"
   },
   "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.4.6",
+    "@cloudflare/workers-types": "5.20261019.1",
     "@types/node": "^22.0.0",
-    "@types/ws": "^8.18.1",
-    "tsx": "^4.19.0",
+    "@vitest/coverage-istanbul": "4.1.12",
     "typescript": "^5.5.0",
-    "vitest": "^3.2.7"
+    "vitest": "4.1.12",
+    "wrangler": "4.151.3"
   }
 }
