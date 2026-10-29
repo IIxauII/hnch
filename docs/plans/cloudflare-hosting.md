@@ -393,7 +393,8 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
 - Settled 2026-10-29 (owner): no paid merge gate. The repo is private on GitHub Free, so branch protection is unavailable (the API returns 403). By convention, agents and humans never merge a PR on red CI: every check must be green, and a cancelled check is not green. See `CONTRIBUTING.md`, [Merge only on green CI](../../CONTRIBUTING.md#merge-only-on-green-ci).
 - Settled 2026-10-29 (owner): the self-hosted runner pool stays at `POOL_SIZE=2`, the value the live LaunchAgent plist uses. The repo copy (`infra/runner/dev.hnch.runner.plist`) now matches. Out of scope by owner decision: raising the pool.
   - [ADR-0053](../../adr/0053-runner-pool-two-slots.md) records this and supersedes ADR-0049's "pool size = `verify` matrix lane count" clause.
-- Settled 2026-10-29 (owner): `ci.yml`'s workflow-level `concurrency` with `cancel-in-progress` keeps cancelling superseded runs on `main` too. A stale `main` run proves nothing once a newer merge is running.
+- Settled 2026-10-29 (owner): `ci.yml`'s workflow-level `concurrency` with `cancel-in-progress` keeps cancelling superseded runs on `main` too. The newest `main` run must cover the changes of every merge whose run was cancelled.
+  - Mechanism (planner, not owner): on a push to `main`, change detection diffs from the commit of the last successful `main` CI run instead of the previous push, and runs the full pipeline if there is none. The follow-up CI PR implements it.
 - Settled 2026-10-29 (owner): #562 (test(shared,cli): give the test-relay startup hook the same 60 s as relay) won't land. One local relay per test run replaces it (vitest `globalSetup`: mechanism from the planner, not the owner).
 
 ## Phases
