@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 : "${GH_REPO:?}"
-: "${POOL_SIZE:=4}"
+: "${POOL_SIZE:=2}"
 
 # PAT lives in macOS Keychain (service: hnch-runner-pat, account: $USER).
 # Avoids storing the secret in the plist (world-readable in user dir) or

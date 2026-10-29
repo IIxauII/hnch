@@ -18,7 +18,7 @@ mkdir -p "${BIN_DIR}" "${LA_DIR}"
 
 # Pre-create shared cache dirs the supervisor bind-mounts into runner containers.
 # nm-snapshots stores lockfile-hashed node_modules tarballs (see
-# .github/actions/pnpm-install/). Shared across the 4 runners — atomic mv on
+# .github/actions/pnpm-install/). Shared across all runner slots — atomic mv on
 # write avoids races; reads are read-only.
 mkdir -p "${HOME}/runner-cache/nm-snapshots"
 

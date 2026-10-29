@@ -42,7 +42,7 @@ Types in use (match existing history — see `git log`):
 | `build` | Build system, packaging |
 | `ci` | CI config |
 
-**Scope is required.** PR-title lint enforces an allowlist (see below). Scopeless titles fail CI and merge is blocked.
+**Scope is required.** PR-title lint enforces an allowlist (see below). Scopeless titles fail CI, and a PR on red CI is not merged (see [Merge only on green CI](#merge-only-on-green-ci)).
 
 | Scope | Use for | Triggers release? |
 |-------|---------|-------------------|
@@ -163,6 +163,7 @@ lefthook auto-installs on `pnpm install`, so a fresh clone gets hooks with no ma
 - [ ] No `Co-Authored-By` trailers.
 - [ ] ADR added/updated if structural.
 - [ ] Related docs updated.
+- [ ] Before merging: every CI check on the PR is green (see [Merge only on green CI](#merge-only-on-green-ci)).
 
 ## Screenshots
 
@@ -228,11 +229,19 @@ All PRs land via **squash merge**. Merge commits and rebase merging are disabled
 
 This isn't cosmetic — it's load-bearing for releases:
 
-- The **PR title is the release-driving commit message**. It MUST follow Conventional Commits (`<type>(<scope>): <subject>`). The CI **`PR title (Conventional Commits)`** job is a **required status check** in branch protection — a malformed title blocks merge automatically; reviewers don't have to police it manually.
+- The **PR title is the release-driving commit message**. It MUST follow Conventional Commits (`<type>(<scope>): <subject>`). The CI **`PR title (Conventional Commits)`** job checks it, so a malformed title turns CI red and the PR is not merged (see below); reviewers don't have to police it manually.
 - For breaking changes: put the `BREAKING CHANGE:` footer in the **PR description** (which becomes the squash commit body when the GitHub default is "Pull request title and description"), or use `feat!(scope): …` in the title for the simpler case.
 - Branch commits during review can be sloppy; only the squashed PR title/body matter for release.
 
 A merge or rebase strategy would let multiple branch commits drive multiple releases per PR — noisy and incorrect. Keep squash-only.
+
+### Merge only on green CI
+
+The repo is private on GitHub Free, so it has no branch protection and nothing blocks a merge on red. Agents and humans follow this by convention:
+
+- Merge only when every CI check on the PR's latest commit is green. A cancelled check is not green: re-run it. A job skipped by `detect-changes` is fine.
+- Never merge on red, even when the failure looks unrelated.
+- After merging, check `main`'s push CI run for the merge commit (`gh run list --repo IIxauII/hnch --branch main --event push --limit 3`) and fix forward if it goes red. If a newer merge cancels that run, the newer run covers it.
 
 ## Releases
 
