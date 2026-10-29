@@ -254,10 +254,17 @@ Releases are automated from commit history using [semantic-release](https://sema
 `release.yml` starts only after a `ci.yml` push run on `main` goes green (a `workflow_run` trigger), and releases the commit that run tested, not whatever `main` holds by then.
 
 - A merge whose CI run is red or cancelled releases nothing. Its commits release with the next green `main` run, which has tested them too (see [Merge only on green CI](#merge-only-on-green-ci)).
-- If `main` already holds a newer merge when a green run's release starts, that release publishes nothing and passes; the newer merge's green run releases both. The bot's own `[skip ci]` release and screenshot commits don't count as newer merges.
-- A red or cancelled CI run still starts a Release run, which shows as skipped.
-- The release isn't among the merge commit's checks. Find it with `gh run list --repo IIxauII/hnch --workflow release.yml --limit 5`. A run's own commit is `main`'s tip when it started; its "Resolve the commit to release" step names the commit it released and the CI run that tested it.
-- A release that fails partway: fix the cause, then re-run that Release run (`gh run rerun <id> --failed`). It checks out the same commit and resumes with the next package. If a green run's release never started or was cancelled, dispatch it by hand (`gh workflow run release.yml --ref main`): that releases the head commit of the newest green `main` CI run.
+- If `main` already holds a newer merge when a green run's release starts, that release publishes nothing and passes; the newer merge's green run releases both. Commits that start no CI run of their own don't count as newer merges: the bot's `[skip ci]` release and screenshot commits, and commits touching only `docs/screenshots/**`. A human commit marked to skip CI does count, and holds back releases until a later merge goes green.
+- Every completed CI run starts a Release run, PR runs and red or cancelled runs included. Those show as skipped, so most Release runs are skipped ones.
+- The release isn't among the merge commit's checks. List the runs that weren't skipped with:
+
+  ```sh
+  gh run list --repo IIxauII/hnch --workflow release.yml --limit 20 --json createdAt,status,conclusion,url --jq '.[] | select(.conclusion != "skipped") | "\(.createdAt) \(.status) \(.conclusion) \(.url)"'
+  ```
+
+  A run's own commit is `main`'s tip when it started; its "Resolve the commit to release" step names the commit it released and the CI run that tested it.
+- A release that fails partway: fix the cause, then re-run that Release run (`gh run rerun <id> --failed`). It checks out the same commit, fast-forwards over the release commits already pushed, and resumes with the next package. A merge that lands while a release is pushing fails it the same way; re-running then releases nothing, and that merge's green run releases.
+- If a green run's release never started or was cancelled, dispatch it by hand (`gh workflow run release.yml --ref main`). It takes the head commit of the newest green `main` CI run and applies the same rules, so it releases nothing while `main` holds a newer merge with no green run yet. The fix then is to get the next merge green, not to dispatch again.
 
 > **iOS bundle-version caveat (deferred).** Capacitor sync uses `packages/client/package.json` `version` for the native bundle's `CFBundleShortVersionString`. Between releases that file holds the placeholder `0.0.0-semantically-released`, which is **not** a valid bundle version. The native iOS build process (deferred to Phase 6b — see `docs/roadmap.md §9`) will need to read the latest `client-v*` git tag rather than `package.json`. Address this when Phase 6b lands.
 
