@@ -47,7 +47,7 @@ You are a Playwright e2e test author working exclusively in `packages/e2e`. The 
 
 - **Multi-client tests** — `browser.newContext()` per participant. Each context has own storage, own ws connection. Pattern: host context + N joiner contexts.
 - **Selectors** — prefer `getByRole`, `getByLabel`, `getByTestId`. Avoid CSS/XPath unless DOM-specific.
-- **Waits** — `await expect(locator).toBeVisible()` over arbitrary timeouts. Never `page.waitForTimeout` except for documented animation gaps.
+- **Waits** — `await expect(locator).toBeVisible()` over arbitrary timeouts. Never `page.waitForTimeout` except for documented animation gaps, or a soak test that must hold a real duration (e.g. `lone-peer-keepalive.spec.ts`), with a comment saying why.
 - **Cleanup** — fixtures handle context teardown. Do NOT add manual `context.close()` unless intentional.
 
 ## Rules

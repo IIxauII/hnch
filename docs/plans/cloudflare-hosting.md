@@ -109,7 +109,7 @@ Rooms now survive relay deploys. They persist, pinned to the EU, until 24–25 h
     - **Lazy doc load:** the doc is loaded only for a new socket, a sync message, compaction or deletion.
     - **Storage-write failure:** the room keeps relaying from memory, logs once, and never closes sockets because of it.
 11. **TTL and deletion (ADR-0012; deletion 24–25 h after the last peer leaves).** Settled design; owner may veto.
-    - **State:** `meta.lastOccupiedAt`, `meta.tombstone` and the single alarm. Close events are never relied on.
+    - **State:** `meta.lastOccupiedAt`, `meta.tombstonedAt` and the single alarm. Close events are never relied on.
     - **init:** `lastOccupiedAt = now`; alarm at `now + 1 h`.
     - **Alarm handler.** It flushes first, then:
       - sockets open → set `lastOccupiedAt = now` and re-arm at `now + 1 h`;
@@ -122,7 +122,7 @@ Rooms now survive relay deploys. They persist, pinned to the EU, until 24–25 h
       - when accepting a socket, an alarm later than `now + 1 h` is pulled in to `now + 1 h`.
     - **Lazy expiry:** `info`, `fetch`/upgrade and `setPassword` first check "no open sockets and `now ≥ lastOccupiedAt + TTL + 1 h`". If it holds, they start deletion and answer `404`.
     - **Deletion, in this order:**
-      1. Write `meta.tombstone = now` and drop the flush buffer. From then on every entry answers unknown, upgrades are refused and flushes write nothing.
+      1. Write `meta.tombstonedAt = now` and drop the flush buffer. From then on every entry answers unknown, upgrades are refused and flushes write nothing.
       2. `await Codes(code).release(uuid)`. It is idempotent: it deletes only if the stored value equals `uuid`, and succeeds if the entry is absent or holds another UUID. On failure, keep the tombstone and set the alarm to `now + 10 min`.
       3. `deleteAll()`.
       - A `Codes.claim` treats a holder whose `Room.info()` is null as free.
@@ -177,7 +177,7 @@ GET  /rooms/:code ─▶ hnch-relay ─▶ Codes(code).lookup ─▶ Room(uuid).
 POST /rooms ──────▶ hnch-relay ─▶ Codes(code).claim (CAS, retry ≤64) ─▶ Room(uuid).init ─▶ Expiry(day).register (best-effort)
 PATCH …/access ───▶ hnch-relay ─▶ Room(uuid).setPassword (digest)
 WS   /ws/:uuid ───▶ hnch-relay ─▶ Room(uuid).fetch: 404/400 pre-upgrade │ accept → 4002/4006 │ hibernatable socket
-Room DO: Y.Doc (lazy) + Awareness ⇄ SQLite (meta{schemaVersion,lastOccupiedAt,tombstone,digest}, log ≤32, snapshot ≤1 MiB chunks)
+Room DO: Y.Doc (lazy) + Awareness ⇄ SQLite (meta{schemaVersion,lastOccupiedAt,tombstonedAt,digest}, log ≤32, snapshot ≤1 MiB chunks)
 inbound msg on S ─▶ apply/broadcast ─▶ buffer (≤5 s) ─▶ S quiet ≥10 s? relay renewal to S
 alarm (hourly while occupied) ─▶ occupied? stamp : due? tombstone → Codes.release → deleteAll : re-arm
 cron 04:00 UTC ─▶ Expiry(day−1…day−30).sweep ─▶ Room.expireIfDue
@@ -522,6 +522,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
     - Logs marker test.
     - **Duration check:** a 2-peer room held 30 min shows about 225 GB-s.
     - **Rate limit:** the 11th `/rooms` request within 10 s from one IP → `429`. `GET /rooms/:code` and WS are unaffected.
+    - **Static-asset billing:** after a day of traffic, the account's Workers request count tracks `hnch-relay` calls, not page and asset loads (ADR-0051 assumes static assets are free without `run_worker_first`).
   - **Docs PR:**
     - `docs/deployment.md`: prod topology, the switch and incidental rollback, the rate-limit rule, the free-plan budget and abuse exposure, the account alerts and the missing usage alerts.
     - `docs/project.md`: snapshot wording (persisted, EU, 24 h).

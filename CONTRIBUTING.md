@@ -47,7 +47,7 @@ Types in use (match existing history — see `git log`):
 | Scope | Use for | Triggers release? |
 |-------|---------|-------------------|
 | `client` | `packages/client/**` (Angular app) | Yes — `client-v*` |
-| `relay` | `packages/relay/**` (Node.js server) | Yes — `relay-v*` |
+| `relay` | `packages/relay/**` (Cloudflare Worker + Durable Objects) | Yes — `relay-v*` (deploys `hnch-relay`; see [release rules](docs/deployment.md#relay-release-rules)) |
 | `cli` | `packages/cli/**` | Yes — `cli-v*` (npm publish) |
 | `shared` | `packages/shared/**` | Yes — `shared-v*` |
 | `e2e` | `packages/e2e/**` | No |
@@ -308,6 +308,7 @@ You can also use plain `git worktree add` if you don't want the wrapper — just
 ### Notes and limits
 
 - **Don't run `dev:relay` and `test:e2e` simultaneously in the same worktree.** Playwright's `reuseExistingServer` may pick up a relay started without the test env vars (`HNCH_ROOM_CAP`, `HNCH_ENABLE_TEST_ROUTES`), producing confusing failures.
+- **The relay runs on local workerd.** `pnpm dev:relay` goes through `packages/relay/scripts/dev.mjs`, which maps `PORT` and the ADR-0027 vars onto `wrangler dev` (no `.dev.vars`) and keeps rooms in `packages/relay/.wrangler/state` between restarts; with a test var set it starts empty every time. The relay bundles `@hnch/shared`'s built leaf modules, so build shared first (`pnpm dev:relay` does). Relay unit tests run inside workerd (`pnpm --filter @hnch/relay test`, vitest 4 with `@cloudflare/vitest-plugin`); the CLI and shared suites start a relay through `@hnch/relay/testing`.
 - **Capacitor `cap add ios`/`cap sync` are per-worktree.** Each worktree gets its own `ios/` dir and CocoaPods install (~500 MB). The CocoaPods cache (`~/Library/Caches/CocoaPods/`) is shared and safe.
 - **CLI config (`~/.config/hnch/config.json`) is user-level**, shared across worktrees. `HNCH_RELAY_URL` is set per worktree via `.env.local` so the CLI talks to the right relay; but `participantId`, `displayName`, etc. are shared. For per-worktree CLI identity, set `XDG_CONFIG_HOME=$(pwd)/.cli-config` before `pnpm dev:cli`.
 - **Playwright browser cache (`~/.cache/ms-playwright`) is shared.** First-run install across two fresh worktrees in parallel may race; subsequent runs are fine.

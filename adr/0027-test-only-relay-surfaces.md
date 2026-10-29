@@ -1,13 +1,13 @@
 # ADR-0027: Test-only relay surfaces — `HNCH_ENABLE_TEST_ROUTES` and `HNCH_ROOM_CAP`
 
-**Status:** Accepted
+**Status:** Accepted (in-memory-store clause superseded by ADR-0051)
 **Date:** 2026-04-26
 
 ## Context
 
 - Relay binary is the only hnch infrastructure on the public internet; sole admission-control authority per [ADR-0009](0009-access-control-relay-tokens.md) + [ADR-0024](0024-participant-cap.md).
 - Two env-var-gated test surfaces grew in to support Playwright e2e:
-  - `HNCH_ENABLE_TEST_ROUTES='1'` registers `DELETE /test/rooms/:uuid` to evict a room (simulate snapshot-TTL expiry without 24 h wait). Used by `expired-jump-back-in.spec.ts`.
+  - `HNCH_ENABLE_TEST_ROUTES='1'` registers `DELETE /test/rooms/:uuid` to evict a room (simulate snapshot-TTL expiry without 24 h wait). Used by `expired-recent-session.spec.ts`.
   - `HNCH_ROOM_CAP=N` lowers the participant cap below the production default of 20. Used by `room-full.spec.ts` (set to `'3'`).
 - Both read once at module load; no runtime flip; no admin endpoint.
 - Need recorded standard for what test-only env vars are acceptable so next contributor doesn't bolt on "skip-auth-for-dev".
@@ -26,6 +26,6 @@ Env-var-gated test surfaces in the production binary are permitted. Default-off,
 
 ## Consequences
 
-- Easier: e2e tests real binary; audit via `grep 'process.env\[.*HNCH_' packages/relay/src/`; new test vars follow clear pattern.
+- Easier: e2e tests real binary; audit via `grep 'process.env\[.*HNCH_' packages/relay/src/` (stale after ADR-0051: vars are Worker `Env` bindings read in `packages/relay/src/config.ts`, names hard-coded in `src/`, `scripts/`, `testing/` and `vitest.config.ts`; audit by grepping the two names under `packages/relay`); new test vars follow clear pattern.
 - Harder: deploy-time vigilance non-negotiable (no in-binary refusal); new test var that weakens admission needs successor ADR with threat model.
 - Revisit when: var needs to weaken admission (write successor); relay grows beyond single binary; legitimate non-test reason to lower cap; gate-fingerprinting attack pattern.
