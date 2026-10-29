@@ -37,7 +37,9 @@ permissions:
 jobs:
   refresh:
     name: Capture and commit
-    runs-on: [self-hosted, linux, arm64, hnch-podman]
+    # Runs Playwright + ng serve + relay: takes the single `e2e` runner like
+    # ci.yml's e2e job (ADR-0052), so the two never run at the same time.
+    runs-on: [self-hosted, linux, arm64, hnch-podman, e2e]
     timeout-minutes: 15
     steps:
       - name: Runner identity

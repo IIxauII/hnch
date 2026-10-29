@@ -300,7 +300,12 @@ jobs:
 
   e2e:
     name: E2E (Playwright)
-    runs-on: [self-hosted, linux, arm64, hnch-podman]
+    # `e2e` is carried by exactly one pool runner (slot 1, see
+    # infra/runner/supervisor.sh and ADR-0052), so Playwright jobs from
+    # different refs, and screenshots-main.yml, queue behind each other instead
+    # of sharing the runner VM's CPUs. timeout-minutes counts from job start,
+    # not queue time.
+    runs-on: [self-hosted, linux, arm64, hnch-podman, e2e]
     needs: [detect-changes, verify-summary]
     # `!failure() && !cancelled()` disables GitHub's default rule that auto-skips
     # a job when any transitive ancestor was skipped. For e2e-only PRs the
