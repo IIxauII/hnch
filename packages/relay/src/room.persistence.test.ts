@@ -7,10 +7,17 @@
 import { env } from 'cloudflare:workers';
 import { evictDurableObject, runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { COMPACT_AFTER_ROWS, FLUSH_AFTER_MS, FLUSH_AT_BYTES, SNAPSHOT_CHUNK_BYTES } from './room';
+import {
+  COMPACT_AFTER_ROWS,
+  FLUSH_AFTER_MS,
+  FLUSH_AT_BYTES,
+  Room,
+  SNAPSHOT_CHUNK_BYTES,
+} from './room';
 import { Peer, createRoom, eventually, restoreClock, setNow } from './test-support/peer';
 
-const settle = () => new Promise((r) => setTimeout(r, 50));
+const SETTLE_MS = 50;
+const settle = () => new Promise((r) => setTimeout(r, SETTLE_MS));
 const roomStub = (uuid: string) => env.ROOM.get(env.ROOM.idFromName(uuid));
 
 async function rows(uuid: string): Promise<{ log: number; snapshot: number[] }> {
@@ -23,11 +30,14 @@ async function rows(uuid: string): Promise<{ log: number; snapshot: number[] }> 
   }));
 }
 
-/** What a peer joining after an eviction of the room object receives. */
+/**
+ * What a peer joining after an eviction of the room object receives: returns
+ * once the relay has answered its sync, so the doc holds all the relay loaded.
+ */
 async function reloaded(uuid: string): Promise<Peer> {
   await evictDurableObject(roomStub(uuid));
   const peer = await Peer.join(uuid);
-  await settle();
+  await peer.synced();
   return peer;
 }
 
@@ -65,6 +75,31 @@ async function nudge(from: Peer, observer: Peer, round: number): Promise<void> {
 afterEach(() => {
   restoreClock();
   vi.restoreAllMocks();
+});
+
+describe('a reload', () => {
+  it('gives the joiner the stored doc, however late the relay answers its sync', async () => {
+    const { uuid } = await createRoom();
+    const alice = await Peer.join(uuid);
+    await edits(alice, 3);
+    await runDurableObjectAlarm(roomStub(uuid));
+    expect(await rows(uuid)).toEqual({ log: 1, snapshot: [] });
+
+    // The reloaded object handles each frame later than any fixed wait in the
+    // test, as it may on a loaded CI runner. Timers in this isolate fire in
+    // order, so this holds every time.
+    const handle = Room.prototype.webSocketMessage;
+    vi.spyOn(Room.prototype, 'webSocketMessage').mockImplementation(async function (
+      this: Room,
+      ws,
+      message,
+    ) {
+      await new Promise((r) => setTimeout(r, 4 * SETTLE_MS));
+      return handle.call(this, ws, message);
+    });
+
+    expect((await reloaded(uuid)).doc.getArray('votes').length).toBe(3);
+  });
 });
 
 describe('coalesced writes', () => {
@@ -159,7 +194,7 @@ describe('compaction', () => {
     for (const chunk of snapshot) expect(chunk).toBeLessThanOrEqual(SNAPSHOT_CHUNK_BYTES);
 
     const carol = await reloaded(uuid);
-    await eventually(() => expect(carol.doc.getText('notes').length).toBe(size));
+    expect(carol.doc.getText('notes').length).toBe(size);
   });
 });
 
