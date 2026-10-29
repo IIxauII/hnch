@@ -171,11 +171,13 @@ jobs:
             # Still tree-only: diff-tree --name-only never reads blobs.
             # Keep BOT_SUBJECT in step with release.yml.
             BOT_SUBJECT='^chore\((release|screenshots)\): .*\[skip ci\]$'
+            # An assignment, not < <(...): errexit sees a failing git log.
+            commits=$(git log --format='%H %s' "$base..$head")
             changed=""
             while read -r c subject; do
               [[ -z "$c" || "$subject" =~ $BOT_SUBJECT ]] && continue
               changed+=$(git diff-tree -r --no-commit-id --name-only --no-renames "$c")$'\n'
-            done < <(git log --format='%H %s' "$base..$head")
+            done <<< "$commits"
             changed=$(sed '/^$/d' <<< "$changed" | sort -u)
           else
             changed=$(git diff --name-only --no-renames "$base"..."$head")
