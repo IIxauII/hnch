@@ -156,7 +156,13 @@ export function scriptPath(script) {
 
 /**
  * @typedef {{ name?: string, type?: string, text?: string }} Binding
- * @typedef {{ tag: string | null, bindings: Binding[] | null }} LiveVersion
+ * @typedef {{
+ *   id: string,
+ *   percentage: number | null,
+ *   tag: string | null,
+ *   message: string | null,
+ *   bindings: Binding[] | null,
+ * }} LiveVersion
  */
 
 /**
@@ -188,18 +194,25 @@ export async function liveVersions(script) {
   const latest = deployments.deployments[0];
   if (!latest) return [];
   if (!Array.isArray(latest.versions)) throw new Error(`${base}/deployments: no versions`);
-  /** @type {LiveVersion[]} */
-  const versions = [];
-  for (const { version_id: id } of latest.versions) {
-    const version = await api(`${base}/versions/${id}`);
-    const tag = version.annotations?.['workers/tag'];
-    const bindings = version.resources?.bindings;
-    versions.push({
-      tag: typeof tag === 'string' ? tag : null,
-      bindings: Array.isArray(bindings) ? bindings : null,
-    });
-  }
-  return versions;
+  return Promise.all(
+    latest.versions.map(
+      async (
+        /** @type {{ version_id: string, percentage?: number }} */ { version_id: id, percentage },
+      ) => {
+        const version = await api(`${base}/versions/${id}`);
+        const tag = version.annotations?.['workers/tag'];
+        const message = version.annotations?.['workers/message'];
+        const bindings = version.resources?.bindings;
+        return {
+          id,
+          percentage: typeof percentage === 'number' ? percentage : null,
+          tag: typeof tag === 'string' ? tag : null,
+          message: typeof message === 'string' ? message : null,
+          bindings: Array.isArray(bindings) ? bindings : null,
+        };
+      },
+    ),
+  );
 }
 
 /**
@@ -223,12 +236,12 @@ export async function liveRoutes(config) {
   const zones = routeZones(config);
   if (zones.size === 0)
     throw new Error('no route names a zone_id, so live routes cannot be checked');
-  /** @type {LiveRoute[]} */
-  const routes = [];
-  for (const zone of zones) {
-    routes.push(.../** @type {LiveRoute[]} */ (await apiList(`/zones/${zone}/workers/routes`)));
-  }
-  return routes;
+  const lists = await Promise.all(
+    [...zones].map(
+      async (zone) => /** @type {LiveRoute[]} */ (await apiList(`/zones/${zone}/workers/routes`)),
+    ),
+  );
+  return lists.flat();
 }
 
 /**
