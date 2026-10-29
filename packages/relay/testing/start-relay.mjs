@@ -17,6 +17,8 @@ const DEV_SCRIPT = resolve(import.meta.dirname, '../scripts/dev.mjs');
 const READY_TIMEOUT_MS = 30_000;
 /** Lines of relay output kept for the error if it fails to start. */
 const OUTPUT_TAIL = 40;
+/** Characters of relay output kept for `TestRelay.output()`: the last 256 Ki. */
+const OUTPUT_KEPT = 256 * 1024;
 
 /** Start attempts: relays starting at once can race for a port. */
 const START_ATTEMPTS = 3;
@@ -65,11 +67,12 @@ async function startOnce(opts) {
   );
   /** @type {string[]} */
   const output = [];
-  /** Everything the relay printed, for `TestRelay.output()`. */
+  /** The relay's latest output, for `TestRelay.output()`. */
   let all = '';
   const keep = (/** @type {Buffer} */ chunk) => {
     const text = chunk.toString();
     all += text;
+    if (all.length > OUTPUT_KEPT) all = all.slice(-OUTPUT_KEPT);
     output.push(...text.split('\n'));
     output.splice(0, Math.max(0, output.length - OUTPUT_TAIL));
   };

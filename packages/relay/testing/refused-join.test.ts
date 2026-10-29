@@ -85,10 +85,16 @@ describe('a refused join', () => {
     while (!relay.output().includes('room-frame-rejected') && Date.now() < deadline) {
       await sleep(50);
     }
-    expect(relay.output()).toContain('room-frame-rejected');
+    expect(relay.output().includes('room-frame-rejected'), 'marker logged').toBe(true);
     await sleep(SETTLE_MS);
 
     for (const s of seated) s.ws.close(1000);
-    expect(relay.output()).not.toMatch(NETWORK_LOST);
+    // Only the offending lines, if any, so a failure doesn't dump the log.
+    const lost = relay
+      .output()
+      .split('\n')
+      .filter((line) => NETWORK_LOST.test(line))
+      .map((line) => line.trim());
+    expect(lost).toEqual([]);
   });
 });

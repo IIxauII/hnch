@@ -459,6 +459,7 @@ export class Room extends DurableObject<Env> {
     const stale = new Set(ids);
     if (stale.size === 0) return;
     for (const ws of this.ctx.getWebSockets()) {
+      if (isRefused(this.ctx, ws)) continue;
       const id = this.idOf(ws);
       if (stale.has(id)) this.saveAttachment(ws, id);
     }
