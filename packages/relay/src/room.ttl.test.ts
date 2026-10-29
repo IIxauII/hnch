@@ -244,7 +244,8 @@ describe('deletion', () => {
 
     setNow(t0 + DEADLINE_MS);
     expect(await status(code)).toBe(404);
-    // The mocked failure, not some other one, held the release back.
+    // The mocked release ran, and its one failure held the release back (the
+    // log names only the error class, so the spy call is what ties it to the mock).
     expect(failing.release).toHaveBeenCalledWith(uuid);
     expect(releaseFailures(logged)).toEqual(['Error']);
     expect((await upgrade(uuid)).status).toBe(404);

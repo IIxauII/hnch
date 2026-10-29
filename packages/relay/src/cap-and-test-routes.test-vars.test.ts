@@ -16,15 +16,11 @@ const settle = () => new Promise((r) => setTimeout(r, 50));
 const roomStub = (uuid: string) => env.ROOM.get(env.ROOM.idFromName(uuid));
 const codesStub = (code: string) => env.CODES.get(env.CODES.idFromName(code));
 
-/** The sockets the room counts as peers: open and not refused, as its `openSockets`. */
+/** The sockets the room counts against its cap: its own `openSockets()`. */
 const seatedCount = (uuid: string) =>
   runInDurableObject(
     roomStub(uuid),
-    (_room, state) =>
-      state
-        .getWebSockets()
-        .filter((ws) => ws.readyState === WebSocket.OPEN && !state.getTags(ws).includes('refused'))
-        .length,
+    (room) => (room as unknown as { openSockets(): WebSocket[] }).openSockets().length,
   );
 
 async function joined(uuid: string, query = ''): Promise<Peer> {

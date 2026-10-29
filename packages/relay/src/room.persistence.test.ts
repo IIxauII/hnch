@@ -213,8 +213,8 @@ describe('when storage writes fail', () => {
     const { uuid } = await createRoom();
     const alice = await Peer.join(uuid);
     const bob = await Peer.join(uuid);
-    // The room loads the doc from storage to answer a sync: let it, before
-    // storage fails.
+    // Both peers hold the doc before storage fails, so what the room relays
+    // and writes afterwards is measured against a known start.
     await alice.synced();
     await bob.synced();
 

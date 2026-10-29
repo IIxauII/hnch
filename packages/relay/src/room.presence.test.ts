@@ -56,6 +56,10 @@ describe('the relay own state', () => {
   it('is listed once, even though peers echo it back', async () => {
     const { uuid } = await createRoom();
     const alice = await Peer.join(uuid);
+    // Alice echoes the relay's state once she reads her opening awareness
+    // frame; wait for it, so that echo goes out before her announce and the
+    // observer's wait below covers both.
+    await eventually(() => expect(alice.frames.length).toBeGreaterThanOrEqual(2));
     // Echoes nothing, so it only watches what the room relays.
     const observer = await Peer.join(uuid);
     observer.mute();
