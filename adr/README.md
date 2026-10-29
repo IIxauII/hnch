@@ -64,10 +64,11 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0045](0045-agenda-consume-at-round-terminal.md) | Agenda items consume at round-terminal (reveal/skip) instead of round-start (supersedes ADR-0042) | Accepted |  |
 | [0046](0046-round-discard-tombstone.md) | Round record — three terminal fields (`revealedAt`/`skippedAt`/`discardedAt`) + tombstone semantics (supersedes ADR-0013) | Accepted |  |
 | [0048](0048-host-election-eligible-peer-set.md) | Host election eligible peer set — online ∩ active, single-sourced in `shared/election.ts` (refines ADR-0010) | Accepted |  |
-| [0049](0049-self-hosted-runner-pool-current-state-consolidation.md) | Self-hosted runner pool — current-state consolidation | Accepted | ADR-0051 (partial) |
+| [0049](0049-self-hosted-runner-pool-current-state-consolidation.md) | Self-hosted runner pool — current-state consolidation | Accepted | ADR-0051 (partial), ADR-0053 (partial) |
 | [0050](0050-reconnect-reconciliation.md) | Reconnect reconciliation — presence re-announce, sync-gated auto-reveal, HTTP refusal lookup | Accepted |  |
 | [0051](0051-cloudflare-hosting.md) | Hosting — Cloudflare Workers and Durable Objects replace the IONOS VPS | Accepted |  |
 | [0052](0052-single-e2e-runner-slot.md) | Single `e2e` runner slot — one Playwright job at a time on the pool (refines ADR-0049) | Accepted |  |
+| [0053](0053-runner-pool-two-slots.md) | Runner pool size — 2 slots, fewer than the verify lanes | Accepted |  |
 
 ## When to write an ADR
 

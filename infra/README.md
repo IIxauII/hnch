@@ -168,9 +168,9 @@ v1 ships as a plain SPA. There is no service worker, no offline shell, and no `m
 
 ## Self-hosted runner pool
 
-Every Linux job except the two carve-outs below runs on a pool of 4 ephemeral arm64 Podman containers on a Mac mini M4 — the `ci.yml` `verify` matrix, `e2e`, the small support jobs (`detect-changes`, `version-audit`, `pr-title-lint`, `verify-summary`), plus `release.yml`, `deploy-client.yml`, `deploy-relay.yml` and `screenshots-main.yml`. Labels are hardcoded `[self-hosted, linux, arm64, hnch-podman]` (plus `e2e` on the two Playwright jobs, see [E2E slot](#e2e-slot)); there is no hosted fallback. `runner-health.yml` stays on `ubuntu-latest` permanently — it is the dead-man's-switch that fires when the pool is dead, so it cannot run on the pool. `cancel-merged-pr-ci.yml` also stays hosted (a `gh api` call that must not queue behind the pool). Dependabot stays on the GitHub-managed runner.
+Every Linux job except the two carve-outs below runs on a pool of 2 ephemeral arm64 Podman containers on a Mac mini M4 — the `ci.yml` `verify` matrix, `e2e`, the small support jobs (`detect-changes`, `version-audit`, `pr-title-lint`, `verify-summary`), plus `release.yml`, `deploy-client.yml`, `deploy-relay.yml` and `screenshots-main.yml`. Labels are hardcoded `[self-hosted, linux, arm64, hnch-podman]` (plus `e2e` on the two Playwright jobs, see [E2E slot](#e2e-slot)); there is no hosted fallback. `runner-health.yml` stays on `ubuntu-latest` permanently — it is the dead-man's-switch that fires when the pool is dead, so it cannot run on the pool. `cancel-merged-pr-ci.yml` also stays hosted (a `gh api` call that must not queue behind the pool). Dependabot stays on the GitHub-managed runner.
 
-See [ADR-0049](../adr/0049-self-hosted-runner-pool-current-state-consolidation.md) for the current-state rationale (it consolidates and supersedes the ADR-0032 / 0033 / 0037 / 0047 chain). Source plan: `plans/plan-self-hosted-runner.md`.
+See [ADR-0049](../adr/0049-self-hosted-runner-pool-current-state-consolidation.md) for the current-state rationale (it consolidates and supersedes the ADR-0032 / 0033 / 0037 / 0047 chain) and [ADR-0053](../adr/0053-runner-pool-two-slots.md) for the pool size. Source plan: `plans/plan-self-hosted-runner.md`.
 
 ### Architecture
 
@@ -178,7 +178,7 @@ See [ADR-0049](../adr/0049-self-hosted-runner-pool-current-state-consolidation.m
 GitHub Actions
    │
    ▼ register/run
-hnch-podman label → 4 ephemeral containers on M4
+hnch-podman label → 2 ephemeral containers on M4 (POOL_SIZE=2)
    │
    ├── built from infra/runner/Dockerfile (debian:bookworm-slim + official actions/runner tarball + Node 22 + pnpm + Playwright libs)
    ├── one job per container, --rm, EPHEMERAL=true (deregisters and exits after the job)
@@ -186,7 +186,7 @@ hnch-podman label → 4 ephemeral containers on M4
    └── supervised by infra/runner/supervisor.sh under launchd (dev.hnch.runner.plist)
 ```
 
-Runners are repo-scoped and labelled `self-hosted,linux,arm64,hnch-podman`; slot 1 also carries `e2e` (see [E2E slot](#e2e-slot)). The pool size matches the verify matrix (4 lanes: `shared`, `relay`, `client`, `cli`).
+Runners are repo-scoped and labelled `self-hosted,linux,arm64,hnch-podman`; slot 1 also carries `e2e` (see [E2E slot](#e2e-slot)). The pool runs 2 slots (`POOL_SIZE=2` in `dev.hnch.runner.plist`), so the 5 verify lanes (`shared`, `relay`, `client`, `cli`, `e2e`) share 2 runners and queue ([ADR-0053](../adr/0053-runner-pool-two-slots.md)).
 
 ### Files
 
@@ -213,12 +213,14 @@ podman machine init --cpus 8 --memory 10240 --disk-size 80 hnch-runner
 podman machine start hnch-runner
 
 mkdir -p ~/runner-cache/{playwright,state,nm-snapshots}
-for i in 1 2 3 4; do
+for i in 1 2; do
   mkdir -p ~/runner-cache/pnpm-store-$i ~/runner-cache/work-$i
 done
 
 sudo pmset -a sleep 0 disksleep 0 displaysleep 15 womp 1 powernap 0
 ```
+
+Create one `pnpm-store-N` / `work-N` pair per slot; add more if `POOL_SIZE` grows.
 
 **UID-mapping smoke test** (must pass before continuing):
 
@@ -271,7 +273,7 @@ launchctl load ~/Library/LaunchAgents/dev.hnch.runner.plist
 launchctl load ~/Library/LaunchAgents/dev.hnch.runner-prune.plist
 ```
 
-Within ~30 s, `gh api /repos/IIxauII/hnch/actions/runners | jq '.runners[].labels'` should show 4 idle runners labelled `hnch-podman`.
+Within ~30 s, `gh api /repos/IIxauII/hnch/actions/runners | jq '.runners[].labels'` should show 2 idle runners labelled `hnch-podman`.
 
 After editing `supervisor.sh` or `prune.sh` in the repo, re-run `bash infra/runner/install.sh` to copy the changes into `~/.local/bin/`, then `launchctl kickstart -k gui/$(id -u)/dev.hnch.runner` to force fresh containers on the next spawn cycle. `install.sh` also overwrites the installed plists with the repo copies, so a host-local `POOL_SIZE` edit is lost; to update only the supervisor, run `install -m 755 infra/runner/supervisor.sh ~/.local/bin/hnch-runner-supervisor.sh` instead. `kickstart -k` removes every running container, including one mid-job, so run it while `gh run list --repo IIxauII/hnch --status in_progress` is empty.
 
@@ -307,7 +309,7 @@ until podman -c hnch-runner info >/dev/null 2>&1; do sleep 2; done
 launchctl kickstart -k gui/$(id -u)/dev.hnch.runner
 ```
 
-Within ~30 s, `gh api /repos/IIxauII/hnch/actions/runners --jq '.runners[].name'` should list 4 runners; queued jobs drain automatically.
+Within ~30 s, `gh api /repos/IIxauII/hnch/actions/runners --jq '.runners[].name'` should list 2 runners; queued jobs drain automatically.
 
 ### Bumping the runner base image
 
@@ -356,7 +358,7 @@ launchctl unload ~/Library/LaunchAgents/dev.hnch.runner.plist
 podman ps -q --filter name=hnch-runner- | xargs -r podman rm -f
 rm -rf ~/runner-cache/pnpm-store-* ~/runner-cache/playwright
 mkdir -p ~/runner-cache/playwright
-for i in 1 2 3 4; do mkdir -p ~/runner-cache/pnpm-store-$i; done
+for i in 1 2; do mkdir -p ~/runner-cache/pnpm-store-$i; done
 launchctl load ~/Library/LaunchAgents/dev.hnch.runner.plist
 ```
 
@@ -364,7 +366,7 @@ The supervisor reseeds caches lazily on the next job per runner.
 
 ### Pre-Phase-9 RAM gate
 
-Before adding a Tart-based macOS runner (Phase 9, gated on Phase 6b iOS), measure 4-day p95 committed RAM with the four-runner pool steady-state. The M4's RAM is **soldered**; if p95 > 10 GB, order a higher-RAM mini *before* starting Tart work.
+Before adding a Tart-based macOS runner (Phase 9, gated on Phase 6b iOS), measure 4-day p95 committed RAM with the two-slot pool at steady state. The M4's RAM is **soldered**; if p95 > 10 GB, order a higher-RAM mini *before* starting Tart work.
 
 ```sh
 # crontab -e

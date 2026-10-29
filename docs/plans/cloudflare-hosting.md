@@ -9,7 +9,7 @@
 
 The relay moves to a Cloudflare Worker with three kinds of Durable Object (DO): `Room` (one per room UUID), `Codes` (one per room code) and `Expiry` (one per UTC day, a backstop that makes sure rooms get deleted). The PWA moves to an assets-only Worker.
 
-Both Workers attach to `hnch.dev` through zone routes. Those routes are deployed early but stay inert while the apex DNS record is DNS-only. Cutover is one full switch: proxy the apex records, then verify on `hnch.dev` and fix forward. Only DNS is at Cloudflare; the domain registration stays at IONOS. The IONOS VPS is left untouched and idle, and decommissioning it is out of scope.
+Both Workers attach to `hnch.dev` through zone routes. Those routes are deployed early but stay inert while the apex DNS record is DNS-only. Cutover is one full switch: proxy the apex records, then verify on `hnch.dev` and fix forward. Only DNS is at Cloudflare; the domain registration stays at IONOS. The IONOS VPS is left untouched and idle, and decommissioning it is out of scope. (Reopened 2026-10-29: the VPS is removed; see [Decisions resolved](#decisions-resolved).)
 
 Rooms now survive relay deploys. They persist, pinned to the EU, until 24–25 h after the last peer leaves, which is the ADR-0012 TTL plus the Node relay's hourly sweep jitter. The wire protocol, REST shape and close codes are unchanged, so released CLIs (1.1.1 onwards) and native builds keep working without a release. Structural decision: [ADR-0051](../../adr/0051-cloudflare-hosting.md) (Proposed; amendments listed under ADR impact).
 
@@ -28,7 +28,7 @@ Rooms now survive relay deploys. They persist, pinned to the EU, until 24–25 h
   - The apex stays DNS-only and points at the VPS until Phase 3, so the VPS keeps serving users.
   - **The switch** is setting the apex records to proxied (`www` has been proxied since Phase 0 and only redirects). Both Workers then go live at once.
 - **No proving ground** (D3/D4, settled). There is no `next.hnch.dev` and no pre-cutover test build. Pre-cutover confidence comes from CI (unit tests on workerd, e2e against a local workerd relay) plus G0. Real-network checks run on `hnch.dev` right after the switch.
-- **The VPS is left as is.** After the switch it gets no traffic, except sockets already open to it (they stay until they reconnect) and resolvers still holding the old A record (until its TTL expires). That leaves an incidental rollback: set the records back to DNS-only and Caddy serves again, with its relay frozen at 1.2.1.
+- **The VPS is left as is.** After the switch it gets no traffic, except sockets already open to it (they stay until they reconnect) and resolvers still holding the old A record (until its TTL expires). That leaves an incidental rollback: set the records back to DNS-only and Caddy serves again, with its relay frozen at 1.2.1. (Reopened 2026-10-29: the VPS is removed; see [Decisions resolved](#decisions-resolved).)
 
 ### Relay Worker: behavioural contract (parity with `packages/relay` today)
 
@@ -236,7 +236,8 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
 - **From the 1b merge, the relay no longer ships to the VPS (D9).** The VPS relay stays at `relay-v1.2.1`. Usage is about 0, so no VPS hot-fix path is planned.
 - **Client (D10):** a `client-v*` release dispatches `deploy-client.yml`.
   - It builds `production` once and ships it to the VPS (as today; that keeps the incidental rollback current) and to `hnch-web` (from Phase 2).
-  - Input `targets: all | web-only` (default `all`). Manual dispatches of unreleased `main` use `web-only`.
+  - Reopened 2026-10-29: the VPS deploy job is removed, so the VPS keeps its current client build until the switch (see [Decisions resolved](#decisions-resolved)).
+  - Input `targets: all | web-only` (default `all`). Manual dispatches of unreleased `main` use `web-only`. Reopened 2026-10-29: the `vps` job and the `targets` input go in the VPS-removal PR (ADR-0054).
   - The `hnch-web` smoke is gated on `HNCH_LIVE`.
 - **Secrets (D14):**
   - Stored as a repo secret, referenced only by the two deploy jobs; environment secrets are unavailable on GitHub Free private repos. Fork PRs get no secrets.
@@ -291,6 +292,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
    - set the records back to DNS-only and `HNCH_LIVE=false`;
    - Caddy serves the PWA (kept current by `deploy-client.yml`) and relay 1.2.1;
    - every room created on Cloudflare is lost to users.
+   - Reopened 2026-10-29: with the VPS deploy job removed, Caddy serves the frozen client build; once the VPS is shut down after the switch, there is no rollback to it (see [Decisions resolved](#decisions-resolved)).
 
 ## ADR impact
 
@@ -300,7 +302,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
     - Routes deploy early and stay inert while DNS-only. The cutover is one full switch: proxy the apex records.
     - No `next` proving ground; test on `hnch.dev` and fix forward.
     - Replace the "Custom Domain" wording.
-  - **b. VPS:** stays untouched and idle. Decommissioning is out of scope. Un-proxying the records is an incidental rollback; rooms created on Cloudflare are lost on it. Sockets already open to the VPS stay until they reconnect. The VPS relay is frozen at 1.2.1.
+  - **b. VPS:** stays untouched and idle. Decommissioning is out of scope. Un-proxying the records is an incidental rollback; rooms created on Cloudflare are lost on it. Sockets already open to the VPS stay until they reconnect. The VPS relay is frozen at 1.2.1. Reopened 2026-10-29: the VPS is removed by a new ADR (see [Decisions resolved](#decisions-resolved)).
   - **c. "B sees A leave":** reword the "blocks the e2e criterion" line as a pre-existing finding seen only in the smoke test, tracked in #542 (related #531).
   - **d. Test vars:** `.dev.vars` → `scripts/dev.mjs` passes them per invocation.
   - **e. Keepalive:** the requirement (ADR-0050 conformance), the piggyback mechanism, the hidden-tab residual measured after the switch, and the pre-agreed alarm fallback.
@@ -323,15 +325,15 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
   - **p. Health and failures:** `/health` stays shallow. The deploy smoke reaches a DO via `GET /rooms/000000`. DO failures → `503` with no `reason`.
   - **q. TTL robustness:** deletion at 24–25 h; tombstone before the cross-DO release; lazy expiry and re-arm on entry; the `Expiry` cron backstop.
   - **r. Binding limit:** DO duration (about 29 occupied room-hours/day) replaces "≈ 400 peer-hours/day" as the headline figure.
-  - **s. ADR-0049:** ADR-0051's cross-arch caveat is merged with ADR-0052's pool-size caveat into one parenthetical and one index cell. Consolidating 0049 forward is decided at 1b.
+  - **s. ADR-0049:** ADR-0051's cross-arch caveat and ADR-0053's pool-size caveat share one parenthetical and one index cell (ADR-0052 only refines targeting). Consolidating 0049 forward is not done yet (see ADR-0049 below).
   - **t. Edge behaviour:** Always Use HTTPS on (parity with Caddy's redirect), and a `www` → apex 301 redirect rule (live since Phase 0; it fixed #543, the pre-existing `www` TLS failure).
-- **ADR-0029:** superseded by ADR-0051, flipped in 1b. Optional status note at the switch: "VPS left idle, not decommissioned (owner, 2026-10-28)".
+- **ADR-0029:** superseded by ADR-0051, flipped in 1b. Optional status note at the switch: "VPS left idle, not decommissioned (owner, 2026-10-28)". Reopened 2026-10-29: the VPS is removed (see [Decisions resolved](#decisions-resolved)), so this note no longer applies.
 - **ADR-0012:** storage clause superseded by ADR-0051; TTL, keying and content-blindness hold.
 - **ADR-0049:**
-  - Its cross-arch clause is superseded by ADR-0051. ADR-0052 (another session, branch `worktree-runner-pool-2`) already supersedes its pool-size clause.
-  - Merge both into one parenthetical, `Accepted (pool-size clause superseded by ADR-0052; deploy-relay cross-arch clause superseded by ADR-0051)`, and one index cell, `ADR-0051 (partial), ADR-0052 (partial)`.
-  - Index order: 0050, 0051, 0052.
-  - Two caveats hit the README threshold. Recommendation: don't consolidate yet, because the two clauses are independent. Consolidate when a third arrives; adr-writer confirms at 1b.
+  - Its cross-arch clause is superseded by ADR-0051 and its pool-size clause by ADR-0053 (ADR-0052 as merged only refines targeting).
+  - One parenthetical, `Accepted (deploy-relay cross-arch clause superseded by ADR-0051; pool-size clause superseded by ADR-0053)`, and one index cell, `ADR-0051 (partial), ADR-0053 (partial)`. Done 2026-10-29.
+  - Index order: 0050, 0051, 0052, 0053.
+  - Two caveats hit the README threshold. Recommendation: don't consolidate yet, because the two clauses are independent. Consolidate when a third arrives.
 - **ADR-0027:** header `Accepted (in-memory-store clause superseded by ADR-0051)`. Editorial: the audit hint now points at `scripts/dev.mjs`, and `expired-jump-back-in.spec.ts` becomes `expired-recent-session.spec.ts`.
 - **ADR-0017:** second partial caveat (ADR-0035 and ADR-0051). Recommendation: don't consolidate, because the clauses are distinct.
 - **ADR-0050:** conforms (items 3, 5, 6, 8 and 9).
@@ -354,6 +356,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
 - Settled 2026-10-28 (owner, P0.5): the Free plan has no Workers or DO usage alerts, so the line above's "usage notifications cover later growth" doesn't hold. Six account alerts are on instead, and usage is checked by hand in the dashboard. A scheduled usage check is deferred until there are users.
 - Settled 2026-10-28 (owner, P0.3): `www` is proxied in Phase 0, so its redirect is live before the cutover (fixing #543 early). The switch proxies only the apex records.
 - Settled 2026-10-28 (owner): the VPS stays as it is. No shutdown, rollback window or cancellation is planned in these phases. Decommissioning stays out of scope until the owner reopens it. Before any cancellation, check that `hnch.dev` isn't bundled with the IONOS VPS contract.
+  - Reopened 2026-10-29 (owner): the VPS is removed. See the 2026-10-29 VPS entry below.
 - Settled 2026-10-28 (owner, D11): one rate-limit rule, on path `/rooms` only, 10 per 10 s per IP.
 - Settled 2026-10-28 (owner): no rate limit on `/ws/*`; `GET /rooms/:code` is not limited either.
 - Settled 2026-10-28 (owner, D12): Workers Logs on with `invocation_logs = false`, plus the marker test.
@@ -366,7 +369,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
   - **D7 A:** ADR-0051 is accepted before the 1b merge.
   - **D8 A:** 1b is atomic.
   - **D9 A:** the relay goes to Cloudflare only from 1b.
-  - **D10 A:** the client deploys to both the VPS and `hnch-web`, with a `targets` input.
+  - **D10 A:** the client deploys to both the VPS and `hnch-web`, with a `targets` input. Reopened 2026-10-29: the VPS target goes (see the VPS entry below).
   - **D13 A:** splat rules in `_headers`, plus a hash guard.
   - **D14 A:** a repo-secret token used by the deploy jobs only.
   - Keepalive by piggyback, plus the hidden-tab measurement and the alarm fallback.
@@ -381,6 +384,18 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
   - smokes gated on `HNCH_LIVE`;
   - the `www` redirect;
   - relay-only vitest 4.
+- Settled 2026-10-29 (owner): CI and hosting fixes ship as a short ordered series of small PRs, not one big PR. Fold the work into existing PRs and issues instead of building parallel copies.
+- Settled 2026-10-29 (owner): the VPS is removed. This reopens the 2026-10-28 "VPS stays as it is" entry above and ADR-0051's "VPS left idle, not decommissioned" clause.
+  - Now: remove the VPS deploy job, the VPS docs and the VPS `infra/` files. Production (`hnch.dev`, on the VPS until the #549 switch) stays frozen at its current client build until the switch.
+  - After the #549 switch: shut down the VPS and remove the `VPS_*` repo secrets. Before cancelling the contract, check that `hnch.dev` isn't bundled with it.
+  - Until the shutdown, the incidental rollback (Cutover step 6) serves the frozen client build. After it, there is no rollback to the VPS.
+  - A separate PR with a new ADR does the removal (mechanism: planner, not owner). This entry only records the decision.
+- Settled 2026-10-29 (owner): no paid merge gate. The repo is private on GitHub Free, so branch protection is unavailable (the API returns 403). By convention, agents and humans never merge a PR on red CI: every check must be green, and a cancelled check is not green. See `CONTRIBUTING.md`, [Merge only on green CI](../../CONTRIBUTING.md#merge-only-on-green-ci).
+- Settled 2026-10-29 (owner): the self-hosted runner pool stays at `POOL_SIZE=2`, the value the live LaunchAgent plist uses. The repo copy (`infra/runner/dev.hnch.runner.plist`) now matches. Out of scope by owner decision: raising the pool.
+  - [ADR-0053](../../adr/0053-runner-pool-two-slots.md) records this and supersedes ADR-0049's "pool size = `verify` matrix lane count" clause.
+- Settled 2026-10-29 (owner): `ci.yml`'s workflow-level `concurrency` with `cancel-in-progress` keeps cancelling superseded runs on `main` too. The newest `main` run must cover the changes of every merge whose run was cancelled.
+  - Mechanism (planner, not owner): on a push to `main`, change detection diffs from the commit of the last successful `main` CI run instead of the previous push, and runs the full pipeline if there is none. The follow-up CI PR implements it.
+- Settled 2026-10-29 (owner): #562 (test(shared,cli): give the test-relay startup hook the same 60 s as relay) won't land. One local relay per test run replaces it (vitest `globalSetup`: mechanism from the planner, not the owner).
 
 ## Phases
 
@@ -463,7 +478,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
   - **ADRs:**
     - 0051 → Accepted (amended); 0029 → Superseded;
     - partial caveats on 0012, 0027 and 0017;
-    - 0049: merged caveat with 0052 (rebase if 0052 lands first);
+    - 0049: cross-arch caveat (ADR-0051; the pool-size caveat is ADR-0053's, and ADR-0052 only refines targeting);
     - `adr/README.md` index in the order 0050, 0051, 0052.
 - **Exit bar:**
   - CI is green: the relay, cli (through the harness) and shared lanes, plus e2e chromium on local workerd (the ADR-0027 specs and `lone-peer-keepalive`).
@@ -484,7 +499,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
     - `src/_headers` plus an entry in the `angular.json` assets.
     - `package.json`: wrangler as a dev dependency.
   - **`.github/workflows/deploy-client.yml`:**
-    - keep the VPS ship;
+    - keep the VPS ship (reopened 2026-10-29: the `vps` job and the `targets` input go in the VPS-removal PR, ADR-0054);
     - add the hash guard;
     - add `wrangler deploy` of the same `www` to `hnch-web`;
     - add the `targets: all | web-only` input and the route-removal guard;
@@ -548,7 +563,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
 - **"B sees A leave":** also present on the Node relay. Tracked in #542 (related #531).
 - **Outbound WS frame size limit:** undocumented. The inbound limit is 32 MiB.
 - **Cloudflare DPA and data-location terms:** not reviewed. That is the owner's call, outside this plan.
-- **VPS:** left idle. Decommission and the `infra/` and docs cleanup are deferred by owner decision. Before any cancellation, check that the domain isn't bundled with the VPS contract.
+- **VPS:** left idle. Decommission and the `infra/` and docs cleanup are deferred by owner decision. Before any cancellation, check that the domain isn't bundled with the VPS contract. Reopened 2026-10-29: no longer open; the VPS is removed (see [Decisions resolved](#decisions-resolved)).
 
 ## Verification plan
 
@@ -573,7 +588,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
 ## References
 
 - Spec: `docs/specs/cloudflare-hosting.md`
-- ADR-0051 (Proposed), ADR-0029, ADR-0012, ADR-0001, ADR-0008, ADR-0009, ADR-0016, ADR-0017, ADR-0024, ADR-0027, ADR-0035, ADR-0049, ADR-0050, ADR-0052 (branch `worktree-runner-pool-2`)
+- ADR-0051 (Proposed), ADR-0029, ADR-0012, ADR-0001, ADR-0008, ADR-0009, ADR-0016, ADR-0017, ADR-0024, ADR-0027, ADR-0035, ADR-0049, ADR-0050, ADR-0052, ADR-0053
 - Prototype (throwaway, never merge): branch `prototype/cloudflare-relay`
 - Research digest, G0 result and plan critique, 2026-10-28 (orchestrator job notes)
 - Cloudflare docs: [Workers routes](https://developers.cloudflare.com/workers/configuration/routing/routes/), [Observability pricing](https://developers.cloudflare.com/observability/pricing/)
