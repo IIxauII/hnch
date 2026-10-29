@@ -168,7 +168,7 @@ v1 ships as a plain SPA. There is no service worker, no offline shell, and no `m
 
 ## Self-hosted runner pool
 
-Every Linux job except the two carve-outs below runs on a pool of 4 ephemeral arm64 Podman containers on a Mac mini M4 — the `ci.yml` `verify` matrix, `e2e`, the small support jobs (`detect-changes`, `version-audit`, `pr-title-lint`, `verify-summary`), plus `release.yml`, `deploy-client.yml`, `deploy-relay.yml` and `screenshots-main.yml`. Labels are hardcoded `[self-hosted, linux, arm64, hnch-podman]`; there is no hosted fallback. `runner-health.yml` stays on `ubuntu-latest` permanently — it is the dead-man's-switch that fires when the pool is dead, so it cannot run on the pool. `cancel-merged-pr-ci.yml` also stays hosted (a `gh api` call that must not queue behind the pool). Dependabot stays on the GitHub-managed runner.
+Every Linux job except the two carve-outs below runs on a pool of 4 ephemeral arm64 Podman containers on a Mac mini M4 — the `ci.yml` `verify` matrix, `e2e`, the small support jobs (`detect-changes`, `version-audit`, `pr-title-lint`, `verify-summary`), plus `release.yml`, `deploy-client.yml`, `deploy-relay.yml` and `screenshots-main.yml`. Labels are hardcoded `[self-hosted, linux, arm64, hnch-podman]` (plus `e2e` on the two Playwright jobs, see [E2E slot](#e2e-slot)); there is no hosted fallback. `runner-health.yml` stays on `ubuntu-latest` permanently — it is the dead-man's-switch that fires when the pool is dead, so it cannot run on the pool. `cancel-merged-pr-ci.yml` also stays hosted (a `gh api` call that must not queue behind the pool). Dependabot stays on the GitHub-managed runner.
 
 See [ADR-0049](../adr/0049-self-hosted-runner-pool-current-state-consolidation.md) for the current-state rationale (it consolidates and supersedes the ADR-0032 / 0033 / 0037 / 0047 chain). Source plan: `plans/plan-self-hosted-runner.md`.
 
@@ -186,7 +186,7 @@ hnch-podman label → 4 ephemeral containers on M4
    └── supervised by infra/runner/supervisor.sh under launchd (dev.hnch.runner.plist)
 ```
 
-Runners are repo-scoped and labelled `self-hosted,linux,arm64,hnch-podman`. The pool size matches the verify matrix (4 lanes: `shared`, `relay`, `client`, `cli`).
+Runners are repo-scoped and labelled `self-hosted,linux,arm64,hnch-podman`; slot 1 also carries `e2e` (see [E2E slot](#e2e-slot)). The pool size matches the verify matrix (4 lanes: `shared`, `relay`, `client`, `cli`).
 
 ### Files
 
@@ -273,11 +273,23 @@ launchctl load ~/Library/LaunchAgents/dev.hnch.runner-prune.plist
 
 Within ~30 s, `gh api /repos/IIxauII/hnch/actions/runners | jq '.runners[].labels'` should show 4 idle runners labelled `hnch-podman`.
 
-After editing `supervisor.sh` or `prune.sh` in the repo, re-run `bash infra/runner/install.sh` to copy the changes into `~/.local/bin/`, then `launchctl kickstart -k gui/$(id -u)/dev.hnch.runner` to force fresh containers on the next spawn cycle.
+After editing `supervisor.sh` or `prune.sh` in the repo, re-run `bash infra/runner/install.sh` to copy the changes into `~/.local/bin/`, then `launchctl kickstart -k gui/$(id -u)/dev.hnch.runner` to force fresh containers on the next spawn cycle. `install.sh` also overwrites the installed plists with the repo copies, so a host-local `POOL_SIZE` edit is lost; to update only the supervisor, run `install -m 755 infra/runner/supervisor.sh ~/.local/bin/hnch-runner-supervisor.sh` instead. `kickstart -k` removes every running container, including one mid-job, so run it while `gh run list --repo IIxauII/hnch --status in_progress` is empty.
 
 ### Runner targeting
 
-Every Linux CI/CD job hardcodes `runs-on: [self-hosted, linux, arm64, hnch-podman]` (ADR-0047). There is no `vars.LINUX_RUNNER` toggle and no `ubuntu-latest` fallback — a dead pool queues jobs until the host is back. `runner-health.yml` stays on `ubuntu-latest` as the dead-man's-switch and raises an alarm within the hour when the pool is down.
+Every Linux CI/CD job hardcodes `runs-on: [self-hosted, linux, arm64, hnch-podman]`, plus `e2e` on Playwright jobs (see [E2E slot](#e2e-slot)) ([ADR-0049](../adr/0049-self-hosted-runner-pool-current-state-consolidation.md), [ADR-0052](../adr/0052-single-e2e-runner-slot.md)). There is no `vars.LINUX_RUNNER` toggle and no `ubuntu-latest` fallback — a dead pool queues jobs until the host is back. `runner-health.yml` stays on `ubuntu-latest` as the dead-man's-switch and raises an alarm within the hour when the pool is down.
+
+### E2E slot
+
+All pool containers share one podman VM (8 vCPU / 10 GiB) and nothing caps a container's CPU. Two Playwright jobs at once (each 4 Playwright workers + `ng serve` + the wrangler relay) slow every step 4–5× and push tests past their 45 s budget, so only one may run at a time ([ADR-0052](../adr/0052-single-e2e-runner-slot.md)):
+
+- `supervisor.sh` registers slot 1 (`hnch-runner-1-<epoch>`) with labels `self-hosted,linux,arm64,hnch-podman,e2e`; every other slot gets the base four. The label is re-applied on each ephemeral re-registration and on every supervisor restart, and slot 1 exists at any `POOL_SIZE`.
+- Jobs that run Playwright target `runs-on: [self-hosted, linux, arm64, hnch-podman, e2e]`: `ci.yml` `e2e` and `screenshots-main.yml` `refresh`. A new workflow that runs Playwright must add `e2e` too.
+- Other jobs still land on slot 1. An e2e job waits for slot 1 to finish its current job (verify ≤3 min, deploy/release ≤10 min), then for any Playwright job ahead of it (~5–8 min each). `timeout-minutes` counts from job start, so queue time doesn't eat into it; GitHub cancels a self-hosted job only after 24 h queued.
+- Slot 1 down while the rest of the pool is up: e2e jobs show "Waiting for a runner to pick up this job" and `runner-health.yml` stays green (it checks `hnch-podman` only). Check with `gh api repos/IIxauII/hnch/actions/runners --jq '.runners[] | select(.status=="online") | {name, labels: [.labels[].name]}'` and expect one `hnch-runner-1-*` carrying `e2e`.
+- Rollout order for label changes: host first, workflows second. Install the supervisor and restart the pool so slot 1 carries `e2e` (an extra label is harmless to jobs that don't ask for it) **before pushing the PR** that adds the label to a workflow: a `ci.yml` change makes detect-changes force e2e, and a `pull_request` run uses the PR's own `ci.yml`, so that PR's e2e job already needs the label. Confirm with the `gh api …/runners` check above that an online `hnch-runner-1-*` carries `e2e`, then push. The reverse order queues every e2e job until the host catches up.
+- Rollback: revert the workflows first (merge the revert), then reinstall the old supervisor and restart the pool. The reverse order strands e2e jobs waiting for a runner that no longer exists.
+- This removes Playwright-vs-Playwright contention only: other slots still run verify lanes, `ng build`, wrangler dry-runs and deploy/release builds on the same 8 vCPUs while e2e runs (at most one other job at `POOL_SIZE=2`, up to three at 4).
 
 ### Recovery when the pool is down (e.g. after a reboot)
 
