@@ -56,6 +56,11 @@ export default defineConfig({
           include: ['testing/**/*.test.ts', 'scripts/**/*.test.ts'],
           testTimeout: 60_000,
           hookTimeout: 60_000,
+          // Run after both worker projects, not beside them: the harness test
+          // starts several `wrangler dev` processes (esbuild + workerd), and
+          // the workerd tests slowed down while it did on the shared CI
+          // runner. The worker projects keep the default group order 0.
+          sequence: { groupOrder: 1 },
         },
       },
     ],
