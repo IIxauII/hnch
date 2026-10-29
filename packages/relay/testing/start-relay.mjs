@@ -65,8 +65,12 @@ async function startOnce(opts) {
   );
   /** @type {string[]} */
   const output = [];
+  /** Everything the relay printed, for `TestRelay.output()`. */
+  let all = '';
   const keep = (/** @type {Buffer} */ chunk) => {
-    output.push(...chunk.toString().split('\n'));
+    const text = chunk.toString();
+    all += text;
+    output.push(...text.split('\n'));
     output.splice(0, Math.max(0, output.length - OUTPUT_TAIL));
   };
   child.stdout?.on('data', keep);
@@ -101,6 +105,7 @@ async function startOnce(opts) {
   return {
     httpUrl,
     wsUrl: httpUrl.replace(/^http/, 'ws'),
+    output: () => all,
     stop,
   };
 }

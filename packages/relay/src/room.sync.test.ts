@@ -47,6 +47,21 @@ describe('joining a room', () => {
     expect(await peer.closed()).toEqual({ code: 4002, reason: 'wrong-password' });
   });
 
+  it('ignores what a refused socket sends before it is closed', async () => {
+    const { uuid } = await createRoom({ passwordHash: HASH });
+    const intruder = await Peer.join(uuid, `?pw=${'cd'.repeat(32)}`);
+    // Sent at once, before the refusal's close arrives or is answered.
+    intruder.announce({ participantId: 'intruder' });
+    intruder.doc.getMap('round').set('title', 'injected');
+    expect((await intruder.closed()).code).toBe(4002);
+
+    const member = await Peer.join(uuid, `?pw=${HASH}`);
+    await eventually(() => expect(member.frames.length).toBeGreaterThanOrEqual(2));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(member.doc.getMap('round').get('title')).toBeUndefined();
+    expect(member.participants()).toEqual([]);
+  });
+
   it('admits the right pw', async () => {
     const { uuid } = await createRoom({ passwordHash: HASH });
     const peer = await Peer.join(uuid, `?did=d1&pw=${HASH}`);

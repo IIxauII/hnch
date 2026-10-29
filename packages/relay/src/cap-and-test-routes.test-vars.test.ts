@@ -31,6 +31,20 @@ describe('participant cap (HNCH_ROOM_CAP=3)', () => {
     expect(await fourth.closed()).toEqual({ code: 4006, reason: 'room-full' });
   });
 
+  it('ignores what a socket refused 4006 sends before it is closed', async () => {
+    const { uuid } = await createRoom();
+    const seated = [await joined(uuid), await joined(uuid), await joined(uuid)];
+    const intruder = await Peer.join(uuid);
+    intruder.announce({ participantId: 'intruder' });
+    intruder.doc.getMap('round').set('title', 'injected');
+    expect((await intruder.closed()).code).toBe(4006);
+    await settle();
+    for (const peer of seated) {
+      expect(peer.doc.getMap('round').get('title')).toBeUndefined();
+      expect(peer.participants()).toEqual([]);
+    }
+  });
+
   it('admits exactly the cap when joins arrive at once', async () => {
     const { uuid } = await createRoom();
     const peers = await Promise.all(Array.from({ length: 6 }, () => Peer.join(uuid)));

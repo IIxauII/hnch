@@ -238,7 +238,7 @@ export class Room extends DurableObject<Env> {
       digest = current.digest;
       admitted = digest === null;
     }
-    if (!admitted) return refuse(server, client, 'wrong-password');
+    if (!admitted) return refuse(this.ctx, server, client, 'wrong-password');
 
     // Everything that can fail runs before the accept: sync-step-1, then every
     // state the room holds plus the relay's own.
@@ -251,7 +251,7 @@ export class Room extends DurableObject<Env> {
 
     // No await between the cap check and the accept, so it can't be overrun.
     if (this.openSockets().length >= this.config.roomCap) {
-      return refuse(server, client, 'room-full');
+      return refuse(this.ctx, server, client, 'room-full');
     }
     const id = crypto.randomUUID();
     this.ctx.acceptWebSocket(server);
@@ -270,6 +270,8 @@ export class Room extends DurableObject<Env> {
   }
 
   override async webSocketMessage(ws: WebSocket, message: ArrayBuffer | string): Promise<void> {
+    // A refused client can send frames before it reads its close; drop them.
+    if (isRefused(this.ctx, ws)) return;
     const meta = this.loadMeta();
     if (isGone(meta)) return;
     const id = this.idOf(ws);
@@ -298,10 +300,13 @@ export class Room extends DurableObject<Env> {
   override async webSocketClose(ws: WebSocket, code: number, reason: string): Promise<void> {
     // Complete the closing handshake; harmless if the runtime already did.
     closeQuietly(ws, code === 1005 || code === 1006 ? 1000 : code, reason);
+    // A refused socket was never a peer: nothing to drop.
+    if (isRefused(this.ctx, ws)) return;
     await this.dropSocket(ws);
   }
 
   override async webSocketError(ws: WebSocket): Promise<void> {
+    if (isRefused(this.ctx, ws)) return;
     await this.dropSocket(ws);
   }
 
@@ -431,10 +436,13 @@ export class Room extends DurableObject<Env> {
     }
   }
 
+  /** The peers: open sockets that were admitted (a refused one is closing, and tagged). */
   private openSockets(except?: WebSocket): WebSocket[] {
     return this.ctx
       .getWebSockets()
-      .filter((ws) => ws !== except && ws.readyState === WebSocket.OPEN);
+      .filter(
+        (ws) => ws !== except && ws.readyState === WebSocket.OPEN && !isRefused(this.ctx, ws),
+      );
   }
 
   private idOf(ws: WebSocket): string {
@@ -694,16 +702,29 @@ function deadlineOf(meta: RoomMeta): number {
   return meta.lastOccupiedAt + ROOM_TTL_MS + OCCUPANCY_CHECK_MS;
 }
 
+/** Tag of a socket accepted only to be refused; it never becomes a peer. */
+const REFUSED_TAG = 'refused';
+
+function isRefused(ctx: DurableObjectState, ws: WebSocket): boolean {
+  return ctx.getTags(ws).includes(REFUSED_TAG);
+}
+
 /**
  * Refuses a join after the upgrade, with its close code (ADR-0016, ADR-0035).
- * A plain accept, not a hibernatable one, so the socket never counts as a peer.
+ *
+ * The socket is accepted as hibernatable, tagged {@link REFUSED_TAG}, and has
+ * no attachment, so it is never a peer: not counted, sent to, restored, or read
+ * from. A plain `accept()` would keep the fetch invocation open until the socket
+ * ends, which workerd ≤ 1.20261019.1 then logs as the uncaught error "Network
+ * connection lost." (https://github.com/cloudflare/workerd/issues/5290).
  */
 function refuse(
+  ctx: DurableObjectState,
   server: WebSocket,
   client: WebSocket,
   reason: 'wrong-password' | 'room-full',
 ): Response {
-  server.accept();
+  ctx.acceptWebSocket(server, [REFUSED_TAG]);
   server.close(JOIN_REJECTION_CLOSE_CODES[reason], reason);
   return new Response(null, { status: 101, webSocket: client });
 }

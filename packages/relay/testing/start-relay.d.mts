@@ -11,6 +11,8 @@ export interface TestRelay {
   httpUrl: string;
   /** The ws form of `httpUrl` (`ws://localhost:41234`). */
   wsUrl: string;
+  /** Everything the relay process has printed so far (stdout and stderr, warn level and up). */
+  output(): string;
   /** Resolves once the relay is down and its port refuses connections. */
   stop(): Promise<void>;
 }
