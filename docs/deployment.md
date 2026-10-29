@@ -91,15 +91,19 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z (targets: all)
         │           smoke: https://hnch.dev/ serves <app-root>, or after the switch the
         │           active release on the VPS does
         │
-        └── web     deploy-guard.mjs live     no live hnch-web route removed (unless the
-                    │                         allow_route_removal input)
-                    ├── wrangler deploy --tag client-vX.Y.Z
-                    ├── deploy-guard.mjs verify  the live deployment carries that tag,
+        └── web     fresh www from the build; deploy-guard.mjs config and www again
+                    ├── deploy-guard.mjs live    no live hnch-web route removed (unless the
+                    │                            allow_route_removal input)
+                    ├── wrangler deploy --message "<tag or untagged> (<sha>)"
+                    │                  [--tag client-vX.Y.Z, only on that release's commit]
+                    ├── deploy-guard.mjs verify  the version this run uploaded serves 100 %,
+                    │                            names the commit, carries the tag (or none);
                     │                            hnch.dev/* is live for hnch-web
                     └── if HNCH_LIVE == 'true':  https://hnch.dev/ serves this build (retried
                                                  up to 60 s), from Cloudflare, with exactly one
-                                                 Cache-Control on /, /lobby/x, the licenses and
-                                                 the hashed main.js
+                                                 Cache-Control on /, /lobby/x, the licenses, the
+                                                 hashed main.js and /_headers (the SPA, not the
+                                                 file)
 ```
 
 `vps` and `web` are separate jobs on the one build, so either target can fail without holding back the other. The guards live in `packages/client/scripts/deploy-guard.mjs`; the route, version and Cloudflare API helpers are shared with the relay's guard through `scripts/cloudflare/worker-guard.mjs`.
@@ -113,7 +117,8 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z (targets: all)
 
   Because `/*.js` and `/*.css` are immutable for a year, every one of them must be content-hashed (`outputHashing: all`). The hash guard (`deploy-guard.mjs www`) fails the build if one isn't.
 - **SPA fallback.** Any path without a file answers `index.html` with `200`. `/index.html` itself redirects (`307`) to `/`.
-- **`targets`.** Releases deploy `all`: the VPS and `hnch-web`. A manual dispatch of unreleased `main` uses `web-only`. Its deployment is tagged with the last released version (`package.json`), and its message carries the commit.
+- **`targets`.** Releases deploy `all`: the VPS and `hnch-web`. A manual dispatch of unreleased `main` uses `web-only`.
+- **Tags and messages.** The `hnch-web` version is tagged `client-vX.Y.Z` only when the deployed commit is that release tag's commit; any other commit deploys untagged. Every version's message names the full commit SHA, and `verify` checks the version id `wrangler deploy` just uploaded (from `WRANGLER_OUTPUT_FILE_PATH`) is the one serving, so a re-dispatch can't pass on an earlier upload.
 - **A client release never touches the relay.** In G0 (2026-10-28) relay sockets held for 300 s across a web redeploy with 0 closes.
 - **Rollback.** `hnch-web` has no Durable Objects, so both ways work: `wrangler rollback` (instant, no rebuild), or a `web-only` dispatch of an older `client-v*` tag. The VPS release rolls back by symlink (`infra/README.md`).
 

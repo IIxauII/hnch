@@ -238,9 +238,6 @@ importers:
       '@ionic/angular-toolkit':
         specifier: ^12.0.0
         version: 12.3.0(chokidar@4.0.3)
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.17
       '@types/qrcode':
         specifier: ^1.5.6
         version: 1.5.6
@@ -250,6 +247,9 @@ importers:
       jsdom:
         specifier: ^29.0.2
         version: 29.0.2
+      node-types:
+        specifier: npm:@types/node@^22.0.0
+        version: '@types/node@22.19.17'
       typescript:
         specifier: ~5.9.0
         version: 5.9.3

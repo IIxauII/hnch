@@ -51,7 +51,7 @@ jobs:
     timeout-minutes: 10
     outputs:
       sha: ${{ steps.meta.outputs.sha }}
-      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
     steps:
       - name: Runner identity
         run: |
@@ -79,11 +79,20 @@ jobs:
 
       - name: Build metadata
         # The deploy jobs check out this exact commit, even if `ref` is a
-        # branch that moves while the build runs.
+        # branch that moves while the build runs. `tag` is client-vX.Y.Z only
+        # when this commit is that release tag's commit (checkout fetches the
+        # tag only when `ref` names it); an unreleased commit deploys untagged.
         id: meta
         run: |
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          echo "version=$(node -p "require('./packages/client/package.json').version")" >> "$GITHUB_OUTPUT"
+          sha="$(git rev-parse HEAD)"
+          version="$(node -p "require('./packages/client/package.json').version")"
+          tag="client-v${version}"
+          if [ "$(git rev-parse -q --verify "refs/tags/${tag}^{commit}" || true)" != "${sha}" ]; then
+            tag=''
+          fi
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "Deploying ${sha} as ${tag:-an unreleased commit (no tag)}"
 
       - name: Assert hnch-web config
         # Assets-only from ./www with SPA fallback, no run_worker_first, no
@@ -248,10 +257,21 @@ jobs:
         with:
           ignore-scripts: 'true'
 
+      - name: Clear www
+        # Deploy exactly the uploaded build, nothing left in the workspace.
+        run: rm -rf packages/client/www
+
       - uses: actions/download-artifact@v4
         with:
           name: www
           path: packages/client/www
+
+      - name: Re-check config and www
+        # The same guards as the build job, on what this job will upload.
+        working-directory: packages/client
+        run: |
+          node scripts/deploy-guard.mjs config
+          node scripts/deploy-guard.mjs www
 
       - name: Guard live routes
         # `wrangler deploy` deletes routes missing from the config: refuse
@@ -268,20 +288,31 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          VERSION: ${{ needs.build.outputs.version }}
+          TAG: ${{ needs.build.outputs.tag }}
           SHA: ${{ needs.build.outputs.sha }}
+          # wrangler records the new version id here; verify reads it.
+          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
+        # Tagged only for a release commit; the message always names the commit.
         run: |
-          pnpm exec wrangler deploy \
-            --tag "client-v${VERSION}" \
-            --message "client-v${VERSION} (${SHA::7})"
+          rm -f "${WRANGLER_OUTPUT_FILE_PATH}"
+          args=(--message "${TAG:-untagged} (${SHA})")
+          if [ -n "${TAG}" ]; then
+            args+=(--tag "${TAG}")
+          fi
+          pnpm exec wrangler deploy "${args[@]}"
 
       - name: Check the deploy took
-        # The live deployment carries this tag and hnch.dev/* is live for
-        # hnch-web.
+        # The version this run uploaded serves 100 %, its message names this
+        # commit, it carries the release tag (or none), and hnch.dev/* is live
+        # for hnch-web. A re-dispatch of the same tag can't pass on the old
+        # upload.
         working-directory: packages/client
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DEPLOY_TAG: ${{ needs.build.outputs.tag }}
+          DEPLOY_SHA: ${{ needs.build.outputs.sha }}
+          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
         run: node scripts/deploy-guard.mjs verify
 
       - name: Smoke test hnch.dev
@@ -318,4 +349,10 @@ jobs:
           check /lobby/x 'no-cache, must-revalidate'
           check /3rdpartylicenses.txt 'no-cache, must-revalidate'
           check "/${main}" 'public, max-age=31536000, immutable'
+          # _headers configures the Worker; it must not be served itself.
+          check /_headers 'no-cache, must-revalidate'
+          if ! curl -fsS --max-time 10 https://hnch.dev/_headers | grep -q '<app-root'; then
+            echo "::error::/_headers is served as a file, expected the SPA index.html"
+            failed=1
+          fi
           exit "${failed}"

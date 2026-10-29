@@ -1,15 +1,15 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { unstable_readConfig } from 'wrangler';
 import {
-  isDowngrade,
-  missingRoutes,
-  parseVersion,
-  routeRemovalProblems,
-} from '../../../scripts/cloudflare/worker-guard.mjs';
-import { configProblems, HASHED, wwwProblems } from './deploy-guard.mjs';
+  configProblems,
+  deployedVersionId,
+  deployedVersionProblems,
+  HASHED,
+  wwwProblems,
+} from './deploy-guard.mjs';
 
 const ZONE = '0d0f221371c8a419c6a9d36fc3b4da23';
 const HEADERS = resolve(import.meta.dirname, '../src/_headers');
@@ -28,6 +28,10 @@ describe('configProblems', () => {
     });
     expect(configProblems(config as never)).toEqual([]);
     expect(config.name).toBe('hnch-web');
+  });
+
+  it('refuses another Worker name', () => {
+    expect(configProblems({ ...prod, name: 'hnch-relay' })).toHaveLength(1);
   });
 
   it('refuses a Worker reachable outside hnch.dev', () => {
@@ -131,7 +135,7 @@ describe('wwwProblems', () => {
     expect(wwwProblems(www, HEADERS)).toHaveLength(1);
   });
 
-  it('matches the hash pattern of the Caddyfile', () => {
+  it("matches the webpack builder's .<hash>. form only", () => {
     expect(HASHED.test('main.66e4893120763c69.js')).toBe(true);
     expect(HASHED.test('chunk-ABCD2345.css')).toBe(false);
     expect(HASHED.test('chunk.ABCD2345.css')).toBe(true);
@@ -139,55 +143,57 @@ describe('wwwProblems', () => {
   });
 });
 
-describe('shared worker-guard helpers', () => {
-  const live = [
-    { pattern: 'hnch.dev/health*', script: 'hnch-relay' },
-    { pattern: 'hnch.dev/*', script: 'hnch-web' },
-  ];
-
-  it('finds configured routes that are not live for this script', () => {
-    expect(missingRoutes(live, ['hnch.dev/*'], 'hnch-web')).toEqual([]);
-    expect(missingRoutes(live, ['hnch.dev/*'], 'hnch-relay')).toEqual(['hnch.dev/*']);
-    expect(missingRoutes([], ['hnch.dev/*'], 'hnch-web')).toEqual(['hnch.dev/*']);
+describe('deployedVersionId', () => {
+  it('takes the version id of the last deploy entry', () => {
+    const out = [
+      JSON.stringify({ type: 'wrangler-session', version: 1 }),
+      JSON.stringify({ type: 'deploy', version: 1, version_id: 'aaaa' }),
+      JSON.stringify({ type: 'deploy', version: 1, version_id: 'bbbb' }),
+      '',
+    ].join('\n');
+    expect(deployedVersionId(out)).toBe('bbbb');
   });
 
-  it('reads client release tags', () => {
-    expect(parseVersion('client-v1.45.1', 'client-')).toEqual([1, 45, 1]);
-    expect(parseVersion('relay-v1.45.1', 'client-')).toBeNull();
-    expect(isDowngrade('1.45.0', 'client-v1.45.1', 'client-')).toBe(true);
+  it('is null without a deploy entry', () => {
+    expect(deployedVersionId('')).toBeNull();
+    expect(deployedVersionId(JSON.stringify({ type: 'deploy', version_id: null }))).toBeNull();
+  });
+});
+
+describe('deployedVersionProblems', () => {
+  const sha = '0123456789abcdef0123456789abcdef01234567';
+  const version = {
+    id: '11111111-2222-3333-4444-555555555555',
+    percentage: 100,
+    tag: 'client-v1.46.0',
+    message: `client-v1.46.0 (${sha})`,
+    bindings: [],
+  };
+  const expected = { versionId: version.id, sha, tag: 'client-v1.46.0' };
+
+  it('passes when this upload serves all traffic with its commit and tag', () => {
+    expect(deployedVersionProblems([version], expected)).toEqual([]);
+    expect(
+      deployedVersionProblems([{ ...version, tag: null, message: `untagged (${sha})` }], {
+        ...expected,
+        tag: '',
+      }),
+    ).toEqual([]);
   });
 
-  describe('routeRemovalProblems', () => {
-    const urls: string[] = [];
+  it('refuses a reused tag whose live version is an earlier upload', () => {
+    const earlier = { ...version, id: '99999999-2222-3333-4444-555555555555' };
+    expect(deployedVersionProblems([earlier], expected)).toEqual([
+      expect.stringContaining('is not live'),
+    ]);
+  });
 
-    beforeEach(() => {
-      urls.length = 0;
-      vi.stubEnv('CLOUDFLARE_API_TOKEN', 'test-token');
-      vi.stubGlobal('fetch', async (url: string) => {
-        urls.push(url);
-        return new Response(JSON.stringify({ success: true, result: live }));
-      });
-    });
-
-    afterEach(() => {
-      vi.unstubAllEnvs();
-      vi.unstubAllGlobals();
-      vi.restoreAllMocks();
-    });
-
-    it('reads the zone of the configured routes and passes a config that keeps them', async () => {
-      expect(await routeRemovalProblems(prod, 'hnch-web', false)).toEqual([]);
-      expect(urls).toEqual([`https://api.cloudflare.com/client/v4/zones/${ZONE}/workers/routes`]);
-    });
-
-    it('refuses to drop a live route unless removal is allowed', async () => {
-      const moved = { ...prod, routes: [{ pattern: 'hnch.dev/app/*', zone_id: ZONE }] };
-      expect(await routeRemovalProblems(moved, 'hnch-web', false)).toEqual([
-        expect.stringContaining('hnch.dev/*'),
-      ]);
-      const log = vi.spyOn(console, 'log').mockImplementation(() => {});
-      expect(await routeRemovalProblems(moved, 'hnch-web', true)).toEqual([]);
-      expect(log).toHaveBeenCalledWith(expect.stringContaining('::warning::'));
-    });
+  it('refuses a partial rollout, another commit, or the wrong tag', () => {
+    expect(deployedVersionProblems([{ ...version, percentage: 50 }], expected)).toHaveLength(1);
+    expect(
+      deployedVersionProblems([{ ...version, message: 'client-v1.46.0 (deadbeef)' }], expected),
+    ).toHaveLength(1);
+    expect(deployedVersionProblems([version], { ...expected, tag: '' })).toHaveLength(1);
+    expect(deployedVersionProblems([{ ...version, tag: null }], expected)).toHaveLength(1);
   });
 });
