@@ -189,13 +189,23 @@ describe('a full room', () => {
     const per = MAX_STATES_PER_SOCKET;
     for (let i = 0; i < seats; i++) {
       const peer = await Peer.join(uuid);
+      // Only the joiner's echo is under test. Echoing holders would send the
+      // room one frame per holder for every later holder's states, and that
+      // backlog, not the joiner, would decide how long the test takes.
+      peer.mute();
       const ids = Array.from({ length: per }, (_, j) => 100_000 + i * per + j);
       peer.send(announceFrame(ids, 990));
       holders.push(peer);
     }
-    await settle();
+    // The first holder is shown every later holder's states, so once it holds
+    // them all the room has taken in every holder's frame.
+    await eventually(
+      () => expect(holders[0]!.awareness.getStates().size).toBe((seats - 1) * per + 1),
+      5_000,
+    );
 
     const joiner = await Peer.join(uuid);
+    // Its opening presence holds every state.
     await eventually(() => expect(joiner.awareness.getStates().size).toBe(seats * per + 1), 5_000);
 
     // The joiner's y-protocols echoed the whole opening presence in one update.
