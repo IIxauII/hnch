@@ -116,6 +116,8 @@ jobs:
           # The relay and client deploy guards (and their tests) share
           # scripts/cloudflare/.
           if match '^scripts/cloudflare/'; then relay=true; client=true; fi
+          # The relay lane runs its tests under scripts/ci/with-stall-sampler.sh.
+          if match '^scripts/ci/'; then relay=true; fi
 
           # Reverse-deps: shared change fans into all consumers.
           if [[ "$shared" == "true" ]]; then
@@ -203,8 +205,27 @@ jobs:
       - name: Lint templates
         run: pnpm --filter ./packages/${{ matrix.package }} run --if-present lint:templates
 
+      # The relay lane records PSI, load and CPU times while its tests run, to
+      # tell a stalled runner VM from a slow test (#568).
       - name: Unit tests (with coverage)
-        run: pnpm --filter ./packages/${{ matrix.package }} run --if-present test:coverage
+        env:
+          PACKAGE: ${{ matrix.package }}
+        run: |
+          if [[ "$PACKAGE" == relay ]]; then
+            scripts/ci/with-stall-sampler.sh "$RUNNER_TEMP/stall-samples" \
+              pnpm --filter ./packages/relay run test:coverage
+          else
+            pnpm --filter "./packages/$PACKAGE" run --if-present test:coverage
+          fi
+
+      - name: Upload stall samples
+        if: always() && matrix.package == 'relay'
+        uses: actions/upload-artifact@v4
+        with:
+          name: stall-samples-relay
+          path: ${{ runner.temp }}/stall-samples/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Upload coverage artifact
         if: always()
