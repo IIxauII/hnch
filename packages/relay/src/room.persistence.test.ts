@@ -139,17 +139,18 @@ describe('coalesced writes', () => {
     const { uuid } = await createRoom();
     const alice = await Peer.join(uuid);
     const bob = await Peer.join(uuid);
-    await edits(alice, 3);
+    alice.announce({ participantId: 'p-alice' });
+    await edits(alice, 3, 'v', bob);
 
     alice.close();
     await alice.closed();
-    await settle();
+    // Bob is told alice left in the same step that decides whether to flush.
+    await eventually(() => expect(bob.participants()).toEqual([]));
     expect((await rows(uuid)).log).toBe(0);
 
     bob.close();
     await bob.closed();
-    await settle();
-    expect((await rows(uuid)).log).toBe(1);
+    await eventually(async () => expect((await rows(uuid)).log).toBe(1));
   });
 
   it('writes the buffer when an alarm fires', async () => {
@@ -212,7 +213,10 @@ describe('when storage writes fail', () => {
     const { uuid } = await createRoom();
     const alice = await Peer.join(uuid);
     const bob = await Peer.join(uuid);
-    await settle();
+    // The room loads the doc from storage to answer a sync: let it, before
+    // storage fails.
+    await alice.synced();
+    await bob.synced();
 
     await runInDurableObject(roomStub(uuid), (_room, state) => {
       // Each `storage.sql` access may be a new wrapper; fail them all.

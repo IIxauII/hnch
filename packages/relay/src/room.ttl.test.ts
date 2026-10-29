@@ -10,6 +10,7 @@ import {
   runInDurableObject,
 } from 'cloudflare:test';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { Codes } from './codes';
 import worker from './index';
 import { OCCUPANCY_CHECK_MS, REARM_CHECK_MS, RETRY_MS, ROOM_TTL_MS, type RoomMeta } from './room';
 import {
@@ -60,15 +61,25 @@ async function fireAlarm(uuid: string): Promise<void> {
   }
 }
 
-/** Makes the code's `release` fail until the returned restore is called. */
-async function failRelease(code: string): Promise<() => Promise<void>> {
-  await runInDurableObject(codesStub(code), (codes) => {
-    vi.spyOn(codes, 'release').mockRejectedValue(new Error('Durable Object is overloaded'));
-  });
-  return () =>
-    runInDurableObject(codesStub(code), (codes) => {
-      vi.mocked(codes.release).mockRestore();
-    });
+/**
+ * Makes `release` fail, for every code, until `restore` is called. Spied on the
+ * prototype: RPC refuses a method that is an own property of the instance.
+ */
+async function failRelease(code: string) {
+  const release = await runInDurableObject(codesStub(code), (codes) =>
+    vi
+      .spyOn(Object.getPrototypeOf(codes) as Codes, 'release')
+      .mockRejectedValue(new Error('Durable Object is overloaded')),
+  );
+  return { release, restore: () => release.mockRestore() };
+}
+
+/** The `room-code-release-failed` events logged, by error name. */
+function releaseFailures(logged: { mock: { calls: unknown[][] } }): unknown[] {
+  return logged.mock.calls
+    .map((c) => String(c[0]))
+    .filter((line) => line.includes('room-code-release-failed'))
+    .map((line) => (JSON.parse(line) as { error: unknown }).error);
 }
 
 afterEach(() => {
@@ -224,15 +235,18 @@ describe('deletion', () => {
     const { uuid, code } = await createRoom();
     const alice = await Peer.join(uuid);
     alice.doc.getArray('votes').push(['5']);
-    await new Promise((r) => setTimeout(r, 50));
     alice.close();
     await alice.closed();
-    await new Promise((r) => setTimeout(r, 50));
-    expect(await docRows(uuid)).toBe(1);
-    const restoreRelease = await failRelease(code);
+    // The room writes the vote once it has handled the close of its last socket.
+    await eventually(async () => expect(await docRows(uuid)).toBe(1));
+    const failing = await failRelease(code);
+    const logged = vi.spyOn(console, 'error');
 
     setNow(t0 + DEADLINE_MS);
     expect(await status(code)).toBe(404);
+    // The mocked failure, not some other one, held the release back.
+    expect(failing.release).toHaveBeenCalledWith(uuid);
+    expect(releaseFailures(logged)).toEqual(['Error']);
     expect((await upgrade(uuid)).status).toBe(404);
     expect((await metaOf(uuid))?.tombstonedAt).toBe(t0 + DEADLINE_MS);
     // The content went with the tombstone; the code is still held, and a retry
@@ -241,7 +255,7 @@ describe('deletion', () => {
     expect(await codesStub(code).lookup()).toBe(uuid);
     expect(await alarmOf(uuid)).toBe(t0 + DEADLINE_MS + RETRY_MS);
 
-    await restoreRelease();
+    failing.restore();
     setNow(t0 + DEADLINE_MS + RETRY_MS);
     await fireAlarm(uuid);
     expect(await codesStub(code).lookup()).toBeNull();
@@ -252,9 +266,10 @@ describe('deletion', () => {
     const t0 = Date.now();
     setNow(t0);
     const { uuid, code } = await createRoom();
-    await failRelease(code);
+    const failing = await failRelease(code);
     setNow(t0 + DEADLINE_MS);
     expect(await status(code)).toBe(404);
+    expect(failing.release).toHaveBeenCalledWith(uuid);
 
     const next = crypto.randomUUID();
     expect(await codesStub(code).claim(next)).toBe(true);

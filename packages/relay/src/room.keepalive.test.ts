@@ -19,6 +19,20 @@ function roomStub(uuid: string) {
   return env.ROOM.get(env.ROOM.idFromName(uuid));
 }
 
+/** When the room last saw each held state renewed, from the peers' attachments. */
+function renewedAt(uuid: string): Promise<number[]> {
+  return runInDurableObject(roomStub(uuid), (_room, state) =>
+    state
+      .getWebSockets()
+      .flatMap((ws) =>
+        (
+          (ws.deserializeAttachment() as { presence: { updatedAt: number }[] } | null)?.presence ??
+          []
+        ).map((e) => e.updatedAt),
+      ),
+  );
+}
+
 /** The entries of an awareness frame: [clientID, clock, state text]. */
 function awarenessEntries(frame: Uint8Array): [number, number, string][] {
   const outer = decoding.createDecoder(frame);
@@ -55,10 +69,12 @@ describe('piggyback keepalive', () => {
   it('(a) sends a lone socket exactly one relay frame when it renews 10 s after its last frame', async () => {
     const t0 = Date.now();
     const {
+      uuid,
       peers: [alice],
     } = await roomAt(t0, 1);
     alice!.announce({ participantId: 'p-alice' });
-    await settle();
+    // Taken in at t0, when the relay's last frame to alice is too recent to renew.
+    await eventually(async () => expect(await renewedAt(uuid)).toEqual([t0]));
     const mark = alice!.frames.length;
 
     setNow(t0 + KEEPALIVE_AFTER_MS);

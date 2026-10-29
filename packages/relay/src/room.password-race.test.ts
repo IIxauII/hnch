@@ -12,8 +12,18 @@ import { Peer, call, createRoom, eventually, upgrade } from './test-support/peer
 const OLD = 'ab'.repeat(32);
 const NEW = 'cd'.repeat(32);
 
+/**
+ * A held digest: `reached()` resolves once a caller is waiting on it, and
+ * `release()` lets that caller go on. `reached` polls rather than awaiting a
+ * promise, since the caller runs in the room's request context, not the test's.
+ */
+interface Hold {
+  reached: () => Promise<void>;
+  release: () => void;
+}
+
 /** Holds the first digest back, i.e. the join's check, until `release()`. */
-function holdFirstDigest(): { release: () => void } {
+function holdFirstDigest(): Hold {
   let release!: () => void;
   const gate = new Promise<void>((resolve) => {
     release = resolve;
@@ -27,7 +37,7 @@ function holdFirstDigest(): { release: () => void } {
     }
     return original(...args);
   });
-  return { release };
+  return { reached: () => eventually(() => expect(first).toBe(false)), release };
 }
 
 async function setPassword(uuid: string, passwordHash: string | null): Promise<void> {
@@ -46,7 +56,7 @@ describe('a join whose password is checked while the password changes', () => {
     const hold = holdFirstDigest();
 
     const joining = Peer.join(uuid, `?pw=${OLD}`);
-    await new Promise((r) => setTimeout(r, 50));
+    await hold.reached();
     await setPassword(uuid, NEW);
     hold.release();
 
@@ -59,7 +69,7 @@ describe('a join whose password is checked while the password changes', () => {
     const hold = holdFirstDigest();
 
     const joining = Peer.join(uuid, `?pw=${NEW}`);
-    await new Promise((r) => setTimeout(r, 50));
+    await hold.reached();
     await setPassword(uuid, null);
     hold.release();
 
@@ -73,7 +83,7 @@ describe('a join whose password is checked while the password changes', () => {
     const hold = holdFirstDigest();
 
     const joining = Peer.join(uuid, `?pw=${NEW}`);
-    await new Promise((r) => setTimeout(r, 50));
+    await hold.reached();
     await setPassword(uuid, NEW);
     hold.release();
 
@@ -84,7 +94,7 @@ describe('a join whose password is checked while the password changes', () => {
 });
 
 /** Arms a one-shot hold on the next digest, whichever caller reaches it. */
-function holdNextDigest(): () => () => void {
+function holdNextDigest(): () => Hold {
   let armed: Promise<void> | null = null;
   const original = crypto.subtle.digest.bind(crypto.subtle);
   vi.spyOn(crypto.subtle, 'digest').mockImplementation(async (...args) => {
@@ -95,35 +105,34 @@ function holdNextDigest(): () => () => void {
   });
   return () => {
     let release!: () => void;
-    armed = new Promise<void>((resolve) => {
+    const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    return release;
+    armed = gate;
+    return { reached: () => eventually(() => expect(armed).not.toBe(gate)), release };
   };
 }
-
-const settle = () => new Promise((r) => setTimeout(r, 50));
 
 describe('a password that keeps changing during the check', () => {
   it('is refused 4002 once the checks run out', async () => {
     const { uuid } = await createRoom({ passwordHash: OLD });
     const arm = holdNextDigest();
 
-    const release1 = arm();
+    const check1 = arm();
     // The joiner sends the password of the second change, so its last (stale)
     // check matches while the third is in force; it must still not be admitted.
     const joining = Peer.join(uuid, `?pw=${'02'.repeat(32)}`);
-    await settle();
+    await check1.reached();
     await setPassword(uuid, '01'.repeat(32));
-    const release2 = arm();
-    release1();
-    await settle();
+    const check2 = arm();
+    check1.release();
+    await check2.reached();
     await setPassword(uuid, '02'.repeat(32));
-    const release3 = arm();
-    release2();
-    await settle();
+    const check3 = arm();
+    check2.release();
+    await check3.reached();
     await setPassword(uuid, '03'.repeat(32));
-    release3();
+    check3.release();
 
     const peer = await joining;
     expect(await peer.closed()).toEqual({ code: 4002, reason: 'wrong-password' });
@@ -136,7 +145,7 @@ describe('a room deleted during the password check', () => {
     const hold = holdFirstDigest();
 
     const joining = upgrade(uuid, `?pw=${OLD}`);
-    await settle();
+    await hold.reached();
     const stub = env.ROOM.get(env.ROOM.idFromName(uuid));
     await runInDurableObject(stub, (room) => room.testEvict());
     hold.release();
