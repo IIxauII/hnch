@@ -7,7 +7,7 @@ Partially supersedes the pool-size clause of [ADR-0049](0049-self-hosted-runner-
 
 ## Context
 
-- ADR-0049 sized the pool to the `verify` matrix: 4 lanes (`shared`, `relay`, `client`, `cli`) → 4 slots.
+- ADR-0049: pool size = `verify` matrix lane count. Matrix has one lane per workspace package: 5 (`shared`, `relay`, `client`, `cli`, `e2e`).
 - Live LaunchAgent plist runs `POOL_SIZE=2`; repo plist said 4 until 2026-10-29.
 - All slots share one podman VM (`hnch-runner`, 8 vCPU / 10 GiB) on the M4 mini; nothing caps a container's CPU.
 - ADR-0052 already limits Playwright to one slot (slot 1, `e2e` label).
@@ -16,11 +16,12 @@ Partially supersedes the pool-size clause of [ADR-0049](0049-self-hosted-runner-
 
 ## Decision
 
-Pool runs 2 slots (`POOL_SIZE=2` in `infra/runner/dev.hnch.runner.plist`), fewer than the 4 `verify` lanes; pool size no longer tracks the lane count.
+Pool runs 2 slots (`POOL_SIZE=2` in `infra/runner/dev.hnch.runner.plist`), fewer than the 5 `verify` lanes; pool size no longer tracks the lane count.
 
 ## Trade-offs
 
-- `verify` lanes queue: 2 run at a time, so a full 4-lane run takes longer wall time.
+- `verify` lanes queue: 2 run at a time, so a full 5-lane run takes longer wall time.
+- Every CI run queues from its first wave: 3 jobs (`detect-changes`, `version-audit`, `pr-title-lint` on PRs) on 2 slots. `Verify` (`verify-summary`) and `E2E (Playwright)` each take a slot after the lanes.
 - e2e, deploy, release and screenshot jobs compete with verify lanes for the same 2 slots.
 - `timeout-minutes` counts running time only, not queue time, so queueing doesn't cause timeouts; it only delays results.
 

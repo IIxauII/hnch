@@ -239,9 +239,9 @@ A merge or rebase strategy would let multiple branch commits drive multiple rele
 
 The repo is private on GitHub Free, so it has no branch protection and nothing blocks a merge on red. Agents and humans follow this by convention:
 
-- Merge only when every CI check on the PR's latest commit is green. A cancelled check is not green: re-run it. A job skipped by `detect-changes` is fine.
+- Merge only when every CI check on the PR's latest commit is green (`gh pr checks <n> --watch`). A cancelled check is not green: re-run it. A job skipped by `detect-changes` is fine.
 - Never merge on red, even when the failure looks unrelated.
-- After merging, check `main`'s push CI run for the merge commit (`gh run list --repo IIxauII/hnch --branch main --event push --limit 3`) and fix forward if it goes red. If a newer merge cancels that run, the newer run covers it.
+- After merging, check `main`'s push CI run for the merge commit (`gh run list --repo IIxauII/hnch --workflow ci.yml --commit <merge-sha>`) and fix forward if it goes red. If a newer merge cancels that run, the newer run covers it.
 
 ## Releases
 

@@ -186,7 +186,7 @@ hnch-podman label → 2 ephemeral containers on M4 (POOL_SIZE=2)
    └── supervised by infra/runner/supervisor.sh under launchd (dev.hnch.runner.plist)
 ```
 
-Runners are repo-scoped and labelled `self-hosted,linux,arm64,hnch-podman`; slot 1 also carries `e2e` (see [E2E slot](#e2e-slot)). The pool runs 2 slots (`POOL_SIZE=2` in `dev.hnch.runner.plist`), so the 4 verify lanes (`shared`, `relay`, `client`, `cli`) share 2 runners and queue ([ADR-0053](../adr/0053-runner-pool-two-slots.md)).
+Runners are repo-scoped and labelled `self-hosted,linux,arm64,hnch-podman`; slot 1 also carries `e2e` (see [E2E slot](#e2e-slot)). The pool runs 2 slots (`POOL_SIZE=2` in `dev.hnch.runner.plist`), so the 5 verify lanes (`shared`, `relay`, `client`, `cli`, `e2e`) share 2 runners and queue ([ADR-0053](../adr/0053-runner-pool-two-slots.md)).
 
 ### Files
 
@@ -358,7 +358,7 @@ launchctl unload ~/Library/LaunchAgents/dev.hnch.runner.plist
 podman ps -q --filter name=hnch-runner- | xargs -r podman rm -f
 rm -rf ~/runner-cache/pnpm-store-* ~/runner-cache/playwright
 mkdir -p ~/runner-cache/playwright
-for i in 1 2 3 4; do mkdir -p ~/runner-cache/pnpm-store-$i; done
+for i in 1 2; do mkdir -p ~/runner-cache/pnpm-store-$i; done
 launchctl load ~/Library/LaunchAgents/dev.hnch.runner.plist
 ```
 
@@ -366,7 +366,7 @@ The supervisor reseeds caches lazily on the next job per runner.
 
 ### Pre-Phase-9 RAM gate
 
-Before adding a Tart-based macOS runner (Phase 9, gated on Phase 6b iOS), measure 4-day p95 committed RAM with the four-runner pool steady-state. The M4's RAM is **soldered**; if p95 > 10 GB, order a higher-RAM mini *before* starting Tart work.
+Before adding a Tart-based macOS runner (Phase 9, gated on Phase 6b iOS), measure 4-day p95 committed RAM with the two-slot pool at steady state. The M4's RAM is **soldered**; if p95 > 10 GB, order a higher-RAM mini *before* starting Tart work.
 
 ```sh
 # crontab -e
