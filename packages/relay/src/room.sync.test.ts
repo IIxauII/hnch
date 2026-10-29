@@ -3,12 +3,61 @@
  */
 
 import { env } from 'cloudflare:workers';
-import { evictDurableObject } from 'cloudflare:test';
+import { evictDurableObject, runInDurableObject } from 'cloudflare:test';
 import { afterEach, describe, expect, it } from 'vitest';
 import { PRESENCE_TIMEOUT_MS } from './presence';
+import { Room } from './room';
 import { Peer, createRoom, eventually, restoreClock, setNow, upgrade } from './test-support/peer';
 
 const HASH = 'ab'.repeat(32);
+const settle = () => new Promise((r) => setTimeout(r, 50));
+
+/** What the tests reach inside a Room. */
+interface RoomInternals {
+  openSockets(): WebSocket[];
+  presence: { clientIds(): number[] };
+  socketIds: WeakMap<WebSocket, string>;
+}
+
+/** How many presence states the room holds. */
+function ownersOf(uuid: string) {
+  return runInDurableObject(
+    roomStub(uuid),
+    (room) => (room as unknown as RoomInternals).presence.clientIds().length,
+  );
+}
+
+/** How many states each peer's attachment holds. */
+function peerPresenceOf(uuid: string) {
+  return runInDurableObject(roomStub(uuid), (room) =>
+    (room as unknown as RoomInternals)
+      .openSockets()
+      .map((ws) => (ws.deserializeAttachment() as { presence: unknown[] }).presence.length),
+  );
+}
+
+/** A refused join whose client never reads the close, so it stays CLOSING. */
+async function refusedSocket(uuid: string) {
+  const response = await upgrade(uuid, `?pw=${'cd'.repeat(32)}`);
+  expect(response.status).toBe(101);
+  const drain = async () => {
+    const ws = response.webSocket!;
+    const closed = new Promise<number>((r) => ws.addEventListener('close', (e) => r(e.code)));
+    ws.accept();
+    expect(await closed).toBe(4002);
+    await eventually(async () => expect((await socketsOf(uuid)).refused).toBe(0));
+  };
+  return { drain };
+}
+
+/** The room's sockets: tagged refused, all, and those counted as peers. */
+function socketsOf(uuid: string) {
+  return runInDurableObject(roomStub(uuid), (room, state) => ({
+    refused: state.getWebSockets('refused').length,
+    all: state.getWebSockets().length,
+    peers: (room as unknown as RoomInternals).openSockets().length,
+  }));
+}
 
 function roomStub(uuid: string) {
   return env.ROOM.get(env.ROOM.idFromName(uuid));
@@ -45,6 +94,147 @@ describe('joining a room', () => {
     const { uuid } = await createRoom({ passwordHash: HASH });
     const peer = await Peer.join(uuid, `?pw=${'cd'.repeat(32)}`);
     expect(await peer.closed()).toEqual({ code: 4002, reason: 'wrong-password' });
+  });
+
+  it('shares nothing with a refused socket, either way', async () => {
+    const { uuid } = await createRoom({ passwordHash: HASH });
+    const member = await Peer.join(uuid, `?pw=${HASH}`);
+    member.announce({ participantId: 'member' });
+    member.doc.getMap('round').set('title', 'Login page');
+    await eventually(() =>
+      expect(member.frames.filter((f) => f.type === 'awareness').length).toBeGreaterThan(0),
+    );
+    await settle();
+
+    // Join (which sends sync-step-1), then at once presence and an edit,
+    // before the refusal's close arrives or is answered.
+    const intruder = await Peer.join(uuid, `?pw=${'cd'.repeat(32)}`);
+    intruder.announce({ participantId: 'intruder' });
+    intruder.doc.getMap('injected').set('by', 'intruder');
+    expect(await intruder.closed()).toEqual({ code: 4002, reason: 'wrong-password' });
+    await settle();
+
+    // Room → intruder: nothing.
+    expect(intruder.frames).toEqual([]);
+    expect(intruder.doc.getMap('round').get('title')).toBeUndefined();
+    expect(intruder.participants()).toEqual([]);
+    // Intruder → room: nothing.
+    expect(member.doc.getMap('injected').size).toBe(0);
+    expect(member.participants()).toEqual([]);
+    const late = await Peer.join(uuid, `?pw=${HASH}`);
+    await eventually(() => expect(late.doc.getMap('round').get('title')).toBe('Login page'));
+    expect(late.doc.getMap('injected').size).toBe(0);
+    expect(late.participants()).toEqual(['member']);
+  });
+
+  it('keeps a refused socket out of the room on a wake, and drains it', async () => {
+    const { uuid } = await createRoom({ passwordHash: HASH });
+    const member = await Peer.join(uuid, `?pw=${HASH}`);
+    member.announce({ participantId: 'member' });
+    await eventually(() => expect(member.frames.length).toBeGreaterThanOrEqual(2));
+    // Its client never reads the close, so the relay's side stays CLOSING.
+    const refused = await upgrade(uuid, `?pw=${'cd'.repeat(32)}`);
+    expect(refused.status).toBe(101);
+    expect(await socketsOf(uuid)).toEqual({ refused: 1, all: 2, peers: 1 });
+
+    // A wake rebuilds the object over the same sockets. evictDurableObject
+    // can't do it here: it waits for the refused socket's close to finish
+    // (or for its client's reference to go), so this builds a second instance
+    // over the live state, as the runtime does after an eviction.
+    const woke = await runInDurableObject(roomStub(uuid), (_room, state) => {
+      const fresh = new Room(state, env) as unknown as RoomInternals;
+      const [ws] = state.getWebSockets('refused');
+      return {
+        refusedState: ws!.readyState,
+        peers: fresh.openSockets().length,
+        owners: fresh.presence.clientIds().length,
+      };
+    });
+    expect(woke).toEqual({ refusedState: WebSocket.CLOSING, peers: 1, owners: 1 });
+
+    // A legitimate join is still admitted while it closes.
+    const second = await Peer.join(uuid, `?pw=${HASH}`);
+    await eventually(() => expect(second.participants()).toEqual(['member']));
+    expect(await socketsOf(uuid)).toEqual({ refused: 1, all: 3, peers: 2 });
+
+    // The client reads its close and answers it: the refused socket drains.
+    const ws = refused.webSocket!;
+    const closed = new Promise<number>((r) => ws.addEventListener('close', (e) => r(e.code)));
+    ws.accept();
+    expect(await closed).toBe(4002);
+    await eventually(async () =>
+      expect(await socketsOf(uuid)).toEqual({ refused: 0, all: 2, peers: 2 }),
+    );
+
+    // And a real eviction now restores just the peers.
+    await evictDurableObject(roomStub(uuid));
+    expect(await socketsOf(uuid)).toEqual({ refused: 0, all: 2, peers: 2 });
+    expect(member.closeEvent).toBeNull();
+    expect(second.closeEvent).toBeNull();
+  });
+
+  it('treats an error on a refused socket as no peer leaving', async () => {
+    const { uuid } = await createRoom({ passwordHash: HASH });
+    const member = await Peer.join(uuid, `?pw=${HASH}`);
+    member.announce({ participantId: 'member' });
+    await eventually(async () => expect(await ownersOf(uuid)).toBe(1));
+    const refused = await refusedSocket(uuid);
+
+    const after = await runInDurableObject(roomStub(uuid), async (room, state) => {
+      const [ws] = state.getWebSockets('refused');
+      await room.webSocketError(ws!);
+      const internals = room as unknown as RoomInternals;
+      return {
+        owners: internals.presence.clientIds().length,
+        peers: internals.openSockets().length,
+        // Dropping it as a peer would first have given it a peer id.
+        refusedHasId: internals.socketIds.has(ws!),
+        refusedAttachment: ws!.deserializeAttachment(),
+      };
+    });
+    expect(after).toEqual({ owners: 1, peers: 1, refusedHasId: false, refusedAttachment: null });
+
+    // The member is still in the room, and shown to a later join.
+    const late = await Peer.join(uuid, `?pw=${HASH}`);
+    await eventually(() => expect(late.participants()).toEqual(['member']));
+    expect(member.closeEvent).toBeNull();
+    await refused.drain();
+  });
+
+  it('leaves a refused socket out when it refreshes the peers attachments', async () => {
+    const start = Date.now();
+    setNow(start);
+    const { uuid } = await createRoom({ passwordHash: HASH });
+    const member = await Peer.join(uuid, `?pw=${HASH}`);
+    member.announce({ participantId: 'member' });
+    await eventually(async () => expect(await ownersOf(uuid)).toBe(1));
+    // A quiet client: its state expires rather than being re-announced.
+    member.mute();
+    const refused = await refusedSocket(uuid);
+    expect(await peerPresenceOf(uuid)).toEqual([1]);
+
+    // The next join expires the member's state and re-saves its attachment,
+    // walking every socket the room holds, the refused one included.
+    setNow(start + PRESENCE_TIMEOUT_MS);
+    await Peer.join(uuid, `?pw=${HASH}`);
+    const after = await runInDurableObject(roomStub(uuid), (room, state) => {
+      const [ws] = state.getWebSockets('refused');
+      const internals = room as unknown as RoomInternals;
+      return {
+        owners: internals.presence.clientIds().length,
+        refusedHasId: internals.socketIds.has(ws!),
+        refusedAttachment: ws!.deserializeAttachment(),
+      };
+    });
+    expect(after).toEqual({
+      owners: 0,
+      refusedHasId: false,
+      refusedAttachment: null,
+    });
+    // The member's attachment no longer holds the expired state.
+    expect(await peerPresenceOf(uuid)).toEqual([0, 0]);
+    restoreClock();
+    await refused.drain();
   });
 
   it('admits the right pw', async () => {
@@ -185,6 +375,24 @@ describe('presence', () => {
     const carol = await Peer.join(uuid);
     await new Promise((r) => setTimeout(r, 50));
     expect(carol.participants()).toEqual([]);
+  });
+
+  it('removes what a socket announced when it errors, and tells the others', async () => {
+    const { uuid } = await createRoom();
+    const alice = await Peer.join(uuid);
+    const bob = await Peer.join(uuid);
+    alice.announce({ participantId: 'p-alice' });
+    await eventually(() => expect(bob.participants()).toEqual(['p-alice']));
+
+    await runInDurableObject(roomStub(uuid), async (room) => {
+      const owner = (room as unknown as RoomInternals)
+        .openSockets()
+        .find((ws) => (ws.deserializeAttachment() as { presence: unknown[] }).presence.length > 0);
+      await room.webSocketError(owner!);
+    });
+
+    await eventually(() => expect(bob.participants()).toEqual([]));
+    expect(await ownersOf(uuid)).toBe(0);
   });
 
   it('replays presence after the room object was evicted with sockets open', async () => {

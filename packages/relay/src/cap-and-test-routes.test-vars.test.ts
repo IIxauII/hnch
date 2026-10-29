@@ -5,7 +5,7 @@
  */
 
 import { env } from 'cloudflare:workers';
-import { runInDurableObject } from 'cloudflare:test';
+import { evictDurableObject, runInDurableObject } from 'cloudflare:test';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Peer, call, createRoom, eventually, upgrade } from './test-support/peer';
 import { handleFetch } from './worker';
@@ -29,6 +29,61 @@ describe('participant cap (HNCH_ROOM_CAP=3)', () => {
     for (let i = 0; i < 3; i++) await joined(uuid);
     const fourth = await Peer.join(uuid);
     expect(await fourth.closed()).toEqual({ code: 4006, reason: 'room-full' });
+  });
+
+  it('shares nothing with a socket refused 4006, either way', async () => {
+    const { uuid } = await createRoom();
+    const seated = [await joined(uuid), await joined(uuid), await joined(uuid)];
+    seated[0]!.announce({ participantId: 'member' });
+    seated[0]!.doc.getMap('round').set('title', 'Login page');
+    await eventually(() => {
+      for (const peer of seated.slice(1)) {
+        expect(peer.doc.getMap('round').get('title')).toBe('Login page');
+        expect(peer.participants()).toEqual(['member']);
+      }
+    });
+
+    const intruder = await Peer.join(uuid);
+    intruder.announce({ participantId: 'intruder' });
+    intruder.doc.getMap('injected').set('by', 'intruder');
+    expect(await intruder.closed()).toEqual({ code: 4006, reason: 'room-full' });
+    await settle();
+
+    // Room → intruder: nothing.
+    expect(intruder.frames).toEqual([]);
+    expect(intruder.doc.getMap('round').get('title')).toBeUndefined();
+    expect(intruder.participants()).toEqual([]);
+    // Intruder → room: nothing.
+    for (const peer of seated) {
+      expect(peer.doc.getMap('injected').size).toBe(0);
+      expect(peer.participants()).not.toContain('intruder');
+    }
+  });
+
+  it('gives no seat to a refused socket that is still closing', async () => {
+    const { uuid } = await createRoom({ passwordHash: HASH });
+    const seated = [await joined(uuid, `?pw=${HASH}`), await joined(uuid, `?pw=${HASH}`)];
+    // Its client never reads the close, so the relay's side stays CLOSING.
+    const refused = await upgrade(uuid, `?pw=${'cd'.repeat(32)}`);
+    expect(refused.status).toBe(101);
+    const refusedCount = () =>
+      runInDurableObject(roomStub(uuid), (_room, state) => state.getWebSockets('refused').length);
+    expect(await refusedCount()).toBe(1);
+
+    const third = await joined(uuid, `?pw=${HASH}`);
+    const fourth = await Peer.join(uuid, `?pw=${HASH}`);
+    expect(await fourth.closed()).toEqual({ code: 4006, reason: 'room-full' });
+    for (const peer of [...seated, third]) expect(peer.closeEvent).toBeNull();
+    expect(await refusedCount()).toBe(1);
+
+    // Once its client answers the close it drains, and an eviction keeps the
+    // three peers seated: still full.
+    refused.webSocket!.accept();
+    await eventually(async () => expect(await refusedCount()).toBe(0));
+    await evictDurableObject(roomStub(uuid));
+    const fifth = await Peer.join(uuid, `?pw=${HASH}`);
+    expect(await fifth.closed()).toEqual({ code: 4006, reason: 'room-full' });
+    for (const peer of [...seated, third]) expect(peer.closeEvent).toBeNull();
   });
 
   it('admits exactly the cap when joins arrive at once', async () => {
