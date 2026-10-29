@@ -89,10 +89,14 @@ jobs:
           # race with it would drop the release. Fast-forward over commits that
           # only touch docs/screenshots/**. Anything else is left behind: the
           # push that brought it starts its own Release run, queued behind this one.
+          # A bot push in the seconds between this catch-up and semantic-release's
+          # own push still fails the job; re-run it, and the catch-up covers it.
           catch_up_screenshot_commits() {
-            git fetch --quiet origin main
+            # Best effort: without it, semantic-release's own check decides as before.
+            git fetch --quiet origin main || return 0
             git merge-base --is-ancestor HEAD origin/main || return 0
-            if git diff --name-only HEAD origin/main | grep -qv '^docs/screenshots/'; then
+            if ! git diff --quiet --no-renames HEAD origin/main -- . ':(exclude)docs/screenshots'; then
+              echo "::warning::main moved with commits outside docs/screenshots; their own Release run releases them."
               return 0
             fi
             git merge --quiet --ff-only origin/main
