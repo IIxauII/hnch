@@ -37,7 +37,8 @@ release.yml — semantic-release per package, tags relay-vX.Y.Z
         ▼
 deploy-relay.yml — dispatched with --ref relay-vX.Y.Z
         │
-        ├── pnpm install → build @hnch/shared (bundled into the Worker)
+        ├── cold pnpm install from a fresh store (not the /cache snapshots or
+        │   store PR CI can write) → build @hnch/shared (bundled into the Worker)
         ├── deploy-guard.mjs config   ADR-0027 test vars absent, JURISDICTION "eu",
         │                             every route on hnch.dev with a zone_id
         ├── deploy-guard.mjs live     no live hnch-relay route removed (unless the

@@ -141,7 +141,7 @@ function packageVersion() {
  * @param {string} path
  * @param {{ missingOk?: boolean }} [opts]
  */
-async function api(path, { missingOk = false } = {}) {
+export async function api(path, { missingOk = false } = {}) {
   const token = process.env['CLOUDFLARE_API_TOKEN'];
   if (!token) throw new Error('CLOUDFLARE_API_TOKEN is not set');
   const res = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${token}` } });
@@ -149,10 +149,26 @@ async function api(path, { missingOk = false } = {}) {
     await res.json().catch(() => ({}))
   );
   if (res.status === 404 && missingOk) return null;
-  if (!res.ok || body.success === false) {
+  // Only an explicit success with a result counts: an unreadable or empty
+  // answer must not read as "nothing live".
+  if (!res.ok || body.success !== true || body.result === undefined || body.result === null) {
     throw new Error(`${path}: ${res.status} ${JSON.stringify(body.errors ?? [])}`);
   }
   return body.result;
+}
+
+/**
+ * A Cloudflare API list: `[]` only for a 404 where `missingOk`; anything but an
+ * array fails.
+ * @param {string} path
+ * @param {{ missingOk?: boolean }} [opts]
+ * @returns {Promise<unknown[]>}
+ */
+export async function apiList(path, opts) {
+  const result = await api(path, opts);
+  if (result === null) return [];
+  if (!Array.isArray(result)) throw new Error(`${path}: expected a list`);
+  return result;
 }
 
 function scriptPath(/** @type {string} */ script) {
@@ -174,11 +190,15 @@ function scriptPath(/** @type {string} */ script) {
 async function liveVersions(script) {
   const base = scriptPath(script);
   const deployments = await api(`${base}/deployments`, { missingOk: true });
-  const latest = deployments?.deployments?.[0];
+  if (deployments === null) return [];
+  if (!Array.isArray(deployments.deployments))
+    throw new Error(`${base}/deployments: expected a list`);
+  const latest = deployments.deployments[0];
   if (!latest) return [];
+  if (!Array.isArray(latest.versions)) throw new Error(`${base}/deployments: no versions`);
   /** @type {LiveVersion[]} */
   const versions = [];
-  for (const { version_id: id } of latest.versions ?? []) {
+  for (const { version_id: id } of latest.versions) {
     const version = await api(`${base}/versions/${id}`);
     const tag = version?.annotations?.['workers/tag'];
     const bindings = version?.resources?.bindings;
@@ -240,8 +260,11 @@ async function main() {
         typeof r === 'string' || !r.zone_id ? [] : [r.zone_id],
       ),
     );
+    if (zones.size === 0) fail(['no route names a zone_id, so live routes cannot be checked']);
     for (const zone of zones) {
-      const live = (await api(`/zones/${zone}/workers/routes`)) ?? [];
+      const live = /** @type {{ pattern: string, script?: string | null }[]} */ (
+        await apiList(`/zones/${zone}/workers/routes`)
+      );
       const removed = removedRoutes(live, configured, script);
       if (removed.length > 0 && process.env['ALLOW_ROUTE_REMOVAL'] !== 'true') {
         problems.push(
@@ -256,7 +279,7 @@ async function main() {
     // Secrets outlive deploys: one named like a test var would ride along.
     const secrets = new Set(
       /** @type {{ name?: string }[]} */ (
-        (await api(`${scriptPath(script)}/secrets`, { missingOk: true })) ?? []
+        await apiList(`${scriptPath(script)}/secrets`, { missingOk: true })
       ).flatMap((s) => (typeof s.name === 'string' ? [s.name] : [])),
     );
     for (const name of [...TEST_VARS, 'JURISDICTION']) {
@@ -282,7 +305,7 @@ async function main() {
       fail([`live deployment is ${tags.join(', ') || 'nothing'}, expected relay-v${version}`]);
     }
     const secrets = /** @type {{ name?: string }[]} */ (
-      (await api(`${scriptPath(script)}/secrets`)) ?? []
+      await apiList(`${scriptPath(script)}/secrets`)
     ).flatMap((s) => (typeof s.name === 'string' ? [s.name] : []));
     const problems = [];
     for (const { tag, bindings } of live) {

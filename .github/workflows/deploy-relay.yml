@@ -53,10 +53,13 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
           persist-credentials: false
 
-      - name: Install
-        uses: ./.github/actions/pnpm-install
-        with:
-          ignore-scripts: 'true'
+      - name: Install (cold, from a fresh store)
+        # Not ./.github/actions/pnpm-install: the node_modules snapshots and the
+        # pnpm store under /cache are shared with PR CI, which can write them,
+        # and this job holds CLOUDFLARE_API_TOKEN. A store in RUNNER_TEMP
+        # (emptied around every job) makes pnpm fetch each package and check it
+        # against the lockfile's integrity hash.
+        run: pnpm install --frozen-lockfile --ignore-scripts --store-dir "${RUNNER_TEMP}/pnpm-store"
 
       - name: Build @hnch/shared (bundled into the relay)
         run: pnpm --filter @hnch/shared run build

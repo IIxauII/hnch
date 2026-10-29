@@ -1,8 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { unstable_readConfig } from 'wrangler';
 import {
+  api,
+  apiList,
   configProblems,
   deployedProblems,
   isDowngrade,
@@ -117,5 +119,48 @@ describe('versions', () => {
     expect(isDowngrade('1.3.0', 'relay-v1.3.0')).toBe(false);
     expect(isDowngrade('1.10.0', 'relay-v1.9.5')).toBe(false);
     expect(isDowngrade('1.3.0', 'untagged')).toBe(false);
+  });
+});
+
+describe('Cloudflare API reads fail closed', () => {
+  const answer = (status: number, body: unknown) =>
+    vi.fn(async () =>
+      typeof body === 'string'
+        ? new Response(body, { status })
+        : new Response(JSON.stringify(body), { status }),
+    );
+
+  beforeEach(() => vi.stubEnv('CLOUDFLARE_API_TOKEN', 'test-token'));
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('returns the result of an explicit success', async () => {
+    vi.stubGlobal('fetch', answer(200, { success: true, result: [{ pattern: 'hnch.dev/*' }] }));
+    expect(await apiList('/zones/z/workers/routes')).toEqual([{ pattern: 'hnch.dev/*' }]);
+  });
+
+  it.each([
+    ['a 403', 403, { success: false, errors: [{ code: 10000 }] }],
+    ['success: false', 200, { success: false, result: [] }],
+    ['a missing success', 200, { result: [] }],
+    ['a non-JSON 200', 200, '<html>bad gateway</html>'],
+    ['result: null', 200, { success: true, result: null }],
+    ['a 404 where nothing may be missing', 404, { success: false }],
+  ])('rejects %s', async (_label, status, body) => {
+    vi.stubGlobal('fetch', answer(status, body));
+    await expect(apiList('/zones/z/workers/routes')).rejects.toThrow('/zones/z/workers/routes');
+  });
+
+  it('rejects a list read that is not a list', async () => {
+    vi.stubGlobal('fetch', answer(200, { success: true, result: { pattern: 'hnch.dev/*' } }));
+    await expect(apiList('/zones/z/workers/routes')).rejects.toThrow('expected a list');
+  });
+
+  it('reads a 404 as empty only where missing is allowed', async () => {
+    vi.stubGlobal('fetch', answer(404, { success: false }));
+    expect(await apiList('/accounts/a/workers/scripts/x/secrets', { missingOk: true })).toEqual([]);
+    expect(await api('/accounts/a/workers/scripts/x/deployments', { missingOk: true })).toBeNull();
   });
 });
