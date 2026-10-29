@@ -25,7 +25,7 @@ Today hnch runs on one rented IONOS VPS (1 vCPU, 1 GB RAM): Caddy serves the PWA
 
 ## Success criteria
 
-- `hnch.dev` (app and relay) is served by Cloudflare. The VPS is left as it is; decommissioning it is out of scope for now.
+- `hnch.dev` (app and relay) is served by Cloudflare. The VPS is left as it is; decommissioning it is out of scope for now. (Reopened 2026-10-29, see [ADR-0054](../../adr/0054-vps-decommission.md).)
 - The latest released CLI and the current store and native builds create, join, vote and reveal against the new relay with no client release.
 - A room created before a relay deploy can be rejoined after it, with its state intact.
 - At current usage hnch runs within Cloudflare's free plan. The only recurring cost is the domain renewal at IONOS.
@@ -49,7 +49,7 @@ Today hnch runs on one rented IONOS VPS (1 vCPU, 1 GB RAM): Caddy serves the PWA
 - Analytics or telemetry beyond what ADR-0028 allows.
 - Email on `hnch.dev`. The owner doesn't use it, so the IONOS mail records were not carried over.
 - Moving the registration to Cloudflare Registrar. Out of scope by owner decision (2026-10-28): `hnch.dev` stays registered at IONOS.
-- Shutting down or cancelling the VPS. Out of scope by owner decision (2026-10-28): it stays as it is for now.
+- Shutting down or cancelling the VPS. Out of scope by owner decision (2026-10-28): it stays as it is for now. (Reopened 2026-10-29, see [ADR-0054](../../adr/0054-vps-decommission.md).)
 
 ## Settled by owner
 

@@ -46,14 +46,14 @@ Types in use (match existing history — see `git log`):
 
 | Scope | Use for | Triggers release? |
 |-------|---------|-------------------|
-| `client` | `packages/client/**` (Angular app) | Yes — `client-v*` (deploys `hnch-web` and the VPS; see [PWA release rules](docs/deployment.md#pwa-release-rules)) |
+| `client` | `packages/client/**` (Angular app) | Yes — `client-v*` (deploys `hnch-web`; see [PWA release rules](docs/deployment.md#pwa-release-rules)) |
 | `relay` | `packages/relay/**` (Cloudflare Worker + Durable Objects) | Yes — `relay-v*` (deploys `hnch-relay`; see [release rules](docs/deployment.md#relay-release-rules)) |
 | `cli` | `packages/cli/**` | Yes — `cli-v*` (npm publish) |
 | `shared` | `packages/shared/**` | Yes — `shared-v*` |
 | `e2e` | `packages/e2e/**` | No |
 | `ci` | `.github/workflows/**`, `infra/runner/**` | No |
 | `docs` | Root `*.md`, `docs/**`, `adr/**` | No |
-| `infra` | `infra/**` (Caddyfile, systemd, deploy scripts) | No |
+| `infra` | `infra/**` outside `infra/runner/` (today only `infra/README.md`) | No |
 | `deps` | Dependency bumps (Dependabot et al.) | No |
 | `repo` | Root configs (`package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`, `.gitignore`, etc.) | No |
 
