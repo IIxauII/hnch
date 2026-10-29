@@ -3,8 +3,18 @@
  * implementation must keep. Nothing here depends on how the relay is run.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { startTestRelay } from './start-relay.mjs';
+
+/** Takes over `process.stderr.write` and keeps what is written to it. */
+function captureStderr(): { text(): string; restore(): void } {
+  const written: string[] = [];
+  const spy = vi.spyOn(process.stderr, 'write').mockImplementation((chunk: unknown) => {
+    written.push(String(chunk));
+    return true;
+  });
+  return { text: () => written.join(''), restore: () => spy.mockRestore() };
+}
 
 describe('startTestRelay', () => {
   it('serves /health at httpUrl', async () => {
@@ -102,6 +112,36 @@ describe('startTestRelay', () => {
       expect(res.status).toBe(200);
     } finally {
       await relay.stop();
+    }
+  });
+
+  it('says on stderr when the relay dies without stop()', async () => {
+    const relay = await startTestRelay();
+    const stderr = captureStderr();
+    try {
+      process.kill(-relay.pid, 'SIGKILL');
+      await vi.waitFor(
+        () =>
+          expect(stderr.text()).toContain(
+            `test relay on ${relay.httpUrl} exited unexpectedly (SIGKILL)`,
+          ),
+        { timeout: 10_000, interval: 50 },
+      );
+    } finally {
+      stderr.restore();
+      await relay.stop();
+    }
+  });
+
+  it('says nothing on stderr when stopped', async () => {
+    const relay = await startTestRelay();
+    const stderr = captureStderr();
+    try {
+      // stop() resolves after the process's 'exit', so any notice is written by then.
+      await relay.stop();
+      expect(stderr.text()).not.toContain('exited unexpectedly');
+    } finally {
+      stderr.restore();
     }
   });
 
