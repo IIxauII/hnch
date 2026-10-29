@@ -165,20 +165,27 @@ jobs:
           # would only ever collapse an old+new path pair into the new path,
           # and for a path-prefix lane filter the extra old path is harmless.
           if [[ "$main_push" == "true" ]]; then
-            # Per commit, minus the [skip ci] bot commits (see above). main is
-            # squash-only and so linear; git log without -m lists no files for
-            # a merge commit. --format= leaves blank separator lines; sed drops
-            # them. Still tree-only: --name-only never reads blobs.
-            changed=$(git log --no-renames --name-only --format= -E --invert-grep \
-              --grep='^chore\((release|screenshots)\): .*\[skip ci\]$' \
-              "$base..$head" | sed '/^$/d' | sort -u)
+            # Per commit, minus the [skip ci] bot commits (see above), matched
+            # on the subject only, as release.yml does: a body line must not
+            # drop a human commit's files. main is squash-only and so linear.
+            # Still tree-only: diff-tree --name-only never reads blobs.
+            # Keep BOT_SUBJECT in step with release.yml.
+            BOT_SUBJECT='^chore\((release|screenshots)\): .*\[skip ci\]$'
+            changed=""
+            while read -r c subject; do
+              [[ -z "$c" || "$subject" =~ $BOT_SUBJECT ]] && continue
+              changed+=$(git diff-tree -r --no-commit-id --name-only --no-renames "$c")$'\n'
+            done < <(git log --format='%H %s' "$base..$head")
+            changed=$(sed '/^$/d' <<< "$changed" | sort -u)
           else
             changed=$(git diff --name-only --no-renames "$base"..."$head")
           fi
           echo "Changed files between $base and $head:"
           echo "$changed"
 
-          match() { echo "$changed" | grep -qE "$1"; }
+          # A herestring, not echo | grep -q: under pipefail, grep -q exiting on
+          # the first hit can SIGPIPE echo on a long list and report no match.
+          match() { grep -qE "$1" <<< "$changed"; }
 
           root=false
           shared=false

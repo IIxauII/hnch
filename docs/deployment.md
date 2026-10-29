@@ -68,7 +68,7 @@ These keep a relay release safe while old and new code run side by side.
 - **Additive only.** RPC methods and `meta` fields are added, never renamed or removed in one release.
 - **Expand/contract.** A format change ships as two releases at least 10 minutes apart: first read both formats, then write the new one (and drop the old later).
 - **Classes.** Renaming or deleting a Durable Object class needs a new migration in `wrangler.jsonc`, and `wrangler rollback` cannot cross a migration.
-- **Rollback is `wrangler rollback`.** Never re-dispatch an old tag: the guard refuses a version older than the live one. Roll back from a machine with the deploy token:
+- **Rollback is `wrangler rollback`.** Never re-dispatch an old tag. A dispatch runs the workflow at that tag: from `relay-v1.3.0` on, the guard refuses a version older than the live one. **A tag at or before `relay-v1.2.1` carries the pre-1b workflow, with no guard, and SSH-deploys to the production VPS** while the `VPS_*` secrets are live. Roll back from a machine with the deploy token:
 
   ```sh
   pnpm --filter @hnch/relay exec wrangler deployments list

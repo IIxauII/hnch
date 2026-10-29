@@ -185,7 +185,7 @@ jobs:
           #   without failing. A human commit marked to skip CI also counts as
           #   one, and holds back releases until a later merge goes green.
           # Keep BOT_SUBJECT and the docs/screenshots/ prefix in step with
-          # ci.yml (detect-changes, paths-ignore).
+          # ci.yml (detect-changes BOT_SUBJECT, paths-ignore).
           BOT_SUBJECT='^chore\((release|screenshots)\): .*\[skip ci\]$'
 
           # 0 if every commit in $1..$2 is skippable. Errors count as not

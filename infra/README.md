@@ -221,7 +221,7 @@ Record the result here for posterity:
 
 ### Health check
 
-`.github/workflows/runner-health.yml` runs every 6 h on `ubuntu-latest` (cron `0 */6 * * *`, ~120 runs/mo, each billed as 1 min, so ~120 min/mo billable). It calls `gh api /repos/.../actions/runners` once and fails, with one `::error::` per check, if zero runners with the `hnch-podman` label are online, or if no online `hnch-podman` runner carries the `e2e` label (the single e2e slot, see [E2E slot](#e2e-slot)). Failure → GitHub email notification. Manual trigger: `gh workflow run runner-health.yml`.
+`.github/workflows/runner-health.yml` runs every 6 h on `ubuntu-latest` (cron `0 */6 * * *`, ~120 runs/mo, each billed as 1 min, so ~120 min/mo billable). It calls `gh api /repos/.../actions/runners` and fails, with one `::error::` per check, if zero runners with the `hnch-podman` label are online, or if no online `hnch-podman` runner carries the `e2e` label (the single e2e slot, see [E2E slot](#e2e-slot)). Runners are ephemeral and re-register 10-30 s after each job, so a miss gets one second look 60 s later before it fails (that run bills 2 min). Failure → GitHub email notification. Manual trigger: `gh workflow run runner-health.yml`.
 
 The workflow needs `Administration: read` to list runners. The default `GITHUB_TOKEN` cannot be granted that scope (GitHub caps `GITHUB_TOKEN` permissions and the `permissions:` block cannot escalate beyond the cap). Therefore the workflow uses a separate fine-grained PAT stored as the repo secret `RUNNER_HEALTH_PAT`. If the secret is missing, the workflow logs a warning and exits 0 — never fails the run, never spams email.
 

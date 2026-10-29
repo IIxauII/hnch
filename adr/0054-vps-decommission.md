@@ -14,6 +14,7 @@ Partially supersedes [ADR-0051](0051-cloudflare-hosting.md): its "VPS left idle,
 - `hnch-web` and `hnch-relay` deploy with routes present but inert; their deploys, guards and smokes do not touch the VPS.
 - DNS measured 2026-10-29 (`cf dns records list`): NS = Cloudflare; apex A/AAAA DNS-only and `www` A/AAAA proxied, all with the VPS IP as origin. IONOS zone empty (ADR-0051).
 - Every existing client tag (≤ `client-v1.46.0`) carries the pre-Phase-2 `deploy-client.yml`: VPS ship only, no `hnch-web` job. A dispatch runs the workflow at that tag.
+- Likewise every relay tag ≤ `relay-v1.2.1` carries the pre-1b `deploy-relay.yml`: an SSH deploy to the VPS with no version guard.
 - Caddy cert: Let's Encrypt, valid until 2027-01-22 (measured 2026-10-29).
 - Registration of `hnch.dev` stays at IONOS (ADR-0051). Whether it is bundled with the VPS contract: unverified.
 - Owner settled 2026-10-29 (option 2B): remove the VPS deploy job, VPS docs and VPS infra files now; shut the box down after the switch; accept production frozen until then.
@@ -33,7 +34,7 @@ The VPS deploy path is removed now: the `vps` job and the `targets` input of `de
 
 - Easier: one deploy target per package; no SSH deploy key on the runner pool once the secrets go; no VPS to patch or pay for after shutdown; docs describe one hosting path.
 - Harder: urgent client fix before the switch needs the switch itself; restoring VPS deploys needs a superseding ADR. Post-shutdown incidents are fix-forward only.
-- Harder: never re-dispatch a pre-ADR-0054 client tag. While the `VPS_*` secrets live, it deploys to the production VPS and never to `hnch-web`. Roll `hnch-web` back with `wrangler rollback`; dispatch only `main` or a tag cut after this change.
+- Harder: never re-dispatch a pre-ADR-0054 client tag. While the `VPS_*` secrets live, it deploys to the production VPS and never to `hnch-web`. Roll `hnch-web` back with `wrangler rollback`; dispatch only `main` or a tag cut after this change. The same holds for relay tags ≤ `relay-v1.2.1`: they downgrade the VPS relay.
 - Revisit when:
   - Before cancelling the IONOS contract: check whether the `hnch.dev` registration is bundled with the VPS contract; registration must survive cancellation.
   - Switch slips and a client fix must reach users first: do the switch; reversing this decision needs a superseding ADR.

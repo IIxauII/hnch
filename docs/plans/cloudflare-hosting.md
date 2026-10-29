@@ -232,7 +232,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
     - `JURISDICTION` is not `none`;
     - **route-removal guard:** fail if the deploy would remove any live `hnch.dev/*` route of this script. `wrangler deploy` deletes routes missing from config (R2). Only a manual dispatch with `allow_route_removal=true` bypasses the guard.
   - **Post-deploy smoke**, gated on the repo variable `HNCH_LIVE == 'true'`, which is set at the switch: `/health` (retry for up to 60 s until `version` matches the tag), plus `GET /rooms/000000` → `404 {reason:'unknown-room'}`. Before the switch the job only checks that the deploy succeeded (`wrangler deployments list`).
-  - **Rollback of code:** `wrangler rollback` only. Never re-dispatch an old tag; the guard blocks it.
+  - **Rollback of code:** `wrangler rollback` only. Never re-dispatch an old tag: the guard blocks it from `relay-v1.3.0` on, and a tag at or before `relay-v1.2.1` runs the pre-1b workflow, which has no guard and deploys to the VPS.
 - **From the 1b merge, the relay no longer ships to the VPS (D9).** The VPS relay stays at `relay-v1.2.1`. Usage is about 0, so no VPS hot-fix path is planned.
 - **Client (D10):** a `client-v*` release dispatches `deploy-client.yml`.
   - It builds `production` once and ships it to the VPS (as today; that keeps the incidental rollback current) and to `hnch-web` (from Phase 2).
@@ -283,7 +283,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
 3. **Switch:**
    - set the apex A and AAAA records to **proxied** (`www` already is);
    - set `HNCH_LIVE=true`;
-   - re-dispatch both deploy jobs to run the gated smokes: relay at its latest tag; client at a client tag cut after the ADR-0054 merge. A manual dispatch bypasses the release gate, so dispatch `main` only when its latest `ci.yml` push run is green. Never a pre-ADR-0054 client tag (≤ `client-v1.46.0`): its workflow ships only to the VPS.
+   - re-dispatch both deploy jobs to run the gated smokes: relay at its latest tag; client at a client tag cut after the ADR-0054 merge or, if no client release has happened since, `main`. A manual dispatch bypasses the release gate, so dispatch `main` only when its latest `ci.yml` push run is green. Never a pre-ADR-0054 client tag (≤ `client-v1.46.0`): its workflow ships only to the VPS.
 4. **Verify on `hnch.dev` and fix forward:** run the Phase 3 checklist. Problems are fixed by releases.
 5. **During propagation:**
    - Resolvers that cached the old A record reach the VPS until the TTL runs out.
