@@ -247,12 +247,18 @@ importers:
       jsdom:
         specifier: ^29.0.2
         version: 29.0.2
+      node-types:
+        specifier: npm:@types/node@^22.0.0
+        version: '@types/node@22.19.17'
       typescript:
         specifier: ~5.9.0
         version: 5.9.3
       vitest:
         specifier: ^3.2.7
         version: 3.2.7(@types/node@22.19.17)(jiti@1.21.7)(jsdom@29.0.2)(less@4.4.0)(sass@1.90.0)(terser@5.43.1)(tsx@4.21.0)
+      wrangler:
+        specifier: 4.151.3
+        version: 4.151.3(@cloudflare/workers-types@5.20261019.1)(@types/node@22.19.17)
 
   packages/e2e:
     devDependencies:

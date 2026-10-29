@@ -207,7 +207,13 @@ describe('live versions', () => {
       }),
     );
     expect(await liveVersions('hnch-relay')).toEqual([
-      { tag: 'relay-v1.3.0', bindings: [{ name: 'JURISDICTION', text: 'eu' }] },
+      {
+        id: 'v1',
+        percentage: null,
+        tag: 'relay-v1.3.0',
+        message: null,
+        bindings: [{ name: 'JURISDICTION', text: 'eu' }],
+      },
     ]);
   });
 

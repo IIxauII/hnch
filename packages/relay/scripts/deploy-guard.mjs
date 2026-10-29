@@ -12,18 +12,43 @@
  * CLOUDFLARE_ACCOUNT_ID. ALLOW_ROUTE_REMOVAL=true lets `live` pass a removed
  * route (a manual dispatch with `allow_route_removal`). Code rollback is
  * `wrangler rollback`, never a re-dispatch of an old tag: `live` refuses it.
+ *
+ * The route, version and API helpers are shared with hnch-web's guard:
+ * scripts/cloudflare/worker-guard.mjs at the repo root.
  */
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import {
+  apiList,
+  exposureProblems,
+  fail,
+  isDowngrade as isDowngradeFrom,
+  liveVersions,
+  parseVersion as parseVersionWith,
+  routePatterns,
+  routeProblems,
+  routeRemovalProblems,
+  scriptExists,
+  scriptPath,
+} from '../../../scripts/cloudflare/worker-guard.mjs';
+
+export {
+  api,
+  apiList,
+  liveVersions,
+  removedRoutes,
+  scriptExists,
+  ZONE_HOST,
+} from '../../../scripts/cloudflare/worker-guard.mjs';
 
 const relayDir = resolve(import.meta.dirname, '..');
-const API = 'https://api.cloudflare.com/client/v4';
+const TAG_PREFIX = 'relay-';
 export const TEST_VARS = ['HNCH_ENABLE_TEST_ROUTES', 'HNCH_ROOM_CAP'];
-export const ZONE_HOST = 'hnch.dev';
 
 /**
- * @typedef {{ pattern: string, zone_id?: string, zone_name?: string, custom_domain?: boolean }} RouteConfig
+ * @typedef {import('../../../scripts/cloudflare/worker-guard.mjs').RouteConfig} RouteConfig
+ * @typedef {import('../../../scripts/cloudflare/worker-guard.mjs').Binding} Binding
  * @typedef {{
  *   name?: string,
  *   vars?: Record<string, unknown>,
@@ -42,10 +67,8 @@ export const ZONE_HOST = 'hnch.dev';
  * @returns {string[]}
  */
 export function configProblems(config) {
-  const problems = [];
   // Only the hnch.dev routes reach the Worker.
-  if (config.workers_dev !== false) problems.push('workers_dev must be false');
-  if (config.preview_urls !== false) problems.push('preview_urls must be false');
+  const problems = exposureProblems(config);
   // Dashboard vars kept across deploys could carry the ADR-0027 test vars.
   if (config.keep_vars === true) problems.push('keep_vars must not be set');
   // WebSocket URLs carry `?pw=`: never record request URLs.
@@ -72,37 +95,17 @@ export function configProblems(config) {
     } else if ('JURISDICTION' in vars && vars['JURISDICTION'] === 'none') {
       problems.push(`${scope}: JURISDICTION "none" must not be deployed`);
     }
-    for (const route of routes) {
-      const r = typeof route === 'string' ? { pattern: route } : route;
-      if (!r.pattern.startsWith(`${ZONE_HOST}/`))
-        problems.push(`${scope}: route ${r.pattern} is not on ${ZONE_HOST}`);
-      if (!r.zone_id) problems.push(`${scope}: route ${r.pattern} has no zone_id`);
-      if (r.custom_domain) problems.push(`${scope}: route ${r.pattern} is a Custom Domain`);
-    }
+    problems.push(...routeProblems(scope, routes));
   }
   return problems;
 }
 
 /**
- * Live route patterns of `script` that `configured` would remove.
- * @param {{ pattern: string, script?: string | null }[]} liveRoutes
- * @param {string[]} configured
- * @param {string} script
- */
-export function removedRoutes(liveRoutes, configured, script) {
-  return liveRoutes
-    .filter((r) => r.script === script && !configured.includes(r.pattern))
-    .map((r) => r.pattern);
-}
-
-/**
  * `X.Y.Z` from `relay-vX.Y.Z`, `vX.Y.Z` or `X.Y.Z`, as numbers; null otherwise.
  * @param {string | null | undefined} tag
- * @returns {[number, number, number] | null}
  */
 export function parseVersion(tag) {
-  const m = /^(?:relay-)?v?(\d+)\.(\d+)\.(\d+)$/.exec(tag ?? '');
-  return m === null ? null : [Number(m[1]), Number(m[2]), Number(m[3])];
+  return parseVersionWith(tag, TAG_PREFIX);
 }
 
 /**
@@ -111,12 +114,7 @@ export function parseVersion(tag) {
  * @param {string} live
  */
 export function isDowngrade(next, live) {
-  const a = parseVersion(next);
-  const b = parseVersion(live);
-  if (a === null || b === null) return false;
-  for (let i = 0; i < 3; i++)
-    if (a[i] !== b[i]) return /** @type {number} */ (a[i]) < /** @type {number} */ (b[i]);
-  return false;
+  return isDowngradeFrom(next, live, TAG_PREFIX);
 }
 
 // ------------------------------------------------------------------ CLI
@@ -132,90 +130,6 @@ function packageVersion() {
   return /** @type {{ version: string }} */ (
     JSON.parse(readFileSync(resolve(relayDir, 'package.json'), 'utf8'))
   ).version;
-}
-
-/**
- * A Cloudflare API result. Only an explicit success with a result counts; a
- * 404, an error or an unreadable answer fails, so a guard can't pass by not
- * finding what it checks. ("Never deployed" is asked of the script list; see
- * `scriptExists`.)
- * @param {string} path
- */
-export async function api(path) {
-  const token = process.env['CLOUDFLARE_API_TOKEN'];
-  if (!token) throw new Error('CLOUDFLARE_API_TOKEN is not set');
-  const res = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${token}` } });
-  const body = /** @type {{ success?: boolean, result?: any, errors?: unknown[] }} */ (
-    await res.json().catch(() => ({}))
-  );
-  if (!res.ok || body.success !== true || body.result === undefined || body.result === null) {
-    throw new Error(`${path}: ${res.status} ${JSON.stringify(body.errors ?? [])}`);
-  }
-  return body.result;
-}
-
-/**
- * A Cloudflare API list; anything but an array fails.
- * @param {string} path
- * @returns {Promise<unknown[]>}
- */
-export async function apiList(path) {
-  const result = await api(path);
-  if (!Array.isArray(result)) throw new Error(`${path}: expected a list`);
-  return result;
-}
-
-function scriptPath(/** @type {string} */ script) {
-  const account = process.env['CLOUDFLARE_ACCOUNT_ID'];
-  if (!account) throw new Error('CLOUDFLARE_ACCOUNT_ID is not set');
-  return `/accounts/${account}/workers/scripts/${script}`;
-}
-
-/**
- * @typedef {{ name?: string, type?: string, text?: string }} Binding
- * @typedef {{ tag: string | null, bindings: Binding[] | null }} LiveVersion
- */
-
-/**
- * Whether `script` exists on the account. Asked of the account's script list,
- * so a wrong account or path fails instead of reading as "never deployed".
- * @param {string} script
- */
-export async function scriptExists(script) {
-  const account = process.env['CLOUDFLARE_ACCOUNT_ID'];
-  if (!account) throw new Error('CLOUDFLARE_ACCOUNT_ID is not set');
-  const scripts = /** @type {{ id?: string }[]} */ (
-    await apiList(`/accounts/${account}/workers/scripts`)
-  );
-  return scripts.some((s) => s.id === script);
-}
-
-/**
- * The versions serving `script` now; empty before the first deploy.
- * @param {string} script
- * @returns {Promise<LiveVersion[]>}
- */
-export async function liveVersions(script) {
-  if (!(await scriptExists(script))) return [];
-  const base = scriptPath(script);
-  const deployments = await api(`${base}/deployments`);
-  if (!Array.isArray(deployments.deployments))
-    throw new Error(`${base}/deployments: expected a list`);
-  const latest = deployments.deployments[0];
-  if (!latest) return [];
-  if (!Array.isArray(latest.versions)) throw new Error(`${base}/deployments: no versions`);
-  /** @type {LiveVersion[]} */
-  const versions = [];
-  for (const { version_id: id } of latest.versions) {
-    const version = await api(`${base}/versions/${id}`);
-    const tag = version.annotations?.['workers/tag'];
-    const bindings = version.resources?.bindings;
-    versions.push({
-      tag: typeof tag === 'string' ? tag : null,
-      bindings: Array.isArray(bindings) ? bindings : null,
-    });
-  }
-  return versions;
 }
 
 /**
@@ -239,12 +153,6 @@ export function deployedProblems(bindings, secretNames) {
   return problems;
 }
 
-/** @param {string[]} problems */
-function fail(problems) {
-  for (const p of problems) console.error(`::error::${p}`);
-  process.exit(1);
-}
-
 async function main() {
   const mode = process.argv[2];
   const config = await readDeployConfig();
@@ -254,36 +162,16 @@ async function main() {
   if (mode === 'config') {
     const problems = configProblems(config);
     if (problems.length > 0) fail(problems);
-    console.log(
-      `config ok: ${script} ${version}, routes ${(config.routes ?? []).map((r) => (typeof r === 'string' ? r : r.pattern)).join(', ')}`,
-    );
+    console.log(`config ok: ${script} ${version}, routes ${routePatterns(config).join(', ')}`);
     return;
   }
 
   if (mode === 'live') {
-    const problems = [];
-    const configured = (config.routes ?? []).map((r) => (typeof r === 'string' ? r : r.pattern));
-    const zones = new Set(
-      (config.routes ?? []).flatMap((r) =>
-        typeof r === 'string' || !r.zone_id ? [] : [r.zone_id],
-      ),
+    const problems = await routeRemovalProblems(
+      config,
+      script,
+      process.env['ALLOW_ROUTE_REMOVAL'] === 'true',
     );
-    if (zones.size === 0) fail(['no route names a zone_id, so live routes cannot be checked']);
-    for (const zone of zones) {
-      const live = /** @type {{ pattern: string, script?: string | null }[]} */ (
-        await apiList(`/zones/${zone}/workers/routes`)
-      );
-      const removed = removedRoutes(live, configured, script);
-      if (removed.length > 0 && process.env['ALLOW_ROUTE_REMOVAL'] !== 'true') {
-        problems.push(
-          `deploy would remove live route(s) ${removed.join(', ')}; re-run with allow_route_removal if intended`,
-        );
-      } else if (removed.length > 0) {
-        console.log(
-          `::warning::removing live route(s) ${removed.join(', ')} (allow_route_removal)`,
-        );
-      }
-    }
     // Secrets outlive deploys: one named like a test var would ride along.
     const exists = await scriptExists(script);
     const secrets = new Set(
@@ -294,7 +182,7 @@ async function main() {
     for (const name of [...TEST_VARS, 'JURISDICTION']) {
       if (secrets.has(name)) problems.push(`secret ${name} is set on ${script}; delete it`);
     }
-    const live = await liveVersions(script);
+    const live = await liveVersions(script, exists);
     // An untagged live version can't be compared, so it can't be shown older.
     if (live.some((v) => v.tag === null)) {
       problems.push(
@@ -342,4 +230,10 @@ async function main() {
   process.exit(2);
 }
 
-if (process.argv[1] === import.meta.filename) await main();
+// A thrown API or config error (no zoned route, an unreadable answer) is
+// reported like any other problem.
+if (process.argv[1] === import.meta.filename) {
+  await main().catch((/** @type {unknown} */ err) =>
+    fail([err instanceof Error ? err.message : String(err)]),
+  );
+}
