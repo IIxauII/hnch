@@ -12,15 +12,4 @@ The skills speak in terms of five canonical triage roles. This file maps those r
 
 When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table.
 
-Edit the right-hand column to match whatever vocabulary you actually use.
-
-## Repo state
-
-`ready-for-agent` and `wontfix` already exist as labels on `IIxauII/hnch`. The other three
-(`needs-triage`, `needs-info`, `ready-for-human`) do not yet exist — create them on first use:
-
-```bash
-gh label create needs-triage --description "Maintainer needs to evaluate this issue"
-gh label create needs-info --description "Waiting on reporter for more information"
-gh label create ready-for-human --description "Requires human implementation"
-```
+Edit the "Label in our tracker" column to match whatever vocabulary you actually use.

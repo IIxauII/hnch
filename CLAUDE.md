@@ -41,4 +41,4 @@ The five canonical roles, each label string equal to its name. See [`docs/agents
 
 ### Domain docs
 
-Single-context: root `CONTEXT.md` + ADRs in `adr/`. See [`docs/agents/domain.md`](docs/agents/domain.md).
+Single-context: root `GLOSSARY.md` + ADRs in `adr/`. See [`docs/agents/domain.md`](docs/agents/domain.md).
