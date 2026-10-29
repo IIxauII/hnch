@@ -1,3 +1,16 @@
+# [1.3.0](https://github.com/IIxauII/hnch/compare/relay-v1.2.1...relay-v1.3.0) (2026-10-29)
+
+
+### Bug Fixes
+
+* **relay,ci,docs:** install the relay deploy cold and make its guard fail closed ([#559](https://github.com/IIxauII/hnch/issues/559)) ([15ec396](https://github.com/IIxauII/hnch/commit/15ec39696263f613291d8132427764aaa190848e))
+* **relay,docs:** keep a room in the Expiry backstop for as long as it lives ([#557](https://github.com/IIxauII/hnch/issues/557)) ([57375c8](https://github.com/IIxauII/hnch/commit/57375c838645ec11961b6517b474ce2ab42b74f0))
+
+
+### Features
+
+* **relay,shared,e2e,ci,docs,repo:** run the relay on Cloudflare Workers and Durable Objects ([#553](https://github.com/IIxauII/hnch/issues/553)) ([53aa375](https://github.com/IIxauII/hnch/commit/53aa3755749934d511313ea4d883c94597b6f229))
+
 ## [1.2.1](https://github.com/IIxauII/hnch/compare/relay-v1.2.0...relay-v1.2.1) (2026-06-15)
 
 
