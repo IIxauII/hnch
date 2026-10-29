@@ -1,19 +1,55 @@
 name: Release
 
 on:
-  push:
+  # Releases start from a green CI run on main, never from the push itself: a
+  # merge whose CI is red or cancelled publishes nothing, and its commits
+  # release with the next green main run (ci.yml diffs main pushes from the
+  # last green run, so that run has tested them too). `CI` is ci.yml's
+  # `name:`; renaming it silently stops releases. GitHub starts this run from
+  # release.yml on the default branch, for every completed CI run, PR runs
+  # included: the job's `if:` keeps only successful push runs. No paths
+  # filter: CI's own paths-ignore already skips screenshot-only pushes, and the
+  # bot's [skip ci] release and screenshot commits start no CI run, hence no
+  # release.
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
-    # Screenshot refresh commits (chore(screenshots): … [skip ci]) only touch
-    # docs/screenshots/** and carry no releasable change. Ignore the path so
-    # semantic-release doesn't even spin up a runner for them. Belt to the
-    # [skip ci] suspenders.
-    paths-ignore:
-      - 'docs/screenshots/**'
+  # Recovery, for a green run whose release never started or was cancelled
+  # while pending: releases the head commit of the newest green ci.yml push run
+  # on main, under the same rules as a workflow_run release. So it releases
+  # nothing while main holds a newer merge that has no green run yet (see the
+  # catch-up below); the fix is to get the next merge green. Resume a failed
+  # release by re-running that Release run instead.
+  workflow_dispatch:
 
 # Releases must run to completion: a partial release leaves package.json,
 # CHANGELOG.md, the git tag, and the GitHub Release out of sync. Never cancel.
+#
+# GitHub keeps at most one pending run per group and cancels the older one when
+# another arrives. Every completed CI run starts a Release run, PR runs and red
+# or cancelled ones included, and those skip at the job's `if:`. So only runs
+# that will release share the group (release-refs/heads/main: workflow_run
+# always reports the default branch as github.ref). A run that will skip gets a
+# group of its own, so it can never replace a pending release. The condition
+# mirrors the job's `if:`; change both together.
+# Two releasing runs can still replace each other: R(A2) pending, then a green
+# R(A3) cancels it. A3's release covers A2: main's CI runs one at a time
+# (ci.yml cancels the older run), so a later green completion is for a later
+# merge, which contains A2. The exception is a manual re-run of an older CI
+# run; its release sees the newer merge and releases nothing, and a dispatch
+# then releases A2 (the newest green run).
 concurrency:
-  group: release-${{ github.ref }}
+  group: >-
+    ${{
+      ((github.event_name == 'workflow_run'
+          && github.event.workflow_run.conclusion == 'success'
+          && github.event.workflow_run.event == 'push')
+        || (github.event_name == 'workflow_dispatch'
+          && github.ref == 'refs/heads/main'))
+      && format('release-{0}', github.ref)
+      || format('release-skip-{0}', github.run_id)
+    }}
   cancel-in-progress: false
 
 permissions:
@@ -21,20 +57,62 @@ permissions:
   issues: write
   pull-requests: write
   id-token: write
+  # The workflow_dispatch path looks up the newest green ci.yml run.
+  actions: read
 
 jobs:
   release:
     name: Release (per-package)
     runs-on: [self-hosted, linux, arm64, hnch-podman]
     timeout-minutes: 10
+    # Only a successful CI run of a push to main. `branches: [main]` above
+    # matches the run's head branch, which a PR from a branch named main (a
+    # fork's, say) also has, so the event check is load-bearing. The
+    # concurrency group above repeats this condition; change both together.
+    if: >-
+      (github.event_name == 'workflow_run'
+        && github.event.workflow_run.conclusion == 'success'
+        && github.event.workflow_run.event == 'push')
+      || (github.event_name == 'workflow_dispatch'
+        && github.ref == 'refs/heads/main')
     steps:
       - name: Runner identity
         run: |
           echo "Runner: $RUNNER_NAME on $(hostname) — arch $(uname -m)"
           df -h /cache || true
 
+      # The commit CI verified, not the branch tip: main may already hold a
+      # newer merge whose CI has not finished, or failed. github.sha is no use
+      # here; for workflow_run it is main's tip when the event fired.
+      - name: Resolve the commit to release
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          set -euo pipefail
+          sha="" url=""
+          if [[ "$EVENT_NAME" == "workflow_run" ]]; then
+            sha="$RUN_SHA" url="$RUN_URL"
+          else
+            last=$(timeout 30 gh api \
+              "repos/$REPO/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=1" \
+              --jq '.workflow_runs[0] | select(. != null) | "\(.head_sha) \(.html_url)"')
+            read -r sha url <<< "$last" || true
+          fi
+          if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::No green ci.yml push run on main to release from."
+            exit 1
+          fi
+          echo "Releasing $sha, verified by $url"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v4
         with:
+          ref: ${{ steps.target.outputs.sha }}
           # semantic-release needs full history + all tags to compute the
           # next version per package.
           fetch-depth: 0
@@ -45,6 +123,14 @@ jobs:
           # run` (tag-push events from PATs are not reliably delivered to other
           # workflows, so we explicitly dispatch instead — see ../../packages/*/release.config.mjs).
           token: ${{ secrets.RELEASE_TOKEN }}
+
+      # A SHA ref checks out a detached HEAD. Put a local main on it, the state
+      # the push trigger used to leave: semantic-release takes the branch name
+      # from GITHUB_REF (refs/heads/main), and its release commits advance
+      # local main. Pushes still go to origin main (HEAD:main), with the
+      # RELEASE_TOKEN credentials the checkout persisted.
+      - name: Put local main on the release commit
+        run: git checkout -B main
 
       - name: Enable Corepack
         run: corepack enable
@@ -81,29 +167,86 @@ jobs:
           # publish. @semantic-release/npm >= 13.1.0 exchanges the id-token and
           # skips token auth. Other packages stay private (npmPublish: false).
         run: |
-          # If one package's release fails, later packages are skipped. semantic-release is idempotent on tags, so re-running the workflow after fixing the failure resumes safely.
+          # If one package's release fails, later packages are skipped. Re-run the failed Release run after fixing the cause: it checks out the same commit, fast-forwards over the release commits already pushed (below), and semantic-release, idempotent on tags, resumes with the next package.
           set -euo pipefail
           # semantic-release publishes nothing when the remote main is ahead of
-          # the checkout. The screenshot bot pushes to main while this job runs,
-          # and its [skip ci] commits start no Release run of their own, so a
-          # race with it would drop the release. Fast-forward over commits that
-          # only touch docs/screenshots/**. Anything else is left behind: the
-          # push that brought it starts its own Release run, queued behind this one.
-          # A bot push in the seconds between this catch-up and semantic-release's
-          # own push still fails the job; re-run it, and the catch-up covers it.
-          catch_up_screenshot_commits() {
-            # Best effort: without it, semantic-release's own check decides as before.
-            git fetch --quiet origin main || return 0
-            git merge-base --is-ancestor HEAD origin/main || return 0
-            if ! git diff --quiet --no-renames HEAD origin/main -- . ':(exclude)docs/screenshots'; then
-              echo "::warning::main moved with commits outside docs/screenshots; their own Release run releases them."
-              return 0
-            fi
-            git merge --quiet --ff-only origin/main
+          # the checkout ("local branch is behind"; it exits 0). A commit on
+          # main past the release commit is one of:
+          # - Skippable: it starts no CI run, so no Release run of its own. That
+          #   is the bot's [skip ci] commits, by subject as in ci.yml's
+          #   detect-changes (package releases from earlier in this loop or an
+          #   earlier attempt, and screenshot refreshes, which
+          #   screenshots-main.yml often pushes while this job runs), and any
+          #   commit touching only CI's paths-ignore (docs/screenshots/**).
+          #   Fast-forward over these.
+          # - A newer merge: anything else. Release nothing more here: its CI
+          #   run, once green, releases this commit and its own together. This
+          #   is how an old green run that lands after a newer merge skips
+          #   without failing. A human commit marked to skip CI also counts as
+          #   one, and holds back releases until a later merge goes green.
+          # Keep BOT_SUBJECT and the docs/screenshots/ prefix in step with
+          # ci.yml (detect-changes BOT_SUBJECT, paths-ignore).
+          BOT_SUBJECT='^chore\((release|screenshots)\): .*\[skip ci\]$'
+
+          # 0 if every commit in $1..$2 is skippable. Errors count as not
+          # skippable: fast-forwarding over an unchecked commit could release
+          # code no CI run tested. Names the blocking commit on stderr.
+          only_skippable() {
+            local commits c subject files
+            commits=$(git rev-list "$1..$2") || return 1
+            for c in $commits; do
+              subject=$(git log -1 --format=%s "$c") || return 1
+              [[ "$subject" =~ $BOT_SUBJECT ]] && continue
+              files=$(git diff --name-only --no-renames "$c^" "$c") || return 1
+              if [[ -n "$files" ]] && grep -qv '^docs/screenshots/' <<< "$files"; then
+                git log -1 --format='Newer merge: %h %s' "$c" >&2
+                return 1
+              fi
+            done
           }
+
+          # Fetches main and prints where origin/main stands against HEAD:
+          # same; skippable (ahead by skippable commits only); blocked (ahead
+          # by a newer merge); unknown (fetch failed or history diverged, so
+          # semantic-release's own check decides).
+          main_state() {
+            git fetch --quiet origin main || { echo unknown; return; }
+            if [[ "$(git rev-parse HEAD)" == "$(git rev-parse origin/main)" ]]; then
+              echo same; return
+            fi
+            git merge-base --is-ancestor HEAD origin/main || { echo unknown; return; }
+            if only_skippable HEAD origin/main; then echo skippable; else echo blocked; fi
+          }
+
           for PKG in shared relay client cli; do
             echo "::group::semantic-release :: $PKG"
-            catch_up_screenshot_commits
-            pnpm exec semantic-release --extends ./packages/$PKG/release.config.mjs
+            state=$(main_state)
+            if [[ "$state" == blocked ]]; then
+              echo "::notice::main has a newer merge past $(git rev-parse --short HEAD); not releasing $PKG or later packages here, that merge's green CI run releases them."
+              echo "::endgroup::"
+              break
+            fi
+            if [[ "$state" == skippable ]]; then
+              git merge --quiet --ff-only origin/main
+            fi
+            before=$(git rev-parse HEAD)
+            pnpm exec semantic-release --extends "./packages/$PKG/release.config.mjs"
+            # semantic-release compares with the remote once, at its start. A
+            # bot push between main_state above and that check makes it log
+            # "behind" and skip $PKG with exit 0. So if HEAD didn't move (no
+            # release commit) and main moved by skippable commits only, catch
+            # up and run $PKG once more; if it just had nothing to release, the
+            # second run finds nothing either.
+            if [[ "$(git rev-parse HEAD)" == "$before" && "$(main_state)" == skippable ]]; then
+              echo "::notice::main moved by skippable commits during the $PKG run; catching up and running it again."
+              git merge --quiet --ff-only origin/main
+              pnpm exec semantic-release --extends "./packages/$PKG/release.config.mjs"
+            fi
             echo "::endgroup::"
           done
+          # Still unhandled: a push landing after semantic-release's start check
+          # but before its own push (a human merge at any time, or a bot push in
+          # that window) rejects the release push and fails the job red, before
+          # any tag or publish. Re-run the Release run. It fast-forwards over
+          # bot commits and resumes; after a human merge it releases nothing,
+          # and that merge's green run releases.

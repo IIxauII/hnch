@@ -33,6 +33,8 @@ async function rows(uuid: string): Promise<{ log: number; snapshot: number[] }> 
 /**
  * What a peer joining after an eviction of the room object receives: returns
  * once the relay has answered its sync, so the doc holds all the relay loaded.
+ * Call it with nothing buffered: the eviction waits for the room's pending
+ * timers, so a buffered update holds it until its flush, up to 5 s.
  */
 async function reloaded(uuid: string): Promise<Peer> {
   await evictDurableObject(roomStub(uuid));
@@ -79,15 +81,9 @@ afterEach(() => {
 
 describe('a reload', () => {
   it('gives the joiner the stored doc, however late the relay answers its sync', async () => {
-    const { uuid } = await createRoom();
-    const alice = await Peer.join(uuid);
-    await edits(alice, 3);
-    await runDurableObjectAlarm(roomStub(uuid));
-    expect(await rows(uuid)).toEqual({ log: 1, snapshot: [] });
-
-    // The reloaded object handles each frame later than any fixed wait in the
-    // test, as it may on a loaded CI runner. Timers in this isolate fire in
-    // order, so this holds every time.
+    // The relay handles each frame later than any fixed wait in the test, as
+    // it may on a loaded CI runner: before the reload as well as after it.
+    // Timers in this isolate fire in order, so this holds every time.
     const handle = Room.prototype.webSocketMessage;
     vi.spyOn(Room.prototype, 'webSocketMessage').mockImplementation(async function (
       this: Room,
@@ -97,6 +93,16 @@ describe('a reload', () => {
       await new Promise((r) => setTimeout(r, 4 * SETTLE_MS));
       return handle.call(this, ws, message);
     });
+
+    const { uuid } = await createRoom();
+    const alice = await Peer.join(uuid);
+    const bob = await Peer.join(uuid);
+    // Waits until the relay has taken all three in, not a fixed time: one
+    // taken in after the alarm's flush would arm the flush timer, and the
+    // eviction waits for pending timers, past the test's timeout.
+    await edits(alice, 3, 'v', bob);
+    await runDurableObjectAlarm(roomStub(uuid));
+    expect(await rows(uuid)).toEqual({ log: 1, snapshot: [] });
 
     expect((await reloaded(uuid)).doc.getArray('votes').length).toBe(3);
   });
@@ -133,23 +139,25 @@ describe('coalesced writes', () => {
     const { uuid } = await createRoom();
     const alice = await Peer.join(uuid);
     const bob = await Peer.join(uuid);
-    await edits(alice, 3);
+    alice.announce({ participantId: 'p-alice' });
+    await edits(alice, 3, 'v', bob);
 
     alice.close();
     await alice.closed();
-    await settle();
+    // Bob is told alice left in the same step that decides whether to flush.
+    await eventually(() => expect(bob.participants()).toEqual([]));
     expect((await rows(uuid)).log).toBe(0);
 
     bob.close();
     await bob.closed();
-    await settle();
-    expect((await rows(uuid)).log).toBe(1);
+    await eventually(async () => expect((await rows(uuid)).log).toBe(1));
   });
 
   it('writes the buffer when an alarm fires', async () => {
     const { uuid } = await createRoom();
     const alice = await Peer.join(uuid);
-    await edits(alice, 3);
+    const bob = await Peer.join(uuid);
+    await edits(alice, 3, 'v', bob);
     await runDurableObjectAlarm(roomStub(uuid));
     expect((await rows(uuid)).log).toBe(1);
   });
@@ -205,7 +213,10 @@ describe('when storage writes fail', () => {
     const { uuid } = await createRoom();
     const alice = await Peer.join(uuid);
     const bob = await Peer.join(uuid);
-    await settle();
+    // Both peers hold the doc before storage fails, so what the room relays
+    // and writes afterwards is measured against a known start.
+    await alice.synced();
+    await bob.synced();
 
     await runInDurableObject(roomStub(uuid), (_room, state) => {
       // Each `storage.sql` access may be a new wrapper; fail them all.

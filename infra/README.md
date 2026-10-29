@@ -1,170 +1,8 @@
-# infra/ — VPS provisioning + reverse proxy
+# infra/ — self-hosted CI runner pool
 
-Configuration that lives on the VPS, checked into the repo so a fresh box can be brought back online deterministically. See [ADR-0029](../adr/0029-relay-deployment.md) for the architecture decision and rationale.
+Configuration for the self-hosted GitHub Actions runner pool, checked into the repo so the host can be rebuilt deterministically.
 
-| File | Where it lives on the VPS | Purpose |
-|---|---|---|
-| `bootstrap-vps.sh` | n/a (run once as root) | Idempotent provisioner: installs Node 22 + Caddy + UFW, creates `deploy` user, drops the systemd unit and Caddyfile in place, enables services. |
-| `hnch-relay.service` | `/etc/systemd/system/hnch-relay.service` | systemd unit that supervises the relay process. |
-| `Caddyfile` | `/etc/caddy/Caddyfile` | Caddy config — single-origin routing for `hnch.dev`, auto-TLS via Let's Encrypt. |
-| `deploy.pub` | seeded into `/home/deploy/.ssh/authorized_keys` by the bootstrap script | Public half of the CI deploy keypair. The private half lives only in the GH Actions secret `VPS_SSH_KEY`. Safe to commit (public keys are not secrets). |
-
-## First-time bootstrap
-
-Prerequisites:
-
-1. VPS reachable over SSH as `xau` (already configured — see `~/.ssh/config` host `<vps-ssh-alias>`).
-2. DNS A record `hnch.dev` → VPS IP set in the IONOS DNS panel. Without this, Caddy cannot fetch a Let's Encrypt cert.
-3. CI deploy keypair generated and `infra/deploy.pub` committed. See **Generating the deploy key** below.
-
-Steps:
-
-```sh
-# from your laptop
-scp infra/bootstrap-vps.sh infra/Caddyfile infra/hnch-relay.service infra/deploy.pub <vps-ssh-alias>:/tmp/
-ssh <vps-ssh-alias>
-sudo mkdir -p /opt/hnch-bootstrap
-sudo mv /tmp/{bootstrap-vps.sh,Caddyfile,hnch-relay.service,deploy.pub} /opt/hnch-bootstrap/
-sudo bash /opt/hnch-bootstrap/bootstrap-vps.sh
-```
-
-Verification:
-
-```sh
-# on the VPS
-systemctl status caddy        # active (running)
-systemctl status hnch-relay   # enabled but inactive (dead) — expected, no binary yet
-ufw status                    # 22, 80, 443 allowed
-sudo -u deploy whoami         # deploy
-
-# from your laptop
-dig +short hnch.dev           # → VPS IP
-curl -I https://hnch.dev/health  # 502 + valid Let's Encrypt cert  → Caddy + TLS healthy
-```
-
-After bootstrap, semantic-release mints `relay-vX.Y.Z` tags on merge to `main` and explicitly dispatches `deploy-relay.yml` via its `publishCmd` (`gh workflow run`). The deploy workflow takes over from there.
-
-## Generating the deploy key
-
-Run once on your laptop:
-
-```sh
-ssh-keygen -t ed25519 -f ~/.ssh/hnch_deploy_ed25519 -C 'hnch CI deploy key' -N ''
-cp ~/.ssh/hnch_deploy_ed25519.pub infra/deploy.pub
-gh secret set VPS_SSH_KEY < ~/.ssh/hnch_deploy_ed25519
-gh secret set VPS_HOST --body '<vps-ip>'   # or 'hnch.dev' once DNS is live
-gh secret set VPS_USER --body 'deploy'
-```
-
-The private key never leaves the keypair file → GH secret. Do not commit it. The public half (`infra/deploy.pub`) is committed and is what the bootstrap script seeds into `~deploy/.ssh/authorized_keys`.
-
-## Deploy flow
-
-1. Merge to `main` with a `feat(relay):` / `fix(relay):` commit.
-2. `release.yml` runs semantic-release per package; if relay scope changed, it cuts tag `relay-vX.Y.Z`.
-3. After pushing the tag, semantic-release's `publishCmd` (`packages/relay/release.config.mjs`) runs `gh workflow run deploy-relay.yml --ref relay-vX.Y.Z` — explicitly dispatches the deploy workflow. Tag-push events from PATs are not reliably delivered to other workflows, so dispatch is explicit.
-4. Build job: `pnpm install --frozen-lockfile`, `pnpm --filter @hnch/relay build`, bundle `dist/` + `package.json` + production `node_modules` into a tarball.
-5. Deploy job: `scp` tarball to VPS, extract into a timestamped directory under `/opt/hnch-relay-releases/`, swap the `/opt/hnch-relay` symlink, `sudo systemctl restart hnch-relay`.
-6. Smoke: `curl -fsS https://hnch.dev/health` from CI; non-200 fails the job.
-
-## Rollback
-
-The deploy script keeps the last 3 release directories under `/opt/hnch-relay/releases/`:
-
-```sh
-ssh <vps-ssh-alias>
-ls -1 /opt/hnch-relay/releases/   # release-2026-04-27T12-00-00Z, release-2026-04-26T08-15-00Z, ...
-ln -sfn /opt/hnch-relay/releases/release-2026-04-26T08-15-00Z /opt/hnch-relay/current   # as deploy user
-sudo systemctl restart hnch-relay
-curl -fsS https://hnch.dev/health
-```
-
-If a bad release got tagged via semantic-release, also revert the offending commit on `main` so the next deploy doesn't re-publish the broken artifact.
-
-## Nuke and pave
-
-If the VPS is destroyed or you migrate to a new one:
-
-1. Provision a fresh Debian/Ubuntu box with SSH access for `xau`.
-2. Update `~/.ssh/config` host `<vps-ssh-alias>` to point at the new IP.
-3. Update IONOS DNS A record `hnch.dev` → new IP. Wait for propagation (`dig +short hnch.dev`).
-4. Update GH secret `VPS_HOST` if you used the IP variant: `gh secret set VPS_HOST --body '<new-ip>'`.
-5. Run the bootstrap script (above).
-6. Push a no-op commit with `chore(relay): redeploy` (or re-run the most recent `deploy-relay.yml` from the GH Actions UI).
-
-The deploy public key in `infra/deploy.pub` keeps working unchanged — the bootstrap re-seeds it on the new box.
-
-## PWA static host
-
-The Angular/Ionic client is served from the same Caddy instance as the relay, on the same origin (`hnch.dev`). Per ADR-0029's single-origin commitment, this avoids CORS, mixed-origin cookie quirks, and split certs.
-
-### Layout
-
-```
-/var/www/
-  hnch-client            -> hnch-client-releases/release-<STAMP>   # symlink
-  hnch-client-releases/
-    release-2026-04-28T12-00-00Z/   # rsynced contents of packages/client/www
-    release-2026-04-29T...
-    ...                              # last 3 kept, older pruned by deploy job
-```
-
-Caddy's `root * /var/www/hnch-client` (see `Caddyfile`) follows the symlink at request time, so swapping it is the entire activation step. No `caddy reload`, no `systemctl restart` — `ln -sfn` is `rename(2)`-equivalent on Linux and atomic.
-
-The bootstrap script provisions the layout idempotently and migrates an existing real `/var/www/hnch-client` directory into `release-bootstrap` if it finds one, so first-run is safe on a box that previously hosted static content directly.
-
-### Deploy flow
-
-1. Merge to `main` with a `feat(client):` / `fix(client):` commit.
-2. `release.yml` runs semantic-release per package; if client scope changed, it cuts tag `client-vX.Y.Z`.
-3. After pushing the tag, semantic-release's `publishCmd` (`packages/client/release.config.mjs`) runs `gh workflow run deploy-client.yml --ref client-vX.Y.Z` — explicit dispatch (see relay flow note above).
-
-> **Note:** tags `client-v1.0.0`, `client-v1.1.0`, and `client-v1.1.1` predate the explicit-dispatch wiring and were never deployed. The next dispatched release supersedes them — no retroactive deploy is needed.
-4. Build job: `pnpm install --frozen-lockfile`, build `@hnch/shared` then `@hnch/client` in production mode, post-build hygiene checks (no source maps, size sanity), tar `packages/client/www` into `hnch-client-<STAMP>.tar.gz`.
-5. Deploy job: `scp` tarball to VPS, extract into `/var/www/hnch-client-releases/release-<STAMP>/`, swap the `/var/www/hnch-client` symlink, prune to last 3 releases.
-6. Smoke: `curl -fsS https://hnch.dev/` from CI; the response must contain `<app-root` or the job fails.
-
-No Caddy reload at any step — the symlink swap is the activation.
-
-### Cache rules
-
-The Caddyfile static handler distinguishes hashed assets from the SPA shell:
-
-- **Hashed assets** (Angular `outputHashing=all` produces names like `main.4a8f2c1b.js`) match `\.[a-f0-9]{8,}\.(js|css|woff2|woff|ttf|svg|png|jpg|webp|avif)$` and get `Cache-Control: public, max-age=31536000, immutable`.
-- **HTML and the bare root** match `*.html` / `/` and get `Cache-Control: no-cache, must-revalidate`, so the SPA shell always re-validates and a deploy is visible to clients on next navigation.
-
-Verify after a deploy:
-
-```sh
-curl -I https://hnch.dev/                                 # → no-cache, must-revalidate
-curl -I https://hnch.dev/main.<somehash>.js               # → max-age=31536000, immutable
-```
-
-### Rollback
-
-Releases live under `/var/www/hnch-client-releases/`; the deploy job keeps the last 3. To revert, swap the symlink back to a prior release:
-
-```sh
-ssh deploy@hnch.dev
-ls -1dt /var/www/hnch-client-releases/release-*           # list available releases, newest first
-ln -sfn /var/www/hnch-client-releases/release-<prior-stamp> /var/www/hnch-client
-```
-
-One command, no restart, no Caddy reload. The next request to `hnch.dev/` resolves the symlink to the prior release.
-
-If a bad release got tagged via semantic-release, also revert the offending commit on `main` so the next deploy doesn't re-publish the broken artifact.
-
-### Service worker / installable PWA — deferred
-
-v1 ships as a plain SPA. There is no service worker, no offline shell, and no `manifest.json`-driven install prompt. This is a deliberate scope cut: SW invalidation interacts non-trivially with cache-control and atomic swaps, and at v1 traffic the offline story is not yet a felt need. We will revisit if user feedback demands it — at which point the cache headers above and the symlink-swap mechanism will need a re-read against the SW lifecycle.
-
-## Operational notes
-
-- **Memory ceiling.** The systemd unit sets `MemoryMax=700M`. If the relay is OOM-killed, raise the limit and investigate connection counts via `journalctl -u hnch-relay`.
-- **Caddy logs.** `journalctl -u caddy -f`. JSON-formatted (see `Caddyfile`); pipe through `jq` for filtering.
-- **Relay logs.** `journalctl -u hnch-relay -f`.
-- **Cert renewal.** Caddy handles this automatically. Verify with `caddy environ` on the VPS or check `/var/lib/caddy/.local/share/caddy/certificates/`.
-- **No abuse mitigation.** Per ADR-0029, rate limiting / IP throttling is deferred. If traffic warrants, add a `rate_limit` directive in the Caddyfile and write a follow-up ADR.
+Production hosting is on Cloudflare (`hnch-web` and `hnch-relay`, [ADR-0051](../adr/0051-cloudflare-hosting.md)) and needs no files here; see [`docs/deployment.md`](../docs/deployment.md). The IONOS VPS files (Caddyfile, systemd unit, bootstrap script, deploy key) were removed by [ADR-0054](../adr/0054-vps-decommission.md); git history has them.
 
 ## Self-hosted runner pool
 
@@ -197,7 +35,7 @@ Runners are repo-scoped and labelled `self-hosted,linux,arm64,hnch-podman`; slot
 | `infra/runner/dev.hnch.runner.plist` | LaunchAgent for the supervisor (RunAtLoad, KeepAlive, ThrottleInterval=30) |
 | `infra/runner/prune.sh` | Weekly cache eviction script (per-runner pnpm stores, image prune, log truncation, disk-low alarm) |
 | `infra/runner/dev.hnch.runner-prune.plist` | LaunchAgent that fires `prune.sh` Sunday 04:00 |
-| `.github/workflows/runner-health.yml` | Hourly `ubuntu-latest` cron — fails if ≥1 `hnch-podman` runner is not online |
+| `.github/workflows/runner-health.yml` | Every-6-h `ubuntu-latest` cron — fails if no `hnch-podman` runner is online, or no online one carries `e2e` (slot 1) |
 
 ### Worktree-independent install location
 
@@ -279,7 +117,7 @@ After editing `supervisor.sh` or `prune.sh` in the repo, re-run `bash infra/runn
 
 ### Runner targeting
 
-Every Linux CI/CD job hardcodes `runs-on: [self-hosted, linux, arm64, hnch-podman]`, plus `e2e` on Playwright jobs (see [E2E slot](#e2e-slot)) ([ADR-0049](../adr/0049-self-hosted-runner-pool-current-state-consolidation.md), [ADR-0052](../adr/0052-single-e2e-runner-slot.md)). There is no `vars.LINUX_RUNNER` toggle and no `ubuntu-latest` fallback — a dead pool queues jobs until the host is back. `runner-health.yml` stays on `ubuntu-latest` as the dead-man's-switch and raises an alarm within the hour when the pool is down.
+Every Linux CI/CD job hardcodes `runs-on: [self-hosted, linux, arm64, hnch-podman]`, plus `e2e` on Playwright jobs (see [E2E slot](#e2e-slot)) ([ADR-0049](../adr/0049-self-hosted-runner-pool-current-state-consolidation.md), [ADR-0052](../adr/0052-single-e2e-runner-slot.md)). There is no `vars.LINUX_RUNNER` toggle and no `ubuntu-latest` fallback — a dead pool queues jobs until the host is back. `runner-health.yml` stays on `ubuntu-latest` as the dead-man's-switch and raises an alarm within 6 h when the pool or the e2e slot is down.
 
 ### E2E slot
 
@@ -288,7 +126,7 @@ All pool containers share one podman VM (8 vCPU / 10 GiB) and nothing caps a con
 - `supervisor.sh` registers slot 1 (`hnch-runner-1-<epoch>`) with labels `self-hosted,linux,arm64,hnch-podman,e2e`; every other slot gets the base four. The label is re-applied on each ephemeral re-registration and on every supervisor restart, and slot 1 exists at any `POOL_SIZE`.
 - Jobs that run Playwright target `runs-on: [self-hosted, linux, arm64, hnch-podman, e2e]`: `ci.yml` `e2e` and `screenshots-main.yml` `refresh`. A new workflow that runs Playwright must add `e2e` too.
 - Other jobs still land on slot 1. An e2e job waits for slot 1 to finish its current job (verify ≤3 min, deploy/release ≤10 min), then for any Playwright job ahead of it (~5–8 min each). `timeout-minutes` counts from job start, so queue time doesn't eat into it; GitHub cancels a self-hosted job only after 24 h queued.
-- Slot 1 down while the rest of the pool is up: e2e jobs show "Waiting for a runner to pick up this job" and `runner-health.yml` stays green (it checks `hnch-podman` only). Check with `gh api repos/IIxauII/hnch/actions/runners --jq '.runners[] | select(.status=="online") | {name, labels: [.labels[].name]}'` and expect one `hnch-runner-1-*` carrying `e2e`.
+- Slot 1 down while the rest of the pool is up: e2e jobs show "Waiting for a runner to pick up this job", and the next `runner-health.yml` run (every 6 h) fails with "No online hnch-podman runner carries the e2e label". Check with `gh api repos/IIxauII/hnch/actions/runners --jq '.runners[] | select(.status=="online") | {name, labels: [.labels[].name]}'` and expect one `hnch-runner-1-*` carrying `e2e`.
 - Rollout order for label changes: host first, workflows second. Install the supervisor and restart the pool so slot 1 carries `e2e` (an extra label is harmless to jobs that don't ask for it) **before pushing the PR** that adds the label to a workflow: a `ci.yml` change makes detect-changes force e2e, and a `pull_request` run uses the PR's own `ci.yml`, so that PR's e2e job already needs the label. Confirm with the `gh api …/runners` check above that an online `hnch-runner-1-*` carries `e2e`, then push. The reverse order queues every e2e job until the host catches up.
 - Rollback: revert the workflows first (merge the revert), then reinstall the old supervisor and restart the pool. The reverse order strands e2e jobs waiting for a runner that no longer exists.
 - This removes Playwright-vs-Playwright contention only: other slots still run verify lanes, `ng build`, wrangler dry-runs and deploy/release builds on the same 8 vCPUs while e2e runs (at most one other job at `POOL_SIZE=2`, up to three at 4).
@@ -383,7 +221,7 @@ Record the result here for posterity:
 
 ### Health check
 
-`.github/workflows/runner-health.yml` runs hourly on `ubuntu-latest` (~24 min/mo billable). It calls `gh api /repos/.../actions/runners` and fails if zero runners with the `hnch-podman` label are online. Failure → GitHub email notification. Manual trigger: `gh workflow run runner-health.yml`.
+`.github/workflows/runner-health.yml` runs every 6 h on `ubuntu-latest` (cron `0 */6 * * *`, ~120 runs/mo, each billed as 1 min, so ~120 min/mo billable). It calls `gh api /repos/.../actions/runners` and fails, with one `::error::` per check, if zero runners with the `hnch-podman` label are online, or if no online `hnch-podman` runner carries the `e2e` label (the single e2e slot, see [E2E slot](#e2e-slot)). Runners are ephemeral and re-register 10-30 s after each job, so a miss gets one second look 60 s later before it fails (that run bills 2 min). Failure → GitHub email notification. Manual trigger: `gh workflow run runner-health.yml`.
 
 The workflow needs `Administration: read` to list runners. The default `GITHUB_TOKEN` cannot be granted that scope (GitHub caps `GITHUB_TOKEN` permissions and the `permissions:` block cannot escalate beyond the cap). Therefore the workflow uses a separate fine-grained PAT stored as the repo secret `RUNNER_HEALTH_PAT`. If the secret is missing, the workflow logs a warning and exits 0 — never fails the run, never spams email.
 

@@ -50,6 +50,8 @@ export class Peer {
   closeEvent: { code: number; reason: string } | null = null;
   /** Whether the relay's answer to this peer's sync-step-1 (its whole doc) has arrived. */
   isSynced = false;
+  /** Set by this peer's own `close()`; `send` drops frames from then on. */
+  private closing = false;
 
   private constructor(
     readonly ws: WebSocket,
@@ -102,7 +104,15 @@ export class Peer {
     return peer;
   }
 
+  /**
+   * Sends a frame. After this peer's own `close()` it drops it, as a browser
+   * or Node's `ws` does. workerd's send() throws instead, and a throw from the
+   * message listener (answering the relay's sync-step-1 after `close()`) fails
+   * the socket: its close event never fires. Only the peer's own close counts:
+   * a send after the relay closed the socket still throws, loudly.
+   */
   send(frame: Uint8Array): void {
+    if (this.closing) return;
     this.ws.send(frame);
   }
 
@@ -135,6 +145,7 @@ export class Peer {
   }
 
   close(code = 1000): void {
+    this.closing = true;
     this.ws.close(code, 'bye');
   }
 

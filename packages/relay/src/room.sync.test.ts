@@ -5,6 +5,7 @@
 import { env } from 'cloudflare:workers';
 import { evictDurableObject, runInDurableObject } from 'cloudflare:test';
 import { afterEach, describe, expect, it } from 'vitest';
+import type * as Y from 'yjs';
 import { PRESENCE_TIMEOUT_MS } from './presence';
 import { Room } from './room';
 import { Peer, createRoom, eventually, restoreClock, setNow, upgrade } from './test-support/peer';
@@ -14,9 +15,48 @@ const settle = () => new Promise((r) => setTimeout(r, 50));
 
 /** What the tests reach inside a Room. */
 interface RoomInternals {
+  doc: Y.Doc | null;
   openSockets(): WebSocket[];
   presence: { clientIds(): number[] };
   socketIds: WeakMap<WebSocket, string>;
+}
+
+/** The room's doc title (null if no doc is loaded), and how many presence states it holds. */
+function heldBy(uuid: string) {
+  return runInDurableObject(roomStub(uuid), (room) => {
+    const internals = room as unknown as RoomInternals;
+    return {
+      title: internals.doc?.getMap('round').get('title') ?? null,
+      owners: internals.presence.clientIds().length,
+    };
+  });
+}
+
+/** Rows of doc content the room has written (log plus snapshot). */
+function storedRows(uuid: string) {
+  return runInDurableObject(roomStub(uuid), (_room, state) =>
+    ['log', 'snapshot']
+      .map((t) => state.storage.sql.exec<{ n: number }>(`SELECT COUNT(*) AS n FROM ${t}`).one().n)
+      .reduce((a, b) => a + b, 0),
+  );
+}
+
+/** When the room last saw each held state renewed, from the peers' attachments. */
+function renewedAt(uuid: string) {
+  return runInDurableObject(roomStub(uuid), (room) =>
+    (room as unknown as RoomInternals)
+      .openSockets()
+      .flatMap((ws) =>
+        (ws.deserializeAttachment() as { presence: { updatedAt: number }[] }).presence.map(
+          (e) => e.updatedAt,
+        ),
+      ),
+  );
+}
+
+/** Waits for the opening presence frame a fresh socket is sent. */
+function openingPresence(peer: Peer) {
+  return eventually(() => expect(peer.frames.some((f) => f.type === 'awareness')).toBe(true));
 }
 
 /** How many presence states the room holds. */
@@ -101,10 +141,10 @@ describe('joining a room', () => {
     const member = await Peer.join(uuid, `?pw=${HASH}`);
     member.announce({ participantId: 'member' });
     member.doc.getMap('round').set('title', 'Login page');
-    await eventually(() =>
-      expect(member.frames.filter((f) => f.type === 'awareness').length).toBeGreaterThan(0),
+    // The room holds both, so the checks below have something to leak.
+    await eventually(async () =>
+      expect(await heldBy(uuid)).toEqual({ title: 'Login page', owners: 1 }),
     );
-    await settle();
 
     // Join (which sends sync-step-1), then at once presence and an edit,
     // before the refusal's close arrives or is answered.
@@ -271,9 +311,10 @@ describe('sync', () => {
     const { uuid } = await createRoom();
     const alice = await Peer.join(uuid);
     alice.doc.getArray('votes').push(['3', '5', '8']);
-    await new Promise((r) => setTimeout(r, 50));
     alice.close();
     await alice.closed();
+    // The room writes the doc once it has handled the close of its last socket.
+    await eventually(async () => expect(await storedRows(uuid)).toBeGreaterThan(0));
 
     const bob = await Peer.join(uuid);
     await eventually(() => expect(bob.doc.getArray('votes').toArray()).toEqual(['3', '5', '8']));
@@ -283,9 +324,11 @@ describe('sync', () => {
     const { uuid } = await createRoom();
     const alice = await Peer.join(uuid);
     alice.doc.getMap('round').set('title', 'Checkout');
-    await new Promise((r) => setTimeout(r, 50));
     alice.close();
     await alice.closed();
+    // Written once the room has handled the close of its last socket; the
+    // eviction would drop anything still only in memory.
+    await eventually(async () => expect(await storedRows(uuid)).toBeGreaterThan(0));
 
     await evictDurableObject(roomStub(uuid));
     const bob = await Peer.join(uuid);
@@ -342,7 +385,7 @@ describe('presence', () => {
     const { uuid } = await createRoom();
     const alice = await Peer.join(uuid);
     alice.announce({ participantId: 'p-alice' });
-    await new Promise((r) => setTimeout(r, 50));
+    await eventually(async () => expect((await heldBy(uuid)).owners).toBe(1));
 
     const bob = await Peer.join(uuid);
     await eventually(() => expect(bob.participants()).toEqual(['p-alice']));
@@ -373,7 +416,7 @@ describe('presence', () => {
 
     await eventually(() => expect(bob.participants()).toEqual([]));
     const carol = await Peer.join(uuid);
-    await new Promise((r) => setTimeout(r, 50));
+    await openingPresence(carol);
     expect(carol.participants()).toEqual([]);
   });
 
@@ -399,7 +442,7 @@ describe('presence', () => {
     const { uuid } = await createRoom();
     const alice = await Peer.join(uuid);
     alice.announce({ participantId: 'p-alice' });
-    await new Promise((r) => setTimeout(r, 50));
+    await eventually(async () => expect((await heldBy(uuid)).owners).toBe(1));
 
     await evictDurableObject(roomStub(uuid));
 
@@ -421,7 +464,7 @@ describe('presence', () => {
 
     setNow(start + PRESENCE_TIMEOUT_MS);
     const carol = await Peer.join(uuid);
-    await new Promise((r) => setTimeout(r, 50));
+    await openingPresence(carol);
 
     expect(carol.participants()).toEqual([]);
     // The expiry reaches the peers that held it, too.
@@ -434,11 +477,11 @@ describe('presence', () => {
     const { uuid } = await createRoom();
     const alice = await Peer.join(uuid);
     alice.announce({ participantId: 'p-alice' });
-    await new Promise((r) => setTimeout(r, 50));
+    await eventually(async () => expect(await renewedAt(uuid)).toEqual([start]));
 
     setNow(start + 15_000);
     alice.announce({ participantId: 'p-alice' });
-    await new Promise((r) => setTimeout(r, 50));
+    await eventually(async () => expect(await renewedAt(uuid)).toEqual([start + 15_000]));
     setNow(start + 40_000);
 
     const bob = await Peer.join(uuid);

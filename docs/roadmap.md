@@ -238,7 +238,7 @@ These apply across phases; flagging them once here saves repeating per phase.
 
 **Logging.** Client: `console.debug` gated behind a boot-time flag. Relay: plain `console.log` with a small structured prefix; no log framework in v1.
 
-**Deploy.** Relay and PWA both ship to a single IONOS VPS fronted by Caddy on `hnch.dev` (ADR-0029). Operational details — first-time bootstrap, deploy flow, cache rules, rollback — live in [`infra/README.md`](../infra/README.md). TestFlight (iOS) + Play Internal (Android) distribution land with the native rollout in [`plans/native-deployment.md`](plans/native-deployment.md).
+**Deploy.** Relay and PWA ship to Cloudflare on `hnch.dev`: Worker + Durable Objects `hnch-relay` and Workers Static Assets `hnch-web` (ADR-0051). The IONOS VPS of ADR-0029 gets no deploys and is shut down after the switch (ADR-0054). Operational details — deploy flow, cache rules, rollback — live in [`deployment.md`](deployment.md). TestFlight (iOS) + Play Internal (Android) distribution land with the native rollout in [`plans/native-deployment.md`](plans/native-deployment.md).
 
 **ADR hygiene.** Any phase that discovers the architecture is under-specified writes a new ADR *before* the code that depends on it. The current roadmap flags two likely candidates: the ADR-0009 connection handshake (Phase 3) and the access-control wire details (Phase 5).
 

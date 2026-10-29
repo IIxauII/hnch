@@ -19,9 +19,9 @@ ARG RUNNER_SHA256=58b758e420b87093fbd4bfddd368074960053e2f1388f01848c82624b90f27
 # it, release.yml exits 127 on the self-hosted pool. Hosted ubuntu-latest
 # bakes gh in by default; we replicate that here from cli.github.com's
 # signed apt repo.
-# `openssh-client` provides ssh, scp, and ssh-keyscan, used by both
-# deploy-*.yml workflows to ship tarballs and activate releases on the
-# IONOS VPS. Hosted ubuntu-latest includes openssh-client by default.
+# `openssh-client` provides ssh, scp, and ssh-keyscan. Unused since
+# ADR-0054 removed the VPS deploys; drop it with the post-switch cleanup
+# (docs/plans/cloudflare-hosting.md, Phase 3).
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
