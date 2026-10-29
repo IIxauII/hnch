@@ -551,9 +551,9 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
     - `docs/roadmap.md:241`.
     - `packages/client/src/environments/environment.prod.ts`: comment only.
     - `adr/0029` status note.
-  - **Post-switch: VPS decommission ([ADR-0054](../../adr/0054-vps-decommission.md)).** Owner runs these once the post-switch checks pass; none is done yet:
-    - [ ] with the apex proxied (never before the switch), repoint the Cloudflare A/AAAA records of `hnch.dev` and `www` from the VPS IP to a placeholder origin, `192.0.2.1` / `100::`, proxied, so a reassigned IP never serves `hnch.dev`. The IONOS zone is already empty;
-    - [ ] shut down the VPS (`hnch-vps`);
+  - **Post-switch: VPS decommission ([ADR-0054](../../adr/0054-vps-decommission.md)).** Owner runs these once the post-switch checks pass. *(2026-10-29: the VPS was shut down and deleted before the switch, so `hnch.dev` was down until the records were proxied; the records were repointed at the switch.)*
+    - [x] with the apex proxied (never before the switch), repoint the Cloudflare A/AAAA records of `hnch.dev` and `www` from the VPS IP to a placeholder origin, `192.0.2.1` / `100::`, proxied, so a reassigned IP never serves `hnch.dev`. The IONOS zone is already empty;
+    - [x] shut down the VPS (`hnch-vps`);
     - the repo secrets `VPS_HOST`, `VPS_SSH_KEY` and `VPS_USER` are already gone: deleted at the ADR-0054 merge;
     - [ ] before cancelling the IONOS contract, check whether the `hnch.dev` registration is bundled with it; the registration must survive;
     - [ ] optional: drop `openssh-client` from `infra/runner/Dockerfile`, installed only for the VPS deploys.
