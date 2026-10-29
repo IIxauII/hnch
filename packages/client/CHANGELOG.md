@@ -1,3 +1,10 @@
+# [1.46.0](https://github.com/IIxauII/hnch/compare/client-v1.45.1...client-v1.46.0) (2026-10-29)
+
+
+### Features
+
+* **client:** replace logo with the Hump mark and add favicon.ico ([#538](https://github.com/IIxauII/hnch/issues/538)) ([683f3db](https://github.com/IIxauII/hnch/commit/683f3db2be5b80aa15417be5615dc1e254c53c78))
+
 ## [1.45.1](https://github.com/IIxauII/hnch/compare/client-v1.45.0...client-v1.45.1) (2026-10-28)
 
 
