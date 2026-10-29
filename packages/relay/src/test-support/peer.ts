@@ -143,7 +143,7 @@ export class Peer {
    * peer's sync-step-1, as y-websocket's `synced`. Read the doc after this, not
    * after a fixed wait: the answer may take any time to arrive.
    */
-  async synced(timeout = 5_000): Promise<void> {
+  async synced(timeout = 3_000): Promise<void> {
     await vi.waitFor(
       () => {
         if (!this.isSynced) throw new Error('not synced yet');

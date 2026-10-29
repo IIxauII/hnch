@@ -194,7 +194,7 @@ describe('compaction', () => {
     for (const chunk of snapshot) expect(chunk).toBeLessThanOrEqual(SNAPSHOT_CHUNK_BYTES);
 
     const carol = await reloaded(uuid);
-    await eventually(() => expect(carol.doc.getText('notes').length).toBe(size));
+    expect(carol.doc.getText('notes').length).toBe(size);
   });
 });
 
