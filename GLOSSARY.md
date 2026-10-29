@@ -1,4 +1,4 @@
-# hnch — Context
+# hnch — Glossary
 
 Shared vocabulary for hnch's domain. Architecture vocabulary (module, interface, seam, depth) lives in the team's review conventions; this file names the *domain* concepts so code, docs, and reviews use one word per thing.
 
