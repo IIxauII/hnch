@@ -17,23 +17,26 @@ import { startTestRelay, type TestRelay } from '@hnch/relay/testing';
 import { createSession, joinSession, openSession, type SessionHandle } from './session.js';
 import { FIBONACCI_SCALE, isActiveParticipant, TSHIRT_SCALE, type SyncStatus } from '@hnch/shared';
 
-let relay: TestRelay;
+let relay: TestRelay | undefined;
 let relayPort: string;
 /** The relay as the host reaches it. */
 let relayUrl: string;
 /** The relay under another name, for a second peer. */
 let otherRelayUrl: string;
 
+// The harness waits up to 30 s for workerd to come up; a loaded CI runner
+// needs more than vitest's 10 s hook default. Same budget as the relay's own.
 beforeAll(async () => {
   relay = await startTestRelay();
   relayPort = new URL(relay.httpUrl).port;
   if (relayPort === '') throw new Error(`test relay URL has no port: ${relay.httpUrl}`);
   relayUrl = relay.httpUrl;
   otherRelayUrl = `http://127.0.0.1:${relayPort}`;
-});
+}, 60_000);
 
 afterAll(async () => {
-  await relay.stop();
+  // Unset when the relay failed to start: let that error stand alone.
+  await relay?.stop();
 });
 
 /** Wait timeout for cross-client CRDT propagation over a local loopback relay. */

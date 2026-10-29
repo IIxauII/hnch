@@ -56,17 +56,20 @@ const SYNC_TIMEOUT = 8_000;
 // 5 s debounce for real.
 vi.setConfig({ testTimeout: 20_000 });
 
-let relay: TestRelay;
+let relay: TestRelay | undefined;
 let relayPort: string;
 
+// The harness waits up to 30 s for workerd to come up; a loaded CI runner
+// needs more than vitest's 10 s hook default. Same budget as the relay's own.
 beforeAll(async () => {
   relay = await startTestRelay();
   relayPort = new URL(relay.httpUrl).port;
   if (relayPort === '') throw new Error(`test relay URL has no port: ${relay.httpUrl}`);
-});
+}, 60_000);
 
 afterAll(async () => {
-  await relay.stop();
+  // Unset when the relay failed to start: let that error stand alone.
+  await relay?.stop();
 });
 
 /**
