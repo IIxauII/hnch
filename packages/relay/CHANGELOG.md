@@ -1,3 +1,10 @@
+## [1.3.1](https://github.com/IIxauII/hnch/compare/relay-v1.3.0...relay-v1.3.1) (2026-10-29)
+
+
+### Bug Fixes
+
+* **relay:** accept refused joins as tagged hibernatable sockets ([#570](https://github.com/IIxauII/hnch/issues/570)) ([97aa3ac](https://github.com/IIxauII/hnch/commit/97aa3ac649c57fdbf3191164b3b11e35f587cb5d))
+
 # [1.3.0](https://github.com/IIxauII/hnch/compare/relay-v1.2.1...relay-v1.3.0) (2026-10-29)
 
 
