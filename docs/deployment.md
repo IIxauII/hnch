@@ -120,7 +120,7 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z
 - **Tags and messages.** The `hnch-web` version is tagged `client-vX.Y.Z` only when the deployed commit is that release tag's commit; any other commit deploys untagged. Every version's message names the full commit SHA, and `verify` checks the version id `wrangler deploy` just uploaded (from `WRANGLER_OUTPUT_FILE_PATH`) is the one serving, so a re-dispatch can't pass on an earlier upload.
 - **Cold installs.** The `build` and `web` jobs don't use the runner pool's shared caches (the pnpm store and `node_modules` snapshots under `/cache`), which PR CI can write. Each runs `pnpm install --frozen-lockfile --ignore-scripts --store-dir "${RUNNER_TEMP}/pnpm-store"` into a fresh store, so pnpm checks every package against the lockfile; `build` filters to `@hnch/client...`, `web` to `@hnch/client` (pnpm still installs the workspace root's packages). Node is the runner image's, and pnpm's version comes from `packageManager` through Corepack.
 - **A client release never touches the relay.** In G0 (2026-10-28) relay sockets held for 300 s across a web redeploy with 0 closes.
-- **Rollback.** `hnch-web` has no Durable Objects, so both ways work: `wrangler rollback` (instant, no rebuild), or a dispatch of an older `client-v*` tag.
+- **Rollback.** `wrangler rollback` (instant, no rebuild; `hnch-web` has no Durable Objects). A dispatch of an older `client-v*` tag also works, but only for a tag cut after [ADR-0054](../adr/0054-vps-decommission.md). **Never re-dispatch a pre-ADR-0054 tag (≤ `client-v1.46.0`):** a dispatch runs the workflow at that tag, which ships only to the VPS, and the `VPS_*` secrets are live until after the switch.
 
   ```sh
   pnpm --filter @hnch/client exec wrangler deployments list
@@ -170,7 +170,9 @@ pnpm --filter @hnch/client exec wrangler deploy --dry-run
 - **Don't tail production, and don't add rules on `/ws/*`.** WebSocket URLs carry the room password hash as `?pw=`. `wrangler tail` and the dashboard's real-time logs show request URLs whatever `invocation_logs` says, and a WAF or rate-limit rule matching `/ws/*` would record the full URI in Security Events.
 - **Relay deployments:** `pnpm --filter @hnch/relay exec wrangler deployments list`.
 - **PWA deployments:** `pnpm --filter @hnch/client exec wrangler deployments list`. `hnch-web` runs no Worker code, so it has no logs.
-- **VPS until the switch:** frozen (PWA `client-v1.46.0`, relay `1.2.1`) and never deployed to. A fix reaches users only through the switch. TLS or routing trouble: `ssh hnch-vps 'journalctl -u caddy -f'`.
+- **VPS until the switch:** frozen (PWA `client-v1.46.0`, relay `1.2.1`) and never deployed to. A fix reaches users only through the switch. It still runs production:
+  - relay: `ssh hnch-vps 'journalctl -u hnch-relay -f'`; restart with `ssh hnch-vps 'sudo systemctl restart hnch-relay'` (drops every room, RAM only). The unit sets `MemoryMax=700M`; if the relay is OOM-killed, check connection counts in the journal.
+  - Caddy (TLS, routing): `ssh hnch-vps 'journalctl -u caddy -f'`; cert issues: `journalctl -u caddy --since '1h ago' | grep -i acme`, certs under `/var/lib/caddy/.local/share/caddy/certificates/`.
 - **VPS after the switch:** decommissioned per the post-switch checklist in the plan's [Phase 3](plans/cloudflare-hosting.md#phase-3-cutover-owner-switch--docs-pr) ([ADR-0054](../adr/0054-vps-decommission.md)).
 
 ## Known limitations

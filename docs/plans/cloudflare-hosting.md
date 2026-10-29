@@ -283,7 +283,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
 3. **Switch:**
    - set the apex A and AAAA records to **proxied** (`www` already is);
    - set `HNCH_LIVE=true`;
-   - re-dispatch both deploy jobs (relay at its latest tag; client at its latest tag; the `targets` input is gone since ADR-0054) to run the gated smokes.
+   - re-dispatch both deploy jobs to run the gated smokes: relay at its latest tag; client on `main` or a client tag cut after the ADR-0054 merge. Never a pre-ADR-0054 client tag (≤ `client-v1.46.0`): its workflow ships only to the VPS.
 4. **Verify on `hnch.dev` and fix forward:** run the Phase 3 checklist. Problems are fixed by releases.
 5. **During propagation:**
    - Resolvers that cached the old A record reach the VPS until the TTL runs out.
@@ -303,7 +303,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
     - Routes deploy early and stay inert while DNS-only. The cutover is one full switch: proxy the apex records.
     - No `next` proving ground; test on `hnch.dev` and fix forward.
     - Replace the "Custom Domain" wording.
-  - **b. VPS:** stays untouched and idle. Decommissioning is out of scope. Un-proxying the records is an incidental rollback; rooms created on Cloudflare are lost on it. Sockets already open to the VPS stay until they reconnect. The VPS relay is frozen at 1.2.1. Reopened 2026-10-29: the VPS is removed by a new ADR (see [Decisions resolved](#decisions-resolved)).
+  - **b. VPS:** stays untouched and idle. Decommissioning is out of scope. Un-proxying the records is an incidental rollback; rooms created on Cloudflare are lost on it. Sockets already open to the VPS stay until they reconnect. The VPS relay is frozen at 1.2.1. Reopened 2026-10-29: the VPS is removed by a new ADR (see [Decisions resolved](#decisions-resolved)). *(Superseded by ADR-0054.)*
   - **c. "B sees A leave":** reword the "blocks the e2e criterion" line as a pre-existing finding seen only in the smoke test, tracked in #542 (related #531).
   - **d. Test vars:** `.dev.vars` → `scripts/dev.mjs` passes them per invocation.
   - **e. Keepalive:** the requirement (ADR-0050 conformance), the piggyback mechanism, the hidden-tab residual measured after the switch, and the pre-agreed alarm fallback.
@@ -328,7 +328,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
   - **r. Binding limit:** DO duration (about 29 occupied room-hours/day) replaces "≈ 400 peer-hours/day" as the headline figure.
   - **s. ADR-0049:** ADR-0051's cross-arch caveat and ADR-0053's pool-size caveat share one parenthetical and one index cell (ADR-0052 only refines targeting). Consolidating 0049 forward is not done yet (see ADR-0049 below).
   - **t. Edge behaviour:** Always Use HTTPS on (parity with Caddy's redirect), and a `www` → apex 301 redirect rule (live since Phase 0; it fixed #543, the pre-existing `www` TLS failure).
-- **ADR-0029:** superseded by ADR-0051, flipped in 1b. Optional status note at the switch: "VPS left idle, not decommissioned (owner, 2026-10-28)". Reopened 2026-10-29: the VPS is removed (see [Decisions resolved](#decisions-resolved)), so this note no longer applies.
+- **ADR-0029:** superseded by ADR-0051, flipped in 1b. Optional status note at the switch: "VPS decommission: see ADR-0054". Reopened 2026-10-29: the VPS is removed (see [Decisions resolved](#decisions-resolved)), so the earlier note "VPS left idle, not decommissioned (owner, 2026-10-28)" no longer applies.
 - **ADR-0012:** storage clause superseded by ADR-0051; TTL, keying and content-blindness hold.
 - **ADR-0049:**
   - Its cross-arch clause is superseded by ADR-0051 and its pool-size clause by ADR-0053 (ADR-0052 as merged only refines targeting).
@@ -370,7 +370,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
   - **D7 A:** ADR-0051 is accepted before the 1b merge.
   - **D8 A:** 1b is atomic.
   - **D9 A:** the relay goes to Cloudflare only from 1b.
-  - **D10 A:** the client deploys to both the VPS and `hnch-web`, with a `targets` input. Reopened 2026-10-29: the VPS target goes (see the VPS entry below).
+  - **D10 A:** the client deploys to both the VPS and `hnch-web`, with a `targets` input. Reopened 2026-10-29: the VPS target goes (see the VPS entry below). *(Superseded by ADR-0054.)*
   - **D13 A:** splat rules in `_headers`, plus a hash guard.
   - **D14 A:** a repo-secret token used by the deploy jobs only.
   - Keepalive by piggyback, plus the hidden-tab measurement and the alarm fallback.
@@ -548,10 +548,10 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
     - `packages/client/src/environments/environment.prod.ts`: comment only.
     - `adr/0029` status note.
   - **Post-switch: VPS decommission ([ADR-0054](../../adr/0054-vps-decommission.md)).** Owner runs these once the post-switch checks pass; none is done yet:
+    - [ ] with the apex proxied (never before the switch), repoint the Cloudflare A/AAAA records of `hnch.dev` and `www` from the VPS IP to a placeholder origin, `192.0.2.1` / `100::`, proxied, so a reassigned IP never serves `hnch.dev`. The IONOS zone is already empty;
     - [ ] shut down the VPS (`hnch-vps`);
     - [ ] delete the repo secrets `VPS_HOST`, `VPS_SSH_KEY` and `VPS_USER` (`gh secret delete <name>`);
     - [ ] before cancelling the IONOS contract, check whether the `hnch.dev` registration is bundled with it; the registration must survive;
-    - [ ] remove the IONOS DNS entries left for `hnch.dev` (the zone itself is served by Cloudflare);
     - [ ] optional: drop `openssh-client` from `infra/runner/Dockerfile`, installed only for the VPS deploys.
   - **Issues:** #542 ("B sees A leave": a cleanly disconnected peer stays present until the 30 s awareness timeout; related #531) stays open as a separate bug. #543 (`www` TLS) was fixed in Phase 0 by the redirect.
 - **Exit bar:**

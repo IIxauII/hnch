@@ -65,7 +65,7 @@ A PR that touches multiple packages MUST list every scope it touches, comma-sepa
 feat(client,shared): add new vote payload field
 fix(relay,shared): correct snapshot TTL calculation
 feat(client,cli,shared)!: drop legacy join URL
-chore(ci,infra): bump runner image base
+chore(ci,docs): bump runner image base and document it
 ```
 
 Rules:

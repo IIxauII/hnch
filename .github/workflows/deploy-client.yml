@@ -67,7 +67,7 @@ jobs:
             --filter '@hnch/client...'
 
       - name: Build metadata
-        # The deploy jobs check out this exact commit, even if `ref` is a
+        # The web job checks out this exact commit, even if `ref` is a
         # branch that moves while the build runs. `tag` is client-vX.Y.Z only
         # when this commit is that release tag's commit (checkout fetches the
         # tag only when `ref` names it); an unreleased commit deploys untagged.
