@@ -76,6 +76,9 @@ describe('configProblems', () => {
       configProblems({ ...prod, routes: [{ pattern: 'hnch.dev/*', zone_name: 'hnch.dev' }] }),
     ).toHaveLength(1);
     expect(
+      configProblems({ ...prod, routes: [{ pattern: 'hnch.dev/*', zone_id: '' }] }),
+    ).toHaveLength(1);
+    expect(
       configProblems({
         ...prod,
         routes: [{ pattern: 'hnch.dev', zone_id: ZONE, custom_domain: true }],
@@ -179,6 +182,10 @@ describe('deployedVersionProblems', () => {
         tag: '',
       }),
     ).toEqual([]);
+  });
+
+  it('refuses a script that was never deployed (no live versions)', () => {
+    expect(deployedVersionProblems([], expected)).toEqual([expect.stringContaining('is not live')]);
   });
 
   it('refuses a reused tag whose live version is an earlier upload', () => {
