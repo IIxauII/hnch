@@ -3,9 +3,9 @@ import { APP_VERSION } from './version';
 /**
  * Production environment config.
  *
- * Relay is hosted at hnch.dev per ADR-0029 (single-origin: PWA + relay on
- * one VPS, fronted by Caddy with auto-TLS). Caddy routes /rooms* and /ws*
- * to the relay on 127.0.0.1:1234; everything else is served as static PWA.
+ * Single origin hnch.dev on Cloudflare (ADR-0051): Worker routes send
+ * /health*, /rooms* and /ws/* to the relay (hnch-relay); everything else is
+ * the static PWA (hnch-web). See docs/deployment.md.
  */
 export const environment = {
   production: true,

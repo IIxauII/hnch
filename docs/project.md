@@ -116,7 +116,7 @@ Hard cap of 20 participants per session — more than enough for any real planni
 
 A session is **ephemeral — one session per estimation meeting**. It contains participants, rounds, votes, and history for that meeting. Reloads, network blips, and brief disconnects all rehydrate cleanly: connected clients hold the canonical state, and each client persists its own copy to local storage (IndexedDB for PWA, Capawesome SQLite on native).
 
-When the *last* peer disconnects from a room, the relay retains the session's opaque CRDT state in memory for **24 hours** (see *Ephemeral Room Snapshots* under Networking). A peer returning within that window rehydrates the session even if nobody else is online. After 24 hours with no connections, the snapshot is discarded and the session is gone — its code is released back to the pool.
+When the *last* peer disconnects from a room, the relay keeps the session's opaque CRDT state for **24 hours** (see *Ephemeral Room Snapshots* under Networking). A peer returning within that window rehydrates the session even if nobody else is online. After 24 hours with no connections (deletion lands 24–25 h after the last peer left), the stored state is deleted and the session is gone — its code is released back to the pool.
 
 Teams (see *Identity*) are a separate, local-only concept that persists on the user's device indefinitely; they exist independently of any session lifecycle.
 
@@ -124,18 +124,18 @@ Teams (see *Identity*) are a separate, local-only concept that persists on the u
 
 ### Sync Transport
 
-- **Primary (and only supported path)** — y-websocket relay via self-hosted Node server. Cross-platform reliable, works through corporate firewalls, no NAT traversal headaches.
+- **Primary (and only supported path)** — y-websocket relay, hosted on Cloudflare Workers and Durable Objects ([ADR-0051](../adr/0051-cloudflare-hosting.md)). Cross-platform reliable, works through corporate firewalls, no NAT traversal headaches.
 - **Local/same-network** (v2) — Bluetooth, multipeer connectivity, mDNS, NFC for fully serverless in-person use. Deferred.
 
 Direct WebRTC peer-to-peer data channels were considered and dropped from the roadmap. The latency benefit over a relay is imperceptible for the message sizes and human-paced interactions involved in planning poker, while the costs (TURN server operation, NAT traversal complexity, iOS WKWebView unreliability, mesh connection overhead) are real. The relay handles all sync.
 
 ### Relay Server
 
-Lightweight self-hosted y-websocket server that forwards Yjs CRDT sync messages between clients in the same room. **Content-blind** — it never inspects, parses, or persists vote data, user identity, or round metadata. Messages pass through as opaque binary CRDT updates.
+Lightweight y-websocket-protocol relay that forwards Yjs CRDT sync messages between clients in the same room. It runs as a Cloudflare Worker with one Durable Object per room. **Content-blind** — it never inspects or parses vote data, user identity, or round metadata. Messages pass through as opaque binary CRDT updates, and the relay stores them only as opaque bytes (see snapshots below).
 
-The relay holds a small amount of *access-control and routing* metadata per active room: the internal room UUID, the current room code pointing at it, optional password hash, and (when the room has gone empty) an in-memory snapshot. This is not session content — it is what the relay needs to do its job.
+The relay holds a small amount of *access-control and routing* metadata per room: the internal room UUID, the current room code pointing at it, and, for a password room, a digest of the password hash. This is not session content — it is what the relay needs to do its job.
 
-**Ephemeral room snapshots** — when a room goes empty, the relay retains the last Yjs state in memory, keyed by the internal room UUID, with a 24-hour TTL. Returning peers rehydrate from the snapshot even if no other client is currently connected. Snapshots are opaque CRDT blobs, not persisted to disk; a relay restart loses them (accepted v1 trade-off).
+**Ephemeral room snapshots** — the relay persists each room's Yjs state in Durable Object storage at Cloudflare, pinned to the EU, keyed by the internal room UUID. Writes are coalesced and flushed within 5 s, and the state survives relay deploys and restarts. When a room goes empty its state is kept for a 24-hour TTL, then deleted (24–25 h after the last peer left, since occupancy is checked hourly). Returning peers rehydrate from the stored state even if no other client is currently connected. The stored state is opaque CRDT bytes, but it holds what users typed (display names, votes, agenda titles), and Cloudflare can read it ([ADR-0051](../adr/0051-cloudflare-hosting.md) trade-offs).
 
 ### Network Partitions
 
@@ -171,7 +171,7 @@ Mobile-first design. Desktop adapts up. Target platforms: web browser, iOS, Andr
 | State/sync | Yjs |
 | Sync transport | y-websocket (relay) |
 | Local storage | Capawesome SQLite (native), IndexedDB (PWA) |
-| Relay server | y-websocket server, Node.js (self-hosted, content-blind) |
+| Relay server | y-websocket protocol on Cloudflare Workers + Durable Objects (content-blind) |
 | Platforms | PWA + iOS (Capacitor) + Android (Capacitor) |
 
 ## Status
