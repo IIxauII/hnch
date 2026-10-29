@@ -35,7 +35,7 @@ Runners are repo-scoped and labelled `self-hosted,linux,arm64,hnch-podman`; slot
 | `infra/runner/dev.hnch.runner.plist` | LaunchAgent for the supervisor (RunAtLoad, KeepAlive, ThrottleInterval=30) |
 | `infra/runner/prune.sh` | Weekly cache eviction script (per-runner pnpm stores, image prune, log truncation, disk-low alarm) |
 | `infra/runner/dev.hnch.runner-prune.plist` | LaunchAgent that fires `prune.sh` Sunday 04:00 |
-| `.github/workflows/runner-health.yml` | Hourly `ubuntu-latest` cron — fails if ≥1 `hnch-podman` runner is not online |
+| `.github/workflows/runner-health.yml` | Every-6-h `ubuntu-latest` cron — fails if no `hnch-podman` runner is online, or no online one carries `e2e` (slot 1) |
 
 ### Worktree-independent install location
 
@@ -117,7 +117,7 @@ After editing `supervisor.sh` or `prune.sh` in the repo, re-run `bash infra/runn
 
 ### Runner targeting
 
-Every Linux CI/CD job hardcodes `runs-on: [self-hosted, linux, arm64, hnch-podman]`, plus `e2e` on Playwright jobs (see [E2E slot](#e2e-slot)) ([ADR-0049](../adr/0049-self-hosted-runner-pool-current-state-consolidation.md), [ADR-0052](../adr/0052-single-e2e-runner-slot.md)). There is no `vars.LINUX_RUNNER` toggle and no `ubuntu-latest` fallback — a dead pool queues jobs until the host is back. `runner-health.yml` stays on `ubuntu-latest` as the dead-man's-switch and raises an alarm within the hour when the pool is down.
+Every Linux CI/CD job hardcodes `runs-on: [self-hosted, linux, arm64, hnch-podman]`, plus `e2e` on Playwright jobs (see [E2E slot](#e2e-slot)) ([ADR-0049](../adr/0049-self-hosted-runner-pool-current-state-consolidation.md), [ADR-0052](../adr/0052-single-e2e-runner-slot.md)). There is no `vars.LINUX_RUNNER` toggle and no `ubuntu-latest` fallback — a dead pool queues jobs until the host is back. `runner-health.yml` stays on `ubuntu-latest` as the dead-man's-switch and raises an alarm within 6 h when the pool or the e2e slot is down.
 
 ### E2E slot
 
@@ -126,7 +126,7 @@ All pool containers share one podman VM (8 vCPU / 10 GiB) and nothing caps a con
 - `supervisor.sh` registers slot 1 (`hnch-runner-1-<epoch>`) with labels `self-hosted,linux,arm64,hnch-podman,e2e`; every other slot gets the base four. The label is re-applied on each ephemeral re-registration and on every supervisor restart, and slot 1 exists at any `POOL_SIZE`.
 - Jobs that run Playwright target `runs-on: [self-hosted, linux, arm64, hnch-podman, e2e]`: `ci.yml` `e2e` and `screenshots-main.yml` `refresh`. A new workflow that runs Playwright must add `e2e` too.
 - Other jobs still land on slot 1. An e2e job waits for slot 1 to finish its current job (verify ≤3 min, deploy/release ≤10 min), then for any Playwright job ahead of it (~5–8 min each). `timeout-minutes` counts from job start, so queue time doesn't eat into it; GitHub cancels a self-hosted job only after 24 h queued.
-- Slot 1 down while the rest of the pool is up: e2e jobs show "Waiting for a runner to pick up this job" and `runner-health.yml` stays green (it checks `hnch-podman` only). Check with `gh api repos/IIxauII/hnch/actions/runners --jq '.runners[] | select(.status=="online") | {name, labels: [.labels[].name]}'` and expect one `hnch-runner-1-*` carrying `e2e`.
+- Slot 1 down while the rest of the pool is up: e2e jobs show "Waiting for a runner to pick up this job", and the next `runner-health.yml` run (every 6 h) fails with "No online hnch-podman runner carries the e2e label". Check with `gh api repos/IIxauII/hnch/actions/runners --jq '.runners[] | select(.status=="online") | {name, labels: [.labels[].name]}'` and expect one `hnch-runner-1-*` carrying `e2e`.
 - Rollout order for label changes: host first, workflows second. Install the supervisor and restart the pool so slot 1 carries `e2e` (an extra label is harmless to jobs that don't ask for it) **before pushing the PR** that adds the label to a workflow: a `ci.yml` change makes detect-changes force e2e, and a `pull_request` run uses the PR's own `ci.yml`, so that PR's e2e job already needs the label. Confirm with the `gh api …/runners` check above that an online `hnch-runner-1-*` carries `e2e`, then push. The reverse order queues every e2e job until the host catches up.
 - Rollback: revert the workflows first (merge the revert), then reinstall the old supervisor and restart the pool. The reverse order strands e2e jobs waiting for a runner that no longer exists.
 - This removes Playwright-vs-Playwright contention only: other slots still run verify lanes, `ng build`, wrangler dry-runs and deploy/release builds on the same 8 vCPUs while e2e runs (at most one other job at `POOL_SIZE=2`, up to three at 4).
@@ -221,7 +221,7 @@ Record the result here for posterity:
 
 ### Health check
 
-`.github/workflows/runner-health.yml` runs hourly on `ubuntu-latest` (~24 min/mo billable). It calls `gh api /repos/.../actions/runners` and fails if zero runners with the `hnch-podman` label are online. Failure → GitHub email notification. Manual trigger: `gh workflow run runner-health.yml`.
+`.github/workflows/runner-health.yml` runs every 6 h on `ubuntu-latest` (cron `0 */6 * * *`, ~120 runs/mo, each billed as 1 min, so ~120 min/mo billable). It calls `gh api /repos/.../actions/runners` once and fails, with one `::error::` per check, if zero runners with the `hnch-podman` label are online, or if no online `hnch-podman` runner carries the `e2e` label (the single e2e slot, see [E2E slot](#e2e-slot)). Failure → GitHub email notification. Manual trigger: `gh workflow run runner-health.yml`.
 
 The workflow needs `Administration: read` to list runners. The default `GITHUB_TOKEN` cannot be granted that scope (GitHub caps `GITHUB_TOKEN` permissions and the `permissions:` block cannot escalate beyond the cap). Therefore the workflow uses a separate fine-grained PAT stored as the repo secret `RUNNER_HEALTH_PAT`. If the secret is missing, the workflow logs a warning and exits 0 — never fails the run, never spams email.
 
