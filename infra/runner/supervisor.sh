@@ -14,6 +14,16 @@ GH_REGISTRATION_PAT="$(security find-generic-password -a "${USER}" -s hnch-runne
 }
 export GH_REGISTRATION_PAT
 
+# Slot 1 is the only runner registered with the `e2e` label (ADR-0052).
+# Playwright jobs (`ci.yml` e2e, `screenshots-main.yml`) require that label, so
+# at most one of them runs at a time and they never share the podman VM's
+# CPUs. Two at once (4 Playwright workers + ng serve + wrangler each) ran every
+# step 4-5x slower and pushed tests past their 45 s budget. Other jobs still
+# land on slot 1. Slot 1 exists for every POOL_SIZE >= 1, and the label is
+# re-applied on every ephemeral re-registration below.
+readonly E2E_SLOT=1
+readonly BASE_LABELS="self-hosted,linux,arm64,hnch-podman"
+
 STATE_DIR="${HOME}/runner-cache/state"
 mkdir -p "${STATE_DIR}"
 SPAWN_LOG="${STATE_DIR}/spawns.log"
@@ -129,6 +139,8 @@ mark_healthy_if_runner_online() {
 spawn_runner() {
   local idx=$1
   local NAME="hnch-runner-${idx}-$(date +%s)"
+  local LABELS="${BASE_LABELS}"
+  if (( idx == E2E_SLOT )); then LABELS="${LABELS},e2e"; fi
   local TOKEN
   TOKEN=$(fetch_registration_token) || { log_spawn_failure "${NAME}-FAILED-TOKEN"; return 1; }
   # Bump nofile from Podman's macOS default (~1024). Verify matrix + version-audit
@@ -141,7 +153,7 @@ spawn_runner() {
     --ulimit nofile=65536:65536 \
     --env "RUNNER_NAME=${NAME}" \
     --env "REPO_URL=https://github.com/${GH_REPO}" \
-    --env "LABELS=self-hosted,linux,arm64,hnch-podman" \
+    --env "LABELS=${LABELS}" \
     --env "RUNNER_TOKEN=${TOKEN}" \
     -v "${HOME}/runner-cache/pnpm-store-${idx}:/cache/pnpm-store" \
     -v "${HOME}/runner-cache/playwright:/cache/playwright" \
