@@ -129,11 +129,7 @@ export class Participant {
 
   /** Create a new session from /home. Returns the room code. */
   async createSession(): Promise<string> {
-    await this.page.goto(`${BASE_URL}/home`);
-    await this.page.waitForURL(/\/(home|onboarding)/);
-    if (this.page.url().includes('/onboarding')) {
-      await this.onboard();
-    }
+    await this.openHome();
     await this.page.locator(HOME.createCard).click();
     await this.page.waitForURL(/\/lobby/);
     const codeEl = this.page.locator(LOBBY.roomCode);
@@ -148,11 +144,30 @@ export class Participant {
    * character submits; there is no Join tap.
    */
   async joinSession(code: string): Promise<void> {
+    await this.openHome();
+    await this.joinFromHome(code);
+  }
+
+  /**
+   * Load the app on /home, onboarding first if this context has no name yet.
+   * A fresh context's first load is the most expensive step of a test (the
+   * whole dev bundle is fetched and parsed), and it needs no room code, so
+   * a joiner can run it while the host is still creating the session:
+   *
+   *   const [code] = await Promise.all([host.createSession(), player.openHome()]);
+   *   await player.joinFromHome(code);
+   */
+  async openHome(): Promise<void> {
     await this.page.goto(`${BASE_URL}/home`);
     await this.page.waitForURL(/\/(home|onboarding)/);
     if (this.page.url().includes('/onboarding')) {
       await this.onboard();
     }
+  }
+
+  /** Join a session by code from /home, as left by {@link openHome}. */
+  async joinFromHome(code: string): Promise<void> {
+    await this.page.waitForURL(/\/home/);
     await this.page.locator(HOME.joinCard).click();
     await this.page.waitForURL(/\/join/);
     await fillRoomCode(this.page, code);
