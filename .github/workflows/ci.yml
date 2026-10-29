@@ -113,6 +113,9 @@ jobs:
           match '^packages/client/' && client=true || true
           match '^packages/cli/'    && cli=true    || true
           match '^packages/e2e/'    && e2e=true    || true
+          # The relay and client deploy guards (and their tests) share
+          # scripts/cloudflare/.
+          if match '^scripts/cloudflare/'; then relay=true; client=true; fi
 
           # Reverse-deps: shared change fans into all consumers.
           if [[ "$shared" == "true" ]]; then
