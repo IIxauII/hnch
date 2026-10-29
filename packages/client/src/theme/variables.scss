@@ -110,6 +110,13 @@
   // Celebration overlay backdrop alpha — light mode needs higher opacity for
   // white-on-light legibility without the green pill badge.
   --hnch-backdrop-alpha: 0.55;
+
+  // Brand mark (logo tile) — fixed brand colors, independent of the user's
+  // accent pick so the spark never vanishes (e.g. Graphite accent on the tile).
+  // Mirrors assets/icon/favicon.svg.
+  --hnch-brand-tile:  #1C1C1E;
+  --hnch-brand-ink:   #F2F2F7;
+  --hnch-brand-spark: #1F6B4F;
 }
 
 // ---------------------------------------------------------------------------
@@ -207,6 +214,11 @@
   // Celebration overlay backdrop alpha — dark mode can use lower opacity since
   // the dark background already provides contrast for the accent text.
   --hnch-backdrop-alpha: 0.45;
+
+  // Brand mark — inverted tile in dark mode, like the favicon.
+  --hnch-brand-tile:  #F2F2F7;
+  --hnch-brand-ink:   #1C1C1E;
+  --hnch-brand-spark: #0B3D2E;
 }
 
 // ---------------------------------------------------------------------------
