@@ -205,8 +205,14 @@ describe('a full room', () => {
     );
 
     const joiner = await Peer.join(uuid);
-    // Its opening presence holds every state.
-    await eventually(() => expect(joiner.awareness.getStates().size).toBe(seats * per + 1), 5_000);
+    // Its opening presence holds every state, in that one frame. The `+ 1` is
+    // the relay's own `{}` state, not a holder's: the joiner's local state is null.
+    await eventually(
+      () => expect(joiner.frames.some((f) => f.type === 'awareness')).toBe(true),
+      5_000,
+    );
+    const opening = joiner.frames.find((f) => f.type === 'awareness')!;
+    expect(clientIdsIn(opening.bytes)).toHaveLength(seats * per + 1);
 
     // The joiner's y-protocols echoed the whole opening presence in one update.
     // Frames are handled in order, so once the room relays what the joiner sends
