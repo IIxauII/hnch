@@ -1,3 +1,10 @@
+# [1.17.0](https://github.com/IIxauII/hnch/compare/shared-v1.16.2...shared-v1.17.0) (2026-10-29)
+
+
+### Features
+
+* **relay,shared,e2e,ci,docs,repo:** run the relay on Cloudflare Workers and Durable Objects ([#553](https://github.com/IIxauII/hnch/issues/553)) ([53aa375](https://github.com/IIxauII/hnch/commit/53aa3755749934d511313ea4d883c94597b6f229))
+
 ## [1.16.2](https://github.com/IIxauII/hnch/compare/shared-v1.16.1...shared-v1.16.2) (2026-10-28)
 
 
