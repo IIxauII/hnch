@@ -22,10 +22,11 @@ Supervisor registers exactly one slot (slot 1) with an extra `e2e` label; every 
 - Playwright jobs from different refs serialize: a second e2e / screenshots job waits for the first (~5–8 min each). A main merge's e2e + screenshot refresh now run back-to-back instead of in parallel.
 - Slot 1 still takes non-Playwright jobs; an e2e job can wait behind whatever slot 1 is running (verify ≤3 min, deploy/release ≤10 min).
 - One slot is a single point for Playwright: slot 1 down or mislabeled → e2e jobs queue (up to GitHub's 24 h self-hosted queue cap), while `runner-health.yml` stays green (checks `hnch-podman` only).
+- Removes Playwright-vs-Playwright contention only. Other slots still run heavy jobs (verify lanes, `ng build`, wrangler dry-run, deploy/release builds) on the same 8 vCPUs while e2e runs: at most one other job at POOL_SIZE=2, up to three at 4.
 - Labels now differ per slot: label set lives in `supervisor.sh`, not one literal string.
 
 ## Consequences
 
-- Easier: e2e timings reflect one job on the VM; CPU-contention flakes between Playwright jobs ruled out by construction; POOL_SIZE changes (2 ↔ 4) don't touch Playwright concurrency.
-- Harder: new Playwright-running workflow must add `e2e` to `runs-on` or reintroduces the overlap; rollout of label changes is ordered (host supervisor first, workflows second).
-- Revisit when: Playwright queue wait becomes a bottleneck (bigger VM, per-container CPU caps, or a second dedicated slot with fewer workers); pool moves off one shared VM; slot-1 outages strand e2e often enough to justify an `e2e` check in `runner-health.yml`.
+- Easier: at most one Playwright job on the VM; CPU-contention flakes between Playwright jobs ruled out by construction; POOL_SIZE changes don't touch Playwright concurrency.
+- Harder: new Playwright-running workflow must add `e2e` to `runs-on` or reintroduces the overlap; label changes are ordered — rollout: host supervisor installed + pool restarted (slot 1 carries `e2e`) before any workflow requiring the label runs, including the introducing PR's own CI; rollback: revert workflows first, supervisor second. Wrong order strands e2e jobs in the queue.
+- Revisit when: e2e timing degrades with non-Playwright jobs alongside (per-container `--cpus` caps, or more VM CPUs); Playwright queue wait becomes a bottleneck (bigger VM, or a second dedicated slot with fewer workers); pool moves off one shared VM; slot-1 outages strand e2e often enough to justify an `e2e` check in `runner-health.yml`.
