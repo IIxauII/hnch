@@ -170,7 +170,7 @@ v1 ships as a plain SPA. There is no service worker, no offline shell, and no `m
 
 Every Linux job except the two carve-outs below runs on a pool of 2 ephemeral arm64 Podman containers on a Mac mini M4 — the `ci.yml` `verify` matrix, `e2e`, the small support jobs (`detect-changes`, `version-audit`, `pr-title-lint`, `verify-summary`), plus `release.yml`, `deploy-client.yml`, `deploy-relay.yml` and `screenshots-main.yml`. Labels are hardcoded `[self-hosted, linux, arm64, hnch-podman]` (plus `e2e` on the two Playwright jobs, see [E2E slot](#e2e-slot)); there is no hosted fallback. `runner-health.yml` stays on `ubuntu-latest` permanently — it is the dead-man's-switch that fires when the pool is dead, so it cannot run on the pool. `cancel-merged-pr-ci.yml` also stays hosted (a `gh api` call that must not queue behind the pool). Dependabot stays on the GitHub-managed runner.
 
-See [ADR-0049](../adr/0049-self-hosted-runner-pool-current-state-consolidation.md) for the current-state rationale (it consolidates and supersedes the ADR-0032 / 0033 / 0037 / 0047 chain). Source plan: `plans/plan-self-hosted-runner.md`.
+See [ADR-0049](../adr/0049-self-hosted-runner-pool-current-state-consolidation.md) for the current-state rationale (it consolidates and supersedes the ADR-0032 / 0033 / 0037 / 0047 chain) and [ADR-0053](../adr/0053-runner-pool-two-slots.md) for the pool size. Source plan: `plans/plan-self-hosted-runner.md`.
 
 ### Architecture
 
@@ -186,7 +186,7 @@ hnch-podman label → 2 ephemeral containers on M4 (POOL_SIZE=2)
    └── supervised by infra/runner/supervisor.sh under launchd (dev.hnch.runner.plist)
 ```
 
-Runners are repo-scoped and labelled `self-hosted,linux,arm64,hnch-podman`; slot 1 also carries `e2e` (see [E2E slot](#e2e-slot)). The pool runs 2 slots (`POOL_SIZE=2` in `dev.hnch.runner.plist`, owner decision 2026-10-29), so the 4 verify lanes (`shared`, `relay`, `client`, `cli`) share 2 runners. ADR-0049's "pool size = verify matrix lane count" no longer matches; see the [hosting plan](../docs/plans/cloudflare-hosting.md#decisions-resolved).
+Runners are repo-scoped and labelled `self-hosted,linux,arm64,hnch-podman`; slot 1 also carries `e2e` (see [E2E slot](#e2e-slot)). The pool runs 2 slots (`POOL_SIZE=2` in `dev.hnch.runner.plist`), so the 4 verify lanes (`shared`, `relay`, `client`, `cli`) share 2 runners and queue ([ADR-0053](../adr/0053-runner-pool-two-slots.md)).
 
 ### Files
 

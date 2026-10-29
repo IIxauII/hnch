@@ -330,8 +330,8 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
 - **ADR-0029:** superseded by ADR-0051, flipped in 1b. Optional status note at the switch: "VPS left idle, not decommissioned (owner, 2026-10-28)". Reopened 2026-10-29: the VPS is removed (see [Decisions resolved](#decisions-resolved)), so this note no longer applies.
 - **ADR-0012:** storage clause superseded by ADR-0051; TTL, keying and content-blindness hold.
 - **ADR-0049:**
-  - Its cross-arch clause is superseded by ADR-0051. ADR-0052 (another session, branch `worktree-runner-pool-2`) already supersedes its pool-size clause.
-  - Merge both into one parenthetical, `Accepted (pool-size clause superseded by ADR-0052; deploy-relay cross-arch clause superseded by ADR-0051)`, and one index cell, `ADR-0051 (partial), ADR-0052 (partial)`.
+  - Its cross-arch clause is superseded by ADR-0051 and its pool-size clause by ADR-0053 (ADR-0052 as merged only refines targeting).
+  - One parenthetical, `Accepted (deploy-relay cross-arch clause superseded by ADR-0051; pool-size clause superseded by ADR-0053)`, and one index cell, `ADR-0051 (partial), ADR-0053 (partial)`. Done 2026-10-29.
   - Index order: 0050, 0051, 0052.
   - Two caveats hit the README threshold. Recommendation: don't consolidate yet, because the two clauses are independent. Consolidate when a third arrives; adr-writer confirms at 1b.
 - **ADR-0027:** header `Accepted (in-memory-store clause superseded by ADR-0051)`. Editorial: the audit hint now points at `scripts/dev.mjs`, and `expired-jump-back-in.spec.ts` becomes `expired-recent-session.spec.ts`.
@@ -392,7 +392,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
   - A separate PR with a new ADR does the removal. This entry only records the decision.
 - Settled 2026-10-29 (owner): no paid merge gate. The repo is private on GitHub Free, so branch protection is unavailable (the API returns 403). By convention, agents and humans never merge a PR on red CI: every check must be green, and a cancelled check is not green. See `CONTRIBUTING.md`, [Merge only on green CI](../../CONTRIBUTING.md#merge-only-on-green-ci).
 - Settled 2026-10-29 (owner): the self-hosted runner pool stays at `POOL_SIZE=2`, the value the live LaunchAgent plist uses. The repo copy (`infra/runner/dev.hnch.runner.plist`) now matches. Out of scope by owner decision: raising the pool.
-  - ADR-0049's "pool size = `verify` matrix lane count" (4) no longer matches the live pool, and no ADR supersedes that clause yet: ADR-0052 as merged only refines the targeting clause, despite the ADR-0049 note under ADR impact.
+  - [ADR-0053](../../adr/0053-runner-pool-two-slots.md) records this and supersedes ADR-0049's "pool size = `verify` matrix lane count" clause.
 - Settled 2026-10-29 (owner): `ci.yml`'s workflow-level `concurrency` with `cancel-in-progress` keeps cancelling superseded runs on `main` too. A stale `main` run proves nothing once a newer merge is running.
 - Settled 2026-10-29 (owner): #562 (test(shared,cli): give the test-relay startup hook the same 60 s as relay) won't land. One local relay per test run (vitest `globalSetup`) replaces it.
 
@@ -587,7 +587,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
 ## References
 
 - Spec: `docs/specs/cloudflare-hosting.md`
-- ADR-0051 (Proposed), ADR-0029, ADR-0012, ADR-0001, ADR-0008, ADR-0009, ADR-0016, ADR-0017, ADR-0024, ADR-0027, ADR-0035, ADR-0049, ADR-0050, ADR-0052 (branch `worktree-runner-pool-2`)
+- ADR-0051 (Proposed), ADR-0029, ADR-0012, ADR-0001, ADR-0008, ADR-0009, ADR-0016, ADR-0017, ADR-0024, ADR-0027, ADR-0035, ADR-0049, ADR-0050, ADR-0052, ADR-0053
 - Prototype (throwaway, never merge): branch `prototype/cloudflare-relay`
 - Research digest, G0 result and plan critique, 2026-10-28 (orchestrator job notes)
 - Cloudflare docs: [Workers routes](https://developers.cloudflare.com/workers/configuration/routing/routes/), [Observability pricing](https://developers.cloudflare.com/observability/pricing/)
