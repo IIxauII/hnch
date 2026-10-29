@@ -1,18 +1,11 @@
 name: Deploy client (PWA)
 
 # Triggered when semantic-release cuts a `client-vX.Y.Z` tag (see release.yml).
-# Builds the production PWA once, then ships the same www to two targets:
-#
-#   vps  the IONOS VPS: tarball, atomic release-symlink swap, Caddy serves it.
-#        It answers hnch.dev until the switch, and afterwards stays current as
-#        the incidental rollback (ADR-0051). Skipped with targets=web-only.
-#   web  hnch-web, an assets-only Worker on Workers Static Assets (ADR-0051).
-#        Its hnch.dev/* route is inert until the switch (repo variable
-#        HNCH_LIVE != 'true'), so before it the job only checks the deploy took.
-#
-# The two targets run as separate jobs, so a failing VPS never holds back
-# hnch-web, nor the reverse. Topology, release flow, rollback:
-# docs/deployment.md. VPS details: infra/README.md.
+# Builds the production PWA once, then deploys it to hnch-web, an assets-only
+# Worker on Workers Static Assets (ADR-0051). Its hnch.dev/* route is inert
+# until the switch (repo variable HNCH_LIVE != 'true'), so before it the job
+# only checks the deploy took. The IONOS VPS gets no deploys (ADR-0054).
+# Topology, release flow, rollback: docs/deployment.md.
 
 on:
   # Dispatched explicitly by semantic-release's publishCmd in
@@ -25,11 +18,6 @@ on:
       ref:
         description: 'Git ref to deploy (defaults to current ref)'
         required: false
-      targets:
-        description: 'all = VPS and hnch-web; web-only = hnch-web only (manual dispatch of unreleased main)'
-        type: choice
-        options: [all, web-only]
-        default: all
       allow_route_removal:
         description: 'Let this deploy remove a live hnch.dev route of hnch-web'
         type: boolean
@@ -79,7 +67,7 @@ jobs:
             --filter '@hnch/client...'
 
       - name: Build metadata
-        # The deploy jobs check out this exact commit, even if `ref` is a
+        # The web job checks out this exact commit, even if `ref` is a
         # branch that moves while the build runs. `tag` is client-vX.Y.Z only
         # when this commit is that release tag's commit (checkout fetches the
         # tag only when `ref` names it); an unreleased commit deploys untagged.
@@ -140,113 +128,8 @@ jobs:
           name: www
           path: packages/client/www
           if-no-files-found: error
-          # Long enough to re-run a failed vps or web job the next days.
+          # Long enough to re-run a failed web job the next days.
           retention-days: 7
-
-  vps:
-    name: Ship PWA to the VPS
-    needs: build
-    if: inputs.targets != 'web-only'
-    runs-on: [self-hosted, linux, arm64, hnch-podman]
-    timeout-minutes: 5
-    steps:
-      - name: Runner identity
-        run: |
-          echo "Runner: $RUNNER_NAME on $(hostname) — arch $(uname -m)"
-          df -h /cache || true
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: www
-          path: ${{ runner.temp }}/www
-
-      - name: Pack tarball
-        id: pack
-        run: |
-          STAMP="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
-          TARBALL="hnch-client-${STAMP}.tar.gz"
-          # The smoke proves the VPS serves this build by its main bundle.
-          mains=("${RUNNER_TEMP}"/www/main.*.js)
-          if [ "${#mains[@]}" != 1 ] || [ ! -f "${mains[0]}" ]; then
-            echo "::error::expected one main.<hash>.js in the build, found: ${mains[*]}"
-            exit 1
-          fi
-          # _headers configures hnch-web; Caddy would serve it as a public file.
-          tar -C "${RUNNER_TEMP}" --exclude=www/_headers -czf "${TARBALL}" www
-          {
-            echo "tarball=${TARBALL}"
-            echo "stamp=${STAMP}"
-            echo "main=$(basename "${mains[0]}")"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Configure SSH
-        env:
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-        run: |
-          mkdir -p ~/.ssh
-          echo "${VPS_SSH_KEY}" > ~/.ssh/id_ed25519
-          chmod 0600 ~/.ssh/id_ed25519
-          ssh-keyscan -t ed25519 -H "${VPS_HOST}" >> ~/.ssh/known_hosts
-
-      - name: Ship tarball
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          TARBALL: ${{ steps.pack.outputs.tarball }}
-        run: |
-          scp -o StrictHostKeyChecking=yes "${TARBALL}" "${VPS_USER}@${VPS_HOST}:/tmp/${TARBALL}"
-
-      - name: Activate release on VPS
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          TARBALL: ${{ steps.pack.outputs.tarball }}
-          STAMP: ${{ steps.pack.outputs.stamp }}
-        run: |
-          ssh -o StrictHostKeyChecking=yes "${VPS_USER}@${VPS_HOST}" bash -se <<EOF
-          set -euo pipefail
-          BASE=/var/www
-          RELEASES="\${BASE}/hnch-client-releases"
-          TARGET="\${RELEASES}/release-${STAMP}"
-          mkdir -p "\${TARGET}"
-          tar -C "\${TARGET}" --strip-components=1 -xzf /tmp/${TARBALL}
-          rm /tmp/${TARBALL}
-          ln -sfn "\${TARGET}" "\${BASE}/hnch-client"
-          # Caddy follows the symlink on next request — no reload needed.
-          # Keep last 3 releases, prune older.
-          ls -1dt \${RELEASES}/release-* | tail -n +4 | xargs -r rm -rf
-          EOF
-
-      - name: Smoke test
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          HNCH_LIVE: ${{ vars.HNCH_LIVE }}
-          MAIN: ${{ steps.pack.outputs.main }}
-        run: |
-          # Both checks look for this build's main bundle in index.html, so an
-          # older release can't pass. After the switch hnch.dev resolves to
-          # Cloudflare, so check the active release on the VPS itself.
-          if [ "${HNCH_LIVE}" = true ]; then
-            ssh -o StrictHostKeyChecking=yes "${VPS_USER}@${VPS_HOST}" \
-              "grep -qF '${MAIN}' /var/www/hnch-client/index.html"
-            echo "VPS release active with ${MAIN} (hnch.dev is served by Cloudflare)"
-            exit 0
-          fi
-          # Give Caddy a moment to pick up the new symlink target. If
-          # index.html doesn't reference this build within ~10s, fail the job —
-          # the release is on the VPS but routing/symlink is wrong and operator
-          # attention is warranted.
-          for attempt in 1 2 3 4 5; do
-            if curl -fsS --max-time 5 https://hnch.dev/ | grep -qF "${MAIN}"; then
-              echo "PWA index.html serves ${MAIN} on attempt ${attempt}"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "PWA smoke test: https://hnch.dev/ does not serve ${MAIN} after 5 attempts" >&2
-          exit 1
 
   web:
     name: Deploy PWA to hnch-web

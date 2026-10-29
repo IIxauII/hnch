@@ -18,7 +18,7 @@ hnch ships only a PWA today. Goal: produce signed native iOS + Android artifacts
 | 6 | Android keystore custody | GH Actions secrets (base64), generated now |
 | 7 | SQLite plugin | `@capawesome-team/capacitor-sqlite` (ADR-0004 reconfirmed) |
 | 8 | Yjs SQLite adapter | Custom — append-only update log + debounced merge |
-| 9 | AASA + assetlinks files | Live at `packages/client/src/.well-known/`; shipped via Angular asset copy; deployed with `deploy-client.yml`; Caddyfile adds 1-line MIME override for the no-extension AASA file |
+| 9 | AASA + assetlinks files | Live at `packages/client/src/.well-known/`; shipped via Angular asset copy; deployed with `deploy-client.yml`; `hnch-web` needs a MIME override for the no-extension AASA file (the Caddyfile is gone, ADR-0054) |
 | 10 | Universal/App Link scope | `/join` + `/join/*` only |
 | 11 | Custom URL scheme | Skip (`hnch://` not added) |
 | 12 | Android CI host | Existing Linux Podman pool + `actions/setup-java@v4` (JDK 21) |
@@ -58,7 +58,7 @@ The canonical, committed copy of this plan lives at `docs/plans/native-deploymen
 ```
 git tag client-vX.Y.Z (semantic-release on Linux Podman pool)
     │
-    ├─► deploy-client.yml   (Linux pool) → Angular www/ → VPS rsync   [exists; ships /.well-known/ too]
+    ├─► deploy-client.yml   (Linux pool) → Angular www/ → hnch-web   [exists; ships /.well-known/ too]
     ├─► deploy-ios.yml      (macOS Tart) → cap sync ios → fastlane match → xcodebuild → .ipa → TestFlight
     └─► deploy-android.yml  (Linux pool) → cap sync android → gradle bundleRelease → signed .aab → Play Internal (gated)
 
@@ -137,10 +137,10 @@ Exit bar = "this must be green before next phase merges."
                    "sha256_cert_fingerprints": ["<UPPER:HEX:COLON:FINGERPRINT>"] }}]
     ```
 - `packages/client/angular.json`: add `src/.well-known/` to `architect.build.options.assets[]` with `output: ".well-known/"` so files copy to `www/.well-known/` verbatim.
-- `infra/Caddyfile`: add MIME override for AASA's no-extension file:
+- MIME override for AASA's no-extension file: `infra/Caddyfile` was removed (ADR-0054) and `hnch-web` serves `www` through Workers Static Assets. Add the rule to `packages/client/src/_headers` and verify on `hnch.dev` that it sets `Content-Type: application/json`:
   ```
-  @aasa path /.well-known/apple-app-site-association
-  header @aasa Content-Type application/json
+  /.well-known/apple-app-site-association
+    Content-Type: application/json
   ```
 - Real `<APPLE_TEAM_ID>` lands in PR5 (alongside iOS signing setup). Real Android cert fingerprint lands in PR7 (alongside keystore generation). PR3 commits the files with placeholder values; AASA validators fail by design until those PRs land.
 
@@ -233,7 +233,7 @@ Excluded from default fast-path verify-summary aggregation (own dependents).
 New ADRs (verify number 0040+ at PR time):
 - **ADR-0040** — Native build & distribution: bundle id `dev.hnch.hnch`, iOS TestFlight via ASC API key + fastlane match, Android Play Internal via service account (gated), keystore in GH secrets, version injection from git tag, JDK 21, iOS DT 14.0, minSdk 23 / targetSdk 35.
 - **ADR-0041** — Tart-based macOS self-hosted runner pool: supersedes Phase 9 deferral in ADR-0032/0037. Defines `hnch-tart` label, `vars.MACOS_RUNNER` toggle, Cirrus base image.
-- **ADR-0042** — Universal Links + App Links via `.well-known/`: file locations in `packages/client/src/.well-known/`, Angular asset copy, Caddyfile MIME override for AASA, link path scope `/join`+`/join/*`, no custom URL scheme.
+- **ADR-0042** — Universal Links + App Links via `.well-known/`: file locations in `packages/client/src/.well-known/`, Angular asset copy, `hnch-web` MIME override for AASA, link path scope `/join`+`/join/*`, no custom URL scheme.
 
 Doc updates:
 - `docs/native-roadmap.md` (new): explicit gaps — no XCUITests in CI, no on-device automated smoke, Play Console enrollment pending, future iOS simulator test pipeline, Android emulator instrumented tests, app-store metadata automation. Tracking-only.
@@ -285,7 +285,7 @@ Doc updates:
 - `packages/client/src/app/core/doc/doc.service.ts` (wire SQLite persistence on native — line 391-394)
 - `packages/client/src/app/app.component.ts` (`App.addListener('appUrlOpen')` handler)
 - `packages/client/.releaserc.json` (publishCmd dispatches 3 workflows)
-- `infra/Caddyfile` (AASA MIME header rule)
+- `packages/client/src/_headers` (AASA MIME header rule)
 - `.github/workflows/ci.yml` (verify-ios-native + verify-android-native gated jobs)
 - `CONTRIBUTING.md`, `README.md`, `docs/roadmap.md`, `docs/project.md`
 
@@ -367,7 +367,7 @@ Every PR runs in its own worktree (§2a). Each row lists the worktree name, the 
 |---|---|---|---|---|
 | 1 | `native-bootstrap` | `git fetch origin && pnpm worktree:add native-bootstrap main` | `chore(client): scaffold Capacitor native projects` | Phase A minus SQLite wiring + commits `docs/plans/native-deployment.md`. Lowest risk. |
 | 2 | `native-sqlite` | (after PR1 merges) `git fetch origin && pnpm worktree:add native-sqlite main` | `feat(client): SQLite-backed Yjs persistence on native` | Phase A finish. `sqlite-persistence.ts` + tests + wire into `doc.service.ts`. |
-| 3 | `well-known-deeplinks` | (parallel-safe with PR2; branch off main) `git fetch origin && pnpm worktree:add well-known-deeplinks main` | `feat(client): scaffold .well-known files + Caddyfile MIME` | Phase D, placeholder TEAM_ID + fingerprint. |
+| 3 | `well-known-deeplinks` | (parallel-safe with PR2; branch off main) `git fetch origin && pnpm worktree:add well-known-deeplinks main` | `feat(client): scaffold .well-known files + AASA MIME` | Phase D, placeholder TEAM_ID + fingerprint. |
 | 4 | `tart-macos-runner` | (parallel-safe; infra-only) `git fetch origin && pnpm worktree:add tart-macos-runner main` | `chore(infra): Tart macOS runner pool scaffolding` | Phase E. All `infra/runner-macos/*` + ADR-0041 + `vars.MACOS_RUNNER`. |
 | 5 | `ios-universal-links` | (after PR1 + PR3 merge) `git fetch origin && pnpm worktree:add ios-universal-links main` | `feat(client): iOS Universal Links + Info.plist` | Phase B + AASA real TEAM_ID. ADR-0040 + ADR-0042. |
 | 6 | `ci-ios-testflight` | (after PR4 + PR5 merge) `git fetch origin && pnpm worktree:add ci-ios-testflight main` | `ci(client): iOS native build + TestFlight deploy` | Phase G iOS half + Phase H verify-ios. `deploy-ios.yml`, Fastfile. |
@@ -387,7 +387,7 @@ PR titles use `feat(client)` / `chore(client)` / `ci(client)` / `docs` scope per
 - `/Users/xau/Documents/projects/hnch/.github/workflows/release.yml`
 - `/Users/xau/Documents/projects/hnch/.github/workflows/deploy-client.yml` (pattern to mirror)
 - `/Users/xau/Documents/projects/hnch/.github/workflows/ci.yml`
-- `/Users/xau/Documents/projects/hnch/infra/Caddyfile`
+- `/Users/xau/Documents/projects/hnch/packages/client/src/_headers`
 - `/Users/xau/Documents/projects/hnch/infra/runner/install.sh` (pattern to mirror)
 - `/Users/xau/Documents/projects/hnch/infra/runner/supervisor.sh` (pattern to mirror)
 - `/Users/xau/Documents/projects/hnch/infra/runner/dev.hnch.runner.plist` (pattern to mirror)

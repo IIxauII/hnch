@@ -46,14 +46,14 @@ Types in use (match existing history — see `git log`):
 
 | Scope | Use for | Triggers release? |
 |-------|---------|-------------------|
-| `client` | `packages/client/**` (Angular app) | Yes — `client-v*` (deploys `hnch-web` and the VPS; see [PWA release rules](docs/deployment.md#pwa-release-rules)) |
+| `client` | `packages/client/**` (Angular app) | Yes — `client-v*` (deploys `hnch-web`; see [PWA release rules](docs/deployment.md#pwa-release-rules)) |
 | `relay` | `packages/relay/**` (Cloudflare Worker + Durable Objects) | Yes — `relay-v*` (deploys `hnch-relay`; see [release rules](docs/deployment.md#relay-release-rules)) |
 | `cli` | `packages/cli/**` | Yes — `cli-v*` (npm publish) |
 | `shared` | `packages/shared/**` | Yes — `shared-v*` |
 | `e2e` | `packages/e2e/**` | No |
 | `ci` | `.github/workflows/**`, `infra/runner/**` | No |
 | `docs` | Root `*.md`, `docs/**`, `adr/**` | No |
-| `infra` | `infra/**` (Caddyfile, systemd, deploy scripts) | No |
+| `infra` | `infra/**` outside `infra/runner/` (today only `infra/README.md`) | No |
 | `deps` | Dependency bumps (Dependabot et al.) | No |
 | `repo` | Root configs (`package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`, `.gitignore`, etc.) | No |
 
@@ -65,7 +65,7 @@ A PR that touches multiple packages MUST list every scope it touches, comma-sepa
 feat(client,shared): add new vote payload field
 fix(relay,shared): correct snapshot TTL calculation
 feat(client,cli,shared)!: drop legacy join URL
-chore(ci,infra): bump runner image base
+chore(ci,docs): bump runner image base and document it
 ```
 
 Rules:
@@ -241,11 +241,30 @@ The repo is private on GitHub Free, so it has no branch protection and nothing b
 
 - Merge only when every CI check on the PR's latest commit is green (`gh pr checks <n> --watch`). A cancelled check is not green: re-run it. A job skipped by `detect-changes` is fine.
 - Never merge on red, even when the failure looks unrelated.
-- After merging, check `main`'s push CI run for the merge commit (`gh run list --repo IIxauII/hnch --workflow ci.yml --commit <merge-sha>`) and fix forward if it goes red.
+- After merging, check your merge's `ci.yml` push run (`gh run list --repo IIxauII/hnch --workflow ci.yml --event push --commit <merge-sha>`) and fix forward if it goes red. If a newer merge cancelled it, check the newest `main` push run instead (`gh run list --repo IIxauII/hnch --workflow ci.yml --event push --branch main --limit 1`): it covers yours. Don't re-run the old cancelled run; it shares the concurrency group and would cancel the newer one.
+
+A `main` push run tests everything changed since the last green `main` push run, so a merge whose run was cancelled or failed is tested again by the next one. It leaves out the `[skip ci]` release and screenshot commits, and runs the full pipeline when it can't find a green run to start from. Releases wait for a green `main` push run too (see [When a release runs](#when-a-release-runs)), so a red `main` holds back every release until it is fixed.
 
 ## Releases
 
-Releases are automated from commit history using [semantic-release](https://semantic-release.gitbook.io/) on every push to `main`. There is no manual release step and no release PR — qualifying commits trigger a tag, changelog entry, GitHub Release, and deploy hook for the affected package.
+Releases are automated from commit history using [semantic-release](https://semantic-release.gitbook.io/). There is no manual release step and no release PR — qualifying commits trigger a tag, changelog entry, GitHub Release, and deploy hook for the affected package.
+
+### When a release runs
+
+`release.yml` starts only after a `ci.yml` push run on `main` goes green (a `workflow_run` trigger), and releases the commit that run tested, not whatever `main` holds by then.
+
+- A merge whose CI run is red or cancelled releases nothing. Its commits release with the next green `main` run, which has tested them too (see [Merge only on green CI](#merge-only-on-green-ci)).
+- If `main` already holds a newer merge when a green run's release starts, that release publishes nothing and passes; the newer merge's green run releases both. Commits that start no CI run of their own don't count as newer merges: the bot's `[skip ci]` release and screenshot commits, and commits touching only `docs/screenshots/**`. A human commit marked to skip CI does count, and holds back releases until a later merge goes green.
+- Every completed CI run starts a Release run, PR runs and red or cancelled runs included. Those show as skipped, so most Release runs are skipped ones.
+- The release isn't among the merge commit's checks. List the runs that weren't skipped with:
+
+  ```sh
+  gh run list --repo IIxauII/hnch --workflow release.yml --limit 20 --json createdAt,status,conclusion,url --jq '.[] | select(.conclusion != "skipped") | "\(.createdAt) \(.status) \(.conclusion) \(.url)"'
+  ```
+
+  A run's own commit is `main`'s tip when it started; its "Resolve the commit to release" step names the commit it released and the CI run that tested it.
+- A release that fails partway: fix the cause, then re-run that Release run (`gh run rerun <id> --failed`). It checks out the same commit, fast-forwards over the release commits already pushed, and resumes with the next package. A merge that lands while a release is pushing fails it the same way; re-running then releases nothing, and that merge's green run releases.
+- If a green run's release never started or was cancelled, dispatch it by hand (`gh workflow run release.yml --ref main`). It takes the head commit of the newest green `main` CI run and applies the same rules, so it releases nothing while `main` holds a newer merge with no green run yet. The fix then is to get the next merge green, not to dispatch again.
 
 > **iOS bundle-version caveat (deferred).** Capacitor sync uses `packages/client/package.json` `version` for the native bundle's `CFBundleShortVersionString`. Between releases that file holds the placeholder `0.0.0-semantically-released`, which is **not** a valid bundle version. The native iOS build process (deferred to Phase 6b — see `docs/roadmap.md §9`) will need to read the latest `client-v*` git tag rather than `package.json`. Address this when Phase 6b lands.
 

@@ -7,6 +7,7 @@
 import { env } from 'cloudflare:workers';
 import { evictDurableObject, runInDurableObject } from 'cloudflare:test';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { Codes } from './codes';
 import { Peer, call, createRoom, eventually, upgrade } from './test-support/peer';
 import { handleFetch } from './worker';
 
@@ -14,6 +15,13 @@ const HASH = 'ab'.repeat(32);
 const settle = () => new Promise((r) => setTimeout(r, 50));
 const roomStub = (uuid: string) => env.ROOM.get(env.ROOM.idFromName(uuid));
 const codesStub = (code: string) => env.CODES.get(env.CODES.idFromName(code));
+
+/** The sockets the room counts against its cap: its own `openSockets()`. */
+const seatedCount = (uuid: string) =>
+  runInDurableObject(
+    roomStub(uuid),
+    (room) => (room as unknown as { openSockets(): WebSocket[] }).openSockets().length,
+  );
 
 async function joined(uuid: string, query = ''): Promise<Peer> {
   const peer = await Peer.join(uuid, query);
@@ -113,7 +121,7 @@ describe('participant cap (HNCH_ROOM_CAP=3)', () => {
     // A seat frees up when a peer leaves.
     peers[0]!.close();
     await peers[0]!.closed();
-    await settle();
+    await eventually(async () => expect(await seatedCount(uuid)).toBe(2));
     const late = await joined(uuid, `?pw=${HASH}`);
     expect(late.closeEvent).toBeNull();
     expect(third.closeEvent).toBeNull();
@@ -164,11 +172,15 @@ describe('DELETE /test/rooms/:uuid (HNCH_ENABLE_TEST_ROUTES=1)', () => {
     alice.doc.getArray('votes').push(['3']);
     await eventually(() => expect(bob.doc.getArray('votes').length).toBe(1));
     // Hold the code release back so the tombstoned room's storage stays readable.
-    await runInDurableObject(codesStub(code), (codes) => {
-      vi.spyOn(codes, 'release').mockRejectedValue(new Error('Durable Object is overloaded'));
-    });
+    // Spied on the prototype: RPC refuses a method that is an own property.
+    const release = await runInDurableObject(codesStub(code), (codes) =>
+      vi
+        .spyOn(Object.getPrototypeOf(codes) as Codes, 'release')
+        .mockRejectedValue(new Error('Durable Object is overloaded')),
+    );
 
     expect((await call(`/test/rooms/${uuid}`, { method: 'DELETE' })).status).toBe(200);
+    expect(release).toHaveBeenCalledWith(uuid);
     alice.doc.getArray('votes').push(['5']);
     await settle();
     alice.close();

@@ -56,8 +56,16 @@ describe('the relay own state', () => {
   it('is listed once, even though peers echo it back', async () => {
     const { uuid } = await createRoom();
     const alice = await Peer.join(uuid);
+    // Alice echoes the relay's state once she reads her opening awareness
+    // frame; wait for it, so that echo goes out before her announce and the
+    // observer's wait below covers both.
+    await eventually(() => expect(alice.frames.length).toBeGreaterThanOrEqual(2));
+    // Echoes nothing, so it only watches what the room relays.
+    const observer = await Peer.join(uuid);
+    observer.mute();
     alice.announce({ participantId: 'p-alice' });
-    await settle();
+    // Once the room relays alice's state it holds it, for bob's opening frame.
+    await eventually(() => expect(observer.participants()).toEqual(['p-alice']));
 
     const bob = await Peer.join(uuid);
     await eventually(() => expect(bob.participants()).toEqual(['p-alice']));
@@ -103,14 +111,30 @@ describe('the document load', () => {
   it('waits for a sync frame; awareness alone after a wake never loads it', async () => {
     const { uuid } = await createRoom();
     const alice = await Peer.join(uuid);
+    const bob = await Peer.join(uuid);
+    // Each peer answers the room's opening sync-step-1 as soon as it reads it.
+    // Once the room relays what each sends after that, it has handled those
+    // answers too, so none reaches the woken room and loads the doc there.
+    await eventually(() => {
+      for (const p of [alice, bob]) expect(p.frames.length).toBeGreaterThanOrEqual(2);
+    });
     alice.announce({ participantId: 'p-alice' });
-    await settle();
+    bob.announce({ participantId: 'p-bob' });
+    await eventually(() => {
+      expect(bob.participants()).toEqual(['p-alice']);
+      expect(alice.participants()).toEqual(['p-bob']);
+    });
 
     await evictDurableObject(roomStub(uuid));
     expect(await docLoaded(uuid)).toBe(false);
 
     alice.announce({ participantId: 'p-alice', again: true });
-    await settle();
+    // Bob is shown it once the woken room has handled the frame.
+    await eventually(() =>
+      expect(bob.awareness.getStates().get(alice.awareness.clientID)).toMatchObject({
+        again: true,
+      }),
+    );
     expect(await docLoaded(uuid)).toBe(false);
 
     alice.doc.getMap('m').set('k', 1);
@@ -147,19 +171,26 @@ describe('presence across an eviction', () => {
     const { uuid } = await createRoom();
     const alice = await Peer.join(uuid);
     const bob = await Peer.join(uuid);
+    // Echoes nothing, so it only watches what the room relays.
+    const observer = await Peer.join(uuid);
+    observer.mute();
     alice.announce({ participantId: 'p-alice' });
-    await eventually(() => expect(bob.participants()).toEqual(['p-alice']));
+    await eventually(() => {
+      expect(bob.participants()).toEqual(['p-alice']);
+      expect(observer.participants()).toEqual(['p-alice']);
+    });
 
     // Bob's frame removes alice's state; alice's socket stays open but does not
     // answer the removal by announcing herself again, as a live client would.
     alice.mute();
     const clock = alice.awareness.meta.get(alice.awareness.clientID)!.clock;
     bob.send(removalFrame(alice.awareness.clientID, clock));
-    await settle();
+    // The room relays the removal once it has dropped the state.
+    await eventually(() => expect(observer.participants()).toEqual([]));
 
     await evictDurableObject(roomStub(uuid));
     const carol = await Peer.join(uuid);
-    await settle();
+    await eventually(() => expect(carol.frames.some((f) => f.type === 'awareness')).toBe(true));
     expect(carol.participants()).toEqual([]);
   });
 });

@@ -1,6 +1,6 @@
 # Deployment
 
-Production deployment for hnch. hnch.dev is moving from the IONOS VPS to Cloudflare ([ADR-0051](../adr/0051-cloudflare-hosting.md), plan [`docs/plans/cloudflare-hosting.md`](plans/cloudflare-hosting.md)). Until the switch (Phase 3) the VPS still serves `hnch.dev`; see [ADR-0029](../adr/0029-relay-deployment.md) and [`infra/README.md`](../infra/README.md) for it.
+Production deployment for hnch: Cloudflare Workers and Durable Objects ([ADR-0051](../adr/0051-cloudflare-hosting.md), plan [`docs/plans/cloudflare-hosting.md`](plans/cloudflare-hosting.md)). Until the switch (Phase 3, #549) `hnch.dev` still resolves to the IONOS VPS, which gets no deploys and serves a frozen build; after the switch it is shut down ([ADR-0054](../adr/0054-vps-decommission.md)).
 
 ## Topology
 
@@ -9,7 +9,7 @@ Production deployment for hnch. hnch.dev is moving from the IONOS VPS to Cloudfl
 | Relay (`@hnch/relay`) | Cloudflare Worker `hnch-relay` + Durable Objects (EU), on routes `hnch.dev/health*`, `/rooms*`, `/ws/*` | `deploy-relay.yml` on `relay-v*` tags → `wrangler deploy` |
 | Relay, until the switch | `hnch-vps` (IONOS), relay frozen at `relay-v1.2.1` | no longer deployed |
 | PWA static (`@hnch/client`) | Cloudflare Worker `hnch-web` (Workers Static Assets, assets-only), on route `hnch.dev/*` | `deploy-client.yml` on `client-v*` tags → `wrangler deploy` |
-| PWA static, until the switch | same VPS, `/var/www/hnch-client`; afterwards kept current as the incidental rollback | `deploy-client.yml` (same build) → scp → atomic symlink swap |
+| PWA static, until the switch | same VPS, PWA frozen at `client-v1.46.0` | no longer deployed (ADR-0054) |
 | CLI (`@xauyxau/hnch`) | npm registry | `release.yml` runs semantic-release; `cli-v*` tags trigger npm publish via `@semantic-release/npm` (configured in `packages/cli/release.config.mjs`) |
 
 All three surfaces speak to the same relay at `wss://hnch.dev/ws/:uuid` and `https://hnch.dev/rooms/:code`. Single origin, no CORS.
@@ -27,13 +27,21 @@ All three surfaces speak to the same relay at `wss://hnch.dev/ws/:uuid` and `htt
 | `WS /ws/:uuid` | relay (y-websocket sync) |
 | Everything else | static PWA, with SPA fallback to `/index.html` |
 
+## Release gate
+
+A red `main` releases and so deploys nothing. `release.yml` starts only from a green `ci.yml` push run on `main` (a `workflow_run` trigger) and releases the commit that run tested. A red or cancelled merge releases with the next green run; a green run whose commit `main` has already moved past (a newer merge) releases nothing and leaves it to that merge's run. The deploys below are dispatched only by a release, so they inherit the gate. Details and recovery: [CONTRIBUTING.md › When a release runs](../CONTRIBUTING.md#when-a-release-runs). A manual `deploy-*.yml` dispatch bypasses it.
+
 ## Relay release-to-deploy pipeline
 
 ```
 commit on main (feat(relay): / fix(relay): / etc)
         │
         ▼
-release.yml — semantic-release per package, tags relay-vX.Y.Z
+ci.yml push run on main goes green (red or cancelled: wait for the next green run)
+        │
+        ▼
+release.yml — semantic-release per package on the commit that run tested,
+              tags relay-vX.Y.Z
         │
         ▼
 deploy-relay.yml — dispatched with --ref relay-vX.Y.Z
@@ -60,7 +68,7 @@ These keep a relay release safe while old and new code run side by side.
 - **Additive only.** RPC methods and `meta` fields are added, never renamed or removed in one release.
 - **Expand/contract.** A format change ships as two releases at least 10 minutes apart: first read both formats, then write the new one (and drop the old later).
 - **Classes.** Renaming or deleting a Durable Object class needs a new migration in `wrangler.jsonc`, and `wrangler rollback` cannot cross a migration.
-- **Rollback is `wrangler rollback`.** Never re-dispatch an old tag: the guard refuses a version older than the live one. Roll back from a machine with the deploy token:
+- **Rollback is `wrangler rollback`.** Never re-dispatch an old tag. A dispatch runs the workflow at that tag: from `relay-v1.3.0` on, the guard refuses a version older than the live one. **A tag at or before `relay-v1.2.1` carries the pre-1b workflow, with no guard and an SSH deploy to the VPS.** With the `VPS_*` secrets deleted ([ADR-0054](../adr/0054-vps-decommission.md)) it fails at that step and deploys nothing; don't dispatch one. Roll back from a machine with the deploy token:
 
   ```sh
   pnpm --filter @hnch/relay exec wrangler deployments list
@@ -75,10 +83,14 @@ These keep a relay release safe while old and new code run side by side.
 commit on main (feat(client): / fix(client): / etc)
         │
         ▼
-release.yml — semantic-release per package, tags client-vX.Y.Z
+ci.yml push run on main goes green (red or cancelled: wait for the next green run)
         │
         ▼
-deploy-client.yml — dispatched with --ref client-vX.Y.Z (targets: all)
+release.yml — semantic-release per package on the commit that run tested,
+              tags client-vX.Y.Z
+        │
+        ▼
+deploy-client.yml — dispatched with --ref client-vX.Y.Z
         │
         ├── build   cold install (fresh store, client + shared, no install scripts)
         │           ├── deploy-guard.mjs config  assets-only from ./www, SPA fallback, no
@@ -88,10 +100,6 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z (targets: all)
         │           ├── deploy-guard.mjs www     _headers at the root of www, every .js and
         │           │                            .css named <name>.<16 lowercase hex>.js|css
         │           └── upload www (artifact kept 7 days, so a failed job can be re-run)
-        │
-        ├── vps     (targets: all only) tarball without _headers → scp → atomic
-        │           symlink swap; smoke: index.html on https://hnch.dev/, or after the
-        │           switch the active release on the VPS, names this build's main.<hash>.js
         │
         └── web     cold install (fresh store, client only, no install scripts);
                     │   fresh www from the build; deploy-guard.mjs config and www again
@@ -109,22 +117,22 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z (targets: all)
                                                  file)
 ```
 
-`vps` and `web` are separate jobs on the one build, so either target can fail without holding back the other. The guards live in `packages/client/scripts/deploy-guard.mjs`; the route, version and Cloudflare API helpers are shared with the relay's guard through `scripts/cloudflare/worker-guard.mjs`.
+`web` deploys exactly the `www` that `build` uploaded, so a failed `web` job can be re-run without a rebuild. The guards live in `packages/client/scripts/deploy-guard.mjs`; the route, version and Cloudflare API helpers are shared with the relay's guard through `scripts/cloudflare/worker-guard.mjs`.
 
 ## PWA release rules
 
 - **Cache headers come from `packages/client/src/_headers`**, which `angular.json` copies to the root of `www`. `hnch-web` applies it; wrangler does not serve the file itself. Each response carries exactly one `Cache-Control`:
   - `/*.js` and `/*.css`: `public, max-age=31536000, immutable`;
   - everything else (`index.html`, SPA deep links such as `/lobby/x`, `/svg/*`, `/assets/*`, `favicon.ico`, `3rdpartylicenses.txt`): `no-cache, must-revalidate`;
-  - a missing `/x.<hash>.js` falls back to `index.html` with `immutable`, as Caddy does.
+  - a missing `/x.<hash>.js` falls back to `index.html` with `immutable`.
 
-  Because `/*.js` and `/*.css` are immutable for a year, every one of them must be content-hashed (`outputHashing: all`). The hash guard (`deploy-guard.mjs www`) fails the build unless each matches `\.[0-9a-f]{16}\.(js|css)$`, the webpack builder's exact hash form; a builder change that alters it fails the deploy rather than slipping through. The VPS tarball leaves `_headers` out, since Caddy would serve it as a file.
+  Because `/*.js` and `/*.css` are immutable for a year, every one of them must be content-hashed (`outputHashing: all`). The hash guard (`deploy-guard.mjs www`) fails the build unless each matches `\.[0-9a-f]{16}\.(js|css)$`, the webpack builder's exact hash form; a builder change that alters it fails the deploy rather than slipping through.
 - **SPA fallback.** Any path without a file answers `index.html` with `200`. `/index.html` itself redirects (`307`) to `/`.
-- **`targets`.** Releases deploy `all`: the VPS and `hnch-web`. A manual dispatch of unreleased `main` uses `web-only`.
+- **No service worker.** Plain SPA: no offline shell, no install prompt (deferred from v1). Adding one needs a re-read of the cache headers above against the service-worker lifecycle.
 - **Tags and messages.** The `hnch-web` version is tagged `client-vX.Y.Z` only when the deployed commit is that release tag's commit; any other commit deploys untagged. Every version's message names the full commit SHA, and `verify` checks the version id `wrangler deploy` just uploaded (from `WRANGLER_OUTPUT_FILE_PATH`) is the one serving, so a re-dispatch can't pass on an earlier upload.
 - **Cold installs.** The `build` and `web` jobs don't use the runner pool's shared caches (the pnpm store and `node_modules` snapshots under `/cache`), which PR CI can write. Each runs `pnpm install --frozen-lockfile --ignore-scripts --store-dir "${RUNNER_TEMP}/pnpm-store"` into a fresh store, so pnpm checks every package against the lockfile; `build` filters to `@hnch/client...`, `web` to `@hnch/client` (pnpm still installs the workspace root's packages). Node is the runner image's, and pnpm's version comes from `packageManager` through Corepack.
 - **A client release never touches the relay.** In G0 (2026-10-28) relay sockets held for 300 s across a web redeploy with 0 closes.
-- **Rollback.** `hnch-web` has no Durable Objects, so both ways work: `wrangler rollback` (instant, no rebuild), or a `web-only` dispatch of an older `client-v*` tag. The VPS release rolls back by symlink (`infra/README.md`).
+- **Rollback.** `wrangler rollback` (instant, no rebuild; `hnch-web` has no Durable Objects). A dispatch of an older `client-v*` tag also works, but only for a tag cut after [ADR-0054](../adr/0054-vps-decommission.md). **Never re-dispatch a pre-ADR-0054 tag (≤ `client-v1.46.0`):** a dispatch runs the workflow at that tag, which ships only to the VPS. With the `VPS_*` secrets deleted it fails at its SSH step, and it never reaches `hnch-web`.
 
   ```sh
   pnpm --filter @hnch/client exec wrangler deployments list
@@ -137,9 +145,9 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z (targets: all)
 |---|---|---|---|
 | `CLOUDFLARE_API_TOKEN` | secret | token `hnch-ci-deploy` (below) | `deploy-relay.yml` and the `web` job of `deploy-client.yml` only |
 | `CLOUDFLARE_ACCOUNT_ID` | secret | the Cloudflare account ID | `deploy-relay.yml` and the `web` job of `deploy-client.yml` only |
-| `HNCH_LIVE` | variable | `false` until the switch, then `true` | gates the hnch.dev smokes of both deploys; switches the VPS smoke to a check on the VPS itself |
-| `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` | secret | VPS SSH target, user, CI key | the `vps` job of `deploy-client.yml` |
-| `GITHUB_TOKEN` | provided by Actions | | semantic-release tag + release |
+| `HNCH_LIVE` | variable | `false` until the switch, then `true` | gates the hnch.dev smokes of both deploys |
+| `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` | secret | VPS SSH target, user, CI key | nothing; deleted when ADR-0054 merged, so an old-tag dispatch fails instead of deploying to the VPS |
+| `RELEASE_TOKEN` | secret | fine-grained PAT (also needs actions: write, for the deploy dispatch) | `release.yml`: semantic-release's release commits, tags and GitHub Releases, and the `gh workflow run deploy-*.yml` dispatch |
 
 **Token scope (`hnch-ci-deploy`):** Account › Workers Admin (formerly Workers Scripts: Edit; account-wide, so it also covers the account's other Workers, and lets the first deploy create `hnch-web`) and Zone `hnch.dev` › Workers Routes: Write. No DNS permission and no Zone: Read, which is why every route in `wrangler.jsonc` carries `zone_id`. If a deploy fails with an authentication error, add the missing permission to the token in the dashboard (tokens can be edited in place). The token is a repo secret (no environment secrets on GitHub Free private repos), referenced only by the two deploy jobs, and is the runner pool's only long-lived deploy credential. Fork PRs get no secrets.
 
@@ -174,8 +182,10 @@ pnpm --filter @hnch/client exec wrangler deploy --dry-run
 - **Don't tail production, and don't add rules on `/ws/*`.** WebSocket URLs carry the room password hash as `?pw=`. `wrangler tail` and the dashboard's real-time logs show request URLs whatever `invocation_logs` says, and a WAF or rate-limit rule matching `/ws/*` would record the full URI in Security Events.
 - **Relay deployments:** `pnpm --filter @hnch/relay exec wrangler deployments list`.
 - **PWA deployments:** `pnpm --filter @hnch/client exec wrangler deployments list`. `hnch-web` runs no Worker code, so it has no logs.
-- **VPS (PWA, and the frozen relay until the switch):** `ssh hnch-vps 'journalctl -u caddy -f'` (TLS, routing); rollback of the PWA per `infra/README.md`.
-- **Cert troubleshooting (VPS):** Caddy keeps state under `/var/lib/caddy/`. If TLS fails, check `journalctl -u caddy --since '1h ago' | grep -i acme`.
+- **VPS until the switch:** frozen (PWA `client-v1.46.0`, relay `1.2.1`) and never deployed to. A fix reaches users only through the switch. It still runs production:
+  - relay: `ssh hnch-vps 'journalctl -u hnch-relay -f'`; restart with `ssh hnch-vps 'sudo systemctl restart hnch-relay'` (drops every room, RAM only). The unit sets `MemoryMax=700M`; if the relay is OOM-killed, check connection counts in the journal.
+  - Caddy (TLS, routing): `ssh hnch-vps 'journalctl -u caddy -f'`; cert issues: `journalctl -u caddy --since '1h ago' | grep -i acme`, certs under `/var/lib/caddy/.local/share/caddy/certificates/`.
+- **VPS after the switch:** decommissioned per the post-switch checklist in the plan's [Phase 3](plans/cloudflare-hosting.md#phase-3-cutover-owner-switch--docs-pr) ([ADR-0054](../adr/0054-vps-decommission.md)).
 
 ## Known limitations
 
@@ -187,4 +197,3 @@ pnpm --filter @hnch/client exec wrangler deploy --dry-run
 ## Out of scope (future work)
 
 - Observability: structured metrics, alerting.
-- Decommissioning the VPS (owner decision, 2026-10-28).
