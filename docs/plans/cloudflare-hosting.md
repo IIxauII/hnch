@@ -389,7 +389,8 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
   - Reversed 2026-10-29 (owner): the remaining CI and hosting work ships as one PR, so it takes one CI cycle instead of a PR → `main` → release cycle per change. The "separate PR" and "follow-up CI PR" in the entries below are parts of that one PR. Folding work into existing PRs and issues still holds.
 - Settled 2026-10-29 (owner): the VPS is removed. This reopens the 2026-10-28 "VPS stays as it is" entry above and ADR-0051's "VPS left idle, not decommissioned" clause.
   - Now: remove the VPS deploy job, the VPS docs and the VPS `infra/` files. Production (`hnch.dev`, on the VPS until the #549 switch) stays frozen at its current client build until the switch.
-  - After the #549 switch: shut down the VPS and remove the `VPS_*` repo secrets. Before cancelling the contract, check that `hnch.dev` isn't bundled with it.
+  - At this PR's merge: delete the `VPS_*` repo secrets (owner, 2026-10-29), so a dispatch of an old client or relay tag fails instead of deploying to the VPS.
+  - After the #549 switch: shut down the VPS. Before cancelling the contract, check that `hnch.dev` isn't bundled with it.
   - Until the shutdown, the incidental rollback (Cutover step 6) serves the frozen client build. After it, there is no rollback to the VPS.
   - A separate PR with a new ADR does the removal (mechanism: planner, not owner). This entry only records the decision.
 - Settled 2026-10-29 (owner): no paid merge gate. The repo is private on GitHub Free, so branch protection is unavailable (the API returns 403). By convention, agents and humans never merge a PR on red CI: every check must be green, and a cancelled check is not green. See `CONTRIBUTING.md`, [Merge only on green CI](../../CONTRIBUTING.md#merge-only-on-green-ci).
@@ -553,7 +554,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
   - **Post-switch: VPS decommission ([ADR-0054](../../adr/0054-vps-decommission.md)).** Owner runs these once the post-switch checks pass; none is done yet:
     - [ ] with the apex proxied (never before the switch), repoint the Cloudflare A/AAAA records of `hnch.dev` and `www` from the VPS IP to a placeholder origin, `192.0.2.1` / `100::`, proxied, so a reassigned IP never serves `hnch.dev`. The IONOS zone is already empty;
     - [ ] shut down the VPS (`hnch-vps`);
-    - [ ] delete the repo secrets `VPS_HOST`, `VPS_SSH_KEY` and `VPS_USER` (`gh secret delete <name>`);
+    - the repo secrets `VPS_HOST`, `VPS_SSH_KEY` and `VPS_USER` are already gone: deleted at the ADR-0054 merge;
     - [ ] before cancelling the IONOS contract, check whether the `hnch.dev` registration is bundled with it; the registration must survive;
     - [ ] optional: drop `openssh-client` from `infra/runner/Dockerfile`, installed only for the VPS deploys.
   - **Issues:** #542 ("B sees A leave": a cleanly disconnected peer stays present until the 30 s awareness timeout; related #531) stays open as a separate bug. #543 (`www` TLS) was fixed in Phase 0 by the redirect.

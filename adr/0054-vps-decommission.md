@@ -21,7 +21,7 @@ Partially supersedes [ADR-0051](0051-cloudflare-hosting.md): its "VPS left idle,
 
 ## Decision
 
-The VPS deploy path is removed now: the `vps` job and the `targets` input of `deploy-client.yml`, the VPS files in `infra/` (`Caddyfile`, `bootstrap-vps.sh`, `hnch-relay.service`, `deploy.pub`) and the VPS docs; `deploy-client.yml` deploys `hnch-web` only. After the #549 switch the Cloudflare `hnch.dev` and `www` records are repointed from the VPS IP to a placeholder origin (proxied), the VPS is shut down and its repo secrets deleted, so no VPS rollback remains.
+The VPS deploy path is removed now: the `vps` job and the `targets` input of `deploy-client.yml`, the VPS files in `infra/` (`Caddyfile`, `bootstrap-vps.sh`, `hnch-relay.service`, `deploy.pub`) and the VPS docs; `deploy-client.yml` deploys `hnch-web` only. The `VPS_*` repo secrets are deleted when this change merges, so a dispatch of an old tag fails instead of deploying to the VPS. After the #549 switch the Cloudflare `hnch.dev` and `www` records are repointed from the VPS IP to a placeholder origin (proxied) and the VPS is shut down, so no VPS rollback remains.
 
 ## Trade-offs
 
@@ -32,9 +32,9 @@ The VPS deploy path is removed now: the `vps` job and the `targets` input of `de
 
 ## Consequences
 
-- Easier: one deploy target per package; no SSH deploy key on the runner pool once the secrets go; no VPS to patch or pay for after shutdown; docs describe one hosting path.
+- Easier: one deploy target per package; no SSH deploy key on the runner pool; no VPS to patch or pay for after shutdown; docs describe one hosting path.
 - Harder: urgent client fix before the switch needs the switch itself; restoring VPS deploys needs a superseding ADR. Post-shutdown incidents are fix-forward only.
-- Harder: never re-dispatch a pre-ADR-0054 client tag. While the `VPS_*` secrets live, it deploys to the production VPS and never to `hnch-web`. Roll `hnch-web` back with `wrangler rollback`; dispatch only `main` or a tag cut after this change. The same holds for relay tags ≤ `relay-v1.2.1`: they downgrade the VPS relay.
+- Harder: never re-dispatch a pre-ADR-0054 client tag. It ships only to the VPS, so with the `VPS_*` secrets deleted it fails at its SSH step and never reaches `hnch-web`. Roll `hnch-web` back with `wrangler rollback`; dispatch only `main` or a tag cut after this change. The same holds for relay tags ≤ `relay-v1.2.1`: their workflow is an SSH deploy to the VPS with no version guard.
 - Revisit when:
   - Before cancelling the IONOS contract: check whether the `hnch.dev` registration is bundled with the VPS contract; registration must survive cancellation.
   - Switch slips and a client fix must reach users first: do the switch; reversing this decision needs a superseding ADR.

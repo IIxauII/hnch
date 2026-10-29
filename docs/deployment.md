@@ -68,7 +68,7 @@ These keep a relay release safe while old and new code run side by side.
 - **Additive only.** RPC methods and `meta` fields are added, never renamed or removed in one release.
 - **Expand/contract.** A format change ships as two releases at least 10 minutes apart: first read both formats, then write the new one (and drop the old later).
 - **Classes.** Renaming or deleting a Durable Object class needs a new migration in `wrangler.jsonc`, and `wrangler rollback` cannot cross a migration.
-- **Rollback is `wrangler rollback`.** Never re-dispatch an old tag. A dispatch runs the workflow at that tag: from `relay-v1.3.0` on, the guard refuses a version older than the live one. **A tag at or before `relay-v1.2.1` carries the pre-1b workflow, with no guard, and SSH-deploys to the production VPS** while the `VPS_*` secrets are live. Roll back from a machine with the deploy token:
+- **Rollback is `wrangler rollback`.** Never re-dispatch an old tag. A dispatch runs the workflow at that tag: from `relay-v1.3.0` on, the guard refuses a version older than the live one. **A tag at or before `relay-v1.2.1` carries the pre-1b workflow, with no guard and an SSH deploy to the VPS.** With the `VPS_*` secrets deleted ([ADR-0054](../adr/0054-vps-decommission.md)) it fails at that step and deploys nothing; don't dispatch one. Roll back from a machine with the deploy token:
 
   ```sh
   pnpm --filter @hnch/relay exec wrangler deployments list
@@ -132,7 +132,7 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z
 - **Tags and messages.** The `hnch-web` version is tagged `client-vX.Y.Z` only when the deployed commit is that release tag's commit; any other commit deploys untagged. Every version's message names the full commit SHA, and `verify` checks the version id `wrangler deploy` just uploaded (from `WRANGLER_OUTPUT_FILE_PATH`) is the one serving, so a re-dispatch can't pass on an earlier upload.
 - **Cold installs.** The `build` and `web` jobs don't use the runner pool's shared caches (the pnpm store and `node_modules` snapshots under `/cache`), which PR CI can write. Each runs `pnpm install --frozen-lockfile --ignore-scripts --store-dir "${RUNNER_TEMP}/pnpm-store"` into a fresh store, so pnpm checks every package against the lockfile; `build` filters to `@hnch/client...`, `web` to `@hnch/client` (pnpm still installs the workspace root's packages). Node is the runner image's, and pnpm's version comes from `packageManager` through Corepack.
 - **A client release never touches the relay.** In G0 (2026-10-28) relay sockets held for 300 s across a web redeploy with 0 closes.
-- **Rollback.** `wrangler rollback` (instant, no rebuild; `hnch-web` has no Durable Objects). A dispatch of an older `client-v*` tag also works, but only for a tag cut after [ADR-0054](../adr/0054-vps-decommission.md). **Never re-dispatch a pre-ADR-0054 tag (≤ `client-v1.46.0`):** a dispatch runs the workflow at that tag, which ships only to the VPS, and the `VPS_*` secrets are live until after the switch.
+- **Rollback.** `wrangler rollback` (instant, no rebuild; `hnch-web` has no Durable Objects). A dispatch of an older `client-v*` tag also works, but only for a tag cut after [ADR-0054](../adr/0054-vps-decommission.md). **Never re-dispatch a pre-ADR-0054 tag (≤ `client-v1.46.0`):** a dispatch runs the workflow at that tag, which ships only to the VPS. With the `VPS_*` secrets deleted it fails at its SSH step, and it never reaches `hnch-web`.
 
   ```sh
   pnpm --filter @hnch/client exec wrangler deployments list
@@ -146,7 +146,7 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z
 | `CLOUDFLARE_API_TOKEN` | secret | token `hnch-ci-deploy` (below) | `deploy-relay.yml` and the `web` job of `deploy-client.yml` only |
 | `CLOUDFLARE_ACCOUNT_ID` | secret | the Cloudflare account ID | `deploy-relay.yml` and the `web` job of `deploy-client.yml` only |
 | `HNCH_LIVE` | variable | `false` until the switch, then `true` | gates the hnch.dev smokes of both deploys |
-| `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` | secret | VPS SSH target, user, CI key | nothing since ADR-0054; deleted after the switch |
+| `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` | secret | VPS SSH target, user, CI key | nothing; deleted when ADR-0054 merged, so an old-tag dispatch fails instead of deploying to the VPS |
 | `RELEASE_TOKEN` | secret | fine-grained PAT (also needs actions: write, for the deploy dispatch) | `release.yml`: semantic-release's release commits, tags and GitHub Releases, and the `gh workflow run deploy-*.yml` dispatch |
 
 **Token scope (`hnch-ci-deploy`):** Account › Workers Admin (formerly Workers Scripts: Edit; account-wide, so it also covers the account's other Workers, and lets the first deploy create `hnch-web`) and Zone `hnch.dev` › Workers Routes: Write. No DNS permission and no Zone: Read, which is why every route in `wrangler.jsonc` carries `zone_id`. If a deploy fails with an authentication error, add the missing permission to the token in the dashboard (tokens can be edited in place). The token is a repo secret (no environment secrets on GitHub Free private repos), referenced only by the two deploy jobs, and is the runner pool's only long-lived deploy credential. Fork PRs get no secrets.
