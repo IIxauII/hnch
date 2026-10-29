@@ -127,8 +127,10 @@ Rooms now survive relay deploys. They persist, pinned to the EU, until 24–25 h
       3. `deleteAll()`.
       - A `Codes.claim` treats a holder whose `Room.info()` is null as free.
     - **Backstop sweep** (planner-decided; owner may veto):
-      - `Expiry(<UTC creation day>)` lists the UUIDs created that day (one row per room).
-      - A daily cron on `hnch-relay` at 04:00 UTC runs `sweep()` for each of the last 30 days, about 30 DO requests a day. `sweep()` calls `Room(uuid).expireIfDue()` → `deleted | gone | live`, and drops the `deleted` and `gone` entries.
+      - `Expiry(<UTC day>)` lists the UUIDs created that day, plus the rooms a sweep moved there that day (one row per room).
+      - A daily cron on `hnch-relay` at 04:00 UTC runs `sweep()` for each of the last 30 days: 30 DO requests, plus one per listed room it checks (at most 40 per day). `sweep()` calls `Room(uuid).expireIfDue()` → `deleted | gone | moved | live`, and drops the `deleted`, `gone` and `moved` entries.
+        - For the 5 oldest days of the window (`RELIST_DAYS`) the cron passes today: a room that stays (not due, or its delete failed) registers itself under `Expiry(today)` and answers `moved`, so it stays covered however long it lives (#554). That is one more DO request per moved room, made by the room, not the sweep.
+        - If the move fails, the room answers `live`, stays listed where it was, and the next sweep retries, up to 5 times before its index leaves the window. Only those 5 days move rooms, so live rooms don't pile into one index.
       - It uses one of the account's free cron slots.
     - **Tests:**
       - the alarm throws 7 times → the room still expires through lazy expiry and through the sweep;
@@ -180,7 +182,7 @@ WS   /ws/:uuid ───▶ hnch-relay ─▶ Room(uuid).fetch: 404/400 pre-upgr
 Room DO: Y.Doc (lazy) + Awareness ⇄ SQLite (meta{schemaVersion,lastOccupiedAt,tombstonedAt,digest}, log ≤32, snapshot ≤1 MiB chunks)
 inbound msg on S ─▶ apply/broadcast ─▶ buffer (≤5 s) ─▶ S quiet ≥10 s? relay renewal to S
 alarm (hourly while occupied) ─▶ occupied? stamp : due? tombstone → Codes.release → deleteAll : re-arm
-cron 04:00 UTC ─▶ Expiry(day−1…day−30).sweep ─▶ Room.expireIfDue
+cron 04:00 UTC ─▶ Expiry(day−1…day−30).sweep ─▶ Room.expireIfDue: due? delete : (index day−26…day−30? Expiry(today).register, moved)
 ```
 
 ### Free-plan budget (information; per account, daily, reset 00:00 UTC; inbound WS counted 1:1)
@@ -190,7 +192,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
 | Budget (Free) | Per reference session | Sessions/day that fit | Notes |
 |---|---|---|---|
 | DO duration 13,000 GB-s (128 MB billed per awake DO) | 450 GB-s | **≈ 29 occupied room-hours** | **Binding.** With 2 or more visible peers the DO never hibernates (inferred; measured after the switch). One room with two unthrottled tabs open all day uses about 83 % of the daily budget. |
-| DO requests 100k | ≈ 2,300 | ≈ 43 | Hidden-tab reconnect churn adds about 240 per hidden peer-hour; the sweep adds about 30 a day. |
+| DO requests 100k | ≈ 2,300 | ≈ 43 | Hidden-tab reconnect churn adds about 240 per hidden peer-hour; the sweep adds about 30 a day, plus one per listed room it checks and one per room it moves. |
 | Rows written 100k | ≈ 200 | ≈ 500 | Coalescing caps a room at 12 flushes per minute or fewer. |
 | Rows read 5M | ≈ 750 | ≈ 6,600 | Lazy load keeps this low. |
 | Storage 5 GB/account; plan **1 GB per DO** | KBs (stress room: 1 MB) | n/a | |

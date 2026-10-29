@@ -59,7 +59,7 @@ PWA and relay move from the IONOS VPS to the Cloudflare free plan, served from r
 - **Relay objects:**
   - `Room` DO per room UUID: Y.Doc, presence, password digest, participant cap, expiry alarm.
   - `Codes` DO per room code: unique claim, code → UUID; released on deletion.
-  - `Expiry` DO per UTC day: backstop index of rooms created that day.
+  - `Expiry` DO per UTC day: backstop index of rooms created that day (a room still listed when its index nears the end of the sweep window moves to that sweep's day).
   - SQLite-backed. `eu` jurisdiction in prod; `JURISDICTION=none` only in dev and e2e.
 - **Storage:** room state (opaque Yjs updates plus room metadata) persists in DO storage. Writes coalesced (flush at ≤5 s or 512 KiB). Supersedes the ADR-0012 storage clause.
   - Deletion 24–25 h after the last peer leaves: hourly occupancy check, plus an occupancy stamp when a socket joins or sends a frame and the last stamp is an hour old (so a room re-joined late in its TTL keeps a full TTL after that peer leaves); tombstone first; `Codes` release (idempotent); then `deleteAll`. Close events are never relied on.

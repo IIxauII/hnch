@@ -34,6 +34,12 @@ const MAX_CODE_ATTEMPTS = 64;
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Days of the Expiry index the daily cron sweeps. */
 export const SWEEP_DAYS = 30;
+/**
+ * The last days of the window in which the sweep moves a room it can't delete to
+ * today's index (#554). Several, so a failed move is retried before the index
+ * leaves the window; only these, so rooms don't pile into one index.
+ */
+export const RELIST_DAYS = 5;
 
 const unavailable = (): Response => json(503, { error: 'unavailable' });
 const unknownRoom = (): Response => json(404, { reason: 'unknown-room' });
@@ -189,10 +195,16 @@ async function testEvict(rawUuid: string, env: Env): Promise<Response> {
 
 /** Daily cron (04:00 UTC): sweep the Expiry index of each of the last 30 days. */
 export async function handleScheduled(controller: ScheduledController, env: Env): Promise<void> {
-  const days = Array.from({ length: SWEEP_DAYS }, (_, i) =>
-    utcDay(controller.scheduledTime - (i + 1) * DAY_MS),
+  const today = utcDay(controller.scheduledTime);
+  const results = await Promise.allSettled(
+    Array.from({ length: SWEEP_DAYS }, (_, i) => {
+      const age = i + 1;
+      const day = utcDay(controller.scheduledTime - age * DAY_MS);
+      // A room still listed when its index is about to leave the window moves to
+      // today's, which the next 30 sweeps cover.
+      return expiryStub(env, day).sweep(age > SWEEP_DAYS - RELIST_DAYS ? today : undefined);
+    }),
   );
-  const results = await Promise.allSettled(days.map((day) => expiryStub(env, day).sweep()));
   const failed = results.filter((r) => r.status === 'rejected').length;
   if (failed > 0) logEvent('relay-sweep-days-failed');
 }
