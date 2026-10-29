@@ -138,6 +138,14 @@ describe('liveVersions', () => {
     await expect(liveVersions('hnch-web')).rejects.toThrow('/workers/scripts');
   });
 
+  it('skips the script list when the caller already knows', async () => {
+    expect(await liveVersions('hnch-web', false)).toEqual([]);
+    expect(urls).toEqual([]);
+    reply(`${base}/deployments`, { success: true, result: { deployments: [] } });
+    expect(await liveVersions('hnch-web', true)).toEqual([]);
+    expect(urls).toEqual([`${base}/deployments`]);
+  });
+
   it('reads every version of the latest deployment', async () => {
     reply(scripts, { success: true, result: [{ id: 'hnch-web' }] });
     reply(`${base}/deployments`, {

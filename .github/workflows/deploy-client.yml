@@ -130,8 +130,8 @@ jobs:
 
       - name: Hash guard
         # _headers serves every .js and .css as immutable for a year, so each
-        # must be content-hashed (`\.[A-Za-z0-9]{8,}\.(js|css)$`), and _headers
-        # must sit at the root of www.
+        # must carry the build's content hash (`\.[0-9a-f]{16}\.(js|css)$`), and
+        # _headers must sit at the root of www.
         working-directory: packages/client
         run: node scripts/deploy-guard.mjs www
 
@@ -140,7 +140,8 @@ jobs:
           name: www
           path: packages/client/www
           if-no-files-found: error
-          retention-days: 1
+          # Long enough to re-run a failed vps or web job the next days.
+          retention-days: 7
 
   vps:
     name: Ship PWA to the VPS
@@ -164,9 +165,19 @@ jobs:
         run: |
           STAMP="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
           TARBALL="hnch-client-${STAMP}.tar.gz"
-          tar -C "${RUNNER_TEMP}" -czf "${TARBALL}" www
-          echo "tarball=${TARBALL}" >> "$GITHUB_OUTPUT"
-          echo "stamp=${STAMP}" >> "$GITHUB_OUTPUT"
+          # The smoke proves the VPS serves this build by its main bundle.
+          mains=("${RUNNER_TEMP}"/www/main.*.js)
+          if [ "${#mains[@]}" != 1 ] || [ ! -f "${mains[0]}" ]; then
+            echo "::error::expected one main.<hash>.js in the build, found: ${mains[*]}"
+            exit 1
+          fi
+          # _headers configures hnch-web; Caddy would serve it as a public file.
+          tar -C "${RUNNER_TEMP}" --exclude=www/_headers -czf "${TARBALL}" www
+          {
+            echo "tarball=${TARBALL}"
+            echo "stamp=${STAMP}"
+            echo "main=$(basename "${mains[0]}")"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Configure SSH
         env:
@@ -212,27 +223,29 @@ jobs:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
           HNCH_LIVE: ${{ vars.HNCH_LIVE }}
+          MAIN: ${{ steps.pack.outputs.main }}
         run: |
-          # After the switch hnch.dev resolves to Cloudflare, so check the
-          # active release on the VPS itself.
+          # Both checks look for this build's main bundle in index.html, so an
+          # older release can't pass. After the switch hnch.dev resolves to
+          # Cloudflare, so check the active release on the VPS itself.
           if [ "${HNCH_LIVE}" = true ]; then
             ssh -o StrictHostKeyChecking=yes "${VPS_USER}@${VPS_HOST}" \
-              "grep -q '<app-root' /var/www/hnch-client/index.html"
-            echo "VPS release active (hnch.dev is served by Cloudflare)"
+              "grep -qF '${MAIN}' /var/www/hnch-client/index.html"
+            echo "VPS release active with ${MAIN} (hnch.dev is served by Cloudflare)"
             exit 0
           fi
-          # Give Caddy a moment to pick up the new symlink target. If the PWA
-          # index.html doesn't serve <app-root within ~10s, fail the job — the
-          # release is on the VPS but routing/symlink is wrong and operator
+          # Give Caddy a moment to pick up the new symlink target. If
+          # index.html doesn't reference this build within ~10s, fail the job —
+          # the release is on the VPS but routing/symlink is wrong and operator
           # attention is warranted.
           for attempt in 1 2 3 4 5; do
-            if curl -fsS --max-time 5 https://hnch.dev/ | grep -q '<app-root'; then
-              echo "PWA index.html OK on attempt ${attempt}"
+            if curl -fsS --max-time 5 https://hnch.dev/ | grep -qF "${MAIN}"; then
+              echo "PWA index.html serves ${MAIN} on attempt ${attempt}"
               exit 0
             fi
             sleep 2
           done
-          echo "PWA smoke test failed after 5 attempts" >&2
+          echo "PWA smoke test: https://hnch.dev/ does not serve ${MAIN} after 5 attempts" >&2
           exit 1
 
   web:

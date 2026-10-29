@@ -85,12 +85,13 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z (targets: all)
         │           │                            run_worker_first, no workers.dev or preview
         │           │                            URLs, every route on hnch.dev with a zone_id
         │           ├── ng build (production), once
-        │           └── deploy-guard.mjs www     _headers at the root of www, every .js and
-        │                                        .css content-hashed
+        │           ├── deploy-guard.mjs www     _headers at the root of www, every .js and
+        │           │                            .css named <name>.<16 lowercase hex>.js|css
+        │           └── upload www (artifact kept 7 days, so a failed job can be re-run)
         │
-        ├── vps     (targets: all only) tarball → scp → atomic symlink swap;
-        │           smoke: https://hnch.dev/ serves <app-root>, or after the switch the
-        │           active release on the VPS does
+        ├── vps     (targets: all only) tarball without _headers → scp → atomic
+        │           symlink swap; smoke: index.html on https://hnch.dev/, or after the
+        │           switch the active release on the VPS, names this build's main.<hash>.js
         │
         └── web     cold install (fresh store, client only, no install scripts);
                     │   fresh www from the build; deploy-guard.mjs config and www again
@@ -117,7 +118,7 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z (targets: all)
   - everything else (`index.html`, SPA deep links such as `/lobby/x`, `/svg/*`, `/assets/*`, `favicon.ico`, `3rdpartylicenses.txt`): `no-cache, must-revalidate`;
   - a missing `/x.<hash>.js` falls back to `index.html` with `immutable`, as Caddy does.
 
-  Because `/*.js` and `/*.css` are immutable for a year, every one of them must be content-hashed (`outputHashing: all`). The hash guard (`deploy-guard.mjs www`) fails the build if one isn't.
+  Because `/*.js` and `/*.css` are immutable for a year, every one of them must be content-hashed (`outputHashing: all`). The hash guard (`deploy-guard.mjs www`) fails the build unless each matches `\.[0-9a-f]{16}\.(js|css)$`, the webpack builder's exact hash form; a builder change that alters it fails the deploy rather than slipping through. The VPS tarball leaves `_headers` out, since Caddy would serve it as a file.
 - **SPA fallback.** Any path without a file answers `index.html` with `200`. `/index.html` itself redirects (`307`) to `/`.
 - **`targets`.** Releases deploy `all`: the VPS and `hnch-web`. A manual dispatch of unreleased `main` uses `web-only`.
 - **Tags and messages.** The `hnch-web` version is tagged `client-vX.Y.Z` only when the deployed commit is that release tag's commit; any other commit deploys untagged. Every version's message names the full commit SHA, and `verify` checks the version id `wrangler deploy` just uploaded (from `WRANGLER_OUTPUT_FILE_PATH`) is the one serving, so a re-dispatch can't pass on an earlier upload.
