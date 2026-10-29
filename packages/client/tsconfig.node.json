@@ -4,7 +4,10 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "lib": ["ES2023", "DOM"],
-    "types": ["node"],
+    // @types/node is installed as `node-types` so it stays out of
+    // node_modules/@types, where tsconfig.json and tsconfig.spec.json (no
+    // `types` list) would pick up Node globals.
+    "types": ["node-types"],
     "noEmit": true,
     "allowJs": true,
     "checkJs": true,
@@ -13,5 +16,9 @@
     "declarationMap": false,
     "sourceMap": false
   },
-  "include": ["scripts/deploy-guard.mjs", "scripts/deploy-guard.test.ts"]
+  "include": [
+    "scripts/deploy-guard.mjs",
+    "scripts/deploy-guard.test.ts",
+    "scripts/worker-guard.test.ts"
+  ]
 }

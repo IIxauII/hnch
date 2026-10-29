@@ -8,12 +8,18 @@
  *                                          _headers at its root, every .js and
  *                                          .css content-hashed
  *   node scripts/deploy-guard.mjs live     the deploy would not remove a live route
- *   node scripts/deploy-guard.mjs verify   the live deployment is this version and
- *                                          every configured route is live
+ *   node scripts/deploy-guard.mjs verify   the version this run uploaded is the
+ *                                          live one, and every configured route
+ *                                          is live
  *
  * `live` and `verify` read the Cloudflare API with CLOUDFLARE_API_TOKEN and
  * CLOUDFLARE_ACCOUNT_ID. ALLOW_ROUTE_REMOVAL=true lets `live` pass a removed
  * route (a manual dispatch with `allow_route_removal`).
+ *
+ * `verify` takes the version id from the ND-JSON that `wrangler deploy` wrote
+ * to WRANGLER_OUTPUT_FILE_PATH, the deployed commit from DEPLOY_SHA (the
+ * version message must name it) and, for a release commit, the release tag
+ * from DEPLOY_TAG (empty for an unreleased commit, which is deployed untagged).
  *
  * The route, version and API helpers are shared with hnch-relay's guard:
  * scripts/cloudflare/worker-guard.mjs at the repo root.
@@ -30,19 +36,23 @@ import {
   routePatterns,
   routeProblems,
   routeRemovalProblems,
+  routeZones,
 } from '../../../scripts/cloudflare/worker-guard.mjs';
 
 const clientDir = resolve(import.meta.dirname, '..');
+export const SCRIPT = 'hnch-web';
 
 /**
  * `_headers` gives `/*.js` and `/*.css` a year of `immutable`, so every one of
- * them must carry a content hash (Angular `outputHashing: all`). Same charset
- * as the Caddyfile, for esbuild's base32 hashes.
+ * them must carry a content hash (Angular `outputHashing: all`). Matches the
+ * webpack browser builder's `<name>.<hash>.js|css` form only, with the
+ * Caddyfile's charset.
  */
 export const HASHED = /\.[A-Za-z0-9]{8,}\.(js|css)$/;
 
 /**
  * @typedef {import('../../../scripts/cloudflare/worker-guard.mjs').RouteConfig} RouteConfig
+ * @typedef {import('../../../scripts/cloudflare/worker-guard.mjs').LiveVersion} LiveVersion
  * @typedef {{
  *   name?: string,
  *   main?: string,
@@ -64,8 +74,13 @@ export const HASHED = /\.[A-Za-z0-9]{8,}\.(js|css)$/;
  * @returns {string[]}
  */
 export function configProblems(config) {
+  const problems = [];
+  // The route guard and verify look the Worker up by this name.
+  if (config.name !== SCRIPT) {
+    problems.push(`name must be ${SCRIPT}, is ${JSON.stringify(config.name)}`);
+  }
   // Only the hnch.dev route reaches the Worker.
-  const problems = exposureProblems(config);
+  problems.push(...exposureProblems(config));
   // Assets-only: no Worker code runs, so asset requests are not billed as
   // Worker requests (ADR-0051).
   if (config.main !== undefined) problems.push('main must not be set (assets-only Worker)');
@@ -125,6 +140,48 @@ export function wwwProblems(wwwDir, headersSource) {
   return problems;
 }
 
+/**
+ * The version id of the last deploy recorded in wrangler's ND-JSON output
+ * file; null if there is none.
+ * @param {string} ndjson
+ * @returns {string | null}
+ */
+export function deployedVersionId(ndjson) {
+  let id = null;
+  for (const line of ndjson.split('\n')) {
+    if (line.trim() === '') continue;
+    const entry = JSON.parse(line);
+    if (entry?.type === 'deploy' && typeof entry.version_id === 'string') id = entry.version_id;
+  }
+  return id;
+}
+
+/**
+ * Problems that show this run's upload is not what serves: `versionId` must be
+ * live at 100 %, its message must name `sha`, and it must carry `tag` (a
+ * release commit) or no tag at all (an unreleased one).
+ * @param {LiveVersion[]} live
+ * @param {{ versionId: string, sha: string, tag: string }} expected
+ * @returns {string[]}
+ */
+export function deployedVersionProblems(live, { versionId, sha, tag }) {
+  const ids = live.map((v) => `${v.id} (${v.percentage ?? '?'} %)`).join(', ') || 'nothing';
+  const version = live.find((v) => v.id.toLowerCase() === versionId.toLowerCase());
+  if (version === undefined) return [`version ${versionId} is not live; live: ${ids}`];
+  const problems = [];
+  if (version.percentage !== 100)
+    problems.push(`version ${versionId} is not at 100 %; live: ${ids}`);
+  if (!version.message?.includes(sha)) {
+    problems.push(`version ${versionId} message ${JSON.stringify(version.message)} lacks ${sha}`);
+  }
+  if ((version.tag ?? '') !== tag) {
+    problems.push(
+      `version ${versionId} is tagged ${JSON.stringify(version.tag)}, expected ${JSON.stringify(tag || null)}`,
+    );
+  }
+  return problems;
+}
+
 // ------------------------------------------------------------------ CLI
 
 async function readDeployConfig() {
@@ -134,24 +191,15 @@ async function readDeployConfig() {
   );
 }
 
-function packageVersion() {
-  return /** @type {{ version: string }} */ (
-    JSON.parse(readFileSync(resolve(clientDir, 'package.json'), 'utf8'))
-  ).version;
+/** @param {string} name */
+function requiredEnv(name) {
+  const value = process.env[name];
+  if (!value) fail([`${name} is not set`]);
+  return /** @type {string} */ (value);
 }
 
 async function main() {
   const mode = process.argv[2];
-  const config = await readDeployConfig();
-  const script = config.name ?? 'hnch-web';
-  const version = packageVersion();
-
-  if (mode === 'config') {
-    const problems = configProblems(config);
-    if (problems.length > 0) fail(problems);
-    console.log(`config ok: ${script} ${version}, routes ${routePatterns(config).join(', ')}`);
-    return;
-  }
 
   if (mode === 'www') {
     const wwwDir = resolve(clientDir, 'www');
@@ -162,35 +210,50 @@ async function main() {
     return;
   }
 
+  if (mode !== 'config' && mode !== 'live' && mode !== 'verify') {
+    console.error('usage: node scripts/deploy-guard.mjs config|www|live|verify');
+    process.exit(2);
+  }
+
+  const config = await readDeployConfig();
+
+  if (mode === 'config') {
+    const problems = configProblems(config);
+    if (problems.length > 0) fail(problems);
+    console.log(`config ok: ${SCRIPT}, routes ${routePatterns(config).join(', ')}`);
+    return;
+  }
+
+  if (routeZones(config).size === 0) fail(['no route with a zone_id: nothing to check']);
+
   if (mode === 'live') {
     const problems = await routeRemovalProblems(
       config,
-      script,
+      SCRIPT,
       process.env['ALLOW_ROUTE_REMOVAL'] === 'true',
     );
     if (problems.length > 0) fail(problems);
-    const tags = (await liveVersions(script)).flatMap((v) => (v.tag === null ? [] : [v.tag]));
-    console.log(`live ok: deploying ${version} over ${tags.join(', ') || 'nothing'}`);
+    console.log(`live ok: no live ${SCRIPT} route removed`);
     return;
   }
 
-  if (mode === 'verify') {
-    const tags = (await liveVersions(script)).map((v) => v.tag ?? 'untagged');
-    const problems = [];
-    if (!tags.includes(`client-v${version}`)) {
-      problems.push(
-        `live deployment is ${tags.join(', ') || 'nothing'}, expected client-v${version}`,
-      );
-    }
-    const missing = missingRoutes(await liveRoutes(config), routePatterns(config), script);
-    if (missing.length > 0) problems.push(`route(s) ${missing.join(', ')} not live for ${script}`);
-    if (problems.length > 0) fail(problems);
-    console.log(`deployed: ${tags.join(', ')}; routes ${routePatterns(config).join(', ')} live`);
-    return;
-  }
-
-  console.error('usage: node scripts/deploy-guard.mjs config|www|live|verify');
-  process.exit(2);
+  const outputFile = requiredEnv('WRANGLER_OUTPUT_FILE_PATH');
+  const versionId = existsSync(outputFile)
+    ? deployedVersionId(readFileSync(outputFile, 'utf8'))
+    : null;
+  if (versionId === null) fail([`no deploy version id in ${outputFile}`]);
+  const expected = {
+    versionId: /** @type {string} */ (versionId),
+    sha: requiredEnv('DEPLOY_SHA'),
+    tag: process.env['DEPLOY_TAG'] ?? '',
+  };
+  const problems = deployedVersionProblems(await liveVersions(SCRIPT), expected);
+  const missing = missingRoutes(await liveRoutes(config), routePatterns(config), SCRIPT);
+  if (missing.length > 0) problems.push(`route(s) ${missing.join(', ')} not live for ${SCRIPT}`);
+  if (problems.length > 0) fail(problems);
+  console.log(
+    `deployed: ${expected.versionId} (${expected.tag || 'untagged'}, ${expected.sha}); routes ${routePatterns(config).join(', ')} live`,
+  );
 }
 
 if (process.argv[1] === import.meta.filename) await main();
