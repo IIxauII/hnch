@@ -243,11 +243,21 @@ The repo is private on GitHub Free, so it has no branch protection and nothing b
 - Never merge on red, even when the failure looks unrelated.
 - After merging, check your merge's `ci.yml` push run (`gh run list --repo IIxauII/hnch --workflow ci.yml --event push --commit <merge-sha>`) and fix forward if it goes red. If a newer merge cancelled it, check the newest `main` push run instead (`gh run list --repo IIxauII/hnch --workflow ci.yml --event push --branch main --limit 1`): it covers yours. Don't re-run the old cancelled run; it shares the concurrency group and would cancel the newer one.
 
-A `main` push run tests everything changed since the last green `main` push run, so a merge whose run was cancelled or failed is tested again by the next one. It leaves out the `[skip ci]` release and screenshot commits, and runs the full pipeline when it can't find a green run to start from.
+A `main` push run tests everything changed since the last green `main` push run, so a merge whose run was cancelled or failed is tested again by the next one. It leaves out the `[skip ci]` release and screenshot commits, and runs the full pipeline when it can't find a green run to start from. Releases wait for a green `main` push run too (see [When a release runs](#when-a-release-runs)), so a red `main` holds back every release until it is fixed.
 
 ## Releases
 
-Releases are automated from commit history using [semantic-release](https://semantic-release.gitbook.io/) on every push to `main`. There is no manual release step and no release PR — qualifying commits trigger a tag, changelog entry, GitHub Release, and deploy hook for the affected package.
+Releases are automated from commit history using [semantic-release](https://semantic-release.gitbook.io/). There is no manual release step and no release PR — qualifying commits trigger a tag, changelog entry, GitHub Release, and deploy hook for the affected package.
+
+### When a release runs
+
+`release.yml` starts only after a `ci.yml` push run on `main` goes green (a `workflow_run` trigger), and releases the commit that run tested, not whatever `main` holds by then.
+
+- A merge whose CI run is red or cancelled releases nothing. Its commits release with the next green `main` run, which has tested them too (see [Merge only on green CI](#merge-only-on-green-ci)).
+- If `main` already holds a newer merge when a green run's release starts, that release publishes nothing and passes; the newer merge's green run releases both. The bot's own `[skip ci]` release and screenshot commits don't count as newer merges.
+- A red or cancelled CI run still starts a Release run, which shows as skipped.
+- The release isn't among the merge commit's checks. Find it with `gh run list --repo IIxauII/hnch --workflow release.yml --limit 5`. A run's own commit is `main`'s tip when it started; its "Resolve the commit to release" step names the commit it released and the CI run that tested it.
+- A release that fails partway: fix the cause, then re-run that Release run (`gh run rerun <id> --failed`). It checks out the same commit and resumes with the next package. If a green run's release never started or was cancelled, dispatch it by hand (`gh workflow run release.yml --ref main`): that releases the head commit of the newest green `main` CI run.
 
 > **iOS bundle-version caveat (deferred).** Capacitor sync uses `packages/client/package.json` `version` for the native bundle's `CFBundleShortVersionString`. Between releases that file holds the placeholder `0.0.0-semantically-released`, which is **not** a valid bundle version. The native iOS build process (deferred to Phase 6b — see `docs/roadmap.md §9`) will need to read the latest `client-v*` git tag rather than `package.json`. Address this when Phase 6b lands.
 

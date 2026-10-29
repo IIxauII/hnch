@@ -396,6 +396,8 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
   - [ADR-0053](../../adr/0053-runner-pool-two-slots.md) records this and supersedes ADR-0049's "pool size = `verify` matrix lane count" clause.
 - Settled 2026-10-29 (owner): `ci.yml`'s workflow-level `concurrency` with `cancel-in-progress` keeps cancelling superseded runs on `main` too. The newest `main` run must cover the changes of every merge whose run was cancelled.
   - Mechanism (planner, not owner): on a push to `main`, change detection diffs from the commit of the last successful `main` CI run instead of the previous push, and runs the full pipeline if there is none. The follow-up CI PR implements it.
+- Settled 2026-10-29 (owner): `release.yml` starts from a successful `ci.yml` push run on `main` (`workflow_run`), not from the push, so a red or cancelled merge releases and deploys nothing until the next green run.
+  - Mechanism (planner, not owner): the release checks out the commit that run tested; if `main` holds a newer merge by then, it releases nothing and the newer merge's green run releases both. A manual dispatch releases the newest green run's commit. See `CONTRIBUTING.md`, [When a release runs](../../CONTRIBUTING.md#when-a-release-runs).
 - Settled 2026-10-29 (owner): #562 (test(shared,cli): give the test-relay startup hook the same 60 s as relay) won't land. One local relay per test run replaces it (vitest `globalSetup`: mechanism from the planner, not the owner).
 
 ## Phases

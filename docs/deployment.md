@@ -27,13 +27,21 @@ All three surfaces speak to the same relay at `wss://hnch.dev/ws/:uuid` and `htt
 | `WS /ws/:uuid` | relay (y-websocket sync) |
 | Everything else | static PWA, with SPA fallback to `/index.html` |
 
+## Release gate
+
+A red `main` releases and so deploys nothing. `release.yml` starts only from a green `ci.yml` push run on `main` (a `workflow_run` trigger) and releases the commit that run tested. A red or cancelled merge releases with the next green run; a green run whose commit `main` has already moved past (a newer merge) releases nothing and leaves it to that merge's run. The deploys below are dispatched only by a release, so they inherit the gate. Details and recovery: [CONTRIBUTING.md › When a release runs](../CONTRIBUTING.md#when-a-release-runs). A manual `deploy-*.yml` dispatch bypasses it.
+
 ## Relay release-to-deploy pipeline
 
 ```
 commit on main (feat(relay): / fix(relay): / etc)
         │
         ▼
-release.yml — semantic-release per package, tags relay-vX.Y.Z
+ci.yml push run on main goes green (red or cancelled: wait for the next green run)
+        │
+        ▼
+release.yml — semantic-release per package on the commit that run tested,
+              tags relay-vX.Y.Z
         │
         ▼
 deploy-relay.yml — dispatched with --ref relay-vX.Y.Z
@@ -75,7 +83,11 @@ These keep a relay release safe while old and new code run side by side.
 commit on main (feat(client): / fix(client): / etc)
         │
         ▼
-release.yml — semantic-release per package, tags client-vX.Y.Z
+ci.yml push run on main goes green (red or cancelled: wait for the next green run)
+        │
+        ▼
+release.yml — semantic-release per package on the commit that run tested,
+              tags client-vX.Y.Z
         │
         ▼
 deploy-client.yml — dispatched with --ref client-vX.Y.Z
@@ -135,7 +147,7 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z
 | `CLOUDFLARE_ACCOUNT_ID` | secret | the Cloudflare account ID | `deploy-relay.yml` and the `web` job of `deploy-client.yml` only |
 | `HNCH_LIVE` | variable | `false` until the switch, then `true` | gates the hnch.dev smokes of both deploys |
 | `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` | secret | VPS SSH target, user, CI key | nothing since ADR-0054; deleted after the switch |
-| `GITHUB_TOKEN` | provided by Actions | | semantic-release tag + release |
+| `RELEASE_TOKEN` | secret | fine-grained PAT (also needs actions: write, for the deploy dispatch) | `release.yml`: semantic-release's release commits, tags and GitHub Releases, and the `gh workflow run deploy-*.yml` dispatch |
 
 **Token scope (`hnch-ci-deploy`):** Account › Workers Admin (formerly Workers Scripts: Edit; account-wide, so it also covers the account's other Workers, and lets the first deploy create `hnch-web`) and Zone `hnch.dev` › Workers Routes: Write. No DNS permission and no Zone: Read, which is why every route in `wrangler.jsonc` carries `zone_id`. If a deploy fails with an authentication error, add the missing permission to the token in the dashboard (tokens can be edited in place). The token is a repo secret (no environment secrets on GitHub Free private repos), referenced only by the two deploy jobs, and is the runner pool's only long-lived deploy credential. Fork PRs get no secrets.
 
