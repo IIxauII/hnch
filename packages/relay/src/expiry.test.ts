@@ -11,7 +11,7 @@ import worker from './index';
 import { OCCUPANCY_CHECK_MS, ROOM_TTL_MS, type RoomMeta } from './room';
 import { utcDay } from './stubs';
 import { createRoom, restoreClock, setNow } from './test-support/peer';
-import { SWEEP_DAYS } from './worker';
+import { RELIST_DAYS, SWEEP_DAYS } from './worker';
 import { SWEEP_BATCH, type Expiry } from './expiry';
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -154,8 +154,7 @@ describe('daily cron', () => {
     }
   });
 
-  it(`keeps sweeping a room that lives past ${SWEEP_DAYS} days`, async () => {
-    // Created late on day 200, so the day-201 sweep finds it live and moves it.
+  it(`keeps sweeping a room that lives past ${SWEEP_DAYS} days, moving it near the window's end`, async () => {
     setNow(at(200, 23 * HOUR_MS));
     const { uuid } = await createRoom();
     const cron = async (day: number) => {
@@ -165,15 +164,36 @@ describe('daily cron', () => {
         env,
       );
     };
+    /** As if a peer used the room at `ms` (its socket's stamp). */
+    const use = (ms: number) =>
+      runInDurableObject(roomStub(uuid), (room, state) => {
+        const meta = state.storage.kv.get<RoomMeta>('meta')!;
+        state.storage.kv.put('meta', { ...meta, lastOccupiedAt: ms });
+        // Drop the instance's cached copy so the sweep reads the stored one.
+        (room as unknown as { meta: RoomMeta | undefined }).meta = undefined;
+      });
 
+    // Live, but its index is young: checked, not moved.
     await cron(201);
-    expect(await exists(uuid)).toBe(true);
-    expect(await listed(utcDay(at(200)))).toEqual([]);
-    expect(await listed(utcDay(at(201)))).toEqual([uuid]);
+    expect(await listed(utcDay(at(200)))).toEqual([uuid]);
 
-    // Day 200 is out of the day-231 sweep's window; day 201 is its oldest day.
-    await cron(200 + SWEEP_DAYS + 1);
+    // Still in use when its index is in the last days of the window: moved.
+    const firstMove = 200 + SWEEP_DAYS - RELIST_DAYS + 1;
+    await use(at(firstMove, 3 * HOUR_MS));
+    await cron(firstMove);
+    expect(await listed(utcDay(at(200)))).toEqual([]);
+    expect(await listed(utcDay(at(firstMove)))).toEqual([uuid]);
+
+    // And again, a window later.
+    const secondMove = firstMove + SWEEP_DAYS - RELIST_DAYS + 1;
+    await use(at(secondMove, 3 * HOUR_MS));
+    await cron(secondMove);
+    expect(await listed(utcDay(at(firstMove)))).toEqual([]);
+    expect(await listed(utcDay(at(secondMove)))).toEqual([uuid]);
+
+    // Left alone, it is deleted by a sweep of its new index.
+    await cron(secondMove + 2);
     expect(await exists(uuid)).toBe(false);
-    expect(await listed(utcDay(at(201)))).toEqual([]);
+    expect(await listed(utcDay(at(secondMove)))).toEqual([]);
   });
 });

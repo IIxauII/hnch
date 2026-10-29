@@ -179,26 +179,27 @@ export class Room extends DurableObject<Env> {
   }
 
   /**
-   * For the daily Expiry sweep: delete the room if it is due. A room that is not
-   * due lists itself under `relistUnder` (the sweep's day) and answers `moved`,
-   * so the sweep covers it for as long as it lives, however old it gets. If that
-   * fails it answers `live`: it stays listed where it was, and the next sweep
-   * retries. The call is the room's own subrequest, not the sweep's.
+   * For the daily Expiry sweep: delete the room if it is due. A room that stays
+   * (not due, or its delete failed) answers `live`; given `relistUnder` (the
+   * sweep's day, passed only while the room's index is about to leave the
+   * window), it lists itself there first and answers `moved`, so the sweep
+   * covers it however long it lives. A failed move answers `live`: it stays
+   * listed where it was, and the next sweep retries. The call is the room's own
+   * subrequest, not the sweep's.
    */
   async expireIfDue(relistUnder?: string): Promise<ExpireOutcome> {
     const meta = await this.touch();
     if (meta === null) return 'gone';
-    if (meta.tombstonedAt === null && !this.isDue(meta, clock.now())) {
-      if (relistUnder === undefined) return 'live';
-      try {
-        await expiryStub(this.env, relistUnder).register(meta.uuid);
-        return 'moved';
-      } catch (err) {
-        logEvent('room-relist-failed', err);
-        return 'live';
-      }
+    const due = meta.tombstonedAt !== null || this.isDue(meta, clock.now());
+    if (due && (await this.delete())) return 'deleted';
+    if (relistUnder === undefined) return 'live';
+    try {
+      await expiryStub(this.env, relistUnder).register(meta.uuid);
+      return 'moved';
+    } catch (err) {
+      logEvent('room-relist-failed', err);
+      return 'live';
     }
-    return (await this.delete()) ? 'deleted' : 'live';
   }
 
   /** ADR-0027 `DELETE /test/rooms/:uuid`: delete now. False if the room is unknown. */
