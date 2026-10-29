@@ -64,18 +64,19 @@ jobs:
           persist-credentials: false
 
       - name: Enable Corepack
+        # pnpm's version comes from `packageManager`; node is the runner image's.
         run: corepack enable
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          # No `cache: pnpm`: pnpm install reads the bind-mounted
-          # /cache/pnpm-store on the self-hosted pool, which is
-          # faster than the GitHub Actions cache round-trip. Same
-          # pattern as ci.yml verify lanes and release.yml.
-
-      - name: Install workspace deps
-        run: pnpm install --frozen-lockfile
+      - name: Install (fresh store)
+        # The shared caches under /cache (pnpm store, node_modules snapshots)
+        # are writable by PR CI, so a job that builds what users get installs
+        # into a fresh store and pnpm checks every package against the
+        # lockfile. Only the client and what it depends on (@hnch/shared); no
+        # install scripts (prebuild writes version.ts).
+        run: |
+          pnpm install --frozen-lockfile --ignore-scripts \
+            --store-dir "${RUNNER_TEMP}/pnpm-store" \
+            --filter '@hnch/client...'
 
       - name: Build metadata
         # The deploy jobs check out this exact commit, even if `ref` is a
@@ -252,10 +253,20 @@ jobs:
           ref: ${{ needs.build.outputs.sha }}
           persist-credentials: false
 
-      - name: Install
-        uses: ./.github/actions/pnpm-install
-        with:
-          ignore-scripts: 'true'
+      - name: Enable Corepack
+        # pnpm's version comes from `packageManager`; node is the runner image's.
+        run: corepack enable
+
+      - name: Install (fresh store)
+        # The shared caches under /cache (pnpm store, node_modules snapshots)
+        # are writable by PR CI, so a job that holds the deploy token installs
+        # into a fresh store and pnpm checks every package against the
+        # lockfile. Only the client's packages (wrangler for the deploy and the
+        # guard); no install scripts.
+        run: |
+          pnpm install --frozen-lockfile --ignore-scripts \
+            --store-dir "${RUNNER_TEMP}/pnpm-store" \
+            --filter @hnch/client
 
       - name: Clear www
         # Deploy exactly the uploaded build, nothing left in the workspace.
