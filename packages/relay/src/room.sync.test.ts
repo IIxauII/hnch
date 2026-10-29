@@ -16,6 +16,38 @@ const settle = () => new Promise((r) => setTimeout(r, 50));
 interface RoomInternals {
   openSockets(): WebSocket[];
   presence: { clientIds(): number[] };
+  socketIds: WeakMap<WebSocket, string>;
+}
+
+/** How many presence states the room holds. */
+function ownersOf(uuid: string) {
+  return runInDurableObject(
+    roomStub(uuid),
+    (room) => (room as unknown as RoomInternals).presence.clientIds().length,
+  );
+}
+
+/** How many states each peer's attachment holds. */
+function peerPresenceOf(uuid: string) {
+  return runInDurableObject(roomStub(uuid), (room) =>
+    (room as unknown as RoomInternals)
+      .openSockets()
+      .map((ws) => (ws.deserializeAttachment() as { presence: unknown[] }).presence.length),
+  );
+}
+
+/** A refused join whose client never reads the close, so it stays CLOSING. */
+async function refusedSocket(uuid: string) {
+  const response = await upgrade(uuid, `?pw=${'cd'.repeat(32)}`);
+  expect(response.status).toBe(101);
+  const drain = async () => {
+    const ws = response.webSocket!;
+    const closed = new Promise<number>((r) => ws.addEventListener('close', (e) => r(e.code)));
+    ws.accept();
+    expect(await closed).toBe(4002);
+    await eventually(async () => expect((await socketsOf(uuid)).refused).toBe(0));
+  };
+  return { drain };
 }
 
 /** The room's sockets: tagged refused, all, and those counted as peers. */
@@ -139,6 +171,70 @@ describe('joining a room', () => {
     expect(await socketsOf(uuid)).toEqual({ refused: 0, all: 2, peers: 2 });
     expect(member.closeEvent).toBeNull();
     expect(second.closeEvent).toBeNull();
+  });
+
+  it('treats an error on a refused socket as no peer leaving', async () => {
+    const { uuid } = await createRoom({ passwordHash: HASH });
+    const member = await Peer.join(uuid, `?pw=${HASH}`);
+    member.announce({ participantId: 'member' });
+    await eventually(async () => expect(await ownersOf(uuid)).toBe(1));
+    const refused = await refusedSocket(uuid);
+
+    const after = await runInDurableObject(roomStub(uuid), async (room, state) => {
+      const [ws] = state.getWebSockets('refused');
+      await room.webSocketError(ws!);
+      const internals = room as unknown as RoomInternals;
+      return {
+        owners: internals.presence.clientIds().length,
+        peers: internals.openSockets().length,
+        // Dropping it as a peer would first have given it a peer id.
+        refusedHasId: internals.socketIds.has(ws!),
+        refusedAttachment: ws!.deserializeAttachment(),
+      };
+    });
+    expect(after).toEqual({ owners: 1, peers: 1, refusedHasId: false, refusedAttachment: null });
+
+    // The member is still in the room, and shown to a later join.
+    const late = await Peer.join(uuid, `?pw=${HASH}`);
+    await eventually(() => expect(late.participants()).toEqual(['member']));
+    expect(member.closeEvent).toBeNull();
+    await refused.drain();
+  });
+
+  it('leaves a refused socket out when it refreshes the peers attachments', async () => {
+    const start = Date.now();
+    setNow(start);
+    const { uuid } = await createRoom({ passwordHash: HASH });
+    const member = await Peer.join(uuid, `?pw=${HASH}`);
+    member.announce({ participantId: 'member' });
+    await eventually(async () => expect(await ownersOf(uuid)).toBe(1));
+    // A quiet client: its state expires rather than being re-announced.
+    member.mute();
+    const refused = await refusedSocket(uuid);
+    expect(await peerPresenceOf(uuid)).toEqual([1]);
+
+    // The next join expires the member's state and re-saves its attachment,
+    // walking every socket the room holds, the refused one included.
+    setNow(start + PRESENCE_TIMEOUT_MS);
+    await Peer.join(uuid, `?pw=${HASH}`);
+    const after = await runInDurableObject(roomStub(uuid), (room, state) => {
+      const [ws] = state.getWebSockets('refused');
+      const internals = room as unknown as RoomInternals;
+      return {
+        owners: internals.presence.clientIds().length,
+        refusedHasId: internals.socketIds.has(ws!),
+        refusedAttachment: ws!.deserializeAttachment(),
+      };
+    });
+    expect(after).toEqual({
+      owners: 0,
+      refusedHasId: false,
+      refusedAttachment: null,
+    });
+    // The member's attachment no longer holds the expired state.
+    expect(await peerPresenceOf(uuid)).toEqual([0, 0]);
+    restoreClock();
+    await refused.drain();
   });
 
   it('admits the right pw', async () => {
@@ -279,6 +375,24 @@ describe('presence', () => {
     const carol = await Peer.join(uuid);
     await new Promise((r) => setTimeout(r, 50));
     expect(carol.participants()).toEqual([]);
+  });
+
+  it('removes what a socket announced when it errors, and tells the others', async () => {
+    const { uuid } = await createRoom();
+    const alice = await Peer.join(uuid);
+    const bob = await Peer.join(uuid);
+    alice.announce({ participantId: 'p-alice' });
+    await eventually(() => expect(bob.participants()).toEqual(['p-alice']));
+
+    await runInDurableObject(roomStub(uuid), async (room) => {
+      const owner = (room as unknown as RoomInternals)
+        .openSockets()
+        .find((ws) => (ws.deserializeAttachment() as { presence: unknown[] }).presence.length > 0);
+      await room.webSocketError(owner!);
+    });
+
+    await eventually(() => expect(bob.participants()).toEqual([]));
+    expect(await ownersOf(uuid)).toBe(0);
   });
 
   it('replays presence after the room object was evicted with sockets open', async () => {
