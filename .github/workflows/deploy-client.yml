@@ -1,24 +1,39 @@
 name: Deploy client (PWA)
 
 # Triggered when semantic-release cuts a `client-vX.Y.Z` tag (see release.yml).
-# Builds the Angular/Ionic PWA, ships a tarball to the VPS, atomically swaps
-# the release symlink, and smoke-tests via https://hnch.dev/.
+# Builds the production PWA once, then ships the same www to two targets:
 #
-# Architecture + rollback: see infra/README.md and adr/0029-relay-deployment.md.
-# Caddy serves /var/www/hnch-client and follows the symlink at request time —
-# no Caddy reload needed on swap.
+#   vps  the IONOS VPS: tarball, atomic release-symlink swap, Caddy serves it.
+#        It answers hnch.dev until the switch, and afterwards stays current as
+#        the incidental rollback (ADR-0051). Skipped with targets=web-only.
+#   web  hnch-web, an assets-only Worker on Workers Static Assets (ADR-0051).
+#        Its hnch.dev/* route is inert until the switch (repo variable
+#        HNCH_LIVE != 'true'), so before it the job only checks the deploy took.
+#
+# The two targets run as separate jobs, so a failing VPS never holds back
+# hnch-web, nor the reverse. Topology, release flow, rollback:
+# docs/deployment.md. VPS details: infra/README.md.
 
 on:
   # Dispatched explicitly by semantic-release's publishCmd in
   # packages/client/release.config.mjs (`gh workflow run deploy-client.yml --ref
-  # client-vX.Y.Z`). Tag-push events from PATs are not reliably delivered to
-  # other workflows, so dispatch is the canonical path. workflow_dispatch
-  # also lets an operator re-deploy a known tag from the Actions UI.
+  # client-vX.Y.Z`), which takes the defaults below. Tag-push events from PATs
+  # are not reliably delivered to other workflows, so dispatch is the canonical
+  # path. workflow_dispatch also lets an operator re-deploy from the Actions UI.
   workflow_dispatch:
     inputs:
       ref:
         description: 'Git ref to deploy (defaults to current ref)'
         required: false
+      targets:
+        description: 'all = VPS and hnch-web; web-only = hnch-web only (manual dispatch of unreleased main)'
+        type: choice
+        options: [all, web-only]
+        default: all
+      allow_route_removal:
+        description: 'Let this deploy remove a live hnch.dev route of hnch-web'
+        type: boolean
+        default: false
 
 # Serialize deploys — separate group from relay so client + relay can deploy
 # independently, but never two client deploys at once.
@@ -30,10 +45,13 @@ permissions:
   contents: read
 
 jobs:
-  deploy:
-    name: Build + ship PWA
+  build:
+    name: Build PWA
     runs-on: [self-hosted, linux, arm64, hnch-podman]
-    timeout-minutes: 5
+    timeout-minutes: 10
+    outputs:
+      sha: ${{ steps.meta.outputs.sha }}
+      version: ${{ steps.meta.outputs.version }}
     steps:
       - name: Runner identity
         run: |
@@ -43,6 +61,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
 
       - name: Enable Corepack
         run: corepack enable
@@ -57,6 +76,21 @@ jobs:
 
       - name: Install workspace deps
         run: pnpm install --frozen-lockfile
+
+      - name: Build metadata
+        # The deploy jobs check out this exact commit, even if `ref` is a
+        # branch that moves while the build runs.
+        id: meta
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "version=$(node -p "require('./packages/client/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Assert hnch-web config
+        # Assets-only from ./www with SPA fallback, no run_worker_first, no
+        # workers.dev or preview URLs, every route on hnch.dev with a zone_id
+        # (the token has no Zone: Read).
+        working-directory: packages/client
+        run: node scripts/deploy-guard.mjs config
 
       - name: Build @hnch/shared (consumed by client)
         run: pnpm --filter @hnch/shared run build
@@ -84,12 +118,43 @@ jobs:
           du -sh packages/client/www
           find packages/client/www -name '*.js' -size +500k
 
+      - name: Hash guard
+        # _headers serves every .js and .css as immutable for a year, so each
+        # must be content-hashed (`\.[A-Za-z0-9]{8,}\.(js|css)$`), and _headers
+        # must sit at the root of www.
+        working-directory: packages/client
+        run: node scripts/deploy-guard.mjs www
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: www
+          path: packages/client/www
+          if-no-files-found: error
+          retention-days: 1
+
+  vps:
+    name: Ship PWA to the VPS
+    needs: build
+    if: inputs.targets != 'web-only'
+    runs-on: [self-hosted, linux, arm64, hnch-podman]
+    timeout-minutes: 5
+    steps:
+      - name: Runner identity
+        run: |
+          echo "Runner: $RUNNER_NAME on $(hostname) — arch $(uname -m)"
+          df -h /cache || true
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: www
+          path: ${{ runner.temp }}/www
+
       - name: Pack tarball
         id: pack
         run: |
           STAMP="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
           TARBALL="hnch-client-${STAMP}.tar.gz"
-          tar -C packages/client -czf "${TARBALL}" www
+          tar -C "${RUNNER_TEMP}" -czf "${TARBALL}" www
           echo "tarball=${TARBALL}" >> "$GITHUB_OUTPUT"
           echo "stamp=${STAMP}" >> "$GITHUB_OUTPUT"
 
@@ -135,7 +200,17 @@ jobs:
       - name: Smoke test
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          HNCH_LIVE: ${{ vars.HNCH_LIVE }}
         run: |
+          # After the switch hnch.dev resolves to Cloudflare, so check the
+          # active release on the VPS itself.
+          if [ "${HNCH_LIVE}" = true ]; then
+            ssh -o StrictHostKeyChecking=yes "${VPS_USER}@${VPS_HOST}" \
+              "grep -q '<app-root' /var/www/hnch-client/index.html"
+            echo "VPS release active (hnch.dev is served by Cloudflare)"
+            exit 0
+          fi
           # Give Caddy a moment to pick up the new symlink target. If the PWA
           # index.html doesn't serve <app-root within ~10s, fail the job — the
           # release is on the VPS but routing/symlink is wrong and operator
@@ -149,3 +224,98 @@ jobs:
           done
           echo "PWA smoke test failed after 5 attempts" >&2
           exit 1
+
+  web:
+    name: Deploy PWA to hnch-web
+    needs: build
+    runs-on: [self-hosted, linux, arm64, hnch-podman]
+    timeout-minutes: 10
+    env:
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - name: Runner identity
+        run: |
+          echo "Runner: $RUNNER_NAME on $(hostname) — arch $(uname -m)"
+          df -h /cache || true
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.build.outputs.sha }}
+          persist-credentials: false
+
+      - name: Install
+        uses: ./.github/actions/pnpm-install
+        with:
+          ignore-scripts: 'true'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: www
+          path: packages/client/www
+
+      - name: Guard live routes
+        # `wrangler deploy` deletes routes missing from the config: refuse
+        # unless allow_route_removal.
+        working-directory: packages/client
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ALLOW_ROUTE_REMOVAL: ${{ inputs.allow_route_removal && 'true' || 'false' }}
+        run: node scripts/deploy-guard.mjs live
+
+      - name: Deploy
+        working-directory: packages/client
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          VERSION: ${{ needs.build.outputs.version }}
+          SHA: ${{ needs.build.outputs.sha }}
+        run: |
+          pnpm exec wrangler deploy \
+            --tag "client-v${VERSION}" \
+            --message "client-v${VERSION} (${SHA::7})"
+
+      - name: Check the deploy took
+        # The live deployment carries this tag and hnch.dev/* is live for
+        # hnch-web.
+        working-directory: packages/client
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/deploy-guard.mjs verify
+
+      - name: Smoke test hnch.dev
+        # Only once the apex is proxied (Phase 3 sets HNCH_LIVE): this build's
+        # index.html, served by Cloudflare, with one Cache-Control per response.
+        if: vars.HNCH_LIVE == 'true'
+        run: |
+          main="$(basename packages/client/www/main.*.js)"
+          for attempt in $(seq 1 30); do
+            if curl -fsS --max-time 5 https://hnch.dev/ | grep -q "${main}"; then
+              echo "https://hnch.dev/ serves this build (attempt ${attempt})"
+              break
+            fi
+            if [ "${attempt}" = 30 ]; then
+              echo "::error::https://hnch.dev/ does not serve this build (${main})"
+              exit 1
+            fi
+            sleep 2
+          done
+          failed=0
+          check() {
+            headers="$(curl -fsS --max-time 10 -D - -o /dev/null "https://hnch.dev$1" | tr -d '\r')"
+            values="$(printf '%s\n' "${headers}" | grep -i '^cache-control:' | sed 's/^[^:]*: *//')"
+            if [ "${values}" != "$2" ]; then
+              echo "::error::$1 Cache-Control '${values}', expected exactly '$2'"
+              failed=1
+            fi
+            if ! printf '%s\n' "${headers}" | grep -qi '^cf-ray:'; then
+              echo "::error::$1 is not served by Cloudflare"
+              failed=1
+            fi
+          }
+          check / 'no-cache, must-revalidate'
+          check /lobby/x 'no-cache, must-revalidate'
+          check /3rdpartylicenses.txt 'no-cache, must-revalidate'
+          check "/${main}" 'public, max-age=31536000, immutable'
+          exit "${failed}"

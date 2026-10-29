@@ -1,0 +1,30 @@
+// hnch-web: the PWA on Workers Static Assets (ADR-0051). An assets-only Worker
+// (no `main`): no request runs Worker code, so static assets stay free.
+//
+// Deployed by .github/workflows/deploy-client.yml from the production build in
+// ./www, after scripts/deploy-guard.mjs checks it (`config`, `www`, `live`).
+// Cache-Control comes from src/_headers, which angular.json copies to the root
+// of www.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hnch-web",
+  "compatibility_date": "2026-10-19",
+  "send_metrics": false,
+
+  // Reachable only through the hnch.dev route below; no *.workers.dev URL.
+  "workers_dev": false,
+  "preview_urls": false,
+
+  // Inert while the apex records are DNS-only (Workers routes run only on
+  // proxied hostnames). The relay's more specific routes (/health*, /rooms*,
+  // /ws/*) win over this one. zone_id instead of zone_name: the deploy token
+  // has no Zone: Read.
+  "routes": [{ "pattern": "hnch.dev/*", "zone_id": "0d0f221371c8a419c6a9d36fc3b4da23" }],
+
+  // Unknown paths (/join, /lobby/x, /r/ABCD) answer index.html with a 200.
+  // No run_worker_first: there is no Worker code to run.
+  "assets": {
+    "directory": "./www",
+    "not_found_handling": "single-page-application"
+  }
+}
