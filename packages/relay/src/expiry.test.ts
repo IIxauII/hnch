@@ -1,19 +1,21 @@
 /**
  * The Expiry backstop (contract item 11): rooms are listed under their UTC
- * creation day, and the 04:00 UTC cron sweeps the last 30 days.
+ * creation day, the 04:00 UTC cron sweeps the last 30 days, and a room a sweep
+ * finds live moves to that day.
  */
 
 import { env } from 'cloudflare:workers';
 import { createScheduledController, runInDurableObject } from 'cloudflare:test';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import worker from './index';
 import { OCCUPANCY_CHECK_MS, ROOM_TTL_MS, type RoomMeta } from './room';
 import { utcDay } from './stubs';
 import { createRoom, restoreClock, setNow } from './test-support/peer';
-import { SWEEP_DAYS } from './worker';
-import { SWEEP_BATCH } from './expiry';
+import { RELIST_DAYS, SWEEP_DAYS } from './worker';
+import { SWEEP_BATCH, type Expiry } from './expiry';
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
 const DEADLINE_MS = ROOM_TTL_MS + OCCUPANCY_CHECK_MS;
 
 const expiryStub = (day: string) => env.EXPIRY.get(env.EXPIRY.idFromName(day));
@@ -40,7 +42,10 @@ function at(days: number, ms = 0): number {
   return Date.UTC(2040, 0, 1) + days * DAY_MS + ms;
 }
 
-afterEach(() => restoreClock());
+afterEach(() => {
+  restoreClock();
+  vi.restoreAllMocks();
+});
 
 describe('Expiry', () => {
   it('lists a new room under its UTC creation day', async () => {
@@ -49,7 +54,7 @@ describe('Expiry', () => {
     expect(await listed(utcDay(at(10)))).toContain(uuid);
   });
 
-  it('deletes due rooms, forgets deleted and gone ones, keeps live ones', async () => {
+  it('deletes due rooms, forgets deleted and gone ones, moves live ones to today', async () => {
     setNow(at(20));
     const due = await createRoom();
     setNow(at(20, DAY_MS / 2));
@@ -59,11 +64,47 @@ describe('Expiry', () => {
     await expiryStub(day).register(gone);
 
     setNow(at(20, DEADLINE_MS));
-    expect(await expiryStub(day).sweep()).toEqual({ deleted: 1, gone: 1, live: 1, failed: 0 });
+    const today = utcDay(at(21));
+    expect(await expiryStub(day).sweep(today)).toEqual({
+      deleted: 1,
+      gone: 1,
+      moved: 1,
+      live: 0,
+      failed: 0,
+    });
 
     expect(await exists(due.uuid)).toBe(false);
     expect(await exists(live.uuid)).toBe(true);
-    expect((await listed(day)).toSorted()).toEqual([live.uuid]);
+    expect(await listed(day)).toEqual([]);
+    expect(await listed(today)).toEqual([live.uuid]);
+  });
+
+  it('keeps a room that failed to move listed where it was, and moves it next time', async () => {
+    setNow(at(300, 23 * HOUR_MS));
+    const { uuid } = await createRoom();
+    const day = utcDay(at(300));
+    const today = utcDay(at(301));
+    // Spied on the prototype: RPC refuses a method that is an own property.
+    const proto = await runInDurableObject(
+      expiryStub(day),
+      (e) => Object.getPrototypeOf(e) as Expiry,
+    );
+    const register = vi.spyOn(proto, 'register').mockImplementation(() => {
+      throw new Error('Durable Object is overloaded');
+    });
+    const logged = vi.spyOn(console, 'error');
+
+    setNow(at(301, 4 * HOUR_MS));
+    expect(await expiryStub(day).sweep(today)).toMatchObject({ moved: 0, live: 1 });
+    expect(logged.mock.calls.map((c) => String(c[0]))).toContainEqual(
+      expect.stringContaining('room-relist-failed'),
+    );
+    expect(await listed(day)).toEqual([uuid]);
+
+    register.mockRestore();
+    expect(await expiryStub(day).sweep(today)).toMatchObject({ moved: 1, live: 0 });
+    expect(await listed(day)).toEqual([]);
+    expect(await listed(today)).toEqual([uuid]);
   });
 
   it(`works through more than ${SWEEP_BATCH} rooms over successive sweeps`, async () => {
@@ -71,9 +112,9 @@ describe('Expiry', () => {
     const total = SWEEP_BATCH + 5;
     for (let i = 0; i < total; i++) await expiryStub(day).register(crypto.randomUUID());
     // 40 live rooms would come first on every sweep if the sweep did not page.
-    const first = await expiryStub(day).sweep();
+    const first = await expiryStub(day).sweep(utcDay(at(61)));
     expect(first.gone).toBe(SWEEP_BATCH);
-    const second = await expiryStub(day).sweep();
+    const second = await expiryStub(day).sweep(utcDay(at(61)));
     expect(second.gone).toBe(5);
     expect(await listed(day)).toEqual([]);
   });
@@ -83,7 +124,7 @@ describe('Expiry', () => {
     const { uuid } = await createRoom();
     const day = utcDay(at(40));
     setNow(at(40, DEADLINE_MS));
-    await expiryStub(day).sweep();
+    await expiryStub(day).sweep(utcDay(at(41)));
     expect(await exists(uuid)).toBe(false);
     expect(await listed(day)).toEqual([]);
   });
@@ -111,5 +152,48 @@ describe('daily cron', () => {
         daysAgo === 0 || daysAgo === SWEEP_DAYS + 1,
       );
     }
+  });
+
+  it(`keeps sweeping a room that lives past ${SWEEP_DAYS} days, moving it near the window's end`, async () => {
+    setNow(at(200, 23 * HOUR_MS));
+    const { uuid } = await createRoom();
+    const cron = async (day: number) => {
+      setNow(at(day, 4 * HOUR_MS));
+      await worker.scheduled(
+        createScheduledController({ scheduledTime: at(day, 4 * HOUR_MS) }),
+        env,
+      );
+    };
+    /** As if a peer used the room at `ms` (its socket's stamp). */
+    const use = (ms: number) =>
+      runInDurableObject(roomStub(uuid), (room, state) => {
+        const meta = state.storage.kv.get<RoomMeta>('meta')!;
+        state.storage.kv.put('meta', { ...meta, lastOccupiedAt: ms });
+        // Drop the instance's cached copy so the sweep reads the stored one.
+        (room as unknown as { meta: RoomMeta | undefined }).meta = undefined;
+      });
+
+    // Live, but its index is young: checked, not moved.
+    await cron(201);
+    expect(await listed(utcDay(at(200)))).toEqual([uuid]);
+
+    // Still in use when its index is in the last days of the window: moved.
+    const firstMove = 200 + SWEEP_DAYS - RELIST_DAYS + 1;
+    await use(at(firstMove, 3 * HOUR_MS));
+    await cron(firstMove);
+    expect(await listed(utcDay(at(200)))).toEqual([]);
+    expect(await listed(utcDay(at(firstMove)))).toEqual([uuid]);
+
+    // And again, a window later.
+    const secondMove = firstMove + SWEEP_DAYS - RELIST_DAYS + 1;
+    await use(at(secondMove, 3 * HOUR_MS));
+    await cron(secondMove);
+    expect(await listed(utcDay(at(firstMove)))).toEqual([]);
+    expect(await listed(utcDay(at(secondMove)))).toEqual([uuid]);
+
+    // Left alone, it is deleted by a sweep of its new index.
+    await cron(secondMove + 2);
+    expect(await exists(uuid)).toBe(false);
+    expect(await listed(utcDay(at(secondMove)))).toEqual([]);
   });
 });

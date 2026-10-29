@@ -35,7 +35,7 @@ import {
   syncStep1Message,
   updateMessage,
 } from './protocol';
-import { codesStub, logEvent } from './stubs';
+import { codesStub, expiryStub, logEvent } from './stubs';
 
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
@@ -93,7 +93,7 @@ export interface RoomMeta {
 }
 
 export type AccessMode = 'open' | 'password';
-export type ExpireOutcome = 'deleted' | 'gone' | 'live';
+export type ExpireOutcome = 'deleted' | 'gone' | 'moved' | 'live';
 
 interface SocketAttachment {
   readonly id: string;
@@ -178,12 +178,28 @@ export class Room extends DurableObject<Env> {
     return accessModeOf(updated);
   }
 
-  /** For the daily Expiry sweep: delete the room if it is due. */
-  async expireIfDue(): Promise<ExpireOutcome> {
+  /**
+   * For the daily Expiry sweep: delete the room if it is due. A room that stays
+   * (not due, or its delete failed) answers `live`; given `relistUnder` (the
+   * sweep's day, passed only while the room's index is about to leave the
+   * window), it lists itself there first and answers `moved`, so the sweep
+   * covers it however long it lives. A failed move answers `live`: it stays
+   * listed where it was, and the next sweep retries. The call is the room's own
+   * subrequest, not the sweep's.
+   */
+  async expireIfDue(relistUnder?: string): Promise<ExpireOutcome> {
     const meta = await this.touch();
     if (meta === null) return 'gone';
-    if (meta.tombstonedAt === null && !this.isDue(meta, clock.now())) return 'live';
-    return (await this.delete()) ? 'deleted' : 'live';
+    const due = meta.tombstonedAt !== null || this.isDue(meta, clock.now());
+    if (due && (await this.delete())) return 'deleted';
+    if (relistUnder === undefined) return 'live';
+    try {
+      await expiryStub(this.env, relistUnder).register(meta.uuid);
+      return 'moved';
+    } catch (err) {
+      logEvent('room-relist-failed', err);
+      return 'live';
+    }
   }
 
   /** ADR-0027 `DELETE /test/rooms/:uuid`: delete now. False if the room is unknown. */

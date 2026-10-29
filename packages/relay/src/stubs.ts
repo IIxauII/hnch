@@ -3,7 +3,7 @@
  *
  *   Room(uuid)       one per room, by lowercase UUID
  *   Codes(code)      one per room code, by normalised code
- *   Expiry(day)      one per UTC creation day, `YYYY-MM-DD`
+ *   Expiry(day)      one per UTC day (rooms created or moved there), `YYYY-MM-DD`
  *
  * Every object lives in the configured jurisdiction (EU in production).
  */
