@@ -102,7 +102,14 @@ export class Peer {
     return peer;
   }
 
+  /**
+   * Sends a frame; once the socket is closing it drops it, as a browser or
+   * Node's `ws` does. workerd's send() throws instead, and a throw from the
+   * message listener (answering the relay's sync-step-1 after `close()`) fails
+   * the socket: its close event never fires.
+   */
   send(frame: Uint8Array): void {
+    if (this.ws.readyState !== WebSocket.OPEN) return;
     this.ws.send(frame);
   }
 
@@ -167,7 +174,6 @@ export class Peer {
   };
 
   private sendAwareness(clientIds: number[]): void {
-    if (this.ws.readyState !== WebSocket.OPEN) return;
     const encoder = encoding.createEncoder();
     encoding.writeVarUint(encoder, 1);
     encoding.writeVarUint8Array(encoder, encodeAwarenessUpdate(this.awareness, clientIds));
