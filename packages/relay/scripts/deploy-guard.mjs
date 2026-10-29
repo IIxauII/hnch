@@ -76,7 +76,7 @@ export function configProblems(config) {
       const r = typeof route === 'string' ? { pattern: route } : route;
       if (!r.pattern.startsWith(`${ZONE_HOST}/`))
         problems.push(`${scope}: route ${r.pattern} is not on ${ZONE_HOST}`);
-      if (r.zone_id === undefined) problems.push(`${scope}: route ${r.pattern} has no zone_id`);
+      if (!r.zone_id) problems.push(`${scope}: route ${r.pattern} has no zone_id`);
       if (r.custom_domain) problems.push(`${scope}: route ${r.pattern} is a Custom Domain`);
     }
   }
@@ -135,22 +135,19 @@ function packageVersion() {
 }
 
 /**
- * A Cloudflare API result. A 404 is null only where `missingOk` (a script that
- * was never deployed); anywhere else it fails, so a guard can't pass by not
- * finding what it checks.
+ * A Cloudflare API result. Only an explicit success with a result counts; a
+ * 404, an error or an unreadable answer fails, so a guard can't pass by not
+ * finding what it checks. ("Never deployed" is asked of the script list; see
+ * `scriptExists`.)
  * @param {string} path
- * @param {{ missingOk?: boolean }} [opts]
  */
-export async function api(path, { missingOk = false } = {}) {
+export async function api(path) {
   const token = process.env['CLOUDFLARE_API_TOKEN'];
   if (!token) throw new Error('CLOUDFLARE_API_TOKEN is not set');
   const res = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${token}` } });
   const body = /** @type {{ success?: boolean, result?: any, errors?: unknown[] }} */ (
     await res.json().catch(() => ({}))
   );
-  if (res.status === 404 && missingOk) return null;
-  // Only an explicit success with a result counts: an unreadable or empty
-  // answer must not read as "nothing live".
   if (!res.ok || body.success !== true || body.result === undefined || body.result === null) {
     throw new Error(`${path}: ${res.status} ${JSON.stringify(body.errors ?? [])}`);
   }
@@ -158,15 +155,12 @@ export async function api(path, { missingOk = false } = {}) {
 }
 
 /**
- * A Cloudflare API list: `[]` only for a 404 where `missingOk`; anything but an
- * array fails.
+ * A Cloudflare API list; anything but an array fails.
  * @param {string} path
- * @param {{ missingOk?: boolean }} [opts]
  * @returns {Promise<unknown[]>}
  */
-export async function apiList(path, opts) {
-  const result = await api(path, opts);
-  if (result === null) return [];
+export async function apiList(path) {
+  const result = await api(path);
   if (!Array.isArray(result)) throw new Error(`${path}: expected a list`);
   return result;
 }
@@ -183,14 +177,28 @@ function scriptPath(/** @type {string} */ script) {
  */
 
 /**
+ * Whether `script` exists on the account. Asked of the account's script list,
+ * so a wrong account or path fails instead of reading as "never deployed".
+ * @param {string} script
+ */
+export async function scriptExists(script) {
+  const account = process.env['CLOUDFLARE_ACCOUNT_ID'];
+  if (!account) throw new Error('CLOUDFLARE_ACCOUNT_ID is not set');
+  const scripts = /** @type {{ id?: string }[]} */ (
+    await apiList(`/accounts/${account}/workers/scripts`)
+  );
+  return scripts.some((s) => s.id === script);
+}
+
+/**
  * The versions serving `script` now; empty before the first deploy.
  * @param {string} script
  * @returns {Promise<LiveVersion[]>}
  */
-async function liveVersions(script) {
+export async function liveVersions(script) {
+  if (!(await scriptExists(script))) return [];
   const base = scriptPath(script);
-  const deployments = await api(`${base}/deployments`, { missingOk: true });
-  if (deployments === null) return [];
+  const deployments = await api(`${base}/deployments`);
   if (!Array.isArray(deployments.deployments))
     throw new Error(`${base}/deployments: expected a list`);
   const latest = deployments.deployments[0];
@@ -200,8 +208,8 @@ async function liveVersions(script) {
   const versions = [];
   for (const { version_id: id } of latest.versions) {
     const version = await api(`${base}/versions/${id}`);
-    const tag = version?.annotations?.['workers/tag'];
-    const bindings = version?.resources?.bindings;
+    const tag = version.annotations?.['workers/tag'];
+    const bindings = version.resources?.bindings;
     versions.push({
       tag: typeof tag === 'string' ? tag : null,
       bindings: Array.isArray(bindings) ? bindings : null,
@@ -277,15 +285,23 @@ async function main() {
       }
     }
     // Secrets outlive deploys: one named like a test var would ride along.
+    const exists = await scriptExists(script);
     const secrets = new Set(
       /** @type {{ name?: string }[]} */ (
-        await apiList(`${scriptPath(script)}/secrets`, { missingOk: true })
+        exists ? await apiList(`${scriptPath(script)}/secrets`) : []
       ).flatMap((s) => (typeof s.name === 'string' ? [s.name] : [])),
     );
     for (const name of [...TEST_VARS, 'JURISDICTION']) {
       if (secrets.has(name)) problems.push(`secret ${name} is set on ${script}; delete it`);
     }
-    const tags = (await liveVersions(script)).flatMap((v) => (v.tag === null ? [] : [v.tag]));
+    const live = await liveVersions(script);
+    // An untagged live version can't be compared, so it can't be shown older.
+    if (live.some((v) => v.tag === null)) {
+      problems.push(
+        `a live version of ${script} has no relay-v tag, so this deploy can't be shown newer; tag or roll back to a released version first`,
+      );
+    }
+    const tags = live.flatMap((v) => (v.tag === null ? [] : [v.tag]));
     for (const tag of tags) {
       if (isDowngrade(version, tag)) {
         problems.push(

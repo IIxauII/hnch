@@ -57,9 +57,13 @@ jobs:
         # Not ./.github/actions/pnpm-install: the node_modules snapshots and the
         # pnpm store under /cache are shared with PR CI, which can write them,
         # and this job holds CLOUDFLARE_API_TOKEN. A store in RUNNER_TEMP
-        # (emptied around every job) makes pnpm fetch each package and check it
-        # against the lockfile's integrity hash.
-        run: pnpm install --frozen-lockfile --ignore-scripts --store-dir "${RUNNER_TEMP}/pnpm-store"
+        # (emptied by the runner around every job) makes pnpm fetch each package
+        # and check it against the lockfile's integrity hash. Linked: the relay,
+        # what it depends on (shared), and the root's dev tools. The runner's
+        # per-slot work dir is still shared with PR CI: see #558.
+        run: >-
+          pnpm install --frozen-lockfile --ignore-scripts
+          --store-dir "${RUNNER_TEMP}/pnpm-store" --filter '@hnch/relay...'
 
       - name: Build @hnch/shared (bundled into the relay)
         run: pnpm --filter @hnch/shared run build
