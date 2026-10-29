@@ -10,6 +10,9 @@ function formatCode(code: string): string {
   return `${code.slice(0, 3)}-${code.slice(3)}`;
 }
 
+/** Capacitor Preferences on the web is localStorage under this prefix. */
+const LAST_SESSION_STORAGE_KEY = 'CapacitorStorage.hnch.lastSession';
+
 const RELAY_HTTP_URL = `http://localhost:${process.env['RELAY_PORT'] ?? 1234}`;
 
 /**
@@ -117,46 +120,63 @@ test.describe('Recent rooms list', () => {
   });
 
   /**
-   * 6th-room eviction: 6 distinct rooms joined sequentially → only 5 entries
-   * shown, oldest (Room 1) evicted. List is most-recent-first.
+   * 6th-room eviction: with 5 sessions already remembered, joining a 6th
+   * leaves only 5 entries shown, the oldest evicted. List is most-recent-first.
    *
-   * Ordering invariant: each createSession() call increments the clock so
-   * lastSeenAt(N+1) > lastSeenAt(N). After the 6th join only rooms 2–6
-   * remain (cap = 5; room 1 evicted by LRU).
+   * The first five entries are seeded into storage instead of being created
+   * through the UI: building six rooms took ~18 page loads, which on a loaded
+   * CI runner ran past the 45 s test budget (#563). The cap and the LRU
+   * eviction live in `LastSessionService.recordJoin()` and act on the stored
+   * entries alone — the list renders from the cache without asking the relay —
+   * so seeded entries exercise the same path. Only the 6th session is real.
+   *
+   * Ordering invariant: every seeded `lastSeenAt` is in the past, in a known
+   * order, so the real session's join (stamped "now") is the newest and the
+   * seed with the smallest `lastSeenAt` is the one the cap must drop.
    */
   test('6th room evicts oldest entry — list shows exactly 5', async ({ host }) => {
-    const codes: string[] = [];
+    // Newest first; the last one is the oldest and must be evicted.
+    const seeded = ['AAA111', 'BBB222', 'CCC333', 'DDD444', 'EEE555'].map((roomCode, i) => ({
+      roomCode,
+      roomUuid: `${String(i + 1).repeat(8)}-0000-4000-8000-${String(i + 1).repeat(12)}`,
+      lastSeenAt: Date.now() - (i + 1) * 10 * 60 * 1000,
+      lastScreen: 'lobby',
+    }));
+    // Only when nothing is stored yet: the init script runs on every load, and
+    // must not put the seeds back over what the real join has written since.
+    await host.page.addInitScript(
+      ({ key, entries }) => {
+        if (localStorage.getItem(key) !== null) return;
+        localStorage.setItem(
+          key,
+          JSON.stringify({
+            version: 2,
+            entries: Object.fromEntries(entries.map((e) => [e.roomUuid, e])),
+          }),
+        );
+      },
+      { key: LAST_SESSION_STORAGE_KEY, entries: seeded },
+    );
 
-    for (let i = 0; i < 6; i++) {
-      const code = await host.createSession();
-      codes.push(code);
-      await host.page.waitForURL(/\/lobby/);
-      await goHomePreservingCache(host.page, code);
-      // Brief reload between rounds so ionViewWillEnter re-reads cache.
-      // On the last iteration we assert after reload below, so skip here.
-      if (i < 5) {
-        await host.page.reload();
-        await host.page.waitForURL(/\/home/);
-      }
-    }
+    const code = await host.createSession();
+    await host.page.waitForURL(/\/lobby/);
+    await goHomePreservingCache(host.page, code);
 
-    // Final reload to pick up all 6 writes (cap enforced at write time)
+    // Reload so Home re-reads the cache from storage.
     await host.page.reload();
     await host.page.waitForURL(/\/home/);
 
     const list = host.page.locator(RECENT_ROOMS.list);
     await list.waitFor({ state: 'visible', timeout: 5_000 });
 
-    const rows = host.page.locator(RECENT_ROOMS.rows);
-    // Exactly 5 entries (cap=5, 6th write evicted room 1)
-    await expect(rows).toHaveCount(5);
-
-    // Oldest room (codes[0]) must NOT appear
-    const listed = await listedCodes(host.page);
-    expect(listed).not.toContain(codes[0]!);
-
-    // Most-recent room (codes[5]) IS first in list
-    expect(listed[0]).toBe(codes[5]!);
+    // Exactly 5 entries (cap=5): the new session plus the four newest seeds.
+    // The oldest seed is the one that went, and the order is most-recent-first.
+    await expect(host.page.locator(RECENT_ROOMS.rows)).toHaveCount(5);
+    expect(await listedCodes(host.page)).toEqual([
+      code,
+      ...seeded.slice(0, 4).map((s) => s.roomCode),
+    ]);
+    expect(await rememberedSessionCodes(host.page)).not.toContain(seeded[4]!.roomCode);
   });
 
   /**
