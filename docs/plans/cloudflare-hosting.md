@@ -386,6 +386,7 @@ Usage today is about 0 (VPS `/health`: 0 rooms, 0 peers). The Free plan has no u
   - the `www` redirect;
   - relay-only vitest 4.
 - Settled 2026-10-29 (owner): CI and hosting fixes ship as a short ordered series of small PRs, not one big PR. Fold the work into existing PRs and issues instead of building parallel copies.
+  - Reversed 2026-10-29 (owner): the remaining CI and hosting work ships as one PR, so it takes one CI cycle instead of a PR → `main` → release cycle per change. The "separate PR" and "follow-up CI PR" in the entries below are parts of that one PR. Folding work into existing PRs and issues still holds.
 - Settled 2026-10-29 (owner): the VPS is removed. This reopens the 2026-10-28 "VPS stays as it is" entry above and ADR-0051's "VPS left idle, not decommissioned" clause.
   - Now: remove the VPS deploy job, the VPS docs and the VPS `infra/` files. Production (`hnch.dev`, on the VPS until the #549 switch) stays frozen at its current client build until the switch.
   - After the #549 switch: shut down the VPS and remove the `VPS_*` repo secrets. Before cancelling the contract, check that `hnch.dev` isn't bundled with it.
