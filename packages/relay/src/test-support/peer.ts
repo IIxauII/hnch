@@ -48,6 +48,8 @@ export class Peer {
   readonly awareness: Awareness;
   readonly frames: Frame[] = [];
   closeEvent: { code: number; reason: string } | null = null;
+  /** Whether the relay's answer to this peer's sync-step-1 (its whole doc) has arrived. */
+  isSynced = false;
 
   private constructor(
     readonly ws: WebSocket,
@@ -136,6 +138,20 @@ export class Peer {
     this.ws.close(code, 'bye');
   }
 
+  /**
+   * Resolves once the peer holds everything the relay had when it answered the
+   * peer's sync-step-1, as y-websocket's `synced`. Read the doc after this, not
+   * after a fixed wait: the answer may take any time to arrive.
+   */
+  async synced(timeout = 5_000): Promise<void> {
+    await vi.waitFor(
+      () => {
+        if (!this.isSynced) throw new Error('not synced yet');
+      },
+      { timeout, interval: 10 },
+    );
+  }
+
   async closed(): Promise<{ code: number; reason: string }> {
     await vi.waitFor(() => {
       if (this.closeEvent === null) throw new Error('not closed yet');
@@ -166,7 +182,8 @@ export class Peer {
       this.frames.push({ type: 'sync', bytes });
       const encoder = encoding.createEncoder();
       encoding.writeVarUint(encoder, 0);
-      syncProtocol.readSyncMessage(decoder, encoder, this.doc, 'relay');
+      const type = syncProtocol.readSyncMessage(decoder, encoder, this.doc, 'relay');
+      if (type === syncProtocol.messageYjsSyncStep2) this.isSynced = true;
       if (encoding.length(encoder) > 1) this.send(encoding.toUint8Array(encoder));
     } else if (tag === 1) {
       this.frames.push({ type: 'awareness', bytes });
