@@ -99,7 +99,15 @@ async function newPage(
   await seedCache(page, seeds);
   await page.goto(`${BASE_URL}/home`);
   await page.waitForURL(/\/home/);
-  await page.waitForLoadState('networkidle');
+  // Home is ready when what the shot shows is on it: the greeting (the stored
+  // name is read) and one row per seeded entry (or none, for the empty state).
+  // Not `networkidle`: Playwright discourages it, and the app's relay socket /
+  // dev-server connections can keep the network busy for good, so it timed out
+  // at 45 s on CI (#563). The fonts are system fonts, so there is nothing to
+  // wait for there; `shot()` waits for the page transition itself.
+  await expect(page.getByRole('heading', { name: 'Hi, Alex' })).toBeVisible();
+  await expect(page.locator(HOME.createCard)).toBeVisible();
+  await expect(page.locator(HOME.recentRow)).toHaveCount(seeds.length);
   return { page, close: () => ctx.close() };
 }
 
