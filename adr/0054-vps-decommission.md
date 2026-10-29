@@ -39,3 +39,7 @@ The VPS deploy path is removed now: the `vps` job and the `targets` input of `de
   - Before cancelling the IONOS contract: check whether the `hnch.dev` registration is bundled with the VPS contract; registration must survive cancellation.
   - Switch slips and a client fix must reach users first: do the switch; reversing this decision needs a superseding ADR.
   - Second host or self-host fallback needed: new ADR (ADR-0051 trigger).
+
+## Status notes
+
+**2026-10-29 — Box shut down before the switch, not after.** Owner shut down and deleted the VPS ahead of the #549 switch; `hnch.dev` down until the apex records were proxied (~14:55 UTC). `hnch.dev` and `www` A/AAAA now point at placeholder origin `192.0.2.1` / `100::`, proxied. No VPS rollback existed at any point after the switch. Decision unchanged. Registration-bundling check still open.

@@ -1,20 +1,37 @@
 # Deployment
 
-Production deployment for hnch: Cloudflare Workers and Durable Objects ([ADR-0051](../adr/0051-cloudflare-hosting.md), plan [`docs/plans/cloudflare-hosting.md`](plans/cloudflare-hosting.md)). Until the switch (Phase 3, #549) `hnch.dev` still resolves to the IONOS VPS, which gets no deploys and serves a frozen build; after the switch it is shut down ([ADR-0054](../adr/0054-vps-decommission.md)).
+Production deployment for hnch: Cloudflare Workers and Durable Objects ([ADR-0051](../adr/0051-cloudflare-hosting.md), plan [`docs/plans/cloudflare-hosting.md`](plans/cloudflare-hosting.md)). `hnch.dev` has been served by Cloudflare since the switch on 2026-10-29 (#549). The IONOS VPS that served it before (ADR-0029) is shut down and deleted ([ADR-0054](../adr/0054-vps-decommission.md)); there is no VPS to fall back to.
 
 ## Topology
 
 | Surface | Where it lives | How it gets there |
 |---|---|---|
 | Relay (`@hnch/relay`) | Cloudflare Worker `hnch-relay` + Durable Objects (EU), on routes `hnch.dev/health*`, `/rooms*`, `/ws/*` | `deploy-relay.yml` on `relay-v*` tags → `wrangler deploy` |
-| Relay, until the switch | `hnch-vps` (IONOS), relay frozen at `relay-v1.2.1` | no longer deployed |
 | PWA static (`@hnch/client`) | Cloudflare Worker `hnch-web` (Workers Static Assets, assets-only), on route `hnch.dev/*` | `deploy-client.yml` on `client-v*` tags → `wrangler deploy` |
-| PWA static, until the switch | same VPS, PWA frozen at `client-v1.46.0` | no longer deployed (ADR-0054) |
 | CLI (`@xauyxau/hnch`) | npm registry | `release.yml` runs semantic-release; `cli-v*` tags trigger npm publish via `@semantic-release/npm` (configured in `packages/cli/release.config.mjs`) |
 
-All three surfaces speak to the same relay at `wss://hnch.dev/ws/:uuid` and `https://hnch.dev/rooms/:code`. Single origin, no CORS.
+All three surfaces speak to the same relay at `wss://hnch.dev/ws/:uuid` and `https://hnch.dev/rooms/:code`. The PWA is same-origin, so it needs no CORS. Native apps (`capacitor://localhost`, `https://localhost`) preflight `POST /rooms`; the relay answers `204` with `Access-Control-Allow-Origin: *`.
 
-**Routes are inert until the switch.** Workers routes only run on proxied hostnames, and the `hnch.dev` apex stays DNS-only (pointing at the VPS) until Phase 3. So `hnch-relay` and `hnch-web` deploy with their routes from the first release, and `https://hnch.dev` keeps answering from the VPS (relay `1.2.1`, PWA as last shipped) until the apex records are proxied. The relay's routes are more specific than `hnch.dev/*`, so they win over `hnch-web`'s.
+**Routes.** Workers routes only run on proxied hostnames, so both Workers deployed with their routes from their first release and stayed inert until the apex records were proxied at the switch. The relay's routes are more specific than `hnch.dev/*`, so they win over `hnch-web`'s.
+
+## DNS and edge
+
+Zone `hnch.dev` on Cloudflare (Free plan). The registration stays at IONOS, with its NS delegation pointing at Cloudflare.
+
+| Record | Origin | Proxy | Serves |
+|---|---|---|---|
+| `hnch.dev` A / AAAA | `192.0.2.1` / `100::` (placeholder) | proxied, TTL Auto | Workers `hnch-web` and `hnch-relay` |
+| `www.hnch.dev` A / AAAA | `192.0.2.1` / `100::` (placeholder) | proxied, TTL Auto | `301` to the apex (redirect rule below) |
+| `hnch.dev` TXT, `_dmarc` TXT | n/a | DNS-only | `v=spf1 -all` and `p=reject`: the domain sends no mail |
+
+- **Placeholder origin.** Every request is answered by a Worker or a rule, never by an origin (unless a route fails open, see [Free-plan budget and alerts](#free-plan-budget-and-alerts)). `192.0.2.1` and `100::` are reserved addresses that reach nothing, so a reassigned VPS IP can never serve `hnch.dev`. Don't set a record to DNS-only: it would point browsers at the placeholder.
+- **Zone settings:** SSL/TLS Full (strict), minimum TLS 1.2, Always Use HTTPS (`http://` → `301` to `https://`), Rocket Loader and Email Obfuscation off, Browser Integrity Check on, Bot Fight Mode off.
+- **`www` redirect:** Single Redirect `http.host eq "www.hnch.dev"` → `concat("https://hnch.dev", http.request.uri.path)`, `301`, query string kept.
+- **Rate limit** "hnch: limit room creation", the one rule Free allows: `http.request.uri.path eq "/rooms"`, 10 requests per 10 s per IP (`ip.src` plus the mandatory `cf.colo.id`), block for 10 s with `429`.
+  - Free can't match on method, so native `OPTIONS /rooms` preflights count too.
+  - It is a speed bump against one IP, not quota protection.
+  - Cloudflare counts approximately: measured 2026-10-29, a burst of 12 `OPTIONS /rooms` got `429` from the 10th request on. `GET /rooms/:code` and `/health` kept answering during the block.
+  - `/ws/*` and `GET /rooms/:code` are never limited (ADR-0051): a `429` on the upgrade makes y-websocket retry forever.
 
 ## Production URL
 
@@ -26,6 +43,14 @@ All three surfaces speak to the same relay at `wss://hnch.dev/ws/:uuid` and `htt
 | `POST /rooms`, `GET /rooms/:code`, `PATCH /rooms/:uuid/access` | relay (per ADR-0016 / ADR-0017) |
 | `WS /ws/:uuid` | relay (y-websocket sync) |
 | Everything else | static PWA, with SPA fallback to `/index.html` |
+
+## The switch and rollback
+
+- **Switched 2026-10-29, about 14:55 UTC** (#549): the apex A and AAAA records were proxied, the repo variable `HNCH_LIVE` set to `true`, and both deploys re-dispatched (relay at `relay-v1.3.1`, client at `main`) to run their `hnch.dev` smokes.
+- **The VPS went first.** It was shut down and deleted before the switch, not after it as ADR-0054 planned, so `hnch.dev` was down between the shutdown and the switch.
+- **VPS rooms were dropped** with the VPS, with no migration (4 snapshotted, 0 active at the cutover review on 2026-10-29). Their codes answer `404` on Cloudflare, which clients treat as an ended session: a "That session isn't active anymore" toast, and the entry leaves the recent-rooms list.
+- **Rollback is Cloudflare-side only:** `wrangler rollback` of `hnch-relay` or `hnch-web` (see the release rules below), or fix forward with a release. There is no VPS rollback and no DNS-only rollback; a DNS-only record points at the placeholder origin.
+- **A rollback doesn't heal a missing-chunk hit.** A tab still on the old build that requests a chunk the new deploy removed gets `index.html` cached as `immutable` under that chunk's URL. Rolling back to the old build doesn't clear it; that user needs a hard reload.
 
 ## Release gate
 
@@ -145,7 +170,7 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z
 |---|---|---|---|
 | `CLOUDFLARE_API_TOKEN` | secret | token `hnch-ci-deploy` (below) | `deploy-relay.yml` and the `web` job of `deploy-client.yml` only |
 | `CLOUDFLARE_ACCOUNT_ID` | secret | the Cloudflare account ID | `deploy-relay.yml` and the `web` job of `deploy-client.yml` only |
-| `HNCH_LIVE` | variable | `false` until the switch, then `true` | gates the hnch.dev smokes of both deploys |
+| `HNCH_LIVE` | variable | `true` since the switch (2026-10-29; `false` before) | gates the hnch.dev smokes of both deploys |
 | `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` | secret | VPS SSH target, user, CI key | nothing; deleted when ADR-0054 merged, so an old-tag dispatch fails instead of deploying to the VPS |
 | `RELEASE_TOKEN` | secret | fine-grained PAT (also needs actions: write, for the deploy dispatch) | `release.yml`: semantic-release's release commits, tags and GitHub Releases, and the `gh workflow run deploy-*.yml` dispatch |
 
@@ -156,7 +181,7 @@ Set with:
 ```sh
 gh secret set CLOUDFLARE_API_TOKEN
 gh secret set CLOUDFLARE_ACCOUNT_ID
-gh variable set HNCH_LIVE --body false
+gh variable set HNCH_LIVE --body true
 ```
 
 ## Local relay
@@ -176,21 +201,37 @@ pnpm --filter @hnch/client exec wrangler deploy --dry-run
 
 `curl -sI http://localhost:8788/lobby/x` should show `200`, `text/html` and one `Cache-Control: no-cache, must-revalidate`. `pnpm dev:client` (the Angular dev server) does not apply `_headers`.
 
+## Free-plan budget and alerts
+
+Everything runs on the Workers Free plan. Its limits are **per account**, daily, and reset at 00:00 UTC; the account's other Workers draw from the same budget. Reference session: 8 peers for 1 h, 20 rounds, about 300 doc updates. Usage at the switch was about 0. Full table and assumptions: the plan's [Free-plan budget](plans/cloudflare-hosting.md#free-plan-budget-information-per-account-daily-reset-0000-utc-inbound-ws-counted-11).
+
+| Daily limit (Free) | Per reference session | Fits per day |
+|---|---|---|
+| DO duration 13,000 GB-s | 450 GB-s | **≈ 29 occupied room-hours (binding)** |
+| DO requests 100k | ≈ 2,300 | ≈ 43 sessions |
+| Rows written 100k | ≈ 200 | ≈ 500 sessions |
+| Workers requests 100k | ≈ 30 | ≈ 3,000 sessions (static assets are assumed free: no `run_worker_first`) |
+| Workers Logs 200k events (0.5 GB from 2026-12-01) | small | hitting it stops logging, not the relay |
+
+- **Duration is the binding limit.** With 2 or more visible peers a room's DO never hibernates (inferred, not yet measured on `hnch.dev`). One room with two unthrottled tabs open all day uses about 83 % of the daily budget.
+- **Abuse exposure (stated, not mitigated; owner accepted, Free plan only):** anyone can take the relay down until 00:00 UTC by holding about 29 rooms open for an hour, sending about 100k cheap requests, or spamming room creation. The rate-limit rule only slows one IP down. Past a limit there is no fallback host.
+- **Route fail mode at the Workers request limit: unverified.** On Free, each route either fails open (requests bypass the Worker and go to the origin) or fails closed (error `1027`) once the account's 100k requests are used, and the docs don't say which is the default. Not recorded yet. With the placeholder origin, fail open should end in a Cloudflare origin error rather than another backend (inferred), so either way the relay is down until 00:00 UTC. Read it in the dashboard (Workers Routes) and record it here.
+- **No usage alerts.** Free has no Workers or Durable Objects usage alerts (the usage alert type needs Pro and pay-as-you-go), so nothing warns before a daily limit. Check usage by hand in the dashboard.
+- **Account alerts on, by email:** Universal SSL, HTTP DDoS attack, Trust & Safety block, abuse report, major or critical incidents on Workers, Durable Objects or Workers Assets, and Workers real-time issues.
+
 ## Day-2 operations
 
 - **Relay logs:** Workers Logs in the Cloudflare dashboard (`hnch-relay` › Observability). Invocation logs are off, so only the relay's own content-free `console` lines appear (event names, error classes; never a room UUID, code or URL).
 - **Don't tail production, and don't add rules on `/ws/*`.** WebSocket URLs carry the room password hash as `?pw=`. `wrangler tail` and the dashboard's real-time logs show request URLs whatever `invocation_logs` says, and a WAF or rate-limit rule matching `/ws/*` would record the full URI in Security Events.
 - **Relay deployments:** `pnpm --filter @hnch/relay exec wrangler deployments list`.
 - **PWA deployments:** `pnpm --filter @hnch/client exec wrangler deployments list`. `hnch-web` runs no Worker code, so it has no logs.
-- **VPS until the switch:** frozen (PWA `client-v1.46.0`, relay `1.2.1`) and never deployed to. A fix reaches users only through the switch. It still runs production:
-  - relay: `ssh hnch-vps 'journalctl -u hnch-relay -f'`; restart with `ssh hnch-vps 'sudo systemctl restart hnch-relay'` (drops every room, RAM only). The unit sets `MemoryMax=700M`; if the relay is OOM-killed, check connection counts in the journal.
-  - Caddy (TLS, routing): `ssh hnch-vps 'journalctl -u caddy -f'`; cert issues: `journalctl -u caddy --since '1h ago' | grep -i acme`, certs under `/var/lib/caddy/.local/share/caddy/certificates/`.
-- **VPS after the switch:** decommissioned per the post-switch checklist in the plan's [Phase 3](plans/cloudflare-hosting.md#phase-3-cutover-owner-switch--docs-pr) ([ADR-0054](../adr/0054-vps-decommission.md)).
+- **Usage:** checked by hand in the dashboard; see [Free-plan budget and alerts](#free-plan-budget-and-alerts).
+- **VPS:** gone ([ADR-0054](../adr/0054-vps-decommission.md)). Still open on the owner's side: before cancelling the IONOS contract, check that the `hnch.dev` registration isn't bundled with it.
 
 ## Known limitations
 
 - **Deploys still drop sockets.** A relay deploy closes a busy room's sockets once (`1006`), 3–5 min after the deploy; clients resync in about 0.4 s (ADR-0025, ADR-0050).
-- **Shared daily caps.** Free-plan limits are per account (ADR-0051); hitting one takes the relay down until 00:00 UTC.
+- **Shared daily caps.** Free-plan limits are per account (ADR-0051); hitting one takes the relay down until 00:00 UTC, with no fallback host.
 - **No metrics or alerting.** `GET /health` is shallow (`{status, version}`).
 - **Single domain.** No staging environment.
 
