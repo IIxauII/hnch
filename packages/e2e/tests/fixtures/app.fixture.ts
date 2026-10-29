@@ -103,7 +103,25 @@ export class Participant {
     // Ionic wraps <input> inside shadow DOM of ion-input.
     // Use .fill() which works through shadow DOM in Playwright.
     await input.locator('input').fill(this.displayName);
-    await this.page.locator(ONBOARDING.continueBtn).click();
+    // Tap Continue, and tap again if the tap did not navigate.
+    //
+    // Why a retry: on an iPhone-emulated page Ionic's input shim reacts to
+    // the fill() focus by scrolling ion-content ~25 px for an assumed 290 px
+    // keyboard. A click that starts during that scroll aims at the button's
+    // old centre, lands on div.page-container below it, and never reaches
+    // submit() (#550). Playwright's two-frame stability check misses the
+    // movement on a slow runner. A lost tap leaves the page on /onboarding
+    // with Continue still enabled, so repeating it is safe; once the name is
+    // saved the URL guard skips the click. The retry lands after the layout
+    // has settled. A Continue that is really broken still fails: every
+    // attempt must navigate, and the last error is reported when `toPass`
+    // gives up.
+    await pwExpect(async () => {
+      if (!/\/home/.test(this.page.url())) {
+        await this.page.locator(ONBOARDING.continueBtn).click({ timeout: 3_000 });
+      }
+      await pwExpect(this.page).toHaveURL(/\/home/, { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await this.page.waitForURL(/\/home/);
   }
 
