@@ -1,13 +1,16 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { unstable_readConfig } from 'wrangler';
 import {
+  apiList,
   configProblems,
   deployedProblems,
   isDowngrade,
+  liveVersions,
   parseVersion,
   removedRoutes,
+  scriptExists,
 } from './deploy-guard.mjs';
 
 const ZONE = '0d0f221371c8a419c6a9d36fc3b4da23';
@@ -65,6 +68,9 @@ describe('configProblems', () => {
     expect(
       configProblems({ ...prod, routes: [{ pattern: 'hnch.dev/ws/*', zone_name: 'hnch.dev' }] }),
     ).toHaveLength(1);
+    expect(
+      configProblems({ ...prod, routes: [{ pattern: 'hnch.dev/ws/*', zone_id: '' }] }),
+    ).toHaveLength(1);
     expect(configProblems({ ...prod, routes: [route('example.com/*')] })).toHaveLength(1);
     expect(configProblems({ ...prod, routes: [] })).toHaveLength(1);
   });
@@ -117,5 +123,113 @@ describe('versions', () => {
     expect(isDowngrade('1.3.0', 'relay-v1.3.0')).toBe(false);
     expect(isDowngrade('1.10.0', 'relay-v1.9.5')).toBe(false);
     expect(isDowngrade('1.3.0', 'untagged')).toBe(false);
+  });
+});
+
+describe('Cloudflare API reads fail closed', () => {
+  const answer = (status: number, body: unknown) =>
+    vi.fn(async () =>
+      typeof body === 'string'
+        ? new Response(body, { status })
+        : new Response(JSON.stringify(body), { status }),
+    );
+
+  beforeEach(() => vi.stubEnv('CLOUDFLARE_API_TOKEN', 'test-token'));
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('returns the result of an explicit success', async () => {
+    vi.stubGlobal('fetch', answer(200, { success: true, result: [{ pattern: 'hnch.dev/*' }] }));
+    expect(await apiList('/zones/z/workers/routes')).toEqual([{ pattern: 'hnch.dev/*' }]);
+  });
+
+  it.each([
+    ['a 403', 403, { success: false, errors: [{ code: 10000 }] }],
+    ['success: false', 200, { success: false, result: [] }],
+    ['a missing success', 200, { result: [] }],
+    ['a non-JSON 200', 200, '<html>bad gateway</html>'],
+    ['result: null', 200, { success: true, result: null }],
+    ['a 404', 404, { success: false }],
+  ])('rejects %s', async (_label, status, body) => {
+    vi.stubGlobal('fetch', answer(status, body));
+    await expect(apiList('/zones/z/workers/routes')).rejects.toThrow('/zones/z/workers/routes');
+  });
+
+  it('rejects a list read that is not a list', async () => {
+    vi.stubGlobal('fetch', answer(200, { success: true, result: { pattern: 'hnch.dev/*' } }));
+    await expect(apiList('/zones/z/workers/routes')).rejects.toThrow('expected a list');
+  });
+});
+
+describe('live versions', () => {
+  /** Answers each API path from `routes`; anything else is a 404. */
+  const cloudflare = (routes: Record<string, unknown>) =>
+    vi.fn(async (url: string) => {
+      const path = url.replace('https://api.cloudflare.com/client/v4', '');
+      return path in routes
+        ? new Response(JSON.stringify({ success: true, result: routes[path] }), { status: 200 })
+        : new Response(JSON.stringify({ success: false }), { status: 404 });
+    });
+  const base = '/accounts/acct/workers/scripts/hnch-relay';
+
+  beforeEach(() => {
+    vi.stubEnv('CLOUDFLARE_API_TOKEN', 'test-token');
+    vi.stubEnv('CLOUDFLARE_ACCOUNT_ID', 'acct');
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('is empty for a script the account does not have', async () => {
+    vi.stubGlobal('fetch', cloudflare({ '/accounts/acct/workers/scripts': [{ id: 'other' }] }));
+    expect(await scriptExists('hnch-relay')).toBe(false);
+    expect(await liveVersions('hnch-relay')).toEqual([]);
+  });
+
+  it('fails when the script list itself is unreadable, rather than reading "never deployed"', async () => {
+    vi.stubGlobal('fetch', cloudflare({}));
+    await expect(liveVersions('hnch-relay')).rejects.toThrow('/accounts/acct/workers/scripts');
+  });
+
+  it('reads the tag and bindings of each live version', async () => {
+    vi.stubGlobal(
+      'fetch',
+      cloudflare({
+        '/accounts/acct/workers/scripts': [{ id: 'hnch-relay' }],
+        [`${base}/deployments`]: { deployments: [{ versions: [{ version_id: 'v1' }] }] },
+        [`${base}/versions/v1`]: {
+          annotations: { 'workers/tag': 'relay-v1.3.0' },
+          resources: { bindings: [{ name: 'JURISDICTION', text: 'eu' }] },
+        },
+      }),
+    );
+    expect(await liveVersions('hnch-relay')).toEqual([
+      { tag: 'relay-v1.3.0', bindings: [{ name: 'JURISDICTION', text: 'eu' }] },
+    ]);
+  });
+
+  it.each([
+    ['a deployments answer without a list', { versions: [] }],
+    ['a deployment without versions', { deployments: [{}] }],
+  ])('fails on %s', async (_label, deployments) => {
+    vi.stubGlobal(
+      'fetch',
+      cloudflare({
+        '/accounts/acct/workers/scripts': [{ id: 'hnch-relay' }],
+        [`${base}/deployments`]: deployments,
+      }),
+    );
+    await expect(liveVersions('hnch-relay')).rejects.toThrow(`${base}/deployments`);
+  });
+
+  it('fails when a deployed script has no deployments endpoint answer', async () => {
+    vi.stubGlobal(
+      'fetch',
+      cloudflare({ '/accounts/acct/workers/scripts': [{ id: 'hnch-relay' }] }),
+    );
+    await expect(liveVersions('hnch-relay')).rejects.toThrow(`${base}/deployments`);
   });
 });
