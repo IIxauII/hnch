@@ -105,9 +105,14 @@ test.describe('Per-round abstain (ADR-0041)', () => {
   }) => {
     const player2 = await createParticipant('Player2');
 
-    const code = await host.createSession();
-    await player.joinSession(code);
-    await player2.joinSession(code);
+    // Three cold app loads and onboardings, one after another, are most of
+    // this test's time. On a loaded CI runner each one took 4-6 s and the
+    // test ran out of its 45 s budget before player2 had voted. The joiners'
+    // loads need no room code, so they run while the host creates the room,
+    // and the two joins then run side by side; the room is the same whoever
+    // gets in first, and the participant count below waits for both.
+    const [code] = await Promise.all([host.createSession(), player.openHome(), player2.openHome()]);
+    await Promise.all([player.joinFromHome(code), player2.joinFromHome(code)]);
 
     await host.expectParticipantCount(3);
 
@@ -120,6 +125,16 @@ test.describe('Per-round abstain (ADR-0041)', () => {
 
     // Player votes — denominator is 2, only 1 numeric cast → must NOT reveal yet.
     await player.castVote('5');
+
+    // Every peer has the abstain and the vote before the no-reveal window
+    // opens. Each peer re-checks auto-reveal on every doc change, so from
+    // here a wrong reveal would fire; without this the window could pass on
+    // a peer that had not received the vote yet.
+    await Promise.all(
+      [host, player, player2].map((p) =>
+        expect(p.page.locator(ESTIMATING.voteCount)).toContainText('2 of 3'),
+      ),
+    );
 
     // Assert no navigation for ~3 s — auto-reveal must NOT have fired.
     // Promise.race: if any client reaches /lobby within 3 s the test fails.
