@@ -9,17 +9,33 @@ export default defineConfig({
     }),
   ],
   test: {
-    include: ['src/**/*.test.ts'],
-    environment: 'jsdom',
-    globalSetup: ['src/vitest.global-setup.ts'],
-    setupFiles: ['src/test-setup.ts'],
-    globals: true,
-    restoreMocks: true,
-    server: {
-      deps: {
-        inline: ['@ionic/core'],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'app',
+          include: ['src/**/*.test.ts'],
+          environment: 'jsdom',
+          globalSetup: ['src/vitest.global-setup.ts'],
+          setupFiles: ['src/test-setup.ts'],
+          globals: true,
+          restoreMocks: true,
+          server: {
+            deps: {
+              inline: ['@ionic/core'],
+            },
+          },
+        },
       },
-    },
+      // Node-side: the hnch-web deploy guard (scripts/deploy-guard.mjs).
+      {
+        test: {
+          name: 'node',
+          environment: 'node',
+          include: ['scripts/**/*.test.ts'],
+        },
+      },
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'json-summary'],

@@ -46,7 +46,7 @@ Types in use (match existing history — see `git log`):
 
 | Scope | Use for | Triggers release? |
 |-------|---------|-------------------|
-| `client` | `packages/client/**` (Angular app) | Yes — `client-v*` |
+| `client` | `packages/client/**` (Angular app) | Yes — `client-v*` (deploys `hnch-web` and the VPS; see [PWA release rules](docs/deployment.md#pwa-release-rules)) |
 | `relay` | `packages/relay/**` (Cloudflare Worker + Durable Objects) | Yes — `relay-v*` (deploys `hnch-relay`; see [release rules](docs/deployment.md#relay-release-rules)) |
 | `cli` | `packages/cli/**` | Yes — `cli-v*` (npm publish) |
 | `shared` | `packages/shared/**` | Yes — `shared-v*` |
