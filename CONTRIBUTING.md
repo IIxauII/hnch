@@ -241,7 +241,9 @@ The repo is private on GitHub Free, so it has no branch protection and nothing b
 
 - Merge only when every CI check on the PR's latest commit is green (`gh pr checks <n> --watch`). A cancelled check is not green: re-run it. A job skipped by `detect-changes` is fine.
 - Never merge on red, even when the failure looks unrelated.
-- After merging, check `main`'s push CI run for the merge commit (`gh run list --repo IIxauII/hnch --workflow ci.yml --commit <merge-sha>`) and fix forward if it goes red.
+- After merging, check your merge's `ci.yml` push run (`gh run list --repo IIxauII/hnch --workflow ci.yml --event push --commit <merge-sha>`) and fix forward if it goes red. If a newer merge cancelled it, check the newest `main` push run instead (`gh run list --repo IIxauII/hnch --workflow ci.yml --event push --branch main --limit 1`): it covers yours. Don't re-run the old cancelled run; it shares the concurrency group and would cancel the newer one.
+
+A `main` push run tests everything changed since the last green `main` push run, so a merge whose run was cancelled or failed is tested again by the next one. It leaves out the `[skip ci]` release and screenshot commits, and runs the full pipeline when it can't find a green run to start from.
 
 ## Releases
 

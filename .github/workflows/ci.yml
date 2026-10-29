@@ -34,6 +34,12 @@ jobs:
     # (successful runs were already landing at 40-53s). 3 minutes is headroom
     # on top of the blob filter, not a licence for the step to get slower.
     timeout-minutes: 3
+    # Job-level permissions replace the workflow-level set, so contents: read
+    # is restated. actions: read lets the filter step look up the last green
+    # CI run on main.
+    permissions:
+      contents: read
+      actions: read
     outputs:
       shared: ${{ steps.filter.outputs.shared }}
       relay: ${{ steps.filter.outputs.relay }}
@@ -56,9 +62,29 @@ jobs:
           filter: blob:none
 
       - id: filter
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF: ${{ github.ref }}
         run: |
           set -euo pipefail
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+
+          # Every lane on. verify-packages must be emitted too: the verify
+          # matrix fromJSON()s it and fails to expand on an empty string.
+          # The ::warning:: annotation makes a fallback visible on the run
+          # summary (a lost actions: read, a broken API, rewritten history).
+          full_pipeline() {
+            echo "$1"
+            echo "::warning::$1"
+            for v in shared relay client cli e2e root; do
+              echo "$v=true" >> "$GITHUB_OUTPUT"
+            done
+            echo 'verify-packages=["shared","relay","client","cli","e2e"]' >> "$GITHUB_OUTPUT"
+            exit 0
+          }
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
             base="${{ github.event.pull_request.base.sha }}"
             # Diff against the PR head SHA explicitly. actions/checkout for
             # pull_request events checks out `pull/N/merge` (a synthetic merge
@@ -67,18 +93,64 @@ jobs:
             # merge ref collapses to base and `base...HEAD` reports zero files —
             # which causes detect-changes to skip every lane on a real PR.
             head="${{ github.event.pull_request.head.sha }}"
+            main_push=false
+          elif [[ "$EVENT_NAME" == "push" && "$REF" == "refs/heads/main" ]]; then
+            # Push to main: diff from the last GREEN main run, not from
+            # github.event.before. The workflow-level concurrency group cancels
+            # an older main run when a newer merge lands; diffing only
+            # before..sha would then skip the cancelled merge's lanes and go
+            # green without ever testing it. Diffing from the last green run
+            # covers every cancelled or failed merge since.
+            # - The current run is in progress, not success, so the query
+            #   never returns it.
+            # - A failed run never becomes the base, so the next run re-tests
+            #   its changes.
+            # - Bot commits marked [skip ci] start no CI run of their own:
+            #   screenshot refreshes (chore(screenshots): ...) and semantic-
+            #   release's version bumps (chore(release): <tag>, which touch
+            #   packages/<pkg>/package.json and CHANGELOG.md). They fall
+            #   inside base..head, so the diff below is built per commit and
+            #   leaves them out; otherwise a docs-only merge after a release
+            #   would re-run that package's lanes.
+            # - No green run found, gh failing, or a base that is not an
+            #   ancestor of this push (history rewritten): full pipeline.
+            main_push=true
+            head="${{ github.sha }}"
+            base=""
+            last_url=""
+            why="no last green main run found"
+            if last=$(timeout 30 gh api \
+                "repos/$REPO/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=1" \
+                --jq '.workflow_runs[0] | select(. != null) | "\(.head_sha) \(.html_url)"'); then
+              read -r base last_url <<< "$last" || true
+            else
+              why="querying the last green main run failed"
+            fi
+            if [[ -z "$base" ]]; then
+              full_pipeline "fallback: full pipeline ($why)"
+            fi
+            if ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+              echo "Base SHA $base not in local clone; fetching."
+              timeout 30 git fetch --no-tags origin "$base" || true
+            fi
+            if ! git merge-base --is-ancestor "$base" "$head" 2>/dev/null; then
+              full_pipeline "fallback: full pipeline (last green main run $last_url at $base is not an ancestor of $head)"
+            fi
+            echo "Base: last green main run $last_url ($base)"
           else
+            # Unreachable today: the workflow triggers only on pull_request
+            # and push to main. Kept as a guard should another trigger be
+            # added; it falls back to diffing the push's own range.
+            main_push=false
             base="${{ github.event.before }}"
             head="${{ github.sha }}"
           fi
 
-          # Defensive: if base is unset/zero (first push, force-push), assume everything changed.
+          # Defensive, for the guard branch above: an unset or zero base (e.g.
+          # a new branch's first push) gives nothing to diff against, so run
+          # everything.
           if [[ -z "$base" || "$base" == "0000000000000000000000000000000000000000" ]]; then
-            echo "No usable base SHA; treating as full-pipeline run."
-            for v in shared relay client cli e2e root; do
-              echo "$v=true" >> "$GITHUB_OUTPUT"
-            done
-            exit 0
+            full_pipeline "No usable base SHA; treating as full-pipeline run."
           fi
 
           # Defensive: fork PRs don't auto-fetch the head SHA via refs/heads/*.
@@ -92,7 +164,17 @@ jobs:
           # clone above never has to lazy-fetch file contents. Rename detection
           # would only ever collapse an old+new path pair into the new path,
           # and for a path-prefix lane filter the extra old path is harmless.
-          changed=$(git diff --name-only --no-renames "$base"..."$head")
+          if [[ "$main_push" == "true" ]]; then
+            # Per commit, minus the [skip ci] bot commits (see above). main is
+            # squash-only and so linear; git log without -m lists no files for
+            # a merge commit. --format= leaves blank separator lines; sed drops
+            # them. Still tree-only: --name-only never reads blobs.
+            changed=$(git log --no-renames --name-only --format= -E --invert-grep \
+              --grep='^chore\((release|screenshots)\): .*\[skip ci\]$' \
+              "$base..$head" | sed '/^$/d' | sort -u)
+          else
+            changed=$(git diff --name-only --no-renames "$base"..."$head")
+          fi
           echo "Changed files between $base and $head:"
           echo "$changed"
 
