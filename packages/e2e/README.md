@@ -19,6 +19,14 @@ pnpm --filter @hnch/e2e exec playwright test --project=chromium
 
 The full suite spins up `pnpm dev:relay` and `pnpm dev:client` automatically via `playwright.config.ts` `webServer`. Use `--workers=1` for stability when investigating flakes.
 
+### Timeouts
+
+Every test gets 45 s. With `CI` set, each action (click, fill, locator wait) also stops after 10 s and each navigation (`goto`, `reload`, `waitForURL`) after 15 s, so a lost click or a URL that never comes fails with an error naming that call instead of using up the test budget. Run with `CI=1` to get the same limits locally.
+
+- A call that legitimately waits longer passes its own `timeout` (host election and reconnect waits use 15 s).
+- A test that is slow as a whole, not stuck, sets its own budget with `test.setTimeout(...)` in the test body, never in the config. Example: the 6th-room eviction test in `recent-rooms-list.spec.ts`.
+- `waitForTimeout` and `expect(...)` assertions are not covered by these limits; assertions keep the 5 s expect default.
+
 ## Screenshot harness
 
 All screenshot specs live under `tests/_screenshots/` and are gated by `SCREENSHOT_CAPTURE=1`. Each one opens with the same file-level line:

@@ -43,6 +43,15 @@ export default defineConfig({
   timeout: 45_000,
   use: {
     baseURL: `http://localhost:${CLIENT_PORT}`,
+    // CI: a lost click or a URL that never comes fails in seconds with an
+    // error naming that call (`locator.click: Timeout 10000ms exceeded`),
+    // instead of a bare 45 s test timeout that, with maxFailures: 1, stops
+    // the job (#563, #601). Picked from a full CI=1 run: the slowest click
+    // took 1.1 s, the slowest goto or URL wait 3 s, the slowest locator
+    // wait 5.4 s. A call that legitimately waits longer passes its own
+    // `timeout` (as the host-election and reconnect waits do). Local runs
+    // keep Playwright's default of no per-call limit.
+    ...(isCI && { actionTimeout: 10_000, navigationTimeout: 15_000 }),
     trace: isCI ? 'retain-on-failure' : 'on',
     screenshot: isCI ? 'only-on-failure' : 'on',
     video: isCI ? 'off' : 'on',
