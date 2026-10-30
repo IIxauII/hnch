@@ -60,7 +60,7 @@ jobs:
       verify-packages: ${{ steps.filter.outputs.verify-packages }}
     steps:
       - id: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # Full history is required: the filter step diffs base...head and
           # needs the merge-base. blob:none makes that a treeless partial
@@ -275,7 +275,7 @@ jobs:
 
       - name: Upload the tested tree
         if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: verified-tree
           path: ${{ runner.temp }}/verified-tree/verified-tree.json
@@ -314,7 +314,7 @@ jobs:
           echo "Runner: $RUNNER_NAME on $(hostname) — arch $(uname -m)"
           df -h /cache || true
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install
         uses: ./.github/actions/pnpm-install
@@ -353,7 +353,7 @@ jobs:
 
       - name: Upload stall samples
         if: always() && matrix.package == 'relay'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: stall-samples-relay
           path: ${{ runner.temp }}/stall-samples/
@@ -364,7 +364,7 @@ jobs:
       # nothing read it.
       - name: Upload coverage to Codecov
         if: always()
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: ${{ matrix.package }}
@@ -434,7 +434,7 @@ jobs:
       group: e2e-${{ github.ref }}
       cancel-in-progress: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # E2E keeps default ignore-scripts=false: msgpackr-extract's native
       # binary is exercised by the relay + client at runtime.
@@ -477,7 +477,7 @@ jobs:
 
       - name: Upload Playwright report
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: |

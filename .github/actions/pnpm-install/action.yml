@@ -28,7 +28,7 @@ runs:
 
     - name: Setup Node 22 (github-hosted only)
       if: runner.environment == 'github-hosted'
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v7
       with:
         node-version: 22
 

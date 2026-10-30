@@ -46,7 +46,7 @@ jobs:
           echo "Runner: $RUNNER_NAME on $(hostname) — arch $(uname -m)"
           df -h /cache || true
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.ref }}
           persist-credentials: false
@@ -123,7 +123,7 @@ jobs:
         working-directory: packages/client
         run: node scripts/deploy-guard.mjs www
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: www
           path: packages/client/www
@@ -144,7 +144,7 @@ jobs:
           echo "Runner: $RUNNER_NAME on $(hostname) — arch $(uname -m)"
           df -h /cache || true
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.build.outputs.sha }}
           persist-credentials: false
@@ -168,7 +168,7 @@ jobs:
         # Deploy exactly the uploaded build, nothing left in the workspace.
         run: rm -rf packages/client/www
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: www
           path: packages/client/www

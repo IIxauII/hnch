@@ -131,7 +131,7 @@ jobs:
           echo "Releasing $sha, verified by $url"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ steps.target.outputs.sha }}
           # semantic-release reads commits and tags, not old file contents.
@@ -165,7 +165,7 @@ jobs:
       - name: Enable Corepack
         run: corepack enable
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           # No `cache: pnpm`: pnpm install reads the bind-mounted
