@@ -51,9 +51,9 @@ Types in use (match existing history — see `git log`):
 | `cli` | `packages/cli/**` | Yes — `cli-v*` (npm publish) |
 | `shared` | `packages/shared/**` | Yes — `shared-v*` |
 | `e2e` | `packages/e2e/**` | No |
-| `ci` | `.github/workflows/**`, `infra/runner/**` | No |
+| `ci` | `.github/**`, `scripts/ci/**` | No |
 | `docs` | Root `*.md`, `docs/**`, `adr/**` | No |
-| `infra` | `infra/**` outside `infra/runner/` (today only `infra/README.md`) | No |
+| `infra` | `infra/**` (empty since the runner pool retired, [ADR-0056](adr/0056-github-hosted-runners.md)) | No |
 | `deps` | Dependency bumps (Dependabot et al., see [Dependency updates](#dependency-updates)) | No |
 | `repo` | Root configs (`package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`, `.gitignore`, etc.) | No |
 
@@ -65,7 +65,7 @@ A PR that touches multiple packages MUST list every scope it touches, comma-sepa
 feat(client,shared): add new vote payload field
 fix(relay,shared): correct snapshot TTL calculation
 feat(client,cli,shared)!: drop legacy join URL
-chore(ci,docs): bump runner image base and document it
+chore(ci,docs): pin a new workflow action and document it
 ```
 
 Rules:

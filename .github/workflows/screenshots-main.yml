@@ -37,17 +37,12 @@ permissions:
 jobs:
   refresh:
     name: Capture and commit
-    # Runs Playwright + the built client + relay: takes the single `e2e` runner like
-    # ci.yml's e2e job (ADR-0052), so the two never run at the same time.
-    runs-on: [self-hosted, linux, arm64, hnch-podman, e2e]
-    timeout-minutes: 15
+    # Runs Playwright + the built client + relay on its own hosted VM, so it
+    # shares no CPUs with ci.yml's e2e job (ADR-0056).
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
     steps:
-      - name: Runner identity
-        run: |
-          echo "Runner: $RUNNER_NAME on $(hostname) — arch $(uname -m)"
-          df -h /cache || true
-
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: main
           fetch-depth: 0
@@ -62,13 +57,8 @@ jobs:
       - name: Install workspace deps
         uses: ./.github/actions/pnpm-install
 
-      - name: Install Playwright browsers (github-hosted)
-        if: runner.environment == 'github-hosted'
+      - name: Install Playwright browsers
         run: pnpm --filter @hnch/e2e exec playwright install --with-deps chromium
-
-      - name: Install Playwright browsers (self-hosted)
-        if: runner.environment == 'self-hosted'
-        run: pnpm --filter @hnch/e2e exec playwright install chromium
 
       - name: Build @hnch/shared (consumed by relay + client webServers)
         run: pnpm --filter @hnch/shared run build
@@ -101,7 +91,7 @@ jobs:
           cd docs/screenshots
           # Drop the newest 10 sha-* dirs by mtime; rm the rest. Uses find
           # rather than `ls` so non-alphanumeric filenames are safe (shellcheck
-          # SC2012). Self-hosted runner is Linux (ADR-0037), `-printf` is GNU.
+          # SC2012). The runner is Linux, so GNU find's `-printf` is there.
           find . -maxdepth 1 -type d -name 'sha-*' -printf '%T@ %P\n' \
             | sort -rn \
             | tail -n +11 \

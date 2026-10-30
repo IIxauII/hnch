@@ -1,5 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs';
+import os from 'node:os';
 import { defineConfig, devices } from '@playwright/test';
 
 // Load .env.local from the monorepo root when present (worktree port isolation).
@@ -45,7 +46,9 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: isCI,
   retries: 0,
-  ...(isCI && { workers: 4 }),
+  // At most one worker per CPU: a hosted runner has 4 CPUs on a public repo
+  // and 2 on a private one, and oversubscribed browsers time out.
+  ...(isCI && { workers: Math.min(4, os.availableParallelism()) }),
   // Fail-fast in CI: any single failure aborts the run so a bootstrap
   // crash doesn't burn the 10-min CI cap on 73 trailing tests against a
   // blank page. Local: 0 (Playwright treats 0 as disabled = run

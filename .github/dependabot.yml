@@ -1,6 +1,9 @@
 # Dependabot: one PR per package family, weekly, instead of one per package.
-# Every lockfile change runs the full pipeline (four verify lanes plus e2e on
-# the single e2e slot, ADR-0052), so per-package PRs cost one pipeline each.
+# Every lockfile change runs the full pipeline (four verify lanes plus e2e),
+# so per-package PRs cost one pipeline each.
+#
+# github-actions: every action is pinned to a commit SHA with a `# vX.Y.Z`
+# comment (ADR-0056); Dependabot bumps both together.
 #
 # Groups match in file order: a dependency joins the first group it fits.
 # `applies-to` takes one value, so each family is listed twice, once for
