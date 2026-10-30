@@ -38,7 +38,7 @@ Swarm runs on two tools: `Agent` and `SendMessage`. There is no team or task-lis
 | Spawn an agent | `Agent({ subagent_type, name, model, prompt, run_in_background: true })`. `name` is the agent's address for the rest of the session. Pass `model` for implementers only; every other agent runs on its frontmatter model. |
 | Agent reports | The agent ends its turn; its final message comes back to you as the `Agent` result (or the background-completion notification). That message is the report: "Task #X ready for review", findings, `BLOCKED: <question>`, or `NEED FILE: <path> — <why>`. |
 | Next instruction, rework, answer | `SendMessage({ to: "<name>", message })`. A send resumes the agent from its transcript, so it keeps its context. |
-| Despawn | Stop addressing the agent and drop it from the roster. If it is still running, `TaskStop({ task_id: "<name>" })` first. |
+| Despawn | Stop addressing the agent and drop it from the roster. If it is still running, `TaskStop({ task_id })` first, with the task id its `Agent` spawn result returned (a name is not a task id). Note that id in the roster when you spawn. |
 | Restart with a clean context | `TaskStop` it if still running, then spawn a fresh agent with the same `name` (the newest agent takes the name) and a full brief. |
 | Track tasks | Keep a **task ledger**: a markdown table in your own replies with `ID`, `Story`, `Agent`, `Model`, `Status` (`pending` / `in_progress` / `ready` / `completed`), `files-touched`, `blockedBy`, `Signals` (ready-for-review count). Reprint it whenever a status changes. It is the only task state there is. |
 
@@ -400,7 +400,7 @@ If any reviewer reports **BUG**, **REGRESSION**, **SECURITY-CRITICAL**, **SECURI
 When all stories pass review AND the verification story is green:
 
 1. Report to user: files changed, decisions made, ADR drafts (if any) awaiting acceptance, remaining notes, final ledger
-2. Stop every agent that is still running: `TaskStop({ task_id: "<name>" })` for each
+2. Stop every agent that is still running: `TaskStop({ task_id })` for each, using the task id from its spawn result
 
 ---
 
