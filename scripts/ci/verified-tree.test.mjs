@@ -407,17 +407,17 @@ describe('recordVerifiedTree', () => {
     assert.equal(recordVerifiedTree({ git, head, base: eventBase, pr: 7 }), null);
   });
 
-  // A crash here would turn the PR run red; no record is the safe answer.
+  // A crash would turn the PR run red; no record, with the reason, is safe.
   it('records nothing, without throwing, when git cannot resolve the event base', () => {
     const { git, head } = mergeRef();
-    assert.equal(recordVerifiedTree({ git, head, base: PR_HEAD, pr: 7 }), null);
+    const result = recordVerifiedTree({ git, head, base: PR_HEAD, pr: 7 });
+    assert.equal(result.tree, undefined);
+    assert.match(result.error, /^git failed: /);
   });
 
   it('records nothing, without throwing, when git fails outright', () => {
-    assert.equal(
-      recordVerifiedTree({ git: failingGit, head: PR_HEAD, base: PR_HEAD, pr: 7 }),
-      null,
-    );
+    const result = recordVerifiedTree({ git: failingGit, head: PR_HEAD, base: PR_HEAD, pr: 7 });
+    assert.deepEqual(result, { error: 'git failed: fatal: not a git repository' });
   });
 });
 
@@ -604,5 +604,30 @@ if (cmd === 'api' && sub in routes) {
     assert.equal(record.tree, undefined);
     assert.equal(record.head, PR_HEAD);
     assert.match(record.unrecorded, /not the merge/);
+    assert.doesNotMatch(out.stdout, /::warning::/);
+  });
+
+  // Git breaking is not the known stale-base case: say so, and warn on the
+  // PR run, so verified-skip does not switch off unnoticed.
+  it('writes the git error into the marker and warns when git fails', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'not-a-repo-'));
+    dirs.push(dir);
+    const file = join(dir, 'out', 'verified-tree.json');
+    const out = spawnSync('node', [script, 'record', file], {
+      cwd: dir,
+      env: {
+        ...processEnv,
+        GIT_CEILING_DIRECTORIES: tmpdir(),
+        PR_HEAD_SHA: PR_HEAD,
+        PR_BASE_SHA: PR_HEAD,
+        PR_NUMBER: '7',
+      },
+      encoding: 'utf8',
+    });
+    assert.equal(out.status, 0, out.stdout + out.stderr);
+    assert.match(out.stdout, /^::warning::Recording no tree: git failed: /m);
+    const record = JSON.parse(readFileSync(file, 'utf8'));
+    assert.equal(record.tree, undefined);
+    assert.match(record.unrecorded, /^git failed: /);
   });
 });

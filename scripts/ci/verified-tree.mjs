@@ -175,9 +175,10 @@ function firstNonBotCommit(git, range) {
  * be ahead of `base` by bot commits only, which no lane counts, so the lanes
  * the run picked still cover the merge.
  *
- * Null when the checkout is not such a merge of `head`, or when git fails:
- * the CLI then uploads an `unrecorded` marker instead, so a main run misses
- * without a warning. Never throws: a crash here would fail the PR run.
+ * Null when the checkout is not such a merge of `head`, and `{ error }` when
+ * git fails: the CLI then uploads an `unrecorded` marker instead, so a main
+ * run misses without a warning (the PR run warns on an error). Never throws:
+ * a crash here would fail the PR run.
  *
  * @param {{ git: (args: string[]) => string, head: string, base: string, pr: number }} input
  */
@@ -188,8 +189,8 @@ export function recordVerifiedTree({ git, head, base, pr }) {
     const [tip] = parents;
     if (tip !== base && !isBasePlusBotCommits({ git, base, tip })) return null;
     return { tree: git(['rev-parse', 'HEAD^{tree}']), base: tip, head, pr };
-  } catch {
-    return null;
+  } catch (err) {
+    return { error: `git failed: ${String(err?.message).split('\n')[0]}` };
   }
 }
 
@@ -268,12 +269,14 @@ function recordCommand(file) {
   const pr = Number(env.PR_NUMBER);
   const result = recordVerifiedTree({ git, head, base, pr });
   mkdirSync(dirname(file), { recursive: true });
-  if (!result) {
+  if (!result?.tree) {
     // A marker, not nothing: a green run with no artifact at all reads as
     // breakage on main and warns.
-    const unrecorded = `the checkout is not the merge of ${head} onto ${base} or onto ${base} plus [skip ci] bot commits`;
+    const unrecorded =
+      result?.error ??
+      `the checkout is not the merge of ${head} onto ${base} or onto ${base} plus [skip ci] bot commits`;
     writeFileSync(file, `${JSON.stringify({ unrecorded, head, pr }, null, 2)}\n`);
-    stdout.write(`Recording no tree: ${unrecorded}.\n`);
+    stdout.write(`${result?.error ? '::warning::' : ''}Recording no tree: ${unrecorded}.\n`);
     return 0;
   }
   writeFileSync(file, `${JSON.stringify(result, null, 2)}\n`);
