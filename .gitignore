@@ -69,10 +69,15 @@ node-compile-cache/
 # scripts/screenshot-publish.mjs as a Playwright --grep regex.
 .screenshot-tags
 
-# graphify knowledge-graph build artefacts
-# Per graphify README: graphify-out/ is meant to be committed so everyone on the
-# team starts with a map. These entries exclude per-machine state only.
-graphify-out/cost.json
-graphify-out/cache/
-graphify-out/.graphify_python
-graphify-out/.graphify_root
+# graphify knowledge graph: rebuilt locally whenever the graphify skill runs,
+# and stale as soon as main moves, so it is not committed.
+graphify-out/
+
+# Per-developer MCP server config for Claude Code
+.mcp.json
+
+# Screenshot runs without SCREENSHOT_SHA write here (local iteration only).
+# docs/screenshots/sha-*/ stays trackable: the screenshots-main workflow
+# commits main's reference set there. scripts/screenshot-publish.mjs removes
+# its own sha-<short>/ output at the end of each run.
+docs/screenshots/local/
