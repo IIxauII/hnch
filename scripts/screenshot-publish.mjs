@@ -20,6 +20,15 @@
 //
 // A successful run means "screenshots captured + uploaded", nothing more.
 //
+// Local output: capture writes docs/screenshots/sha-<short>/ in the working
+// tree. Once the `screenshots` branch on the remote holds sha-<short>/ (just
+// pushed, or already there), the local copy is removed in both modes, so the
+// working tree stays clean. Pass --keep-local to keep it (for example to
+// iterate on the comment layout with --dry-run-body). A failed run leaves the
+// local copy in place for inspection; the next run recaptures it anyway.
+// Local-only iteration without publishing goes to docs/screenshots/local/
+// (playwright without SCREENSHOT_SHA), which is gitignored.
+//
 // Invoked by:
 //   - lefthook pre-push (mode=hook): conditional on UI-bearing diff vs @{push}
 //   - pnpm screenshots:publish (mode=manual): always runs full or tag-scoped
@@ -52,6 +61,7 @@ const repoRoot = resolve(__dirname, '..');
 const args = parseArgs(process.argv.slice(2));
 const mode = args.mode === 'manual' ? 'manual' : 'hook';
 const verbose = !!args.verbose;
+const keepLocal = !!args['keep-local'];
 
 function parseArgs(argv) {
   const out = {};
@@ -222,6 +232,32 @@ function runCapture(sha) {
     throw new Error(`expected ${outDir} after capture; not found`);
   }
   return outDir;
+}
+
+// Remove the working-tree copy of a capture once the screenshots branch holds
+// it. Never removes a directory git tracks (main's reference sets live under
+// docs/screenshots/sha-*/ too).
+function removeLocalCapture(sha) {
+  const rel = `docs/screenshots/sha-${sha}`;
+  const dir = resolve(repoRoot, rel);
+  if (!existsSync(dir)) return;
+  let tracked;
+  try {
+    tracked = sh(`git ls-files -- ${JSON.stringify(rel)}`);
+  } catch (e) {
+    log(`warning: could not check whether ${rel}/ is tracked; keeping it: ${e.message}`);
+    return;
+  }
+  if (tracked) {
+    log(`${rel}/ is tracked by git; keeping it.`);
+    return;
+  }
+  try {
+    rmSync(dir, { recursive: true, force: true });
+    log(`removed local ${rel}/ (published copy is on the ${SCREENSHOTS_BRANCH} branch)`);
+  } catch (e) {
+    log(`warning: failed to remove ${dir}: ${e.message}`);
+  }
 }
 
 // ---------------------------------------------------------------- publish
@@ -682,7 +718,15 @@ function main() {
     );
   }
 
+  // The comment body is built from the local copy, so build it before
+  // removing that copy. The remote has the PNGs from here on, so the local
+  // copy goes even if the comment update below fails.
   const body = buildCommentBody(sha, pr);
+  if (keepLocal) {
+    log(`--keep-local: keeping docs/screenshots/sha-${sha}/`);
+  } else {
+    removeLocalCapture(sha);
+  }
   upsertStickyComment(pr, body);
   log(`done. https://github.com/${REPO}/pull/${pr}`);
   return 0;
