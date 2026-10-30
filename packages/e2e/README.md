@@ -7,7 +7,7 @@ Playwright end-to-end tests for hnch. Multi-client, real-relay scenarios; no moc
 ```
 tests/
   _screenshots/         # opt-in screenshot capture suite (this README's focus)
-  fixtures/             # shared selectors + browser-context helpers
+  fixtures/             # shared selectors + browser-context helpers (incl. the 375px sheet openers)
   *.spec.ts             # functional e2e suites
 ```
 
@@ -21,7 +21,18 @@ The full suite spins up `pnpm dev:relay` and `pnpm dev:client` automatically via
 
 ## Screenshot harness
 
-All screenshot specs live under `tests/_screenshots/` and are gated by `SCREENSHOT_CAPTURE=1`. Without the env var, they `test.skip` — they don't run as part of regular CI.
+All screenshot specs live under `tests/_screenshots/` and are gated by `SCREENSHOT_CAPTURE=1`. Each one opens with the same file-level line:
+
+```ts
+test.skip(!process.env['SCREENSHOT_CAPTURE'], 'set SCREENSHOT_CAPTURE=1 to run');
+```
+
+That gives two separate switches:
+
+- **App tests** (`pnpm --filter @hnch/e2e test`, the CI `E2E (Playwright)` job, no `SCREENSHOT_CAPTURE`): every test under `_screenshots/` is reported as skipped; none of them runs.
+- **Capture** (`SCREENSHOT_CAPTURE=1 … playwright test _screenshots`): every screenshot spec runs and writes its PNGs.
+
+A new screenshot spec starts with that line too. An assertion that must hold on every PR (a regression guard) belongs in an app spec under `tests/`, not under `_screenshots/`. The 375px sheet guards moved to `sheet-actions-mobile.spec.ts` for that reason (#594).
 
 ### Two surfaces
 
@@ -121,10 +132,10 @@ Every `test()` under `_screenshots/` is annotated with one or more Playwright ta
 |---|---|
 | `@all` | `capture.spec.ts`, `estimating-shot.spec.ts` |
 | `@theming` | `avatar-color.spec.ts`, `capture.spec.ts`, `estimating-shot.spec.ts`, `vote-bars-shot.spec.ts` |
-| `@layout` | `agenda-states.spec.ts`, `capture.spec.ts`, `estimating-shot.spec.ts`, `keyboard-shortcuts.spec.ts`, `vote-bars-shot.spec.ts`, `vote-dots-196.spec.ts` |
+| `@layout` | `agenda-item-form-mobile.spec.ts`, `agenda-states.spec.ts`, `capture.spec.ts`, `estimating-shot.spec.ts`, `keyboard-shortcuts.spec.ts`, `round-start-mobile.spec.ts`, `vote-bars-shot.spec.ts`, `vote-dots-196.spec.ts` |
 | `@participants` | `agenda-states.spec.ts`, `avatar-color.spec.ts`, `participant-cap.spec.ts`, `participants.spec.ts` |
 | `@viewer` | `participants.spec.ts` |
-| `@host` | `agenda-states.spec.ts`, `participants.spec.ts`, `session-ended.spec.ts`, `skip-round.spec.ts` |
+| `@host` | `agenda-item-form-mobile.spec.ts`, `agenda-states.spec.ts`, `participants.spec.ts`, `round-start-mobile.spec.ts`, `session-ended.spec.ts`, `skip-round.spec.ts` |
 | `@password` | `password-flow.spec.ts` |
 | `@reveal` | `reveal-transition.spec.ts`, `vote-bars-shot.spec.ts` |
 | `@skip` | `skip-round.spec.ts` |
@@ -152,6 +163,8 @@ Every `test()` under `_screenshots/` is annotated with one or more Playwright ta
 | `connection-states.spec.ts` | `connection/` | reconnecting banner (desktop + mobile) |
 | `avatar-color.spec.ts` | `theming/` | settings palette default + Pink; lobby + estimating with chosen color |
 | `agenda-states.spec.ts` | `agenda/` | empty agenda; add sheet open/filled; 3-item list; story menu; edit sheet; mid-session consumed; skipped/removed; joiner on mobile |
+| `agenda-item-form-mobile.spec.ts` | `agenda/` (numbered `12-`, `13-`) | story form sheet at 375px, add mode and edit mode |
+| `round-start-mobile.spec.ts` | `round-start/` | round-start sheet at 375px |
 | `keyboard-shortcuts.spec.ts` | `keyboard/` | shortcuts overlay |
 | `vote-bars-shot.spec.ts` | `vote-bars/` | vote distribution bars (light/dark, desktop/mobile) |
 | `vote-dots-196.spec.ts` | `vote-dots/` | vote dot layout (issue #196) |

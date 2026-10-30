@@ -2,9 +2,10 @@
  * Shared helper: open a half-sheet on a 375px-wide mobile context and
  * return the page for visibility assertions.
  *
- * Used by the round-start, agenda-item-form, round-edit, and set-password
- * sheet e2e specs (issues #445–#448). Import this rather than copy-pasting
- * the freshCtx + onboard + sheet-open dance into every spec.
+ * Used by the 375px sheet guards in `sheet-actions-mobile.spec.ts` (issues
+ * #445–#448) and by the round-start and agenda-item-form screenshot specs.
+ * Import this rather than copy-pasting the freshCtx + onboard + sheet-open
+ * dance into every spec.
  *
  * Not a Playwright test file (no .spec.ts suffix) — the default testMatch
  * glob does not pick it up.
