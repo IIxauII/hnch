@@ -11,7 +11,7 @@ Changes what a green `ci.yml` push run on `main` means; [ADR-0049](0049-self-hos
 - `main` push run re-tested it anyway: ~10 min and the single e2e slot per merge (ADR-0052), on a 2-slot pool (ADR-0053).
 - `release.yml` starts from a green `ci.yml` push run on `main` (`workflow_run`), so every merge's release waited for the re-test.
 - `main` push run picks lanes from every commit since the last green `main` push run, minus the bot's `[skip ci]` commits (`BOT_SUBJECT`), so a red or cancelled merge is re-tested by the next run.
-- Squash-only merges, PR title = commit subject (CONTRIBUTING › Merge strategy). No branch protection (private repo, GitHub Free): green-before-merge is convention.
+- Squash-only merges, PR title = commit subject (docs/release.md › Merge strategy). No branch protection (private repo, GitHub Free): green-before-merge is convention.
 - Lane and test results are a function of the tree. PR and `main` runs do the same work; both measure coverage and upload it to Codecov.
 
 ## Decision

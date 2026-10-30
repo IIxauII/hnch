@@ -40,7 +40,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'lcov', 'json-summary'],
       reportsDirectory: './coverage',
-      include: ['src/**'],
+      include: ['src/**/*.ts'],
       exclude: [
         '**/*.test.ts',
         '**/*.spec.ts',
@@ -49,7 +49,6 @@ export default defineConfig({
         'src/polyfills.ts',
         'src/zone-flags.ts',
         'src/test-setup.ts',
-        'src/test.ts',
         'src/vitest.global-setup.ts',
         'src/environments/version.ts',
       ],
