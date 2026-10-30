@@ -27,6 +27,18 @@ const isCI = !!process.env['CI'];
 const CLIENT_PORT = process.env['CLIENT_PORT'] ?? '4200';
 const RELAY_PORT = process.env['RELAY_PORT'] ?? '1234';
 
+// Which client the tests load (#602). `build`: an optimised `ng build
+// --configuration e2e` served as static files by scripts/serve-static.mjs,
+// so tests run the bundle users get and no dev server or file watcher
+// competes with the browsers for CPU. That configuration keeps
+// environment.ts, so the relay address still comes from the page's port.
+// `dev`: `ng serve`, for local runs that edit the client between runs.
+// Default: build in CI, dev locally; E2E_CLIENT overrides either.
+const E2E_CLIENT = process.env['E2E_CLIENT'] ?? (isCI ? 'build' : 'dev');
+if (E2E_CLIENT !== 'build' && E2E_CLIENT !== 'dev') {
+  throw new Error(`E2E_CLIENT must be "build" or "dev", got "${E2E_CLIENT}"`);
+}
+
 export default defineConfig({
   globalSetup: './global-setup.ts',
   testDir: './tests',
@@ -75,14 +87,20 @@ export default defineConfig({
       },
     },
     {
-      command: 'pnpm --filter @hnch/client dev',
+      // Build and serve in one command, so the build overlaps the relay
+      // starting; the static server only listens once the build is done.
+      command:
+        E2E_CLIENT === 'build'
+          ? 'pnpm --filter @hnch/client run build:e2e && node scripts/serve-static.mjs ../client/dist/e2e'
+          : 'pnpm --filter @hnch/client dev',
       // `ng serve` opens the TCP port within ~1s but the bundle compile takes
       // ~15s on cold CI. Using `port:` makes Playwright start tests as soon as
       // the socket is up — the first worker to navigate then eats the entire
       // compile inside its 20s per-test budget and times out. `url:` instead
       // polls HTTP until 2xx, which only happens once webpack-dev-server has
       // finished its first compile. `timeout` extends the wait so cold CI runs
-      // don't bail before bundles are ready.
+      // don't bail before bundles are ready (or, for `build`, before
+      // `ng build` finishes).
       url: `http://localhost:${CLIENT_PORT}/`,
       timeout: 180_000,
       reuseExistingServer: !isCI,

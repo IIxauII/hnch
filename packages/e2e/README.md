@@ -5,6 +5,8 @@ Playwright end-to-end tests for hnch. Multi-client, real-relay scenarios; no moc
 ## Layout
 
 ```
+scripts/
+  serve-static.mjs      # serves the built client for E2E_CLIENT=build (unit tests: pnpm --filter @hnch/e2e test:unit)
 tests/
   _screenshots/         # opt-in screenshot capture suite (this README's focus)
   fixtures/             # shared selectors + browser-context helpers (incl. the 375px sheet openers)
@@ -17,7 +19,22 @@ tests/
 pnpm --filter @hnch/e2e exec playwright test --project=chromium
 ```
 
-The full suite spins up `pnpm dev:relay` and `pnpm dev:client` automatically via `playwright.config.ts` `webServer`. Use `--workers=1` for stability when investigating flakes.
+The full suite starts the relay and the client automatically via `playwright.config.ts` `webServer`. Use `--workers=1` for stability when investigating flakes.
+
+### Which client the tests load
+
+`E2E_CLIENT` picks how the client is served:
+
+| Value | What runs | Default |
+|---|---|---|
+| `dev` | `ng serve` (`pnpm --filter @hnch/client dev`) with its file watcher | local runs, including `pnpm test:e2e` |
+| `build` | `ng build --configuration e2e` into `packages/client/dist/e2e`, then `scripts/serve-static.mjs` serves it, with `index.html` for app routes | whenever `CI` is set (the `E2E (Playwright)` job and `screenshots-main.yml`) |
+
+The `build` mode runs the optimised bundle users get, and no dev server competes with the browsers for CPU. The `e2e` configuration has no `fileReplacements`, so it keeps `environment.ts` and reaches the relay on the page's own port (worktree and CI ports work with no extra config). Production builds and deploys are unaffected: they keep their own `production` configuration and `www/` output.
+
+- To run locally against what CI runs: `CI=1 pnpm test:e2e` (also gets the CI timeouts below and `maxFailures: 1`), or `E2E_CLIENT=build pnpm test:e2e` for the build alone.
+- The build is not watched: with `build`, a client edit only shows up in the next run, which rebuilds (about 15 s locally).
+- Outside CI, Playwright reuses whatever already listens on `CLIENT_PORT`. A running `pnpm dev:client` there means `E2E_CLIENT=build` still tests the dev server.
 
 ### Timeouts
 

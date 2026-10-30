@@ -15,7 +15,9 @@ import { APP_VERSION } from './version';
  * Bootstrap enforces this offset. `environment.prod.ts` (production) keeps
  * fully hardcoded `https://hnch.dev` URLs — this derive code never runs in
  * prod because Angular's `fileReplacements` swaps the whole file at build
- * time.
+ * time. The `e2e` build configuration (CI Playwright runs, #602) has no
+ * replacement, so its optimised bundle keeps this file and reaches the test
+ * relay on the CI ports.
  */
 const clientPort = parseInt(window.location.port || '4200', 10);
 let relayPort = 1234 + (clientPort - 4200);

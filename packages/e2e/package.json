@@ -9,6 +9,8 @@
     "test:chromium": "playwright test --project chromium",
     "test:webkit": "playwright test --project webkit",
     "test:firefox": "playwright test --project firefox",
+    "test:unit": "node --test --test-timeout=10000 'scripts/*.test.mjs'",
+    "test:coverage": "mkdir -p coverage && node --test --test-timeout=10000 --experimental-test-coverage --test-coverage-exclude='scripts/*.test.mjs' --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=coverage/lcov.info 'scripts/*.test.mjs'",
     "typecheck": "tsc --noEmit",
     "format:check": "biome format .",
     "lint": "oxlint ."

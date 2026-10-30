@@ -322,7 +322,7 @@ All `dev:*` and `test:e2e` scripts auto-source `.env.local` via `scripts/with-en
 
 Convention: `RELAY_PORT = 1234 + (CLIENT_PORT - 4200)`.
 
-The client (`packages/client/src/environments/environment.ts`) derives `relayHttpUrl` and `relayWsUrl` from `window.location.port` at module load — so the PWA at `localhost:4300` automatically connects to the relay at `localhost:1334` with no extra config. Bootstrap writes `.env.local` to keep `RELAY_PORT` in lockstep with this convention; `with-env.sh` warns if they ever drift.
+The client (`packages/client/src/environments/environment.ts`) derives `relayHttpUrl` and `relayWsUrl` from `window.location.port` at module load — so the PWA at `localhost:4300` automatically connects to the relay at `localhost:1334` with no extra config. The `e2e` build configuration that CI's Playwright runs serve (`pnpm --filter @hnch/client build:e2e`) keeps this file, so it derives the relay the same way. Bootstrap writes `.env.local` to keep `RELAY_PORT` in lockstep with this convention; `with-env.sh` warns if they ever drift.
 
 ### Other commands
 
