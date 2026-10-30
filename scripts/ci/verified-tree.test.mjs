@@ -366,6 +366,10 @@ describe('checkVerifiedTree', () => {
   });
 });
 
+const failingGit = () => {
+  throw new Error('fatal: not a git repository');
+};
+
 describe('recordVerifiedTree', () => {
   /** What actions/checkout gives a PR run: refs/pull/N/merge, base first. */
   function mergeRef() {
@@ -394,11 +398,26 @@ describe('recordVerifiedTree', () => {
     assert.equal(recordVerifiedTree({ git, head: PR_HEAD, base, pr: 7 }), null);
   });
 
-  // The run picked its lanes by diffing from the event's base. Merged onto
-  // another base, its lane choice need not cover the squash commit.
+  // The run picked its lanes by diffing from the event's base. Merged onto a
+  // base that main moved past with a human commit, its lane choice need not
+  // cover the squash commit.
   it('records nothing when the merge is onto another base than the run diffed from', () => {
+    const { git, rawGit, head } = mergeRef();
+    const eventBase = rawGit('rev-parse', 'HEAD^1^');
+    assert.equal(recordVerifiedTree({ git, head, base: eventBase, pr: 7 }), null);
+  });
+
+  // A crash here would turn the PR run red; no record is the safe answer.
+  it('records nothing, without throwing, when git cannot resolve the event base', () => {
     const { git, head } = mergeRef();
     assert.equal(recordVerifiedTree({ git, head, base: PR_HEAD, pr: 7 }), null);
+  });
+
+  it('records nothing, without throwing, when git fails outright', () => {
+    assert.equal(
+      recordVerifiedTree({ git: failingGit, head: PR_HEAD, base: PR_HEAD, pr: 7 }),
+      null,
+    );
   });
 });
 

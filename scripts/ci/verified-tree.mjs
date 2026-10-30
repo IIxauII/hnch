@@ -147,16 +147,22 @@ function compareWithMain({ sha, lastGreen, git, pr, run, record }) {
   // The PR run picked its lanes from the PR's own diff. That covers what this
   // run would pick only if every commit since the last green main run, other
   // than this one, is a bot commit that no lane counts.
-  const between = git(['log', '--format=%H %s', `${lastGreen}..${parent}`]);
-  for (const line of between.split('\n').filter(Boolean)) {
-    const [commit, ...words] = line.split(' ');
-    if (!BOT_SUBJECT.test(words.join(' '))) {
-      return miss(
-        `${commit.slice(0, 12)} landed since the last green main run (${lastGreen.slice(0, 12)}) and is not a [skip ci] bot commit`,
-      );
-    }
+  const human = firstNonBotCommit(git, `${lastGreen}..${parent}`);
+  if (human) {
+    return miss(
+      `${human.slice(0, 12)} landed since the last green main run (${lastGreen.slice(0, 12)}) and is not a [skip ci] bot commit`,
+    );
   }
   return { verified: true, pr: pr.number, runUrl: run.html_url, tree };
+}
+
+/** The first commit in `range` that is not a [skip ci] bot commit, or null. */
+function firstNonBotCommit(git, range) {
+  for (const line of git(['log', '--format=%H %s', range]).split('\n').filter(Boolean)) {
+    const [commit, ...words] = line.split(' ');
+    if (!BOT_SUBJECT.test(words.join(' '))) return commit;
+  }
+  return null;
 }
 
 /**
@@ -169,29 +175,27 @@ function compareWithMain({ sha, lastGreen, git, pr, run, record }) {
  * be ahead of `base` by bot commits only, which no lane counts, so the lanes
  * the run picked still cover the merge.
  *
- * Null when the checkout is not such a merge of `head`; the CLI then uploads
- * an `unrecorded` marker instead, so a main run misses without a warning.
- * Never throws on a git error: a crash here would fail the PR run.
+ * Null when the checkout is not such a merge of `head`, or when git fails:
+ * the CLI then uploads an `unrecorded` marker instead, so a main run misses
+ * without a warning. Never throws: a crash here would fail the PR run.
  *
  * @param {{ git: (args: string[]) => string, head: string, base: string, pr: number }} input
  */
 export function recordVerifiedTree({ git, head, base, pr }) {
-  const parents = git(['rev-list', '--parents', '-n', '1', 'HEAD']).split(' ').slice(1);
-  if (parents.length !== 2 || parents[1] !== head) return null;
-  if (parents[0] !== base && !onlyBotCommitsBetween(git, base, parents[0])) return null;
-  return { tree: git(['rev-parse', 'HEAD^{tree}']), base: parents[0], head, pr };
+  try {
+    const parents = git(['rev-list', '--parents', '-n', '1', 'HEAD']).split(' ').slice(1);
+    if (parents.length !== 2 || parents[1] !== head) return null;
+    const [tip] = parents;
+    if (tip !== base && !isBasePlusBotCommits({ git, base, tip })) return null;
+    return { tree: git(['rev-parse', 'HEAD^{tree}']), base: tip, head, pr };
+  } catch {
+    return null;
+  }
 }
 
-/** Whether `tip` is `base` plus [skip ci] bot commits; false on any git error. */
-function onlyBotCommitsBetween(git, base, tip) {
-  try {
-    if (git(['merge-base', base, tip]) !== base) return false;
-    return git(['log', '--format=%s', `${base}..${tip}`])
-      .split('\n')
-      .every((subject) => BOT_SUBJECT.test(subject));
-  } catch {
-    return false;
-  }
+/** Whether `tip` is `base` with only [skip ci] bot commits on top. */
+function isBasePlusBotCommits({ git, base, tip }) {
+  return git(['merge-base', base, tip]) === base && !firstNonBotCommit(git, `${base}..${tip}`);
 }
 
 // --- CLI: the adapters over the real gh and git ---------------------------
