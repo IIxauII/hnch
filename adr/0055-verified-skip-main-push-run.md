@@ -12,7 +12,7 @@ Changes what a green `ci.yml` push run on `main` means; [ADR-0049](0049-self-hos
 - `release.yml` starts from a green `ci.yml` push run on `main` (`workflow_run`), so every merge's release waited for the re-test.
 - `main` push run picks lanes from every commit since the last green `main` push run, minus the bot's `[skip ci]` commits (`BOT_SUBJECT`), so a red or cancelled merge is re-tested by the next run.
 - Squash-only merges, PR title = commit subject (CONTRIBUTING › Merge strategy). No branch protection (private repo, GitHub Free): green-before-merge is convention.
-- Lane and test results are a function of the tree. The only `main`-only work is coverage instrumentation and the Codecov upload (#592).
+- Lane and test results are a function of the tree. PR and `main` runs do the same work; both measure coverage and upload it to Codecov.
 
 ## Decision
 
@@ -28,7 +28,7 @@ A `main` push run of commit C passes without running any package lane or e2e whe
 ## Trade-offs
 
 - Green `main` push run no longer means "this run tested C"; it means "C's tree passed CI on C's parent, here or in the PR run the summary names".
-- Codecov gets no upload for a verified-skip run (coverage is `main`-only since #592): Codecov's `main` history skips those commits; the next full `main` run uploads.
+- Codecov gets no upload for a verified-skip run's commit, so its `main` history skips those commits until the next full `main` run uploads. A later PR based on such a commit still gets its comment and `codecov/patch` check: Codecov compares against a substitute base ("pseudo-base", [docs](https://docs.codecov.com/docs/comparing-commits)), as it already does for PRs based on the bot's `[skip ci]` commits.
 - One test pass per tree: a flaky test that passed in the PR run is not re-rolled on `main`.
 - Evidence lives in workflow artifacts: a PR run older than 30 days, or from before this ADR, gives a full run (the latter with a warning).
 - Every `main` push `detect-changes` makes ~4 extra API calls and one artifact download.
