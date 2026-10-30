@@ -6,7 +6,7 @@ Playwright end-to-end tests for hnch. Multi-client, real-relay scenarios; no moc
 
 ```
 scripts/
-  serve-static.mjs      # serves the built client for E2E_CLIENT=build (unit tests: pnpm --filter @hnch/e2e test:unit)
+  serve-static.mjs      # serves the built client for E2E_CLIENT=build (unit tests: pnpm --filter @hnch/e2e test:unit; the CI e2e job runs them before Playwright)
 tests/
   _screenshots/         # opt-in screenshot capture suite (this README's focus)
   fixtures/             # shared selectors + browser-context helpers (incl. the 375px sheet openers)

@@ -450,6 +450,11 @@ jobs:
       - name: Lint (e2e)
         run: pnpm --filter @hnch/e2e run lint
 
+      # node:test suite for packages/e2e/scripts (the static server that
+      # serves the built client to Playwright).
+      - name: Unit tests (e2e)
+        run: pnpm --filter @hnch/e2e run test:unit
+
       # On self-hosted (rootless container, no sudo) Playwright system deps are
       # baked into the image — plain `install chromium` is enough. On ubuntu-latest
       # we still need apt-get via `--with-deps`.
