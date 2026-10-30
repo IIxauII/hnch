@@ -54,7 +54,7 @@ Types in use (match existing history — see `git log`):
 | `ci` | `.github/workflows/**`, `infra/runner/**` | No |
 | `docs` | Root `*.md`, `docs/**`, `adr/**` | No |
 | `infra` | `infra/**` outside `infra/runner/` (today only `infra/README.md`) | No |
-| `deps` | Dependency bumps (Dependabot et al.) | No |
+| `deps` | Dependency bumps (Dependabot et al., see [Dependency updates](#dependency-updates)) | No |
 | `repo` | Root configs (`package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`, `.gitignore`, etc.) | No |
 
 ### Multi-scope titles
@@ -151,6 +151,23 @@ Errors gate; warnings do not. The warning count is a tracked baseline, not silen
 ### Pre-commit hooks
 
 lefthook auto-installs on `pnpm install`, so a fresh clone gets hooks with no manual step. It runs on **staged files only** (sub-second). Bypass with `LEFTHOOK=0 git commit` — it is a fast-feedback guard, not a security boundary. CI remains the source of truth.
+
+## Dependency updates
+
+Dependabot (`.github/dependabot.yml`) opens one PR per package family, every Monday, because each lockfile change runs the full pipeline:
+
+| Group | Covers | Majors |
+|---|---|---|
+| `angular` | `@angular/*`, `@angular-devkit/*`, `@angular-eslint/*`, `@analogjs/*`, `zone.js`, `typescript` | In the group |
+| `ionic-capacitor` | `@ionic/*`, `@capacitor/*`, `@capacitor-mlkit/*`, `ionicons` | In the group |
+| `yjs` | `yjs`, `y-*`, `lib0` | In the group |
+| `dev-tooling` | vitest, Playwright, Biome, Oxlint, ESLint, lefthook, tsx, tsup, jsdom, semantic-release, wrangler, `@cloudflare/*`, `@types/*` | One PR each |
+| `other` | Every other npm dependency | One PR each |
+| `github-actions` | Every action in `.github/` | In the group |
+
+Security updates are grouped the same way (the `*-security` groups). `@types/node` majors are ignored: it tracks the `engines.node` minimum.
+
+Every Dependabot title is `chore(deps): …`, dev dependencies included, so it passes the PR-title lint. `chore(deps)` cuts no release; a bumped runtime dependency ships with the package's next release.
 
 ## Pre-push checklist
 
