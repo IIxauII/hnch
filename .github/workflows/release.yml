@@ -134,9 +134,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ steps.target.outputs.sha }}
-          # semantic-release needs full history + all tags to compute the
-          # next version per package.
+          # semantic-release reads commits and tags, not old file contents.
+          # fetch-depth 0 fetches all history and every tag; blob:none makes it
+          # a partial clone of commits and trees only. The sparse cone (root
+          # files, packages/, scripts/) leaves docs/screenshots out of the
+          # working tree, which is most of its bytes. Commits still carry the
+          # full tree, and git fetches any other blob a later step needs from
+          # origin on demand.
           fetch-depth: 0
+          filter: blob:none
+          sparse-checkout: |
+            packages
+            scripts
           persist-credentials: true
           # Authenticate with RELEASE_TOKEN (fine-grained PAT) so commits + tags
           # pushed by semantic-release land on main. PAT also needs actions:write
@@ -171,10 +180,21 @@ jobs:
       - name: Upgrade npm for OIDC publish
         run: npm install -g npm@latest
 
-      - name: Install
-        run: pnpm install --frozen-lockfile
+      - name: Install (root dev tools, CLI and shared only)
+        # What this job runs: semantic-release and its plugins (the root's dev
+        # tools; '{.}' is the workspace root) and the CLI's publish build (npm
+        # publish runs its prepublishOnly tsup build, which bundles
+        # @hnch/shared). The client's Angular and Capacitor trees never
+        # download. No install scripts: this job needs none of them (esbuild
+        # finds its platform binary without its postinstall, as in the deploy
+        # jobs), and the root's preinstall would npx-fetch only-allow. It still
+        # installs from the shared /cache/pnpm-store, which PR CI can write
+        # (#558).
+        run: >-
+          pnpm install --frozen-lockfile --ignore-scripts
+          --filter '{.}' --filter @xauyxau/hnch --filter @hnch/shared
 
-      - name: Build @hnch/shared (consumed by other packages)
+      - name: Build @hnch/shared (bundled into the CLI)
         run: pnpm --filter @hnch/shared run build
 
       - name: Run semantic-release per package (sequential)
@@ -207,6 +227,10 @@ jobs:
           #   one, and holds back releases until a later merge goes green.
           # Keep BOT_SUBJECT and the docs/screenshots/ prefix in step with
           # ci.yml (detect-changes BOT_SUBJECT, paths-ignore).
+          # The checkout has no blobs outside the sparse cone. --no-renames
+          # keeps the diff below to trees, and --quiet keeps the merges from
+          # printing a diffstat; without them git would fetch every changed
+          # blob, screenshots included.
           BOT_SUBJECT='^chore\((release|screenshots)\): .*\[skip ci\]$'
 
           # 0 if every commit in $1..$2 is skippable. Errors count as not
