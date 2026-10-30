@@ -267,6 +267,25 @@ import { isComposingKey } from '../utils/composing-key';
             <ion-label>Version</ion-label>
             <ion-note slot="end">{{ version }}</ion-note>
           </ion-item>
+          <!-- AGPL-3.0 section 13: a modified copy offers its users its source -->
+          <ion-item
+            href="https://github.com/IIxauII/hnch"
+            target="_blank"
+            rel="noopener noreferrer"
+            detail="true"
+          >
+            <ion-label>Source code</ion-label>
+            <ion-note slot="end">GitHub</ion-note>
+          </ion-item>
+          <ion-item
+            href="https://github.com/IIxauII/hnch/blob/main/LICENSE"
+            target="_blank"
+            rel="noopener noreferrer"
+            detail="true"
+          >
+            <ion-label>License</ion-label>
+            <ion-note slot="end">AGPL-3.0-only</ion-note>
+          </ion-item>
         </ion-list>
       </div>
 

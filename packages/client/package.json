@@ -1,6 +1,7 @@
 {
   "name": "@hnch/client",
   "version": "1.46.0",
+  "license": "AGPL-3.0-only",
   "author": "xau",
   "scripts": {
     "generate-version": "node scripts/generate-version.mjs",

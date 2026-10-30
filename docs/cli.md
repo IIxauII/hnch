@@ -146,6 +146,7 @@ Scale customization (preset overrides, custom scales) is persisted in `config.js
 packages/cli/
   src/
     index.ts                  — entry point, yargs command wiring
+    about.ts                  — version, source link and license for --help / --version (AGPL-3.0 §13)
     commands/
       agenda.ts               — hnch agenda subcommand handlers
     session.ts                — createSession / joinSession / openSession: the adapter over the shared live session
