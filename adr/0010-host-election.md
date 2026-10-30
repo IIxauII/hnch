@@ -3,6 +3,8 @@
 **Status:** Accepted
 **Date:** 2026-04-21
 
+> Editorial correction (2026-10-30): the field was written as `hostPeerId`; the doc field is `settings.hostParticipantId` ([`docs/schema.md`](../docs/schema.md#host-election)). Decision unchanged.
+
 ## Context
 
 - ADR-0001 relay has no concept of "host," but several ops need one authoritative actor: manual reveal, invite admission (ADR-0009).
@@ -11,11 +13,11 @@
 
 ## Decision
 
-1. Session creator = initial host, recorded as `hostPeerId` in Yjs doc on creation.
+1. Session creator = initial host, recorded as `hostParticipantId` in Yjs doc on creation.
 2. On host disconnect, clients wait **5s debounce** (most disconnects are transient blips).
 3. Still absent → each client independently picks **lexicographically-lowest device ID among connected peers**. Same awareness state + same fn → same answer, no coordination.
-4. New host writes itself to `hostPeerId` (concurrent writes Yjs-merge to same value).
-5. Original host reconnecting **does not reclaim** — current `hostPeerId` respected.
+4. New host writes itself to `hostParticipantId` (concurrent writes Yjs-merge to same value).
+5. Original host reconnecting **does not reclaim** — current `hostParticipantId` respected.
 
 Peer ID = device identifier from ADR-0005. UI shows current host with crown icon.
 
@@ -23,7 +25,7 @@ Peer ID = device identifier from ADR-0005. UI shows current host with crown icon
 
 - 5s debounce window where no host exists → manual-reveal disabled, auto-reveal paused.
 - Lex device ID is arbitrary ordering.
-- Doc is writable by any peer → malicious client could fake `hostPeerId`. Consistent with v1 vote-integrity posture.
+- Doc is writable by any peer → malicious client could fake `hostParticipantId`. Consistent with v1 vote-integrity posture.
 
 ## Consequences
 

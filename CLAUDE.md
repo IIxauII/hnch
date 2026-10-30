@@ -6,12 +6,17 @@
 
 ## Documentation layout
 
-- `docs/project.md` — product + design overview. Authoritative for *what* the product is.
-- `docs/schema.md` — Yjs doc schema. Authoritative for the *shape* of session state.
-- `docs/ux.md` — user flows + interaction patterns. Authoritative for *what the user does*.
-- `docs/roadmap.md` — phased plan + current status. A map, not a spec.
-- `docs/angular.md`, `docs/ionic.md`, `docs/cli.md` — client/CLI conventions (consulted from the relevant `packages/*/CLAUDE.md`).
-- `adr/` — Architecture Decision Records. Authoritative for *why* each structural choice was made; see `adr/README.md`.
+The one list of project docs; README and CONTRIBUTING point here. A fact lives in one of them and the others link to it.
+
+- [`docs/project.md`](docs/project.md) — product + design overview. Authoritative for *what* the product is, incl. the room-code format and the participant cap.
+- [`docs/schema.md`](docs/schema.md) — Yjs doc schema. Authoritative for the *shape* of session state, incl. the host-election rule.
+- [`docs/ux.md`](docs/ux.md) — user flows + interaction patterns. Authoritative for *what the user does*.
+- [`docs/roadmap.md`](docs/roadmap.md) — phased plan + current status. A map, not a spec.
+- [`docs/deployment.md`](docs/deployment.md) — production hosting on Cloudflare: topology, deploy flow, rollback.
+- [`docs/angular.md`](docs/angular.md), [`docs/ionic.md`](docs/ionic.md), [`docs/cli.md`](docs/cli.md) — client/CLI conventions (consulted from the relevant `packages/*/CLAUDE.md`).
+- [`adr/`](adr/README.md) — Architecture Decision Records. Authoritative for *why* each structural choice was made.
+- [`GLOSSARY.md`](GLOSSARY.md) — domain terms and the names to avoid.
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — commit and PR rules, worktrees and dev ports.
 
 ## ADRs
 
@@ -19,7 +24,7 @@ Structural decisions are recorded in `adr/`. **Before any architectural/structur
 
 ## Parallel worktrees
 
-Repo supports parallel git worktrees with per-worktree port isolation (`CLIENT_PORT` / `RELAY_PORT`, offset +100 from `4200` / `1234`). Use for multi-phase work to keep `main` clean, or to run dev servers for two features side-by-side.
+Repo supports parallel git worktrees with per-worktree port isolation ([how port isolation works](CONTRIBUTING.md#how-port-isolation-works)). Use for multi-phase work to keep `main` clean, or to run dev servers for two features side-by-side.
 
 `pnpm worktree:add <name> [base-branch]` / `worktree:remove <name>` / `worktree:bootstrap`. **Run `git fetch origin` first** — the script branches off the local ref, so a stale `main` produces a worktree missing recent commits (agents may recreate files with diverging APIs). Full workflow in [CONTRIBUTING.md](CONTRIBUTING.md).
 

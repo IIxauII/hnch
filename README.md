@@ -4,7 +4,7 @@ A pointing poker app for agile teams. The name is a vowel-dropped spelling of "h
 
 ## Status
 
-Phase 6a shipped (PWA polish, settings, theming, animations, haptics, a11y). Mobile parity closed the remaining CLI-mobile feature gaps. Next up: Phase 6b (native iOS build). See [roadmap.md](docs/roadmap.md) for the phased plan.
+The PWA and the CLI are live, with the relay and PWA on Cloudflare at `hnch.dev`. Next up: Phase 6b, the native builds. See [roadmap.md](docs/roadmap.md#1-current-state) for where things stand.
 
 ## Codecov
 
@@ -18,9 +18,9 @@ Phase 6a shipped (PWA polish, settings, theming, animations, haptics, a11y). Mob
 | UI | Ionic 8 + Capacitor 8 |
 | Native | iOS/Android via Capacitor |
 | State | Yjs CRDT |
-| Sync | Content-blind y-websocket relay |
+| Sync | Content-blind relay speaking the y-websocket protocol |
 | Storage | SQLite (native), IndexedDB (PWA) |
-| Relay | Node.js |
+| Relay | Cloudflare Workers + Durable Objects ([ADR-0051](adr/0051-cloudflare-hosting.md)) |
 | Platforms | iOS, Android, PWA |
 
 ## Repo layout
@@ -32,13 +32,16 @@ hnch/
 ├── packages/
 │   ├── client/      # Angular + Ionic + Capacitor app
 │   ├── cli/         # Ink+React terminal client
-│   ├── relay/       # Node.js y-websocket relay
+│   ├── relay/       # Cloudflare Worker + Durable Objects relay
 │   ├── shared/      # Types, Yjs helpers, auth, room codes
 │   └── e2e/         # Playwright test suite
 ├── adr/             # Architecture Decision Records (immutable)
 ├── docs/            # project.md, schema.md, ux.md, roadmap.md, and more
-├── plans/           # Research and planning docs
-├── CLAUDE.md        # Agent guidance
+├── infra/           # Self-hosted CI runner pool
+├── scripts/         # Worktree, release and CI helpers
+├── CLAUDE.md        # Agent guidance and the doc list
+├── CONTRIBUTING.md  # Commit, PR and worktree rules
+├── GLOSSARY.md      # Domain terms
 └── [other root files]
 ```
 
@@ -59,7 +62,7 @@ pnpm install
 ```sh
 # Development servers
 pnpm dev:client        # Angular dev server (packages/client)
-pnpm dev:relay         # Relay in watch mode (packages/relay, PORT=1234)
+pnpm dev:relay         # Relay on local workerd via wrangler dev (packages/relay)
 pnpm dev:cli           # CLI in watch mode (packages/cli)
 
 # Testing, linting, and builds
@@ -77,31 +80,24 @@ pnpm --filter @xauyxau/hnch build
 
 ## Configuration
 
-**Relay** defaults to `PORT=1234` (override via env var).
+**Relay** listens on `PORT` in local dev (default `1234`).
 
-**Client relay URL** in dev is derived at runtime from `window.location.port` (convention: `RELAY_PORT = 1234 + (CLIENT_PORT − 4200)`) — so `localhost:4200` connects to relay at `localhost:1234`, and each parallel worktree targets its own relay automatically. At runtime, users can override the relay URL via `AppPreferenceService` — set Capacitor Preferences key `hnch.relayUrl` to `https://your.relay.com` and the client will use that (ws auto-derived from https).
+**Client relay URL** in dev follows the client's own port, so each parallel worktree reaches its own relay with no extra config ([how port isolation works](CONTRIBUTING.md#how-port-isolation-works)). At runtime, users can override the relay URL via `AppPreferenceService` — set Capacitor Preferences key `hnch.relayUrl` to `https://your.relay.com` and the client will use that (ws auto-derived from https).
 
 **Test-only env vars:** `HNCH_ENABLE_TEST_ROUTES` and `HNCH_ROOM_CAP` exist for the e2e suite and must remain unset in production.
 
 ## Architecture at a glance
 
-- **Yjs CRDTs** synced via a content-blind y-websocket relay — no direct WebRTC, no authoritative server ([ADR-0001](adr/0001-networking-crdt-over-relay.md), [ADR-0003](adr/0003-state-sync-yjs.md)).
-- **Stack** — Angular + Ionic + Capacitor for the client; Node.js for the relay ([ADR-0002](adr/0002-frontend-framework-angular-ionic-capacitor.md)).
+- **Yjs CRDTs** synced via a content-blind relay — no direct WebRTC, no authoritative server ([ADR-0001](adr/0001-networking-crdt-over-relay.md), [ADR-0003](adr/0003-state-sync-yjs.md)).
+- **Stack** — Angular + Ionic + Capacitor for the client ([ADR-0002](adr/0002-frontend-framework-angular-ionic-capacitor.md)); the relay runs on Cloudflare Workers with one Durable Object per room ([ADR-0051](adr/0051-cloudflare-hosting.md)).
 - **Access control** enforced at the relay via opaque tokens ([ADR-0009](adr/0009-access-control-relay-tokens.md)).
-- **Host election** — creator is initial host; on drop, 5-second debounce then lowest-peer-ID election ([ADR-0010](adr/0010-host-election.md)).
-- **Snapshots** — 24-hour in-memory TTL on the relay, keyed by room UUID ([ADR-0012](adr/0012-snapshot-policy.md)).
+- **Host election** — the room elects a new host on its own when the host drops; rule in [schema.md § Host election](docs/schema.md#host-election).
+- **Rooms** — room-code format in [project.md § Joining a Session](docs/project.md#joining-a-session), participant cap in [project.md § Participants](docs/project.md#participants).
+- **Snapshots** — each room's state is kept for 24 hours after it empties, keyed by room UUID ([ADR-0012](adr/0012-snapshot-policy.md), [ADR-0051](adr/0051-cloudflare-hosting.md)).
 
 ## Documentation
 
-- [project.md](docs/project.md) — what the product is, core mechanics, principles.
-- [roadmap.md](docs/roadmap.md) — phased implementation plan and exit bars.
-- [schema.md](docs/schema.md) — Yjs document structure (authoritative).
-- [ux.md](docs/ux.md) — user flows and interaction patterns.
-- [cli.md](docs/cli.md) — CLI package design and behavior.
-- [angular.md](docs/angular.md) — Angular coding conventions for the client.
-- [ionic.md](docs/ionic.md) — Ionic theming, platform modes, safe areas.
-- [adr/README.md](adr/README.md) — ADR index and conventions.
-- [CLAUDE.md](CLAUDE.md) — agent guidance, stack summary, current decisions.
+The list of project docs, and what each one is authoritative for, is in [CLAUDE.md § Documentation layout](CLAUDE.md#documentation-layout).
 
 ## Contributing
 
