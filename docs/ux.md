@@ -258,13 +258,12 @@ No relay-side ban: a kicked user can re-enter the room code (their `leftAt` is c
 
 ### 1.6 Edge-case flows
 
-**Host drops during active session:**
+**Host drops during active session** (election rule: [schema.md § Host election](schema.md#host-election)):
 
 ```
 Host's connection is lost
   → Other clients observe host's awareness going offline
-  → 5-second debounce (ADR-0010)
-  → Lowest peer-ID elected as new host
+  → After the election debounce, the remaining participants elect a new host
   → Everyone in the app sees a toast: "Bob disconnected. Alice is now the host."
     (the new host: "Bob disconnected. You are now the host."). The CLI prints
     the same line.

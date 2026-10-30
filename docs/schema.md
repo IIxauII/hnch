@@ -53,13 +53,18 @@ Host-editable. Changes propagate to all clients via Yjs. The "host" at any momen
 |---|---|---|
 | `name?` | `string` | Human-readable session name, e.g. `"Sprint 42 planning"`. Optional. |
 | `defaultScale` | `Scale` | Scale inherited by newly-created rounds. See "Scale type" below. |
-| `hostParticipantId` | `string` | The `participantId` currently holding host authority. Updated by the election mechanism described in ADR-0010. |
+| `hostParticipantId` | `string` | The `participantId` currently holding host authority. Updated by host election (below). |
 
-### Host authority mechanics (summary)
+### Host election
 
-- `hostParticipantId` is stable across network blips — reconnecting within the 5-second debounce window does not trigger a new election ([ADR-0010](../adr/0010-host-election.md)).
-- Liveness check: is there an awareness entry for `hostParticipantId`? If no, and the absence persists beyond the 5-second debounce, election runs (lowest Yjs peer ID among connected participants wins) and the winner's `participantId` is written to this field.
-- "No reclaim": a former host who reconnects after losing the role does not automatically regain it.
+The authoritative statement of the rule; other docs link here. Implemented once in `election.ts` in `@hnch/shared` for both surfaces ([ADR-0010](../adr/0010-host-election.md), [ADR-0048](../adr/0048-host-election-eligible-peer-set.md)).
+
+- **Initial host:** the session creator (`meta.createdBy`) is written to `hostParticipantId` at creation.
+- **Eligible peers:** online (an awareness entry) ∩ active (no `leftAt`). A kicked peer whose awareness entry lingers can neither win nor keep the role.
+- **Debounce:** when the host leaves the eligible set, every client waits 5 seconds. A host back within the window keeps the role, so network blips trigger no election.
+- **Winner:** still absent after the debounce → the lexicographically lowest eligible `participantId` wins. Only the winner writes itself to `hostParticipantId`; the others stand down when they see the write.
+- **No reclaim:** a former host who reconnects after losing the role does not regain it.
+- **Handoff:** the current host can also hand the role to an online participant directly (`handoffHost`, see [GLOSSARY.md](../GLOSSARY.md)).
 
 ## `participants` — who's in the session
 
@@ -199,7 +204,7 @@ These are computed on the client from the doc; they are not persisted:
 - **Elapsed voting time:** `Date.now() - round.timerStartedAt` (counting up, displayed as a stopwatch).
 - **All voted:** every online *active* voter (awareness set ∩ `!leftAt` ∩ `role !== 'viewer'`) has a key in `round.votes` — including `"hnch_abstain"` entries, which satisfy the predicate ([ADR-0041](../adr/0041-per-round-abstain-sentinel.md)). When true, any client writes `revealedAt` (unanimous auto-reveal, [ADR-0018](../adr/0018-remove-timer-add-unanimous-reveal.md); left-participant exclusion per [ADR-0036](../adr/0036-participant-removal-lifecycle.md)).
 - **Lineage chain:** walk `parentRoundId` backwards from a round to collect the full re-vote history for that item (useful for UI display and exports).
-- **Host liveness:** awareness has an entry for `settings.hostParticipantId`. Absence for longer than the 5-second debounce triggers election (ADR-0010).
+- **Host liveness:** `settings.hostParticipantId` is in the eligible set (online ∩ active); see [Host election](#host-election).
 
 ## Awareness (ephemeral presence)
 
