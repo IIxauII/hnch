@@ -20,14 +20,11 @@
 //
 // A successful run means "screenshots captured + uploaded", nothing more.
 //
-// Local output: capture writes docs/screenshots/sha-<short>/ in the working
-// tree. Once the `screenshots` branch on the remote holds sha-<short>/ (just
-// pushed, or already there), the local copy is removed in both modes, so the
-// working tree stays clean. Pass --keep-local to keep it (for example to
-// iterate on the comment layout with --dry-run-body). A failed run leaves the
-// local copy in place for inspection; the next run recaptures it anyway.
-// Local-only iteration without publishing goes to docs/screenshots/local/
-// (playwright without SCREENSHOT_SHA), which is gitignored.
+// Local output: capture writes docs/screenshots/sha-<short>/, and the run
+// removes it at the end in both modes, whether it published or failed, so the
+// working tree stays clean (the next run recaptures anyway). --keep-local
+// keeps it, e.g. for --dry-run-body. Unpublished local iteration goes to the
+// gitignored docs/screenshots/local/ (playwright without SCREENSHOT_SHA).
 //
 // Invoked by:
 //   - lefthook pre-push (mode=hook): conditional on UI-bearing diff vs @{push}
@@ -234,9 +231,8 @@ function runCapture(sha) {
   return outDir;
 }
 
-// Remove the working-tree copy of a capture once the screenshots branch holds
-// it. Never removes a directory git tracks (main's reference sets live under
-// docs/screenshots/sha-*/ too).
+// Remove the working-tree copy of a capture. Never removes a directory git
+// tracks (main's reference sets live under docs/screenshots/sha-*/ too).
 function removeLocalCapture(sha) {
   const rel = `docs/screenshots/sha-${sha}`;
   const dir = resolve(repoRoot, rel);
@@ -254,7 +250,7 @@ function removeLocalCapture(sha) {
   }
   try {
     rmSync(dir, { recursive: true, force: true });
-    log(`removed local ${rel}/ (published copy is on the ${SCREENSHOTS_BRANCH} branch)`);
+    log(`removed local ${rel}/`);
   } catch (e) {
     log(`warning: failed to remove ${dir}: ${e.message}`);
   }
@@ -412,6 +408,24 @@ function cleanupAllStaging() {
 
 function sleepSync(ms) {
   execFileSync('sleep', [String(ms / 1000)], { stdio: 'ignore' });
+}
+
+// Capture, publish, confirm the remote holds sha-<sha>/, and return the
+// comment body (built from the local copy, which main() removes afterwards).
+function captureAndPublish(sha, pr) {
+  runCapture(sha);
+  publishToScreenshotsBranch(sha);
+
+  // Final verification before claiming success in the sticky comment: refetch
+  // origin/screenshots and confirm the sha-dir actually landed. Catches the
+  // failure mode where publish silently no-ops but the dir is missing remote.
+  sh(`git fetch origin ${SCREENSHOTS_BRANCH}`);
+  if (!remoteShaDirExists(sha)) {
+    throw new Error(
+      `publish reported success but origin/${SCREENSHOTS_BRANCH} does not contain sha-${sha}/. Refusing to update sticky comment with broken URLs.`,
+    );
+  }
+  return buildCommentBody(sha, pr);
 }
 
 // --------------------------------------------------------------- comment
@@ -705,27 +719,12 @@ function main() {
   process.env['SCREENSHOTS_PR_NUM'] = String(pr);
 
   const sha = shortSHA();
-  runCapture(sha);
-  publishToScreenshotsBranch(sha);
-
-  // Final verification before claiming success in the sticky comment: refetch
-  // origin/screenshots and confirm the sha-dir actually landed. Catches the
-  // failure mode where publish silently no-ops but the dir is missing remote.
-  sh(`git fetch origin ${SCREENSHOTS_BRANCH}`);
-  if (!remoteShaDirExists(sha)) {
-    throw new Error(
-      `publish reported success but origin/${SCREENSHOTS_BRANCH} does not contain sha-${sha}/. Refusing to update sticky comment with broken URLs.`,
-    );
-  }
-
-  // The comment body is built from the local copy, so build it before
-  // removing that copy. The remote has the PNGs from here on, so the local
-  // copy goes even if the comment update below fails.
-  const body = buildCommentBody(sha, pr);
-  if (keepLocal) {
-    log(`--keep-local: keeping docs/screenshots/sha-${sha}/`);
-  } else {
-    removeLocalCapture(sha);
+  let body;
+  try {
+    body = captureAndPublish(sha, pr);
+  } finally {
+    if (keepLocal) log(`--keep-local: keeping docs/screenshots/sha-${sha}/`);
+    else removeLocalCapture(sha);
   }
   upsertStickyComment(pr, body);
   log(`done. https://github.com/${REPO}/pull/${pr}`);

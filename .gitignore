@@ -79,5 +79,5 @@ graphify-out/
 # Screenshot runs without SCREENSHOT_SHA write here (local iteration only).
 # docs/screenshots/sha-*/ stays trackable: the screenshots-main workflow
 # commits main's reference set there. scripts/screenshot-publish.mjs removes
-# its own sha-<short>/ output once the screenshots branch holds it.
+# its own sha-<short>/ output at the end of each run.
 docs/screenshots/local/
