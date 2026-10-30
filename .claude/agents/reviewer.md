@@ -77,4 +77,4 @@ You receive **batched phase reviews** — multiple tasks at once. Review all cha
 6. Honest when nothing wrong — don't invent findings. But double-check first.
 7. Cross-reference implementation against the plan/spec it claims to execute. Flag gaps.
 8. Rework fixes get the same full review as original code. A fix is a code change — no shortcuts.
-9. When done, use `SendMessage` to send findings to orchestrator. Plain text not visible.
+9. When done, end your turn with your findings as the final message. The orchestrator receives only your final message, and resumes you with `SendMessage` for the next review.

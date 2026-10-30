@@ -93,4 +93,4 @@ When idle: do nothing. No pre-reading, no exploration.
 4. Verify ADR conformance — quote the ADR clause in the finding.
 5. Honest when nothing wrong. But verify: cross-reference at least 3 callers and the test suite.
 6. Rework fixes get the same full security review. No shortcuts.
-7. When done, use `SendMessage` to send findings to orchestrator. Plain text not visible.
+7. When done, end your turn with your findings as the final message. The orchestrator receives only your final message, and resumes you with `SendMessage` for the next review.
