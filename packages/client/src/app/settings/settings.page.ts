@@ -269,7 +269,7 @@ import { isComposingKey } from '../utils/composing-key';
           </ion-item>
           <!-- AGPL-3.0 section 13: a modified copy offers its users its source -->
           <ion-item
-            href="https://github.com/IIxauII/hnch"
+            [attr.href]="sourceUrl"
             target="_blank"
             rel="noopener noreferrer"
             detail="true"
@@ -278,7 +278,7 @@ import { isComposingKey } from '../utils/composing-key';
             <ion-note slot="end">GitHub</ion-note>
           </ion-item>
           <ion-item
-            href="https://github.com/IIxauII/hnch/blob/main/LICENSE"
+            [attr.href]="sourceUrl + '/blob/main/LICENSE'"
             target="_blank"
             rel="noopener noreferrer"
             detail="true"
@@ -408,6 +408,9 @@ export class SettingsPage {
   protected readonly surface = inject(SurfaceService);
 
   protected readonly version = environment.appVersion;
+
+  /** Where this build's source lives (AGPL-3.0 section 13). A fork points it at its own repo. */
+  protected readonly sourceUrl = 'https://github.com/IIxauII/hnch';
 
   /** Local cache of display name, loaded on init. */
   protected readonly displayName = signal('—');
