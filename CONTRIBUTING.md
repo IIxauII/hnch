@@ -246,6 +246,8 @@ The repo is private on GitHub Free, so it has no branch protection and nothing b
 
 A `main` push run tests everything changed since the last green `main` push run, so a merge whose run was cancelled or failed is tested again by the next one. It leaves out the `[skip ci]` release and screenshot commits, and runs the full pipeline when it can't find a green run to start from. Releases wait for a green `main` push run too (see [When a release runs](#when-a-release-runs)), so a red `main` holds back every release until it is fixed.
 
+**Verified-skip** ([ADR-0055](adr/0055-verified-skip-main-push-run.md)): a PR run records the tree it tested (the PR merged into `main`) in a `verified-tree` artifact, kept 30 days. When you squash-merge a PR whose newest CI run is green and `main` has not moved since that run, the merge commit has that same tree, and its `main` push run skips every package lane and e2e and goes green in under a minute. Its `Detect changed packages` summary names the PR run that verified it. Anything else gets the full `main` run as before: `main` moved after the PR run (re-run the PR's CI before merging if you want the skip), a merge since the last green `main` run other than the bot's `[skip ci]` commits, a PR run older than 30 days, a fork PR, or a direct push. A lookup that fails also runs the lanes, with a warning on the run. `scripts/ci/verified-tree.mjs` holds the rules. A verified-skip run uploads no coverage, so Codecov has no report for that commit.
+
 ## Releases
 
 Releases are automated from commit history using [semantic-release](https://semantic-release.gitbook.io/). There is no manual release step and no release PR — qualifying commits trigger a tag, changelog entry, GitHub Release, and deploy hook for the affected package.
@@ -255,6 +257,7 @@ Releases are automated from commit history using [semantic-release](https://sema
 `release.yml` starts only after a `ci.yml` push run on `main` goes green (a `workflow_run` trigger), and releases the commit that run tested, not whatever `main` holds by then.
 
 - A merge whose CI run is red or cancelled releases nothing. Its commits release with the next green `main` run, which has tested them too (see [Merge only on green CI](#merge-only-on-green-ci)).
+- A verified-skip run (a clean squash merge whose PR run was green, see [Merge only on green CI](#merge-only-on-green-ci)) is a green `main` push run like any other: the release starts as soon as it finishes, under a minute after the merge, and releases the merge commit.
 - If `main` already holds a newer merge when a green run's release starts, that release publishes nothing and passes; the newer merge's green run releases both. Commits that start no CI run of their own don't count as newer merges: the bot's `[skip ci]` release and screenshot commits, and commits touching only `docs/screenshots/**`. A human commit marked to skip CI does count, and holds back releases until a later merge goes green.
 - Every completed CI run starts a Release run, PR runs and red or cancelled runs included. Those show as skipped, so most Release runs are skipped ones.
 - The release isn't among the merge commit's checks. List the runs that weren't skipped with:

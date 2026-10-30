@@ -156,6 +156,23 @@ describe('CLI', () => {
     assert.match(out, /^verify-packages=\[\]$/m);
   });
 
+  // A verified-skip main run (ADR-0055): the jobs after detect-changes skip.
+  it('prints every lane off with --none', () => {
+    const out = run(['--none'], '');
+    for (const lane of ['shared', 'relay', 'client', 'cli', 'e2e', 'root']) {
+      assert.match(out, new RegExp(`^${lane}=false$`, 'm'));
+    }
+    assert.match(out, /^verify-packages=\[\]$/m);
+  });
+
+  // A mistyped flag must not read as an empty change list, which is no lanes.
+  it('rejects an unknown argument', () => {
+    assert.throws(
+      () => run(['--nnone'], ''),
+      (err) => err.status === 2,
+    );
+  });
+
   it('prints every lane with --all', () => {
     const out = run(['--all'], '');
     assert.match(out, /^e2e=true$/m);

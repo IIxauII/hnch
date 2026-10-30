@@ -29,7 +29,9 @@ jobs:
   # need neither an install nor a package lane (version audit, PR title). Each
   # was its own job before, and with two pool slots three first-wave jobs held
   # back the first verify lane. A failed check here fails this job, so the
-  # lanes after it skip; the run still goes red.
+  # lanes after it skip; the run still goes red. On a main push it may also
+  # find the merge already verified by its PR run and turn every lane off
+  # (verified-skip, ADR-0055); PR runs upload the evidence for that.
   detect-changes:
     name: Detect changed packages
     runs-on: [self-hosted, linux, arm64, hnch-podman]
@@ -41,8 +43,9 @@ jobs:
     timeout-minutes: 3
     # Job-level permissions replace the workflow-level set, so contents: read
     # is restated. actions: read lets the filter step look up the last green
-    # CI run on main; pull-requests: read lets the title check read the PR's
-    # current title.
+    # CI run on main and, for verified-skip, the PR run and its artifact;
+    # pull-requests: read lets it find the merged PR, and the title check read
+    # the PR's current title.
     permissions:
       contents: read
       actions: read
@@ -127,6 +130,8 @@ jobs:
             #   would re-run that package's lanes.
             # - No green run found, gh failing, or a base that is not an
             #   ancestor of this push (history rewritten): full pipeline.
+            # - A green run is the base even when it was a verified-skip: the
+            #   PR run tested its tree.
             main_push=true
             head="${{ github.sha }}"
             base=""
@@ -150,6 +155,20 @@ jobs:
               full_pipeline "fallback: full pipeline (last green main run $last_url at $base is not an ancestor of $head)"
             fi
             echo "Base: last green main run $last_url ($base)"
+
+            # Verified-skip (ADR-0055): a squash merge whose tree a green PR
+            # run tested on this same parent, with only [skip ci] bot commits
+            # since the last green main run, needs no second test run. The
+            # script prints why not, as a ::warning:: when a lookup failed; any
+            # status but 0 runs the lanes, so an error never skips.
+            verified=0
+            node scripts/ci/verified-tree.mjs check "$head" "$base" || verified=$?
+            if [[ "$verified" == 0 ]]; then
+              node scripts/ci/changed-lanes.mjs --none >> "$GITHUB_OUTPUT"
+              exit 0
+            elif [[ "$verified" != 3 ]]; then
+              echo "::warning::verified-tree check exited $verified; running the lanes"
+            fi
           else
             # Unreachable today: the workflow triggers only on pull_request
             # and push to main. Kept as a guard should another trigger be
@@ -233,6 +252,32 @@ jobs:
           fi
           export PR_TITLE
           node scripts/ci/pr-title.mjs
+
+      # Evidence for verified-skip (ADR-0055): the tree this run tests (the
+      # pull/N/merge checkout), the base tip it was merged on, and the PR head.
+      # Only when that base is the one the lane diff above started from, so
+      # the lanes this run picked cover the squash commit's changes.
+      # The main push run of the squash merge reads it from the PR head's
+      # newest completed run, and only if that run concluded success. Fork PRs
+      # record nothing: their lanes and e2e never run. Last in the job, so a
+      # failed check above uploads nothing; a re-run replaces the record.
+      - name: Record the tested tree
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node scripts/ci/verified-tree.mjs record "$RUNNER_TEMP/verified-tree/verified-tree.json"
+
+      - name: Upload the tested tree
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-tree
+          path: ${{ runner.temp }}/verified-tree/verified-tree.json
+          if-no-files-found: ignore
+          retention-days: 30
+          overwrite: true
 
   verify:
     name: Verify (${{ matrix.package }})
@@ -331,8 +376,9 @@ jobs:
   # not fake-passed) while still giving branch protection a single target.
   # A failed detect-changes (lane rules, version audit, PR title) skips every
   # lane, so it fails this check too rather than reading as all-skipped. An
-  # e2e-only change has an empty matrix and passes here; `E2E (Playwright)`
-  # is the other merge check and does not wait for this one.
+  # e2e-only change has an empty matrix and passes here, as does a
+  # verified-skip main run (ADR-0055); `E2E (Playwright)` is the other merge
+  # check and does not wait for this one.
   verify-summary:
     name: Verify
     runs-on: [self-hosted, linux, arm64, hnch-podman]

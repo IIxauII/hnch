@@ -5,13 +5,14 @@
 //
 //   node scripts/ci/changed-lanes.mjs < changed.txt >> "$GITHUB_OUTPUT"
 //   node scripts/ci/changed-lanes.mjs --all >> "$GITHUB_OUTPUT"
+//   node scripts/ci/changed-lanes.mjs --none >> "$GITHUB_OUTPUT"
 //
 // stdin is one path per line. stdout is the job's outputs as key=value lines;
 // the reasoning goes to stderr so it shows in the job log.
 //
 // Pure Node, no dependencies: detect-changes does not install node_modules.
 import { readFileSync } from 'node:fs';
-import { argv, stderr, stdout } from 'node:process';
+import { argv, exit, stderr, stdout } from 'node:process';
 
 /**
  * Every package with a verify lane, in matrix order. e2e has none: the e2e
@@ -82,6 +83,14 @@ export function allLanes() {
 }
 
 /**
+ * Every lane off: a main push run verified by a green PR run for the same
+ * tree (ADR-0055, scripts/ci/verified-tree.mjs).
+ */
+export function noLanes() {
+  return changedLanes([]);
+}
+
+/**
  * The job outputs as GITHUB_OUTPUT lines. verify-packages is always emitted:
  * the verify matrix fromJSON()s it and fails to expand on an empty string.
  */
@@ -95,6 +104,11 @@ if (argv[1] === import.meta.filename) {
   let result;
   if (argv[2] === '--all') {
     result = allLanes();
+  } else if (argv[2] === '--none') {
+    result = noLanes();
+  } else if (argv.length > 2) {
+    stderr.write(`usage: changed-lanes.mjs [--all | --none] < changed-paths\n`);
+    exit(2);
   } else {
     result = changedLanes(readFileSync(0, 'utf8').split('\n'));
     for (const f of result.ignored) stderr.write(`Ignored (package docs): ${f}\n`);
