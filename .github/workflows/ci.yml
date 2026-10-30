@@ -25,6 +25,13 @@ permissions:
   contents: read
 
 jobs:
+  # The run's only first-wave job: change detection plus the two checks that
+  # need neither an install nor a package lane (version audit, PR title). Each
+  # was its own job before, and with two pool slots three first-wave jobs held
+  # back the first verify lane. A failed check here fails this job, so the
+  # lanes after it skip; the run still goes red. On a main push it may also
+  # find the merge already verified by its PR run and turn every lane off
+  # (verified-skip, ADR-0055); PR runs upload the evidence for that.
   detect-changes:
     name: Detect changed packages
     runs-on: [self-hosted, linux, arm64, hnch-podman]
@@ -36,10 +43,13 @@ jobs:
     timeout-minutes: 3
     # Job-level permissions replace the workflow-level set, so contents: read
     # is restated. actions: read lets the filter step look up the last green
-    # CI run on main.
+    # CI run on main and, for verified-skip, the PR run and its artifact;
+    # pull-requests: read lets it find the merged PR, and the title check read
+    # the PR's current title.
     permissions:
       contents: read
       actions: read
+      pull-requests: read
     outputs:
       shared: ${{ steps.filter.outputs.shared }}
       relay: ${{ steps.filter.outputs.relay }}
@@ -49,7 +59,8 @@ jobs:
       root: ${{ steps.filter.outputs.root }}
       verify-packages: ${{ steps.filter.outputs.verify-packages }}
     steps:
-      - uses: actions/checkout@v4
+      - id: checkout
+        uses: actions/checkout@v4
         with:
           # Full history is required: the filter step diffs base...head and
           # needs the merge-base. blob:none makes that a treeless partial
@@ -60,6 +71,15 @@ jobs:
           # from the promisor remote and the filter buys nothing.
           fetch-depth: 0
           filter: blob:none
+          # The version audit compares against the release tags. fetch-depth: 0
+          # already fetches refs/tags/*; this keeps them if the depth changes.
+          fetch-tags: true
+
+      # A wrong rule here skips lanes or passes a bad title silently and goes
+      # green, so the scripts are tested before they are used. Built-in
+      # node:test, no install.
+      - name: Test CI scripts
+        run: node --test 'scripts/ci/*.test.mjs'
 
       - id: filter
         env:
@@ -70,17 +90,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Every lane on. verify-packages must be emitted too: the verify
-          # matrix fromJSON()s it and fails to expand on an empty string.
-          # The ::warning:: annotation makes a fallback visible on the run
-          # summary (a lost actions: read, a broken API, rewritten history).
+          # Every lane on. The ::warning:: annotation makes a fallback visible
+          # on the run summary (a lost actions: read, a broken API, rewritten
+          # history).
           full_pipeline() {
             echo "$1"
             echo "::warning::$1"
-            for v in shared relay client cli e2e root; do
-              echo "$v=true" >> "$GITHUB_OUTPUT"
-            done
-            echo 'verify-packages=["shared","relay","client","cli","e2e"]' >> "$GITHUB_OUTPUT"
+            node scripts/ci/changed-lanes.mjs --all >> "$GITHUB_OUTPUT"
             exit 0
           }
 
@@ -114,6 +130,8 @@ jobs:
             #   would re-run that package's lanes.
             # - No green run found, gh failing, or a base that is not an
             #   ancestor of this push (history rewritten): full pipeline.
+            # - A green run is the base even when it was a verified-skip: the
+            #   PR run tested its tree.
             main_push=true
             head="${{ github.sha }}"
             base=""
@@ -137,6 +155,20 @@ jobs:
               full_pipeline "fallback: full pipeline (last green main run $last_url at $base is not an ancestor of $head)"
             fi
             echo "Base: last green main run $last_url ($base)"
+
+            # Verified-skip (ADR-0055): a squash merge whose tree a green PR
+            # run tested on this same parent, with only [skip ci] bot commits
+            # since the last green main run, needs no second test run. The
+            # script prints why not, as a ::warning:: when a lookup failed; any
+            # status but 0 runs the lanes, so an error never skips.
+            verified=0
+            node scripts/ci/verified-tree.mjs check "$head" "$base" || verified=$?
+            if [[ "$verified" == 0 ]]; then
+              node scripts/ci/changed-lanes.mjs --none >> "$GITHUB_OUTPUT"
+              exit 0
+            elif [[ "$verified" != 3 ]]; then
+              echo "::warning::verified-tree check exited $verified; running the lanes"
+            fi
           else
             # Unreachable today: the workflow triggers only on pull_request
             # and push to main. Kept as a guard should another trigger be
@@ -169,7 +201,8 @@ jobs:
             # on the subject only, as release.yml does: a body line must not
             # drop a human commit's files. main is squash-only and so linear.
             # Still tree-only: diff-tree --name-only never reads blobs.
-            # Keep BOT_SUBJECT in step with release.yml.
+            # Keep BOT_SUBJECT in step with release.yml and scripts/ci/verified-tree.mjs
+            # (a test there checks all three).
             BOT_SUBJECT='^chore\((release|screenshots)\): .*\[skip ci\]$'
             # An assignment, not < <(...): errexit sees a failing git log.
             commits=$(git log --format='%H %s' "$base..$head")
@@ -185,67 +218,70 @@ jobs:
           echo "Changed files between $base and $head:"
           echo "$changed"
 
-          # A herestring, not echo | grep -q: under pipefail, grep -q exiting on
-          # the first hit can SIGPIPE echo on a long list and report no match.
-          match() { grep -qE "$1" <<< "$changed"; }
+          # The path rules (lanes, reverse-dep fan-out, Markdown at a package
+          # root starting nothing) live in the script. verify-packages lists
+          # only the lanes that run, so unrelated `Verify (X)` checks don't
+          # appear at all; branch protection targets the `Verify` aggregator.
+          node scripts/ci/changed-lanes.mjs <<< "$changed" >> "$GITHUB_OUTPUT"
 
-          root=false
-          shared=false
-          relay=false
-          client=false
-          cli=false
-          e2e=false
+      # The checks below run even when an earlier step failed, so one run
+      # reports every problem. Both read only the checkout: the four
+      # package.json files are in the working tree and the tags came with the
+      # clone, so nothing is installed or fetched.
 
-          if match '^(pnpm-lock\.yaml|package\.json|tsconfig.*\.json|\.github/workflows/)'; then
-            root=true
-          fi
-          match '^packages/shared/' && shared=true || true
-          match '^packages/relay/'  && relay=true  || true
-          match '^packages/client/' && client=true || true
-          match '^packages/cli/'    && cli=true    || true
-          match '^packages/e2e/'    && e2e=true    || true
-          # The relay and client deploy guards (and their tests) share
-          # scripts/cloudflare/.
-          if match '^scripts/cloudflare/'; then relay=true; client=true; fi
-          # The relay lane runs its tests under scripts/ci/with-stall-sampler.sh.
-          if match '^scripts/ci/'; then relay=true; fi
+      # semantic-release owns the package.json versions; a hand bump fails.
+      - name: Audit package versions against release tags
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
+        run: node scripts/audit-versions.mjs
 
-          # Reverse-deps: shared change fans into all consumers.
-          if [[ "$shared" == "true" ]]; then
-            relay=true; client=true; cli=true; e2e=true
+      # The squash merge makes the PR title the commit on main, so it drives
+      # the release. The title is read from the API, not the event payload, so
+      # re-running the job after fixing the title checks the new one; editing
+      # the title starts no run (no `edited` trigger).
+      - name: PR title (Conventional Commits)
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+          if ! PR_TITLE=$(timeout 30 gh api "repos/$REPO/pulls/$PR_NUMBER" --jq .title); then
+            echo "::warning::Could not read the current PR title; checking the title from the event instead."
+            PR_TITLE="$EVENT_TITLE"
           fi
-          # relay change re-runs the CLI and shared suites, which test against
-          # the relay through the @hnch/relay/testing harness. After the shared
-          # block so it does not fan out to client/e2e via shared.
-          if [[ "$relay" == "true" ]]; then
-            cli=true; shared=true
-          fi
-          # client or relay change requires e2e.
-          if [[ "$client" == "true" || "$relay" == "true" ]]; then
-            e2e=true
-          fi
-          # Root files force the full pipeline.
-          if [[ "$root" == "true" ]]; then
-            shared=true; relay=true; client=true; cli=true; e2e=true
-          fi
+          export PR_TITLE
+          node scripts/ci/pr-title.mjs
 
-          for v in shared relay client cli e2e root; do
-            echo "$v=${!v}" >> "$GITHUB_OUTPUT"
-          done
+      # Evidence for verified-skip (ADR-0055): the tree this run tests (the
+      # pull/N/merge checkout), the base tip it was merged on, and the PR head.
+      # Only when that base is the one the lane diff above started from, or
+      # that one plus the bot's [skip ci] commits (base.sha goes stale when they
+      # land), so the lanes this run picked cover the squash commit's changes.
+      # The main push run of the squash merge reads it from the PR head's
+      # newest completed run, and only if that run concluded success. When the
+      # checkout is not that merge it uploads an `unrecorded` marker, so main
+      # misses quietly. Fork PRs record nothing: their lanes and e2e never run.
+      # Last in the job, so a failed check above uploads nothing. A re-run
+      # records the same merge again: it reuses the run's merge commit.
+      - name: Record the tested tree
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node scripts/ci/verified-tree.mjs record "$RUNNER_TEMP/verified-tree/verified-tree.json"
 
-          # Build a JSON array of packages whose verify lane should run.
-          # The `verify` matrix consumes this directly so unrelated lanes
-          # don't appear in the run at all (no fake-pass, no wasted runner slot).
-          # Branch protection should target the `Verify` summary aggregator below,
-          # not individual `Verify (X)` checks (which legitimately disappear on
-          # unrelated PRs).
-          pkgs=()
-          [[ "$shared" == "true" ]] && pkgs+=('"shared"')
-          [[ "$relay"  == "true" ]] && pkgs+=('"relay"')
-          [[ "$client" == "true" ]] && pkgs+=('"client"')
-          [[ "$cli"    == "true" ]] && pkgs+=('"cli"')
-          [[ "$e2e"    == "true" ]] && pkgs+=('"e2e"')
-          ifs_old=$IFS; IFS=,; echo "verify-packages=[${pkgs[*]}]" >> "$GITHUB_OUTPUT"; IFS=$ifs_old
+      - name: Upload the tested tree
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-tree
+          path: ${{ runner.temp }}/verified-tree/verified-tree.json
+          if-no-files-found: ignore
+          retention-days: 30
+          overwrite: true
 
   verify:
     name: Verify (${{ matrix.package }})
@@ -256,7 +292,10 @@ jobs:
     if: |
       needs.detect-changes.outputs.verify-packages != '[]' &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-    timeout-minutes: 3
+    # A hang guard, not a budget. The client lane takes about 2 min alone and
+    # about 3.5 min with coverage while a Playwright job shares the runner VM,
+    # which is the normal case now that e2e starts beside the lanes (#590).
+    timeout-minutes: 5
     concurrency:
       group: verify-${{ github.ref }}-${{ matrix.package }}
       cancel-in-progress: true
@@ -265,7 +304,8 @@ jobs:
       # Matrix is computed dynamically from detect-changes — only lanes for
       # changed packages exist. Status checks for unrelated lanes don't appear
       # in the PR (cleaner than fake-passed). The `verify-summary` aggregator
-      # below is the single check branch protection should target.
+      # below is the single check branch protection should target. e2e has
+      # no lane: the e2e job checks its own package (see there).
       matrix:
         package: ${{ fromJSON(needs.detect-changes.outputs.verify-packages) }}
     steps:
@@ -296,7 +336,9 @@ jobs:
       - name: Lint templates
         run: pnpm --filter ./packages/${{ matrix.package }} run --if-present lint:templates
 
-      # The relay lane records PSI, load and CPU times while its tests run, to
+      # Every run measures coverage: PR runs feed Codecov's PR comment and its
+      # codecov/patch check, main runs its history and the README badge. The
+      # relay lane records PSI, load and CPU times while its tests run, to
       # tell a stalled runner VM from a slow test (#568).
       - name: Unit tests (with coverage)
         env:
@@ -318,14 +360,8 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-      - name: Upload coverage artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-${{ matrix.package }}
-          path: packages/${{ matrix.package }}/coverage/
-          retention-days: 14
-
+      # Codecov is the only copy of the report; no workflow artifact, as
+      # nothing read it.
       - name: Upload coverage to Codecov
         if: always()
         uses: codecov/codecov-action@v5
@@ -344,17 +380,27 @@ jobs:
   # matrix lane either succeeded or was skipped; fails when any lane actually
   # failed/cancelled. This keeps the matrix gate honest (skipped is "skipped",
   # not fake-passed) while still giving branch protection a single target.
+  # A failed detect-changes (lane rules, version audit, PR title) skips every
+  # lane, so it fails this check too rather than reading as all-skipped. An
+  # e2e-only change has an empty matrix and passes here, as does a
+  # verified-skip main run (ADR-0055); `E2E (Playwright)` is the other merge
+  # check and does not wait for this one.
   verify-summary:
     name: Verify
     runs-on: [self-hosted, linux, arm64, hnch-podman]
-    needs: verify
+    needs: [detect-changes, verify]
     if: always()
     timeout-minutes: 1
     steps:
       - name: Aggregate matrix result
         env:
+          DETECT_RESULT: ${{ needs.detect-changes.result }}
           MATRIX_RESULT: ${{ needs.verify.result }}
         run: |
+          if [[ "$DETECT_RESULT" != success ]]; then
+            echo "::error::detect-changes: $DETECT_RESULT, so no verify lane ran"
+            exit 1
+          fi
           case "$MATRIX_RESULT" in
             success|skipped)
               echo "verify matrix: $MATRIX_RESULT — OK"
@@ -366,50 +412,6 @@ jobs:
               ;;
           esac
 
-  version-audit:
-    name: Version audit
-    runs-on: [self-hosted, linux, arm64, hnch-podman]
-    timeout-minutes: 3
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          # Need tags so the audit script can compare package.json versions
-          # against the highest released tag per package.
-          fetch-depth: 0
-
-      - name: Install
-        uses: ./.github/actions/pnpm-install
-        with:
-          ignore-scripts: 'true'
-
-      - name: Audit per-package versions vs git tags
-        run: pnpm audit:versions
-
-  pr-title-lint:
-    name: PR title (Conventional Commits)
-    runs-on: [self-hosted, linux, arm64, hnch-podman]
-    if: github.event_name == 'pull_request'
-    timeout-minutes: 1
-    permissions:
-      pull-requests: read
-    steps:
-      - uses: amannn/action-semantic-pull-request@v5
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          requireScope: true
-          scopes: |
-            client
-            relay
-            cli
-            shared
-            e2e
-            ci
-            docs
-            infra
-            deps
-            repo
-
   e2e:
     name: E2E (Playwright)
     # `e2e` is carried by exactly one pool runner (slot 1, see
@@ -418,13 +420,13 @@ jobs:
     # of sharing the runner VM's CPUs. timeout-minutes counts from job start,
     # not queue time.
     runs-on: [self-hosted, linux, arm64, hnch-podman, e2e]
-    needs: [detect-changes, verify-summary]
-    # `!failure() && !cancelled()` disables GitHub's default rule that auto-skips
-    # a job when any transitive ancestor was skipped. For e2e-only PRs the
-    # `verify` matrix legitimately skips (empty matrix), which previously
-    # cascaded into e2e being skipped despite `verify-summary` succeeding.
+    # Starts beside the verify lanes, not after them: it builds @hnch/shared
+    # itself and reads no lane output, so slot 1 takes Playwright while the
+    # other slot works through the lanes (ADR-0052 allows one job next to it).
+    # A red lane no longer stops e2e; both checks must be green to merge.
+    needs: detect-changes
+    # Fork guard as on the verify lanes: keeps fork PRs off self-hosted runners.
     if: |
-      !failure() && !cancelled() &&
       needs.detect-changes.outputs.e2e == 'true' &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     timeout-minutes: 10
@@ -439,6 +441,26 @@ jobs:
       - name: Install
         uses: ./.github/actions/pnpm-install
 
+      - name: Build @hnch/shared (consumed by relay + client webServers)
+        run: pnpm --filter @hnch/shared run build
+
+      # The e2e package's own checks (it has no verify lane). They come before
+      # Playwright so a broken spec fails in seconds. Playwright itself does
+      # not typecheck, so it would let an undefined import through.
+      - name: Typecheck (e2e)
+        run: pnpm --filter @hnch/e2e run typecheck
+
+      - name: Format check (e2e)
+        run: pnpm --filter @hnch/e2e run format:check
+
+      - name: Lint (e2e)
+        run: pnpm --filter @hnch/e2e run lint
+
+      # node:test suite for packages/e2e/scripts (the static server that
+      # serves the built client to Playwright).
+      - name: Unit tests (e2e)
+        run: pnpm --filter @hnch/e2e run test:unit
+
       # On self-hosted (rootless container, no sudo) Playwright system deps are
       # baked into the image — plain `install chromium` is enough. On ubuntu-latest
       # we still need apt-get via `--with-deps`.
@@ -449,9 +471,6 @@ jobs:
       - name: Install Playwright browsers (self-hosted)
         if: runner.environment == 'self-hosted'
         run: pnpm --filter @hnch/e2e exec playwright install chromium
-
-      - name: Build @hnch/shared (consumed by relay + client webServers)
-        run: pnpm --filter @hnch/shared run build
 
       - name: Run e2e
         run: pnpm --filter @hnch/e2e test

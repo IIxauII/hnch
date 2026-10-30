@@ -70,6 +70,7 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0052](0052-single-e2e-runner-slot.md) | Single `e2e` runner slot — one Playwright job at a time on the pool (refines ADR-0049) | Accepted |  |
 | [0053](0053-runner-pool-two-slots.md) | Runner pool size — 2 slots, fewer than the verify lanes | Accepted |  |
 | [0054](0054-vps-decommission.md) | VPS decommission — deploy path removed now, box shut down after the switch (partially supersedes ADR-0051) | Accepted |  |
+| [0055](0055-verified-skip-main-push-run.md) | Verified-skip — a main push run may pass on a green PR run for the identical tree | Accepted |  |
 
 ## When to write an ADR
 

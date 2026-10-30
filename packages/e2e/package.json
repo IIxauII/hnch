@@ -9,6 +9,7 @@
     "test:chromium": "playwright test --project chromium",
     "test:webkit": "playwright test --project webkit",
     "test:firefox": "playwright test --project firefox",
+    "test:unit": "node --test --test-timeout=10000 'scripts/*.test.mjs'",
     "typecheck": "tsc --noEmit",
     "format:check": "biome format .",
     "lint": "oxlint ."

@@ -11,6 +11,8 @@
     "dev": "node scripts/run-ng-dev.mjs",
     "build": "ng build",
     "prebuild": "node scripts/generate-version.mjs",
+    "build:e2e": "ng build --configuration e2e",
+    "prebuild:e2e": "node scripts/generate-version.mjs",
     "watch": "ng build --watch --configuration development",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",

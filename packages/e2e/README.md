@@ -5,9 +5,11 @@ Playwright end-to-end tests for hnch. Multi-client, real-relay scenarios; no moc
 ## Layout
 
 ```
+scripts/
+  serve-static.mjs      # serves the built client for E2E_CLIENT=build (unit tests: pnpm --filter @hnch/e2e test:unit; the CI e2e job runs them before Playwright)
 tests/
   _screenshots/         # opt-in screenshot capture suite (this README's focus)
-  fixtures/             # shared selectors + browser-context helpers
+  fixtures/             # shared selectors + browser-context helpers (incl. the 375px sheet openers)
   *.spec.ts             # functional e2e suites
 ```
 
@@ -17,11 +19,45 @@ tests/
 pnpm --filter @hnch/e2e exec playwright test --project=chromium
 ```
 
-The full suite spins up `pnpm dev:relay` and `pnpm dev:client` automatically via `playwright.config.ts` `webServer`. Use `--workers=1` for stability when investigating flakes.
+The full suite starts the relay and the client automatically via `playwright.config.ts` `webServer`. Use `--workers=1` for stability when investigating flakes.
+
+### Which client the tests load
+
+`E2E_CLIENT` picks how the client is served:
+
+| Value | What runs | Default |
+|---|---|---|
+| `dev` | `ng serve` (`pnpm --filter @hnch/client dev`) with its file watcher | local runs, including `pnpm test:e2e` |
+| `build` | `ng build --configuration e2e` into `packages/client/dist/e2e`, then `scripts/serve-static.mjs` serves it, with `index.html` for app routes | whenever `CI` is set (the `E2E (Playwright)` job and `screenshots-main.yml`) |
+
+The `build` mode runs the optimised bundle users get, and no dev server competes with the browsers for CPU. The `e2e` configuration has no `fileReplacements`, so it keeps `environment.ts` and reaches the relay on the page's own port (worktree and CI ports work with no extra config). Production builds and deploys are unaffected: they keep their own `production` configuration and `www/` output.
+
+- To run locally against what CI runs: `CI=1 pnpm test:e2e` (also gets the CI timeouts below and `maxFailures: 1`), or `E2E_CLIENT=build pnpm test:e2e` for the build alone.
+- The build is not watched: with `build`, a client edit only shows up in the next run, which rebuilds (about 15 s locally).
+- Outside CI, Playwright reuses whatever already listens on `CLIENT_PORT`. A running `pnpm dev:client` there means `E2E_CLIENT=build` still tests the dev server.
+
+### Timeouts
+
+Every test gets 45 s. With `CI` set, each action (click, fill, locator wait) also stops after 10 s and each navigation (`goto`, `reload`, `waitForURL`) after 15 s, so a lost click or a URL that never comes fails with an error naming that call instead of using up the test budget. Run with `CI=1` to get the same limits locally.
+
+- A call that legitimately waits longer passes its own `timeout` (host election and reconnect waits use 15 s).
+- A test that is slow as a whole, not stuck, sets its own budget with `test.setTimeout(...)` in the test body, never in the config. Example: the 6th-room eviction test in `recent-rooms-list.spec.ts`.
+- `waitForTimeout` and `expect(...)` assertions are not covered by these limits; assertions keep the 5 s expect default.
 
 ## Screenshot harness
 
-All screenshot specs live under `tests/_screenshots/` and are gated by `SCREENSHOT_CAPTURE=1`. Without the env var, they `test.skip` — they don't run as part of regular CI.
+All screenshot specs live under `tests/_screenshots/` and are gated by `SCREENSHOT_CAPTURE=1`. Each one opens with the same file-level line:
+
+```ts
+test.skip(!process.env['SCREENSHOT_CAPTURE'], 'set SCREENSHOT_CAPTURE=1 to run');
+```
+
+That gives two separate switches:
+
+- **App tests** (`pnpm --filter @hnch/e2e test`, the CI `E2E (Playwright)` job, no `SCREENSHOT_CAPTURE`): every test under `_screenshots/` is reported as skipped; none of them runs.
+- **Capture** (`SCREENSHOT_CAPTURE=1 … playwright test _screenshots`): every screenshot spec runs and writes its PNGs.
+
+A new screenshot spec starts with that line too. An assertion that must hold on every PR (a regression guard) belongs in an app spec under `tests/`, not under `_screenshots/`. The 375px sheet guards moved to `sheet-actions-mobile.spec.ts` for that reason (#594).
 
 ### Two surfaces
 
@@ -121,10 +157,10 @@ Every `test()` under `_screenshots/` is annotated with one or more Playwright ta
 |---|---|
 | `@all` | `capture.spec.ts`, `estimating-shot.spec.ts` |
 | `@theming` | `avatar-color.spec.ts`, `capture.spec.ts`, `estimating-shot.spec.ts`, `vote-bars-shot.spec.ts` |
-| `@layout` | `agenda-states.spec.ts`, `capture.spec.ts`, `estimating-shot.spec.ts`, `keyboard-shortcuts.spec.ts`, `vote-bars-shot.spec.ts`, `vote-dots-196.spec.ts` |
+| `@layout` | `agenda-item-form-mobile.spec.ts`, `agenda-states.spec.ts`, `capture.spec.ts`, `estimating-shot.spec.ts`, `keyboard-shortcuts.spec.ts`, `round-start-mobile.spec.ts`, `vote-bars-shot.spec.ts`, `vote-dots-196.spec.ts` |
 | `@participants` | `agenda-states.spec.ts`, `avatar-color.spec.ts`, `participant-cap.spec.ts`, `participants.spec.ts` |
 | `@viewer` | `participants.spec.ts` |
-| `@host` | `agenda-states.spec.ts`, `participants.spec.ts`, `session-ended.spec.ts`, `skip-round.spec.ts` |
+| `@host` | `agenda-item-form-mobile.spec.ts`, `agenda-states.spec.ts`, `participants.spec.ts`, `round-start-mobile.spec.ts`, `session-ended.spec.ts`, `skip-round.spec.ts` |
 | `@password` | `password-flow.spec.ts` |
 | `@reveal` | `reveal-transition.spec.ts`, `vote-bars-shot.spec.ts` |
 | `@skip` | `skip-round.spec.ts` |
@@ -152,6 +188,8 @@ Every `test()` under `_screenshots/` is annotated with one or more Playwright ta
 | `connection-states.spec.ts` | `connection/` | reconnecting banner (desktop + mobile) |
 | `avatar-color.spec.ts` | `theming/` | settings palette default + Pink; lobby + estimating with chosen color |
 | `agenda-states.spec.ts` | `agenda/` | empty agenda; add sheet open/filled; 3-item list; story menu; edit sheet; mid-session consumed; skipped/removed; joiner on mobile |
+| `agenda-item-form-mobile.spec.ts` | `agenda/` (numbered `12-`, `13-`) | story form sheet at 375px, add mode and edit mode |
+| `round-start-mobile.spec.ts` | `round-start/` | round-start sheet at 375px |
 | `keyboard-shortcuts.spec.ts` | `keyboard/` | shortcuts overlay |
 | `vote-bars-shot.spec.ts` | `vote-bars/` | vote distribution bars (light/dark, desktop/mobile) |
 | `vote-dots-196.spec.ts` | `vote-dots/` | vote dot layout (issue #196) |

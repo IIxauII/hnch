@@ -1,14 +1,14 @@
 /**
  * Playwright globalSetup:
  *
- * 1. CI: warm the Angular dev-server bundle before any worker starts. `ng
- *    serve` returns 200 on `/` once webpack-dev-server's first compile
- *    finishes, but `webServer.url` only guarantees that — it does not
- *    guarantee app-root has hydrated. The first worker to navigate still pays
- *    a real cost, which against a 20s per-test timeout can starve actual test
- *    work. By driving a real navigation here and waiting until `<app-root>`
- *    has rendered children, every per-worker first navigation lands on a
- *    fully hot server.
+ * 1. CI: load the app once before any worker starts. `webServer.url` only
+ *    proves the client server answers `/` — not that the bundle boots. With
+ *    the dev server (`E2E_CLIENT=dev`) the first navigation also pays the
+ *    rest of the compile, which against the per-test timeout can starve
+ *    actual test work. Driving a real navigation here and waiting until
+ *    `<app-root>` has rendered children means every per-worker first
+ *    navigation lands on a hot server, and a bundle that fails to boot (the
+ *    CI default `build`) fails here with one clear error, not in every test.
  *
  * 2. Local: warn if an already-running relay (from `pnpm dev:relay`) is
  *    reused without test-mode env vars (HNCH_ENABLE_TEST_ROUTES=1,

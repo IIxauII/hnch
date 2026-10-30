@@ -135,6 +135,10 @@ test.describe('Recent rooms list', () => {
    * seed with the smallest `lastSeenAt` is the one the cap must drop.
    */
   test('6th room evicts oldest entry — list shows exactly 5', async ({ host }) => {
+    // Its own budget (#601): this test has run past the shared 45 s on a
+    // loaded runner without being stuck (#563). A call that really hangs
+    // still fails at the CI action or navigation timeout.
+    test.setTimeout(90_000);
     // Newest first; the last one is the oldest and must be evicted.
     const seeded = ['AAA111', 'BBB222', 'CCC333', 'DDD444', 'EEE555'].map((roomCode, i) => ({
       roomCode,

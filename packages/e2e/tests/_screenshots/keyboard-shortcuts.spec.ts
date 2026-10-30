@@ -9,7 +9,7 @@
  *   - settings-keyboard-shortcuts.png Settings info section
  *
  * Run with:
- *   pnpm --filter @hnch/e2e exec playwright test \
+ *   SCREENSHOT_CAPTURE=1 pnpm --filter @hnch/e2e exec playwright test \
  *     --project=chromium --workers=1 --reporter=list \
  *     tests/_screenshots/keyboard-shortcuts.spec.ts
  */
@@ -31,6 +31,8 @@ import { pageSettled } from './_helpers/settled';
 
 const OUT_DIR = resolveOutDir('keyboard');
 test.use({ trace: 'off', video: 'off', screenshot: 'off' });
+
+test.skip(!process.env['SCREENSHOT_CAPTURE'], 'set SCREENSHOT_CAPTURE=1 to run');
 
 async function shot(page: Page, name: string): Promise<void> {
   await pageSettled(page);

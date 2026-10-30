@@ -1,0 +1,149 @@
+# Dependabot: one PR per package family, weekly, instead of one per package.
+# Every lockfile change runs the full pipeline (four verify lanes plus e2e on
+# the single e2e slot, ADR-0052), so per-package PRs cost one pipeline each.
+#
+# Groups match in file order: a dependency joins the first group it fits.
+# `applies-to` takes one value, so each family is listed twice, once for
+# version updates and once (`*-security`) for security updates.
+#
+# Titles: the PR-title lint allows the `deps` scope but not `deps-dev`, so
+# `prefix-development` repeats `prefix` and `include: scope` stays unset.
+# Every title reads `chore(deps): bump ...` (Dependabot adds the colon).
+version: 2
+updates:
+  - package-ecosystem: npm
+    # pnpm workspace root: Dependabot reads pnpm-workspace.yaml and updates
+    # packages/*/package.json plus the one lockfile.
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '05:00'
+    commit-message:
+      prefix: chore(deps)
+      prefix-development: chore(deps)
+    ignore:
+      # Tracks the engines.node minimum (22), not the newest Node.
+      - dependency-name: '@types/node'
+        update-types: [version-update:semver-major]
+    groups:
+      # Angular moves in lockstep, majors included (`ng update` territory).
+      # zone.js and typescript ride along: @angular/core pins the zone.js
+      # range and @angular/compiler-cli the TypeScript range. analogjs is the
+      # Angular compiler bridge for the client's vitest.
+      angular:
+        patterns:
+          - '@angular/*'
+          - '@angular-devkit/*'
+          - '@angular-eslint/*'
+          - '@analogjs/*'
+          - zone.js
+          - typescript
+      # Capacitor plugins share the core's major; Ionic pairs with both.
+      ionic-capacitor:
+        patterns:
+          - '@ionic/*'
+          - '@capacitor/*'
+          - '@capacitor-mlkit/*'
+          - ionicons
+      yjs:
+        patterns:
+          - yjs
+          - y-*
+          - lib0
+      # Build, test, lint, release and deploy tooling. vitest, wrangler and
+      # @cloudflare/* share a group because the relay's
+      # @cloudflare/vitest-plugin is tied to both. Majors stay out so one
+      # breaking bump does not hold back the rest; they arrive one per PR.
+      dev-tooling:
+        update-types: [minor, patch]
+        patterns:
+          - vitest
+          - '@vitest/*'
+          - '@playwright/test'
+          - oxlint
+          - '@biomejs/biome'
+          - eslint
+          - lefthook
+          - tsx
+          - tsup
+          - jsdom
+          - ink-testing-library
+          - semantic-release
+          - '@semantic-release/*'
+          - conventional-changelog-*
+          - wrangler
+          - '@cloudflare/*'
+          - '@types/*'
+      # Everything else, minor and patch only.
+      other:
+        update-types: [minor, patch]
+        patterns:
+          - '*'
+      angular-security:
+        applies-to: security-updates
+        patterns:
+          - '@angular/*'
+          - '@angular-devkit/*'
+          - '@angular-eslint/*'
+          - '@analogjs/*'
+          - zone.js
+          - typescript
+      ionic-capacitor-security:
+        applies-to: security-updates
+        patterns:
+          - '@ionic/*'
+          - '@capacitor/*'
+          - '@capacitor-mlkit/*'
+          - ionicons
+      yjs-security:
+        applies-to: security-updates
+        patterns:
+          - yjs
+          - y-*
+          - lib0
+      dev-tooling-security:
+        applies-to: security-updates
+        patterns:
+          - vitest
+          - '@vitest/*'
+          - '@playwright/test'
+          - oxlint
+          - '@biomejs/biome'
+          - eslint
+          - lefthook
+          - tsx
+          - tsup
+          - jsdom
+          - ink-testing-library
+          - semantic-release
+          - '@semantic-release/*'
+          - conventional-changelog-*
+          - wrangler
+          - '@cloudflare/*'
+          - '@types/*'
+      # Transitive fixes (engine.io, socket.io-parser, ...) land here.
+      other-security:
+        applies-to: security-updates
+        patterns:
+          - '*'
+
+  - package-ecosystem: github-actions
+    # `/` covers .github/workflows; the composite actions sit one level down.
+    directories:
+      - /
+      - /.github/actions/*
+    schedule:
+      interval: weekly
+      day: monday
+      time: '05:00'
+    commit-message:
+      prefix: chore(deps)
+    groups:
+      github-actions:
+        patterns:
+          - '*'
+      github-actions-security:
+        applies-to: security-updates
+        patterns:
+          - '*'
