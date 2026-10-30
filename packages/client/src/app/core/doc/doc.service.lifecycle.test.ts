@@ -28,10 +28,10 @@ vi.mock('@capacitor/core', () => ({
 }));
 
 vi.mock('y-indexeddb', () => ({
-  IndexeddbPersistence: vi.fn().mockImplementation(() => ({
-    whenSynced: Promise.resolve(),
-    destroy: vi.fn(),
-  })),
+  IndexeddbPersistence: class {
+    whenSynced = Promise.resolve();
+    destroy = vi.fn();
+  },
 }));
 
 import { DocService } from './doc.service';
