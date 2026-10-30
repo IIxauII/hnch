@@ -284,17 +284,20 @@ jobs:
       - name: Lint templates
         run: pnpm --filter ./packages/${{ matrix.package }} run --if-present lint:templates
 
-      # The relay lane records PSI, load and CPU times while its tests run, to
-      # tell a stalled runner VM from a slow test (#568).
-      - name: Unit tests (with coverage)
+      # Coverage only on main push runs: they feed Codecov's main history and
+      # the README badge. A PR lane runs the same suite uninstrumented and
+      # uploads nothing. The relay lane records PSI, load and CPU times while
+      # its tests run, to tell a stalled runner VM from a slow test (#568).
+      - name: Unit tests
         env:
           PACKAGE: ${{ matrix.package }}
+          TEST_SCRIPT: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'test:coverage' || 'test' }}
         run: |
           if [[ "$PACKAGE" == relay ]]; then
             scripts/ci/with-stall-sampler.sh "$RUNNER_TEMP/stall-samples" \
-              pnpm --filter ./packages/relay run test:coverage
+              pnpm --filter ./packages/relay run "$TEST_SCRIPT"
           else
-            pnpm --filter "./packages/$PACKAGE" run --if-present test:coverage
+            pnpm --filter "./packages/$PACKAGE" run --if-present "$TEST_SCRIPT"
           fi
 
       - name: Upload stall samples
@@ -306,16 +309,10 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-      - name: Upload coverage artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-${{ matrix.package }}
-          path: packages/${{ matrix.package }}/coverage/
-          retention-days: 14
-
+      # Codecov is the only copy of the report; no workflow artifact, as
+      # nothing read it.
       - name: Upload coverage to Codecov
-        if: always()
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

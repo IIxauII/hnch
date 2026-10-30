@@ -10,6 +10,8 @@ Phase 6a shipped (PWA polish, settings, theming, animations, haptics, a11y). Mob
 
 [![codecov](https://codecov.io/gh/IIxauII/hnch/branch/main/graph/badge.svg?token=5WZDV0OV3F)](https://codecov.io/gh/IIxauII/hnch)
 
+Coverage comes from `main` push runs only; PR runs don't measure or upload it.
+
 ## Stack
 
 | Layer | Choice |
