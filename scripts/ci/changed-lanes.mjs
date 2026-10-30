@@ -13,8 +13,12 @@
 import { readFileSync } from 'node:fs';
 import { argv, stderr, stdout } from 'node:process';
 
-/** Every package with a verify lane, in matrix order. */
-export const PACKAGES = ['shared', 'relay', 'client', 'cli', 'e2e'];
+/**
+ * Every package with a verify lane, in matrix order. e2e has none: the e2e
+ * job runs that package's typecheck, format check and lint before Playwright,
+ * so the `e2e` output alone decides whether it runs.
+ */
+export const PACKAGES = ['shared', 'relay', 'client', 'cli'];
 
 // Root files force the full pipeline.
 const ROOT = /^(pnpm-lock\.yaml|package\.json|tsconfig.*\.json|\.github\/workflows\/)/;
@@ -66,6 +70,7 @@ export function changedLanes(files) {
   if (lanes.client || lanes.relay) lanes.e2e = true;
   if (lanes.root) {
     for (const p of PACKAGES) lanes[p] = true;
+    lanes.e2e = true;
   }
 
   return { lanes, verifyPackages: PACKAGES.filter((p) => lanes[p]), ignored };
@@ -94,6 +99,7 @@ if (argv[1] === import.meta.filename) {
     result = changedLanes(readFileSync(0, 'utf8').split('\n'));
     for (const f of result.ignored) stderr.write(`Ignored (package docs): ${f}\n`);
   }
-  stderr.write(`Lanes: ${result.verifyPackages.join(', ') || 'none'}\n`);
+  stderr.write(`Verify lanes: ${result.verifyPackages.join(', ') || 'none'}\n`);
+  stderr.write(`e2e: ${result.lanes.e2e}\n`);
   stdout.write(formatOutputs(result));
 }

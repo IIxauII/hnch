@@ -24,7 +24,7 @@ hnch-podman label → 2 ephemeral containers on M4 (POOL_SIZE=2)
    └── supervised by infra/runner/supervisor.sh under launchd (dev.hnch.runner.plist)
 ```
 
-Runners are repo-scoped and labelled `self-hosted,linux,arm64,hnch-podman`; slot 1 also carries `e2e` (see [E2E slot](#e2e-slot)). The pool runs 2 slots (`POOL_SIZE=2` in `dev.hnch.runner.plist`), so the 5 verify lanes (`shared`, `relay`, `client`, `cli`, `e2e`) share 2 runners and queue ([ADR-0053](../adr/0053-runner-pool-two-slots.md)).
+Runners are repo-scoped and labelled `self-hosted,linux,arm64,hnch-podman`; slot 1 also carries `e2e` (see [E2E slot](#e2e-slot)). The pool runs 2 slots (`POOL_SIZE=2` in `dev.hnch.runner.plist`), so the 4 verify lanes (`shared`, `relay`, `client`, `cli`) share 2 runners and queue ([ADR-0053](../adr/0053-runner-pool-two-slots.md)). The `ci.yml` `e2e` job starts with the lanes rather than after them, so slot 1 runs Playwright while the other slot works through the lanes.
 
 ### Files
 
@@ -125,7 +125,7 @@ All pool containers share one podman VM (8 vCPU / 10 GiB) and nothing caps a con
 
 - `supervisor.sh` registers slot 1 (`hnch-runner-1-<epoch>`) with labels `self-hosted,linux,arm64,hnch-podman,e2e`; every other slot gets the base four. The label is re-applied on each ephemeral re-registration and on every supervisor restart, and slot 1 exists at any `POOL_SIZE`.
 - Jobs that run Playwright target `runs-on: [self-hosted, linux, arm64, hnch-podman, e2e]`: `ci.yml` `e2e` and `screenshots-main.yml` `refresh`. A new workflow that runs Playwright must add `e2e` too.
-- Other jobs still land on slot 1. An e2e job waits for slot 1 to finish its current job (verify ≤3 min, deploy/release ≤10 min), then for any Playwright job ahead of it (~5–8 min each). `timeout-minutes` counts from job start, so queue time doesn't eat into it; GitHub cancels a self-hosted job only after 24 h queued.
+- Other jobs still land on slot 1, including a verify lane of the same run when slot 1 frees up before it picks e2e. An e2e job waits for slot 1 to finish its current job (verify ≤3 min, deploy/release ≤10 min), then for any Playwright job ahead of it (~5–8 min each). `timeout-minutes` counts from job start, so queue time doesn't eat into it; GitHub cancels a self-hosted job only after 24 h queued.
 - Slot 1 down while the rest of the pool is up: e2e jobs show "Waiting for a runner to pick up this job", and the next `runner-health.yml` run (every 6 h) fails with "No online hnch-podman runner carries the e2e label". Check with `gh api repos/IIxauII/hnch/actions/runners --jq '.runners[] | select(.status=="online") | {name, labels: [.labels[].name]}'` and expect one `hnch-runner-1-*` carrying `e2e`.
 - Rollout order for label changes: host first, workflows second. Install the supervisor and restart the pool so slot 1 carries `e2e` (an extra label is harmless to jobs that don't ask for it) **before pushing the PR** that adds the label to a workflow: a `ci.yml` change makes detect-changes force e2e, and a `pull_request` run uses the PR's own `ci.yml`, so that PR's e2e job already needs the label. Confirm with the `gh api …/runners` check above that an online `hnch-runner-1-*` carries `e2e`, then push. The reverse order queues every e2e job until the host catches up.
 - Rollback: revert the workflows first (merge the revert), then reinstall the old supervisor and restart the pool. The reverse order strands e2e jobs waiting for a runner that no longer exists.

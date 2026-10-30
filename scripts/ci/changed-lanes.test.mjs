@@ -8,6 +8,7 @@ import { describe, it } from 'node:test';
 import { allLanes, changedLanes, formatOutputs } from './changed-lanes.mjs';
 
 const lanesOf = (files) => changedLanes(files).verifyPackages;
+const e2eOf = (files) => changedLanes(files).lanes.e2e;
 
 describe('changedLanes', () => {
   it('fans a relay source change out to the CLI, shared and e2e lanes', () => {
@@ -20,7 +21,7 @@ describe('changedLanes', () => {
       e2e: true,
       root: false,
     });
-    assert.deepEqual(verifyPackages, ['shared', 'relay', 'cli', 'e2e']);
+    assert.deepEqual(verifyPackages, ['shared', 'relay', 'cli']);
   });
 
   it('starts no lane for Markdown at a package root', () => {
@@ -38,25 +39,26 @@ describe('changedLanes', () => {
   });
 
   it('runs the package lanes as today when a README comes with a source file', () => {
-    assert.deepEqual(lanesOf(['packages/client/README.md', 'packages/client/src/main.ts']), [
-      'client',
-      'e2e',
-    ]);
+    const files = ['packages/client/README.md', 'packages/client/src/main.ts'];
+    assert.deepEqual(lanesOf(files), ['client']);
+    assert.equal(e2eOf(files), true);
   });
 
   it('still counts Markdown nested inside a package', () => {
-    assert.deepEqual(lanesOf(['packages/client/src/assets/notes.md']), ['client', 'e2e']);
+    assert.deepEqual(lanesOf(['packages/client/src/assets/notes.md']), ['client']);
   });
 
   it('starts no lane for root or docs Markdown', () => {
-    assert.deepEqual(lanesOf(['README.md', 'CONTRIBUTING.md', 'docs/ux.md', 'adr/0001-x.md']), []);
+    const files = ['README.md', 'CONTRIBUTING.md', 'docs/ux.md', 'adr/0001-x.md'];
+    assert.deepEqual(lanesOf(files), []);
+    assert.equal(e2eOf(files), false);
   });
 
   it('starts no lane for an empty change list', () => {
     assert.deepEqual(lanesOf(['']), []);
   });
 
-  it('runs every lane for a root file', () => {
+  it('runs every lane and e2e for a root file', () => {
     for (const f of [
       'pnpm-lock.yaml',
       'package.json',
@@ -65,52 +67,48 @@ describe('changedLanes', () => {
     ]) {
       const { lanes, verifyPackages } = changedLanes([f]);
       assert.equal(lanes.root, true, f);
-      assert.deepEqual(verifyPackages, ['shared', 'relay', 'client', 'cli', 'e2e'], f);
+      assert.equal(lanes.e2e, true, f);
+      assert.deepEqual(verifyPackages, ['shared', 'relay', 'client', 'cli'], f);
     }
   });
 
-  it('fans a shared change out to every lane', () => {
-    assert.deepEqual(lanesOf(['packages/shared/src/index.ts']), [
-      'shared',
-      'relay',
-      'client',
-      'cli',
-      'e2e',
-    ]);
+  it('fans a shared change out to every lane and e2e', () => {
+    const files = ['packages/shared/src/index.ts'];
+    assert.deepEqual(lanesOf(files), ['shared', 'relay', 'client', 'cli']);
+    assert.equal(e2eOf(files), true);
   });
 
   it('keeps a CLI change to the CLI lane', () => {
-    assert.deepEqual(lanesOf(['packages/cli/src/index.tsx']), ['cli']);
+    const files = ['packages/cli/src/index.tsx'];
+    assert.deepEqual(lanesOf(files), ['cli']);
+    assert.equal(e2eOf(files), false);
   });
 
-  it('runs e2e alone for an e2e spec change', () => {
-    assert.deepEqual(lanesOf(['packages/e2e/tests/lobby.spec.ts']), ['e2e']);
+  // The e2e job runs the e2e package's typecheck, format check and lint
+  // itself, so an e2e-only change has an empty verify matrix.
+  it('runs e2e with no verify lane for an e2e spec change', () => {
+    const files = ['packages/e2e/tests/lobby.spec.ts'];
+    assert.deepEqual(lanesOf(files), []);
+    assert.equal(e2eOf(files), true);
   });
 
   it('runs the relay and client lanes for the shared deploy-guard helpers', () => {
-    assert.deepEqual(lanesOf(['scripts/cloudflare/worker-guard.mjs']), [
-      'shared',
-      'relay',
-      'client',
-      'cli',
-      'e2e',
-    ]);
+    const files = ['scripts/cloudflare/worker-guard.mjs'];
+    assert.deepEqual(lanesOf(files), ['shared', 'relay', 'client', 'cli']);
+    assert.equal(e2eOf(files), true);
   });
 
   it('runs the relay lane for its stall sampler, not for the rest of scripts/ci', () => {
-    assert.deepEqual(lanesOf(['scripts/ci/with-stall-sampler.sh']), [
-      'shared',
-      'relay',
-      'cli',
-      'e2e',
-    ]);
+    assert.deepEqual(lanesOf(['scripts/ci/with-stall-sampler.sh']), ['shared', 'relay', 'cli']);
     assert.deepEqual(lanesOf(['scripts/ci/changed-lanes.mjs']), []);
+    assert.equal(e2eOf(['scripts/ci/changed-lanes.mjs']), false);
   });
 });
 
 describe('allLanes', () => {
   it('turns every lane on', () => {
-    assert.deepEqual(allLanes().lanes, {
+    const { lanes, verifyPackages } = allLanes();
+    assert.deepEqual(lanes, {
       shared: true,
       relay: true,
       client: true,
@@ -118,6 +116,7 @@ describe('allLanes', () => {
       e2e: true,
       root: true,
     });
+    assert.deepEqual(verifyPackages, ['shared', 'relay', 'client', 'cli']);
   });
 });
 
@@ -151,10 +150,15 @@ describe('CLI', () => {
     assert.match(out, /^verify-packages=\["cli"\]$/m);
   });
 
+  it('turns e2e on with an empty matrix for an e2e-only change', () => {
+    const out = run([], 'packages/e2e/tests/lobby.spec.ts\n');
+    assert.match(out, /^e2e=true$/m);
+    assert.match(out, /^verify-packages=\[\]$/m);
+  });
+
   it('prints every lane with --all', () => {
-    assert.match(
-      run(['--all'], ''),
-      /^verify-packages=\["shared","relay","client","cli","e2e"\]$/m,
-    );
+    const out = run(['--all'], '');
+    assert.match(out, /^e2e=true$/m);
+    assert.match(out, /^verify-packages=\["shared","relay","client","cli"\]$/m);
   });
 });

@@ -252,7 +252,8 @@ jobs:
       # Matrix is computed dynamically from detect-changes — only lanes for
       # changed packages exist. Status checks for unrelated lanes don't appear
       # in the PR (cleaner than fake-passed). The `verify-summary` aggregator
-      # below is the single check branch protection should target.
+      # below is the single check branch protection should target. e2e has
+      # no lane: the e2e job checks its own package (see there).
       matrix:
         package: ${{ fromJSON(needs.detect-changes.outputs.verify-packages) }}
     steps:
@@ -332,7 +333,9 @@ jobs:
   # failed/cancelled. This keeps the matrix gate honest (skipped is "skipped",
   # not fake-passed) while still giving branch protection a single target.
   # A failed detect-changes (lane rules, version audit, PR title) skips every
-  # lane, so it fails this check too rather than reading as all-skipped.
+  # lane, so it fails this check too rather than reading as all-skipped. An
+  # e2e-only change has an empty matrix and passes here; `E2E (Playwright)`
+  # is the other merge check and does not wait for this one.
   verify-summary:
     name: Verify
     runs-on: [self-hosted, linux, arm64, hnch-podman]
@@ -368,13 +371,13 @@ jobs:
     # of sharing the runner VM's CPUs. timeout-minutes counts from job start,
     # not queue time.
     runs-on: [self-hosted, linux, arm64, hnch-podman, e2e]
-    needs: [detect-changes, verify-summary]
-    # `!failure() && !cancelled()` disables GitHub's default rule that auto-skips
-    # a job when any transitive ancestor was skipped. For e2e-only PRs the
-    # `verify` matrix legitimately skips (empty matrix), which previously
-    # cascaded into e2e being skipped despite `verify-summary` succeeding.
+    # Starts beside the verify lanes, not after them: it builds @hnch/shared
+    # itself and reads no lane output, so slot 1 takes Playwright while the
+    # other slot works through the lanes (ADR-0053 allows one job next to it).
+    # A red lane no longer stops e2e; both checks must be green to merge.
+    needs: detect-changes
+    # Fork guard as on the verify lanes: keeps fork PRs off self-hosted runners.
     if: |
-      !failure() && !cancelled() &&
       needs.detect-changes.outputs.e2e == 'true' &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     timeout-minutes: 10
@@ -389,6 +392,21 @@ jobs:
       - name: Install
         uses: ./.github/actions/pnpm-install
 
+      - name: Build @hnch/shared (consumed by relay + client webServers)
+        run: pnpm --filter @hnch/shared run build
+
+      # The e2e package's own checks (it has no verify lane). They come before
+      # Playwright so a broken spec fails in seconds. Playwright itself does
+      # not typecheck, so it would let an undefined import through.
+      - name: Typecheck (e2e)
+        run: pnpm --filter @hnch/e2e run typecheck
+
+      - name: Format check (e2e)
+        run: pnpm --filter @hnch/e2e run format:check
+
+      - name: Lint (e2e)
+        run: pnpm --filter @hnch/e2e run lint
+
       # On self-hosted (rootless container, no sudo) Playwright system deps are
       # baked into the image — plain `install chromium` is enough. On ubuntu-latest
       # we still need apt-get via `--with-deps`.
@@ -399,9 +417,6 @@ jobs:
       - name: Install Playwright browsers (self-hosted)
         if: runner.environment == 'self-hosted'
         run: pnpm --filter @hnch/e2e exec playwright install chromium
-
-      - name: Build @hnch/shared (consumed by relay + client webServers)
-        run: pnpm --filter @hnch/shared run build
 
       - name: Run e2e
         run: pnpm --filter @hnch/e2e test
