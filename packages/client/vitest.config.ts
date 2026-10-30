@@ -49,7 +49,6 @@ export default defineConfig({
         'src/polyfills.ts',
         'src/zone-flags.ts',
         'src/test-setup.ts',
-        'src/test.ts',
         'src/vitest.global-setup.ts',
         'src/environments/version.ts',
       ],
