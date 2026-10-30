@@ -7,7 +7,7 @@
 
 - ADR-0001 content-blind relay; ADR-0008 6-char code → relay-internal UUID; ADR-0009 relay-enforced opaque tokens at connect; ADR-0012 24h in-memory snapshot.
 - Unspecified: (1) how client turns code into something connectable — out-of-band HTTP lookup or in-band `/ws/:code` mapping; (2) how `JoinCredentials` from `packages/shared/src/auth.ts` ride the wire — query params, `Sec-WebSocket-Protocol` header, or post-upgrade JSON frame.
-- Pre-phase gate per `roadmap.md` §5 + `plans/phase-3-networking.md` §2.1.
+- Pre-phase gate per `roadmap.md` §5.
 - Snapshot rehydration settled by y-websocket sync-step-1/step-2 against relay-side `Y.Doc` — no new design.
 
 ## Decision
