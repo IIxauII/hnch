@@ -20,37 +20,25 @@ jobs:
   check:
     name: Check hnch-podman runner pool
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    # Five looks 30 s apart take 2 min at most; a healthy pool passes on the first.
+    timeout-minutes: 5
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/ci
+          persist-credentials: false
+
+      # scripts/ci/runner-health.mjs holds the rules: a busy runner counts as
+      # present, and a check fails only when every look misses, since an
+      # ephemeral runner is gone for 10-30 s after each job. A missing e2e slot
+      # fails on its own. Each look logs the runner list.
       - name: Check hnch-podman pool and e2e slot online
         env:
           GH_TOKEN: ${{ secrets.RUNNER_HEALTH_PAT }}
+          REPO: ${{ github.repository }}
         run: |
           if [ -z "${GH_TOKEN}" ]; then
             echo "::warning::RUNNER_HEALTH_PAT secret not set — skipping health check"
             exit 0
           fi
-          # Online runners carrying every label passed as an argument.
-          online_with() {
-            jq --args '[.runners[] | select(.status=="online" and ([.labels[].name] as $have | $ARGS.positional - $have | length == 0))] | length' "$@" <<<"$runners"
-          }
-          look() {
-            runners=$(gh api "/repos/${{ github.repository }}/actions/runners?per_page=100")
-            pool=$(online_with hnch-podman)
-            e2e=$(online_with hnch-podman e2e)
-            echo "Online: ${pool} hnch-podman runner(s), ${e2e} with the e2e label"
-          }
-          look
-          # The runners are ephemeral: each one deregisters after a job and
-          # re-registers 10-30 s later. A miss in that gap is not an outage,
-          # so a miss gets one second look a minute later before it alarms.
-          if [ "$pool" -lt 1 ] || [ "$e2e" -lt 1 ]; then
-            echo "Missing a runner; looking again in 60 s (a runner may be re-registering after a job)."
-            sleep 60
-            look
-          fi
-          failed=0
-          [ "$pool" -ge 1 ] || { echo "::error::No hnch-podman runners online"; failed=1; }
-          # ADR-0052: one e2e slot (hnch-runner-1-*). Without it, e2e jobs queue forever.
-          [ "$e2e" -ge 1 ] || { echo "::error::No online hnch-podman runner carries the e2e label (slot 1 down or mislabeled); e2e jobs will queue"; failed=1; }
-          exit "$failed"
+          node scripts/ci/runner-health.mjs

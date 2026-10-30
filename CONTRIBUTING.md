@@ -272,7 +272,7 @@ Releases are automated from commit history using [semantic-release](https://sema
 
 - A merge whose CI run is red or cancelled releases nothing. Its commits release with the next green `main` run, which has tested them too (see [Merge only on green CI](#merge-only-on-green-ci)).
 - If `main` already holds a newer merge when a green run's release starts, that release publishes nothing and passes; the newer merge's green run releases both. Commits that start no CI run of their own don't count as newer merges: the bot's `[skip ci]` release and screenshot commits, and commits touching only `docs/screenshots/**`. A human commit marked to skip CI does count, and holds back releases until a later merge goes green.
-- Every completed CI run starts a Release run, PR runs and red or cancelled runs included. Those show as skipped, so most Release runs are skipped ones.
+- Every completed CI run on `main` starts a Release run, red and cancelled ones included (PR runs from other branches start none). Those skip, and their run title says why, such as `Release skipped: CI failure on push, not a green main push`; a releasing run is titled `Release: <merge commit subject>`.
 - The release isn't among the merge commit's checks. List the runs that weren't skipped with:
 
   ```sh
