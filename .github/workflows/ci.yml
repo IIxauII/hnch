@@ -256,8 +256,9 @@ jobs:
 
       # Evidence for verified-skip (ADR-0055): the tree this run tests (the
       # pull/N/merge checkout), the base tip it was merged on, and the PR head.
-      # Only when that base is the one the lane diff above started from, so
-      # the lanes this run picked cover the squash commit's changes.
+      # Only when that base is the one the lane diff above started from, or
+      # that one plus the bot's [skip ci] commits (base.sha goes stale when they
+      # land), so the lanes this run picked cover the squash commit's changes.
       # The main push run of the squash merge reads it from the PR head's
       # newest completed run, and only if that run concluded success. When the
       # checkout is not that merge it uploads an `unrecorded` marker, so main

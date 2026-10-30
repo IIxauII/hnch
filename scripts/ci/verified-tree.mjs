@@ -162,16 +162,36 @@ function compareWithMain({ sha, lastGreen, git, pr, run, record }) {
 /**
  * What a PR run records: the tree of the merge it checked out, the base tip
  * that merge was made on (its first parent), and the PR head (its second).
- * Null when the checkout is not the merge of `head` onto `base` (the event's
- * base, which the run's lane diff starts from); the CLI then uploads an
- * `unrecorded` marker instead, so a main run misses without a warning.
+ *
+ * The run's lane diff starts from the event's `base`, which goes stale when
+ * the bot's [skip ci] commits land on main: they do not update the PR, but
+ * GitHub builds the merge on the newer tip. The first parent may therefore
+ * be ahead of `base` by bot commits only, which no lane counts, so the lanes
+ * the run picked still cover the merge.
+ *
+ * Null when the checkout is not such a merge of `head`; the CLI then uploads
+ * an `unrecorded` marker instead, so a main run misses without a warning.
+ * Never throws on a git error: a crash here would fail the PR run.
  *
  * @param {{ git: (args: string[]) => string, head: string, base: string, pr: number }} input
  */
 export function recordVerifiedTree({ git, head, base, pr }) {
   const parents = git(['rev-list', '--parents', '-n', '1', 'HEAD']).split(' ').slice(1);
-  if (parents.length !== 2 || parents[0] !== base || parents[1] !== head) return null;
+  if (parents.length !== 2 || parents[1] !== head) return null;
+  if (parents[0] !== base && !onlyBotCommitsBetween(git, base, parents[0])) return null;
   return { tree: git(['rev-parse', 'HEAD^{tree}']), base: parents[0], head, pr };
+}
+
+/** Whether `tip` is `base` plus [skip ci] bot commits; false on any git error. */
+function onlyBotCommitsBetween(git, base, tip) {
+  try {
+    if (git(['merge-base', base, tip]) !== base) return false;
+    return git(['log', '--format=%s', `${base}..${tip}`])
+      .split('\n')
+      .every((subject) => BOT_SUBJECT.test(subject));
+  } catch {
+    return false;
+  }
 }
 
 // --- CLI: the adapters over the real gh and git ---------------------------
@@ -247,7 +267,7 @@ function recordCommand(file) {
   if (!result) {
     // A marker, not nothing: a green run with no artifact at all reads as
     // breakage on main and warns.
-    const unrecorded = `the checkout is not the merge of ${head} onto ${base}`;
+    const unrecorded = `the checkout is not the merge of ${head} onto ${base} or onto ${base} plus [skip ci] bot commits`;
     writeFileSync(file, `${JSON.stringify({ unrecorded, head, pr }, null, 2)}\n`);
     stdout.write(`Recording no tree: ${unrecorded}.\n`);
     return 0;

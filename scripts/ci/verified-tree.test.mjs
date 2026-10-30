@@ -402,6 +402,54 @@ describe('recordVerifiedTree', () => {
   });
 });
 
+describe('recordVerifiedTree on a stale event base', () => {
+  /**
+   * The event's base goes stale: the bot's [skip ci] commits land on main
+   * without touching the PR, so GitHub keeps the old base.sha but builds
+   * refs/pull/N/merge on the newer main tip. `landed` are the subjects of
+   * the commits between the two.
+   */
+  function mergeOnStaleBase(landed) {
+    const repo = makeRepo();
+    const eventBase = repo.commit('feat(relay): earlier merge (#6)', { a: '1' });
+    repo.rawGit('checkout', '-q', '-b', 'pr');
+    const head = repo.commit('fix(cli): the PR', { b: '2' });
+    repo.rawGit('checkout', '-q', 'main');
+    landed.forEach((subject, i) => repo.commit(subject, { [`s${i}`]: 'png' }));
+    const tip = repo.rawGit('rev-parse', 'HEAD');
+    repo.rawGit('merge', '-q', '--no-ff', '-m', 'Merge pr into main', 'pr');
+    return { ...repo, head, eventBase, tip };
+  }
+
+  // The lane diff from the stale base left out only the bot's commits, which
+  // no lane counts, so the run's lane choice covers the merge on the new tip.
+  it('records the newer main tip as the base when only bot commits landed after the event base', () => {
+    const { git, rawGit, head, eventBase, tip } = mergeOnStaleBase([
+      'chore(screenshots): refresh @ sha-b2953a2 [skip ci]',
+      'chore(release): relay-v1.4.0 [skip ci]',
+    ]);
+    assert.deepEqual(recordVerifiedTree({ git, head, base: eventBase, pr: 7 }), {
+      tree: rawGit('rev-parse', 'HEAD^{tree}'),
+      base: tip,
+      head,
+      pr: 7,
+    });
+  });
+
+  it('records nothing when a human commit landed after the event base', () => {
+    const { git, head, eventBase } = mergeOnStaleBase([
+      'chore(screenshots): refresh @ sha-b2953a2 [skip ci]',
+      'feat(client): main moved on (#8)',
+    ]);
+    assert.equal(recordVerifiedTree({ git, head, base: eventBase, pr: 7 }), null);
+  });
+
+  it('records nothing when the event base is not an ancestor of the merged main tip', () => {
+    const { git, head } = mergeOnStaleBase(['chore(screenshots): refresh @ sha-b2953a2 [skip ci]']);
+    assert.equal(recordVerifiedTree({ git, head, base: head, pr: 7 }), null);
+  });
+});
+
 // ci.yml's lane diff and release.yml's fast-forward skip the same bot commits
 // in bash; a drift would let one count a commit the others skip.
 describe('BOT_SUBJECT', () => {
