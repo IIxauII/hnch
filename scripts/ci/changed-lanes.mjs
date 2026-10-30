@@ -1,0 +1,99 @@
+#!/usr/bin/env node
+// Maps the files a CI run changed to the lanes it must run. Called by the
+// detect-changes job in .github/workflows/ci.yml, which works out the base
+// and the changed-file list; this script owns only the path rules.
+//
+//   node scripts/ci/changed-lanes.mjs < changed.txt >> "$GITHUB_OUTPUT"
+//   node scripts/ci/changed-lanes.mjs --all >> "$GITHUB_OUTPUT"
+//
+// stdin is one path per line. stdout is the job's outputs as key=value lines;
+// the reasoning goes to stderr so it shows in the job log.
+//
+// Pure Node, no dependencies: detect-changes does not install node_modules.
+import { readFileSync } from 'node:fs';
+import { argv, stderr, stdout } from 'node:process';
+
+/** Every package with a verify lane, in matrix order. */
+export const PACKAGES = ['shared', 'relay', 'client', 'cli', 'e2e'];
+
+// Root files force the full pipeline.
+const ROOT = /^(pnpm-lock\.yaml|package\.json|tsconfig.*\.json|\.github\/workflows\/)/;
+
+// Markdown at a package's top level (README, CHANGELOG, CLAUDE.md, LICENSE.md)
+// is read by no build, test or runtime path, so it starts no lane. Nested
+// Markdown still counts: a package could bundle or import it from its tree.
+const PACKAGE_DOCS = /^packages\/[^/]+\/[^/]+\.md$/;
+
+/**
+ * @param {string[]} files changed paths, repo-relative
+ * @returns {{
+ *   lanes: Record<'shared'|'relay'|'client'|'cli'|'e2e'|'root', boolean>,
+ *   verifyPackages: string[],
+ *   ignored: string[],
+ * }}
+ */
+export function changedLanes(files) {
+  const ignored = files.filter((f) => PACKAGE_DOCS.test(f));
+  const counted = files.filter((f) => f !== '' && !PACKAGE_DOCS.test(f));
+  const match = (re) => counted.some((f) => re.test(f));
+
+  const lanes = {
+    shared: match(/^packages\/shared\//),
+    relay: match(/^packages\/relay\//),
+    client: match(/^packages\/client\//),
+    cli: match(/^packages\/cli\//),
+    e2e: match(/^packages\/e2e\//),
+    root: match(ROOT),
+  };
+  // The relay and client deploy guards (and their tests) share
+  // scripts/cloudflare/.
+  if (match(/^scripts\/cloudflare\//)) {
+    lanes.relay = true;
+    lanes.client = true;
+  }
+  // The relay lane runs its tests under this script (#568).
+  if (match(/^scripts\/ci\/with-stall-sampler\.sh$/)) lanes.relay = true;
+
+  // Reverse-deps: a shared change fans into all consumers.
+  if (lanes.shared) {
+    lanes.relay = lanes.client = lanes.cli = lanes.e2e = true;
+  }
+  // A relay change re-runs the CLI and shared suites, which test against the
+  // relay through the @hnch/relay/testing harness. After the shared block so
+  // it does not fan out to client/e2e via shared.
+  if (lanes.relay) lanes.cli = lanes.shared = true;
+  // A client or relay change requires e2e.
+  if (lanes.client || lanes.relay) lanes.e2e = true;
+  if (lanes.root) {
+    for (const p of PACKAGES) lanes[p] = true;
+  }
+
+  return { lanes, verifyPackages: PACKAGES.filter((p) => lanes[p]), ignored };
+}
+
+/** Every lane on: the detect-changes fallback when no usable diff exists. */
+export function allLanes() {
+  return changedLanes(['package.json']);
+}
+
+/**
+ * The job outputs as GITHUB_OUTPUT lines. verify-packages is always emitted:
+ * the verify matrix fromJSON()s it and fails to expand on an empty string.
+ */
+export function formatOutputs({ lanes, verifyPackages }) {
+  const lines = Object.entries(lanes).map(([k, v]) => `${k}=${v}`);
+  lines.push(`verify-packages=${JSON.stringify(verifyPackages)}`);
+  return `${lines.join('\n')}\n`;
+}
+
+if (argv[1] === import.meta.filename) {
+  let result;
+  if (argv[2] === '--all') {
+    result = allLanes();
+  } else {
+    result = changedLanes(readFileSync(0, 'utf8').split('\n'));
+    for (const f of result.ignored) stderr.write(`Ignored (package docs): ${f}\n`);
+  }
+  stderr.write(`Lanes: ${result.verifyPackages.join(', ') || 'none'}\n`);
+  stdout.write(formatOutputs(result));
+}

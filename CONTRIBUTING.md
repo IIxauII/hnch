@@ -159,6 +159,7 @@ lefthook auto-installs on `pnpm install`, so a fresh clone gets hooks with no ma
 - [ ] `pnpm typecheck` passes.
 - [ ] `pnpm test` passes.
 - [ ] `pnpm test:e2e` passes (if touching client/relay/shared).
+- [ ] `pnpm test:ci-scripts` passes (if touching `scripts/ci/`).
 - [ ] PR title follows Conventional Commits (drives the release).
 - [ ] No `Co-Authored-By` trailers.
 - [ ] ADR added/updated if structural.
@@ -239,7 +240,7 @@ A merge or rebase strategy would let multiple branch commits drive multiple rele
 
 The repo is private on GitHub Free, so it has no branch protection and nothing blocks a merge on red. Agents and humans follow this by convention:
 
-- Merge only when every CI check on the PR's latest commit is green (`gh pr checks <n> --watch`). A cancelled check is not green: re-run it. A job skipped by `detect-changes` is fine.
+- Merge only when every CI check on the PR's latest commit is green (`gh pr checks <n> --watch`). A cancelled check is not green: re-run it. A job skipped by `detect-changes` is fine. A PR that only edits Markdown at a package's top level (a package README, CHANGELOG or CLAUDE.md) runs no package lane and no e2e; `scripts/ci/changed-lanes.mjs` holds the rules that pick lanes.
 - Never merge on red, even when the failure looks unrelated.
 - After merging, check your merge's `ci.yml` push run (`gh run list --repo IIxauII/hnch --workflow ci.yml --event push --commit <merge-sha>`) and fix forward if it goes red. If a newer merge cancelled it, check the newest `main` push run instead (`gh run list --repo IIxauII/hnch --workflow ci.yml --event push --branch main --limit 1`): it covers yours. Don't re-run the old cancelled run; it shares the concurrency group and would cancel the newer one.
 

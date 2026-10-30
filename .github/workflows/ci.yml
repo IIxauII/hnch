@@ -61,6 +61,11 @@ jobs:
           fetch-depth: 0
           filter: blob:none
 
+      # A wrong rule here skips lanes silently and goes green, so the rules
+      # are tested before they are used. Built-in node:test, no install.
+      - name: Test lane rules
+        run: node --test scripts/ci/changed-lanes.test.mjs
+
       - id: filter
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -70,17 +75,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Every lane on. verify-packages must be emitted too: the verify
-          # matrix fromJSON()s it and fails to expand on an empty string.
-          # The ::warning:: annotation makes a fallback visible on the run
-          # summary (a lost actions: read, a broken API, rewritten history).
+          # Every lane on. The ::warning:: annotation makes a fallback visible
+          # on the run summary (a lost actions: read, a broken API, rewritten
+          # history).
           full_pipeline() {
             echo "$1"
             echo "::warning::$1"
-            for v in shared relay client cli e2e root; do
-              echo "$v=true" >> "$GITHUB_OUTPUT"
-            done
-            echo 'verify-packages=["shared","relay","client","cli","e2e"]' >> "$GITHUB_OUTPUT"
+            node scripts/ci/changed-lanes.mjs --all >> "$GITHUB_OUTPUT"
             exit 0
           }
 
@@ -185,67 +186,11 @@ jobs:
           echo "Changed files between $base and $head:"
           echo "$changed"
 
-          # A herestring, not echo | grep -q: under pipefail, grep -q exiting on
-          # the first hit can SIGPIPE echo on a long list and report no match.
-          match() { grep -qE "$1" <<< "$changed"; }
-
-          root=false
-          shared=false
-          relay=false
-          client=false
-          cli=false
-          e2e=false
-
-          if match '^(pnpm-lock\.yaml|package\.json|tsconfig.*\.json|\.github/workflows/)'; then
-            root=true
-          fi
-          match '^packages/shared/' && shared=true || true
-          match '^packages/relay/'  && relay=true  || true
-          match '^packages/client/' && client=true || true
-          match '^packages/cli/'    && cli=true    || true
-          match '^packages/e2e/'    && e2e=true    || true
-          # The relay and client deploy guards (and their tests) share
-          # scripts/cloudflare/.
-          if match '^scripts/cloudflare/'; then relay=true; client=true; fi
-          # The relay lane runs its tests under scripts/ci/with-stall-sampler.sh.
-          if match '^scripts/ci/'; then relay=true; fi
-
-          # Reverse-deps: shared change fans into all consumers.
-          if [[ "$shared" == "true" ]]; then
-            relay=true; client=true; cli=true; e2e=true
-          fi
-          # relay change re-runs the CLI and shared suites, which test against
-          # the relay through the @hnch/relay/testing harness. After the shared
-          # block so it does not fan out to client/e2e via shared.
-          if [[ "$relay" == "true" ]]; then
-            cli=true; shared=true
-          fi
-          # client or relay change requires e2e.
-          if [[ "$client" == "true" || "$relay" == "true" ]]; then
-            e2e=true
-          fi
-          # Root files force the full pipeline.
-          if [[ "$root" == "true" ]]; then
-            shared=true; relay=true; client=true; cli=true; e2e=true
-          fi
-
-          for v in shared relay client cli e2e root; do
-            echo "$v=${!v}" >> "$GITHUB_OUTPUT"
-          done
-
-          # Build a JSON array of packages whose verify lane should run.
-          # The `verify` matrix consumes this directly so unrelated lanes
-          # don't appear in the run at all (no fake-pass, no wasted runner slot).
-          # Branch protection should target the `Verify` summary aggregator below,
-          # not individual `Verify (X)` checks (which legitimately disappear on
-          # unrelated PRs).
-          pkgs=()
-          [[ "$shared" == "true" ]] && pkgs+=('"shared"')
-          [[ "$relay"  == "true" ]] && pkgs+=('"relay"')
-          [[ "$client" == "true" ]] && pkgs+=('"client"')
-          [[ "$cli"    == "true" ]] && pkgs+=('"cli"')
-          [[ "$e2e"    == "true" ]] && pkgs+=('"e2e"')
-          ifs_old=$IFS; IFS=,; echo "verify-packages=[${pkgs[*]}]" >> "$GITHUB_OUTPUT"; IFS=$ifs_old
+          # The path rules (lanes, reverse-dep fan-out, Markdown at a package
+          # root starting nothing) live in the script. verify-packages lists
+          # only the lanes that run, so unrelated `Verify (X)` checks don't
+          # appear at all; branch protection targets the `Verify` aggregator.
+          node scripts/ci/changed-lanes.mjs <<< "$changed" >> "$GITHUB_OUTPUT"
 
   verify:
     name: Verify (${{ matrix.package }})
