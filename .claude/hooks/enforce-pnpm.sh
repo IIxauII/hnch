@@ -24,9 +24,9 @@ hit=$(printf '%s' "$cmd" | perl -0777 -ne '
   # 2. Quoted strings (single, or double with backslash escapes), left to right.
   #    A backslash escape outside quotes is kept so \" does not open a string.
   $s =~ s/\\.|\x27[^\x27]*\x27|"(?:[^"\\]|\\.)*"/substr($&, 0, 1) eq "\\" ? $& : " "/gse;
-  # 3. Command position: line start or after ; & | ( ` $( , then optional
+  # 3. Command position: line start or after ; & | ( { ` $( , then optional
   #    keywords, wrappers and VAR=value assignments.
-  my $start = qr/(?:^|[;&|(`])[ \t]*(?:(?:then|do|else|sudo|command|exec|env|time|nohup|xargs)[ \t]+|[A-Za-z_][A-Za-z0-9_]*=\S*[ \t]+)*/m;
+  my $start = qr/(?:^|[;&|({`])[ \t]*(?:(?:then|do|else|sudo|command|exec|env|time|nohup|xargs)[ \t]+|[A-Za-z_][A-Za-z0-9_]*=\S*[ \t]+)*/m;
   my $end = qr/(?=[ \t;&|)`]|$)/m;
   if    ($s =~ /${start}npm[ \t]+(?:install|i|ci|add)${end}/) { print "npm" }
   elsif ($s =~ /${start}yarn${end}/)                         { print "yarn" }

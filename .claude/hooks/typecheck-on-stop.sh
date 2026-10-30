@@ -12,8 +12,13 @@
 # the turn continues. The stamp also records failing states, so a continuation
 # that changes nothing is not blocked again (the stop_hook_active loop guard
 # falls out of this); the next TS change re-runs the check.
+#
+# `--seed` (SessionStart): record the current fingerprint when no stamp exists
+# yet, so a fresh worktree's first turn only checks what that turn changed.
 
 set -uo pipefail
+
+mode="${1:-}"
 
 input=$(cat)
 cwd=$(printf '%s' "$input" | jq -r '.cwd // ""' 2>/dev/null)
@@ -24,8 +29,6 @@ if [ -z "$root" ] || [ ! -f "$root/.claude/hooks/typecheck-on-stop.sh" ]; then
   root="${CLAUDE_PROJECT_DIR:-}"
 fi
 [ -n "$root" ] && [ -d "$root/packages" ] || exit 0
-# Not bootstrapped yet (no pnpm install): nothing meaningful to check.
-[ -d "$root/node_modules" ] || exit 0
 cd "$root" || exit 0
 
 stamp=$(git rev-parse --git-path claude-typecheck.stamp 2>/dev/null) || exit 0
@@ -45,7 +48,15 @@ fingerprint() {
 
 fp=$(fingerprint) || exit 0
 [ -n "$fp" ] || exit 0
+
+if [ "$mode" = "--seed" ]; then
+  [ -s "$stamp" ] || printf '%s\n' "$fp" > "$stamp"
+  exit 0
+fi
+
 [ "$fp" = "$(cat "$stamp" 2>/dev/null)" ] && exit 0
+# Not bootstrapped yet (no pnpm install): nothing meaningful to check.
+[ -d node_modules ] || exit 0
 
 # The root `pnpm typecheck` (pretypecheck builds shared, then every package),
 # spelled out with --no-bail: the root script stops at the first failing package,
