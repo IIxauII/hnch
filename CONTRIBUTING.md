@@ -88,7 +88,7 @@ The commit type drives the release bump — see [Bump rules](docs/release.md#bum
 
 ## ADR discipline
 
-Read [`adr/README.md`](adr/README.md) before any architectural or structural change. It says when an ADR is needed, how to write, number and index one, and how a new ADR supersedes an old one.
+Read [`adr/README.md`](adr/README.md) before any architectural or structural change. It says when an ADR is needed, how to write and number one, and how a new ADR supersedes an old one.
 
 ## PR scope
 
