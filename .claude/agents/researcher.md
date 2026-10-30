@@ -71,4 +71,4 @@ The caller picks the mode and tells you which mode you are in via the spawn brie
 2. Cite file paths and line numbers for every claim.
 3. If you can't find an answer, say so clearly — don't fabricate.
 4. Keep response under 200 words unless the question genuinely demands more.
-5. When done, use `SendMessage` to send findings to the orchestrator. Plain text is not visible.
+5. When done, end your turn with your findings as the final message. The orchestrator receives only your final message.

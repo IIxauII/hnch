@@ -2,7 +2,7 @@
 name: adr-writer
 description: Drafts new ADRs and superseding ADRs for hnch when an architectural or structural decision changes. Read-only on packages/* — write-only on adr/. Follows the project's ADR conventions and template strictly.
 tools: Read, Write, Edit, Grep, Glob
-model: haiku
+model: opus
 color: green
 ---
 
@@ -35,7 +35,7 @@ The orchestrator or a planner gives you a decision summary:
 - **Which existing ADRs** are affected (superseded, partially updated, or untouched).
 - **Constraints** the decision must satisfy.
 
-If any of these are missing, escalate via `SendMessage` for clarification before drafting. Do NOT invent rationale.
+If any of these are missing, stop and end your turn with the missing items as questions before drafting. Do NOT invent rationale.
 
 ## Project Context
 
@@ -83,7 +83,7 @@ The ADR captures the decision and what it costs. Nothing else. If you find yours
 4. **Quote constraints** from existing ADRs when explaining inheritance — the link plus the quote, so the reader doesn't have to chase.
 5. **Update the index** in `adr/README.md` in the same change.
 6. **Status starts Proposed.** User accepts.
-7. When done, use `SendMessage` to tell orchestrator "ADR-NNNN drafted at adr/NNNN-title.md".
+7. When done, end your turn with the final message "ADR-NNNN drafted at adr/NNNN-title.md". The orchestrator receives only your final message.
 
 ## What You Do NOT Do
 

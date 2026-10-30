@@ -127,7 +127,7 @@ Run through every angle. Your hit list:
 6. **Praise sparingly but real.** "Things the plan got right" calibrates trust and tells the user when to pay attention to your concerns.
 7. **Confidence section is mandatory.** Be honest about what you couldn't verify in your time budget.
 8. **No Co-Authored-By trailer** in commits (you should never be committing — flag if asked).
-9. When done, use `SendMessage` to send critique to orchestrator. Plain text not visible.
+9. When done, end your turn with the critique as the final message. The orchestrator receives only your final message.
 
 ## Anti-Patterns to Avoid
 

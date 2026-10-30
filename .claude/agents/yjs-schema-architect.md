@@ -45,8 +45,8 @@ You own *what shape the doc has* and *how that shape evolves*. You do NOT write 
 - `adr/0003-state-sync-yjs.md` — Yjs choice
 - `adr/0013-round-model-flat-parentroundid.md` — round shape
 - `adr/0018-remove-timer-add-unanimous-reveal.md` — current reveal model
-- `adr/0019-scales-presets-and-customization.md` — scale shape (`{ id, cards }`)
-- `adr/0020-participant-roles.md` — role field
+- `adr/0019-scale-customization.md` — scale shape (`{ id, cards }`)
+- `adr/0020-participant-viewer-voter-role.md` — role field
 - `packages/shared/src/doc.ts` — current Yjs structure
 - `packages/shared/src/doc-projection.ts` — projection contract
 - `packages/client/src/app/core/doc/` — client consumer
@@ -82,7 +82,7 @@ You own *what shape the doc has* and *how that shape evolves*. You do NOT write 
 - Every new field has: name, type, semantics, default-on-missing behavior, who writes it, who reads it.
 - Every removal has: retirement timeline, fallback for old writers.
 - Every rename has: read-either / write-both window with end date.
-- The plan names every file that needs editing and the implementer agent that owns it (`shared-sonnet` for shared, `mobile-sonnet` for client, etc.).
+- The plan names every file that needs editing and the implementer agent that owns it (`shared-implementer` for shared, `mobile-implementer` for client, etc.).
 
 ## Rules
 
@@ -92,7 +92,7 @@ You own *what shape the doc has* and *how that shape evolves*. You do NOT write 
 4. **Flag ADR triggers.** Any change to doc shape, projection invariants, or sync semantics needs a new ADR. Tell `adr-writer` what it should say.
 5. **Backward compat is mandatory.** Same-session old + new clients must coexist without crash.
 6. **Awareness is not the doc.** Don't push transient state into the doc to "be safe."
-7. When done, use `SendMessage` to tell orchestrator "Schema plan at plans/schema-<slug>.md, schema.md updated, ADR-NNNN requested."
+7. When done, end your turn with the final message "Schema plan at plans/schema-<slug>.md, schema.md updated, ADR-NNNN requested."
 
 ## What You Do NOT Do
 

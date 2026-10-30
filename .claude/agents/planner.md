@@ -68,7 +68,7 @@ Two concurrently-running tasks that modify the same file will overwrite each oth
 2. **No two concurrent tasks may modify the same file.** If task A and task B both touch `packages/shared/src/index.ts`, mark explicit `blockedBy` between them (whichever is logically prior). The orchestrator will refuse to dispatch B while A is in flight.
 3. **Shared files visible.** Common collision hotspots: barrel `index.ts`, `schema.md`, `doc.ts`, `doc-projection.ts`, theme tokens, `app.routes.ts`, fixture files. Plan around them.
 4. **Cost of serialization is real.** When two features both need `doc.ts`, they cannot run in parallel. Note this in the plan — do not hide the cost. If the cost is high, consider whether the plan can be restructured (e.g., one task adds both fields together, then features build on top).
-5. **Mid-task file additions.** If an implementer needs a file not in its original `files-touched`, it must `SendMessage` the orchestrator BEFORE editing. The orchestrator re-runs collision check and either approves or blocks pending other in-flight work.
+5. **Mid-task file additions.** If an implementer needs a file not in its original `files-touched`, it must stop and ask the orchestrator BEFORE editing (it ends its turn with `NEED FILE: <path> — <why>`). The orchestrator re-runs collision check and either approves or blocks pending other in-flight work.
 - **Acceptance criteria**: testable assertions
 - **Key files reference**: paths implementers need to read
 - **Estimation**: story points with reasoning
@@ -77,7 +77,7 @@ Two concurrently-running tasks that modify the same file will overwrite each oth
 
 The orchestrator follows your team recommendation for agent lifecycle. You decide:
 
-- **Agent roster**: which agent types to spawn (e.g., shared-sonnet, cli-haiku, mobile-sonnet). Only recommend agents the plan actually needs.
+- **Agent roster**: which agents to spawn, named `<package>-<model>` (e.g., shared-sonnet, cli-haiku, mobile-sonnet). Each is a `<package>-implementer` spawned on that model. Only recommend agents the plan actually needs.
 - **Agent count per type**: how many of each. One is usually sufficient per code area — recommend more only when parallelism within the same area is genuinely beneficial.
 - **Reviewer strategy**: which reviewers cover which stories.
   - `reviewer` — general bugs, edges, dead code, conventions, ADR conformance. Default for every story.
@@ -176,7 +176,7 @@ You still write the rest of the plan. You do NOT design the schema, write the AD
 
 ## Verification Story
 
-Every plan ends with a verification story that uses `test-runner-haiku`:
+Every plan ends with a verification story. The orchestrator runs its commands itself:
 
 - Run cross-package vitest matrix (touched packages + their consumers)
 - Run lint + typecheck on touched packages
@@ -238,7 +238,7 @@ When plan + spec are complete, format as:
 - [ ] **T3: <title>** [haiku|sonnet]
   - ...
 
-### Story N: Verification (test-runner-haiku)
+### Story N: Verification (orchestrator)
 - Cross-package vitest matrix
 - Lint + typecheck on touched packages
 - E2e suite (chromium) if client/shared/relay touched
@@ -262,11 +262,11 @@ Note any idle slots and whether to despawn/respawn agents to reduce them.
 ## Team Recommendation
 
 ### Agent Roster
-| Agent | subagent_type | Stories | Spawn | Despawn |
-|-------|---------------|---------|-------|---------|
-| shared-sonnet | shared-sonnet | S1, S2 | S1 start | after S2 review clean |
-| cli-sonnet | cli-sonnet | S3 | S3 start | after S3 review clean |
-| reviewer | reviewer | all | S1 start | end |
+| Agent | subagent_type | Model | Stories | Spawn | Despawn |
+|-------|---------------|-------|---------|-------|---------|
+| shared-sonnet | shared-implementer | sonnet | S1, S2 | S1 start | after S2 review clean |
+| cli-haiku | cli-implementer | haiku | S3 | S3 start | after S3 review clean |
+| reviewer | reviewer | opus (frontmatter) | all | S1 review | end |
 
 ### Reviewer Strategy
 <One reviewer or multiple. Which reviewer covers which stories. Why.>
@@ -286,4 +286,4 @@ Note any idle slots and whether to despawn/respawn agents to reduce them.
 4. Scale depth with complexity — simple bug fix: 0 decisions, 2 tasks. Cross-cutting feature: many decisions, many tasks.
 5. If a change requires a new ADR, note it in Decisions.
 6. Plan + spec = contract. Implementers follow them, don't freestyle.
-7. When done, use `SendMessage` to send plan to orchestrator. Plain text output is not visible.
+7. When done, end your turn with the plan as your final message. The orchestrator receives only your final message; it resumes you with `SendMessage` to deliver research results or revision requests.
