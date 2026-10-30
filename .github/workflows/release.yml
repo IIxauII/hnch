@@ -226,7 +226,8 @@ jobs:
           #   without failing. A human commit marked to skip CI also counts as
           #   one, and holds back releases until a later merge goes green.
           # Keep BOT_SUBJECT and the docs/screenshots/ prefix in step with
-          # ci.yml (detect-changes BOT_SUBJECT, paths-ignore).
+          # ci.yml (detect-changes BOT_SUBJECT, paths-ignore) and
+          # scripts/ci/verified-tree.mjs (a test there checks the BOT_SUBJECTs).
           # The checkout has no blobs outside the sparse cone. --no-renames
           # keeps the diff below to trees, and --quiet keeps the merges from
           # printing a diffstat; without them git would fetch every changed

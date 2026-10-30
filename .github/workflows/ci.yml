@@ -201,7 +201,8 @@ jobs:
             # on the subject only, as release.yml does: a body line must not
             # drop a human commit's files. main is squash-only and so linear.
             # Still tree-only: diff-tree --name-only never reads blobs.
-            # Keep BOT_SUBJECT in step with release.yml.
+            # Keep BOT_SUBJECT in step with release.yml and scripts/ci/verified-tree.mjs
+            # (a test there checks all three).
             BOT_SUBJECT='^chore\((release|screenshots)\): .*\[skip ci\]$'
             # An assignment, not < <(...): errexit sees a failing git log.
             commits=$(git log --format='%H %s' "$base..$head")
@@ -258,9 +259,11 @@ jobs:
       # Only when that base is the one the lane diff above started from, so
       # the lanes this run picked cover the squash commit's changes.
       # The main push run of the squash merge reads it from the PR head's
-      # newest completed run, and only if that run concluded success. Fork PRs
-      # record nothing: their lanes and e2e never run. Last in the job, so a
-      # failed check above uploads nothing; a re-run replaces the record.
+      # newest completed run, and only if that run concluded success. When the
+      # checkout is not that merge it uploads an `unrecorded` marker, so main
+      # misses quietly. Fork PRs record nothing: their lanes and e2e never run.
+      # Last in the job, so a failed check above uploads nothing. A re-run
+      # records the same merge again: it reuses the run's merge commit.
       - name: Record the tested tree
         if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
         env:
@@ -416,7 +419,7 @@ jobs:
     runs-on: [self-hosted, linux, arm64, hnch-podman, e2e]
     # Starts beside the verify lanes, not after them: it builds @hnch/shared
     # itself and reads no lane output, so slot 1 takes Playwright while the
-    # other slot works through the lanes (ADR-0053 allows one job next to it).
+    # other slot works through the lanes (ADR-0052 allows one job next to it).
     # A red lane no longer stops e2e; both checks must be green to merge.
     needs: detect-changes
     # Fork guard as on the verify lanes: keeps fork PRs off self-hosted runners.

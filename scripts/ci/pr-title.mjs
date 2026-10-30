@@ -72,7 +72,8 @@ export function checkPrTitle(title) {
       `No scope found in pull request title "${title}". Scope must match one of: ${SCOPES.join(', ')}.`,
     );
   }
-  // Same scope syntax as scripts/check-commit-scope.sh. The release rules
+  // Comma-separated, no spaces, no empty segments (stricter than the local
+  // commit-msg hook, as the squash title drives releases). The release rules
   // match `<pkg>` between commas, so `client, shared` would skip shared.
   if (!/^[^,\s]+(,[^,\s]+)*$/.test(scope)) {
     return fail(

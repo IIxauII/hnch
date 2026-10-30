@@ -114,6 +114,11 @@ function findVerifyingRun({ repo, sha, gh, download }) {
     return miss(`the ${ARTIFACT} artifact of ${run.html_url} has expired`);
   }
   const record = download(run.id);
+  if (record?.head === head && typeof record.unrecorded === 'string') {
+    return miss(
+      `PR #${pr.number}'s green run ${run.html_url} recorded no tree: ${record.unrecorded}`,
+    );
+  }
   if (
     ![record?.tree, record?.base, record?.head].every((v) => SHA.test(v)) ||
     record.head !== head
@@ -158,8 +163,8 @@ function compareWithMain({ sha, lastGreen, git, pr, run, record }) {
  * What a PR run records: the tree of the merge it checked out, the base tip
  * that merge was made on (its first parent), and the PR head (its second).
  * Null when the checkout is not the merge of `head` onto `base` (the event's
- * base, which the run's lane diff starts from), so nothing is uploaded and a
- * main run finds no record to skip on.
+ * base, which the run's lane diff starts from); the CLI then uploads an
+ * `unrecorded` marker instead, so a main run misses without a warning.
  *
  * @param {{ git: (args: string[]) => string, head: string, base: string, pr: number }} input
  */
@@ -236,12 +241,17 @@ function checkCommand(sha, lastGreen) {
 function recordCommand(file) {
   const head = env.PR_HEAD_SHA;
   const base = env.PR_BASE_SHA;
-  const result = recordVerifiedTree({ git, head, base, pr: Number(env.PR_NUMBER) });
+  const pr = Number(env.PR_NUMBER);
+  const result = recordVerifiedTree({ git, head, base, pr });
+  mkdirSync(dirname(file), { recursive: true });
   if (!result) {
-    stdout.write(`The checkout is not the merge of ${head} onto ${base}; recording nothing.\n`);
+    // A marker, not nothing: a green run with no artifact at all reads as
+    // breakage on main and warns.
+    const unrecorded = `the checkout is not the merge of ${head} onto ${base}`;
+    writeFileSync(file, `${JSON.stringify({ unrecorded, head, pr }, null, 2)}\n`);
+    stdout.write(`Recording no tree: ${unrecorded}.\n`);
     return 0;
   }
-  mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, `${JSON.stringify(result, null, 2)}\n`);
   stdout.write(
     `Recorded tree ${result.tree} on base ${result.base} for PR #${result.pr} (head ${head}).\n`,

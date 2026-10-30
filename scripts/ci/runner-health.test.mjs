@@ -68,8 +68,8 @@ describe('checkRunnerHealth', () => {
     assert.equal(r.looks, 5);
     assert.equal(r.slept.length, 4);
     assert.deepEqual(r.errors, [
-      'No hnch-podman runner online in any of 5 looks over 2 min',
-      'No online hnch-podman runner carries the e2e label in any of 5 looks over 2 min (slot 1 down or mislabeled); e2e jobs will queue',
+      'No hnch-podman runner present (online or busy) in any of 5 looks over 2 min',
+      'No present hnch-podman runner carries the e2e label in any of 5 looks over 2 min (slot 1 down or mislabeled); e2e jobs will queue',
     ]);
   });
 
@@ -78,7 +78,7 @@ describe('checkRunnerHealth', () => {
     assert.equal(r.ok, false);
     assert.equal(r.looks, 5);
     assert.deepEqual(r.errors, [
-      'No online hnch-podman runner carries the e2e label in any of 5 looks over 2 min (slot 1 down or mislabeled); e2e jobs will queue',
+      'No present hnch-podman runner carries the e2e label in any of 5 looks over 2 min (slot 1 down or mislabeled); e2e jobs will queue',
     ]);
   });
 
@@ -173,9 +173,9 @@ describe('runner-health.mjs (CLI)', () => {
     assert.equal(r.status, 1);
     assert.match(
       r.stdout,
-      /^::error::No online hnch-podman runner carries the e2e label in any of 2 looks over 0\.001 s/m,
+      /^::error::No present hnch-podman runner carries the e2e label in any of 2 looks over 0\.001 s/m,
     );
-    assert.doesNotMatch(r.stdout, /::error::No hnch-podman runner online/);
+    assert.doesNotMatch(r.stdout, /::error::No hnch-podman runner present/);
   });
 
   it('exits 1 naming the API error when gh fails on every look', () => {

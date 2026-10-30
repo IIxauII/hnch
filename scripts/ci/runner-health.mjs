@@ -69,10 +69,10 @@ export async function checkRunnerHealth({ look, sleep, log, looks, intervalMs })
   const span = `in any of ${looks} looks over ${duration((looks - 1) * intervalMs)}`;
   if (!listed) return { ok: false, errors: [`Could not list the runners ${span}: ${lastError}`] };
   const errors = [];
-  if (!poolSeen) errors.push(`No hnch-podman runner online ${span}`);
+  if (!poolSeen) errors.push(`No hnch-podman runner present (online or busy) ${span}`);
   if (!e2eSeen) {
     errors.push(
-      `No online hnch-podman runner carries the e2e label ${span} (slot 1 down or mislabeled); e2e jobs will queue`,
+      `No present hnch-podman runner carries the e2e label ${span} (slot 1 down or mislabeled); e2e jobs will queue`,
     );
   }
   return { ok: false, errors };

@@ -11,7 +11,7 @@ import { createServer } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-// What `ng build` writes to www/ (main, chunks, styles, ionicons SVGs,
+// What the client's `build:e2e` writes to dist/e2e (main, chunks, styles, ionicons SVGs,
 // favicon, assets, licenses). Anything else goes out as octet-stream.
 const TYPES = {
   '.html': 'text/html; charset=utf-8',

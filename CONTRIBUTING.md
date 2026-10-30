@@ -161,7 +161,7 @@ Dependabot (`.github/dependabot.yml`) opens one PR per package family, every Mon
 | `angular` | `@angular/*`, `@angular-devkit/*`, `@angular-eslint/*`, `@analogjs/*`, `zone.js`, `typescript` | In the group |
 | `ionic-capacitor` | `@ionic/*`, `@capacitor/*`, `@capacitor-mlkit/*`, `ionicons` | In the group |
 | `yjs` | `yjs`, `y-*`, `lib0` | In the group |
-| `dev-tooling` | vitest, Playwright, Biome, Oxlint, ESLint, lefthook, tsx, tsup, jsdom, semantic-release, wrangler, `@cloudflare/*`, `@types/*` | One PR each |
+| `dev-tooling` | Test, lint, format, build and release tooling (vitest, Playwright, Biome, Oxlint, semantic-release, wrangler and more; `.github/dependabot.yml` holds the full pattern list) | One PR each |
 | `other` | Every other npm dependency | One PR each |
 | `github-actions` | Every action in `.github/` | In the group |
 
@@ -263,7 +263,7 @@ The repo is private on GitHub Free, so it has no branch protection and nothing b
 
 A `main` push run tests everything changed since the last green `main` push run, so a merge whose run was cancelled or failed is tested again by the next one. It leaves out the `[skip ci]` release and screenshot commits, and runs the full pipeline when it can't find a green run to start from. Releases wait for a green `main` push run too (see [When a release runs](#when-a-release-runs)), so a red `main` holds back every release until it is fixed.
 
-**Verified-skip** ([ADR-0055](adr/0055-verified-skip-main-push-run.md)): a PR run records the tree it tested (the PR merged into `main`) in a `verified-tree` artifact, kept 30 days. When you squash-merge a PR whose newest CI run is green and `main` has not moved since that run, the merge commit has that same tree, and its `main` push run skips every package lane and e2e and goes green in under a minute. Its `Detect changed packages` summary names the PR run that verified it. Anything else gets the full `main` run as before: `main` moved after the PR run (re-run the PR's CI before merging if you want the skip), a merge since the last green `main` run other than the bot's `[skip ci]` commits, a PR run older than 30 days, a fork PR, or a direct push. A lookup that fails also runs the lanes, with a warning on the run. `scripts/ci/verified-tree.mjs` holds the rules. A verified-skip run uploads no coverage, so Codecov has no report for that commit.
+**Verified-skip** ([ADR-0055](adr/0055-verified-skip-main-push-run.md)): a PR run records the tree it tested (the PR merged into `main`) in a `verified-tree` artifact, kept 30 days. When you squash-merge a PR whose newest CI run is green and `main` has not moved since that run, the merge commit has that same tree, and its `main` push run skips every package lane and e2e and goes green in under a minute. Its `Detect changed packages` summary names the PR run that verified it. Anything else gets the full `main` run as before: `main` moved after the PR run (to get the skip, update the branch with `main` or push to it, then merge once that run is green; re-running the old run tests the same old merge again), a merge since the last green `main` run other than the bot's `[skip ci]` commits, a PR run older than 30 days, a fork PR, or a direct push. A lookup that fails also runs the lanes, with a warning on the run. `scripts/ci/verified-tree.mjs` holds the rules. A verified-skip run uploads no coverage, so Codecov has no report for that commit.
 
 ## Releases
 

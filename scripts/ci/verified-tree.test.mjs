@@ -298,6 +298,19 @@ describe('checkVerifiedTree', () => {
     );
   });
 
+  // The PR run uploads this marker when its checkout was not head merged onto
+  // the event's base: a known case, not breakage, so no warning.
+  it('runs the lanes without a warning when the PR run said it could not record', () => {
+    assertMiss(
+      checkWith({}, () => ({
+        unrecorded: 'not the merge of the head onto the base',
+        head: PR_HEAD,
+        pr: 7,
+      })),
+      /recorded no tree: not the merge/,
+    );
+  });
+
   // From here on something broke rather than missed: the run must not skip,
   // and the warning puts the cause on the run summary.
   const assertWarning = (result, reason) => {
@@ -508,5 +521,21 @@ if (cmd === 'api' && sub in routes) {
     assert.equal(record.head, head);
     assert.equal(record.pr, 7);
     assert.equal(record.tree, repo.rawGit('rev-parse', 'HEAD^{tree}'));
+  });
+
+  it('writes an unrecorded marker, not a tree, when the checkout is not the merge', () => {
+    const repo = makeRepo();
+    const base = repo.commit('feat(relay): earlier merge (#6)', { a: '1' });
+    const file = join(repo.dir, 'out', 'verified-tree.json');
+    const out = spawnSync('node', [script, 'record', file], {
+      cwd: repo.dir,
+      env: { ...repo.env, PR_HEAD_SHA: PR_HEAD, PR_BASE_SHA: base, PR_NUMBER: '7' },
+      encoding: 'utf8',
+    });
+    assert.equal(out.status, 0, out.stdout + out.stderr);
+    const record = JSON.parse(readFileSync(file, 'utf8'));
+    assert.equal(record.tree, undefined);
+    assert.equal(record.head, PR_HEAD);
+    assert.match(record.unrecorded, /not the merge/);
   });
 });
