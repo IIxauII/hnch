@@ -291,7 +291,10 @@ jobs:
     if: |
       needs.detect-changes.outputs.verify-packages != '[]' &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-    timeout-minutes: 3
+    # A hang guard, not a budget. The client lane takes about 2 min alone and
+    # about 3.5 min with coverage while a Playwright job shares the runner VM,
+    # which is the normal case now that e2e starts beside the lanes (#590).
+    timeout-minutes: 5
     concurrency:
       group: verify-${{ github.ref }}-${{ matrix.package }}
       cancel-in-progress: true
