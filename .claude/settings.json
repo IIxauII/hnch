@@ -15,10 +15,6 @@
           {
             "type": "command",
             "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/enforce-pnpm.sh"
-          },
-          {
-            "type": "command",
-            "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/lint-commit-message.sh"
           }
         ]
       },
@@ -39,10 +35,6 @@
           {
             "type": "command",
             "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/format-on-edit.sh"
-          },
-          {
-            "type": "command",
-            "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/typecheck-on-edit.sh"
           }
         ]
       }
@@ -50,7 +42,12 @@
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/stop-notify.sh" }
+          { "type": "command", "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/stop-notify.sh" },
+          {
+            "type": "command",
+            "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/typecheck-on-stop.sh",
+            "timeout": 300
+          }
         ]
       }
     ],
@@ -60,6 +57,10 @@
           {
             "type": "command",
             "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/session-start-context.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/typecheck-on-stop.sh --seed"
           }
         ]
       }
