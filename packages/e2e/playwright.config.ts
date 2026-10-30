@@ -50,7 +50,7 @@ export default defineConfig({
   // and 2 on a private one, and oversubscribed browsers time out.
   ...(isCI && { workers: Math.min(4, os.availableParallelism()) }),
   // Fail-fast in CI: any single failure aborts the run so a bootstrap
-  // crash doesn't burn the 10-min CI cap on 73 trailing tests against a
+  // crash doesn't burn the CI job's timeout on 73 trailing tests against a
   // blank page. Local: 0 (Playwright treats 0 as disabled = run
   // everything) so devs see the full failure picture.
   maxFailures: isCI ? 1 : 0,

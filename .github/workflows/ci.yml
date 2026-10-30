@@ -26,15 +26,14 @@ permissions:
 
 jobs:
   # The run's only first-wave job: change detection plus the checks that need
-  # neither an install nor a package lane (CI script tests and the workflow
-  # policy, version audit, PR title). A failed check here fails this job, so
+  # neither an install nor a package lane (CI script tests, workflow policy,
+  # version audit, PR title). A failed check here fails this job, so
   # the lanes after it skip; the run still goes red. On a main push it may also
   # find the merge already verified by its PR run and turn every lane off
   # (verified-skip, ADR-0055); PR runs upload the evidence for that.
   #
-  # Every job runs on GitHub-hosted ubuntu-24.04-arm (ADR-0056).
-  # scripts/ci/workflow-policy.mjs, run by the CI script tests below, fails on
-  # any other runner label.
+  # Every job runs on GitHub-hosted ubuntu-24.04-arm (ADR-0056). The
+  # workflow policy step below fails on any non-hosted runner label.
   detect-changes:
     name: Detect changed packages
     runs-on: ubuntu-24.04-arm
@@ -85,10 +84,14 @@ jobs:
 
       # A wrong rule here skips lanes or passes a bad title silently and goes
       # green, so the scripts are tested before they are used. Built-in
-      # node:test, no install. workflow-policy.test.mjs also checks the
-      # repo's own workflows: hosted runners only, actions pinned to a SHA.
+      # node:test, no install.
       - name: Test CI scripts
         run: node --test 'scripts/ci/*.test.mjs'
+
+      # Hosted runners only, actions pinned to a SHA, npm pinned (ADR-0056).
+      # Annotates each offending line.
+      - name: Workflow policy
+        run: node scripts/ci/workflow-policy.mjs
 
       - id: filter
         env:

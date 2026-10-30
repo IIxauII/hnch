@@ -30,7 +30,7 @@ Every job in every workflow runs on a GitHub-hosted runner: `ubuntu-24.04-arm` f
 - Until the flip: hosted minutes billed, on 2 CPUs; e2e runs with 2 workers and takes longer.
 - No control over runner hardware or image; image updates land on GitHub's schedule.
 - SHA pins: updates arrive only through Dependabot PRs; a hand edit must keep the SHA and comment in step.
-- One e2e job: wall time stays one Playwright run; shards would cut it but repeat install, browser install and client build per shard, and need an aggregator for the merge check.
+- One e2e job: e2e wall time is a full Playwright run.
 
 ## Consequences
 
