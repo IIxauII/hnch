@@ -69,7 +69,7 @@
     "jsdom": "^29.0.2",
     "node-types": "npm:@types/node@^22.0.0",
     "typescript": "~5.9.0",
-    "vitest": "^3.2.7",
+    "vitest": "4.1.12",
     "wrangler": "4.151.3"
   },
   "description": "Pointing poker web and mobile client for agile teams"
