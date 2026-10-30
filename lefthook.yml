@@ -25,23 +25,8 @@ commit-msg:
     scope-check:
       run: bash scripts/check-commit-scope.sh {1}
 
-# Screenshot CAPTURE + PUBLISH pre-push hook.
-#
-# THIS IS NOT A CI / e2e VERIFICATION STEP. It does not gate the push on test
-# results. Its job is purely:
-#   1. Run the visual screenshot suite under packages/e2e/tests/_screenshots/.
-#   2. Push the resulting PNGs to the `screenshots` orphan branch under sha-<short>/.
-#   3. Upsert a sticky PR comment with inline image embeds.
-#
-# It is NOT `pnpm test:e2e`, NOT the CI `verify` matrix, NOT a typecheck/lint.
-# A green screenshot hook says nothing about whether the code works — only that
-# the visual fixtures rendered without crashing Playwright. Skipped on
-# merge/rebase pushes. Bypass with `git push --no-verify`.
-#
-# Best-effort EXCEPT for HEAD-invariant violations: if the publish script
-# detects that it moved the invoking worktree's HEAD (a past bug — issue #335),
-# it exits non-zero to gate the push. All other publish failures (playwright
-# flake, push rejection, comment update error) still exit 0 in hook mode.
+# Screenshot capture + publish, not a test gate: see docs/release.md#screenshots.
+# Exits 0 on any failure except a moved worktree HEAD (#335), which blocks the push.
 # See docs/plans/e2e-screenshot-coverage-expansion.md (Phase 3).
 pre-push:
   commands:
