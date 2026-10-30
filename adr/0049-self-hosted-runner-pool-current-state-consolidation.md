@@ -3,6 +3,8 @@
 **Status:** Accepted (deploy-relay cross-arch clause superseded by ADR-0051; pool-size clause superseded by ADR-0053)
 **Date:** 2026-06-13
 
+**Caveat (2026-10-30, #591):** `version-audit` and `pr-title-lint` are no longer jobs; they run as steps of `detect-changes`.
+
 Consolidates ADR-0032, ADR-0033, ADR-0037, ADR-0047 into one current-state statement. Those four accreted the runner topology over five partial supersedes; reconstructing the live setup required reading all of them in order. This ADR restates the topology standalone and retires the chain. Those four files are deleted; this ADR is the sole record — see git history for their bodies. No live decision changes — editorial consolidation per `README.md` Conventions. The runner-location clause of [ADR-0029](0029-relay-deployment.md) is also superseded here (its ssh/symlink/systemd deploy mechanism stands).
 
 ## Context

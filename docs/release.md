@@ -8,8 +8,8 @@ All PRs land via **squash merge**. Merge commits and rebase merging are disabled
 
 This isn't cosmetic — it's load-bearing for releases:
 
-- The **PR title is the release-driving commit message**. It MUST follow Conventional Commits (`<type>(<scope>): <subject>`). The CI **`PR title (Conventional Commits)`** job checks it, so a malformed title turns CI red and the PR is not merged (see below); reviewers don't have to police it manually.
-- For breaking changes: put the `BREAKING CHANGE:` footer in the **PR description** (which becomes the squash commit body when the GitHub default is "Pull request title and description"), or use `feat!(scope): …` in the title for the simpler case.
+- The **PR title is the release-driving commit message**. It MUST follow Conventional Commits (`<type>(<scope>): <subject>`). The **`PR title (Conventional Commits)`** step of the CI `Detect changed packages` job checks it, so a malformed title turns CI red and the PR is not merged (see below); reviewers don't have to police it manually. Editing the title starts no CI run: fix it, then re-run the failed jobs.
+- For breaking changes: put the `BREAKING CHANGE:` footer in the **PR description** (which becomes the squash commit body when the GitHub default is "Pull request title and description"), or use `feat(scope)!: …` in the title for the simpler case.
 - Branch commits during review can be sloppy; only the squashed PR title/body matter for release.
 
 A merge or rebase strategy would let multiple branch commits drive multiple releases per PR — noisy and incorrect. Keep squash-only.
@@ -18,11 +18,13 @@ A merge or rebase strategy would let multiple branch commits drive multiple rele
 
 The repo is private on GitHub Free, so it has no branch protection and nothing blocks a merge on red. Agents and humans follow this by convention:
 
-- Merge only when every CI check on the PR's latest commit is green (`gh pr checks <n> --watch`). A cancelled check is not green: re-run it. A job skipped by `detect-changes` is fine.
+- Merge only when every CI check on the PR's latest commit is green (`gh pr checks <n> --watch`). A cancelled check is not green: re-run it. A job skipped by `detect-changes` is fine. `Verify` sums up the package lanes; `E2E (Playwright)` runs beside them, not after, and starts with the e2e package's typecheck, format check, lint and unit tests. A PR that only edits Markdown at a package's top level (a package README, CHANGELOG or CLAUDE.md) runs no package lane and no e2e; `scripts/ci/changed-lanes.mjs` holds the rules that pick lanes. Each package lane measures coverage and uploads it to Codecov, which posts a coverage comment and a `codecov/patch` check on the PR. That check counts like any other: it fails when the PR's changed lines are less covered than the project overall.
 - Never merge on red, even when the failure looks unrelated.
 - After merging, check your merge's `ci.yml` push run (`gh run list --repo IIxauII/hnch --workflow ci.yml --event push --commit <merge-sha>`) and fix forward if it goes red. If a newer merge cancelled it, check the newest `main` push run instead (`gh run list --repo IIxauII/hnch --workflow ci.yml --event push --branch main --limit 1`): it covers yours. Don't re-run the old cancelled run; it shares the concurrency group and would cancel the newer one.
 
 A `main` push run tests everything changed since the last green `main` push run, so a merge whose run was cancelled or failed is tested again by the next one. It leaves out the `[skip ci]` release and screenshot commits, and runs the full pipeline when it can't find a green run to start from. Releases wait for a green `main` push run too (see [When a release runs](#when-a-release-runs)), so a red `main` holds back every release until it is fixed.
+
+**Verified-skip** ([ADR-0055](../adr/0055-verified-skip-main-push-run.md)): a PR run records the tree it tested (the PR merged into `main`) in a `verified-tree` artifact, kept 30 days. When you squash-merge a PR whose newest CI run is green and `main` has not moved since that run (the bot's `[skip ci]` commits landing before the run are fine), the merge commit has that same tree, and its `main` push run skips every package lane and e2e and goes green in under a minute. Its `Detect changed packages` summary names the PR run that verified it. Anything else gets the full `main` run as before: `main` moved after the PR run (to get the skip, update the branch with `main` or push to it, then merge once that run is green; re-running the old run tests the same old merge again), a merge since the last green `main` run other than the bot's `[skip ci]` commits, a PR run older than 30 days, a fork PR, or a direct push. A lookup that fails also runs the lanes, with a warning on the run. `scripts/ci/verified-tree.mjs` holds the rules. A verified-skip run uploads no coverage, so Codecov has no report for that commit; later PRs still get their Codecov comment and check, compared against an earlier commit.
 
 ## Releases
 
@@ -33,8 +35,9 @@ Releases are automated from commit history using [semantic-release](https://sema
 `release.yml` starts only after a `ci.yml` push run on `main` goes green (a `workflow_run` trigger), and releases the commit that run tested, not whatever `main` holds by then.
 
 - A merge whose CI run is red or cancelled releases nothing. Its commits release with the next green `main` run, which has tested them too (see [Merge only on green CI](#merge-only-on-green-ci)).
+- A verified-skip run (a clean squash merge whose PR run was green, see [Merge only on green CI](#merge-only-on-green-ci)) is a green `main` push run like any other: the release starts as soon as it finishes, under a minute after the merge, and releases the merge commit.
 - If `main` already holds a newer merge when a green run's release starts, that release publishes nothing and passes; the newer merge's green run releases both. Commits that start no CI run of their own don't count as newer merges: the bot's `[skip ci]` release and screenshot commits, and commits touching only `docs/screenshots/**`. A human commit marked to skip CI does count, and holds back releases until a later merge goes green.
-- Every completed CI run starts a Release run, PR runs and red or cancelled runs included. Those show as skipped, so most Release runs are skipped ones.
+- Every completed CI run on `main` starts a Release run, red and cancelled ones included (PR runs from other branches start none). Those skip, and their run title says why, such as `Release skipped: CI failure on push, not a green main push`; a releasing run is titled `Release: <merge commit subject>`.
 - The release isn't among the merge commit's checks. List the runs that weren't skipped with:
 
   ```sh

@@ -1,23 +1,14 @@
 /* eslint-disable max-lines-per-function -- linear capture tour; splitting obscures capture order */
 /**
- * Screenshot capture + regression guard for the agenda item form sheet at 375px.
+ * Screenshot capture for the agenda item form sheet at 375px.
  *
- * Regression guard (always runs):
- *   Asserts that the Add button (add mode) and Save button (edit mode) are
- *   visible and clickable at the 0.6 breakpoint on a 375px mobile viewport.
- *   This test FAILS on the old footer-based layout (button off-screen below
- *   the fold) and PASSES after the actions are relocated to the header toolbar
- *   (issue #446).
+ * Writes PNGs to docs/screenshots/<sha>/agenda/ showing the sheet at the 0.6
+ * breakpoint with the header actions visible (add mode and edit mode). The
+ * regression guard for those actions (issue #446) runs in every e2e run from
+ * `tests/sheet-actions-mobile.spec.ts`; the assertions kept here only wait
+ * for the state the shots show.
  *
- * Screenshot capture (opt-in via SCREENSHOT_CAPTURE=1):
- *   Writes PNGs to docs/screenshots/<sha>/agenda/ showing the sheet at the
- *   0.6 breakpoint with the header actions visible (add mode and edit mode).
- *
- * Run regression guard only:
- *   pnpm --filter @hnch/e2e exec playwright test \
- *     --project=chromium tests/_screenshots/agenda-item-form-mobile.spec.ts
- *
- * Run with screenshot capture:
+ * Run:
  *   SCREENSHOT_CAPTURE=1 pnpm --filter @hnch/e2e exec playwright test \
  *     --project=chromium --workers=1 --reporter=list \
  *     tests/_screenshots/agenda-item-form-mobile.spec.ts
@@ -32,10 +23,12 @@ import {
   onboardMobile,
   createSessionMobile,
   openAgendaItemSheetMobile,
-} from './_helpers/open-sheet-375';
+} from '../fixtures/open-sheet-375';
 
 const OUT_DIR = resolveOutDir('agenda');
 test.use({ trace: 'off', video: 'off', screenshot: 'off' });
+
+test.skip(!process.env['SCREENSHOT_CAPTURE'], 'set SCREENSHOT_CAPTURE=1 to run');
 
 test.describe.configure({ mode: 'serial' });
 
@@ -75,14 +68,11 @@ test('375px mobile — Add button visible and clickable in header (add mode) @ho
     await sheet.getByRole('textbox', { name: 'Title' }).fill('Mobile story');
     await expect(addBtn).toBeEnabled({ timeout: 3_000 });
 
-    // Screenshot capture (opt-in only).
-    if (process.env['SCREENSHOT_CAPTURE']) {
-      await page.waitForTimeout(250);
-      await page.screenshot({
-        path: path.join(OUT_DIR, '12-agenda-add-sheet-375px.png'),
-        fullPage: false,
-      });
-    }
+    await page.waitForTimeout(250);
+    await page.screenshot({
+      path: path.join(OUT_DIR, '12-agenda-add-sheet-375px.png'),
+      fullPage: false,
+    });
   } finally {
     await ctx.close();
   }
@@ -127,14 +117,11 @@ test('375px mobile — Save button visible and clickable in header (edit mode) @
     const cancelBtn = editSheet.getByRole('button', { name: 'Cancel' });
     await expect(cancelBtn).toBeVisible({ timeout: 5_000 });
 
-    // Screenshot capture (opt-in only).
-    if (process.env['SCREENSHOT_CAPTURE']) {
-      await page.waitForTimeout(250);
-      await page.screenshot({
-        path: path.join(OUT_DIR, '13-agenda-edit-sheet-375px.png'),
-        fullPage: false,
-      });
-    }
+    await page.waitForTimeout(250);
+    await page.screenshot({
+      path: path.join(OUT_DIR, '13-agenda-edit-sheet-375px.png'),
+      fullPage: false,
+    });
   } finally {
     await ctx.close();
   }

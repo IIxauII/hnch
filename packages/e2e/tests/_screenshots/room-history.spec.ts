@@ -8,7 +8,7 @@
  * Output: `docs/screenshots/<sha>/history/room-history-*.png` (via shared helper).
  *
  * Run:
- *   pnpm --filter @hnch/e2e exec playwright test \
+ *   SCREENSHOT_CAPTURE=1 pnpm --filter @hnch/e2e exec playwright test \
  *     --project=chromium --workers=1 --reporter=list \
  *     tests/_screenshots/room-history.spec.ts
  */
@@ -23,6 +23,8 @@ const VP_PORTAL = { width: 1280, height: 800 };
 const VP_MOBILE = { width: 390, height: 844 };
 
 test.use({ trace: 'off', video: 'off', screenshot: 'off' });
+
+test.skip(!process.env['SCREENSHOT_CAPTURE'], 'set SCREENSHOT_CAPTURE=1 to run');
 
 interface SeedEntry {
   roomCode: string;

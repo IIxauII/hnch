@@ -42,7 +42,7 @@ Types in use (match existing history — see `git log`):
 | `build` | Build system, packaging |
 | `ci` | CI config |
 
-**Scope is required.** PR-title lint enforces an allowlist (see below). Scopeless titles fail CI, and a PR on red CI is not merged (see [Merge only on green CI](docs/release.md#merge-only-on-green-ci)).
+**Scope is required.** The CI PR-title check (`scripts/ci/pr-title.mjs`) enforces the types above plus `perf` and `revert`, and an allowlist of scopes (see below). Scopeless titles fail CI, and a PR on red CI is not merged (see [Merge only on green CI](docs/release.md#merge-only-on-green-ci)).
 
 | Scope | Use for | Triggers release? |
 |-------|---------|-------------------|
@@ -54,7 +54,7 @@ Types in use (match existing history — see `git log`):
 | `ci` | `.github/workflows/**`, `infra/runner/**` | No |
 | `docs` | Root `*.md`, `docs/**`, `adr/**` | No |
 | `infra` | `infra/**` outside `infra/runner/` (today only `infra/README.md`) | No |
-| `deps` | Dependency bumps (Dependabot et al.) | No |
+| `deps` | Dependency bumps (Dependabot et al., see [Dependency updates](#dependency-updates)) | No |
 | `repo` | Root configs (`package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`, `.gitignore`, etc.) | No |
 
 ### Multi-scope titles
@@ -136,6 +136,23 @@ Errors gate; warnings do not. The warning count is a tracked baseline, not silen
 
 lefthook auto-installs on `pnpm install`, so a fresh clone gets hooks with no manual step. It runs on **staged files only** (sub-second). Bypass with `LEFTHOOK=0 git commit` — it is a fast-feedback guard, not a security boundary. CI remains the source of truth.
 
+## Dependency updates
+
+Dependabot (`.github/dependabot.yml`) opens one PR per package family, every Monday, because each lockfile change runs the full pipeline:
+
+| Group | Covers | Majors |
+|---|---|---|
+| `angular` | `@angular/*`, `@angular-devkit/*`, `@angular-eslint/*`, `@analogjs/*`, `zone.js`, `typescript` | In the group |
+| `ionic-capacitor` | `@ionic/*`, `@capacitor/*`, `@capacitor-mlkit/*`, `ionicons` | In the group |
+| `yjs` | `yjs`, `y-*`, `lib0` | In the group |
+| `dev-tooling` | Test, lint, format, build and release tooling (vitest, Playwright, Biome, Oxlint, semantic-release, wrangler and more; `.github/dependabot.yml` holds the full pattern list) | One PR each |
+| `other` | Every other npm dependency | One PR each |
+| `github-actions` | Every action in `.github/` | In the group |
+
+Security updates are grouped the same way (the `*-security` groups). `@types/node` majors are ignored: it tracks the `engines.node` minimum.
+
+Every Dependabot title is `chore(deps): …`, dev dependencies included, so it passes the PR-title lint. `chore(deps)` cuts no release; a bumped runtime dependency ships with the package's next release.
+
 ## Pre-push checklist
 
 - [ ] Branched from `main`.
@@ -143,6 +160,7 @@ lefthook auto-installs on `pnpm install`, so a fresh clone gets hooks with no ma
 - [ ] `pnpm typecheck` passes.
 - [ ] `pnpm test` passes.
 - [ ] `pnpm test:e2e` passes (if touching client/relay/shared).
+- [ ] `pnpm test:ci-scripts` passes (if touching `scripts/ci/`).
 - [ ] PR title follows Conventional Commits (drives the release).
 - [ ] No `Co-Authored-By` trailers.
 - [ ] ADR added/updated if structural.
@@ -193,7 +211,7 @@ All `dev:*` and `test:e2e` scripts auto-source `.env.local` via `scripts/with-en
 
 Convention: `RELAY_PORT = 1234 + (CLIENT_PORT - 4200)`.
 
-The client (`packages/client/src/environments/environment.ts`) derives `relayHttpUrl` and `relayWsUrl` from `window.location.port` at module load — so the PWA at `localhost:4300` automatically connects to the relay at `localhost:1334` with no extra config. Bootstrap writes `.env.local` to keep `RELAY_PORT` in lockstep with this convention; `with-env.sh` warns if they ever drift.
+The client (`packages/client/src/environments/environment.ts`) derives `relayHttpUrl` and `relayWsUrl` from `window.location.port` at module load — so the PWA at `localhost:4300` automatically connects to the relay at `localhost:1334` with no extra config. The `e2e` build configuration that CI's Playwright runs serve (`pnpm --filter @hnch/client build:e2e`) keeps this file, so it derives the relay the same way. Bootstrap writes `.env.local` to keep `RELAY_PORT` in lockstep with this convention; `with-env.sh` warns if they ever drift.
 
 ### Other commands
 

@@ -20,7 +20,7 @@ Supervisor registers exactly one slot (slot 1) with an extra `e2e` label; every 
 ## Trade-offs
 
 - Playwright jobs from different refs serialize: a second e2e / screenshots job waits for the first (~5–8 min each). A main merge's e2e + screenshot refresh now run back-to-back instead of in parallel.
-- Slot 1 still takes non-Playwright jobs; an e2e job can wait behind whatever slot 1 is running (verify ≤3 min, deploy/release ≤10 min).
+- Slot 1 still takes non-Playwright jobs; an e2e job can wait behind whatever slot 1 is running (verify ≤5 min, deploy/release ≤10 min).
 - One slot is a single point for Playwright: slot 1 down or mislabeled → e2e jobs queue (up to GitHub's 24 h self-hosted queue cap), while `runner-health.yml` stays green (checks `hnch-podman` only).
 - Removes Playwright-vs-Playwright contention only. Other slots still run heavy jobs (verify lanes, `ng build`, wrangler dry-run, deploy/release builds) on the same 8 vCPUs while e2e runs: at most one other job at POOL_SIZE=2, up to three at 4.
 - Labels now differ per slot: label set lives in `supervisor.sh`, not one literal string.
