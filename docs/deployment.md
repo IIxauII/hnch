@@ -54,7 +54,7 @@ Zone `hnch.dev` on Cloudflare (Free plan). The registration stays at IONOS, with
 
 ## Release gate
 
-A red `main` releases and so deploys nothing. `release.yml` starts only from a green `ci.yml` push run on `main` (a `workflow_run` trigger) and releases the commit that run tested. A red or cancelled merge releases with the next green run; a green run whose commit `main` has already moved past (a newer merge) releases nothing and leaves it to that merge's run. The deploys below are dispatched only by a release, so they inherit the gate. Details and recovery: [CONTRIBUTING.md › When a release runs](../CONTRIBUTING.md#when-a-release-runs). A manual `deploy-*.yml` dispatch bypasses it.
+A red `main` releases and so deploys nothing. `release.yml` starts only from a green `ci.yml` push run on `main` (a `workflow_run` trigger) and releases the commit that run tested. A red or cancelled merge releases with the next green run; a green run whose commit `main` has already moved past (a newer merge) releases nothing and leaves it to that merge's run. The deploys below are dispatched only by a release, so they inherit the gate. Details and recovery: [release.md › When a release runs](release.md#when-a-release-runs). A manual `deploy-*.yml` dispatch bypasses it.
 
 ## Relay release-to-deploy pipeline
 
