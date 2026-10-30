@@ -18,7 +18,7 @@
     "pretest": "pnpm run _build:shared",
     "test": "pnpm -r --if-present run test",
     "test:coverage": "pnpm -r --if-present run test:coverage",
-    "test:ci-scripts": "node --test scripts/ci/changed-lanes.test.mjs",
+    "test:ci-scripts": "node --test 'scripts/ci/*.test.mjs'",
     "build": "pnpm -r --if-present run build",
     "predev:client": "pnpm run _build:shared",
     "dev:client": "bash scripts/with-env.sh pnpm --filter @hnch/client dev",

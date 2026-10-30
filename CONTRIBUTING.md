@@ -42,7 +42,7 @@ Types in use (match existing history — see `git log`):
 | `build` | Build system, packaging |
 | `ci` | CI config |
 
-**Scope is required.** PR-title lint enforces an allowlist (see below). Scopeless titles fail CI, and a PR on red CI is not merged (see [Merge only on green CI](#merge-only-on-green-ci)).
+**Scope is required.** The CI PR-title check (`scripts/ci/pr-title.mjs`) enforces the types above plus `perf` and `revert`, and an allowlist of scopes (see below). Scopeless titles fail CI, and a PR on red CI is not merged (see [Merge only on green CI](#merge-only-on-green-ci)).
 
 | Scope | Use for | Triggers release? |
 |-------|---------|-------------------|
@@ -230,8 +230,8 @@ All PRs land via **squash merge**. Merge commits and rebase merging are disabled
 
 This isn't cosmetic — it's load-bearing for releases:
 
-- The **PR title is the release-driving commit message**. It MUST follow Conventional Commits (`<type>(<scope>): <subject>`). The CI **`PR title (Conventional Commits)`** job checks it, so a malformed title turns CI red and the PR is not merged (see below); reviewers don't have to police it manually.
-- For breaking changes: put the `BREAKING CHANGE:` footer in the **PR description** (which becomes the squash commit body when the GitHub default is "Pull request title and description"), or use `feat!(scope): …` in the title for the simpler case.
+- The **PR title is the release-driving commit message**. It MUST follow Conventional Commits (`<type>(<scope>): <subject>`). The **`PR title (Conventional Commits)`** step of the CI `Detect changed packages` job checks it, so a malformed title turns CI red and the PR is not merged (see below); reviewers don't have to police it manually. Editing the title starts no CI run: fix it, then re-run the failed jobs.
+- For breaking changes: put the `BREAKING CHANGE:` footer in the **PR description** (which becomes the squash commit body when the GitHub default is "Pull request title and description"), or use `feat(scope)!: …` in the title for the simpler case.
 - Branch commits during review can be sloppy; only the squashed PR title/body matter for release.
 
 A merge or rebase strategy would let multiple branch commits drive multiple releases per PR — noisy and incorrect. Keep squash-only.

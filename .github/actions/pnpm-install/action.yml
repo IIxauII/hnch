@@ -13,7 +13,7 @@ inputs:
   ignore-scripts:
     description: |
       Pass --ignore-scripts to pnpm install on the cold-miss path. Set to
-      'true' for lanes (verify, version-audit) that don't exercise native
+      'true' for lanes (verify) that don't exercise native
       postinstalls like msgpackr-extract.
     required: false
     default: 'false'

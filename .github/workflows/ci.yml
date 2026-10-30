@@ -25,6 +25,11 @@ permissions:
   contents: read
 
 jobs:
+  # The run's only first-wave job: change detection plus the two checks that
+  # need neither an install nor a package lane (version audit, PR title). Each
+  # was its own job before, and with two pool slots three first-wave jobs held
+  # back the first verify lane. A failed check here fails this job, so the
+  # lanes after it skip; the run still goes red.
   detect-changes:
     name: Detect changed packages
     runs-on: [self-hosted, linux, arm64, hnch-podman]
@@ -36,10 +41,12 @@ jobs:
     timeout-minutes: 3
     # Job-level permissions replace the workflow-level set, so contents: read
     # is restated. actions: read lets the filter step look up the last green
-    # CI run on main.
+    # CI run on main; pull-requests: read lets the title check read the PR's
+    # current title.
     permissions:
       contents: read
       actions: read
+      pull-requests: read
     outputs:
       shared: ${{ steps.filter.outputs.shared }}
       relay: ${{ steps.filter.outputs.relay }}
@@ -49,7 +56,8 @@ jobs:
       root: ${{ steps.filter.outputs.root }}
       verify-packages: ${{ steps.filter.outputs.verify-packages }}
     steps:
-      - uses: actions/checkout@v4
+      - id: checkout
+        uses: actions/checkout@v4
         with:
           # Full history is required: the filter step diffs base...head and
           # needs the merge-base. blob:none makes that a treeless partial
@@ -60,11 +68,15 @@ jobs:
           # from the promisor remote and the filter buys nothing.
           fetch-depth: 0
           filter: blob:none
+          # The version audit compares against the release tags. fetch-depth: 0
+          # already fetches refs/tags/*; this keeps them if the depth changes.
+          fetch-tags: true
 
-      # A wrong rule here skips lanes silently and goes green, so the rules
-      # are tested before they are used. Built-in node:test, no install.
-      - name: Test lane rules
-        run: node --test scripts/ci/changed-lanes.test.mjs
+      # A wrong rule here skips lanes or passes a bad title silently and goes
+      # green, so the scripts are tested before they are used. Built-in
+      # node:test, no install.
+      - name: Test CI scripts
+        run: node --test 'scripts/ci/*.test.mjs'
 
       - id: filter
         env:
@@ -192,6 +204,36 @@ jobs:
           # appear at all; branch protection targets the `Verify` aggregator.
           node scripts/ci/changed-lanes.mjs <<< "$changed" >> "$GITHUB_OUTPUT"
 
+      # The checks below run even when an earlier step failed, so one run
+      # reports every problem. Both read only the checkout: the four
+      # package.json files are in the working tree and the tags came with the
+      # clone, so nothing is installed or fetched.
+
+      # semantic-release owns the package.json versions; a hand bump fails.
+      - name: Audit package versions against release tags
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
+        run: node scripts/audit-versions.mjs
+
+      # The squash merge makes the PR title the commit on main, so it drives
+      # the release. The title is read from the API, not the event payload, so
+      # re-running the job after fixing the title checks the new one; editing
+      # the title starts no run (no `edited` trigger).
+      - name: PR title (Conventional Commits)
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+          if ! PR_TITLE=$(timeout 30 gh api "repos/$REPO/pulls/$PR_NUMBER" --jq .title); then
+            echo "::warning::Could not read the current PR title; checking the title from the event instead."
+            PR_TITLE="$EVENT_TITLE"
+          fi
+          export PR_TITLE
+          node scripts/ci/pr-title.mjs
+
   verify:
     name: Verify (${{ matrix.package }})
     runs-on: [self-hosted, linux, arm64, hnch-podman]
@@ -289,17 +331,24 @@ jobs:
   # matrix lane either succeeded or was skipped; fails when any lane actually
   # failed/cancelled. This keeps the matrix gate honest (skipped is "skipped",
   # not fake-passed) while still giving branch protection a single target.
+  # A failed detect-changes (lane rules, version audit, PR title) skips every
+  # lane, so it fails this check too rather than reading as all-skipped.
   verify-summary:
     name: Verify
     runs-on: [self-hosted, linux, arm64, hnch-podman]
-    needs: verify
+    needs: [detect-changes, verify]
     if: always()
     timeout-minutes: 1
     steps:
       - name: Aggregate matrix result
         env:
+          DETECT_RESULT: ${{ needs.detect-changes.result }}
           MATRIX_RESULT: ${{ needs.verify.result }}
         run: |
+          if [[ "$DETECT_RESULT" != success ]]; then
+            echo "::error::detect-changes: $DETECT_RESULT, so no verify lane ran"
+            exit 1
+          fi
           case "$MATRIX_RESULT" in
             success|skipped)
               echo "verify matrix: $MATRIX_RESULT — OK"
@@ -310,50 +359,6 @@ jobs:
               exit 1
               ;;
           esac
-
-  version-audit:
-    name: Version audit
-    runs-on: [self-hosted, linux, arm64, hnch-podman]
-    timeout-minutes: 3
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          # Need tags so the audit script can compare package.json versions
-          # against the highest released tag per package.
-          fetch-depth: 0
-
-      - name: Install
-        uses: ./.github/actions/pnpm-install
-        with:
-          ignore-scripts: 'true'
-
-      - name: Audit per-package versions vs git tags
-        run: pnpm audit:versions
-
-  pr-title-lint:
-    name: PR title (Conventional Commits)
-    runs-on: [self-hosted, linux, arm64, hnch-podman]
-    if: github.event_name == 'pull_request'
-    timeout-minutes: 1
-    permissions:
-      pull-requests: read
-    steps:
-      - uses: amannn/action-semantic-pull-request@v5
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          requireScope: true
-          scopes: |
-            client
-            relay
-            cli
-            shared
-            e2e
-            ci
-            docs
-            infra
-            deps
-            repo
 
   e2e:
     name: E2E (Playwright)
