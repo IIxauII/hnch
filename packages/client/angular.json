@@ -77,6 +77,11 @@
             },
             "ci": {
               "progress": false
+            },
+            "e2e": {
+              "outputPath": "dist/e2e",
+              "outputHashing": "all",
+              "progress": false
             }
           },
           "defaultConfiguration": "production"
