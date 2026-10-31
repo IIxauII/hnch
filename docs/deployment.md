@@ -166,21 +166,31 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z
 
 ## Required GitHub secrets and variables
 
-| Name | Kind | Value | Where used |
-|---|---|---|---|
-| `CLOUDFLARE_API_TOKEN` | secret | token `hnch-ci-deploy` (below) | `deploy-relay.yml` and the `web` job of `deploy-client.yml` only |
-| `CLOUDFLARE_ACCOUNT_ID` | secret | the Cloudflare account ID | `deploy-relay.yml` and the `web` job of `deploy-client.yml` only |
-| `HNCH_LIVE` | variable | `true` since the switch (2026-10-29; `false` before) | gates the hnch.dev smokes of both deploys |
-| `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` | secret | VPS SSH target, user, CI key | nothing; deleted when ADR-0054 merged, so an old-tag dispatch fails instead of deploying to the VPS |
-| `RELEASE_TOKEN` | secret | fine-grained PAT (also needs actions: write, for the deploy dispatch) | `release.yml`: semantic-release's release commits, tags and GitHub Releases, and the `gh workflow run deploy-*.yml` dispatch |
+| Name | Kind | Lives in | Value | Where used |
+|---|---|---|---|---|
+| `CLOUDFLARE_API_TOKEN` | secret | environment `cloudflare` | token `hnch-ci-deploy` (below) | `deploy-relay.yml` and the `web` job of `deploy-client.yml` only |
+| `CLOUDFLARE_ACCOUNT_ID` | secret | environment `cloudflare` | the Cloudflare account ID | `deploy-relay.yml` and the `web` job of `deploy-client.yml` only |
+| `RELEASE_TOKEN` | secret | environment `release` | fine-grained PAT (also needs actions: write, for the deploy dispatch) | `release.yml`: semantic-release's release commits, tags and GitHub Releases, and the `gh workflow run deploy-*.yml` dispatch |
+| `CODECOV_TOKEN` | secret | repo | Codecov upload token | the coverage upload in `ci.yml` |
+| `HNCH_LIVE` | variable | repo | `true` since the switch (2026-10-29; `false` before) | gates the hnch.dev smokes of both deploys |
+| `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` | secret | — | VPS SSH target, user, CI key | nothing; deleted when ADR-0054 merged, so an old-tag dispatch fails instead of deploying to the VPS |
+| `NPM_TOKEN` | secret | — | — | nothing; deleted, the CLI publishes through npm trusted publishing (OIDC) |
 
-**Token scope (`hnch-ci-deploy`):** Account › Workers Admin (formerly Workers Scripts: Edit; account-wide, so it also covers the account's other Workers, and lets the first deploy create `hnch-web`) and Zone `hnch.dev` › Workers Routes: Write. No DNS permission and no Zone: Read, which is why every route in `wrangler.jsonc` carries `zone_id`. If a deploy fails with an authentication error, add the missing permission to the token in the dashboard (tokens can be edited in place). The token is a repo secret (no environment secrets on GitHub Free private repos), referenced only by the two deploy jobs, and is CI's only long-lived deploy credential. Fork PRs get no secrets.
+**Environments.** A job sees an environment's secrets only if it names the environment and its ref passes the environment's deployment rule:
+
+- `release`: branch `main`. The Release job runs on `main` only, for both of its triggers.
+- `cloudflare`: branch `main` and tags `client-v*` and `relay-v*`. The release job dispatches each deploy with `--ref <package>-vX.Y.Z`, so the deploy runs on the tag ref, not on `main`.
+
+A PR, from a fork or a branch, names neither, and gets no secrets but `CODECOV_TOKEN` (and a fork PR not even that).
+
+**Token scope (`hnch-ci-deploy`):** Account › Workers Admin (formerly Workers Scripts: Edit; account-wide, so it also covers the account's other Workers, and lets the first deploy create `hnch-web`) and Zone `hnch.dev` › Workers Routes: Write. No DNS permission and no Zone: Read, which is why every route in `wrangler.jsonc` carries `zone_id`. If a deploy fails with an authentication error, add the missing permission to the token in the dashboard (tokens can be edited in place). It is referenced only by the two deploy jobs, and is CI's only long-lived deploy credential.
 
 Set with:
 
 ```sh
-gh secret set CLOUDFLARE_API_TOKEN
-gh secret set CLOUDFLARE_ACCOUNT_ID
+gh secret set CLOUDFLARE_API_TOKEN --env cloudflare
+gh secret set CLOUDFLARE_ACCOUNT_ID --env cloudflare
+gh secret set RELEASE_TOKEN --env release
 gh variable set HNCH_LIVE --body true
 ```
 
