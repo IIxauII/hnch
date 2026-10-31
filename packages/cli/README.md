@@ -21,4 +21,4 @@ Terminal client for hnch (pointing poker for agile teams). Speaks the same Yjs-o
 
 ## License
 
-Proprietary. See [LICENSE.md](https://github.com/IIxauII/hnch/blob/main/LICENSE.md).
+[AGPL-3.0-only](https://github.com/IIxauII/hnch/blob/main/LICENSE). Source: https://github.com/IIxauII/hnch

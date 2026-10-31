@@ -24,10 +24,11 @@ export const PACKAGES = ['shared', 'relay', 'client', 'cli'];
 // Root files force the full pipeline.
 const ROOT = /^(pnpm-lock\.yaml|package\.json|tsconfig.*\.json|\.github\/workflows\/)/;
 
-// Markdown at a package's top level (README, CHANGELOG, CLAUDE.md, LICENSE.md)
-// is read by no build, test or runtime path, so it starts no lane. Nested
-// Markdown still counts: a package could bundle or import it from its tree.
-const PACKAGE_DOCS = /^packages\/[^/]+\/[^/]+\.md$/;
+// Markdown and the LICENSE text at a package's top level (README, CHANGELOG,
+// CLAUDE.md, LICENSE) are read by no build, test or runtime path, so they start
+// no lane. Nested Markdown still counts: a package could bundle or import it
+// from its tree.
+const PACKAGE_DOCS = /^packages\/[^/]+\/([^/]+\.md|LICENSE)$/;
 
 /**
  * @param {string[]} files changed paths, repo-relative

@@ -517,3 +517,92 @@ describe('SettingsPage — display name save', () => {
     expect(() => page.onNameSaved('Ada')).not.toThrow();
   });
 });
+
+describe('SettingsPage — About (AGPL-3.0 section 13 source offer)', () => {
+  async function mountRendered() {
+    const { AccentService } = await import('../core/accent.service');
+    const { AppPreferenceService } = await import('../core/app-preference.service');
+    const { AvatarColorService } = await import('../core/avatar-color.service');
+    const { DocService } = await import('../core/doc/doc.service');
+    const { DisplayNameService } = await import('../core/display-name.service');
+    const { ParticipantIdService } = await import('../core/participant-id.service');
+    const { ScalePreferenceService } = await import('../core/scale-preference.service');
+    const { ThemeService } = await import('../core/theme.service');
+    const { SurfaceService } = await import('../core/surface.service');
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        {
+          provide: AccentService,
+          useValue: { accent: signal('blue').asReadonly(), setAccent: vi.fn() },
+        },
+        {
+          provide: AppPreferenceService,
+          useValue: {
+            relayHttpUrl: signal(undefined).asReadonly(),
+            defaultSessionName: signal(undefined).asReadonly(),
+            defaultPassword: signal(false).asReadonly(),
+          },
+        },
+        {
+          provide: AvatarColorService,
+          useValue: { value: signal<string | null>(null).asReadonly(), setValue: vi.fn() },
+        },
+        {
+          provide: DocService,
+          useValue: { hasSession: signal(false), commands: UNBOUND_SESSION_COMMANDS },
+        },
+        {
+          provide: DisplayNameService,
+          useValue: {
+            getDisplayName: vi.fn().mockResolvedValue('Host'),
+            setDisplayName: vi.fn().mockResolvedValue(undefined),
+          },
+        },
+        { provide: ParticipantIdService, useValue: { id: signal('me').asReadonly() } },
+        {
+          provide: ScalePreferenceService,
+          useValue: {
+            defaultScale: signal({ id: 'fibonacci', cards: ['1'] }).asReadonly(),
+            defaultScaleId: signal('fibonacci').asReadonly(),
+            customScales: signal<CustomScale[]>([]).asReadonly(),
+          },
+        },
+        { provide: ThemeService, useValue: { theme: signal('system').asReadonly() } },
+        {
+          provide: SurfaceService,
+          useValue: {
+            mode: signal('mobile').asReadonly(),
+            sheetBreakpoints: () => [0, 0.5, 1],
+            initialSheetBreakpoint: () => 0.5,
+            sheetBreakpointsFull: () => [0, 0.6, 1],
+            initialSheetBreakpointFull: () => 1,
+          },
+        },
+      ],
+    });
+    const { SettingsPage } = await import('./settings.page');
+    const fixture = TestBed.createComponent(SettingsPage);
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  function item(page: HTMLElement, text: string): Element | undefined {
+    return [...page.querySelectorAll('ion-item')].find((el) => el.textContent?.includes(text));
+  }
+
+  it('links to the source code in a new tab', async () => {
+    const link = item(await mountRendered(), 'Source code');
+
+    expect(link?.getAttribute('href')).toBe('https://github.com/IIxauII/hnch');
+    expect(link?.getAttribute('target')).toBe('_blank');
+    expect(link?.getAttribute('rel')).toBe('noopener noreferrer');
+  });
+
+  it('names the license', async () => {
+    const row = item(await mountRendered(), 'License');
+
+    expect(row?.textContent).toContain('AGPL-3.0-only');
+  });
+});
