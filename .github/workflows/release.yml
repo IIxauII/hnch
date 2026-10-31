@@ -26,8 +26,7 @@ on:
   # release.yml on the default branch, for every completed CI run whose head
   # branch is main: red and cancelled push runs too, and PR runs from a branch
   # named main (a fork's, say). The job's `if:` keeps only successful push
-  # runs. No paths filter: CI's own paths-ignore already skips screenshot-only
-  # pushes, and the bot's [skip ci] release and screenshot commits start no CI
+  # runs. No paths filter: the bot's [skip ci] release commits start no CI
   # run, hence no release.
   workflow_run:
     workflows: [CI]
@@ -134,10 +133,9 @@ jobs:
           # semantic-release reads commits and tags, not old file contents.
           # fetch-depth 0 fetches all history and every tag; blob:none makes it
           # a partial clone of commits and trees only. The sparse cone (root
-          # files, packages/, scripts/) leaves docs/screenshots out of the
-          # working tree, which is most of its bytes. Commits still carry the
-          # full tree, and git fetches any other blob a later step needs from
-          # origin on demand.
+          # files, packages/, scripts/) leaves docs/ out of the working tree.
+          # Commits still carry the full tree, and git fetches any other blob
+          # a later step needs from origin on demand.
           fetch-depth: 0
           filter: blob:none
           sparse-checkout: |
@@ -209,40 +207,32 @@ jobs:
           # the checkout ("local branch is behind"; it exits 0). A commit on
           # main past the release commit is one of:
           # - Skippable: it starts no CI run, so no Release run of its own. That
-          #   is the bot's [skip ci] commits, by subject as in ci.yml's
+          #   is the bot's [skip ci] release commits, by subject as in ci.yml's
           #   detect-changes (package releases from earlier in this loop or an
-          #   earlier attempt, and screenshot refreshes, which
-          #   screenshots-main.yml often pushes while this job runs), and any
-          #   commit touching only CI's paths-ignore (docs/screenshots/**).
-          #   Fast-forward over these.
+          #   earlier attempt). Fast-forward over these.
           # - A newer merge: anything else. Release nothing more here: its CI
           #   run, once green, releases this commit and its own together. This
           #   is how an old green run that lands after a newer merge skips
           #   without failing. A human commit marked to skip CI also counts as
           #   one, and holds back releases until a later merge goes green.
-          # Keep BOT_SUBJECT and the docs/screenshots/ prefix in step with
-          # ci.yml (detect-changes BOT_SUBJECT, paths-ignore) and
-          # scripts/ci/verified-tree.mjs (a test there checks the BOT_SUBJECTs).
-          # The checkout has no blobs outside the sparse cone. --no-renames
-          # keeps the diff below to trees, and --quiet keeps the merges from
-          # printing a diffstat; without them git would fetch every changed
-          # blob, screenshots included.
-          BOT_SUBJECT='^chore\((release|screenshots)\): .*\[skip ci\]$'
+          # Keep BOT_SUBJECT in step with ci.yml (detect-changes) and
+          # scripts/ci/verified-tree.mjs (a test there checks all three).
+          # The checkout has no blobs outside the sparse cone: --quiet on the
+          # merges below keeps them from printing a diffstat, for which git
+          # would fetch every changed blob.
+          BOT_SUBJECT='^chore\(release\): .*\[skip ci\]$'
 
           # 0 if every commit in $1..$2 is skippable. Errors count as not
           # skippable: fast-forwarding over an unchecked commit could release
           # code no CI run tested. Names the blocking commit on stderr.
           only_skippable() {
-            local commits c subject files
+            local commits c subject
             commits=$(git rev-list "$1..$2") || return 1
             for c in $commits; do
               subject=$(git log -1 --format=%s "$c") || return 1
               [[ "$subject" =~ $BOT_SUBJECT ]] && continue
-              files=$(git diff --name-only --no-renames "$c^" "$c") || return 1
-              if [[ -n "$files" ]] && grep -qv '^docs/screenshots/' <<< "$files"; then
-                git log -1 --format='Newer merge: %h %s' "$c" >&2
-                return 1
-              fi
+              git log -1 --format='Newer merge: %h %s' "$c" >&2
+              return 1
             done
           }
 

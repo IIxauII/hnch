@@ -169,7 +169,7 @@ Every Dependabot title is `chore(deps): …`, dev dependencies included, so it p
 
 ## Screenshots
 
-A pre-push hook and a `main` workflow capture and publish screenshots; neither is a test gate.
+A pre-push hook captures a PR's screenshots, and main's e2e run captures main's reference set; both publish to the `screenshots` branch, and neither is a test gate.
 Hook, bypass, layout and troubleshooting: [docs/release.md › Screenshots](docs/release.md#screenshots).
 
 ## Merge strategy

@@ -76,8 +76,8 @@ graphify-out/
 # Per-developer MCP server config for Claude Code
 .mcp.json
 
-# Screenshot runs without SCREENSHOT_SHA write here (local iteration only).
-# docs/screenshots/sha-*/ stays trackable: the screenshots-main workflow
-# commits main's reference set there. scripts/screenshot-publish.mjs removes
-# its own sha-<short>/ output at the end of each run.
-docs/screenshots/local/
+# Screenshot captures: local/ from runs without SCREENSHOT_SHA, sha-<short>/
+# from the pre-push hook and CI. Nothing here is tracked since #597: every
+# published set lives on the `screenshots` branch (main's reference under
+# latest/ there), see docs/release.md › Screenshots.
+docs/screenshots/
