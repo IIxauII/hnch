@@ -40,7 +40,7 @@ Phases 1–6a have shipped, along with mobile parity with the CLI, and the relay
 | 4 | Reveal + host election | Unanimous auto-reveal and elapsed stopwatch work reliably (ADR-0018). Host drops are handled by [host election](schema.md#host-election). |
 | 5 | Access control + join paths | Password-protected rooms work. Share sheet, QR display, QR scan, and `/join?code=` deep links all resolve to Join. Universal links deferred to Phase 6. |
 | 6a | PWA polish | Theme picker, settings screen, reveal animation, haptic wiring, a11y pass. All testable in a browser. |
-| 6b | Native iOS build | Capacitor iOS project, universal links, SQLite persistence, on-device smoke test. v1 candidate. |
+| 6b | Native iOS + Android builds | iOS: Capacitor project, Universal Links, SQLite persistence, TestFlight, on-device smoke test (#607). Android: App Links, signing, Play Internal gated on enrollment (#640). v1 candidate. |
 
 Each phase assumes the previous one passes its exit bar. Within a phase, ordering is opportunistic — use whatever sequence keeps the dev loop fastest.
 
@@ -211,7 +211,7 @@ This design work is ~1 hour; resolve it before relay code lands.
 
 ## 9. Phase 6b — Native iOS + Android builds
 
-> **Superseded by [`plans/native-deployment.md`](plans/native-deployment.md).** The original iOS-only outline below expanded into a 10-PR rollout covering both platforms, CI signing, TestFlight + Play Internal delivery, Tart-based macOS runner, Universal Links + App Links, and SQLite-backed Yjs persistence. See that plan for the authoritative scope, decisions, and rollout order.
+Tracked in two issues: #607 carries the iOS build (Capacitor project, Universal Links, SQLite persistence, TestFlight) and the cross-platform pieces; #640 carries the Android build (App Links, signing, Play Internal, gated on Console enrollment). Nothing native exists on `main` yet. CI for both runs on GitHub-hosted runners ([ADR-0056](../adr/0056-github-hosted-runners.md)); the earlier self-hosted macOS runner idea is dropped.
 
 ---
 
@@ -230,7 +230,7 @@ These apply across phases; flagging them once here saves repeating per phase.
 
 **Logging.** Client: `console.debug` gated behind a boot-time flag. Relay: plain `console.log` with a small structured prefix; no log framework in v1.
 
-**Deploy.** Relay and PWA ship to Cloudflare on `hnch.dev`: Worker + Durable Objects `hnch-relay` and Workers Static Assets `hnch-web` (ADR-0051), live since the switch on 2026-10-29 (#549). The IONOS VPS of ADR-0029 is shut down (ADR-0054). Operational details — deploy flow, cache rules, rollback — live in [`deployment.md`](deployment.md). TestFlight (iOS) + Play Internal (Android) distribution land with the native rollout in [`plans/native-deployment.md`](plans/native-deployment.md).
+**Deploy.** Relay and PWA ship to Cloudflare on `hnch.dev`: Worker + Durable Objects `hnch-relay` and Workers Static Assets `hnch-web` (ADR-0051), live since the switch on 2026-10-29 (#549). The IONOS VPS of ADR-0029 is shut down (ADR-0054). Operational details — deploy flow, cache rules, rollback — live in [`deployment.md`](deployment.md). TestFlight (iOS) and Play Internal (Android) distribution land with the native builds (Phase 6b, [section 9](#9-phase-6b--native-ios--android-builds)).
 
 **ADR hygiene.** Any phase that discovers the architecture is under-specified writes a new ADR *before* the code that depends on it. The current roadmap flags two likely candidates: the ADR-0009 connection handshake (Phase 3) and the access-control wire details (Phase 5).
 
@@ -241,7 +241,7 @@ These apply across phases; flagging them once here saves repeating per phase.
 These are *not* in this roadmap and will be called out if they drift in:
 
 - iPad-specific or landscape-first layouts.
-- Desktop-native flavors (Android-native rolled into Phase 6b per [`plans/native-deployment.md`](plans/native-deployment.md); PWA remains the desktop path).
+- Desktop-native flavors (Android-native is Phase 6b, [section 9](#9-phase-6b--native-ios--android-builds); PWA remains the desktop path).
 - Session history / reporting / analytics surfaces beyond Home's "Jump back in" list.
 - Team UI (the [ADR-0007](../adr/0007-teams-local-only.md) concept stays in architecture, no UI in v1).
 - Integrations with trackers (Jira, Linear, etc.).

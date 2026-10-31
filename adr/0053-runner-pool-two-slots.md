@@ -5,7 +5,7 @@
 
 **Caveat (2026-10-30, #589):** the verify matrix now has 4 lanes (the e2e package's checks moved into the e2e job, #590), the first wave is one job (version audit and PR-title check are steps of `detect-changes`, #591), and `E2E (Playwright)` starts beside the lanes instead of after them (#590). The decision stands: 4 lanes still outnumber the 2 slots, and Playwright still shares the VM with at most one other job ([ADR-0052](0052-single-e2e-runner-slot.md)).
 
-Partially supersedes the pool-size clause of [ADR-0049](0049-self-hosted-runner-pool-current-state-consolidation.md) ("pool size = `verify` matrix lane count"). Rest of ADR-0049 and [ADR-0052](0052-single-e2e-runner-slot.md) unchanged. Plan: [hosting plan, Decisions resolved](../docs/plans/cloudflare-hosting.md#decisions-resolved).
+Partially supersedes the pool-size clause of [ADR-0049](0049-self-hosted-runner-pool-current-state-consolidation.md) ("pool size = `verify` matrix lane count"). Rest of ADR-0049 and [ADR-0052](0052-single-e2e-runner-slot.md) unchanged. Decision history: #544 (the source plan was removed from the repo in #581).
 
 ## Context
 

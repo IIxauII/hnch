@@ -108,7 +108,7 @@ SCREENSHOT_CAPTURE=1 SCREENSHOT_SHA=local \
 
 ### Tag catalog
 
-Every `test()` under `_screenshots/` is annotated with one or more Playwright tags. `.screenshot-tags` (worktree root, gitignored) holds a `--grep` regex — `scripts/screenshot-publish.mjs` passes it through. Empty/missing → full suite runs. The file is materialised inside worktrees by `pnpm worktree:add --plan <slug>` (or `HNCH_PLAN_SLUG=<slug> pnpm worktree:bootstrap`), parsed from the plan doc's `## Screenshot tags` section. Skills do not write this file directly; the primary worktree (`main`) should never contain it.
+Every `test()` under `_screenshots/` is annotated with one or more Playwright tags. `.screenshot-tags` (worktree root, gitignored) holds a `--grep` regex — `scripts/screenshot-publish.mjs` passes it through. Empty/missing → full suite runs. Write the file when creating a worktree with `pnpm worktree:add <name> [base] --tags "<grep>"`, or by hand inside the worktree. Skills do not write this file; the primary worktree (`main`) should never contain it.
 
 | Tag | Scope |
 |---|---|
@@ -136,7 +136,7 @@ Every `test()` under `_screenshots/` is annotated with one or more Playwright ta
 
 **Slug ≠ tag exactly.** Tags drive `--grep` scope selection; the OUT_DIR feature-slug is the *primary* tag of each spec (the one in the table above), and it is the name of the subfolder under `docs/screenshots/<sha>/`. `@all` is grep-only — it never appears as a slug.
 
-**`.screenshot-tags` format.** A single line containing a Playwright `--grep` regex (with optional trailing newline). Tags are space-separated inside test titles, so any tag substring matches. Authoritative source is the plan doc; this file is just the materialised cache inside a worktree. Examples:
+**`.screenshot-tags` format.** A single line containing a Playwright `--grep` regex (with optional trailing newline). Tags are space-separated inside test titles, so any tag substring matches. The file is per worktree and gitignored. Examples:
 
 ```
 # capture only viewer + participants scenes
@@ -149,7 +149,7 @@ Every `test()` under `_screenshots/` is annotated with one or more Playwright ta
 @reveal|@skip
 ```
 
-**Skills (`/plan`, `/spec`, `/critique`).** `/plan` writes a `## Screenshot tags` section into the plan doc — a heading followed by a paragraph whose first inline code span is the regex (e.g. `` `@viewer|@participants` ``). `/spec` does not author tags. `/critique` reads the section from the plan doc and flags scope mismatches. The `.screenshot-tags` file is materialised inside the worktree at `pnpm worktree:add --plan <slug>` time, so parallel worktrees never collide on `main`.
+**Choosing the regex.** Pick the tags whose scenes the change is likely to affect (e.g. `` `@viewer|@participants` `` for a viewer-role change) and include `@all` when the home/lobby/estimating baseline tour is affected. `/critique` flags a tag scope that misses obviously affected surfaces. Because the file lives inside the worktree, parallel worktrees never collide on `main`.
 
 **Tag-to-file map** (one tag → many tests across files; one test → many tags):
 

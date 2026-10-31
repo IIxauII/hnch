@@ -40,6 +40,8 @@ Per-repo config the engineering skills read. Edit these files directly to change
 
 GitHub Issues on `IIxauII/hnch`, via the `gh` CLI. See [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md).
 
+Specs and plans are issues, not repo files: publish a spec with the `to-spec` skill and split it into tickets with `to-tickets` (both from the `mattpocock-skills` plugin). `/critique` reviews an issue; `/swarm` executes one.
+
 ### Triage labels
 
 The five canonical roles, each label string equal to its name. See [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md).

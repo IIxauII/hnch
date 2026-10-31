@@ -7,9 +7,9 @@
  * lefthook pre-push subset (`@lobby-hierarchy|@layout`) re-renders these
  * images whenever lobby chrome moves.
  *
- * Initial coverage focuses on host-side lobby empty + with-results states
- * across {390, 1440} × {light, dark}. The full 4 × 2 × 2 × 2 matrix from
- * docs/specs/lobby-section-visual-hierarchy.md is planned as a follow-up.
+ * Coverage: host-side lobby states across {390, 1440} × {light, dark}.
+ * Whether to widen this to a full state × viewport × theme × role matrix
+ * is decided in #642.
  *
  * Run with:
  *   SCREENSHOT_CAPTURE=1 pnpm --filter @hnch/e2e exec playwright test \

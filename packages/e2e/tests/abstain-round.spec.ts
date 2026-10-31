@@ -1,5 +1,5 @@
 /**
- * Per-round abstain — e2e coverage (ADR-0041, plan: docs/plans/abstain-per-round.md, #120).
+ * Per-round abstain — e2e coverage (ADR-0041, #120).
  * Phase 4 of 4.
  *
  * Four cases:

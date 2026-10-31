@@ -1,6 +1,6 @@
 /**
- * The relay Worker: routes on hnch.dev/{health*,rooms*,ws/*} (ADR-0051),
- * contract items 1–6, 14 and 15 of docs/plans/cloudflare-hosting.md.
+ * The relay Worker: routes on hnch.dev/{health*,rooms*,ws/*} (ADR-0051: HTTP
+ * surface, DO failure handling and expiry sweep clauses).
  *
  *   GET    /health               → 200 {status, version}; never touches a room
  *   POST   /rooms                → 201 {uuid, code}

@@ -14,7 +14,7 @@ Thanks for your interest. This document covers how to propose changes and what e
 Every PR must satisfy all four:
 
 - **PR opened against `main`** — no direct pushes to `main`.
-- **Description present** — explain *what* changed and *why*. Link the related ADR (`adr/NNNN-*.md`) or plan (`plans/*.md`) when applicable.
+- **Description present** — explain *what* changed and *why*. Link the related ADR (`adr/NNNN-*.md`) or issue when applicable.
 - **All checks pass locally** — `pnpm lint && pnpm typecheck && pnpm test` must be green before pushing. Run `pnpm test:e2e` if the change touches `packages/client`, `packages/relay`, or `packages/shared`.
 - **No `Co-Authored-By` trailer** — commit messages must not include a `Co-Authored-By:` line.
 
@@ -191,8 +191,9 @@ For working on multiple branches in parallel (e.g. running multiple AI agents si
 From the main repo dir:
 
 ```sh
-pnpm worktree:add feat-x         # creates ../hnch-feat-x off main
-pnpm worktree:add feat-x dev     # off custom base branch
+pnpm worktree:add feat-x                          # creates ../hnch-feat-x off main
+pnpm worktree:add feat-x dev                      # off custom base branch
+pnpm worktree:add feat-x main --tags "@viewer"    # also scopes the pre-push screenshot capture
 ```
 
 This:
@@ -202,6 +203,7 @@ This:
    - Picks the lowest unused port offset (multiple of 100, skipping 0).
    - Writes `.env.local` with `CLIENT_PORT`, `RELAY_PORT`, `PORT`, `HNCH_RELAY_URL`, `PLAYWRIGHT_BASE_URL`.
    - Runs `pnpm install`.
+3. With `--tags "<grep>"`, writes the regex to `.screenshot-tags` in the new worktree so the pre-push screenshot hook captures only matching scenes ([docs/release.md › Screenshots](docs/release.md#screenshots)).
 
 `flock` serializes concurrent bootstraps so two parallel `pnpm worktree:add` calls won't collide.
 

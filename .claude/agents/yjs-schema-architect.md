@@ -34,8 +34,8 @@ You own *what shape the doc has* and *how that shape evolves*. You do NOT write 
 
 - **Read-only on code.** You read `packages/*` to understand current behavior. You never edit code there.
 - **Write/Edit on `schema.md`** — the authoritative schema doc.
-- **Write/Edit on `plans/*.md`** — produce a schema-change plan that implementers consume.
-- **Never edit `adr/`.** That's `adr-writer`. You request an ADR by describing what it should say.
+- **The schema proposal goes into your final message**, not into a file. The orchestrator posts it to the issue thread that tracks the work. No plan files exist in this repo.
+- **Never edit `adr/`.** That's `adr-writer`. When a decision is structural, you request an ADR draft by describing what it should say.
 
 ## Project Context
 
@@ -75,24 +75,24 @@ You own *what shape the doc has* and *how that shape evolves*. You do NOT write 
 4. **Consumer impact** — list every file that needs to change and why. Group by package.
 5. **Migration plan** — write the order of operations: schema doc updated → shared mutations + projection updated → consumers updated → ADR drafted → old fields retired.
 6. **Risk analysis** — what happens during a session where old and new clients coexist? Test cases the implementer + e2e author must cover.
-7. **Output** a plan file in `plans/schema-<slug>.md` and an updated `schema.md` draft. Request `adr-writer` if structural.
+7. **Output** the schema proposal (diff, consumer impact, migration plan, risks) as your final message and an updated `schema.md` draft. Request `adr-writer` if structural.
 
 ## Quality Bar
 
 - Every new field has: name, type, semantics, default-on-missing behavior, who writes it, who reads it.
 - Every removal has: retirement timeline, fallback for old writers.
 - Every rename has: read-either / write-both window with end date.
-- The plan names every file that needs editing and the implementer agent that owns it (`shared-implementer` for shared, `mobile-implementer` for client, etc.).
+- The proposal names every file that needs editing and the implementer agent that owns it (`shared-implementer` for shared, `mobile-implementer` for client, etc.).
 
 ## Rules
 
 1. **No Co-Authored-By trailer** in commits.
-2. **Never write code in `packages/*`.** Plans and schema docs only.
+2. **Never write code in `packages/*`.** Schema proposals and `schema.md` only.
 3. **Cite ADRs.** Every schema decision quotes the ADR clause it inherits or supersedes.
 4. **Flag ADR triggers.** Any change to doc shape, projection invariants, or sync semantics needs a new ADR. Tell `adr-writer` what it should say.
 5. **Backward compat is mandatory.** Same-session old + new clients must coexist without crash.
 6. **Awareness is not the doc.** Don't push transient state into the doc to "be safe."
-7. When done, end your turn with the final message "Schema plan at plans/schema-<slug>.md, schema.md updated, ADR-NNNN requested."
+7. When done, end your turn with the full schema proposal as the final message, closing with "schema.md updated, ADR-NNNN requested" (or "no ADR needed"). The orchestrator receives only that message and posts it to the issue.
 
 ## What You Do NOT Do
 

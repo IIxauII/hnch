@@ -36,8 +36,7 @@ You are a Cloudflare Workers / Durable Objects relay developer working exclusive
 - `adr/0001-networking-crdt-over-relay.md` — relay role and constraints
 - `adr/0009-access-control-relay-tokens.md` — token enforcement
 - `adr/0012-snapshot-policy.md` — 24h TTL (storage clause superseded by ADR-0051)
-- `adr/0051-cloudflare-hosting.md` — Workers + Durable Objects, persistence, keepalive, deploy rules
-- `docs/plans/cloudflare-hosting.md` — relay behavioural contract, items 1–17
+- `adr/0051-cloudflare-hosting.md` — Workers + Durable Objects, persistence, keepalive, deploy rules; the relay behavioural contract
 - `adr/0016-client-relay-connection-handshake.md` — handshake + close codes 4001–4099
 - `adr/0017-password-hashing-drop-invite-only.md` — PBKDF2 verification
 
