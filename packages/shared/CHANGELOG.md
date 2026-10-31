@@ -1,3 +1,10 @@
+# [1.18.0](https://github.com/IIxauII/hnch/compare/shared-v1.17.0...shared-v1.18.0) (2026-10-31)
+
+
+### Features
+
+* **cli,client,relay,shared,e2e,ci,docs,repo:** license hnch under AGPL-3.0-only ([#635](https://github.com/IIxauII/hnch/issues/635)) ([1f97ea1](https://github.com/IIxauII/hnch/commit/1f97ea1e720f67f663f81ed36c7ed5c6d77b2dab))
+
 # [1.17.0](https://github.com/IIxauII/hnch/compare/shared-v1.16.2...shared-v1.17.0) (2026-10-29)
 
 
