@@ -72,6 +72,7 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0054](0054-vps-decommission.md) | VPS decommission — deploy path removed now, box shut down after the switch (partially supersedes ADR-0051) | Accepted |  |
 | [0055](0055-verified-skip-main-push-run.md) | Verified-skip — a main push run may pass on a green PR run for the identical tree | Accepted |  |
 | [0056](0056-github-hosted-runners.md) | GitHub-hosted runners for all CI/CD — self-hosted pool retired (supersedes ADR-0049, ADR-0052, ADR-0053) | Accepted |  |
+| [0057](0057-screenshot-reference-on-the-screenshots-branch.md) | Screenshot reference set — captured in main's e2e run, stored on the `screenshots` branch | Accepted |  |
 
 ## When to write an ADR
 

@@ -59,10 +59,10 @@ You are the **critique orchestrator**. The `plan-critic` agent does the read-onl
 
 ## Visual context
 
-When critiquing a UI-touching spec/plan (paths under `packages/client/**`; keywords "UI", "screen", "visual", "theme", "layout"), read the canonical screenshots before flagging gaps. They live on `main` under `docs/screenshots/latest/` (symlink maintained by `.github/workflows/screenshots-main.yml`):
+When critiquing a UI-touching spec/plan (paths under `packages/client/**`; keywords "UI", "screen", "visual", "theme", "layout"), read the canonical screenshots before flagging gaps. They live on the `screenshots` branch under `latest/<topic>/` (main's newest reference set, published by main's CI run; `latest.json` beside it names the `main` commit it shows):
 
 ```
-https://github.com/IIxauII/hnch/blob/main/docs/screenshots/latest/<scene>.png?raw=true
+https://github.com/IIxauII/hnch/blob/screenshots/latest/<topic>/<scene>.png?raw=true
 ```
 
 Use them to verify the spec/plan's claims about current behavior match reality, and to spot scenes the change touches but the spec/plan doesn't mention.

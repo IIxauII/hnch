@@ -3,9 +3,16 @@
 // node_modules. Run locally with `pnpm test:ci-scripts`.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
-import { allLanes, changedLanes, formatOutputs } from './changed-lanes.mjs';
+import {
+  SCREENSHOT_PATHS,
+  allLanes,
+  changedLanes,
+  formatOutputs,
+  noLanes,
+} from './changed-lanes.mjs';
 
 const lanesOf = (files) => changedLanes(files).verifyPackages;
 const e2eOf = (files) => changedLanes(files).lanes.e2e;
@@ -105,6 +112,75 @@ describe('changedLanes', () => {
   });
 });
 
+// Main's screenshot reference set (#597): the e2e job captures it on a main
+// push when a UI-bearing path changed, the same paths that start the pre-push
+// hook's capture (scripts/screenshot-publish.mjs RELEVANT_PATHS).
+describe('screenshots', () => {
+  const screenshotsOf = (files) => changedLanes(files).screenshots;
+
+  it('is on for the client, shared, the screenshot specs and the e2e fixtures', () => {
+    for (const f of [
+      'packages/client/src/app/home/home.page.html',
+      'packages/shared/src/index.ts',
+      'packages/e2e/tests/_screenshots/capture.spec.ts',
+      'packages/e2e/tests/fixtures/helpers.ts',
+    ]) {
+      assert.equal(screenshotsOf([f]), true, f);
+    }
+  });
+
+  it('is off for the relay, the CLI, an app spec and docs', () => {
+    for (const f of [
+      'packages/relay/src/server.ts',
+      'packages/cli/src/index.tsx',
+      'packages/e2e/tests/lobby.spec.ts',
+      'docs/ux.md',
+      '',
+    ]) {
+      assert.equal(screenshotsOf([f]), false, f);
+    }
+  });
+
+  // A dependency bump can move pixels, and the full pipeline runs e2e anyway.
+  it('is on for a root file', () => {
+    for (const f of ['pnpm-lock.yaml', 'package.json', '.github/workflows/ci.yml']) {
+      assert.equal(screenshotsOf([f]), true, f);
+    }
+  });
+
+  it('ignores a package README like the lanes do', () => {
+    assert.equal(screenshotsOf(['packages/client/README.md']), false);
+  });
+
+  it('is on for the full-pipeline fallback', () => {
+    assert.equal(allLanes().screenshots, true);
+  });
+
+  // The pre-push hook captures for the same paths; a drift would give a PR a
+  // capture its merge then does not refresh on main, or the other way round.
+  it("matches the pre-push hook's RELEVANT_PATHS", () => {
+    const source = readFileSync(join(import.meta.dirname, '../screenshot-publish.mjs'), 'utf8');
+    const list = /const RELEVANT_PATHS = \[([^\]]*)\]/.exec(source);
+    assert.ok(list, 'no RELEVANT_PATHS in scripts/screenshot-publish.mjs');
+    const hookPaths = [...list[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+    assert.ok(hookPaths.length > 0);
+    for (const p of hookPaths) assert.equal(screenshotsOf([`${p}x.ts`]), true, p);
+    assert.equal(hookPaths.length, SCREENSHOT_PATHS.source.split('|').length);
+  });
+
+  // A verified-skip main run (ADR-0055) still refreshes the reference when
+  // the merge touched the UI: the lanes stay off, capture runs on its own.
+  it('survives a verified skip', () => {
+    const files = ['packages/client/src/main.ts'];
+    const { lanes, verifyPackages, screenshots } = noLanes(files);
+    assert.equal(lanes.e2e, false);
+    assert.deepEqual(verifyPackages, []);
+    assert.equal(screenshots, true);
+    assert.equal(noLanes(['packages/relay/src/server.ts']).screenshots, false);
+    assert.equal(noLanes().screenshots, false);
+  });
+});
+
 describe('allLanes', () => {
   it('turns every lane on', () => {
     const { lanes, verifyPackages } = allLanes();
@@ -131,6 +207,7 @@ describe('formatOutputs', () => {
         'cli=false',
         'e2e=false',
         'root=false',
+        'screenshots=false',
         'verify-packages=[]',
         '',
       ].join('\n'),
@@ -156,13 +233,21 @@ describe('CLI', () => {
     assert.match(out, /^verify-packages=\[\]$/m);
   });
 
-  // A verified-skip main run (ADR-0055): the jobs after detect-changes skip.
-  it('prints every lane off with --none', () => {
-    const out = run(['--none'], '');
+  // A verified-skip main run (ADR-0055): the jobs after detect-changes skip,
+  // but the changed paths still decide whether the reference set is captured.
+  it('prints every lane off with --none and reads the screenshot rule from stdin', () => {
+    const out = run(['--none'], 'packages/client/src/main.ts\n');
     for (const lane of ['shared', 'relay', 'client', 'cli', 'e2e', 'root']) {
       assert.match(out, new RegExp(`^${lane}=false$`, 'm'));
     }
     assert.match(out, /^verify-packages=\[\]$/m);
+    assert.match(out, /^screenshots=true$/m);
+    assert.match(run(['--none'], ''), /^screenshots=false$/m);
+  });
+
+  it('prints the screenshot rule beside the lanes', () => {
+    assert.match(run([], 'packages/relay/src/server.ts\n'), /^screenshots=false$/m);
+    assert.match(run([], 'packages/client/src/main.ts\n'), /^screenshots=true$/m);
   });
 
   // A mistyped flag must not read as an empty change list, which is no lanes.
