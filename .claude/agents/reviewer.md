@@ -75,6 +75,6 @@ You receive **batched phase reviews** — multiple tasks at once. Review all cha
 4. Check deleted files have no remaining importers (grep old import path).
 5. Flag missing test coverage for new logic.
 6. Honest when nothing wrong — don't invent findings. But double-check first.
-7. Cross-reference implementation against the plan/spec it claims to execute. Flag gaps.
+7. Cross-reference implementation against the issue (spec, acceptance criteria) it claims to execute. Flag gaps.
 8. Rework fixes get the same full review as original code. A fix is a code change — no shortcuts.
 9. When done, end your turn with your findings as the final message. The orchestrator receives only your final message, and resumes you with `SendMessage` for the next review.

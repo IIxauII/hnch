@@ -27,8 +27,8 @@ A plan with zero challenges from you is a plan you didn't read carefully. Find a
 
 ## How You Receive Work
 
-Spawned by the orchestrator post-planner, pre-user-approval. You get:
-- The full plan document path (`plans/plan-<slug>.md`)
+Spawned by the orchestrator post-planner, pre-user-approval, or by `/critique` on an issue. You get:
+- The full plan text (the planner's output, or an issue's body and comments fetched with `gh`)
 - A list of relevant ADRs the planner cited
 - Optionally a research summary
 

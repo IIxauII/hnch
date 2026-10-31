@@ -4,15 +4,13 @@ name: Screenshots (main refresh)
 # change. Commits PNGs back to main under docs/screenshots/<sha>/, updates the
 # docs/screenshots/latest symlink, prunes to the newest 10 sha dirs.
 #
-# Discovery contract: skills (/triage, /plan, /spec, /critique) read from
+# Discovery contract: skills (/triage, /critique) read from
 # https://github.com/IIxauII/hnch/blob/main/docs/screenshots/latest/<topic>/<file>.png?raw=true
 # as the canonical "what the app looks like now" reference.
 #
 # Loop guard: paths-ignore excludes docs/screenshots/** so the bot's own
 # commit does not refire the workflow. The commit message also carries
 # `[skip ci]` as belt-and-suspenders.
-#
-# Plan: docs/plans/e2e-screenshot-coverage-expansion.md (Phase 2).
 
 on:
   push:

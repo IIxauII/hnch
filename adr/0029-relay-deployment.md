@@ -35,6 +35,6 @@ Bare-metal IONOS VPS, Node relay supervised by `systemd`, Caddy reverse proxy te
 
 ## Status notes
 
-**2026-04-28 — PWA static host realized.** `/var/www/hnch-client` symlink → release dirs under `/var/www/hnch-client-releases/`; `deploy-client.yml` mirrors `deploy-relay.yml` on `client-v*` tags; atomic activation via symlink swap (no Caddy reload). Service worker / installable PWA deferred from v1. See `infra/README.md` and `plans/plan-pwa-deploy.md`.
+**2026-04-28 — PWA static host realized.** `/var/www/hnch-client` symlink → release dirs under `/var/www/hnch-client-releases/`; `deploy-client.yml` mirrors `deploy-relay.yml` on `client-v*` tags; atomic activation via symlink swap (no Caddy reload). Service worker / installable PWA deferred from v1. (The `infra/` directory and the PWA deploy plan this note pointed to were removed from the repo in #627 and #581; git history keeps them.)
 
 **2026-10-29 — Out of production.** `hnch.dev` switched to Cloudflare at ~14:55 UTC ([ADR-0051](0051-cloudflare-hosting.md), #549). VPS shut down and deleted ([ADR-0054](0054-vps-decommission.md)); Caddy, systemd unit and VPS files gone. Nothing here describes production now.

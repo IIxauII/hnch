@@ -1,6 +1,5 @@
 /**
- * The relay's HTTP surface, through the Worker's own fetch handler
- * (contract items 1–6 and 14 of docs/plans/cloudflare-hosting.md).
+ * The relay's HTTP surface, through the Worker's own fetch handler (ADR-0051).
  */
 
 import { env } from 'cloudflare:workers';

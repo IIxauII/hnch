@@ -85,7 +85,7 @@ Two surfaces, both automated.
 
 A `lefthook` pre-push hook (`pre-push.commands.screenshots-capture-and-publish`) runs whenever a push includes changes under `packages/{client,shared,e2e/tests/_screenshots,e2e/tests/fixtures}/**`. It:
 
-1. Runs `packages/e2e/tests/_screenshots/` (full suite by default; `.screenshot-tags` in the worktree narrows scope — materialised from the plan doc's `## Screenshot tags` section by `pnpm worktree:add --plan <slug>`).
+1. Runs `packages/e2e/tests/_screenshots/` (full suite by default; `.screenshot-tags` in the worktree narrows scope — written by `pnpm worktree:add <name> [base] --tags "<grep>"` or by hand).
 2. Publishes PNGs to the `screenshots` branch under `sha-<short>/` via `git fetch + reset + push` with retry on rejection (non-force).
 3. Updates a sticky PR comment marked `<!-- hnch-screenshots -->` with inline `blob/<branch>/...?raw=true` embeds — the only embed pattern that renders on both mobile and desktop GitHub.
 
@@ -97,7 +97,7 @@ If you push before opening a PR, the hook prints a stderr advisory and exits 0. 
 
 ### Main CI workflow (canonical reference)
 
-`.github/workflows/screenshots-main.yml` runs on every push to `main` touching the same glob. It runs the full suite and commits PNGs to `main` under `docs/screenshots/<sha>/<feature>/`, updates the `docs/screenshots/latest` symlink, and prunes to the newest 10 sha dirs. Skills (`/triage`, `/plan`, `/spec`, `/critique`) consult `docs/screenshots/latest/<feature>/` on `main` as the canonical "what the app looks like now" reference.
+`.github/workflows/screenshots-main.yml` runs on every push to `main` touching the same glob. It runs the full suite and commits PNGs to `main` under `docs/screenshots/<sha>/<feature>/`, updates the `docs/screenshots/latest` symlink, and prunes to the newest 10 sha dirs. Skills such as `/critique` consult `docs/screenshots/latest/<feature>/` on `main` as the canonical "what the app looks like now" reference.
 
 ### OUT_DIR layout
 
@@ -128,7 +128,7 @@ Output lands under `docs/screenshots/local/<feature>/`. This directory is **not*
 
 - **Hook ran but no comment appeared.** Check that `gh auth status` shows you logged in. The hook bails (exit 0) if `gh` is missing — install via `brew install gh && gh auth login`.
 - **Push rejected after capture succeeded.** The retry loop fetches+resets `origin/screenshots` and re-pushes up to 5 times. If all 5 attempts fail, the hook exits 0 (push proceeds); re-run `pnpm screenshots:publish` once the contention clears.
-- **Capture took too long, push timed out.** Narrow scope by adding a `## Screenshot tags` section to the plan doc (canonical source) and re-creating the worktree with `pnpm worktree:add <name> --plan <slug>`, or by `HNCH_PLAN_SLUG=<slug> pnpm worktree:bootstrap` inside an existing worktree. As an escape hatch, you can also hand-write `.screenshot-tags` at the worktree root (single line, Playwright `--grep` regex, e.g. `@theming|@layout`). See `packages/e2e/README.md` for the tag catalog.
+- **Capture took too long, push timed out.** Narrow scope with `.screenshot-tags` at the worktree root: a single line holding a Playwright `--grep` regex, e.g. `@theming|@layout`. Create the worktree with `pnpm worktree:add <name> [base] --tags "<grep>"` to write it, or hand-write the file in an existing worktree. The publish script passes the regex to Playwright as `--grep` (and exports it as `SCREENSHOT_TAGS` for the capture run). See `packages/e2e/README.md` for the tag catalog.
 - **`@{push}` not configured.** First push of a branch falls back to comparing vs `origin/main`. After `git push -u origin <branch>` lands, subsequent pushes use `@{push}` directly.
 - **Need to re-publish without pushing code.** `pnpm screenshots:publish` — always runs full capture against `HEAD`, regardless of diff state.
 - **Manual escape.** `git push --no-verify` skips the hook completely. The next non-bypassed push that touches a relevant file will republish.

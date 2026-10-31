@@ -70,7 +70,7 @@ Allowed sections, in order:
 
 **Do NOT include:**
 - Options / Alternatives Considered / Comparison tables. Rejected paths go in the PR or commit discussion, not in the durable ADR.
-- Action Items / phase checklists / implementation phases / "Phase 1: do X". Track those in the PR or in `plans/`. The ADR is not a project tracker.
+- Action Items / phase checklists / implementation phases / "Phase 1: do X". Track those in the PR or in issues. The ADR is not a project tracker.
 - Deciders line. Pros/Cons sub-bullets per alternative.
 
 The ADR captures the decision and what it costs. Nothing else. If you find yourself padding to fill space, stop — done is done.

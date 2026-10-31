@@ -27,7 +27,6 @@ commit-msg:
 
 # Screenshot capture + publish, not a test gate: see docs/release.md#screenshots.
 # Exits 0 on any failure except a moved worktree HEAD (#335), which blocks the push.
-# See docs/plans/e2e-screenshot-coverage-expansion.md (Phase 3).
 pre-push:
   commands:
     screenshots-capture-and-publish:

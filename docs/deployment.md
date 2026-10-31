@@ -1,6 +1,6 @@
 # Deployment
 
-Production deployment for hnch: Cloudflare Workers and Durable Objects ([ADR-0051](../adr/0051-cloudflare-hosting.md), plan [`docs/plans/cloudflare-hosting.md`](plans/cloudflare-hosting.md)). `hnch.dev` has been served by Cloudflare since the switch on 2026-10-29 (#549). The IONOS VPS that served it before (ADR-0029) is shut down and deleted ([ADR-0054](../adr/0054-vps-decommission.md)); there is no VPS to fall back to.
+Production deployment for hnch: Cloudflare Workers and Durable Objects ([ADR-0051](../adr/0051-cloudflare-hosting.md); design history in #544 and #549). `hnch.dev` has been served by Cloudflare since the switch on 2026-10-29 (#549). The IONOS VPS that served it before (ADR-0029) is shut down and deleted ([ADR-0054](../adr/0054-vps-decommission.md)); there is no VPS to fall back to.
 
 ## Topology
 
@@ -203,17 +203,19 @@ pnpm --filter @hnch/client exec wrangler deploy --dry-run
 
 ## Free-plan budget and alerts
 
-Everything runs on the Workers Free plan. Its limits are **per account**, daily, and reset at 00:00 UTC; the account's other Workers draw from the same budget. Reference session: 8 peers for 1 h, 20 rounds, about 300 doc updates. Usage at the switch was about 0. Full table and assumptions: the plan's [Free-plan budget](plans/cloudflare-hosting.md#free-plan-budget-information-per-account-daily-reset-0000-utc-inbound-ws-counted-11).
+Everything runs on the Workers Free plan. Its limits are **per account**, daily, and reset at 00:00 UTC; the account's other Workers draw from the same budget. Reference session: 8 peers for 1 h, 20 rounds, about 300 doc updates. Usage at the switch was about 0. Assumed, not verified (ADR-0051): inbound WebSocket messages count 1:1 against the request limits, and static asset requests are free without `run_worker_first`.
 
-| Daily limit (Free) | Per reference session | Fits per day |
-|---|---|---|
-| DO duration 13,000 GB-s | 450 GB-s | **≈ 29 occupied room-hours (binding)** |
-| DO requests 100k | ≈ 2,300 | ≈ 43 sessions |
-| Rows written 100k | ≈ 200 | ≈ 500 sessions |
-| Workers requests 100k | ≈ 30 | ≈ 3,000 sessions (static assets are assumed free: no `run_worker_first`) |
-| Workers Logs 200k events (0.5 GB from 2026-12-01) | small | hitting it stops logging, not the relay |
+| Daily limit (Free) | Per reference session | Fits per day | Notes |
+|---|---|---|---|
+| DO duration 13,000 GB-s (128 MB billed per awake DO) | 450 GB-s | **≈ 29 occupied room-hours (binding)** | With 2 or more visible peers the DO never hibernates (inferred). One room with two unthrottled tabs open all day uses about 83 % of the daily budget. |
+| DO requests 100k | ≈ 2,300 | ≈ 43 sessions | Hidden-tab reconnect churn adds about 240 per hidden peer-hour; the 04:00 UTC sweep adds about 30 a day, plus one per listed room it checks and one per room it moves. |
+| Rows written 100k | ≈ 200 | ≈ 500 sessions | Coalescing caps a room at 12 flushes per minute or fewer. |
+| Rows read 5M | ≈ 750 | ≈ 6,600 sessions | Lazy doc load keeps this low. |
+| Storage 5 GB per account, 1 GB per DO | KBs (stress room: 1 MB) | n/a | Not binding at expected size. |
+| Workers requests 100k | ≈ 30 | ≈ 3,000 sessions | Static assets are assumed free (no `run_worker_first`). |
+| Workers Logs 200k events, 3-day retention (0.5 GB and 7 days from 2026-12-01) | small | n/a | Hitting it stops logging, not the relay. |
 
-- **Duration is the binding limit.** With 2 or more visible peers a room's DO never hibernates (inferred, not yet measured on `hnch.dev`). One room with two unthrottled tabs open all day uses about 83 % of the daily budget.
+- **Duration is the binding limit.** No usage gate exists; growth is checked by hand (below).
 - **Abuse exposure (stated, not mitigated; owner accepted, Free plan only):** anyone can take the relay down until 00:00 UTC by holding about 29 rooms open for an hour, sending about 100k cheap requests, or spamming room creation. The rate-limit rule only slows one IP down. Past a limit there is no fallback host.
 - **Route fail mode at the Workers request limit: unverified.** On Free, each route either fails open (requests bypass the Worker and go to the origin) or fails closed (error `1027`) once the account's 100k requests are used, and the docs don't say which is the default. Not recorded yet. With the placeholder origin, fail open should end in a Cloudflare origin error rather than another backend (inferred), so either way the relay is down until 00:00 UTC. Read it in the dashboard (Workers Routes) and record it here.
 - **No usage alerts.** Free has no Workers or Durable Objects usage alerts (the usage alert type needs Pro and pay-as-you-go), so nothing warns before a daily limit. Check usage by hand in the dashboard.

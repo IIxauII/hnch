@@ -1,6 +1,6 @@
 # Issue tracker: GitHub
 
-Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all operations.
+Issues, specs and plans for this repo live as GitHub issues; the repo holds no plan or spec files (settled 2026-10-30, #581). Use the `gh` CLI for all operations.
 
 ## Conventions
 

@@ -1,6 +1,6 @@
 /**
- * `Room` Durable Object: one per room UUID (ADR-0051). Contract items 5 and
- * 7–11, 16 of docs/plans/cloudflare-hosting.md.
+ * `Room` Durable Object: one per room UUID (ADR-0051: admission, sync, presence,
+ * persistence and TTL clauses).
  *
  * Holds the room's Y.Doc and presence, admits sockets (password, cap), relays
  * sync and awareness between them, persists the doc, and deletes the room 24–25 h

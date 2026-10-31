@@ -30,7 +30,7 @@
 //   - lefthook pre-push (mode=hook): conditional on UI-bearing diff vs @{push}
 //   - pnpm screenshots:publish (mode=manual): always runs full or tag-scoped
 //
-// See docs/plans/e2e-screenshot-coverage-expansion.md (Phase 3).
+// See docs/release.md#screenshots.
 // ============================================================================
 
 import { execFileSync, execSync, spawnSync } from 'node:child_process';

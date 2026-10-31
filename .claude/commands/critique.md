@@ -1,12 +1,12 @@
 ---
-description: Devil's-advocate review of a spec or plan via plan-critic agent — surfaces missed scope, wrong abstractions, ADR conflicts, blind spots
+description: Devil's-advocate review of a spec or plan issue via plan-critic agent — surfaces missed scope, wrong abstractions, ADR conflicts, blind spots
 ---
 
 $ARGUMENTS
 
 ## Purpose
 
-Independent critical review of a `docs/specs/<slug>.md` or `docs/plans/<slug>.md` BEFORE execution. Output: a numbered challenge list, each with counterargument and suggested fix. Optionally fold accepted challenges back into the source file.
+Independent critical review of a spec or plan BEFORE execution. Specs and plans live in GitHub issues (published by the `to-spec` and `to-tickets` skills), never in repo files. Output: a numbered challenge list, each with counterargument and suggested fix. Accepted challenges are folded back into the issue.
 
 You are the **critique orchestrator**. The `plan-critic` agent does the read-only review; you frame the input, walk the user through challenges, and apply revisions.
 
@@ -14,19 +14,18 @@ You are the **critique orchestrator**. The `plan-critic` agent does the read-onl
 
 `$ARGUMENTS` is one of:
 
-- **Path to plan** — `docs/plans/<slug>.md`. Primary use case.
-- **Path to spec** — `docs/specs/<slug>.md`. Product-level critique (problem framing, scope cuts, success criteria) rather than impl detail.
-- **Empty or "latest"** — list both dirs newest-first via `ls -t`, ask via `AskUserQuestion` which to review.
+- **Issue number or URL** — `581` or `https://github.com/IIxauII/hnch/issues/581`. Primary use case.
+- **Empty or "latest"** — list open issues labelled `ready-for-agent` or `needs-triage`, newest-first (`gh issue list --state open --json number,title,labels,updatedAt --jq '[.[] | select(.labels[].name | IN("ready-for-agent","needs-triage"))] | sort_by(.updatedAt) | reverse'`), ask via `AskUserQuestion` which to review.
 
 ## Flow
 
-1. **Load target.** Read the file. Detect type (`specs/` vs `plans/`) from path — different critique lens.
+1. **Load target.** `gh issue view <n> --json number,title,body,labels,comments`. Read the body and every comment: triage decisions and later comments often amend the body. Detect type from the content — a product spec (problem statement, user stories, success criteria) gets the spec lens; an implementation plan (phases, tasks, acceptance criteria per task) gets the plan lens; most issues carry both, so run both.
 
-2. **Pre-gather context.** If plan, also read the linked spec (header `**Source spec:**`). Read `CLAUDE.md` decisions list and any ADRs the doc explicitly cites. Do NOT read everything in `adr/` — only the ones referenced.
+2. **Pre-gather context.** Follow links to parent or sibling issues the body cites (`gh issue view` each). Read `CLAUDE.md` decisions list and any ADRs the issue explicitly cites. Do NOT read everything in `adr/` — only the ones referenced.
 
 3. **Spawn `plan-critic` agent.** Read-only, opus. Pass:
-   - Target file content
-   - Linked spec (for plans)
+   - Issue number, title, body and comments verbatim
+   - Linked parent/sibling issue bodies
    - Cited ADRs verbatim
    - Lens directive:
      - **Plan lens:** missed scope, wrong abstractions, ADR conflicts, dependency-chain errors, race/security blind spots, untested edge cases, alternative approaches the planner skipped, multi-scope commit coverage gaps
@@ -34,14 +33,14 @@ You are the **critique orchestrator**. The `plan-critic` agent does the read-onl
    - Output format: numbered list, each item with `Challenge:` / `Counterargument:` / `Suggested fix:`
 
 4. **Surface challenges to user.** Print the full list as plan-critic returned it. Then walk **each challenge** via `AskUserQuestion`:
-   - **Accept** — apply suggested fix to source file
-   - **Reject** — note in source file under "Critique rejected" with one-line rationale (so re-review doesn't re-raise)
-   - **Defer** — add to source file's "Open questions" section
+   - **Accept** — fold the suggested fix into the issue
+   - **Reject** — record under a "Critique rejected" heading with one-line rationale (so re-review doesn't re-raise)
+   - **Defer** — add to the issue's "Open questions" section
    - **Discuss** — pause walk, user wants to talk it through
 
    Batch related challenges into multi-question `AskUserQuestion` calls (max 4 per call).
 
-5. **Apply revisions.** For each Accepted challenge, edit the source file (`Edit` tool) to fold in the fix. For each Rejected, append a one-line note. Preserve existing structure — do NOT rewrite the file wholesale.
+5. **Apply revisions.** Post ONE comment on the issue (`gh issue comment <n> --body-file <tmp>`) with the accepted fixes, the rejected challenges with rationale, and the deferred questions, headed `## Critique <date>`. Edit the body (`gh issue edit <n> --body-file <tmp>`) only for accepted fixes that change acceptance criteria or scope; preserve the existing structure — do NOT rewrite the body wholesale.
 
 6. **Summary.** Print: N accepted, N rejected, N deferred. If any challenges touched an ADR conflict, surface explicitly — may need `adr-writer` follow-up.
 
@@ -49,22 +48,23 @@ You are the **critique orchestrator**. The `plan-critic` agent does the read-onl
 
 ## Rules
 
-- **plan-critic is read-only.** It MUST NOT write code, plans, or ADRs. Enforce by reading its output, not running its edits.
+- **plan-critic is read-only.** It MUST NOT write code, issues, or ADRs. Enforce by reading its output, not running its edits.
 - **Never silently accept a challenge.** Every one walks through `AskUserQuestion`. Even "obvious" ones.
-- **Reject ≠ ignore.** A rejected challenge gets a recorded rationale in the file. Future re-reviews see this and skip.
-- **Do not invoke `/plan` from here** even if challenges suggest replanning. Print the recommendation, let the user trigger.
+- **Reject ≠ ignore.** A rejected challenge gets a recorded rationale on the issue. Future re-reviews see this and skip.
+- **Do not re-plan from here** even if challenges suggest it. Print the recommendation; the user runs `to-spec` or `to-tickets` again.
 - **ADR conflicts are escalation triggers.** If plan-critic flags one, do not auto-accept the "ignore" path. Surface to user with the option to draft a superseding ADR via `adr-writer` before proceeding.
 - **Critique is not code review.** For diff review on a PR, use `/review` or `/code-review` skills — those exist already. `/critique` is pre-execution.
-- **Single-pass discipline.** Resist running plan-critic twice on the same unchanged file. If user wants a second opinion, spawn a SECOND parallel critic with a different lens (e.g., security-reviewer) rather than re-querying plan-critic.
+- **Single-pass discipline.** Resist running plan-critic twice on the same unchanged issue. If user wants a second opinion, spawn a SECOND parallel critic with a different lens (e.g., security-reviewer) rather than re-querying plan-critic.
+- **No AI attribution** in anything posted to the issue.
 
 ## Visual context
 
-When critiquing a UI-touching spec/plan (paths under `packages/client/**`; keywords "UI", "screen", "visual", "theme", "layout"), read the canonical screenshots before flagging gaps. They live on `main` under `docs/screenshots/latest/` (symlink maintained by `.github/workflows/screenshots-main.yml`):
+When critiquing a UI-touching issue (paths under `packages/client/**`; keywords "UI", "screen", "visual", "theme", "layout"), read the canonical screenshots before flagging gaps. They live on `main` under `docs/screenshots/latest/` (symlink maintained by `.github/workflows/screenshots-main.yml`):
 
 ```
 https://github.com/IIxauII/hnch/blob/main/docs/screenshots/latest/<scene>.png?raw=true
 ```
 
-Use them to verify the spec/plan's claims about current behavior match reality, and to spot scenes the change touches but the spec/plan doesn't mention.
+Use them to verify the issue's claims about current behavior match reality, and to spot scenes the change touches but the issue doesn't mention.
 
-**Also read the plan's `## Screenshot tags` section** if present. Inside it, the first inline code span is a Playwright `--grep` regex that `/plan` chose to scope the pre-push capture. Tag catalog + per-tag file map: `packages/e2e/README.md → Tag catalog`. If the listed tags miss obviously-affected surfaces (e.g. plan touches participant rosters but tags only list `@theming`), surface that as a critique under "missed scope". If the section is absent on a UI plan, the hook will run the full suite — usually fine, but flag if the diff is small enough that scoping would speed up review cycles. (Worktrees materialise `.screenshot-tags` from this section via `pnpm worktree:add --plan <slug>`; do not edit that file directly during critique.)
+**Screenshot scope.** The pre-push hook captures the full screenshot suite unless the worktree holds a `.screenshot-tags` regex (`pnpm worktree:add <name> [base] --tags "<grep>"`; catalog in `packages/e2e/README.md → Tag catalog`). If the issue proposes a tag scope that misses obviously affected surfaces (e.g. it touches participant rosters but names only `@theming`), surface that as a critique under "missed scope". Do not write `.screenshot-tags` during critique.
