@@ -131,9 +131,8 @@ jobs:
   web:
     name: Deploy PWA to hnch-web
     needs: build
-    # Holds the Cloudflare secrets; main and the release tags may deploy to it
-    # (docs/deployment.md#required-github-secrets-and-variables). The build
-    # job needs no secrets, so it stays outside.
+    # Holds the Cloudflare secrets; its rule: docs/deployment.md#environments.
+    # The build job needs no secrets, so it stays outside.
     environment: cloudflare
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 10

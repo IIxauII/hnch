@@ -82,8 +82,7 @@ jobs:
     # A literal: a skipped job shows its name unevaluated, so this one has to
     # read right both ways. Grey (skipped) means it was not a green main push.
     name: Release (green main push only)
-    # Holds RELEASE_TOKEN, and only main may deploy to it
-    # (docs/deployment.md#required-github-secrets-and-variables).
+    # Holds RELEASE_TOKEN; its rule: docs/deployment.md#environments.
     environment: release
     runs-on: ubuntu-24.04-arm
     # Cold install of the root dev tools, CLI and shared, then four

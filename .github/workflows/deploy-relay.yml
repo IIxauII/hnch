@@ -38,8 +38,7 @@ permissions:
 jobs:
   deploy:
     name: Deploy relay to Cloudflare
-    # Holds the Cloudflare secrets; main and the release tags may deploy to it
-    # (docs/deployment.md#required-github-secrets-and-variables).
+    # Holds the Cloudflare secrets; its rule: docs/deployment.md#environments.
     environment: cloudflare
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 10
