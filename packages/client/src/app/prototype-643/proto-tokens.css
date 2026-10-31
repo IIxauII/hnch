@@ -1,0 +1,281 @@
+/*
+ * PROTOTYPE (#643), throwaway. "Ink & Dot" tokens from PR #525 §5 (calm edition),
+ * scoped to the device frame (.hn-proto) so they never leak into the real app.
+ * Every value here is the plan's measured value (36/36 light pairs and the v2
+ * dark pairs pass AA). Use only these tokens in prototype components: no
+ * spacing/colour literals (R-24), no text-transform: uppercase, no transition: all.
+ */
+.hn-proto {
+  --hn-bg: #f6f6f3;
+  --hn-surface: #ffffff;
+  --hn-surface-2: #eeeee9;
+  --hn-line: #dcdcd6;
+  --hn-line-strong: #8c8c85;
+  --hn-text: #161716;
+  --hn-text-2: #3f413e;
+  --hn-text-3: #62645f;
+  --hn-accent: #0b3d2e;
+  --hn-on-accent: #ffffff;
+  --hn-on-accent-2: #e7ecea;
+  --hn-accent-text: #0b4a37;
+  --hn-accent-soft: #e2eee8;
+  --hn-focus: #1f7a57;
+  --hn-success: #16794a;
+  --hn-warning: #8f5a00;
+  --hn-danger: #b42318;
+  --hn-on-danger: #ffffff;
+  --hn-e1: 0 1px 2px rgb(0 0 0 / 0.06), 0 1px 1px rgb(0 0 0 / 0.04);
+  --hn-e2: 0 8px 24px rgb(0 0 0 / 0.12);
+  --hn-e1-border: transparent;
+
+  /* type (one family, Inter if installed, else system) */
+  --hn-font: 'Inter var', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --hn-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --hn-type-caption: 500 12px/16px var(--hn-font);
+  --hn-type-small: 400 14px/20px var(--hn-font);
+  --hn-type-body: 400 16px/24px var(--hn-font);
+  --hn-type-label: 600 15px/20px var(--hn-font);
+  --hn-type-title: 600 20px/28px var(--hn-font);
+  --hn-type-headline: 700 28px/34px var(--hn-font);
+  --hn-type-numeral: 700 40px/40px var(--hn-font);
+  --hn-type-display: 750 64px/64px var(--hn-font);
+
+  /* space 4/8/12/16/24/32/48/64 */
+  --hn-space-1: 4px;
+  --hn-space-2: 8px;
+  --hn-space-3: 12px;
+  --hn-space-4: 16px;
+  --hn-space-5: 24px;
+  --hn-space-6: 32px;
+  --hn-space-7: 48px;
+  --hn-space-8: 64px;
+
+  /* radius */
+  --hn-radius-sm: 8px;
+  --hn-radius-md: 12px;
+  --hn-radius-lg: 20px;
+  --hn-radius-pill: 999px;
+
+  /* layout */
+  --hn-header-h: 52px;
+  --hn-action-h: 52px;
+  --hn-frame-max: 1136px;
+  --hn-stage-max: 720px;
+  --hn-rail-w: 320px;
+  --hn-tile-w: 64px;
+  --hn-dialog-w: 480px;
+  --hn-tap: 44px;
+
+  /* motion */
+  --hn-dur-press: 100ms;
+  --hn-dur-state: 160ms;
+  --hn-dur-enter: 240ms;
+  --hn-dur-cap: 400ms;
+  --hn-dur-delight: 900ms;
+  --hn-ease-out: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --hn-ease-std: cubic-bezier(0.2, 0, 0, 1);
+  --hn-ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  background: var(--hn-bg);
+  color: var(--hn-text);
+  font: var(--hn-type-body);
+  font-feature-settings: 'cv11';
+  -webkit-font-smoothing: antialiased;
+}
+
+.hn-proto[data-theme='dark'] {
+  --hn-bg: #101211;
+  --hn-surface: #1a1c1b;
+  --hn-surface-2: #232624;
+  --hn-line: #2c302d;
+  --hn-line-strong: #6a6f6b;
+  --hn-text: #f1f2ef;
+  --hn-text-2: #c9ccc7;
+  --hn-text-3: #9ea29c;
+  --hn-accent: #267a5a;
+  --hn-on-accent: #ffffff;
+  --hn-on-accent-2: #e9f2ef;
+  --hn-accent-text: #7ed6aa;
+  --hn-accent-soft: #1e3a2f;
+  --hn-focus: #7ed6aa;
+  --hn-success: #5bd38c;
+  --hn-warning: #f2b44c;
+  --hn-danger: #ff8070;
+  --hn-on-danger: #161716;
+  --hn-e1: none;
+  --hn-e2: 0 8px 24px rgb(0 0 0 / 0.5);
+  --hn-e1-border: var(--hn-line);
+}
+
+/* O8 alternative: mint dark fill */
+.hn-proto[data-theme='dark'][data-fill='mint'] {
+  --hn-accent: #7ed6aa;
+  --hn-on-accent: #0b2a20;
+  --hn-on-accent-2: #0b2a20;
+}
+
+.hn-proto[data-wide='true'] {
+  --hn-stage-max: 960px;
+  --hn-tile-w: 88px;
+  --hn-type-display: 750 96px/96px var(--hn-font);
+}
+
+.hn-proto[data-pointer='coarse'] {
+  --hn-action-h: 52px;
+}
+.hn-proto[data-pointer='fine'] {
+  --hn-action-h: 44px;
+}
+
+.hn-proto *,
+.hn-proto *::before,
+.hn-proto *::after {
+  box-sizing: border-box;
+}
+
+.hn-proto .tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum', 'cv11';
+}
+
+/* ── focus: 2 px ring that passes in both themes (UX-071) ── */
+.hn-proto :focus-visible {
+  outline: 2px solid var(--hn-focus);
+  outline-offset: 2px;
+}
+
+.hn-proto .visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ── hn-button ── */
+.hn-proto .hn-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--hn-space-2);
+  min-height: var(--hn-tap);
+  padding: 0 var(--hn-space-4);
+  border-radius: var(--hn-radius-md);
+  border: 1px solid transparent;
+  font: var(--hn-type-label);
+  cursor: pointer;
+  background: transparent;
+  color: var(--hn-accent-text);
+  transition:
+    transform var(--hn-dur-press) var(--hn-ease-std),
+    background-color var(--hn-dur-state) var(--hn-ease-std);
+}
+.hn-proto .hn-btn:active {
+  transform: scale(0.97);
+}
+.hn-proto .hn-btn.primary {
+  background: var(--hn-accent);
+  color: var(--hn-on-accent);
+}
+.hn-proto .hn-btn.primary:disabled {
+  /* disabled primary is tonal, never grey (no green → grey → green flicker) */
+  background: var(--hn-accent-soft);
+  color: var(--hn-accent-text);
+  cursor: default;
+}
+.hn-proto .hn-btn.secondary {
+  border-color: var(--hn-accent-text);
+  color: var(--hn-accent-text);
+}
+.hn-proto .hn-btn.quiet {
+  color: var(--hn-accent-text);
+  padding: 0 var(--hn-space-2);
+}
+.hn-proto .hn-btn.danger {
+  background: var(--hn-danger);
+  color: var(--hn-on-danger);
+}
+.hn-proto .hn-btn.danger-quiet {
+  color: var(--hn-danger);
+}
+.hn-proto .hn-btn.block {
+  width: 100%;
+}
+
+/* ── hn-kbd: keycaps only on fine pointers ── */
+.hn-proto .hn-kbd {
+  display: none;
+  min-width: 20px;
+  padding: 0 var(--hn-space-1);
+  border-radius: var(--hn-radius-sm);
+  border: 1px solid currentColor;
+  font: var(--hn-type-caption);
+  opacity: 0.85;
+}
+.hn-proto[data-pointer='fine'] .hn-kbd {
+  display: inline-block;
+}
+.hn-proto .hn-btn.primary .hn-kbd {
+  color: var(--hn-on-accent-2);
+}
+
+/* ── hn-chip ── */
+.hn-proto .hn-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hn-space-1);
+  min-height: 32px;
+  padding: 0 var(--hn-space-3);
+  border-radius: var(--hn-radius-pill);
+  background: var(--hn-accent-soft);
+  color: var(--hn-accent-text);
+  font: var(--hn-type-small);
+  border: 0;
+}
+
+/* status words always carry glyph + word (never colour alone, never red) */
+.hn-proto .st-agreed {
+  color: var(--hn-success);
+}
+.hn-proto .st-close,
+.hn-proto .st-none {
+  color: var(--hn-text-2);
+}
+.hn-proto .st-split {
+  color: var(--hn-warning);
+}
+
+/* ── surfaces ── */
+.hn-proto .hn-stage {
+  background: var(--hn-surface);
+  border-radius: var(--hn-radius-lg);
+  box-shadow: var(--hn-e1);
+  border: 1px solid var(--hn-e1-border);
+}
+.hn-proto .hn-sheet {
+  background: var(--hn-surface);
+  box-shadow: var(--hn-e2);
+}
+
+/* ── register highlight (lab panel → "show me") ── */
+.hn-proto [data-ux].ux-hit {
+  outline: 3px dashed #e5007a !important;
+  outline-offset: 3px;
+  border-radius: 6px;
+  animation: hn-ux-pulse 1.2s ease-in-out 3;
+}
+@keyframes hn-ux-pulse {
+  50% {
+    outline-color: transparent;
+  }
+}
+
+/* reduced motion: everything becomes a cross-fade (UX-075) */
+.hn-proto[data-reduced-motion='true'] *,
+.hn-proto[data-reduced-motion='true'] *::before,
+.hn-proto[data-reduced-motion='true'] *::after {
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+}

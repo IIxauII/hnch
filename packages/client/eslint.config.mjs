@@ -6,6 +6,8 @@ import templatePlugin from '@angular-eslint/eslint-plugin-template';
 import templateParser from '@angular-eslint/template-parser';
 
 export default [
+  // PROTOTYPE (#643), throwaway branch only: the prototype templates skip the strict set.
+  { ignores: ['src/app/prototype-643/**'] },
   {
     files: ['src/**/*.html'],
     plugins: {

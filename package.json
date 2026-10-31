@@ -27,6 +27,8 @@
     "dev:relay": "bash scripts/with-env.sh pnpm --filter @hnch/relay dev",
     "predev:cli": "pnpm run _build:shared",
     "dev:cli": "bash scripts/with-env.sh pnpm --filter @xauyxau/hnch dev",
+    "proto:643": "bash scripts/with-env.sh pnpm --filter @hnch/client dev",
+    "proto:643:cli": "pnpm --silent --filter @xauyxau/hnch proto:643",
     "pretypecheck": "pnpm run _build:shared",
     "typecheck": "pnpm -r --if-present run typecheck",
     "pretest:e2e": "pnpm run _build:shared",

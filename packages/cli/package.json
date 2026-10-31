@@ -42,6 +42,7 @@
     "prepublishOnly": "pnpm run build",
     "typecheck": "tsc --noEmit",
     "dev": "tsx src/index.ts",
+    "proto:643": "tsx src/prototype-643/main.ts",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "format:check": "biome format .",

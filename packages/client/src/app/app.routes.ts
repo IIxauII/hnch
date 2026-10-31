@@ -1,3 +1,4 @@
+import { isDevMode } from '@angular/core';
 import type { Routes } from '@angular/router';
 
 import { displayNameGuard } from './core/display-name.guard';
@@ -66,6 +67,16 @@ export const routes: Routes = [
     canMatch: [displayNameGuard],
     loadComponent: () => import('./settings/settings.page').then((m) => m.SettingsPage),
   },
+  // PROTOTYPE (#643), throwaway, dev builds only: /prototype-643?scene=…
+  ...(isDevMode()
+    ? [
+        {
+          path: 'prototype-643',
+          loadComponent: () =>
+            import('./prototype-643/prototype-643.page').then((m) => m.Prototype643Page),
+        },
+      ]
+    : []),
   {
     path: '',
     redirectTo: 'home',
