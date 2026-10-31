@@ -3,6 +3,8 @@
 **Status:** Accepted
 **Date:** 2026-10-30
 
+**Caveat (2026-10-30, #627):** the pool, the single e2e slot and the 2-slot size are gone ([ADR-0056](0056-github-hosted-runners.md)). Fork PRs now run lanes and e2e on hosted runners but still record no evidence, so a fork's merge gets a full `main` run. The decision stands.
+
 Changes what a green `ci.yml` push run on `main` means; [ADR-0049](0049-self-hosted-runner-pool-current-state-consolidation.md), [ADR-0052](0052-single-e2e-runner-slot.md) and [ADR-0053](0053-runner-pool-two-slots.md) unchanged. Issue: #593 (under #589).
 
 ## Context

@@ -1,5 +1,7 @@
 # Plan: Native iOS + Android Builds — Local + CI
 
+> **Note (2026-10-30, #627):** the Linux Podman pool and `infra/runner/` this plan builds on are gone. All CI runs on GitHub-hosted runners ([ADR-0056](../../adr/0056-github-hosted-runners.md)). Re-plan the Android CI host and Phase E (Tart macOS pool) against hosted `ubuntu-24.04-arm` and `macos-*` runners before starting.
+
 **Estimate:** ~34 SP across 10 PRs.
 
 ## 1. Context

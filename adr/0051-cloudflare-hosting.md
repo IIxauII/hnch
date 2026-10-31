@@ -3,6 +3,8 @@
 **Status:** Accepted (VPS idle and DNS-only rollback clauses superseded by ADR-0054)
 **Date:** 2026-10-28
 
+**Caveat (2026-10-30, #627):** deploys run on GitHub-hosted `ubuntu-24.04-arm` runners, not the self-hosted pool ([ADR-0056](0056-github-hosted-runners.md)); "the pool" in the Credentials and Deploy bullets now means those jobs.
+
 Supersedes [ADR-0029](0029-relay-deployment.md) (fully; VPS left idle, not decommissioned). Supersedes the storage clause of [ADR-0012](0012-snapshot-policy.md) (TTL, keying and content-blindness hold). Partially supersedes [ADR-0027](0027-test-only-relay-surfaces.md) (its "persist outside in-memory store" clause). Partially supersedes [ADR-0017](0017-password-hashing-drop-invite-only.md) ("persisting hashes" trade-off). Partially supersedes the `deploy-relay.yml` cross-arch clause of [ADR-0049](0049-self-hosted-runner-pool-current-state-consolidation.md). Source: [spec](../docs/specs/cloudflare-hosting.md). Plan: [plan](../docs/plans/cloudflare-hosting.md).
 
 ## Context

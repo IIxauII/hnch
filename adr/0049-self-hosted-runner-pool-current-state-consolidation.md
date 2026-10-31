@@ -1,6 +1,6 @@
 # ADR-0049: Self-hosted runner pool — current-state consolidation
 
-**Status:** Accepted (deploy-relay cross-arch clause superseded by ADR-0051; pool-size clause superseded by ADR-0053)
+**Status:** Superseded by ADR-0056
 **Date:** 2026-06-13
 
 **Caveat (2026-10-30, #591):** `version-audit` and `pr-title-lint` are no longer jobs; they run as steps of `detect-changes`.

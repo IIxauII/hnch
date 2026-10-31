@@ -11,7 +11,7 @@ permissions:
 jobs:
   cancel:
     name: Cancel in-flight CI for closed PR
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 2
     steps:
       - name: Cancel runs for PR head SHA

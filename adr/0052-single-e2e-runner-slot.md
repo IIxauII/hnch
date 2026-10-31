@@ -1,6 +1,6 @@
 # ADR-0052: Single `e2e` runner slot — one Playwright job at a time on the pool
 
-**Status:** Accepted
+**Status:** Superseded by ADR-0056
 **Date:** 2026-10-29
 
 Refines ADR-0049 Targeting clause (label list for Playwright jobs). Hardcoded-inline, no-hosted-fallback rule unchanged.

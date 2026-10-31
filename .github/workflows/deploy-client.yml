@@ -35,35 +35,32 @@ permissions:
 jobs:
   build:
     name: Build PWA
-    runs-on: [self-hosted, linux, arm64, hnch-podman]
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 10
     outputs:
       sha: ${{ steps.meta.outputs.sha }}
       tag: ${{ steps.meta.outputs.tag }}
     steps:
-      - name: Runner identity
-        run: |
-          echo "Runner: $RUNNER_NAME on $(hostname) — arch $(uname -m)"
-          df -h /cache || true
-
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ inputs.ref || github.ref }}
           persist-credentials: false
 
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
       - name: Enable Corepack
-        # pnpm's version comes from `packageManager`; node is the runner image's.
+        # pnpm's version comes from `packageManager`.
         run: corepack enable
 
-      - name: Install (fresh store)
-        # The shared caches under /cache (pnpm store, node_modules snapshots)
-        # are writable by PR CI, so a job that builds what users get installs
-        # into a fresh store and pnpm checks every package against the
-        # lockfile. Only the client and what it depends on (@hnch/shared); no
-        # install scripts (prebuild writes version.ts).
+      - name: Install (cold)
+        # A job that builds what users get restores no cache: the fresh
+        # runner's empty store makes pnpm fetch every package and check it
+        # against the lockfile. Only the client and what it depends on
+        # (@hnch/shared); no install scripts (prebuild writes version.ts).
         run: |
           pnpm install --frozen-lockfile --ignore-scripts \
-            --store-dir "${RUNNER_TEMP}/pnpm-store" \
             --filter '@hnch/client...'
 
       - name: Build metadata
@@ -123,7 +120,7 @@ jobs:
         working-directory: packages/client
         run: node scripts/deploy-guard.mjs www
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: www
           path: packages/client/www
@@ -134,41 +131,38 @@ jobs:
   web:
     name: Deploy PWA to hnch-web
     needs: build
-    runs-on: [self-hosted, linux, arm64, hnch-podman]
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 10
     env:
       WRANGLER_SEND_METRICS: 'false'
     steps:
-      - name: Runner identity
-        run: |
-          echo "Runner: $RUNNER_NAME on $(hostname) — arch $(uname -m)"
-          df -h /cache || true
-
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ needs.build.outputs.sha }}
           persist-credentials: false
 
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
       - name: Enable Corepack
-        # pnpm's version comes from `packageManager`; node is the runner image's.
+        # pnpm's version comes from `packageManager`.
         run: corepack enable
 
-      - name: Install (fresh store)
-        # The shared caches under /cache (pnpm store, node_modules snapshots)
-        # are writable by PR CI, so a job that holds the deploy token installs
-        # into a fresh store and pnpm checks every package against the
-        # lockfile. Only the client's packages (wrangler for the deploy and the
-        # guard); no install scripts.
+      - name: Install (cold)
+        # A job that holds the deploy token restores no cache: the fresh
+        # runner's empty store makes pnpm fetch every package and check it
+        # against the lockfile. Only the client's packages (wrangler for the
+        # deploy and the guard); no install scripts.
         run: |
           pnpm install --frozen-lockfile --ignore-scripts \
-            --store-dir "${RUNNER_TEMP}/pnpm-store" \
             --filter @hnch/client
 
       - name: Clear www
         # Deploy exactly the uploaded build, nothing left in the workspace.
         run: rm -rf packages/client/www
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: www
           path: packages/client/www

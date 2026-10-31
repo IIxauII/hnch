@@ -83,8 +83,10 @@ jobs:
     # A literal: a skipped job shows its name unevaluated, so this one has to
     # read right both ways. Grey (skipped) means it was not a green main push.
     name: Release (green main push only)
-    runs-on: [self-hosted, linux, arm64, hnch-podman]
-    timeout-minutes: 10
+    runs-on: ubuntu-24.04-arm
+    # Cold install of the root dev tools, CLI and shared, then four
+    # semantic-release runs.
+    timeout-minutes: 15
     # Only a successful CI run of a push to main. `branches: [main]` above
     # matches the run's head branch, which a PR from a branch named main (a
     # fork's, say) also has, so the event check is load-bearing. The
@@ -97,11 +99,6 @@ jobs:
       || (github.event_name == 'workflow_dispatch'
         && github.ref == 'refs/heads/main')
     steps:
-      - name: Runner identity
-        run: |
-          echo "Runner: $RUNNER_NAME on $(hostname) — arch $(uname -m)"
-          df -h /cache || true
-
       # The commit CI verified, not the branch tip: main may already hold a
       # newer merge whose CI has not finished, or failed. github.sha is no use
       # here; for workflow_run it is main's tip when the event fired.
@@ -131,7 +128,7 @@ jobs:
           echo "Releasing $sha, verified by $url"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ steps.target.outputs.sha }}
           # semantic-release reads commits and tags, not old file contents.
@@ -162,23 +159,22 @@ jobs:
       - name: Put local main on the release commit
         run: git checkout -B main
 
-      - name: Enable Corepack
-        run: corepack enable
-
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
-          # No `cache: pnpm`: pnpm install reads the bind-mounted
-          # /cache/pnpm-store (npm_config_store_dir on the runner image),
-          # which is faster than the GitHub Actions cache round-trip and
-          # already persistent across ephemeral runner respawns. See
-          # ci.yml verify lanes for the same pattern.
+          # No `cache: pnpm`: this job holds RELEASE_TOKEN and publishes the
+          # CLI, so it installs cold rather than from a cache.
+
+      - name: Enable Corepack
+        run: corepack enable
 
       # OIDC Trusted Publishing needs npm CLI >= 11.5.1 to mint + exchange the
       # GitHub Actions id-token (Node 22 ships npm 10.x). @semantic-release/npm
       # >= 13.1.0 detects the OIDC context and skips token auth entirely.
+      # An exact version: what runs with the publish rights changes only in a
+      # reviewed commit. 12.2.1 is what @latest resolved to on 2026-10-30.
       - name: Upgrade npm for OIDC publish
-        run: npm install -g npm@latest
+        run: npm install -g npm@12.2.1
 
       - name: Install (root dev tools, CLI and shared only)
         # What this job runs: semantic-release and its plugins (the root's dev
@@ -187,9 +183,8 @@ jobs:
         # @hnch/shared). The client's Angular and Capacitor trees never
         # download. No install scripts: this job needs none of them (esbuild
         # finds its platform binary without its postinstall, as in the deploy
-        # jobs), and the root's preinstall would npx-fetch only-allow. It still
-        # installs from the shared /cache/pnpm-store, which PR CI can write
-        # (#558).
+        # jobs), and the root's preinstall would npx-fetch only-allow. Cold:
+        # the store starts empty on every hosted runner.
         run: >-
           pnpm install --frozen-lockfile --ignore-scripts
           --filter '{.}' --filter @xauyxau/hnch --filter @hnch/shared

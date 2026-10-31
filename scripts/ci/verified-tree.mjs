@@ -90,7 +90,9 @@ function findVerifyingRun({ repo, sha, gh, download }) {
     return miss(`${merged.length} merged PRs have this commit as their merge commit`);
   const [pr] = merged;
   if (pr.head.repo?.full_name !== repo) {
-    return miss(`PR #${pr.number} comes from a fork; CI runs no lane or e2e for fork PRs`);
+    return miss(
+      `PR #${pr.number} comes from a fork; a fork's PR run uses its own workflow file, so it records no evidence`,
+    );
   }
   const head = pr.head.sha;
   const { workflow_runs: runs } = gh(
