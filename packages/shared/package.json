@@ -42,10 +42,10 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "@types/ws": "^8.18.1",
+    "@types/ws": "^8.18.2",
     "lib0": "^0.2.117",
     "typescript": "^5.5.0",
     "vitest": "4.1.12",
-    "ws": "^8.20.1"
+    "ws": "^8.22.0"
   }
 }
