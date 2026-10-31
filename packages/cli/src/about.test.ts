@@ -1,8 +1,28 @@
-// Exercises: about:withAbout (the source-code offer in --help and --version, AGPL-3.0 section 13)
+// Exercises: about:withAbout (the source-code offer in --help and --version, AGPL-3.0 section 13), about:CLI_VERSION
 
 import yargs from 'yargs';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { withAbout } from './about.js';
+
+describe('CLI_VERSION', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it('is the version tsup builds in', async () => {
+    vi.stubGlobal('__HNCH_CLI_VERSION__', '1.17.2');
+    vi.resetModules();
+    const { CLI_VERSION } = await import('./about.js');
+    expect(CLI_VERSION).toBe('1.17.2');
+  });
+
+  it('is dev when run from source', async () => {
+    vi.resetModules();
+    const { CLI_VERSION } = await import('./about.js');
+    expect(CLI_VERSION).toBe('dev');
+  });
+});
 
 /** Run one parse with yargs' own output captured instead of printed. */
 async function output(flag: string): Promise<string> {
