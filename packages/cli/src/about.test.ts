@@ -1,4 +1,5 @@
-// Exercises: about:withAbout (the source-code offer in --help and --version, AGPL-3.0 section 13), about:CLI_VERSION
+// Exercises: about:withAbout (the source-code offer in --help and --version, AGPL-3.0 section 13)
+// Exercises: about:CLI_VERSION
 
 import yargs from 'yargs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
