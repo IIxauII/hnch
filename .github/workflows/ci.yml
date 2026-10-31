@@ -25,16 +25,18 @@ permissions:
   contents: read
 
 jobs:
-  # The run's only first-wave job: change detection plus the two checks that
-  # need neither an install nor a package lane (version audit, PR title). Each
-  # was its own job before, and with two pool slots three first-wave jobs held
-  # back the first verify lane. A failed check here fails this job, so the
-  # lanes after it skip; the run still goes red. On a main push it may also
+  # The run's only first-wave job: change detection plus the checks that need
+  # neither an install nor a package lane (CI script tests, workflow policy,
+  # version audit, PR title). A failed check here fails this job, so
+  # the lanes after it skip; the run still goes red. On a main push it may also
   # find the merge already verified by its PR run and turn every lane off
   # (verified-skip, ADR-0055); PR runs upload the evidence for that.
+  #
+  # Every job runs on GitHub-hosted ubuntu-24.04-arm (ADR-0056). The
+  # workflow policy step below fails on any non-hosted runner label.
   detect-changes:
     name: Detect changed packages
-    runs-on: [self-hosted, linux, arm64, hnch-podman]
+    runs-on: ubuntu-24.04-arm
     # The checkout below is full-history and the pack is dominated by
     # docs/screenshots/** PNGs, so clone time grows with every screenshot
     # refresh commit. At timeout-minutes: 1 the job started dying mid-fetch
@@ -60,7 +62,7 @@ jobs:
       verify-packages: ${{ steps.filter.outputs.verify-packages }}
     steps:
       - id: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           # Full history is required: the filter step diffs base...head and
           # needs the merge-base. blob:none makes that a treeless partial
@@ -75,11 +77,21 @@ jobs:
           # already fetches refs/tags/*; this keeps them if the depth changes.
           fetch-tags: true
 
+      # The scripts below are plain Node; no install.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
       # A wrong rule here skips lanes or passes a bad title silently and goes
       # green, so the scripts are tested before they are used. Built-in
       # node:test, no install.
       - name: Test CI scripts
         run: node --test 'scripts/ci/*.test.mjs'
+
+      # Hosted runners only, actions pinned to a SHA, npm pinned (ADR-0056).
+      # Annotates each offending line.
+      - name: Workflow policy
+        run: node scripts/ci/workflow-policy.mjs
 
       - id: filter
         env:
@@ -262,7 +274,9 @@ jobs:
       # The main push run of the squash merge reads it from the PR head's
       # newest completed run, and only if that run concluded success. When the
       # checkout is not that merge it uploads an `unrecorded` marker, so main
-      # misses quietly. Fork PRs record nothing: their lanes and e2e never run.
+      # misses quietly. Fork PRs record nothing: a fork's run uses the
+      # workflow file from the fork, so its evidence proves nothing, and the
+      # main push run of its merge runs every lane its diff touches.
       # Last in the job, so a failed check above uploads nothing. A re-run
       # records the same merge again: it reuses the run's merge commit.
       - name: Record the tested tree
@@ -275,7 +289,7 @@ jobs:
 
       - name: Upload the tested tree
         if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: verified-tree
           path: ${{ runner.temp }}/verified-tree/verified-tree.json
@@ -285,17 +299,16 @@ jobs:
 
   verify:
     name: Verify (${{ matrix.package }})
-    runs-on: [self-hosted, linux, arm64, hnch-podman]
+    runs-on: ubuntu-24.04-arm
     needs: detect-changes
-    # Skip entire job when no relevant packages changed, AND when this is a
-    # fork PR (defense in depth — keeps fork PRs off self-hosted runners).
-    if: |
-      needs.detect-changes.outputs.verify-packages != '[]' &&
-      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-    # A hang guard, not a budget. The client lane takes about 2 min alone and
-    # about 3.5 min with coverage while a Playwright job shares the runner VM,
-    # which is the normal case now that e2e starts beside the lanes (#590).
-    timeout-minutes: 5
+    # Skip the job when no lane's package changed. Fork PRs run it too, on
+    # hosted runners and without secrets (no Codecov token: the upload is
+    # tokenless for forks and never fails the job).
+    if: needs.detect-changes.outputs.verify-packages != '[]'
+    # A hang guard, not a budget. The client lane took 2-3.5 min with coverage
+    # on the old pool; hosted runners add the store restore and, while the
+    # repo is private, run on 2 CPUs instead of 4.
+    timeout-minutes: 10
     concurrency:
       group: verify-${{ github.ref }}-${{ matrix.package }}
       cancel-in-progress: true
@@ -309,12 +322,7 @@ jobs:
       matrix:
         package: ${{ fromJSON(needs.detect-changes.outputs.verify-packages) }}
     steps:
-      - name: Runner identity
-        run: |
-          echo "Runner: $RUNNER_NAME on $(hostname) — arch $(uname -m)"
-          df -h /cache || true
-
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Install
         uses: ./.github/actions/pnpm-install
@@ -339,7 +347,7 @@ jobs:
       # Every run measures coverage: PR runs feed Codecov's PR comment and its
       # codecov/patch check, main runs its history and the README badge. The
       # relay lane records PSI, load and CPU times while its tests run, to
-      # tell a stalled runner VM from a slow test (#568).
+      # tell a stalled runner from a slow test (#568).
       - name: Unit tests (with coverage)
         env:
           PACKAGE: ${{ matrix.package }}
@@ -353,7 +361,7 @@ jobs:
 
       - name: Upload stall samples
         if: always() && matrix.package == 'relay'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: stall-samples-relay
           path: ${{ runner.temp }}/stall-samples/
@@ -364,7 +372,7 @@ jobs:
       # nothing read it.
       - name: Upload coverage to Codecov
         if: always()
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: ${{ matrix.package }}
@@ -387,7 +395,7 @@ jobs:
   # check and does not wait for this one.
   verify-summary:
     name: Verify
-    runs-on: [self-hosted, linux, arm64, hnch-podman]
+    runs-on: ubuntu-24.04-arm
     needs: [detect-changes, verify]
     if: always()
     timeout-minutes: 1
@@ -414,27 +422,24 @@ jobs:
 
   e2e:
     name: E2E (Playwright)
-    # `e2e` is carried by exactly one pool runner (slot 1, see
-    # infra/runner/supervisor.sh and ADR-0052), so Playwright jobs from
-    # different refs, and screenshots-main.yml, queue behind each other instead
-    # of sharing the runner VM's CPUs. timeout-minutes counts from job start,
-    # not queue time.
-    runs-on: [self-hosted, linux, arm64, hnch-podman, e2e]
+    # One job, not shards (ADR-0056): each hosted job gets its own VM, so no
+    # other job shares its CPUs, and a shard would repeat the install, the
+    # browser install and the client build. `E2E (Playwright)` is the merge
+    # check by this name.
+    runs-on: ubuntu-24.04-arm
     # Starts beside the verify lanes, not after them: it builds @hnch/shared
-    # itself and reads no lane output, so slot 1 takes Playwright while the
-    # other slot works through the lanes (ADR-0052 allows one job next to it).
-    # A red lane no longer stops e2e; both checks must be green to merge.
+    # itself and reads no lane output. A red lane does not stop e2e; both
+    # checks must be green to merge. Fork PRs run it too, without secrets.
     needs: detect-changes
-    # Fork guard as on the verify lanes: keeps fork PRs off self-hosted runners.
-    if: |
-      needs.detect-changes.outputs.e2e == 'true' &&
-      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-    timeout-minutes: 10
+    if: needs.detect-changes.outputs.e2e == 'true'
+    # A hang guard. 4.5-7 min on the old pool; hosted adds the browser's
+    # system packages, and while the repo is private the runner has 2 CPUs.
+    timeout-minutes: 20
     concurrency:
       group: e2e-${{ github.ref }}
       cancel-in-progress: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       # E2E keeps default ignore-scripts=false: msgpackr-extract's native
       # binary is exercised by the relay + client at runtime.
@@ -461,23 +466,16 @@ jobs:
       - name: Unit tests (e2e)
         run: pnpm --filter @hnch/e2e run test:unit
 
-      # On self-hosted (rootless container, no sudo) Playwright system deps are
-      # baked into the image — plain `install chromium` is enough. On ubuntu-latest
-      # we still need apt-get via `--with-deps`.
-      - name: Install Playwright browsers (github-hosted)
-        if: runner.environment == 'github-hosted'
+      # --with-deps apt-installs Chromium's system libraries.
+      - name: Install Playwright browsers
         run: pnpm --filter @hnch/e2e exec playwright install --with-deps chromium
-
-      - name: Install Playwright browsers (self-hosted)
-        if: runner.environment == 'self-hosted'
-        run: pnpm --filter @hnch/e2e exec playwright install chromium
 
       - name: Run e2e
         run: pnpm --filter @hnch/e2e test
 
       - name: Upload Playwright report
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: playwright-report
           path: |

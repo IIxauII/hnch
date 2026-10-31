@@ -1,6 +1,6 @@
 # ADR-0053: Runner pool size — 2 slots, fewer than the verify lanes
 
-**Status:** Accepted
+**Status:** Superseded by ADR-0056
 **Date:** 2026-10-29
 
 **Caveat (2026-10-30, #589):** the verify matrix now has 4 lanes (the e2e package's checks moved into the e2e job, #590), the first wave is one job (version audit and PR-title check are steps of `detect-changes`, #591), and `E2E (Playwright)` starts beside the lanes instead of after them (#590). The decision stands: 4 lanes still outnumber the 2 slots, and Playwright still shares the VM with at most one other job ([ADR-0052](0052-single-e2e-runner-slot.md)).
