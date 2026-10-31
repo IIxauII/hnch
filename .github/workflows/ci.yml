@@ -3,19 +3,8 @@ name: CI
 on:
   push:
     branches: [main]
-    # Bot-authored screenshot refresh commits (see screenshots-main.yml) touch
-    # only docs/screenshots/** and have no effect on any package lane. Skip
-    # CI entirely on those pushes — saves a runner slot. Belt to the
-    # GITHUB_TOKEN-push platform rule + [skip ci] trailer.
-    paths-ignore:
-      - 'docs/screenshots/**'
   pull_request:
     branches: [main]
-    # Symmetric: a PR that only edits docs/screenshots/** can't affect any
-    # package lane either. If you genuinely need a CI run for a screenshot-
-    # only PR, touch any other path or run the workflow manually.
-    paths-ignore:
-      - 'docs/screenshots/**'
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -30,18 +19,21 @@ jobs:
   # version audit, PR title). A failed check here fails this job, so
   # the lanes after it skip; the run still goes red. On a main push it may also
   # find the merge already verified by its PR run and turn every lane off
-  # (verified-skip, ADR-0055); PR runs upload the evidence for that.
+  # (verified-skip, ADR-0055); PR runs upload the evidence for that. Its
+  # `screenshots` output says whether the change touched a UI-bearing path: on
+  # a main push the e2e job then also captures main's screenshot reference set
+  # (ADR-0057).
   #
   # Every job runs on GitHub-hosted ubuntu-24.04-arm (ADR-0056). The
   # workflow policy step below fails on any non-hosted runner label.
   detect-changes:
     name: Detect changed packages
     runs-on: ubuntu-24.04-arm
-    # The checkout below is full-history and the pack is dominated by
-    # docs/screenshots/** PNGs, so clone time grows with every screenshot
-    # refresh commit. At timeout-minutes: 1 the job started dying mid-fetch
-    # (successful runs were already landing at 40-53s). 3 minutes is headroom
-    # on top of the blob filter, not a licence for the step to get slower.
+    # The checkout below is full-history and the pack is dominated by the
+    # docs/screenshots/** PNGs main carried until #597 (they stay in history).
+    # At timeout-minutes: 1 the job started dying mid-fetch (successful runs
+    # were already landing at 40-53s). 3 minutes is headroom on top of the
+    # blob filter, not a licence for the step to get slower.
     timeout-minutes: 3
     # Job-level permissions replace the workflow-level set, so contents: read
     # is restated. actions: read lets the filter step look up the last green
@@ -59,6 +51,7 @@ jobs:
       cli: ${{ steps.filter.outputs.cli }}
       e2e: ${{ steps.filter.outputs.e2e }}
       root: ${{ steps.filter.outputs.root }}
+      screenshots: ${{ steps.filter.outputs.screenshots }}
       verify-packages: ${{ steps.filter.outputs.verify-packages }}
     steps:
       - id: checkout
@@ -112,6 +105,9 @@ jobs:
             exit 0
           }
 
+          # 0 only when the verified-tree check below passed on a main push.
+          verified=3
+
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             base="${{ github.event.pull_request.base.sha }}"
             # Diff against the PR head SHA explicitly. actions/checkout for
@@ -133,13 +129,12 @@ jobs:
             #   never returns it.
             # - A failed run never becomes the base, so the next run re-tests
             #   its changes.
-            # - Bot commits marked [skip ci] start no CI run of their own:
-            #   screenshot refreshes (chore(screenshots): ...) and semantic-
-            #   release's version bumps (chore(release): <tag>, which touch
-            #   packages/<pkg>/package.json and CHANGELOG.md). They fall
-            #   inside base..head, so the diff below is built per commit and
-            #   leaves them out; otherwise a docs-only merge after a release
-            #   would re-run that package's lanes.
+            # - semantic-release's version bumps (chore(release): <tag>
+            #   [skip ci], which touch packages/<pkg>/package.json and
+            #   CHANGELOG.md) start no CI run of their own. They fall inside
+            #   base..head, so the diff below is built per commit and leaves
+            #   them out; otherwise a docs-only merge after a release would
+            #   re-run that package's lanes.
             # - No green run found, gh failing, or a base that is not an
             #   ancestor of this push (history rewritten): full pipeline.
             # - A green run is the base even when it was a verified-skip: the
@@ -172,13 +167,13 @@ jobs:
             # run tested on this same parent, with only [skip ci] bot commits
             # since the last green main run, needs no second test run. The
             # script prints why not, as a ::warning:: when a lookup failed; any
-            # status but 0 runs the lanes, so an error never skips.
+            # status but 0 runs the lanes, so an error never skips. The
+            # changed paths are still listed below: a verified-skip run with
+            # UI changes captures the screenshot reference (ADR-0057), which
+            # no PR run does.
             verified=0
             node scripts/ci/verified-tree.mjs check "$head" "$base" || verified=$?
-            if [[ "$verified" == 0 ]]; then
-              node scripts/ci/changed-lanes.mjs --none >> "$GITHUB_OUTPUT"
-              exit 0
-            elif [[ "$verified" != 3 ]]; then
+            if [[ "$verified" != 0 && "$verified" != 3 ]]; then
               echo "::warning::verified-tree check exited $verified; running the lanes"
             fi
           else
@@ -209,13 +204,13 @@ jobs:
           # would only ever collapse an old+new path pair into the new path,
           # and for a path-prefix lane filter the extra old path is harmless.
           if [[ "$main_push" == "true" ]]; then
-            # Per commit, minus the [skip ci] bot commits (see above), matched
-            # on the subject only, as release.yml does: a body line must not
-            # drop a human commit's files. main is squash-only and so linear.
-            # Still tree-only: diff-tree --name-only never reads blobs.
+            # Per commit, minus the [skip ci] release commits (see above),
+            # matched on the subject only, as release.yml does: a body line
+            # must not drop a human commit's files. main is squash-only and so
+            # linear. Still tree-only: diff-tree --name-only never reads blobs.
             # Keep BOT_SUBJECT in step with release.yml and scripts/ci/verified-tree.mjs
             # (a test there checks all three).
-            BOT_SUBJECT='^chore\((release|screenshots)\): .*\[skip ci\]$'
+            BOT_SUBJECT='^chore\(release\): .*\[skip ci\]$'
             # An assignment, not < <(...): errexit sees a failing git log.
             commits=$(git log --format='%H %s' "$base..$head")
             changed=""
@@ -231,10 +226,16 @@ jobs:
           echo "$changed"
 
           # The path rules (lanes, reverse-dep fan-out, Markdown at a package
-          # root starting nothing) live in the script. verify-packages lists
-          # only the lanes that run, so unrelated `Verify (X)` checks don't
-          # appear at all; branch protection targets the `Verify` aggregator.
-          node scripts/ci/changed-lanes.mjs <<< "$changed" >> "$GITHUB_OUTPUT"
+          # root starting nothing, the screenshot paths) live in the script.
+          # verify-packages lists only the lanes that run, so unrelated
+          # `Verify (X)` checks don't appear at all; branch protection targets
+          # the `Verify` aggregator. A verified skip turns every lane off and
+          # keeps only the screenshot rule.
+          if [[ "$verified" == 0 ]]; then
+            node scripts/ci/changed-lanes.mjs --none <<< "$changed" >> "$GITHUB_OUTPUT"
+          else
+            node scripts/ci/changed-lanes.mjs <<< "$changed" >> "$GITHUB_OUTPUT"
+          fi
 
       # The checks below run even when an earlier step failed, so one run
       # reports every problem. Both read only the checkout: the four
@@ -430,14 +431,33 @@ jobs:
     # Starts beside the verify lanes, not after them: it builds @hnch/shared
     # itself and reads no lane output. A red lane does not stop e2e; both
     # checks must be green to merge. Fork PRs run it too, without secrets.
+    #
+    # On a main push that changed a UI-bearing path, the same Playwright run
+    # also captures main's screenshot reference set (ADR-0057):
+    # SCREENSHOT_CAPTURE unlocks the specs under tests/_screenshots, which PR
+    # runs skip. The set goes up as an artifact for the screenshots-reference
+    # job below; this job never holds a write token. A verified-skip main run
+    # (ADR-0055) with UI changes runs here too, capture only.
     needs: detect-changes
-    if: needs.detect-changes.outputs.e2e == 'true'
+    if: needs.detect-changes.outputs.e2e == 'true' || (github.event_name == 'push' && needs.detect-changes.outputs.screenshots == 'true')
     # A hang guard. 4.5-7 min on the old pool; hosted adds the browser's
     # system packages, and while the repo is private the runner has 2 CPUs.
-    timeout-minutes: 20
+    # A main run with capture adds the 21 screenshot specs.
+    timeout-minutes: 25
+    # A capture-only run (verified skip, UI change) may fail at any step, the
+    # install or the browser download included, without turning main red: the
+    # tree is verified, only the reference is missed. On every other run,
+    # PRs included, the job fails as before.
+    continue-on-error: ${{ needs.detect-changes.outputs.e2e != 'true' }}
     concurrency:
       group: e2e-${{ github.ref }}
       cancel-in-progress: true
+    env:
+      E2E: ${{ needs.detect-changes.outputs.e2e }}
+      CAPTURE: ${{ github.event_name == 'push' && needs.detect-changes.outputs.screenshots == 'true' }}
+    outputs:
+      # sha-<short> of the reference set this run captured; empty when none.
+      reference: ${{ steps.reference.outputs.set }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -470,11 +490,30 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm --filter @hnch/e2e exec playwright install --with-deps chromium
 
+      # One Playwright session: the app tests and, with CAPTURE, the screenshot
+      # specs beside them, writing docs/screenshots/sha-<short>/ in the
+      # checkout (gitignored). A verified-skip main run has no app tests to
+      # run and captures alone; the step continues on error there so the
+      # steps below can upload the report and say what was missed.
       - name: Run e2e
-        run: pnpm --filter @hnch/e2e test
+        id: playwright
+        continue-on-error: ${{ needs.detect-changes.outputs.e2e != 'true' }}
+        run: |
+          set -euo pipefail
+          if [[ "$CAPTURE" == true ]]; then
+            SCREENSHOT_SHA="sha-$(git rev-parse --short=7 HEAD)"
+            export SCREENSHOT_CAPTURE=1 SCREENSHOT_SHA
+            echo "SCREENSHOT_SHA=$SCREENSHOT_SHA" >> "$GITHUB_ENV"
+            echo "Capturing main's screenshot reference as docs/screenshots/$SCREENSHOT_SHA/"
+          fi
+          if [[ "$E2E" == true ]]; then
+            pnpm --filter @hnch/e2e test
+          else
+            pnpm --filter @hnch/e2e exec playwright test _screenshots --project chromium
+          fi
 
       - name: Upload Playwright report
-        if: failure()
+        if: failure() || steps.playwright.outcome == 'failure'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-report
@@ -482,3 +521,106 @@ jobs:
             packages/e2e/playwright-report
             packages/e2e/test-results
           retention-days: 7
+
+      # The set is named only when the run passed and wrote images, so the
+      # publish job never moves latest/ to a partial or empty set.
+      - name: Name the captured reference set
+        id: reference
+        if: env.CAPTURE == 'true' && steps.playwright.outcome == 'success'
+        run: |
+          set -euo pipefail
+          count=0
+          if [[ -d "docs/screenshots/$SCREENSHOT_SHA" ]]; then
+            count=$(find "docs/screenshots/$SCREENSHOT_SHA" -type f -name '*.png' | wc -l)
+          fi
+          if [[ "$count" -eq 0 ]]; then
+            echo "::warning::Playwright passed but wrote no image under docs/screenshots/$SCREENSHOT_SHA/; nothing to publish."
+            exit 0
+          fi
+          echo "$count images captured as $SCREENSHOT_SHA"
+          echo "set=$SCREENSHOT_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the captured reference set
+        if: steps.reference.outputs.set != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: screenshots-reference
+          path: docs/screenshots/${{ steps.reference.outputs.set }}
+          if-no-files-found: error
+          retention-days: 30
+
+      # Runs after a failed Playwright step too (the job is red then), so the
+      # summary names the miss either way.
+      - name: Note a missed capture
+        if: ${{ !cancelled() && env.CAPTURE == 'true' && steps.reference.outputs.set == '' }}
+        run: |
+          echo "::warning::main's screenshot reference was not captured in this run; the previous latest/ on the screenshots branch stays."
+          echo "Screenshot reference **not captured** in this run (Playwright failed or wrote no image); the previous \`latest/\` on the \`screenshots\` branch stays." >> "$GITHUB_STEP_SUMMARY"
+
+  # Publishes the reference set the e2e job captured on a main push to the
+  # `screenshots` branch and moves latest/ (ADR-0057). Its own job because it
+  # holds this workflow's only write token: it runs nothing from the tree under
+  # test, only scripts/ci from the pushed main commit, and PR runs never reach
+  # it. continue-on-error: a failed publish leaves the previous reference in
+  # place and the main run green (release.yml starts from a green run); the
+  # ::error:: annotation and the step summary show the miss.
+  screenshots-reference:
+    name: Publish the screenshot reference
+    runs-on: ubuntu-24.04-arm
+    needs: [detect-changes, e2e]
+    if: github.event_name == 'push' && needs.e2e.outputs.reference != ''
+    continue-on-error: true
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    # Two main runs publish one after the other. The workflow-level group
+    # still cancels this job with the rest of an older run when a newer push
+    # lands; the newer run then publishes, and git push is atomic.
+    concurrency:
+      group: screenshots-reference
+      cancel-in-progress: false
+    steps:
+      # main: the publisher script, and its history so latest/ only moves to
+      # a commit at or past the one it shows (a re-run of an older run's
+      # failed publish adds its set but leaves latest/ alone). Treeless, as in
+      # detect-changes: commits and trees only, blobs for scripts/ci.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: blob:none
+          sparse-checkout: scripts/ci
+          persist-credentials: false
+
+      # The screenshots branch: its tip commit, no history, and of its blobs
+      # only latest/ (a few MB). The publisher adds the new set's directory to
+      # the sparse cone, copies the capture in and pushes with GITHUB_TOKEN,
+      # which contents: write above lets push.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: screenshots
+          path: .screenshots-branch
+          fetch-depth: 1
+          filter: blob:none
+          sparse-checkout: latest
+          persist-credentials: true
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: Download the captured reference set
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: screenshots-reference
+          path: ${{ runner.temp }}/screenshots-reference
+
+      - name: Publish to the screenshots branch
+        env:
+          SET: ${{ needs.e2e.outputs.reference }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          node scripts/ci/screenshots-reference.mjs publish \
+            --branch-dir .screenshots-branch \
+            --set-dir "$RUNNER_TEMP/screenshots-reference" \
+            --set "$SET" --commit "$GITHUB_SHA" --run-url "$RUN_URL" \
+            --main-dir .

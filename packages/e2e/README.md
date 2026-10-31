@@ -28,7 +28,7 @@ The full suite starts the relay and the client automatically via `playwright.con
 | Value | What runs | Default |
 |---|---|---|
 | `dev` | `ng serve` (`pnpm --filter @hnch/client dev`) with its file watcher | local runs, including `pnpm test:e2e` |
-| `build` | `ng build --configuration e2e` into `packages/client/dist/e2e`, then `scripts/serve-static.mjs` serves it, with `index.html` for app routes | whenever `CI` is set (the `E2E (Playwright)` job and `screenshots-main.yml`) |
+| `build` | `ng build --configuration e2e` into `packages/client/dist/e2e`, then `scripts/serve-static.mjs` serves it, with `index.html` for app routes | whenever `CI` is set (the `E2E (Playwright)` job, main's screenshot capture included) |
 
 The `build` mode runs the optimised bundle users get, and no dev server competes with the browsers for CPU. The `e2e` configuration has no `fileReplacements`, so it keeps `environment.ts` and reaches the relay on the page's own port (worktree and CI ports work with no extra config). Production builds and deploys are unaffected: they keep their own `production` configuration and `www/` output.
 
@@ -61,8 +61,8 @@ A new screenshot spec starts with that line too. An assertion that must hold on 
 
 ### Two surfaces
 
-- **PR flow** — `lefthook` pre-push hook runs a scoped subset and publishes to the `screenshots` branch. See `CONTRIBUTING.md → Screenshots`.
-- **Main flow** — `.github/workflows/screenshots-main.yml` runs the full suite on every push to `main` and commits to `docs/screenshots/<sha>/`.
+- **PR flow** — `lefthook` pre-push hook runs a scoped subset and publishes to the `screenshots` branch under `sha-<short>/`. See `docs/release.md → Screenshots`.
+- **Main flow** — on a push to `main` with UI changes, the CI `E2E (Playwright)` job runs with `SCREENSHOT_CAPTURE=1`: app tests and the full screenshot suite in one Playwright run. A follow-up job publishes the set to the `screenshots` branch as `sha-<short>/` of the `main` commit and as `latest/`, with `latest.json` naming the commit. `main` gets no PNGs ([ADR-0057](../../adr/0057-screenshot-reference-on-the-screenshots-branch.md)).
 
 ### Env vars
 
@@ -75,7 +75,7 @@ A new screenshot spec starts with that line too. An assertion that must hold on 
 
 ### Output
 
-`docs/screenshots/<SHA>/<feature>/<scene>.png` — relative to repo root. Every spec resolves its `OUT_DIR` via the shared helper:
+`docs/screenshots/<SHA>/<feature>/<scene>.png` — relative to repo root, gitignored: the hook and CI copy a capture from there to the `screenshots` branch, nothing under it is committed. Every spec resolves its `OUT_DIR` via the shared helper:
 
 ```ts
 import { resolveOutDir } from './_helpers/out-dir';
