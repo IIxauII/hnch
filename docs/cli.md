@@ -146,6 +146,7 @@ Scale customization (preset overrides, custom scales) is persisted in `config.js
 packages/cli/
   src/
     index.ts                  — entry point, yargs command wiring
+    about.ts                  — version, source link and license for --help / --version (AGPL-3.0 §13)
     commands/
       agenda.ts               — hnch agenda subcommand handlers
     session.ts                — createSession / joinSession / openSession: the adapter over the shared live session
@@ -171,4 +172,4 @@ packages/cli/
 pnpm --filter @xauyxau/hnch test
 ```
 
-Unit tests are spread across `src/*.test.ts` files (`session` — against the run's relay, which `vitest.relay-setup.ts` starts once through the `@hnch/relay/testing` harness, `config`, `last-session`, `room-code-input`, `session-expired`, `share`), `src/commands/agenda.test.ts`, and `src/ui/components/settings.test.ts`. A terminal-level e2e harness (node-pty + vitest, covering `create`/`join`/`resume` against a live relay) is planned but not yet implemented ([#608](https://github.com/IIxauII/hnch/issues/608)).
+Unit tests are spread across `src/*.test.ts` files (`session` — against the run's relay, which `vitest.relay-setup.ts` starts once through the `@hnch/relay/testing` harness, `about`, `config`, `last-session`, `room-code-input`, `session-expired`, `share`), `src/commands/agenda.test.ts`, and `src/ui/components/settings.test.ts`. A terminal-level e2e harness (node-pty + vitest, covering `create`/`join`/`resume` against a live relay) is planned but not yet implemented ([#608](https://github.com/IIxauII/hnch/issues/608)).

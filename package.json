@@ -1,6 +1,7 @@
 {
   "name": "hnch",
   "version": "0.0.0",
+  "license": "AGPL-3.0-only",
   "private": true,
   "description": "Planning poker app. See docs/project.md and adr/ for design.",
   "packageManager": "pnpm@9.15.0",

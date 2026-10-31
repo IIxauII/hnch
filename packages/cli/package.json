@@ -9,7 +9,7 @@
     "cli",
     "estimation"
   ],
-  "license": "UNLICENSED",
+  "license": "AGPL-3.0-only",
   "author": "xau",
   "repository": {
     "type": "git",
@@ -30,7 +30,7 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE.md"
+    "LICENSE"
   ],
   "type": "module",
   "main": "./dist/index.js",

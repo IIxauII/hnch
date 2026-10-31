@@ -24,12 +24,12 @@ describe('changedLanes', () => {
     assert.deepEqual(verifyPackages, ['shared', 'relay', 'cli']);
   });
 
-  it('starts no lane for Markdown at a package root', () => {
+  it('starts no lane for Markdown or the LICENSE at a package root', () => {
     const files = [
       'packages/relay/README.md',
       'packages/cli/CHANGELOG.md',
       'packages/client/CLAUDE.md',
-      'packages/cli/LICENSE.md',
+      'packages/cli/LICENSE',
       'packages/e2e/README.md',
     ];
     const { lanes, verifyPackages, ignored } = changedLanes(files);

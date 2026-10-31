@@ -34,6 +34,7 @@ import { promptPassword } from './prompt-password.js';
 import { validatePassword } from './password-validation.js';
 import { refusalVerdict, watchForRefusal, type EndingRefusal } from './refusal.js';
 import { App } from './ui/App.js';
+import { CLI_VERSION, withAbout } from './about.js';
 import { ConfigSettings } from './ui/components/ConfigSettings.js';
 import { createInterface } from 'node:readline';
 import {
@@ -486,7 +487,7 @@ async function handleConfig(argv: {
   console.log('Config updated.');
 }
 
-const cli = yargs(hideBin(process.argv))
+const cli = withAbout(yargs(hideBin(process.argv)), CLI_VERSION)
   .scriptName('hnch')
   .usage('$0 <command> — terminal pointing poker')
   .command(

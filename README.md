@@ -36,3 +36,9 @@ The list of project docs, is in [CLAUDE.md § Documentation layout](CLAUDE.md#do
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for PR requirements, commit style (Conventional Commits), ADR discipline, and the semantic-release flow that drives versioning + deploys from commit messages.
+
+## License
+
+Copyright © 2026 xau. hnch is free software under the [GNU Affero General Public License v3.0 only](LICENSE) (`AGPL-3.0-only`).
+
+If you run a modified copy as a network service (a hosted web client or relay), the AGPL requires you to offer its users the source of your version. The web app (Settings → About) and the CLI (`hnch --help`, `hnch --version`) link to the source; point those links at your own repository.
