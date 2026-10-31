@@ -22,9 +22,9 @@ The repo is private on GitHub Free, so it has no branch protection and nothing b
 - Never merge on red, even when the failure looks unrelated.
 - After merging, check your merge's `ci.yml` push run (`gh run list --repo IIxauII/hnch --workflow ci.yml --event push --commit <merge-sha>`) and fix forward if it goes red. If a newer merge cancelled it, check the newest `main` push run instead (`gh run list --repo IIxauII/hnch --workflow ci.yml --event push --branch main --limit 1`): it covers yours. Don't re-run the old cancelled run; it shares the concurrency group and would cancel the newer one.
 
-A `main` push run tests everything changed since the last green `main` push run, so a merge whose run was cancelled or failed is tested again by the next one. It leaves out the `[skip ci]` release and screenshot commits, and runs the full pipeline when it can't find a green run to start from. Releases wait for a green `main` push run too (see [When a release runs](#when-a-release-runs)), so a red `main` holds back every release until it is fixed.
+A `main` push run tests everything changed since the last green `main` push run, so a merge whose run was cancelled or failed is tested again by the next one. It leaves out the `[skip ci]` release commits, and runs the full pipeline when it can't find a green run to start from. Releases wait for a green `main` push run too (see [When a release runs](#when-a-release-runs)), so a red `main` holds back every release until it is fixed.
 
-**Verified-skip** ([ADR-0055](../adr/0055-verified-skip-main-push-run.md)): a PR run records the tree it tested (the PR merged into `main`) in a `verified-tree` artifact, kept 30 days. When you squash-merge a PR whose newest CI run is green and `main` has not moved since that run (the bot's `[skip ci]` commits landing before the run are fine), the merge commit has that same tree, and its `main` push run skips every package lane and e2e and goes green in under a minute. Its `Detect changed packages` summary names the PR run that verified it. Anything else gets the full `main` run as before: `main` moved after the PR run (to get the skip, update the branch with `main` or push to it, then merge once that run is green; re-running the old run tests the same old merge again), a merge since the last green `main` run other than the bot's `[skip ci]` commits, a PR run older than 30 days, a fork PR, or a direct push. A lookup that fails also runs the lanes, with a warning on the run. `scripts/ci/verified-tree.mjs` holds the rules. A verified-skip run uploads no coverage, so Codecov has no report for that commit; later PRs still get their Codecov comment and check, compared against an earlier commit.
+**Verified-skip** ([ADR-0055](../adr/0055-verified-skip-main-push-run.md)): a PR run records the tree it tested (the PR merged into `main`) in a `verified-tree` artifact, kept 30 days. When you squash-merge a PR whose newest CI run is green and `main` has not moved since that run (the bot's `[skip ci]` commits landing before the run are fine), the merge commit has that same tree, and its `main` push run skips every package lane and e2e and goes green in under a minute (a merge with UI changes still runs the e2e job to capture the screenshot reference, allowed to fail; see [Screenshots](#screenshots)). Its `Detect changed packages` summary names the PR run that verified it. Anything else gets the full `main` run as before: `main` moved after the PR run (to get the skip, update the branch with `main` or push to it, then merge once that run is green; re-running the old run tests the same old merge again), a merge since the last green `main` run other than the bot's `[skip ci]` commits, a PR run older than 30 days, a fork PR, or a direct push. A lookup that fails also runs the lanes, with a warning on the run. `scripts/ci/verified-tree.mjs` holds the rules. A verified-skip run uploads no coverage, so Codecov has no report for that commit; later PRs still get their Codecov comment and check, compared against an earlier commit.
 
 ## Releases
 
@@ -36,7 +36,7 @@ Releases are automated from commit history using [semantic-release](https://sema
 
 - A merge whose CI run is red or cancelled releases nothing. Its commits release with the next green `main` run, which has tested them too (see [Merge only on green CI](#merge-only-on-green-ci)).
 - A verified-skip run (a clean squash merge whose PR run was green, see [Merge only on green CI](#merge-only-on-green-ci)) is a green `main` push run like any other: the release starts as soon as it finishes, under a minute after the merge, and releases the merge commit.
-- If `main` already holds a newer merge when a green run's release starts, that release publishes nothing and passes; the newer merge's green run releases both. Commits that start no CI run of their own don't count as newer merges: the bot's `[skip ci]` release and screenshot commits, and commits touching only `docs/screenshots/**`. A human commit marked to skip CI does count, and holds back releases until a later merge goes green.
+- If `main` already holds a newer merge when a green run's release starts, that release publishes nothing and passes; the newer merge's green run releases both. Commits that start no CI run of their own don't count as newer merges: the bot's `[skip ci]` release commits. A human commit marked to skip CI does count, and holds back releases until a later merge goes green.
 - Every completed CI run on `main` starts a Release run, red and cancelled ones included (PR runs from other branches start none). Those skip, and their run title says why, such as `Release skipped: CI failure on push, not a green main push`; a releasing run is titled `Release: <merge commit subject>`.
 - The release isn't among the merge commit's checks. List the runs that weren't skipped with:
 
@@ -77,9 +77,9 @@ Under the hood, each package's `release.config.mjs` (built from `scripts/release
 
 ## Screenshots
 
-Two surfaces, both automated.
+Two surfaces, both automated, both publishing to the `screenshots` branch: a PR's capture from the pre-push hook, main's reference set from main's CI run.
 
-> **Not a test gate.** The screenshot harness is a *capture-and-publish* flow: capture visual fixtures, push PNGs, post a sticky PR comment. It does not run `pnpm test:e2e`, does not run the CI `verify` matrix (typecheck / lint / unit / build), and does not gate the push on test results — failures exit 0 in hook mode. A successful run means "PNGs uploaded + comment posted", nothing more. Do not invoke `pnpm screenshots:publish` to validate behavior — use `pnpm test:e2e` or push and let CI run `verify`.
+> **Not a test gate.** The screenshot harness is a *capture-and-publish* flow: capture visual fixtures, push PNGs, post a sticky PR comment. It does not run `pnpm test:e2e`, does not run the CI `verify` matrix (typecheck / lint / unit / build), and does not gate the push on test results — failures exit 0 in hook mode, and a failed publish on `main` leaves the run green. A successful run means "PNGs uploaded + comment posted", nothing more. Do not invoke `pnpm screenshots:publish` to validate behavior — use `pnpm test:e2e` or push and let CI run `verify`.
 
 ### PR pre-push hook (per-author, scoped)
 
@@ -93,11 +93,21 @@ If you push before opening a PR, the hook prints a stderr advisory and exits 0. 
 
 **Bypass:** `git push --no-verify` skips the hook entirely. Use sparingly — the next push that includes a relevant file will re-publish.
 
-**Branch retention:** the `screenshots` branch is **uncapped** (PR-scoped, transient). Do not hand-edit it. See its `README.md`.
+**Branch retention:** the `screenshots` branch is **uncapped**. Do not hand-edit it. Its `README.md` (written by the reference publisher) describes the layout.
 
-### Main CI workflow (canonical reference)
+### Main reference set (canonical reference)
 
-`.github/workflows/screenshots-main.yml` runs on every push to `main` touching the same glob. It runs the full suite and commits PNGs to `main` under `docs/screenshots/<sha>/<feature>/`, updates the `docs/screenshots/latest` symlink, and prunes to the newest 10 sha dirs. Skills (`/triage`, `/plan`, `/spec`, `/critique`) consult `docs/screenshots/latest/<feature>/` on `main` as the canonical "what the app looks like now" reference.
+A push to `main` that touches the same glob, or a root file such as the lockfile (a dependency bump can move pixels), makes the `E2E (Playwright)` job of `ci.yml` capture the full screenshot suite in the same Playwright run as the app tests (`SCREENSHOT_CAPTURE=1`, output `docs/screenshots/sha-<short>/` in the runner's checkout, uploaded as the `screenshots-reference` artifact). The `Publish the screenshot reference` job then pushes it to the `screenshots` branch as `sha-<short>/` of the `main` commit, copies it to `latest/`, and writes `latest.json` (`{ set, commit, run }`). `main` itself receives no PNGs; the sets it carried until #597 stay in its history. [ADR-0057](../adr/0057-screenshot-reference-on-the-screenshots-branch.md).
+
+Agent commands such as `/critique` read `latest/<feature>/<scene>.png` on the `screenshots` branch as the canonical "what the app looks like now" reference:
+
+```
+https://github.com/IIxauII/hnch/blob/screenshots/latest/<feature>/<scene>.png?raw=true
+```
+
+`latest/` is a directory copy, not a symlink: GitHub serves nothing through a symlinked path. Git stores one blob per distinct image, so the copy costs no space.
+
+A verified-skip `main` run (ADR-0055) with UI changes runs the e2e job for the capture alone; that capture may fail without turning `main` red. A failed capture or publish leaves the previous `latest/` in place and says so on the run summary (a `::warning::` or a failed, allowed-to-fail publish job). Until #598 lands, that is also what a merge gets whose capture failed: the next UI merge refreshes the reference.
 
 ### OUT_DIR layout
 
@@ -122,7 +132,7 @@ SCREENSHOT_CAPTURE=1 SCREENSHOT_SHA=local \
   --project=chromium --workers=1
 ```
 
-Output lands under `docs/screenshots/local/<feature>/`. This directory is **not** gitignored — keep it out of commits by hand or rm before staging.
+Output lands under `docs/screenshots/local/<feature>/`. The whole `docs/screenshots/` directory is gitignored; nothing under it is tracked.
 
 ### Troubleshooting
 

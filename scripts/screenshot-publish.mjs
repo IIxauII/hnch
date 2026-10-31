@@ -20,11 +20,13 @@
 //
 // A successful run means "screenshots captured + uploaded", nothing more.
 //
-// Local output: capture writes docs/screenshots/sha-<short>/, and the run
-// removes it at the end in both modes, whether it published or failed, so the
-// working tree stays clean (the next run recaptures anyway). --keep-local
-// keeps it, e.g. for --dry-run-body. Unpublished local iteration goes to the
-// gitignored docs/screenshots/local/ (playwright without SCREENSHOT_SHA).
+// Local output: capture writes docs/screenshots/sha-<short>/ (the whole
+// docs/screenshots/ directory is gitignored), and the run removes it at the
+// end in both modes, whether it published or failed (the next run recaptures
+// anyway). --keep-local keeps it, e.g. for --dry-run-body. Unpublished local
+// iteration goes to docs/screenshots/local/ (playwright without
+// SCREENSHOT_SHA). Main's reference set is published by CI to the same branch
+// under latest/ (scripts/ci/screenshots-reference.mjs).
 //
 // Invoked by:
 //   - lefthook pre-push (mode=hook): conditional on UI-bearing diff vs @{push}
@@ -232,7 +234,7 @@ function runCapture(sha) {
 }
 
 // Remove the working-tree copy of a capture. Never removes a directory git
-// tracks (main's reference sets live under docs/screenshots/sha-*/ too).
+// tracks (none under docs/screenshots/ since #597; the guard stays cheap).
 function removeLocalCapture(sha) {
   const rel = `docs/screenshots/sha-${sha}`;
   const dir = resolve(repoRoot, rel);

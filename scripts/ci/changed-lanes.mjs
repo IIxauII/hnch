@@ -5,10 +5,16 @@
 //
 //   node scripts/ci/changed-lanes.mjs < changed.txt >> "$GITHUB_OUTPUT"
 //   node scripts/ci/changed-lanes.mjs --all >> "$GITHUB_OUTPUT"
-//   node scripts/ci/changed-lanes.mjs --none >> "$GITHUB_OUTPUT"
+//   node scripts/ci/changed-lanes.mjs --none < changed.txt >> "$GITHUB_OUTPUT"
 //
 // stdin is one path per line. stdout is the job's outputs as key=value lines;
 // the reasoning goes to stderr so it shows in the job log.
+//
+// Besides the lanes, the `screenshots` output says whether the change touched
+// a UI-bearing path: on a main push the e2e job then also captures main's
+// screenshot reference set (#597). --none keeps reading stdin for that rule:
+// a verified-skip main run (ADR-0055) runs no lane, but a UI change still
+// refreshes the reference.
 //
 // Pure Node, no dependencies: detect-changes does not install node_modules.
 import { readFileSync } from 'node:fs';
@@ -30,12 +36,21 @@ const ROOT = /^(pnpm-lock\.yaml|package\.json|tsconfig.*\.json|\.github\/workflo
 // from its tree.
 const PACKAGE_DOCS = /^packages\/[^/]+\/([^/]+\.md|LICENSE)$/;
 
+// Paths that change what the app looks like, so main's screenshot reference
+// is recaptured. The same list as RELEVANT_PATHS in
+// scripts/screenshot-publish.mjs, which starts the pre-push hook's capture.
+// A root change (lockfile, workflows) recaptures too: a dependency bump can
+// move pixels, and the full pipeline it starts has the e2e job running anyway.
+export const SCREENSHOT_PATHS =
+  /^packages\/(client|shared|e2e\/tests\/_screenshots|e2e\/tests\/fixtures)\//;
+
 /**
  * @param {string[]} files changed paths, repo-relative
  * @returns {{
  *   lanes: Record<'shared'|'relay'|'client'|'cli'|'e2e'|'root', boolean>,
  *   verifyPackages: string[],
  *   ignored: string[],
+ *   screenshots: boolean,
  * }}
  */
 export function changedLanes(files) {
@@ -75,28 +90,40 @@ export function changedLanes(files) {
     lanes.e2e = true;
   }
 
-  return { lanes, verifyPackages: PACKAGES.filter((p) => lanes[p]), ignored };
+  return {
+    lanes,
+    verifyPackages: PACKAGES.filter((p) => lanes[p]),
+    ignored,
+    screenshots: lanes.root || match(SCREENSHOT_PATHS),
+  };
 }
 
-/** Every lane on: the detect-changes fallback when no usable diff exists. */
+/**
+ * Every lane on, and the reference set recaptured: the detect-changes
+ * fallback when no usable diff exists.
+ */
 export function allLanes() {
-  return changedLanes(['package.json']);
+  return { ...changedLanes(['package.json']), screenshots: true };
 }
 
 /**
  * Every lane off: a main push run verified by a green PR run for the same
- * tree (ADR-0055, scripts/ci/verified-tree.mjs).
+ * tree (ADR-0055, scripts/ci/verified-tree.mjs). The screenshot rule still
+ * reads the changed paths: the PR run captured nothing.
+ *
+ * @param {string[]} files changed paths, repo-relative
  */
-export function noLanes() {
-  return changedLanes([]);
+export function noLanes(files = []) {
+  return { ...changedLanes([]), screenshots: changedLanes(files).screenshots };
 }
 
 /**
  * The job outputs as GITHUB_OUTPUT lines. verify-packages is always emitted:
  * the verify matrix fromJSON()s it and fails to expand on an empty string.
  */
-export function formatOutputs({ lanes, verifyPackages }) {
+export function formatOutputs({ lanes, verifyPackages, screenshots }) {
   const lines = Object.entries(lanes).map(([k, v]) => `${k}=${v}`);
+  lines.push(`screenshots=${screenshots}`);
   lines.push(`verify-packages=${JSON.stringify(verifyPackages)}`);
   return `${lines.join('\n')}\n`;
 }
@@ -106,7 +133,7 @@ if (argv[1] === import.meta.filename) {
   if (argv[2] === '--all') {
     result = allLanes();
   } else if (argv[2] === '--none') {
-    result = noLanes();
+    result = noLanes(readFileSync(0, 'utf8').split('\n'));
   } else if (argv.length > 2) {
     stderr.write(`usage: changed-lanes.mjs [--all | --none] < changed-paths\n`);
     exit(2);
@@ -116,5 +143,6 @@ if (argv[1] === import.meta.filename) {
   }
   stderr.write(`Verify lanes: ${result.verifyPackages.join(', ') || 'none'}\n`);
   stderr.write(`e2e: ${result.lanes.e2e}\n`);
+  stderr.write(`screenshots: ${result.screenshots}\n`);
   stdout.write(formatOutputs(result));
 }

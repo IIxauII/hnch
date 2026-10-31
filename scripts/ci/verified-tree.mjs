@@ -27,11 +27,13 @@ import { dirname, join } from 'node:path';
 import process, { argv, env, stderr, stdout } from 'node:process';
 
 /**
- * The bot's [skip ci] commits (semantic-release bumps, screenshot refreshes),
- * matched on the subject only. Same pattern as BOT_SUBJECT in ci.yml and
- * release.yml; a test keeps the three in step.
+ * The bot's [skip ci] commits (semantic-release bumps), matched on the
+ * subject only. Same pattern as BOT_SUBJECT in ci.yml and release.yml; a test
+ * keeps the three in step. Screenshot refreshes no longer land on main
+ * (#597); the ones already there start no lane, and the one range that still
+ * holds them costs a full run instead of a verified skip.
  */
-export const BOT_SUBJECT = /^chore\((release|screenshots)\): .*\[skip ci\]$/;
+export const BOT_SUBJECT = /^chore\(release\): .*\[skip ci\]$/;
 
 /** The artifact a PR run uploads from detect-changes. */
 export const ARTIFACT = 'verified-tree';
@@ -249,7 +251,7 @@ function checkCommand(sha, lastGreen) {
     return 3;
   }
   stdout.write(
-    `Verified by PR #${result.pr}'s CI run ${result.runUrl} (tree ${result.tree}); no lane or e2e runs.\n`,
+    `Verified by PR #${result.pr}'s CI run ${result.runUrl} (tree ${result.tree}); no lane runs, e2e only for a screenshot capture.\n`,
   );
   if (env.GITHUB_STEP_SUMMARY) {
     appendFileSync(
@@ -257,7 +259,7 @@ function checkCommand(sha, lastGreen) {
       [
         '### Verified by a PR run',
         '',
-        `[PR #${result.pr}'s CI run](${result.runUrl}) tested this commit's tree (\`${result.tree}\`) on the same base, after the last green main run. No package lane and no e2e ran in this run (ADR-0055).`,
+        `[PR #${result.pr}'s CI run](${result.runUrl}) tested this commit's tree (\`${result.tree}\`) on the same base, after the last green main run. No package lane ran in this run, and e2e only to capture main's screenshot reference when the merge touched the UI (ADR-0055, ADR-0057).`,
         '',
       ].join('\n'),
     );

@@ -187,7 +187,7 @@ describe('checkVerifiedTree', () => {
     const { git, commit, rawGit } = makeRepo();
     const lastGreen = commit('feat(relay): earlier merge (#6)', { a: '1' });
     commit('chore(release): relay-v1.4.0 [skip ci]', { v: '1.4.0' });
-    const bot = commit('chore(screenshots): refresh @ sha-1234567 [skip ci]', { s: 'png' });
+    const bot = commit('chore(release): client-v1.47.0 [skip ci]', { c: '1.47.0' });
     const sha = commit('fix(cli): the merged PR (#7)', { b: '2' });
     const record = { tree: rawGit('rev-parse', `${sha}^{tree}`), base: bot, head: PR_HEAD, pr: 7 };
     const result = checkVerifiedTree({
@@ -444,7 +444,7 @@ describe('recordVerifiedTree on a stale event base', () => {
   // no lane counts, so the run's lane choice covers the merge on the new tip.
   it('records the newer main tip as the base when only bot commits landed after the event base', () => {
     const { git, rawGit, head, eventBase, tip } = mergeOnStaleBase([
-      'chore(screenshots): refresh @ sha-b2953a2 [skip ci]',
+      'chore(release): client-v1.47.0 [skip ci]',
       'chore(release): relay-v1.4.0 [skip ci]',
     ]);
     assert.deepEqual(recordVerifiedTree({ git, head, base: eventBase, pr: 7 }), {
@@ -457,14 +457,14 @@ describe('recordVerifiedTree on a stale event base', () => {
 
   it('records nothing when a human commit landed after the event base', () => {
     const { git, head, eventBase } = mergeOnStaleBase([
-      'chore(screenshots): refresh @ sha-b2953a2 [skip ci]',
+      'chore(release): client-v1.47.0 [skip ci]',
       'feat(client): main moved on (#8)',
     ]);
     assert.equal(recordVerifiedTree({ git, head, base: eventBase, pr: 7 }), null);
   });
 
   it('records nothing when the event base is not an ancestor of the merged main tip', () => {
-    const { git, head } = mergeOnStaleBase(['chore(screenshots): refresh @ sha-b2953a2 [skip ci]']);
+    const { git, head } = mergeOnStaleBase(['chore(release): client-v1.47.0 [skip ci]']);
     assert.equal(recordVerifiedTree({ git, head, base: head, pr: 7 }), null);
   });
 });
