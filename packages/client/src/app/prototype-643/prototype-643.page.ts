@@ -26,7 +26,8 @@ import {
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 
-import { COVERAGE, type CoverageEntry } from './coverage/coverage';
+import { COVERAGE, type CoverageEntry } from './ux-coverage/coverage';
+import { ProtoBrowserChrome } from './entry/browser-chrome.service';
 import { ProtoHomeComponent } from './entry/home.component';
 import { ProtoJoinComponent } from './entry/join.component';
 import { ProtoSystemComponent } from './entry/system.component';
@@ -520,6 +521,8 @@ export class Prototype643Page {
   });
 
   constructor() {
+    // tab title / theme-color / favicon follow the screen from the first scene on (UX-053)
+    inject(ProtoBrowserChrome);
     const qp = this.route.snapshot.queryParamMap;
     const frame = qp.get('frame') as Frame | null;
     const theme = qp.get('theme');
@@ -532,7 +535,6 @@ export class Prototype643Page {
     if (qp.get('lab') === '0') this.labOpen.set(false);
     this.go(idx, false);
     if (frame && frame in FRAME_SIZE) this.store.frame.set(frame);
-    document.title = 'hnch · #643 prototype';
 
     // keep the device zoomed to fit the canvas
     afterNextRender(() => {
@@ -618,9 +620,11 @@ export class Prototype643Page {
   private fit() {
     const c = this.canvas()?.nativeElement;
     if (!c) return;
-    const { w } = FRAME_SIZE[this.store.frame()];
-    const avail = c.clientWidth - 48;
-    this.zoom.set(Math.min(1, avail / (w + 20)));
+    const { w, h } = FRAME_SIZE[this.store.frame()];
+    const availW = c.clientWidth - 48;
+    // leave room under the device for the floating scene switcher
+    const availH = c.clientHeight - 24 - 84;
+    this.zoom.set(Math.min(1, availW / (w + 20), availH / (h + 20)));
   }
 
   @HostListener('document:keydown', ['$event'])

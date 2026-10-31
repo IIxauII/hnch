@@ -21,7 +21,8 @@ export interface TuiOptions {
 
 /** What the Room returns when it closes, so main.ts can print the summary (UX-103). */
 export interface TuiExit {
-  reason: 'quit' | 'leave' | 'ended' | 'removed';
+  /** 'interrupted' = Ctrl+C: main.ts still prints the summary, then exits 130. */
+  reason: 'quit' | 'leave' | 'ended' | 'removed' | 'interrupted';
 }
 
 export type RunRoomTui = (opts: TuiOptions) => Promise<TuiExit>;
