@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/IIxauII/hnch/compare/relay-v1.3.1...relay-v1.4.0) (2026-10-31)
+
+
+### Features
+
+* **cli,client,relay,shared,e2e,ci,docs,repo:** license hnch under AGPL-3.0-only ([#635](https://github.com/IIxauII/hnch/issues/635)) ([1f97ea1](https://github.com/IIxauII/hnch/commit/1f97ea1e720f67f663f81ed36c7ed5c6d77b2dab))
+
 ## [1.3.1](https://github.com/IIxauII/hnch/compare/relay-v1.3.0...relay-v1.3.1) (2026-10-29)
 
 
