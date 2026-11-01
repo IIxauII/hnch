@@ -158,7 +158,7 @@ Every Dependabot title is `chore(deps): …`, dev dependencies included, so it p
 - [ ] Branched from `main`.
 - [ ] `pnpm lint` passes.
 - [ ] `pnpm typecheck` passes.
-- [ ] `pnpm test` passes (unit tests only; e2e runs through `pnpm test:e2e`).
+- [ ] `pnpm test` passes (unit tests only).
 - [ ] `pnpm test:e2e` passes (if touching client/relay/shared).
 - [ ] `pnpm test:ci-scripts` passes (if touching `scripts/ci/`).
 - [ ] PR title follows Conventional Commits (drives the release).

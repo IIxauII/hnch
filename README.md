@@ -35,7 +35,7 @@ The list of project docs is in [CLAUDE.md § Documentation layout](CLAUDE.md#doc
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for PR requirements and commit style (Conventional Commits), and [docs/release.md](docs/release.md) for the semantic-release flow that drives versioning and deploys from commit messages.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for PR requirements, commit style (Conventional Commits) and ADR discipline, and [docs/release.md](docs/release.md) for the semantic-release flow that drives versioning and deploys from commit messages.
 
 ## License
 
