@@ -1,810 +1,490 @@
 /**
- * Unit tests for DocService behavior.
+ * DocService — the client's adapter over the shared live session (#529).
  *
- * Vitest-on-Node, no Angular TestBed. Angular signals work as plain
- * reactive primitives in Node — no zone or DI context needed.
+ * How a live session behaves (seeding, presence, rejoin, the drivers, the
+ * gates, teardown) is `@hnch/shared`'s `live-session` and is tested there
+ * against a real relay. What stays here is what the client adds: the signals
+ * that mirror the live session's readings, the one open call, the session
+ * epoch, the IndexedDB load before the socket opens, and the forwards.
  *
- * Because DocService uses inject() for AppPreferenceService and
- * createSyncProvider for sync, we test via a standalone harness that
- * mirrors the service's logic against a real Y.Doc. This verifies the
- * projection signals, session lifecycle, `commands` binding, and
- * awareness plumbing — the parts that matter for correctness.
- *
- * What is NOT tested here (covered elsewhere):
- *  - Sync-provider WS state machine → sync-provider.test.ts
- *  - Host election behaviour → @hnch/shared election.test.ts
- *  - Host election wiring → doc.service.election.test.ts
- *  - The rules behind every writer act reachable through `commands` → each
- *    command's own test file (round/vote/agenda/roster-commands.test.ts) and
- *    the binding itself → session-commands.test.ts (#516). Re-asserting a
- *    gate or a refusal reason here would test it twice; what belongs here is
- *    only what binding adds on the client side — see the "commands binding"
- *    describe block below.
- *  - SessionEndService observer → tested via the harness's sessionEndedAt signal
+ * `openLiveSession` is replaced by a fake that records what it was opened
+ * with and reports nothing on its own; each test drives the readings it
+ * needs through the callbacks, as the live session would.
  */
 
-import { computed, signal, type Signal, type WritableSignal } from '@angular/core';
-import {
-  bindSessionCommands,
-  initDoc,
-  isActiveParticipant,
-  joinDoc,
-  patchRoundDescriptor,
-  patchSettings,
-  projectDoc,
-  promoteHost as promoteHostCommand,
-  UNBOUND_SESSION_COMMANDS,
-  type DocProjection,
-  type PublicSettingsPatch,
-  type RosterResult,
-  type Round,
-  type Scale,
-  type SessionCommands,
-} from '@hnch/shared';
-import { Awareness } from 'y-protocols/awareness';
+// Exercises: core/doc/doc.service:DocService
+
+import { TestBed } from '@angular/core/testing';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as Y from 'yjs';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import {
+  FIBONACCI_SCALE,
+  initDoc,
+  joinDoc,
+  leave,
+  openLiveSession,
+  projectDoc,
+  UNBOUND_SESSION_COMMANDS,
+  type LiveSession,
+  type OpenLiveSessionOptions,
+  type SessionCommands,
+  type SessionEvent,
+} from '@hnch/shared';
 
-// Fixtures
+vi.mock('@ionic/angular/standalone', () => ({
+  ToastController: class {
+    create = vi.fn().mockResolvedValue({ present: vi.fn() });
+  },
+}));
 
-const FIBONACCI: Scale = {
-  id: 'fibonacci',
-  cards: ['1', '2', '3', '5', '8', '13'],
+const platform = vi.hoisted(() => ({ native: false }));
+
+vi.mock('@capacitor/core', () => ({
+  Capacitor: { isNativePlatform: () => platform.native },
+}));
+
+/** Every IndexedDB store opened, and whether it has been destroyed. */
+const stores = vi.hoisted(() => ({
+  opened: [] as Array<{ name: string; doc: unknown; destroyed: boolean }>,
+  loaded: Promise.resolve() as Promise<void>,
+  /** Whether the database itself opens; y-indexeddb never settles `whenSynced` when it does not. */
+  opens: true,
+}));
+
+vi.mock('y-indexeddb', () => ({
+  IndexeddbPersistence: class {
+    readonly whenSynced: Promise<void>;
+    readonly _db: Promise<unknown>;
+    private readonly record: { name: string; doc: unknown; destroyed: boolean };
+    constructor(name: string, doc: unknown) {
+      this.record = { name, doc, destroyed: false };
+      stores.opened.push(this.record);
+      this._db = stores.opens ? Promise.resolve({}) : Promise.reject(new Error('blocked'));
+      this.whenSynced = stores.opens ? stores.loaded : new Promise<void>(() => {});
+    }
+    destroy(): Promise<void> {
+      this.record.destroyed = true;
+      return this._db.then(() => undefined);
+    }
+  },
+}));
+
+vi.mock('@hnch/shared', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@hnch/shared')>();
+  return { ...actual, openLiveSession: vi.fn() };
+});
+
+import { DocService, type OpenSessionInit } from './doc.service';
+import { AppPreferenceService } from '../app-preference.service';
+import { ToastService } from '../../services/toast.service';
+
+const openLiveSessionMock = vi.mocked(openLiveSession);
+
+/** A fake live session: its handle's acts are spies, its commands real-shaped. */
+interface Opened {
+  readonly options: OpenLiveSessionOptions;
+  readonly handle: LiveSession & {
+    readonly updateCredentials: ReturnType<typeof vi.fn>;
+    readonly updateSettings: ReturnType<typeof vi.fn>;
+    readonly updateRoundDescriptor: ReturnType<typeof vi.fn>;
+    readonly flushUpdates: ReturnType<typeof vi.fn>;
+    readonly teardown: ReturnType<typeof vi.fn>;
+  };
+  readonly commands: SessionCommands;
+}
+
+let opened: Opened[];
+
+function latest(): Opened {
+  const last = opened.at(-1);
+  if (last === undefined) throw new Error('no live session was opened');
+  return last;
+}
+
+const ROOM = { uuid: 'room-uuid-1', code: 'ABC123' };
+
+const JOIN: OpenSessionInit = {
+  room: ROOM,
+  participantId: 'p-self',
+  displayName: 'Sam',
+  seed: { kind: 'join' },
 };
 
-const NOW = 1_700_000_000_000;
-
-function makeInit(
-  overrides: Partial<{
-    participantId: string;
-    displayName: string;
-    roomUuid: string;
-    roomCode: string;
-    now: number;
-  }> = {},
-) {
-  return {
-    participantId: overrides.participantId ?? 'p-host',
-    displayName: overrides.displayName ?? 'Host',
-    defaultScale: FIBONACCI,
-    roomUuid: overrides.roomUuid ?? 'room-uuid-1',
-    roomCode: overrides.roomCode ?? 'ABC123',
-    now: () => overrides.now ?? NOW,
-  };
+/** A projection as the live session would report it for a fresh room. */
+function projectionOf(name: string) {
+  const doc = new Y.Doc();
+  initDoc(doc, {
+    roomUuid: ROOM.uuid,
+    createdAt: 1,
+    participantId: 'p-host',
+    displayName: 'Hana',
+    defaultScale: FIBONACCI_SCALE,
+    sessionName: name,
+  });
+  return projectDoc(doc);
 }
 
-// DocServiceHarness
-//
-// Replicates DocService's signal-projection wiring against a real Y.Doc.
-// Does NOT replicate connect/sync (those belong in sync-provider.test.ts).
+/** Let every promise that is ready run. */
+async function settle(): Promise<void> {
+  for (let i = 0; i < 6; i++) await Promise.resolve();
+}
 
-class DocServiceHarness {
-  private doc: Y.Doc | null = null;
-  private boundCommands: SessionCommands | null = null;
-  private observers: Array<() => void> = [];
-  private awareness: Awareness | null = null;
+let svc: DocService;
+let toastError: ReturnType<typeof vi.fn>;
 
-  readonly projection: WritableSignal<DocProjection | null> = signal(null);
-  readonly roomCodeSignal: WritableSignal<string | null> = signal(null);
-  readonly endingSessionLocally: WritableSignal<boolean> = signal(false);
-  readonly onlineParticipantIdsSignal: WritableSignal<ReadonlySet<string>> = signal(new Set());
-  readonly hasFirstSyncCompletedSignal: WritableSignal<boolean> = signal(false);
-
-  readonly hasSession: Signal<boolean> = computed(() => this.projection() !== null);
-  readonly hasFirstSyncCompleted: Signal<boolean> = this.hasFirstSyncCompletedSignal.asReadonly();
-  readonly meta = computed(() => this.projection()?.meta ?? null);
-  readonly settings = computed(() => this.projection()?.settings ?? null);
-  readonly participants = computed(() => this.projection()?.participants ?? []);
-  readonly rounds = computed(() => this.projection()?.rounds ?? []);
-  readonly activeParticipants = computed(() => this.participants().filter(isActiveParticipant));
-  readonly onlineParticipants = computed(() => {
-    const online = this.onlineParticipantIdsSignal();
-    return this.activeParticipants().filter((p) => online.has(p.id));
-  });
-  readonly offlineParticipants = computed(() => {
-    const online = this.onlineParticipantIdsSignal();
-    return this.activeParticipants().filter((p) => !online.has(p.id));
-  });
-
-  /**
-   * The bound writer seam, or `UNBOUND_SESSION_COMMANDS` before a session and
-   * after {@link teardown} — mirrors `DocService.commands` exactly (#516).
-   */
-  get commands(): SessionCommands {
-    return this.boundCommands ?? UNBOUND_SESSION_COMMANDS;
-  }
-
-  createSession(init: ReturnType<typeof makeInit>): void {
-    if (this.doc !== null) throw new Error('session already active');
-    const doc = new Y.Doc();
-    initDoc(doc, {
-      roomUuid: init.roomUuid!,
-      createdAt: init.now(),
-      participantId: init.participantId,
-      displayName: init.displayName,
-      defaultScale: init.defaultScale,
-    });
-    // Awareness before attach, as production orders it: `attach` starts the
-    // election driver, whose first evaluation reads the online set.
-    this.initAwareness(doc, init.participantId);
-    this.attach(doc, init.participantId);
-    this.roomCodeSignal.set(init.roomCode ?? null);
-  }
-
-  joinSession(params: { participantId: string; displayName: string; roomCode?: string }): void {
-    if (this.doc !== null) throw new Error('session already active');
-    const doc = new Y.Doc();
-    joinDoc(doc, {
-      participantId: params.participantId,
-      displayName: params.displayName,
-      joinedAt: NOW,
-    });
-    // Awareness before attach, as production orders it: `attach` starts the
-    // election driver, whose first evaluation reads the online set.
-    this.initAwareness(doc, params.participantId);
-    this.attach(doc, params.participantId);
-    this.roomCodeSignal.set(params.roomCode ?? null);
-  }
-
-  teardown(): void {
-    this.teardownAwareness();
-    this.detach();
-    this.doc?.destroy();
-    this.doc = null;
-    this.projection.set(null);
-    this.roomCodeSignal.set(null);
-    this.endingSessionLocally.set(false);
-    this.hasFirstSyncCompletedSignal.set(false);
-    this.onlineParticipantIdsSignal.set(new Set());
-  }
-
-  /**
-   * Sets client state after the shared command applies — this is the one
-   * act that is genuinely not a forward, so it stays named rather than
-   * folding into `commands` (#516).
-   */
-  endSessionForEveryone(): RosterResult {
-    const result = this.commands.endSession();
-    if (result.applied) this.endingSessionLocally.set(true);
-    return result;
-  }
-
-  updateSettings(patch: PublicSettingsPatch): void {
-    patchSettings(this.requireDoc(), patch);
-  }
-
-  promoteHost(winnerId: string): RosterResult {
-    return promoteHostCommand(this.requireDoc(), winnerId);
-  }
-
-  /**
-   * Test-only roster seeding. Production never writes a *peer's* record —
-   * peers arrive through their own `joinDoc` — so there is no roster command
-   * for it and the raw writer is package-internal. `joinDoc` is the public
-   * seam that mints a record, so the harness uses it directly.
-   */
-  seedParticipant(id: string, params: { displayName: string; joinedAt: number }): void {
-    joinDoc(this.requireDoc(), { participantId: id, ...params });
-  }
-
-  updateRoundDescriptor(roundId: string, fields: { title?: string; description?: string }): void {
-    patchRoundDescriptor(this.requireDoc(), roundId, fields);
-  }
-
-  /** Merge another doc's state into this one (simulate peer sync). */
-  mergeFrom(other: Y.Doc): void {
-    const encoded = Y.encodeStateAsUpdate(other);
-    Y.applyUpdate(this.requireDoc(), encoded);
-  }
-
-  getDoc(): Y.Doc {
-    return this.requireDoc();
-  }
-
-  private attach(doc: Y.Doc, participantId: string): void {
-    this.doc = doc;
-    this.boundCommands = bindSessionCommands({
-      doc,
-      participantId,
-      onlineIds: () => this.onlineParticipantIdsSignal(),
-    });
-    this.rebuildProjection();
-    const rebuild = () => this.rebuildProjection();
-
-    const meta = doc.getMap('meta');
-    const settings = doc.getMap('settings');
-    const participants = doc.getMap('participants');
-    const rounds = doc.getArray('rounds');
-
-    meta.observeDeep(rebuild);
-    settings.observeDeep(rebuild);
-    participants.observeDeep(rebuild);
-    rounds.observeDeep(rebuild);
-
-    this.observers = [
-      () => meta.unobserveDeep(rebuild),
-      () => settings.unobserveDeep(rebuild),
-      () => participants.unobserveDeep(rebuild),
-      () => rounds.unobserveDeep(rebuild),
-    ];
-  }
-
-  private detach(): void {
-    for (const off of this.observers) off();
-    this.observers = [];
-    this.boundCommands = null;
-  }
-
-  private rebuildProjection(): void {
-    if (!this.doc) return;
-    this.projection.set(projectDoc(this.doc));
-  }
-
-  private initAwareness(doc: Y.Doc, participantId: string): void {
-    const awareness = new Awareness(doc);
-    awareness.setLocalStateField('participantId', participantId);
-    const refresh = () => {
-      const next = new Set<string>();
-      for (const state of awareness.getStates().values()) {
-        const v = (state as Record<string, unknown>)['participantId'];
-        if (typeof v === 'string') next.add(v);
-      }
-      this.onlineParticipantIdsSignal.set(next);
+beforeEach(() => {
+  vi.clearAllMocks();
+  platform.native = false;
+  stores.opened = [];
+  stores.loaded = Promise.resolve();
+  stores.opens = true;
+  opened = [];
+  openLiveSessionMock.mockImplementation((options) => {
+    const commands: SessionCommands = {
+      ...UNBOUND_SESSION_COMMANDS,
+      endSession: vi.fn(() => ({ applied: true as const, at: 5 })),
     };
-    awareness.on('change', refresh);
-    refresh();
-    this.awareness = awareness;
-  }
-
-  private teardownAwareness(): void {
-    this.awareness?.destroy();
-    this.awareness = null;
-    this.onlineParticipantIdsSignal.set(new Set());
-  }
-
-  private requireDoc(): Y.Doc {
-    if (!this.doc) throw new Error('no active session');
-    return this.doc;
-  }
-}
-
-// Helpers
-
-function makeHarness(): DocServiceHarness {
-  return new DocServiceHarness();
-}
-
-// Tests
-
-describe('DocService — createSession', () => {
-  let h: DocServiceHarness;
-
-  beforeEach(() => {
-    h = makeHarness();
-  });
-  afterEach(() => {
-    h.teardown();
+    const handle = {
+      commands,
+      updateCredentials: vi.fn(),
+      updateSettings: vi.fn(),
+      updateRoundDescriptor: vi.fn(),
+      flushUpdates: vi.fn(() => Promise.resolve()),
+      teardown: vi.fn(),
+    };
+    opened.push({ options, handle, commands });
+    return handle;
   });
 
-  it('hasSession flips to true', () => {
-    expect(h.hasSession()).toBe(false);
-    h.createSession(makeInit());
-    expect(h.hasSession()).toBe(true);
+  toastError = vi.fn().mockResolvedValue(undefined);
+  TestBed.resetTestingModule();
+  TestBed.configureTestingModule({
+    providers: [
+      DocService,
+      {
+        provide: AppPreferenceService,
+        useValue: { resolvedRelayHttpUrl: () => 'http://relay.test' },
+      },
+      { provide: ToastService, useValue: { error: toastError } },
+    ],
+  });
+  svc = TestBed.inject(DocService);
+});
+
+describe('DocService — open', () => {
+  it('opens one live session with the room, the credentials and who this peer is', () => {
+    svc.open({ ...JOIN, avatarColor: 'teal', passwordHash: 'hash-1' });
+
+    expect(openLiveSessionMock).toHaveBeenCalledOnce();
+    expect(latest().options).toEqual(
+      expect.objectContaining({
+        httpBaseUrl: 'http://relay.test',
+        room: ROOM,
+        credentials: { deviceId: 'p-self', passwordHash: 'hash-1' },
+        self: { participantId: 'p-self', displayName: 'Sam', avatarColor: 'teal' },
+        seed: { kind: 'join' },
+      }),
+    );
   });
 
-  it('meta is populated with roomUuid and createdBy', () => {
-    h.createSession(makeInit({ participantId: 'p-host', roomUuid: 'room-1' }));
-    expect(h.meta()?.roomUuid).toBe('room-1');
-    expect(h.meta()?.createdBy).toBe('p-host');
+  it('passes a create seed through as it is', () => {
+    svc.open({
+      ...JOIN,
+      seed: { kind: 'create', defaultScale: FIBONACCI_SCALE, sessionName: 'Sprint 9' },
+    });
+
+    expect(latest().options.seed).toEqual({
+      kind: 'create',
+      defaultScale: FIBONACCI_SCALE,
+      sessionName: 'Sprint 9',
+    });
   });
 
-  it('meta.createdAt matches the injected clock', () => {
-    h.createSession(makeInit({ now: NOW }));
-    expect(h.meta()?.createdAt).toBe(NOW);
+  it('reports the room it opened', () => {
+    svc.open(JOIN);
+
+    expect(svc.roomCode()).toBe('ABC123');
+    expect(svc.relayRoomUuid()).toBe('room-uuid-1');
   });
 
-  it('settings.hostParticipantId is the creator', () => {
-    h.createSession(makeInit({ participantId: 'p-host' }));
-    expect(h.settings()?.hostParticipantId).toBe('p-host');
+  it('leaves nothing half-open when the live session cannot be opened', () => {
+    openLiveSessionMock.mockImplementationOnce((options) => {
+      options.onStatusChange?.('connecting');
+      throw new Error('seed failed');
+    });
+
+    expect(() => svc.open(JOIN)).toThrow('seed failed');
+
+    expect(svc.roomCode()).toBeNull();
+    expect(svc.relayRoomUuid()).toBeNull();
+    expect(svc.syncStatus()).toBe('offline');
+    expect(svc.commands).toBe(UNBOUND_SESSION_COMMANDS);
   });
 
-  it('settings.defaultScale matches init', () => {
-    h.createSession(makeInit());
-    expect(h.settings()?.defaultScale.id).toBe('fibonacci');
-  });
+  it('tears down the session it held before it opens the next', () => {
+    svc.open(JOIN);
+    const first = latest();
 
-  it('creator appears in participants', () => {
-    h.createSession(makeInit({ participantId: 'p-host', displayName: 'Host' }));
-    expect(h.participants()).toHaveLength(1);
-    expect(h.participants()[0]?.displayName).toBe('Host');
-    expect(h.participants()[0]?.id).toBe('p-host');
-  });
+    svc.open({ ...JOIN, room: { uuid: 'room-uuid-2', code: 'XYZ789' } });
 
-  it('roomCode signal is populated', () => {
-    h.createSession(makeInit({ roomCode: 'XYZ999' }));
-    expect(h.roomCodeSignal()).toBe('XYZ999');
-  });
-
-  it('creator is in onlineParticipantIds from awareness', () => {
-    h.createSession(makeInit({ participantId: 'p-host' }));
-    expect(h.onlineParticipantIdsSignal().has('p-host')).toBe(true);
-  });
-
-  it('throws if called when session already active', () => {
-    h.createSession(makeInit());
-    expect(() => h.createSession(makeInit())).toThrow();
+    expect(first.handle.teardown).toHaveBeenCalledOnce();
+    expect(svc.commands).toBe(latest().commands);
+    expect(svc.relayRoomUuid()).toBe('room-uuid-2');
   });
 });
 
-describe('DocService — joinSession', () => {
-  let h: DocServiceHarness;
-
+describe('DocService — mirrors the live session', () => {
   beforeEach(() => {
-    h = makeHarness();
-  });
-  afterEach(() => {
-    h.teardown();
+    svc.open(JOIN);
   });
 
-  it('hasSession flips to true', () => {
-    h.joinSession({ participantId: 'p-joiner', displayName: 'Joiner' });
-    expect(h.hasSession()).toBe(true);
+  it('holds the projection it reports', () => {
+    expect(svc.hasSession()).toBe(false);
+
+    latest().options.onProjectionChange?.(projectionOf('Sprint 42'));
+
+    expect(svc.hasSession()).toBe(true);
+    expect(svc.settings()?.name).toBe('Sprint 42');
+    expect(svc.participants().map((p) => p.id)).toEqual(['p-host']);
+    expect(svc.screen()).toBe('lobby');
   });
 
-  it('participant appears in participants list', () => {
-    h.joinSession({ participantId: 'p-joiner', displayName: 'Joiner' });
-    expect(h.participants()).toHaveLength(1);
-    expect(h.participants()[0]?.id).toBe('p-joiner');
+  it('counts only those still in the session as active (ADR-0036)', () => {
+    const doc = new Y.Doc();
+    initDoc(doc, {
+      roomUuid: ROOM.uuid,
+      createdAt: 1,
+      participantId: 'p-host',
+      displayName: 'Hana',
+      defaultScale: FIBONACCI_SCALE,
+    });
+    joinDoc(doc, { participantId: 'p-gone', displayName: 'Gus', joinedAt: 2 });
+    leave(doc, 'p-gone');
+
+    latest().options.onProjectionChange?.(projectDoc(doc));
+
+    expect(svc.participants().map((p) => p.id)).toEqual(['p-host', 'p-gone']);
+    expect(svc.activeParticipants().map((p) => p.id)).toEqual(['p-host']);
   });
 
-  it('meta is null before sync (join-only doc has no meta)', () => {
-    h.joinSession({ participantId: 'p-joiner', displayName: 'Joiner' });
-    // No initDoc was called so meta fields are absent
-    expect(h.meta()?.roomUuid).toBeUndefined();
+  it('holds the online set it reports', () => {
+    latest().options.onOnlineIdsChange?.(new Set(['p-self', 'p-host']));
+
+    expect(svc.onlineParticipantIds()).toEqual(new Set(['p-self', 'p-host']));
   });
 
-  it('after merging host doc, meta is visible', () => {
-    const host = makeHarness();
-    host.createSession(makeInit({ roomUuid: 'room-sync' }));
+  it('is joined only once the socket is up and the relay state has applied', () => {
+    const { options } = latest();
 
-    h.joinSession({ participantId: 'p-joiner', displayName: 'Joiner' });
-    h.mergeFrom(host.getDoc());
+    options.onStatusChange?.('connected');
+    expect(svc.syncStatus()).toBe('connected');
+    expect(svc.joined()).toBe(false);
 
-    expect(h.meta()?.roomUuid).toBe('room-sync');
-    host.teardown();
+    options.onSyncedChange?.(true);
+    expect(svc.relaySynced()).toBe(true);
+    expect(svc.joined()).toBe(true);
   });
 
-  it('joiner is in onlineParticipantIds', () => {
-    h.joinSession({ participantId: 'p-joiner', displayName: 'Joiner' });
-    expect(h.onlineParticipantIdsSignal().has('p-joiner')).toBe(true);
+  it('holds the rejection and the reconnecting flag it reports', () => {
+    const { options } = latest();
+
+    options.onRejectionChange?.('wrong-password');
+    options.onReconnectingChange?.(true);
+
+    expect(svc.lastRejection()).toBe('wrong-password');
+    expect(svc.reconnecting()).toBe(true);
   });
 
-  it('throws if called when session active', () => {
-    h.joinSession({ participantId: 'p-joiner', displayName: 'Joiner' });
-    expect(() => h.joinSession({ participantId: 'p-2', displayName: 'P2' })).toThrow();
+  it('says it is still trying when the trouble repeats', () => {
+    latest().options.onRepeatRejection?.();
+
+    expect(toastError).toHaveBeenCalledWith('Trouble reaching the session. Still trying.');
+  });
+
+  it("counts this peer's auto-reveals", () => {
+    latest().options.onAutoReveal?.();
+    latest().options.onAutoReveal?.();
+
+    expect(svc.autoRevealCount()).toBe(2);
+  });
+
+  it('hands session events to every listener, across sessions, until it unsubscribes', () => {
+    const heard: SessionEvent['kind'][] = [];
+    const dropped: SessionEvent['kind'][] = [];
+    svc.onSessionEvent((event) => heard.push(event.kind));
+    const unsubscribe = svc.onSessionEvent((event) => dropped.push(event.kind));
+    const ended: SessionEvent = {
+      kind: 'ended',
+      endedAt: 1,
+      endedLocally: false,
+      hostId: 'p-host',
+      hostName: 'Hana',
+      message: 'Session ended by Hana',
+    };
+
+    latest().options.onSessionEvent?.(ended);
+    unsubscribe();
+    svc.open(JOIN);
+    latest().options.onSessionEvent?.(ended);
+
+    expect(heard).toEqual(['ended', 'ended']);
+    expect(dropped).toEqual(['ended']);
+  });
+});
+
+describe('DocService — sessionEpoch', () => {
+  it('changes when a session opens and when it is torn down, and never comes back', () => {
+    const seen = [svc.sessionEpoch()];
+
+    svc.open(JOIN);
+    seen.push(svc.sessionEpoch());
+    svc.teardown();
+    seen.push(svc.sessionEpoch());
+    svc.open(JOIN);
+    seen.push(svc.sessionEpoch());
+
+    expect(new Set(seen).size).toBe(seen.length);
+  });
+
+  it('stays put while the session does', () => {
+    svc.open(JOIN);
+    const epoch = svc.sessionEpoch();
+
+    latest().options.onProjectionChange?.(projectionOf('Sprint 42'));
+    latest().options.onStatusChange?.('connected');
+
+    expect(svc.sessionEpoch()).toBe(epoch);
   });
 });
 
 describe('DocService — teardown', () => {
-  let h: DocServiceHarness;
+  it('tears the live session down and forgets everything it reported', () => {
+    svc.open(JOIN);
+    const live = latest();
+    live.options.onProjectionChange?.(projectionOf('Sprint 42'));
+    live.options.onOnlineIdsChange?.(new Set(['p-self']));
+    live.options.onStatusChange?.('connected');
+    live.options.onSyncedChange?.(true);
+    live.options.onRejectionChange?.('wrong-password');
+    live.options.onReconnectingChange?.(true);
 
-  beforeEach(() => {
-    h = makeHarness();
+    svc.teardown();
+
+    expect(live.handle.teardown).toHaveBeenCalledOnce();
+    expect(svc.hasSession()).toBe(false);
+    expect(svc.onlineParticipantIds()).toEqual(new Set());
+    expect(svc.syncStatus()).toBe('offline');
+    expect(svc.relaySynced()).toBe(false);
+    expect(svc.lastRejection()).toBeNull();
+    expect(svc.reconnecting()).toBe(false);
+    expect(svc.roomCode()).toBeNull();
+    expect(svc.relayRoomUuid()).toBeNull();
   });
 
-  it('hasSession flips back to false', () => {
-    h.createSession(makeInit());
-    h.teardown();
-    expect(h.hasSession()).toBe(false);
+  it('leaves commands that refuse', () => {
+    svc.open(JOIN);
+    expect(svc.commands).toBe(latest().commands);
+
+    svc.teardown();
+
+    expect(svc.commands).toBe(UNBOUND_SESSION_COMMANDS);
   });
 
-  it('projection is null after teardown', () => {
-    h.createSession(makeInit());
-    h.teardown();
-    expect(h.projection()).toBeNull();
-  });
-
-  it('roomCode is cleared', () => {
-    h.createSession(makeInit({ roomCode: 'ABC123' }));
-    h.teardown();
-    expect(h.roomCodeSignal()).toBeNull();
-  });
-
-  it('onlineParticipantIds is empty after teardown', () => {
-    h.createSession(makeInit({ participantId: 'p-host' }));
-    h.teardown();
-    expect(h.onlineParticipantIdsSignal().size).toBe(0);
-  });
-
-  it('endingSessionLocally resets to false', () => {
-    h.createSession(makeInit());
-    h.endSessionForEveryone();
-    expect(h.endingSessionLocally()).toBe(true);
-    h.teardown();
-    expect(h.endingSessionLocally()).toBe(false);
-  });
-
-  it('is idempotent — calling twice does not throw', () => {
-    h.createSession(makeInit());
-    h.teardown();
-    expect(() => h.teardown()).not.toThrow();
+  it('is safe with no session', () => {
+    expect(() => svc.teardown()).not.toThrow();
   });
 });
 
-// commands binding (#516) — what binding adds on the client side. The rules
-// behind every member are pinned in shared's command-module tests and in
-// session-commands.test.ts; this is only the adapter's own contract.
-
-describe('DocService — commands binding', () => {
-  let h: DocServiceHarness;
-
-  afterEach(() => {
-    if (h.hasSession()) h.teardown();
-  });
-
-  it('is the unbound adapter before a session exists', () => {
-    h = makeHarness();
-    expect(h.commands.rename('X')).toEqual({ applied: false, reason: 'not-found' });
-  });
-
-  it('is bound once a session is attached — the same call now applies', () => {
-    h = makeHarness();
-    h.createSession(makeInit({ participantId: 'p-host' }));
-    expect(h.commands.rename('New Name')).toEqual({ applied: true });
-    expect(h.participants()[0]?.displayName).toBe('New Name');
-  });
-
-  it('reverts to the unbound adapter after teardown', () => {
-    h = makeHarness();
-    h.createSession(makeInit({ participantId: 'p-host' }));
-    h.teardown();
-    expect(h.commands.rename('X')).toEqual({ applied: false, reason: 'not-found' });
-  });
-
-  it('a second session rebinds rather than reusing a stale set', () => {
-    h = makeHarness();
-    h.createSession(makeInit({ participantId: 'p-host', roomUuid: 'room-a' }));
-    const first = h.commands;
-    h.teardown();
-
-    h.createSession(makeInit({ participantId: 'p-host-2', roomUuid: 'room-b' }));
-    const second = h.commands;
-
-    // A fresh binding, not the same closures kept alive across teardown...
-    expect(second).not.toBe(first);
-    // ...and it writes to the new doc under the new session's own id.
-    expect(second.rename('Rebound')).toEqual({ applied: true });
-    expect(h.participants()[0]?.id).toBe('p-host-2');
-    expect(h.participants()[0]?.displayName).toBe('Rebound');
-  });
-});
-
-describe('DocService — updateSettings', () => {
-  let h: DocServiceHarness;
-
-  beforeEach(() => {
-    h = makeHarness();
-    h.createSession(makeInit());
-  });
-  afterEach(() => {
-    h.teardown();
-  });
-
-  it('patches name and projection reflects it', () => {
-    h.updateSettings({ name: 'Sprint 42' });
-    expect(h.settings()?.name).toBe('Sprint 42');
-  });
-
-  it('patches defaultScale and projection reflects it', () => {
-    const tShirt: Scale = { id: 't-shirt', cards: ['XS', 'S', 'M', 'L', 'XL'] };
-    h.updateSettings({ defaultScale: tShirt });
-    expect(h.settings()?.defaultScale.id).toBe('t-shirt');
-  });
-
-  it('cannot express a host change — promoteHost is the seam for that', () => {
-    h.promoteHost('p-joiner');
-    expect(h.settings()?.hostParticipantId).toBe('p-joiner');
-  });
-});
-
-describe('DocService — participant projection ordering', () => {
-  let h: DocServiceHarness;
-
-  beforeEach(() => {
-    h = makeHarness();
-    h.createSession(makeInit({ participantId: 'p-host', displayName: 'Host' }));
-  });
-  afterEach(() => {
-    h.teardown();
-  });
-
-  it('participants sorted by joinedAt', () => {
-    h.seedParticipant('p-late', { displayName: 'Late', joinedAt: NOW + 1000 });
-    h.seedParticipant('p-early', { displayName: 'Early', joinedAt: NOW - 1 });
-    const ids = h.participants().map((p) => p.id);
-    expect(ids.indexOf('p-early')).toBeLessThan(ids.indexOf('p-host'));
-  });
-});
-
-describe('DocService — updateRoundDescriptor', () => {
-  let h: DocServiceHarness;
-  let roundId: string;
-
-  beforeEach(() => {
-    h = makeHarness();
-    h.createSession(makeInit({ participantId: 'p-host' }));
-    const result = h.commands.startRound({});
-    if (!result.applied) throw new Error('unreachable');
-    roundId = result.id;
-  });
-  afterEach(() => {
-    h.teardown();
-  });
-
-  it('patches title and description', () => {
-    h.updateRoundDescriptor(roundId, { title: 'New title', description: 'Some desc' });
-    const r = h.rounds().find((round) => round.id === roundId);
-    expect(r?.title).toBe('New title');
-    expect(r?.description).toBe('Some desc');
-  });
-});
-
-describe('DocService — endSessionForEveryone', () => {
-  let h: DocServiceHarness;
-
-  beforeEach(() => {
-    h = makeHarness();
-    h.createSession(makeInit());
-  });
-  afterEach(() => {
-    if (h.hasSession()) h.teardown();
-  });
-
-  it('sets endingSessionLocally to true once the command applies', () => {
-    expect(h.endingSessionLocally()).toBe(false);
-    h.endSessionForEveryone();
-    expect(h.endingSessionLocally()).toBe(true);
-  });
-
-  it('leaves endingSessionLocally false when the host gate refuses', () => {
-    // A non-host caller needs its own bound session — endSessionForEveryone
-    // takes no actor parameter now that the caller's id is bound at attach.
-    const joiner = makeHarness();
-    joiner.joinSession({ participantId: 'p-joiner', displayName: 'Joiner' });
-    joiner.mergeFrom(h.getDoc());
-
-    expect(joiner.endSessionForEveryone()).toEqual({ applied: false, reason: 'not-host' });
-    expect(joiner.endingSessionLocally()).toBe(false);
-    expect(h.meta()?.sessionEndedAt).toBeUndefined();
-
-    joiner.teardown();
-  });
-
-  it('remote endingSessionLocally stays false when remote peer receives the update', () => {
-    const remote = makeHarness();
-    remote.joinSession({ participantId: 'p-joiner', displayName: 'Joiner' });
-    remote.mergeFrom(h.getDoc());
-
-    // Remote harness did NOT call endSessionForEveryone() itself.
-    h.endSessionForEveryone();
-    remote.mergeFrom(h.getDoc());
-
-    expect(remote.endingSessionLocally()).toBe(false);
-    remote.teardown();
-  });
-});
-
-describe('DocService — projection signal updates reactively', () => {
-  let h: DocServiceHarness;
-
-  beforeEach(() => {
-    h = makeHarness();
-    h.createSession(makeInit({ participantId: 'p-host', displayName: 'Host' }));
-  });
-  afterEach(() => {
-    h.teardown();
-  });
-
-  it('computed participants() reflects a new peer without manual rebuild', () => {
-    expect(h.participants()).toHaveLength(1);
-    h.seedParticipant('p-2', { displayName: 'P2', joinedAt: NOW + 1 });
-    expect(h.participants()).toHaveLength(2);
-  });
-
-  it('computed rounds() reflects startRound without manual rebuild', () => {
-    expect(h.rounds()).toHaveLength(0);
-    h.commands.startRound({});
-    expect(h.rounds()).toHaveLength(1);
-  });
-
-  it('computed settings() reflects patchSettings without manual rebuild', () => {
-    h.updateSettings({ name: 'My Session' });
-    expect(h.settings()?.name).toBe('My Session');
-  });
-
-  it('rounds() signal value updates synchronously after each startRound', () => {
-    expect(h.rounds().length).toBe(0);
-    h.commands.startRound({});
-    expect(h.rounds().length).toBe(1);
-    h.commands.startRound({});
-    expect(h.rounds().length).toBe(2);
-  });
-});
-
-describe('DocService — multi-peer merge via Y.Doc', () => {
-  let host: DocServiceHarness;
-  let joiner: DocServiceHarness;
-
-  beforeEach(() => {
-    host = makeHarness();
-    joiner = makeHarness();
-    host.createSession(makeInit({ participantId: 'p-host', roomUuid: 'room-peer' }));
-    joiner.joinSession({ participantId: 'p-joiner', displayName: 'Joiner' });
-    // Sync initial state
-    joiner.mergeFrom(host.getDoc());
-    host.mergeFrom(joiner.getDoc());
-  });
-
-  afterEach(() => {
-    host.teardown();
-    joiner.teardown();
-  });
-
-  it('joiner sees host meta after merge', () => {
-    expect(joiner.meta()?.roomUuid).toBe('room-peer');
-  });
-
-  it('joiner sees host participant', () => {
-    const ids = joiner.participants().map((p) => p.id);
-    expect(ids).toContain('p-host');
-  });
-
-  it('host sees joiner participant after merge', () => {
-    const ids = host.participants().map((p) => p.id);
-    expect(ids).toContain('p-joiner');
-  });
-
-  it('vote from host propagates to joiner', () => {
-    const started = host.commands.startRound({});
-    if (!started.applied) throw new Error('unreachable');
-    joiner.mergeFrom(host.getDoc());
-
-    host.commands.toggleCurrentVote('5');
-    joiner.mergeFrom(host.getDoc());
-
-    const round = joiner.rounds().find((r: Round) => r.id === started.id);
-    expect(round?.votes['p-host']).toBe('5');
-  });
-
-  it('reveal from host propagates to joiner', () => {
-    const started = host.commands.startRound({});
-    if (!started.applied) throw new Error('unreachable');
-    joiner.mergeFrom(host.getDoc());
-
-    host.commands.revealCurrentRound();
-    joiner.mergeFrom(host.getDoc());
-
-    const revealedRound = joiner.rounds().find((r: Round) => r.id === started.id);
-    expect(revealedRound?.status).toBe('revealed');
-  });
-
-  it('skip from host propagates to joiner', () => {
-    const started = host.commands.startRound({});
-    if (!started.applied) throw new Error('unreachable');
-    joiner.mergeFrom(host.getDoc());
-
-    host.commands.skipCurrentRound();
-    joiner.mergeFrom(host.getDoc());
-
-    const skippedRound = joiner.rounds().find((r: Round) => r.id === started.id);
-    expect(skippedRound?.status).toBe('skipped');
-  });
-});
-
-describe('DocService — activeParticipants / onlineParticipants / offlineParticipants (ADR-0036)', () => {
-  let h: DocServiceHarness;
-
-  beforeEach(() => {
-    h = makeHarness();
-    h.createSession(makeInit({ participantId: 'p-host', displayName: 'Host' }));
-    // Add a second participant
-    h.seedParticipant('p-joiner', { displayName: 'Joiner', joinedAt: NOW + 1 });
-  });
-
-  afterEach(() => {
-    if (h.hasSession()) h.teardown();
-  });
-
-  it('activeParticipants() excludes a left participant', () => {
-    expect(h.activeParticipants()).toHaveLength(2);
-    // `commands` is bound to p-host; leaving as p-joiner needs its own bound
-    // context over the same doc rather than a second harness (which would
-    // re-seed the participant via its own joinSession and race the CRDT
-    // merge against the one `beforeEach` already wrote).
-    const asJoiner = bindSessionCommands({
-      doc: h.getDoc(),
-      participantId: 'p-joiner',
-      onlineIds: () => new Set(),
+describe('DocService — the local snapshot (ADR-0004)', () => {
+  it('loads the IndexedDB store for the room into the doc before the socket opens', async () => {
+    let loaded!: () => void;
+    stores.loaded = new Promise<void>((resolve) => {
+      loaded = resolve;
     });
-    asJoiner.leave();
+    svc.open(JOIN);
+    const doc = new Y.Doc();
 
-    expect(h.activeParticipants()).toHaveLength(1);
-    expect(h.activeParticipants()[0]?.id).toBe('p-host');
+    let done = false;
+    void latest()
+      .options.beforeConnect?.(doc)
+      .then(() => {
+        done = true;
+      });
+    await settle();
+
+    expect(stores.opened).toEqual([{ name: 'room-uuid-1', doc, destroyed: false }]);
+    expect(done).toBe(false);
+    loaded();
+    await settle();
+    expect(done).toBe(true);
   });
 
-  it('activeParticipants() excludes a kicked participant', () => {
-    h.commands.kick('p-joiner');
-    expect(h.activeParticipants()).toHaveLength(1);
-    expect(h.activeParticipants()[0]?.id).toBe('p-host');
+  it('closes the store with the session', async () => {
+    svc.open(JOIN);
+    await latest().options.beforeConnect?.(new Y.Doc());
+
+    svc.teardown();
+
+    expect(stores.opened.map((s) => s.destroyed)).toEqual([true]);
   });
 
-  it('raw participants() still includes left/kicked entries (for name lookup)', () => {
-    h.commands.kick('p-joiner');
-    expect(h.participants()).toHaveLength(2);
-    const gone = h.participants().find((p) => p.id === 'p-joiner');
-    expect(gone?.leftAt).toBeDefined();
+  it('goes on without a cache when IndexedDB cannot be opened', async () => {
+    stores.opens = false;
+    svc.open(JOIN);
+
+    // Settles, so the socket opens; y-indexeddb alone would wait for ever.
+    await expect(latest().options.beforeConnect?.(new Y.Doc())).resolves.toBeUndefined();
+    expect(() => svc.teardown()).not.toThrow();
+    await settle();
   });
 
-  it('onlineParticipants() excludes left participant even if still in awareness', () => {
-    // p-joiner is in online set (awareness) but we soft-delete them via kick
-    // (same leftAt shape leave would produce; kick is reachable from the
-    // bound host without a second harness).
-    h.commands.kick('p-joiner');
-    // onlineParticipants filters through activeParticipants, so p-joiner is excluded
-    expect(h.onlineParticipants().every((p) => !p.leftAt)).toBe(true);
-  });
+  it('opens no store on a native platform', async () => {
+    platform.native = true;
+    svc.open(JOIN);
 
-  it('offlineParticipants() excludes left participant', () => {
-    h.commands.kick('p-joiner');
-    // offlineParticipants is the complement of onlineParticipants within activeParticipants
-    const ids = [...h.onlineParticipants(), ...h.offlineParticipants()].map((p) => p.id);
-    expect(ids).not.toContain('p-joiner');
+    await latest().options.beforeConnect?.(new Y.Doc());
+
+    expect(stores.opened).toEqual([]);
   });
 });
 
-describe('DocService — hasFirstSyncCompleted signal (ADR-0036 §6 rejoin race fix)', () => {
-  it('starts false before any session', () => {
-    const h = makeHarness();
-    expect(h.hasFirstSyncCompleted()).toBe(false);
+describe('DocService — forwards', () => {
+  it('ends the session for everyone through the commands', () => {
+    svc.open(JOIN);
+
+    expect(svc.endSessionForEveryone()).toEqual({ applied: true, at: 5 });
+    expect(latest().commands.endSession).toHaveBeenCalledOnce();
   });
 
-  it('starts false after createSession (no sync provider)', () => {
-    const h = makeHarness();
-    h.createSession(makeInit());
-    expect(h.hasFirstSyncCompleted()).toBe(false);
-    h.teardown();
+  it('refuses to end a session it does not hold', () => {
+    expect(svc.endSessionForEveryone()).toEqual({ applied: false, reason: 'not-found' });
   });
 
-  it('starts false after joinSession (no sync provider)', () => {
-    const h = makeHarness();
-    h.joinSession({ participantId: 'p-joiner', displayName: 'Joiner' });
-    expect(h.hasFirstSyncCompleted()).toBe(false);
-    h.teardown();
+  it('forwards the patches and the new password hash', () => {
+    svc.open(JOIN);
+
+    svc.updateSettings({ name: 'Renamed' });
+    svc.updateRoundDescriptor('r-1', { title: 'Login' });
+    svc.updateCredentials(null);
+
+    const { handle } = latest();
+    expect(handle.updateSettings).toHaveBeenCalledWith({ name: 'Renamed' });
+    expect(handle.updateRoundDescriptor).toHaveBeenCalledWith('r-1', { title: 'Login' });
+    expect(handle.updateCredentials).toHaveBeenCalledWith(null);
   });
 
-  it('resets to false on teardown', () => {
-    const h = makeHarness();
-    h.createSession(makeInit());
-    // Simulate the signal being flipped (as the real service does in onSynced)
-    h.hasFirstSyncCompletedSignal.set(true);
-    expect(h.hasFirstSyncCompleted()).toBe(true);
-    h.teardown();
-    expect(h.hasFirstSyncCompleted()).toBe(false);
+  it('refuses a patch with no session, and ignores a password with none', () => {
+    expect(() => svc.updateSettings({ name: 'x' })).toThrow('no active session');
+    expect(() => svc.updateRoundDescriptor('r-1', { title: 'x' })).toThrow('no active session');
+    expect(() => svc.updateCredentials('hash')).not.toThrow();
   });
 
-  it('resets to false on teardown even after multiple sessions', () => {
-    const h = makeHarness();
+  it('flushes through the live session, and resolves at once with none', async () => {
+    await expect(svc.flushUpdates()).resolves.toBeUndefined();
 
-    h.createSession(makeInit());
-    h.hasFirstSyncCompletedSignal.set(true);
-    h.teardown();
-    expect(h.hasFirstSyncCompleted()).toBe(false);
+    svc.open(JOIN);
+    await svc.flushUpdates(250);
 
-    h.joinSession({ participantId: 'p-joiner', displayName: 'Joiner' });
-    expect(h.hasFirstSyncCompleted()).toBe(false);
-    h.hasFirstSyncCompletedSignal.set(true);
-    expect(h.hasFirstSyncCompleted()).toBe(true);
-    h.teardown();
-    expect(h.hasFirstSyncCompleted()).toBe(false);
+    expect(latest().handle.flushUpdates).toHaveBeenCalledWith(250);
   });
 });
