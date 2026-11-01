@@ -307,7 +307,7 @@ On Lobby or Estimating, the socket reconnects and the relay refuses it
 
 The page the user was on is not kept to go back to: Back from where they land does not lead into a session that is closed to them.
 
-The relay refuses some of these before there is a socket to close with a reason — a session it no longer has, a protected one asked for without a password — and the browser reports that like any dropped connection. The client asks the relay over HTTP what the socket could not say (ADR-0050), so nobody is left behind a "Reconnecting…" that will never end.
+The relay refuses some of these before there is a socket to close with a reason — a session it no longer has, a protected one asked for without a password — and the browser reports that like any dropped connection. The client asks the relay over HTTP what the socket could not say (ADR-0050), so nobody is left behind a "Reconnecting…" that will never end. One exception is a session under a flood of refused joins: while it holds its bound of refused sockets ([deployment](deployment.md#free-plan-budget-and-alerts)), a join it would refuse gets a plain "try again later" answer with no verdict, so a wrong password or a full session reads as "Reconnecting…" until the flood passes.
 
 ---
 
