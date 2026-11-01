@@ -102,7 +102,7 @@ import { greetingFor, routeForScreen } from './home.helpers';
       <div class="page-container">
         <div class="hero">
           <h1>{{ greeting() }}</h1>
-          <p>Estimate stories with your team. No account needed.</p>
+          <p>Let's estimate!</p>
         </div>
 
         @if (recentEntries().length > 0) {
