@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # PreToolUse hook for Edit/Write/MultiEdit: protect accepted ADRs from silent edits.
 # Project rule: ADRs are immutable once accepted — to change direction, write a NEW
-# superseding ADR, never edit an existing numbered one (CLAUDE.md "ADR requirement").
+# superseding ADR, never edit an existing numbered one (adr/README.md "Immutability").
 # Allows: 0000-template.md, README.md, and brand-new ADR files (not yet on disk).
 # Blocks: edits to an existing adr/NNNN-*.md. Exit 2 = block + surface stderr to Claude.
 
@@ -12,11 +12,10 @@ file=$(printf '%s' "$input" | jq -r '.tool_input.file_path // ""')
 
 [ -z "$file" ] && exit 0
 
-REPO="${CLAUDE_PROJECT_DIR:-$(pwd)}"
-
-# only guard files under adr/
-case "$file" in
-  "$REPO"/adr/*) ;;
+# Guard any path with an adr/ segment, not only $CLAUDE_PROJECT_DIR/adr:
+# a session rooted in the main checkout can edit a sibling worktree's ADRs.
+case "/$file" in
+  */adr/*) ;;
   *) exit 0 ;;
 esac
 
@@ -51,7 +50,7 @@ if [ "$tool" = "Edit" ]; then
   esac
 fi
 
-printf 'blocked: %s is an accepted ADR and is immutable (CLAUDE.md "ADR requirement").\n' "$base" >&2
+printf 'blocked: %s is an accepted ADR and is immutable (adr/README.md "Immutability").\n' "$base" >&2
 printf 'To change direction, write a NEW superseding ADR (status: Superseded by ADR-XXXX) instead of editing this one.\n' >&2
 printf 'Minor fixes (typos, broken links) are allowed — if that is the case, ask the user to bypass this guard.\n' >&2
 exit 2
