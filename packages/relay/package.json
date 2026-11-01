@@ -28,14 +28,14 @@
     "yjs": "^13.6.30"
   },
   "devDependencies": {
-    "@cloudflare/vitest-plugin": "1.4.6",
-    "@cloudflare/workers-types": "5.20261019.1",
-    "@types/node": "^22.0.0",
+    "@cloudflare/vitest-plugin": "1.4.10",
+    "@cloudflare/workers-types": "5.20261029.1",
+    "@types/node": "^22.20.5",
     "@types/ws": "^8.18.2",
     "@vitest/coverage-istanbul": "4.1.12",
     "typescript": "^5.5.0",
     "vitest": "4.1.12",
-    "wrangler": "4.151.3",
+    "wrangler": "4.155.0",
     "ws": "^8.22.0"
   }
 }
