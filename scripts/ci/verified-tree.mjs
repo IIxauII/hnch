@@ -7,9 +7,11 @@
 //
 // record reads PR_HEAD_SHA, PR_BASE_SHA and PR_NUMBER and writes the record
 // the PR run uploads as the verified-tree artifact. check reads REPO and
-// exits 0 when the push is verified (and appends to GITHUB_STEP_SUMMARY), 3
-// when it is not; it prints the reason, as a ::warning:: when a lookup failed.
-// Any other exit status is a crash, which the caller treats as not verified.
+// exits 0 when the push is verified (appends to GITHUB_STEP_SUMMARY and
+// writes the verifying run to GITHUB_OUTPUT as verified-run-id and
+// verified-run-url, for the screenshot promotion step, #598), 3 when it is
+// not; it prints the reason, as a ::warning:: when a lookup failed. Any other
+// exit status is a crash, which the caller treats as not verified.
 //
 // Pure Node plus the gh and git CLIs, no dependencies: detect-changes does not
 // install node_modules.
@@ -59,7 +61,7 @@ const fault = (reason) => ({ verified: false, warning: true, reason });
  *   git: (args: string[]) => string,    // stdout, trimmed
  *   download: (runId: number) => any,   // the run's parsed record
  * }} input
- * @returns {{ verified: true, pr: number, runUrl: string, tree: string }
+ * @returns {{ verified: true, pr: number, runId: number, runUrl: string, tree: string }
  *   | { verified: false, warning: boolean, reason: string }}
  */
 export function checkVerifiedTree(input) {
@@ -157,7 +159,7 @@ function compareWithMain({ sha, lastGreen, git, pr, run, record }) {
       `${human.slice(0, 12)} landed since the last green main run (${lastGreen.slice(0, 12)}) and is not a [skip ci] bot commit`,
     );
   }
-  return { verified: true, pr: pr.number, runUrl: run.html_url, tree };
+  return { verified: true, pr: pr.number, runId: run.id, runUrl: run.html_url, tree };
 }
 
 /** The first commit in `range` that is not a [skip ci] bot commit, or null. */
@@ -203,7 +205,7 @@ function isBasePlusBotCommits({ git, base, tip }) {
   return git(['merge-base', base, tip]) === base && !firstNonBotCommit(git, `${base}..${tip}`);
 }
 
-// --- CLI: the adapters over the real gh and git ---------------------------
+// CLI: the adapters over the real gh and git
 
 const run = (cmd, args) =>
   execFileSync(cmd, args, {
@@ -253,13 +255,19 @@ function checkCommand(sha, lastGreen) {
   stdout.write(
     `Verified by PR #${result.pr}'s CI run ${result.runUrl} (tree ${result.tree}); no lane runs, e2e only for a screenshot capture.\n`,
   );
+  if (env.GITHUB_OUTPUT) {
+    appendFileSync(
+      env.GITHUB_OUTPUT,
+      `verified-run-id=${result.runId}\nverified-run-url=${result.runUrl}\n`,
+    );
+  }
   if (env.GITHUB_STEP_SUMMARY) {
     appendFileSync(
       env.GITHUB_STEP_SUMMARY,
       [
         '### Verified by a PR run',
         '',
-        `[PR #${result.pr}'s CI run](${result.runUrl}) tested this commit's tree (\`${result.tree}\`) on the same base, after the last green main run. No package lane ran in this run, and e2e only to capture main's screenshot reference when the merge touched the UI (ADR-0055, ADR-0057).`,
+        `[PR #${result.pr}'s CI run](${result.runUrl}) tested this commit's tree (\`${result.tree}\`) on the same base, after the last green main run. No package lane ran in this run, and e2e only to capture main's screenshot reference when the merge touched the UI and that PR run's own set was not promoted (ADR-0055, ADR-0057, #598).`,
         '',
       ].join('\n'),
     );

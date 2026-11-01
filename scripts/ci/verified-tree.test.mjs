@@ -122,7 +122,13 @@ describe('checkVerifiedTree', () => {
       git,
       download: () => record,
     });
-    assert.deepEqual(result, { verified: true, pr: 7, runUrl: RUN_URL, tree: record.tree });
+    assert.deepEqual(result, {
+      verified: true,
+      pr: 7,
+      runId: RUN_ID,
+      runUrl: RUN_URL,
+      tree: record.tree,
+    });
   });
 
   // The PR run tested its head merged into an older main; the squash commit
@@ -520,9 +526,12 @@ if (cmd === 'api' && sub in routes) {
   }
 
   function run(repo, args, { routes, record }) {
-    const summary = join(mkdtempSync(join(tmpdir(), 'summary-')), 'summary.md');
-    dirs.push(join(summary, '..'));
+    const dir = mkdtempSync(join(tmpdir(), 'summary-'));
+    dirs.push(dir);
+    const summary = join(dir, 'summary.md');
+    const output = join(dir, 'output.txt');
     writeFileSync(summary, '');
+    writeFileSync(output, '');
     const bin = fakeGh(routes, record);
     const result = spawnSync('node', [script, ...args], {
       cwd: repo.dir,
@@ -531,10 +540,15 @@ if (cmd === 'api' && sub in routes) {
         PATH: `${bin}:${processEnv.PATH}`,
         REPO,
         GITHUB_STEP_SUMMARY: summary,
+        GITHUB_OUTPUT: output,
       },
       encoding: 'utf8',
     });
-    return { ...result, summary: readFileSync(summary, 'utf8') };
+    return {
+      ...result,
+      summary: readFileSync(summary, 'utf8'),
+      output: readFileSync(output, 'utf8'),
+    };
   }
 
   it('exits 0 and names the verifying PR run in the step summary', () => {
@@ -546,6 +560,25 @@ if (cmd === 'api' && sub in routes) {
     assert.equal(out.status, 0, out.stdout + out.stderr);
     assert.match(out.summary, /PR #7/);
     assert.ok(out.summary.includes(RUN_URL), out.summary);
+  });
+
+  // The screenshot promotion step (#598) reads the verifying run from the
+  // step's outputs; a run that is not verified writes none.
+  it('writes the verifying run to GITHUB_OUTPUT, and nothing on a miss', () => {
+    const merge = cleanMerge();
+    const verified = run(merge, ['check', merge.sha, merge.lastGreen], {
+      routes: api(merge.sha).routes,
+      record: merge.record,
+    });
+    assert.equal(verified.status, 0, verified.stdout + verified.stderr);
+    assert.equal(verified.output, `verified-run-id=${RUN_ID}\nverified-run-url=${RUN_URL}\n`);
+
+    const miss = run(merge, ['check', merge.sha, merge.lastGreen], {
+      routes: api(merge.sha, { pulls: [] }).routes,
+      record: merge.record,
+    });
+    assert.equal(miss.status, 3);
+    assert.equal(miss.output, '');
   });
 
   it('exits 3 with the reason for a plain mismatch', () => {

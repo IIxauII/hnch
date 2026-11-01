@@ -7,16 +7,39 @@
 // (a PR diff comment, an agent following a latest/ link) would see.
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { env as processEnv } from 'node:process';
 import { after, describe, it } from 'node:test';
-import { BRANCH, publishReference } from './screenshots-reference.mjs';
+import {
+  BRANCH,
+  CAPTURE_ARTIFACT,
+  promoteCapture,
+  publishReference,
+} from './screenshots-reference.mjs';
 
 const SET = 'sha-abc1234';
 const COMMIT = 'c'.repeat(40);
 const RUN_URL = 'https://github.com/IIxauII/hnch/actions/runs/4242';
+const SCRIPT = join(import.meta.dirname, 'screenshots-reference.mjs');
+// The verifying PR run whose set a verified-skip main run promotes (#598).
+const PR_RUN_ID = 777;
+const PR_RUN_URL = `https://github.com/IIxauII/hnch/actions/runs/${PR_RUN_ID}`;
+/** GitHub's answer for the PR run's artifacts, as `gh api` returns it. */
+const captureRoutes = (artifacts) => ({
+  [`repos/IIxauII/hnch/actions/runs/${PR_RUN_ID}/artifacts?name=${CAPTURE_ARTIFACT}`]: {
+    artifacts: artifacts ?? [{ id: 1, name: CAPTURE_ARTIFACT, expired: false }],
+  },
+});
 
 const dirs = [];
 after(() => {
@@ -162,6 +185,26 @@ describe('publishReference', () => {
     });
     assert.equal(git(origin, 'log', '-1', '--format=%s', BRANCH), `screenshots: main @ ${SET}`);
     assert.equal(git(origin, 'log', '-1', '--format=%an', BRANCH), 'github-actions[bot]');
+  });
+
+  // A promoted set (#598) is labelled with the main commit like any other,
+  // and the pointer names the PR run that captured it.
+  it('names the PR run a promoted set was captured in', () => {
+    const origin = makeOrigin();
+    const capturedIn = 'https://github.com/IIxauII/hnch/actions/runs/777';
+    const result = publish(cloneBranch(origin), makeSet(), { capturedIn });
+
+    assert.equal(result.status, 'published');
+    assert.deepEqual(JSON.parse(fileOn(origin, 'latest.json')), {
+      set: SET,
+      commit: COMMIT,
+      run: RUN_URL,
+      capturedIn,
+    });
+    assert.equal(
+      git(origin, 'log', '-1', '--format=%s', BRANCH),
+      `screenshots: main @ ${SET} (promoted from a PR run)`,
+    );
   });
 
   // A re-run of the job (or a second run for the same commit) adds no commit.
@@ -332,15 +375,133 @@ describe('publishReference', () => {
   });
 });
 
+// Promotion (#598): a verified-skip main run promotes the set its PR run
+// captured instead of capturing again. The PR run's e2e job uploads the set
+// as the screenshots-capture artifact: <topic>/<scene>.png beside a
+// capture.json naming the tree it was captured from.
+describe('promoteCapture', () => {
+  const PNGS = { 'baseline/01-home.png': 'home', 'reveal/02-after.png': 'reveal' };
+
+  /** GitHub and the PR run's artifact, as the promote step sees them. */
+  function promote(main, { artifacts, manifest, files = PNGS, download, commit, image, gh } = {}) {
+    const outDir = join(tmp('screenshots-promote-'), 'set');
+    const tree = git(main.dir, 'rev-parse', `${main.newer}^{tree}`);
+    const routes = captureRoutes(artifacts);
+    const result = promoteCapture({
+      repo: 'IIxauII/hnch',
+      runId: PR_RUN_ID,
+      runUrl: PR_RUN_URL,
+      commit: commit ?? main.newer,
+      image,
+      outDir,
+      gh:
+        gh ??
+        ((path) => {
+          if (!(path in routes)) throw new Error(`unexpected API call: ${path}`);
+          return routes[path];
+        }),
+      git: (args) => git(main.dir, ...args),
+      download:
+        download ??
+        ((runId, dir) => {
+          assert.equal(runId, PR_RUN_ID);
+          writeTree(dir, {
+            ...files,
+            'capture.json': JSON.stringify({ tree, complete: true, ...manifest }),
+          });
+        }),
+    });
+    return { result, outDir, tree };
+  }
+
+  it('promotes a complete set captured from the same tree, labelled with the main commit', () => {
+    const main = makeMain();
+    const { result, outDir, tree } = promote(main);
+
+    assert.deepEqual(result, {
+      promoted: true,
+      set: `sha-${main.newer.slice(0, 7)}`,
+      images: 2,
+      tree,
+    });
+    assert.equal(readFileSync(join(outDir, 'baseline/01-home.png'), 'utf8'), 'home');
+    assert.ok(!existsSync(join(outDir, 'capture.json')), 'the manifest must not reach the branch');
+  });
+
+  // Every miss or fault leaves nothing behind: the upload step must find no set.
+  const notPromoted = ({ result, outDir }, warning, reason) => {
+    assert.equal(result.promoted, false, JSON.stringify(result));
+    assert.equal(result.warning, warning, result.reason);
+    assert.match(result.reason, reason);
+    assert.ok(!existsSync(outDir), 'a set that is not promoted must be removed');
+  };
+
+  // Until the PR diff comment (#596) lands, no PR run captures: the normal
+  // case, so no warning.
+  it('misses quietly when the PR run uploaded no set', () => {
+    notPromoted(promote(makeMain(), { artifacts: [] }), false, /uploaded no screenshots-capture/);
+  });
+
+  it('misses when the set has expired', () => {
+    const artifacts = [{ id: 1, name: CAPTURE_ARTIFACT, expired: true }];
+    notPromoted(promote(makeMain(), { artifacts }), false, /expired/);
+  });
+
+  it('misses when the set is partial', () => {
+    notPromoted(promote(makeMain(), { manifest: { complete: false } }), false, /partial/);
+  });
+
+  it('misses when the set was captured from another tree', () => {
+    const main = makeMain();
+    notPromoted(promote(main, { commit: main.older }), false, /captured from tree/);
+  });
+
+  // Same tree, same runner image, same pixels: a hosted image update between
+  // the PR run and the merge may move fonts, so the set is then captured
+  // afresh. Either side not knowing its image compares nothing.
+  it('misses when the set was captured on another runner image, and only then', () => {
+    const image = 'ubuntu24/20251020.1.0';
+    const other = 'ubuntu24/20251101.1.0';
+    notPromoted(
+      promote(makeMain(), { manifest: { image }, image: other }),
+      false,
+      /captured on runner image ubuntu24\/20251020\.1\.0, not .*20251101/,
+    );
+    assert.equal(promote(makeMain(), { manifest: { image }, image }).result.promoted, true);
+    assert.equal(promote(makeMain(), { manifest: { image } }).result.promoted, true);
+    assert.equal(promote(makeMain(), { image }).result.promoted, true);
+  });
+
+  it('warns when the manifest is missing or malformed', () => {
+    const noManifest = (_, dir) => writeTree(dir, PNGS);
+    notPromoted(promote(makeMain(), { download: noManifest }), true, /no capture.json/);
+    notPromoted(promote(makeMain(), { manifest: { tree: 'main' } }), true, /malformed/);
+    const notJson = (_, dir) => writeTree(dir, { ...PNGS, 'capture.json': '{' });
+    notPromoted(promote(makeMain(), { download: notJson }), true, /not JSON/);
+  });
+
+  it('warns when the set holds no image', () => {
+    notPromoted(promote(makeMain(), { files: { 'baseline/notes.txt': 'x' } }), true, /no PNG/);
+  });
+
+  it('warns when the API, the download or git fails', () => {
+    const failing = () => {
+      throw new Error('gh: HTTP 502');
+    };
+    notPromoted(promote(makeMain(), { gh: failing }), true, /HTTP 502/);
+    notPromoted(promote(makeMain(), { download: failing }), true, /HTTP 502/);
+    notPromoted(promote(makeMain(), { commit: 'not-a-commit' }), true, /failed/);
+  });
+});
+
 describe('CLI', () => {
-  const script = join(import.meta.dirname, 'screenshots-reference.mjs');
-  const run = (origin, setDir) => {
+  const run = (origin, setDir, ...extra) => {
     const summaryFile = join(tmp('screenshots-summary-'), 'summary.md');
     writeFileSync(summaryFile, '');
     const res = spawnSync(
       'node',
       [
-        script,
+        SCRIPT,
         'publish',
         '--branch-dir',
         cloneBranch(origin),
@@ -352,11 +513,33 @@ describe('CLI', () => {
         COMMIT,
         '--run-url',
         RUN_URL,
+        ...extra,
       ],
       { env: { ...env, GITHUB_STEP_SUMMARY: summaryFile }, encoding: 'utf8' },
     );
     return { ...res, summary: readFileSync(summaryFile, 'utf8') };
   };
+
+  // The main run's summary names the PR run a promoted set came from (#598).
+  it('names the PR run in the summary when the set was promoted', () => {
+    const origin = makeOrigin();
+    const prRun = 'https://github.com/IIxauII/hnch/actions/runs/777';
+    const res = run(origin, makeSet(), '--captured-in', prRun);
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.summary, /published.*2 images.*latest/);
+    assert.ok(res.summary.includes(`promoted from [the verified PR run](${prRun})`), res.summary);
+    assert.equal(JSON.parse(fileOn(origin, 'latest.json')).capturedIn, prRun);
+  });
+
+  // An empty --captured-in (the workflow passes the output verbatim) means
+  // "captured in this run".
+  it('treats an empty --captured-in as a capture of its own', () => {
+    const origin = makeOrigin();
+    const res = run(origin, makeSet(), '--captured-in', '');
+    assert.equal(res.status, 0, res.stderr);
+    assert.doesNotMatch(res.summary, /promoted/);
+    assert.equal(JSON.parse(fileOn(origin, 'latest.json')).capturedIn, undefined);
+  });
 
   it('publishes and writes the set and the latest/ link to the step summary', () => {
     const origin = makeOrigin();
@@ -385,9 +568,140 @@ describe('CLI', () => {
     assert.match(res.summary, /not published.*previous `latest\/` stays/);
   });
 
-  it('rejects anything but publish', () => {
-    const res = spawnSync('node', [script, 'prune'], { env, encoding: 'utf8' });
+  it('rejects anything but publish and promote', () => {
+    const res = spawnSync('node', [SCRIPT, 'prune'], { env, encoding: 'utf8' });
     assert.equal(res.status, 2);
+  });
+});
+
+// The promote step of detect-changes on a verified-skip main push (#598). Exit
+// 0 promotes (the set is in --out, GITHUB_OUTPUT names it), 3 does not, with
+// a ::warning:: when something broke; the workflow captures on anything but 0.
+describe('CLI promote', () => {
+  /**
+   * A stand-in for the gh CLI: `gh api <path>` answers from the routes and
+   * `gh run download` unpacks the fixture files into --dir; anything else
+   * fails like an HTTP error.
+   */
+  function fakeGh(routes, files) {
+    const bin = tmp('fake-gh-');
+    const fixtures = join(bin, 'fixtures.json');
+    writeFileSync(fixtures, JSON.stringify({ routes, files }));
+    const gh = join(bin, 'gh');
+    writeFileSync(
+      gh,
+      `#!/usr/bin/env node
+const { mkdirSync, readFileSync, writeFileSync } = require('node:fs');
+const { dirname, join } = require('node:path');
+const { routes, files } = JSON.parse(readFileSync(${JSON.stringify(fixtures)}, 'utf8'));
+const [cmd, sub, ...rest] = process.argv.slice(2);
+if (cmd === 'api' && sub in routes) {
+  process.stdout.write(JSON.stringify(routes[sub]));
+} else if (cmd === 'run' && sub === 'download' && files) {
+  const dir = rest[rest.indexOf('--dir') + 1];
+  for (const [rel, content] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, rel)), { recursive: true });
+    writeFileSync(join(dir, rel), content);
+  }
+} else {
+  process.stderr.write('gh: HTTP 502 for ' + process.argv.slice(2).join(' ') + '\\n');
+  process.exit(1);
+}
+`,
+    );
+    chmodSync(gh, 0o755);
+    return bin;
+  }
+
+  function run(main, { artifacts, files }) {
+    const dir = tmp('promote-cli-');
+    const summary = join(dir, 'summary.md');
+    const output = join(dir, 'output.txt');
+    writeFileSync(summary, '');
+    writeFileSync(output, '');
+    const outDir = join(dir, 'set');
+    const routes = captureRoutes(artifacts);
+    const bin = fakeGh(routes, files);
+    const res = spawnSync(
+      'node',
+      [
+        SCRIPT,
+        'promote',
+        '--run',
+        String(PR_RUN_ID),
+        '--run-url',
+        PR_RUN_URL,
+        '--commit',
+        main.newer,
+        '--out',
+        outDir,
+      ],
+      {
+        cwd: main.dir,
+        env: {
+          ...env,
+          PATH: `${bin}:${processEnv.PATH}`,
+          GITHUB_STEP_SUMMARY: summary,
+          GITHUB_OUTPUT: output,
+        },
+        encoding: 'utf8',
+      },
+    );
+    return {
+      ...res,
+      outDir,
+      summary: readFileSync(summary, 'utf8'),
+      output: readFileSync(output, 'utf8'),
+    };
+  }
+
+  const captureOf = (main, manifest = {}) => ({
+    'baseline/01-home.png': 'home',
+    'capture.json': JSON.stringify({
+      tree: git(main.dir, 'rev-parse', `${main.newer}^{tree}`),
+      complete: true,
+      ...manifest,
+    }),
+  });
+
+  it('exits 0, unpacks the set and names it on GITHUB_OUTPUT and the summary', () => {
+    const main = makeMain();
+    const res = run(main, { files: captureOf(main) });
+    assert.equal(res.status, 0, res.stdout + res.stderr);
+    const set = `sha-${main.newer.slice(0, 7)}`;
+    assert.equal(res.output, `set=${set}\nfrom=${PR_RUN_URL}\n`);
+    assert.ok(existsSync(join(res.outDir, 'baseline/01-home.png')));
+    assert.ok(!existsSync(join(res.outDir, 'capture.json')));
+    assert.match(res.summary, /promoted/);
+    assert.ok(res.summary.includes(PR_RUN_URL), res.summary);
+    assert.match(res.summary, /1 image/);
+  });
+
+  it('exits 3 without a warning when the PR run uploaded no set', () => {
+    const main = makeMain();
+    const res = run(main, { artifacts: [], files: captureOf(main) });
+    assert.equal(res.status, 3, res.stdout + res.stderr);
+    assert.match(res.stdout, /uploaded no screenshots-capture/);
+    assert.doesNotMatch(res.stdout, /::warning::/);
+    assert.equal(res.output, '');
+    assert.equal(res.summary, '');
+    assert.ok(!existsSync(res.outDir));
+  });
+
+  it('exits 3 and says why when the set is partial', () => {
+    const main = makeMain();
+    const res = run(main, { files: captureOf(main, { complete: false }) });
+    assert.equal(res.status, 3, res.stdout + res.stderr);
+    assert.match(res.stdout, /partial/);
+    assert.equal(res.output, '');
+  });
+
+  it('exits 3 with a ::warning:: when the download fails', () => {
+    const main = makeMain();
+    const res = run(main, { files: null });
+    assert.equal(res.status, 3, res.stdout + res.stderr);
+    assert.match(res.stdout, /^::warning::.*HTTP 502/m);
+    assert.equal(res.output, '');
   });
 });
 

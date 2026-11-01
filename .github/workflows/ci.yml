@@ -22,7 +22,8 @@ jobs:
   # (verified-skip, ADR-0055); PR runs upload the evidence for that. Its
   # `screenshots` output says whether the change touched a UI-bearing path: on
   # a main push the e2e job then also captures main's screenshot reference set
-  # (ADR-0057).
+  # (ADR-0057), unless this job promoted the verifying PR run's own set as the
+  # reference (`promoted`, #598): same tree, same image, same pixels.
   #
   # Every job runs on GitHub-hosted ubuntu-24.04-arm (ADR-0056). The
   # workflow policy step below fails on any non-hosted runner label.
@@ -33,11 +34,12 @@ jobs:
     # docs/screenshots/** PNGs main carried until #597 (they stay in history).
     # At timeout-minutes: 1 the job started dying mid-fetch (successful runs
     # were already landing at 40-53s). 3 minutes is headroom on top of the
-    # blob filter, not a licence for the step to get slower.
+    # blob filter, not a licence for the step to get slower. Promoting a PR
+    # run's screenshot set (below) moves about 12 MB down and up: seconds.
     timeout-minutes: 3
     # Job-level permissions replace the workflow-level set, so contents: read
     # is restated. actions: read lets the filter step look up the last green
-    # CI run on main and, for verified-skip, the PR run and its artifact;
+    # CI run on main and, for verified-skip, the PR run and its artifacts;
     # pull-requests: read lets it find the merged PR, and the title check read
     # the PR's current title.
     permissions:
@@ -53,6 +55,14 @@ jobs:
       root: ${{ steps.filter.outputs.root }}
       screenshots: ${{ steps.filter.outputs.screenshots }}
       verify-packages: ${{ steps.filter.outputs.verify-packages }}
+      # How main's screenshot reference is made on this push (#598), decided
+      # by the last step: `promoted` is sha-<short> of the PR run's set now on
+      # this run as the screenshots-reference artifact and `promoted-from` that
+      # PR run's URL, or `capture` is true and the e2e job captures. All empty
+      # on a PR run.
+      promoted: ${{ steps.reference.outputs.promoted }}
+      promoted-from: ${{ steps.reference.outputs.promoted-from }}
+      capture: ${{ steps.reference.outputs.capture }}
     steps:
       - id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -169,8 +179,9 @@ jobs:
             # script prints why not, as a ::warning:: when a lookup failed; any
             # status but 0 runs the lanes, so an error never skips. The
             # changed paths are still listed below: a verified-skip run with
-            # UI changes captures the screenshot reference (ADR-0057), which
-            # no PR run does.
+            # UI changes still needs a screenshot reference (ADR-0057), promoted
+            # from the verifying PR run's set when it has one (#598; the script
+            # names that run on this step's outputs) and captured otherwise.
             verified=0
             node scripts/ci/verified-tree.mjs check "$head" "$base" || verified=$?
             if [[ "$verified" != 0 && "$verified" != 3 ]]; then
@@ -297,6 +308,76 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
           overwrite: true
+
+      # Promotion (#598): a verified-skip main push whose merge touched the UI
+      # promotes the verifying PR run's screenshot set as main's reference
+      # instead of capturing again. The script downloads that run's
+      # `screenshots-capture` artifact (docs/release.md › Main reference set
+      # has its layout) and promotes it only when the set is complete and from
+      # this commit's tree on this runner image. Exit 0 leaves the set in
+      # $RUNNER_TEMP/screenshots-reference and names it on the step's outputs;
+      # the e2e job is then skipped and the publish job below takes the set
+      # from this run's artifact, as it would from the e2e job's. Any other
+      # status, a missing or partial set included, leaves the outputs empty
+      # and the e2e job captures as before (ADR-0057); only a broken lookup
+      # warns. Until the PR diff comment (#596) makes PR runs upload that
+      # artifact, every run here misses quietly.
+      #
+      # Both steps are allowed to fail and capped at a minute: a hung download
+      # or a failed upload must cost the capture, never turn main red by
+      # failing this job (the tree is verified).
+      - name: Promote the verified PR run's screenshot set
+        id: promote
+        if: ${{ steps.filter.outputs.verified-run-id != '' && steps.filter.outputs.screenshots == 'true' }}
+        continue-on-error: true
+        timeout-minutes: 1
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ steps.filter.outputs.verified-run-id }}
+          RUN_URL: ${{ steps.filter.outputs.verified-run-url }}
+        run: |
+          set -euo pipefail
+          status=0
+          node scripts/ci/screenshots-reference.mjs promote \
+            --run "$RUN_ID" --run-url "$RUN_URL" --commit "$GITHUB_SHA" \
+            --out "$RUNNER_TEMP/screenshots-reference" || status=$?
+          # 3 is a plain miss and 1 a crash the script annotated itself.
+          echo "promote exited $status"
+
+      # overwrite: a re-run of the whole run promotes the same set again.
+      - name: Upload the promoted reference set
+        id: upload-promoted
+        if: ${{ steps.promote.outputs.set != '' }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: screenshots-reference
+          path: ${{ runner.temp }}/screenshots-reference
+          if-no-files-found: error
+          retention-days: 30
+          overwrite: true
+
+      # The one place that decides between promotion and capture for the jobs
+      # below. Promoted only once the set is this run's artifact: a failed
+      # upload must leave the e2e job capturing, not skip it.
+      - name: Decide how main's screenshot reference is made
+        id: reference
+        if: ${{ github.event_name == 'push' }}
+        env:
+          SCREENSHOTS: ${{ steps.filter.outputs.screenshots }}
+          PROMOTED: ${{ steps.upload-promoted.outcome == 'success' && steps.promote.outputs.set || '' }}
+          PROMOTED_FROM: ${{ steps.upload-promoted.outcome == 'success' && steps.promote.outputs.from || '' }}
+        run: |
+          set -euo pipefail
+          capture=false
+          if [[ "$SCREENSHOTS" == true && -z "$PROMOTED" ]]; then capture=true; fi
+          {
+            echo "promoted=$PROMOTED"
+            echo "promoted-from=$PROMOTED_FROM"
+            echo "capture=$capture"
+          } >> "$GITHUB_OUTPUT"
+          echo "promoted=$PROMOTED capture=$capture"
 
   verify:
     name: Verify (${{ matrix.package }})
@@ -437,9 +518,11 @@ jobs:
     # SCREENSHOT_CAPTURE unlocks the specs under tests/_screenshots, which PR
     # runs skip. The set goes up as an artifact for the screenshots-reference
     # job below; this job never holds a write token. A verified-skip main run
-    # (ADR-0055) with UI changes runs here too, capture only.
+    # (ADR-0055) with UI changes runs here too, capture only, unless
+    # detect-changes promoted the verifying PR run's set (#598): then nothing
+    # is left for this job to do and it is skipped (`capture` false).
     needs: detect-changes
-    if: needs.detect-changes.outputs.e2e == 'true' || (github.event_name == 'push' && needs.detect-changes.outputs.screenshots == 'true')
+    if: needs.detect-changes.outputs.e2e == 'true' || needs.detect-changes.outputs.capture == 'true'
     # A hang guard. 4.5-7 min on the old pool; hosted adds the browser's
     # system packages, and while the repo is private the runner has 2 CPUs.
     # A main run with capture adds the 21 screenshot specs.
@@ -454,7 +537,7 @@ jobs:
       cancel-in-progress: true
     env:
       E2E: ${{ needs.detect-changes.outputs.e2e }}
-      CAPTURE: ${{ github.event_name == 'push' && needs.detect-changes.outputs.screenshots == 'true' }}
+      CAPTURE: ${{ needs.detect-changes.outputs.capture }}
     outputs:
       # sha-<short> of the reference set this run captured; empty when none.
       reference: ${{ steps.reference.outputs.set }}
@@ -540,6 +623,8 @@ jobs:
           echo "$count images captured as $SCREENSHOT_SHA"
           echo "set=$SCREENSHOT_SHA" >> "$GITHUB_OUTPUT"
 
+      # overwrite: a re-run after an attempt that promoted the PR run's set
+      # (#598) finds that artifact already on the run.
       - name: Upload the captured reference set
         if: steps.reference.outputs.set != ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -548,6 +633,7 @@ jobs:
           path: docs/screenshots/${{ steps.reference.outputs.set }}
           if-no-files-found: error
           retention-days: 30
+          overwrite: true
 
       # Runs after a failed Playwright step too (the job is red then), so the
       # summary names the miss either way.
@@ -557,18 +643,23 @@ jobs:
           echo "::warning::main's screenshot reference was not captured in this run; the previous latest/ on the screenshots branch stays."
           echo "Screenshot reference **not captured** in this run (Playwright failed or wrote no image); the previous \`latest/\` on the \`screenshots\` branch stays." >> "$GITHUB_STEP_SUMMARY"
 
-  # Publishes the reference set the e2e job captured on a main push to the
-  # `screenshots` branch and moves latest/ (ADR-0057). Its own job because it
-  # holds this workflow's only write token: it runs nothing from the tree under
-  # test, only scripts/ci from the pushed main commit, and PR runs never reach
-  # it. continue-on-error: a failed publish leaves the previous reference in
-  # place and the main run green (release.yml starts from a green run); the
-  # ::error:: annotation and the step summary show the miss.
+  # Publishes the reference set on a main push to the `screenshots` branch and
+  # moves latest/ (ADR-0057): the set the e2e job captured, or the one
+  # detect-changes promoted from the verifying PR run (#598); either is this
+  # run's `screenshots-reference` artifact. Its own job because it holds this
+  # workflow's only write token: it runs nothing from the tree under test, only
+  # scripts/ci from the pushed main commit, and PR runs never reach it.
+  # continue-on-error: a failed publish leaves the previous reference in place
+  # and the main run green (release.yml starts from a green run); the ::error::
+  # annotation and the step summary show the miss.
   screenshots-reference:
     name: Publish the screenshot reference
     runs-on: ubuntu-24.04-arm
     needs: [detect-changes, e2e]
-    if: github.event_name == 'push' && needs.e2e.outputs.reference != ''
+    # !cancelled(): with a promoted set the e2e job is skipped, which would
+    # otherwise skip this job too. A failed or cancelled e2e job leaves
+    # `reference` empty, so this job still skips then.
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.detect-changes.result == 'success' && (needs.e2e.outputs.reference != '' || needs.detect-changes.outputs.promoted != '') }}
     continue-on-error: true
     timeout-minutes: 5
     permissions:
@@ -608,19 +699,23 @@ jobs:
         with:
           node-version: 22
 
-      - name: Download the captured reference set
+      - name: Download the reference set
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: screenshots-reference
           path: ${{ runner.temp }}/screenshots-reference
 
+      # --captured-in is empty when the e2e job captured the set here; a
+      # promoted set's latest.json and summary name the PR run it came from.
       - name: Publish to the screenshots branch
         env:
-          SET: ${{ needs.e2e.outputs.reference }}
+          SET: ${{ needs.e2e.outputs.reference || needs.detect-changes.outputs.promoted }}
+          CAPTURED_IN: ${{ needs.detect-changes.outputs.promoted-from }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           node scripts/ci/screenshots-reference.mjs publish \
             --branch-dir .screenshots-branch \
             --set-dir "$RUNNER_TEMP/screenshots-reference" \
             --set "$SET" --commit "$GITHUB_SHA" --run-url "$RUN_URL" \
+            --captured-in "$CAPTURED_IN" \
             --main-dir .
