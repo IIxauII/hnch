@@ -1,3 +1,10 @@
+## [1.4.1](https://github.com/IIxauII/hnch/compare/relay-v1.4.0...relay-v1.4.1) (2026-11-01)
+
+
+### Bug Fixes
+
+* **relay,shared,docs:** bound refused sockets per room so wrong-password joins can't fill the socket limit ([#763](https://github.com/IIxauII/hnch/issues/763)) ([7fad1f7](https://github.com/IIxauII/hnch/commit/7fad1f75e095dcc616b02dd720f700c33eee7c59))
+
 # [1.4.0](https://github.com/IIxauII/hnch/compare/relay-v1.3.1...relay-v1.4.0) (2026-10-31)
 
 
