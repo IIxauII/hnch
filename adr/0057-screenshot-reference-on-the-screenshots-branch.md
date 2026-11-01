@@ -3,7 +3,7 @@
 **Status:** Accepted
 **Date:** 2026-10-31
 
-**Caveat (2026-11-01, #598):** a verified-skip run (ADR-0055) with UI changes first tries to adopt the verifying PR run's own set: its `screenshots-capture` artifact (`<topic>/<scene>.png` + `capture.json` `{ tree, complete }`), taken only when `complete` is true and `tree` is main's commit's. Adopted: no e2e job, the publish job pushes that set as `sha-<short>/` of the main commit, `latest.json` gains `capturedIn` (the PR run). Missing, expired, partial, another tree, or any error: the capture-only run below, as before. PR runs upload no such artifact until #596; the publisher and the layout are unchanged.
+**Caveat (2026-11-01, #598):** a verified-skip run (ADR-0055) with UI changes first tries to promote the verifying PR run's own set: its `screenshots-capture` artifact (layout: docs/release.md › Main reference set), taken only when complete, from main's commit's tree and, when both sides know it, the same hosted runner image. Promoted: no e2e job, the publish job pushes that set as `sha-<short>/` of the main commit, `latest.json` gains `capturedIn` (the PR run). Missing, expired, partial, another tree, or any error: the capture-only run below, as before. PR runs upload no such artifact until #596; the publisher and the layout are unchanged.
 
 Changes where main's "what the app looks like now" reference lives and how it is made; [ADR-0055](0055-verified-skip-main-push-run.md) (verified-skip) gains a capture-only run, its decision unchanged. Issue: #597 (under #589).
 

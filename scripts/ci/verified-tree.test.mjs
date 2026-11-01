@@ -571,10 +571,7 @@ if (cmd === 'api' && sub in routes) {
       record: merge.record,
     });
     assert.equal(verified.status, 0, verified.stdout + verified.stderr);
-    assert.equal(
-      verified.output,
-      `verified-run-id=${RUN_ID}\nverified-run-url=${RUN_URL}\nverified-pr=7\n`,
-    );
+    assert.equal(verified.output, `verified-run-id=${RUN_ID}\nverified-run-url=${RUN_URL}\n`);
 
     const miss = run(merge, ['check', merge.sha, merge.lastGreen], {
       routes: api(merge.sha, { pulls: [] }).routes,

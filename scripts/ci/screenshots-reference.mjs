@@ -1,13 +1,19 @@
 #!/usr/bin/env node
 // Publishes main's screenshot reference set to the `screenshots` branch and
-// moves the latest pointer (#597). Called by the screenshots-reference job in
-// .github/workflows/ci.yml after the e2e job captured the set on a main push.
+// moves the latest pointer (#597), and, on a verified-skip main push, promotes
+// the verifying PR run's set as that reference (#598). Called from
+// .github/workflows/ci.yml: `publish` by the screenshots-reference job once
+// this run's screenshots-reference artifact holds the set (captured by the
+// e2e job, or promoted); `promote` by detect-changes before the e2e job decides.
 //
 //   node scripts/ci/screenshots-reference.mjs publish \
 //     --branch-dir <checkout of the screenshots branch> \
 //     --set-dir <the capture: <topic>/<scene>.png, no sha-<short>/ parent> \
 //     --set sha-<short> --commit <main sha> --run-url <this run> \
-//     [--main-dir <checkout of main with history>]
+//     [--main-dir <checkout of main with history>] \
+//     [--captured-in <the PR run a promoted set came from>]
+//   node scripts/ci/screenshots-reference.mjs promote \
+//     --run <PR run id> --run-url <its url> --commit <main sha> --out <dir>
 //
 // Layout on the branch (its README.md is written from here, so the branch
 // describes itself):
@@ -19,7 +25,9 @@
 //                                     copy costs nothing, git stores one blob
 //                                     per distinct content.
 //   latest.json                       which set latest/ is, which main commit
-//                                     it shows, and the run that captured it
+//                                     it shows, the main run that published it
+//                                     and, when promoted, the PR run that
+//                                     captured it
 //
 // latest/ only moves forward: with --main-dir, a set whose commit is behind
 // the one latest.json names (a re-run of an older run's failed publish) is
@@ -30,7 +38,8 @@
 // retry on a rejected push, as scripts/screenshot-publish.mjs does for PR
 // captures. Never a force push.
 //
-// Pure Node, no dependencies: the job installs no node_modules.
+// Pure Node plus the git CLI, and the gh CLI for promote; no dependencies: the
+// jobs install no node_modules.
 import { execFileSync } from 'node:child_process';
 import {
   cpSync,
@@ -47,7 +56,7 @@ import process, { argv, env as processEnv, stderr } from 'node:process';
 export const BRANCH = 'screenshots';
 export const LATEST_DIR = 'latest';
 export const POINTER_FILE = 'latest.json';
-/** The artifact a PR run uploads its screenshot set as (see adoptCapture). */
+/** The artifact a PR run uploads its screenshot set as (see promoteCapture). */
 export const CAPTURE_ARTIFACT = 'screenshots-capture';
 /** Its manifest, beside the <topic>/ directories. */
 export const CAPTURE_MANIFEST = 'capture.json';
@@ -66,7 +75,7 @@ export const README = `# \`screenshots\` branch — machine-managed
 Do not hand-edit. Do not merge into \`main\`. Two publishers write here, never with a force push:
 
 - \`scripts/screenshot-publish.mjs\` on \`main\` (the \`lefthook\` pre-push hook and \`pnpm screenshots:publish\`): a PR's capture, under \`sha-<short>/\` of the PR head.
-- \`scripts/ci/screenshots-reference.mjs\` on \`main\` (the \`screenshots-reference\` job of \`ci.yml\`, after the e2e job of a \`main\` push with UI changes): main's reference set, under \`sha-<short>/\` of the \`main\` commit, copied to \`latest/\`, and this README.
+- \`scripts/ci/screenshots-reference.mjs\` on \`main\` (the \`screenshots-reference\` job of \`ci.yml\`, on a \`main\` push with UI changes, after the e2e job captured the set or detect-changes promoted a verified PR run's): main's reference set, under \`sha-<short>/\` of the \`main\` commit, copied to \`latest/\`, and this README.
 
 ## Layout
 
@@ -246,50 +255,51 @@ export function countPngs(dir) {
 }
 
 /** A plain miss: main captures its own set, as it did before promotion. */
-const miss = (reason) => ({ adopted: false, warning: false, reason });
+const miss = (reason) => ({ promoted: false, warning: false, reason });
 
 /** Something broke: main captures its own set and says so on its summary. */
-const fault = (reason) => ({ adopted: false, warning: true, reason });
+const fault = (reason) => ({ promoted: false, warning: true, reason });
 
 /**
- * Adopts the set a verified PR run captured as main's reference (#598): the
+ * Promotes the set a verified PR run captured as main's reference (#598): the
  * same tree in the same image gives the same pixels, so the main run need
- * not capture again. Only `adopted: true` skips the capture; every miss or
+ * not capture again. Only `promoted: true` skips the capture; every miss or
  * error leaves the main run capturing as before, an error with a warning.
  *
- * The PR run's artifact (CAPTURE_ARTIFACT) holds `<topic>/<scene>.png` beside
- * CAPTURE_MANIFEST: `{ tree, complete }`, the tree of the checkout the set
- * was captured from and whether every screenshot spec passed in that run.
- * A set that is missing, expired, partial (`complete` not true) or from
- * another tree than `commit`'s is not adopted. On success, outDir holds the
- * set as the publisher expects it (manifest removed).
+ * The PR run's artifact (CAPTURE_ARTIFACT, its layout and CAPTURE_MANIFEST
+ * documented in docs/release.md › Main reference set) is not promoted when it
+ * is missing, expired, partial, from another tree than `commit`'s, or, when
+ * both sides name one, from another runner image (an image update can move
+ * fonts). On success, outDir holds the set as the publisher expects it
+ * (manifest removed).
  *
  * @param {{
  *   repo: string,            // owner/name
  *   runId: number,           // the verifying PR run (ADR-0055)
  *   runUrl: string,
  *   commit: string,          // the pushed commit on main
+ *   image?: string,          // this run's runner image, when known
  *   outDir: string,          // where the set is unpacked
  *   gh: (path: string) => any,                     // GET the REST path, parsed JSON
  *   git: (args: string[]) => string,               // stdout, trimmed
  *   download: (runId: number, dir: string) => void // unpack the artifact into dir
  * }} input
- * @returns {{ adopted: true, set: string, images: number, tree: string }
- *   | { adopted: false, warning: boolean, reason: string }}
+ * @returns {{ promoted: true, set: string, images: number, tree: string }
+ *   | { promoted: false, warning: boolean, reason: string }}
  */
-export function adoptCapture(input) {
+export function promoteCapture(input) {
   let result;
   try {
-    result = adopt(input);
+    result = promote(input);
   } catch (err) {
-    result = fault(`adopting the PR run's screenshot set failed: ${err.message.split('\n')[0]}`);
+    result = fault(`promoting the PR run's screenshot set failed: ${err.message.split('\n')[0]}`);
   }
-  // A set that is not adopted must not linger where the upload step looks.
-  if (!result.adopted) rmSync(input.outDir, { recursive: true, force: true });
+  // A set that is not promoted must not linger where the upload step looks.
+  if (!result.promoted) rmSync(input.outDir, { recursive: true, force: true });
   return result;
 }
 
-function adopt({ repo, runId, runUrl, commit, outDir, gh, git, download }) {
+function promote({ repo, runId, runUrl, commit, image, outDir, gh, git, download }) {
   const { artifacts } = gh(
     `repos/${repo}/actions/runs/${runId}/artifacts?name=${CAPTURE_ARTIFACT}`,
   );
@@ -318,6 +328,11 @@ function adopt({ repo, runId, runUrl, commit, outDir, gh, git, download }) {
   if (!manifest.complete) {
     return miss(`the set of ${runUrl} is partial (not every screenshot spec passed there)`);
   }
+  if (image && typeof manifest.image === 'string' && manifest.image !== image) {
+    return miss(
+      `the set of ${runUrl} was captured on runner image ${manifest.image}, not this run's ${image}`,
+    );
+  }
   const tree = git(['rev-parse', `${commit}^{tree}`]);
   if (manifest.tree !== tree) {
     return miss(
@@ -327,7 +342,7 @@ function adopt({ repo, runId, runUrl, commit, outDir, gh, git, download }) {
   rmSync(manifestFile, { force: true });
   const images = countPngs(outDir);
   if (images === 0) return fault(`the ${CAPTURE_ARTIFACT} artifact of ${runUrl} holds no PNG`);
-  return { adopted: true, set: `sha-${git(['rev-parse', '--short=7', commit])}`, images, tree };
+  return { promoted: true, set: `sha-${git(['rev-parse', '--short=7', commit])}`, images, tree };
 }
 
 /** latest.json's { set, commit } if the branch has a readable one. */
@@ -346,7 +361,7 @@ function firstLine(error) {
   return text.split('\n').find((l) => l.trim()) ?? '';
 }
 
-// ---------------------------------------------------------------------- CLI
+// CLI
 
 function parseArgs(args) {
   const out = {};
@@ -360,12 +375,15 @@ function parseArgs(args) {
 
 const USAGE = [
   'usage: screenshots-reference.mjs publish --branch-dir <dir> --set-dir <dir> --set sha-<short> --commit <sha> --run-url <url> [--main-dir <dir>] [--captured-in <PR run url>]',
-  '       screenshots-reference.mjs adopt --run <PR run id> --run-url <url> --commit <sha> --out <dir>',
+  '       screenshots-reference.mjs promote --run <PR run id> --run-url <url> --commit <sha> --out <dir>',
   '',
 ].join('\n');
 
-/** stdout trimmed; the message of a failed gh call carries gh's stderr. */
-function sh(cmd, args) {
+/**
+ * stdout, trimmed. execFileSync's own message is the command line; the error
+ * of a failed gh or git call is on stderr, so it is appended.
+ */
+function run(cmd, args) {
   try {
     return execFileSync(cmd, args, {
       encoding: 'utf8',
@@ -380,45 +398,50 @@ function sh(cmd, args) {
 }
 
 /**
- * adopt: the detect-changes step of a verified-skip main push. Exit 0 when
+ * promote: the detect-changes step of a verified-skip main push. Exit 0 when
  * the PR run's set is now in --out (GITHUB_OUTPUT gets `set` and `from`), 3
  * when main captures its own, with the reason on stdout, as a ::warning::
- * when something broke. Needs REPO and GH_TOKEN (gh), and git on main.
+ * when something broke. Needs GH_TOKEN (gh) and git on main, and reads the
+ * runner's ImageOS and ImageVersion when set.
  */
-function adoptCommand(args) {
+function promoteCommand(args) {
   for (const k of ['run', 'run-url', 'commit', 'out']) {
     if (!args[k]) throw new Error(`--${k} is required`);
   }
-  const repo = processEnv.REPO;
-  if (!repo) throw new Error('REPO is required');
-  const result = adoptCapture({
-    repo,
+  const gh = (ghArgs) => run('gh', ghArgs);
+  const git = (gitArgs) => run('git', gitArgs);
+  // Hosted runners set both; anywhere else the image goes uncompared.
+  const { ImageOS, ImageVersion } = processEnv;
+  const result = promoteCapture({
+    repo: REPO,
     runId: Number(args.run),
     runUrl: args['run-url'],
     commit: args.commit,
+    image: ImageOS && ImageVersion ? `${ImageOS}/${ImageVersion}` : undefined,
     outDir: args.out,
-    gh: (path) => JSON.parse(sh('gh', ['api', path])),
-    git: (gitArgs) => sh('git', gitArgs),
+    gh: (path) => JSON.parse(gh(['api', path])),
+    git,
+    // `gh run download --name` unpacks the artifact's files straight into --dir.
     download: (runId, dir) =>
-      sh('gh', [
+      gh([
         'run',
         'download',
         String(runId),
         '--repo',
-        repo,
+        REPO,
         '--name',
         CAPTURE_ARTIFACT,
         '--dir',
         dir,
       ]),
   });
-  if (!result.adopted) {
-    const line = `Not adopting the PR run's screenshot set: ${result.reason}. The e2e job captures main's reference.`;
+  if (!result.promoted) {
+    const line = `Not promoting the PR run's screenshot set: ${result.reason}. The e2e job captures main's reference.`;
     process.stdout.write(result.warning ? `::warning::${line}\n` : `${line}\n`);
     return 3;
   }
   process.stdout.write(
-    `Adopted ${result.images} images from ${args['run-url']} as ${result.set} (tree ${result.tree}); no capture in this run.\n`,
+    `Promoted ${result.images} images from ${args['run-url']} as ${result.set} (tree ${result.tree}); no capture in this run.\n`,
   );
   if (processEnv.GITHUB_OUTPUT) {
     writeFileSync(processEnv.GITHUB_OUTPUT, `set=${result.set}\nfrom=${args['run-url']}\n`, {
@@ -426,13 +449,13 @@ function adoptCommand(args) {
     });
   }
   summary(
-    `Screenshot set adopted from [the verified PR run](${args['run-url']}): ${result.images} images of the same tree, to be published as \`${result.set}\`; this run captures nothing (#598).`,
+    `Screenshot set promoted from [the verified PR run](${args['run-url']}): ${result.images} images of the same tree, to be published as \`${result.set}\`; this run captures nothing (#598).`,
   );
   return 0;
 }
 
 function main() {
-  if (argv[2] === 'adopt') return adoptCommand(parseArgs(argv.slice(3)));
+  if (argv[2] === 'promote') return promoteCommand(parseArgs(argv.slice(3)));
   if (argv[2] !== 'publish') {
     stderr.write(USAGE);
     return 2;
@@ -458,11 +481,11 @@ function main() {
   const pointer = result.latest
     ? `now [\`${LATEST_DIR}/\`](${tree(LATEST_DIR)})`
     : `[\`${LATEST_DIR}/\`](${tree(LATEST_DIR)}) stays at \`${result.previous.set}\` (\`${args.commit.slice(0, 7)}\` is behind \`${result.previous.commit.slice(0, 7)}\` on main)`;
-  const origin = capturedIn
+  const promotedNote = capturedIn
     ? `, promoted from [the verified PR run](${capturedIn}) (same tree; this run captured nothing)`
     : '';
   summary(
-    `Screenshot reference ${verb}: [\`${args.set}\`](${tree(args.set)}), ${result.images} images, ${pointer}${origin}.`,
+    `Screenshot reference ${verb}: [\`${args.set}\`](${tree(args.set)}), ${result.images} images, ${pointer}${promotedNote}.`,
   );
   return 0;
 }
@@ -478,10 +501,10 @@ if (argv[1] === import.meta.filename) {
   try {
     process.exitCode = main();
   } catch (e) {
-    if (argv[2] === 'adopt') {
-      // A crash here (bad arguments, no REPO) is a workflow bug, not a miss:
-      // the step treats any status but 0 as "capture", with a warning.
-      stderr.write(`::warning::screenshot set not adopted: ${e.message}\n`);
+    if (argv[2] === 'promote') {
+      // A crash here (bad arguments) is a workflow bug, not a miss: the step
+      // treats any status but 0 as "capture".
+      stderr.write(`::warning::screenshot set not promoted: ${e.message}\n`);
     } else {
       // The job runs with continue-on-error, so the main run stays green; the
       // annotation and the summary line keep the miss visible.

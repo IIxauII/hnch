@@ -7,7 +7,7 @@
 
 **Caveat (2026-10-31, #597):** a verified-skip run whose merge touched a UI-bearing path still starts the e2e job, for main's screenshot reference capture only, allowed to fail ([ADR-0057](0057-screenshot-reference-on-the-screenshots-branch.md)). No lane runs; the decision stands.
 
-**Caveat (2026-11-01, #598):** that capture-only e2e job is skipped too when `detect-changes` adopts the verifying PR run's complete screenshot set for the same tree as main's reference; `verified-tree.mjs check` names the verifying run on its step outputs for that. The decision stands.
+**Caveat (2026-11-01, #598):** that capture-only e2e job is skipped too when `detect-changes` promotes the verifying PR run's complete screenshot set for the same tree as main's reference; `verified-tree.mjs check` names the verifying run on its step outputs for that. The decision stands.
 
 Changes what a green `ci.yml` push run on `main` means; [ADR-0049](0049-self-hosted-runner-pool-current-state-consolidation.md), [ADR-0052](0052-single-e2e-runner-slot.md) and [ADR-0053](0053-runner-pool-two-slots.md) unchanged. Issue: #593 (under #589).
 
