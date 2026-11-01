@@ -172,7 +172,8 @@ describe('joining a room', () => {
     const member = await Peer.join(uuid, `?pw=${HASH}`);
     member.announce({ participantId: 'member' });
     await eventually(() => expect(member.frames.length).toBeGreaterThanOrEqual(2));
-    // Its client never reads the close, so the relay's side stays CLOSING.
+    // Its client sends nothing and never reads the close: the relay's side
+    // stays OPEN until the fallback closes it, then CLOSING.
     const refused = await upgrade(uuid, `?pw=${'cd'.repeat(32)}`);
     expect(refused.status).toBe(101);
     expect(await socketsOf(uuid)).toEqual({ refused: 1, all: 2, peers: 1 });
@@ -181,16 +182,23 @@ describe('joining a room', () => {
     // can't do it here: it waits for the refused socket's close to finish
     // (or for its client's reference to go), so this builds a second instance
     // over the live state, as the runtime does after an eviction.
-    const woke = await runInDurableObject(roomStub(uuid), (_room, state) => {
-      const fresh = new Room(state, env) as unknown as RoomInternals;
-      const [ws] = state.getWebSockets('refused');
-      return {
-        refusedState: ws!.readyState,
-        peers: fresh.openSockets().length,
-        owners: fresh.presence.clientIds().length,
-      };
-    });
-    expect(woke).toEqual({ refusedState: WebSocket.CLOSING, peers: 1, owners: 1 });
+    const wake = () =>
+      runInDurableObject(roomStub(uuid), (_room, state) => {
+        const fresh = new Room(state, env) as unknown as RoomInternals;
+        const [ws] = state.getWebSockets('refused');
+        return {
+          refusedState: ws!.readyState,
+          peers: fresh.openSockets().length,
+          owners: fresh.presence.clientIds().length,
+        };
+      });
+    expect(await wake()).toEqual({ refusedState: WebSocket.OPEN, peers: 1, owners: 1 });
+    // The silent client gets its close anyway, within the 1 s fallback.
+    await eventually(
+      async () =>
+        expect(await wake()).toEqual({ refusedState: WebSocket.CLOSING, peers: 1, owners: 1 }),
+      3_000,
+    );
 
     // A legitimate join is still admitted while it closes.
     const second = await Peer.join(uuid, `?pw=${HASH}`);
