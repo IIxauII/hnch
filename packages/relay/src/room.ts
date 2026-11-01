@@ -81,6 +81,8 @@ const PASSWORD_CHECKS = 3;
  * HTTP instead, so a flood of wrong passwords can't shut legitimate joins out.
  */
 export const REFUSED_SOCKETS_BOUND = 64;
+/** The 503's `detail` at the bound; same for both reasons, and no verdict (ADR-0050). */
+export const REFUSED_BOUND_DETAIL = 'too many refused joins';
 /** `Retry-After` of a refusal answered at the bound. */
 const REFUSED_RETRY_AFTER_S = 5;
 
@@ -223,7 +225,11 @@ export class Room extends DurableObject<Env> {
 
   // WebSocket
 
-  /** `WS /ws/:uuid`, forwarded by the Worker once it saw an upgrade request. */
+  /**
+   * `WS /ws/:uuid`, forwarded by the Worker once it saw an upgrade request.
+   * Answers 101 (admitted, or refused with a close code), 404, 400, or 503 at
+   * {@link REFUSED_SOCKETS_BOUND}.
+   */
   override async fetch(request: Request): Promise<Response> {
     const meta = await this.liveMeta();
     // Pre-upgrade rejections stay plain HTTP (ADR-0016, ADR-0050).
@@ -731,15 +737,13 @@ function isRefused(ctx: DurableObjectState, ws: WebSocket): boolean {
  * connection lost." (https://github.com/cloudflare/workerd/issues/5290).
  *
  * At {@link REFUSED_SOCKETS_BOUND} held refused sockets the answer is a 503
- * with `Retry-After` instead, the same for both reasons, so the room's socket
- * limit stays free for joins that are admitted and nothing more is told about
- * the password than the close codes already tell.
+ * with `Retry-After` instead, same status and body for both reasons.
  */
 function refuse(ctx: DurableObjectState, reason: 'wrong-password' | 'room-full'): Response {
   if (ctx.getWebSockets(REFUSED_TAG).length >= REFUSED_SOCKETS_BOUND) {
     return json(
       503,
-      { error: 'unavailable', detail: 'too many refused joins' },
+      { error: 'unavailable', detail: REFUSED_BOUND_DETAIL },
       { 'retry-after': String(REFUSED_RETRY_AFTER_S) },
     );
   }
