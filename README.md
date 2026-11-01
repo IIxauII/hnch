@@ -3,14 +3,14 @@
 Do not hand-edit. Do not merge into `main`. Two publishers write here, never with a force push:
 
 - `scripts/screenshot-publish.mjs` on `main` (the `lefthook` pre-push hook and `pnpm screenshots:publish`): a PR's capture, under `sha-<short>/` of the PR head.
-- `scripts/ci/screenshots-reference.mjs` on `main` (the `screenshots-reference` job of `ci.yml`, after the e2e job of a `main` push with UI changes): main's reference set, under `sha-<short>/` of the `main` commit, copied to `latest/`, and this README.
+- `scripts/ci/screenshots-reference.mjs` on `main` (the `screenshots-reference` job of `ci.yml`, on a `main` push with UI changes, after the e2e job captured the set or detect-changes promoted a verified PR run's): main's reference set, under `sha-<short>/` of the `main` commit, copied to `latest/`, and this README.
 
 ## Layout
 
 ```
 sha-<short>/<topic>/<scene>.png   every capture: PR pushes and main alike
 latest/<topic>/<scene>.png        main's newest reference set (a copy, not a symlink: GitHub serves nothing through a symlinked path)
-latest.json                       { set, commit, run }: which sha-<short>/ latest/ is, the main commit it shows, the run that captured it
+latest.json                       { set, commit, run, capturedIn? }: which sha-<short>/ latest/ is, the main commit it shows, the main run that published it, and, for a set promoted from a verified PR run, that PR run
 ```
 
 Embed or open an image with the one URL pattern that renders on GitHub mobile and desktop:
