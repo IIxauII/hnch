@@ -58,6 +58,7 @@ import { LastSessionService } from '../core/last-session.service';
 import { assertRoomCode } from '../core/room-join.service';
 import { shouldRecordCache } from '../core/cache-record-guard';
 import { ParticipantIdService } from '../core/participant-id.service';
+import { SessionExitService } from '../core/session-exit.service';
 import { TimerTickService } from '../core/timer-tick.service';
 import { ToastService } from '../services/toast.service';
 import type { MenuItem } from '../shared/menu-popover/menu-popover.component';
@@ -440,6 +441,7 @@ export class EstimatingPage {
   private readonly participantIdService = inject(ParticipantIdService);
   private readonly haptic = inject(HapticService);
   private readonly lastSessionService = inject(LastSessionService);
+  private readonly sessionExit = inject(SessionExitService);
   private readonly timerTick = inject(TimerTickService);
   private readonly surface = inject(SurfaceService);
   private readonly alertCtrl = inject(AlertController);
@@ -893,29 +895,12 @@ export class EstimatingPage {
           role: 'destructive',
           handler: () => {
             this.haptic.impactHeavy();
-            void this.leaveSession();
+            void this.sessionExit.exit({ kind: 'left' });
           },
         },
       ],
     });
     await alert.present();
-  }
-
-  private async leaveSession(): Promise<void> {
-    // The UUID the relay issued, which is what the entry was recorded under.
-    // Not the one in the doc: any participant can rewrite that. Read before
-    // anything is waited for — the session may be gone by the time it is over.
-    const uuid = this.docService.relayRoomUuid();
-    if (this.myId()) {
-      // Write the soft-delete before disconnecting so peers see the removal (ADR-0036).
-      this.docService.commands.leave();
-      // Flush the Yjs update through the WebSocket before closing (best-effort, 500 ms cap).
-      await this.docService.flushUpdates();
-    }
-    this.docService.teardown();
-    // Destructive leave — remove the entry, so Home does not offer the session again (ADR-0044).
-    if (uuid !== null) await this.lastSessionService.removeByUuid(uuid);
-    await this.router.navigate(['/home']);
   }
 
   /**
