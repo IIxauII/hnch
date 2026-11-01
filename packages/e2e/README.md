@@ -62,7 +62,7 @@ A new screenshot spec starts with that line too. An assertion that must hold on 
 ### Two surfaces
 
 - **PR flow** — `lefthook` pre-push hook runs a scoped subset and publishes to the `screenshots` branch under `sha-<short>/`. See `docs/release.md → Screenshots`.
-- **Main flow** — on a push to `main` with UI changes, the CI `E2E (Playwright)` job runs with `SCREENSHOT_CAPTURE=1`: app tests and the full screenshot suite in one Playwright run. A follow-up job publishes the set to the `screenshots` branch as `sha-<short>/` of the `main` commit and as `latest/`, with `latest.json` naming the commit. `main` gets no PNGs ([ADR-0057](../../adr/0057-screenshot-reference-on-the-screenshots-branch.md)).
+- **Main flow** — on a push to `main` with UI changes, the CI `E2E (Playwright)` job runs with `SCREENSHOT_CAPTURE=1`: app tests and the full screenshot suite in one Playwright run. A follow-up job publishes the set to the `screenshots` branch as `sha-<short>/` of the `main` commit and as `latest/`, with `latest.json` naming the commit. `main` gets no PNGs ([ADR-0057](../../adr/0057-screenshot-reference-on-the-screenshots-branch.md)). A verified-skip `main` run (ADR-0055) adopts the verifying PR run's complete `screenshots-capture` set for the same tree instead of capturing (#598); see `docs/release.md → Main reference set`.
 
 ### Env vars
 
