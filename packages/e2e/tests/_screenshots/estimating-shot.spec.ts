@@ -15,7 +15,8 @@
  *     tests/_screenshots/estimating-shot.spec.ts
  */
 import path from 'node:path';
-import { test, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import type { Browser, BrowserContext, Page } from '@playwright/test';
+import { test } from './_helpers/capture-test';
 import { resolveOutDir } from './_helpers/out-dir';
 import { pageSettled } from './_helpers/settled';
 import {

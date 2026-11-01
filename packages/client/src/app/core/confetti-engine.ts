@@ -5,7 +5,9 @@
  * No Angular deps. Tested standalone via confetti-engine.test.ts.
  *
  * Default rng: `(window as any).__confettiRng ?? Math.random`
- * Playwright sets the window hook in screenshot specs; production never touches it.
+ * `(window as any).__confettiFreezeMs`, when set, draws the burst as it stands that many ms in,
+ * held still, so a screenshot shows the same frame every time (#762).
+ * Playwright sets both window hooks in screenshot specs; production never touches them.
  */
 
 export type ConfettiPattern = 'center' | 'top-sprinkle' | 'side-cannons';
@@ -204,7 +206,31 @@ export class ConfettiEngine {
   start(pattern: ConfettiPattern): void {
     this.pattern = pattern;
     this.startedAt = performance.now();
-    this.scheduleNext(0);
+    const freezeMs =
+      typeof window !== 'undefined'
+        ? (window as { __confettiFreezeMs?: number }).__confettiFreezeMs
+        : undefined;
+    if (freezeMs === undefined) this.scheduleNext(0);
+    else this.drawFrozen(freezeMs);
+  }
+
+  /**
+   * Spawns, at once, every particle the timer chain would have spawned by `freezeMs`, each held at
+   * its age then. `playbackRate` 0 rather than `pause()`: Playwright's `animations: 'disabled'`
+   * leaves a zero-rate animation alone but fast-forwards a paused one to its end.
+   */
+  private drawFrozen(freezeMs: number): void {
+    const layer = this.layerRef;
+    if (!layer) return;
+    let t = 0;
+    while (t <= freezeMs && t < SPAWN_WINDOW_MS && this.animations.length < this.maxParticles) {
+      const anim = this.spawnParticle(layer, t);
+      anim.currentTime = freezeMs - t;
+      anim.playbackRate = 0;
+      const r = spawnRate(t);
+      if (r <= 0) return;
+      t += Math.min(1000 / r, SPAWN_WINDOW_MS - t + 10);
+    }
   }
 
   private scheduleNext(delay: number): void {
@@ -232,7 +258,7 @@ export class ConfettiEngine {
     this.scheduleNext(nextDelay);
   }
 
-  private spawnParticle(layer: HTMLElement, _t: number): void {
+  private spawnParticle(layer: HTMLElement, _t: number): Animation {
     const { viewportW: w, viewportH: h, emojis } = this.opts;
     const state = spawnOne(this.pattern, { w, h }, this.rng, emojis);
     const { keyframes, lifetime } = computeTrajectory(state, this.gravity, { w, h });
@@ -263,6 +289,7 @@ export class ConfettiEngine {
       const idx = this.animations.indexOf(anim);
       if (idx !== -1) this.animations.splice(idx, 1);
     };
+    return anim;
   }
 
   stop(): void {

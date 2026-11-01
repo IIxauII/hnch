@@ -1,17 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
-import {
-  formatRoundElapsed,
-  formatRoundLabel,
-  isAbstainVote,
-  isRecordedStatus,
-  roundNumber,
-} from '@hnch/shared';
+import { formatRoundLabel, isAbstainVote, isRecordedStatus, roundNumber } from '@hnch/shared';
 import type { AgendaItem, ParticipantSnapshot, Round } from '@hnch/shared';
 import { IonButton, IonIcon } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { pencilOutline } from 'ionicons/icons';
 
 import { DocService } from '../core/doc/doc.service';
+import { roundElapsedLabel } from '../core/elapsed-label';
 import { revoteLabel } from './revote-label';
 
 /** One entry in the compact history list. */
@@ -260,7 +255,7 @@ export class RoundHistoryComponent {
         roundNumber: number,
         label,
         summary: buildVoteSummary(round.votes, round.scale.cards),
-        elapsed: formatRoundElapsed(round),
+        elapsed: roundElapsedLabel(round),
         skipped: false,
         lineageLabel,
       };

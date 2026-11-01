@@ -20,7 +20,8 @@
  *     tests/_screenshots/connection-states.spec.ts
  */
 import path from 'node:path';
-import { expect, test, type BrowserContext, type Page } from '@playwright/test';
+import type { BrowserContext, Page } from '@playwright/test';
+import { expect, test } from './_helpers/capture-test';
 import {
   BASE_URL,
   ONBOARDING,

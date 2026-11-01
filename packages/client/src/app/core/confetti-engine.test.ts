@@ -366,6 +366,47 @@ describe('ConfettiEngine — __confettiRng window hook', () => {
   });
 });
 
+// Window hook freeze (screenshot capture, #762)
+
+describe('ConfettiEngine — __confettiFreezeMs window hook', () => {
+  let layer: HTMLDivElement;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    layer = document.createElement('div');
+    document.body.appendChild(layer);
+    (window as { __confettiFreezeMs?: number }).__confettiFreezeMs = 20;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    layer.remove();
+    delete (window as { __confettiFreezeMs?: unknown }).__confettiFreezeMs;
+  });
+
+  it('draws the burst as it stands 20 ms in, held still, with no spawn timer left', () => {
+    const engine = new ConfettiEngine({
+      viewportW: VIEWPORT.w,
+      viewportH: VIEWPORT.h,
+      emojis: EMOJIS,
+      layer,
+      rng: makeSeededRng(7),
+    });
+    const spy = vi.spyOn(HTMLElement.prototype, 'animate');
+
+    engine.start('center');
+
+    // 110 particles/s at the start: spawns at 0, ≈9.1 and ≈18.2 ms.
+    expect(spy).toHaveBeenCalledTimes(3);
+    const anims = spy.mock.results.map((r) => r.value as Animation);
+    expect(anims.map((a) => a.playbackRate)).toEqual([0, 0, 0]);
+    expect(anims[0]!.currentTime).toBe(20);
+    expect(anims[1]!.currentTime).toBeCloseTo(20 - 1000 / 110, 6);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(layer.children).toHaveLength(3);
+  });
+});
+
 // Spawn fires assert layer.children.length > 0 (attached-layer guard)
 
 describe('ConfettiEngine — attached-layer guard', () => {

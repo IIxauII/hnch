@@ -57,7 +57,7 @@ That gives two separate switches:
 - **App tests** (`pnpm --filter @hnch/e2e test`, the CI `E2E (Playwright)` job, no `SCREENSHOT_CAPTURE`): every test under `_screenshots/` is reported as skipped; none of them runs.
 - **Capture** (`SCREENSHOT_CAPTURE=1 … playwright test _screenshots`): every screenshot spec runs and writes its PNGs.
 
-A new screenshot spec starts with that line too. An assertion that must hold on every PR (a regression guard) belongs in an app spec under `tests/`, not under `_screenshots/`. The 375px sheet guards moved to `sheet-actions-mobile.spec.ts` for that reason (#594).
+A new screenshot spec starts with that line too, and imports `test` and `expect` from `./_helpers/capture-test`, not from `@playwright/test` (see [Pinned sources](#pinned-sources)). An assertion that must hold on every PR (a regression guard) belongs in an app spec under `tests/`, not under `_screenshots/`. The 375px sheet guards moved to `sheet-actions-mobile.spec.ts` for that reason (#594).
 
 ### Two surfaces
 
@@ -89,9 +89,30 @@ The helper writes `mkdir -p` only when called — never at module import — so 
 
 ### Taking the shot
 
-A spec's `shot()` waits for `pageSettled(page)` (`_helpers/settled.ts`) before it captures: exactly one page showing, fully in. Ionic keeps the page being left on screen while the new one slides in, and a shot taken then shows the two on top of each other. Call `shot()` once the content of the new page is known to be there — until then the one page showing is still the old one. (A few specs wait a fixed moment instead: `reveal-transition.spec.ts`, which is there to catch the reveal *while* it moves, and the two phone form specs, `round-start-mobile.spec.ts` and `agenda-item-form-mobile.spec.ts`, which capture a sheet over a page that has not changed.)
+A spec's `shot()` waits for `pageSettled(page)` (`_helpers/settled.ts`) before it captures: exactly one page showing, fully in. Ionic keeps the page being left on screen while the new one slides in, and a shot taken then shows the two on top of each other. Call `shot()` once the content of the new page is known to be there — until then the one page showing is still the old one. (A few specs wait a fixed moment instead: `reveal-transition.spec.ts`, whose burst scenes show the confetti as it stands 500 ms in, and the two phone form specs, `round-start-mobile.spec.ts` and `agenda-item-form-mobile.spec.ts`, which capture a sheet over a page that has not changed.)
 
 A toast that should not be in the picture is waited out with `expect(page.locator('ion-toast:not(.overlay-hidden)')).toHaveCount(0)`. Count the ones that are showing, never the elements: the Lobby and the round screen each carry an `ion-toast` of the connection banner's, which stays in the page and is hidden unless the connection has just come back.
+
+### Pinned sources
+
+Two captures of one tree write byte-identical PNGs, so a diff between two sets shows only real changes: exact bytes, no tolerance, no masks (#595, #762). Everything the app would otherwise pick at random or read off the clock is pinned by `_helpers/capture-test.ts`, for every browser context a screenshot spec opens, whether through `browser.newContext()` or the built-in `context` and `page`:
+
+| Source | Pinned to | How |
+|---|---|---|
+| Device ID (so avatar colour, roster order on ties, host election) | a fixed UUID per context position: the test's first context, second… | `CapacitorStorage.hnch.participantId` seeded before the app loads |
+| Room code | a code derived from the test's title path, the context's position and its room count | the context's `POST /rooms` is sent to the relay's `POST /test/rooms` with that code (ADR-0027 gate: only a relay started with `HNCH_ENABLE_TEST_ROUTES=1` has it; without it the request goes to `POST /rooms` and the code is random). A room still holding the code from an earlier run is evicted first. |
+| Elapsed labels (stopwatch, round durations) | `0:00` | `window.__captureElapsedMs`, read by `packages/client/src/app/core/elapsed-label.ts` |
+| Confetti | a seeded pattern, frozen 500 ms in | `window.__confettiRng` (a spec may set its own seed) and `window.__confettiFreezeMs`, read by `confetti-engine.ts` |
+| Ionic page and overlay motion | off | `window.Ionic.config.animated = false`, read by Ionic at boot |
+| Other motion and hover | settled | each `page.screenshot()` moves the pointer off the page, waits up to 5 s for running animations to end, and shoots with `animations: 'disabled'` |
+
+Room IDs, round IDs and agenda-item IDs stay random: none reaches the screen or decides an order.
+
+App specs never import the helper, so app tests and production run unpinned; the client hooks are `window` properties only the helper sets.
+
+**Adding a source.** When a scene differs between two captures of one tree, find what differs (the session code, a colour, a time, a position) and pin it in `pinContext` in `_helpers/capture-test.ts`. A value only the client can choose gets a `window.__…` hook in the client that production never sets, in the `__confettiRng` pattern. Add a row to the table above.
+
+**Checking.** `pnpm screenshots:determinism` runs the CI command twice (`CI=1 SCREENSHOT_CAPTURE=1 pnpm --filter @hnch/e2e test`: app tests and capture together, at min(4, CPUs) workers, each against a fresh relay) into `docs/screenshots/determinism-{a,b}/` and compares them by hash with `scripts/ci/screenshot-diff.mjs`. Exit 0 means every scene is identical. Arguments go to Playwright: `pnpm screenshots:determinism _screenshots` captures without the app tests, `pnpm screenshots:determinism _screenshots/reveal-transition` one spec. `node scripts/ci/screenshot-diff.mjs <base-dir> <head-dir>` compares any two sets and lists the changed, added and removed scenes.
 
 ### Local manual run
 
@@ -100,6 +121,8 @@ SCREENSHOT_CAPTURE=1 SCREENSHOT_SHA=local \
   pnpm --filter @hnch/e2e exec playwright test _screenshots \
   --project=chromium --workers=1
 ```
+
+Playwright starts the relay with the test routes on. A relay already listening on `RELAY_PORT` is reused instead, and one started by plain `pnpm dev:relay` has them off: sessions then get random codes (the run warns once), so the set will not match another capture. Stop it first, or start it with `HNCH_ENABLE_TEST_ROUTES=1 HNCH_ROOM_CAP=3`.
 
 ### Spec organization
 

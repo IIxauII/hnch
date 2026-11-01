@@ -7,6 +7,7 @@
  *   GET    /rooms/:code          → 200 {uuid, accessMode} | 404 {reason:'unknown-room'}
  *   PATCH  /rooms/:uuid/access   → 200 {accessMode} | 404 {reason:'unknown-room'}
  *   WS     /ws/:uuid             → handed to Room(uuid); 503 {error, detail} at its refused bound
+ *   POST   /test/rooms           → 201 {uuid, code} with the code asked for; ADR-0027, as below
  *   DELETE /test/rooms/:uuid     → ADR-0027, only with HNCH_ENABLE_TEST_ROUTES=1
  *   OPTIONS *                    → 204
  *
@@ -15,7 +16,7 @@
  * failure must never look like one.
  */
 
-import { generateRoomCode, normalizeRoomCode } from '@hnch/shared/room-code';
+import { generateRoomCode, isValidRoomCode, normalizeRoomCode } from '@hnch/shared/room-code';
 import type { HealthResponse } from '@hnch/shared/health';
 import { version } from '../package.json';
 import { clock } from './clock';
@@ -27,6 +28,7 @@ const WS_PATH_RE = /^\/ws\/([0-9a-fA-F-]{36})\/?$/;
 const ACCESS_PATH_RE = /^\/rooms\/([0-9a-fA-F-]{36})\/access\/?$/;
 const CODE_PATH_RE = /^\/rooms\/([^/]+)\/?$/;
 const TEST_DELETE_PATH_RE = /^\/test\/rooms\/([^/]+)\/?$/;
+const TEST_CREATE_PATH = '/test/rooms';
 
 /** Attempts at a free code before giving up; 31^6 codes make one enough. */
 const MAX_CODE_ATTEMPTS = 64;
@@ -80,7 +82,7 @@ async function route(request: Request, env: Env): Promise<Response> {
     }
   }
 
-  if (method === 'POST' && path === '/rooms') return createRoom(request, env);
+  if (method === 'POST' && path === '/rooms') return createRoom(request, env, randomCodes());
 
   const access = ACCESS_PATH_RE.exec(path);
   if (method === 'PATCH' && access !== null) {
@@ -90,6 +92,10 @@ async function route(request: Request, env: Env): Promise<Response> {
   const code = CODE_PATH_RE.exec(path);
   if (method === 'GET' && code !== null) return resolveRoom(code[1]!, env);
 
+  if (method === 'POST' && path === TEST_CREATE_PATH && configOf(env).testRoutes) {
+    return testCreateRoom(request, env);
+  }
+
   const testDelete = TEST_DELETE_PATH_RE.exec(path);
   if (method === 'DELETE' && testDelete !== null && configOf(env).testRoutes) {
     return testEvict(testDelete[1]!, env);
@@ -98,12 +104,27 @@ async function route(request: Request, env: Env): Promise<Response> {
   return notFound();
 }
 
-async function createRoom(request: Request, env: Env): Promise<Response> {
+/** The codes a new room tries, in order, until one is free. */
+type CodeSource = Iterable<string>;
+
+function* randomCodes(): CodeSource {
+  for (let attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt++) yield generateRoomCode();
+}
+
+async function createRoom(request: Request, env: Env, codes: CodeSource): Promise<Response> {
   const body = await readJsonBody(request);
   if (body === undefined || (body !== null && typeof body !== 'object')) {
     return json(400, { error: 'bad-request' });
   }
-  const passwordHash = (body as Record<string, unknown> | null)?.['passwordHash'];
+  return mintRoom(body as Record<string, unknown> | null, env, codes);
+}
+
+async function mintRoom(
+  body: Record<string, unknown> | null,
+  env: Env,
+  codes: CodeSource,
+): Promise<Response> {
+  const passwordHash = body?.['passwordHash'];
   if (passwordHash !== undefined && !isPasswordHash(passwordHash)) {
     return json(400, {
       error: 'bad-request',
@@ -112,8 +133,7 @@ async function createRoom(request: Request, env: Env): Promise<Response> {
   }
 
   const uuid = crypto.randomUUID();
-  for (let attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt++) {
-    const code = generateRoomCode();
+  for (const code of codes) {
     try {
       if (!(await codesStub(env, code).claim(uuid))) continue;
       await roomStub(env, uuid).init(uuid, code, passwordHash ?? null);
@@ -174,6 +194,29 @@ async function patchAccess(uuid: string, request: Request, env: Env): Promise<Re
     logEvent('relay-access-unavailable', err);
     return unavailable();
   }
+}
+
+/**
+ * ADR-0027 test route for deterministic screenshot capture (#762): a room with
+ * the code the caller names, so two captures of one tree show the same code. A
+ * room still holding the code (from an earlier capture against the same relay)
+ * is evicted first. A malformed code answers 400.
+ */
+async function testCreateRoom(request: Request, env: Env): Promise<Response> {
+  const body = await readJsonBody(request);
+  const requested = (body as Record<string, unknown> | null | undefined)?.['code'];
+  const code = typeof requested === 'string' ? normalizeRoomCode(requested) : '';
+  if (!isValidRoomCode(code)) {
+    return json(400, { error: 'bad-request', detail: 'code must be a valid room code' });
+  }
+  try {
+    const holder = await codesStub(env, code).lookup();
+    if (holder !== null) await roomStub(env, holder).testEvict();
+  } catch (err) {
+    logEvent('relay-create-unavailable', err);
+    return unavailable();
+  }
+  return mintRoom(body as Record<string, unknown>, env, [code]);
 }
 
 /**
