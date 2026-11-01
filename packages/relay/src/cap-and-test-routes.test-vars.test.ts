@@ -8,6 +8,7 @@ import { env } from 'cloudflare:workers';
 import { evictDurableObject, runInDurableObject } from 'cloudflare:test';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Codes } from './codes';
+import { REFUSED_SOCKETS_BOUND } from './room';
 import { Peer, call, createRoom, eventually, upgrade } from './test-support/peer';
 import { handleFetch } from './worker';
 
@@ -196,5 +197,63 @@ describe('DELETE /test/rooms/:uuid (HNCH_ENABLE_TEST_ROUTES=1)', () => {
           .n,
       })),
     ).toEqual({ log: 0, snapshot: 0 });
+  });
+});
+
+describe('refused-socket bound (#566)', () => {
+  const WRONG = 'cd'.repeat(32);
+  const refusedCount = (uuid: string) =>
+    runInDurableObject(roomStub(uuid), (_room, state) => state.getWebSockets('refused').length);
+
+  /** Refused upgrades whose clients never answer the close, so each keeps its socket. */
+  async function holdRefused(uuid: string, query: string, count: number): Promise<Response[]> {
+    const held: Response[] = [];
+    for (let i = 0; i < count; i++) {
+      const res = await upgrade(uuid, query);
+      expect(res.status, `refusal ${i}`).toBe(101);
+      held.push(res);
+    }
+    return held;
+  }
+
+  async function expectBusy(res: Response): Promise<void> {
+    expect(res.status).toBe(503);
+    expect(res.webSocket).toBeNull();
+    expect(res.headers.get('retry-after')).toMatch(/^\d+$/);
+    expect(await res.json()).toEqual({ error: 'unavailable', detail: 'too many refused joins' });
+  }
+
+  it('answers a wrong password with 503 at the bound, and still admits the right one', async () => {
+    const { uuid } = await createRoom({ passwordHash: HASH });
+    await holdRefused(uuid, `?pw=${WRONG}`, REFUSED_SOCKETS_BOUND);
+    expect(await refusedCount(uuid)).toBe(REFUSED_SOCKETS_BOUND);
+
+    await expectBusy(await upgrade(uuid, `?pw=${WRONG}`));
+    expect(await refusedCount(uuid)).toBe(REFUSED_SOCKETS_BOUND);
+
+    const peer = await joined(uuid, `?pw=${HASH}`);
+    expect(peer.closeEvent).toBeNull();
+    expect(await seatedCount(uuid)).toBe(1);
+  });
+
+  it('answers room-full with the same 503 at the bound', async () => {
+    const { uuid } = await createRoom({ passwordHash: HASH });
+    for (let i = 0; i < 3; i++) await joined(uuid, `?pw=${HASH}`);
+    await holdRefused(uuid, `?pw=${HASH}`, REFUSED_SOCKETS_BOUND);
+
+    await expectBusy(await upgrade(uuid, `?pw=${HASH}`));
+    await expectBusy(await upgrade(uuid, `?pw=${WRONG}`));
+  });
+
+  it('refuses with a close code again once a held socket drains', async () => {
+    const { uuid } = await createRoom({ passwordHash: HASH });
+    const held = await holdRefused(uuid, `?pw=${WRONG}`, REFUSED_SOCKETS_BOUND);
+    await expectBusy(await upgrade(uuid, `?pw=${WRONG}`));
+
+    held[0]!.webSocket!.accept();
+    await eventually(async () => expect(await refusedCount(uuid)).toBe(REFUSED_SOCKETS_BOUND - 1));
+
+    const wrong = await Peer.join(uuid, `?pw=${WRONG}`);
+    expect(await wrong.closed()).toEqual({ code: 4002, reason: 'wrong-password' });
   });
 });
