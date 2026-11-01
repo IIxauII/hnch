@@ -150,6 +150,8 @@ packages/cli/
     commands/
       agenda.ts               — hnch agenda subcommand handlers
     session.ts                — createSession / joinSession / openSession: the adapter over the shared live session
+    session-exit.ts           — the one way out of a live session: quit, ended, removed, refused
+    refusal.ts                — what a refusal does: when it ends the session, and its verdict
     config.ts                 — config read/write helpers
     last-session.ts           — last-session cache read/write
     room-code-input.ts        — room-code parsing / formatting helpers
@@ -172,4 +174,4 @@ packages/cli/
 pnpm --filter @xauyxau/hnch test
 ```
 
-Unit tests are spread across `src/*.test.ts` files (`session` — against the run's relay, which `vitest.relay-setup.ts` starts once through the `@hnch/relay/testing` harness, `about`, `config`, `last-session`, `room-code-input`, `session-expired`, `share`), `src/commands/agenda.test.ts`, and `src/ui/components/settings.test.ts`. A terminal-level e2e harness (node-pty + vitest, covering `create`/`join`/`resume` against a live relay) is planned but not yet implemented ([#608](https://github.com/IIxauII/hnch/issues/608)).
+Unit tests are spread across `src/*.test.ts` files (`session` — against the run's relay, which `vitest.relay-setup.ts` starts once through the `@hnch/relay/testing` harness, `session-exit`, `refusal`, `about`, `config`, `last-session`, `room-code-input`, `session-expired`, `share`), `src/commands/agenda.test.ts`, and `src/ui/components/settings.test.ts`. A terminal-level e2e harness (node-pty + vitest, covering `create`/`join`/`resume` against a live relay) is planned but not yet implemented ([#608](https://github.com/IIxauII/hnch/issues/608)).
