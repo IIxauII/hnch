@@ -9,7 +9,8 @@
  * Writes PNGs into docs/screenshots/<SHA>/ (SHA defaults to `local`).
  */
 import path from 'node:path';
-import { test, expect, type BrowserContext, type Page } from '@playwright/test';
+import type { BrowserContext, Page } from '@playwright/test';
+import { expect, test } from './_helpers/capture-test';
 import { resolveOutDir } from './_helpers/out-dir';
 
 import {

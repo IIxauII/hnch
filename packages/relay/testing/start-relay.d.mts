@@ -2,7 +2,7 @@
 export interface StartTestRelayOptions {
   /** `HNCH_ROOM_CAP`: lowers the participant cap (1–20). */
   roomCap?: number;
-  /** `HNCH_ENABLE_TEST_ROUTES=1`: mounts `DELETE /test/rooms/:uuid`. */
+  /** `HNCH_ENABLE_TEST_ROUTES=1`: mounts `DELETE /test/rooms/:uuid` and `POST /test/rooms`. */
   testRoutes?: boolean;
 }
 

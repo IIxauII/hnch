@@ -18,7 +18,8 @@
  *     tests/_screenshots/participant-cap.spec.ts
  */
 import path from 'node:path';
-import { test, type BrowserContext, type Page } from '@playwright/test';
+import type { BrowserContext, Page } from '@playwright/test';
+import { test } from './_helpers/capture-test';
 import { BASE_URL, ONBOARDING, HOME, LOBBY, fillRoomCode } from '../fixtures/helpers';
 import { resolveOutDir } from './_helpers/out-dir';
 import { pageSettled } from './_helpers/settled';

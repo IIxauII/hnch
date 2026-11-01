@@ -15,7 +15,6 @@ import { Router } from '@angular/router';
 import {
   ABSTAIN_SENTINEL,
   canEnterTerminal,
-  formatElapsed,
   isAbstainVote,
   isTerminalStatus,
   participantRole,
@@ -60,6 +59,7 @@ import { shouldRecordCache } from '../core/cache-record-guard';
 import { ParticipantIdService } from '../core/participant-id.service';
 import { SessionExitService } from '../core/session-exit.service';
 import { TimerTickService } from '../core/timer-tick.service';
+import { liveElapsedLabel } from '../core/elapsed-label';
 import { ToastService } from '../services/toast.service';
 import type { MenuItem } from '../shared/menu-popover/menu-popover.component';
 import { RoleToggleComponent } from '../shared/role-toggle.component';
@@ -710,13 +710,13 @@ export class EstimatingPage {
     return parseTicketIdHref(this.currentRound()?.ticketId);
   });
 
-  // A live ticker has no terminal timestamp, so it calls the duration
-  // primitive directly rather than `formatRoundElapsed`. Clamping is
-  // `formatElapsed`'s job and only its job — no call-site clamp here.
+  // A live ticker has no terminal timestamp, so it reads the tick rather
+  // than `roundElapsedLabel`. Clamping is `formatElapsed`'s job and only its
+  // job — no call-site clamp here.
   protected readonly elapsedLabel = computed<string | null>(() => {
     const round = this.docService.currentRound();
     if (!round || round.timerStartedAt === undefined) return null;
-    return formatElapsed(this.timerTick.now() - round.timerStartedAt);
+    return liveElapsedLabel(round.timerStartedAt, this.timerTick.now());
   });
 
   protected onToggleRole(): void {

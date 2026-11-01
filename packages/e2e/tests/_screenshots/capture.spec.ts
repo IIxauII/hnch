@@ -13,7 +13,8 @@
  *     --project=chromium --workers=1 --reporter=list tests/_screenshots/capture.spec.ts
  */
 import path from 'node:path';
-import { test, expect, type BrowserContext, type Page } from '@playwright/test';
+import type { BrowserContext, Page } from '@playwright/test';
+import { expect, test } from './_helpers/capture-test';
 import { resolveOutDir } from './_helpers/out-dir';
 import {
   BASE_URL,

@@ -80,6 +80,16 @@ describe('routing', () => {
     expect(await res.json()).toEqual({ error: 'not-found' });
     expect((await call(`/rooms/${uuid}/access`, { method: 'PATCH', body: '{}' })).status).toBe(200);
   });
+
+  it('keeps the requested-code route unmounted in production config', async () => {
+    const res = await call('/test/rooms', {
+      method: 'POST',
+      body: JSON.stringify({ code: 'CAP236' }),
+    });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: 'not-found' });
+    expect((await call('/rooms/CAP236')).status).toBe(404);
+  });
 });
 
 describe('POST /rooms', () => {

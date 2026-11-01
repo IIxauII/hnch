@@ -13,7 +13,8 @@
  *     tests/_screenshots/room-history.spec.ts
  */
 import path from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from './_helpers/capture-test';
 import { BASE_URL, HOME } from '../fixtures/helpers';
 import { resolveOutDir } from './_helpers/out-dir';
 import { pageSettled } from './_helpers/settled';

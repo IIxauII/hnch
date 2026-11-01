@@ -18,7 +18,8 @@
  *     tests/_screenshots/lobby-hierarchy.spec.ts
  */
 import path from 'node:path';
-import { test, type BrowserContext, type Page } from '@playwright/test';
+import type { BrowserContext, Page } from '@playwright/test';
+import { test } from './_helpers/capture-test';
 import { resolveOutDir } from './_helpers/out-dir';
 import { BASE_URL, HOME, LOBBY } from '../fixtures/helpers';
 import { pageSettled } from './_helpers/settled';

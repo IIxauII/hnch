@@ -14,7 +14,7 @@
  *     tests/_screenshots/agenda-item-form-mobile.spec.ts
  */
 import path from 'node:path';
-import { test, expect } from '@playwright/test';
+import { expect, test } from './_helpers/capture-test';
 import { resolveOutDir } from './_helpers/out-dir';
 import { BASE_URL } from '../fixtures/helpers';
 import {

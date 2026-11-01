@@ -184,6 +184,10 @@ describe('DELETE /test/rooms/:uuid (HNCH_ENABLE_TEST_ROUTES=1)', () => {
 
     expect((await call(`/test/rooms/${uuid}`, { method: 'DELETE' })).status).toBe(200);
     expect(release).toHaveBeenCalledWith(uuid);
+    // Already tombstoned: gone to a probe, whatever the retried release does.
+    const again = await call(`/test/rooms/${uuid}`, { method: 'DELETE' });
+    expect(again.status).toBe(404);
+    expect(await again.json()).toEqual({ error: 'not-found' });
     alice.doc.getArray('votes').push(['5']);
     await settle();
     alice.close();
@@ -257,5 +261,76 @@ describe('refused-socket bound (#566)', () => {
 
     const wrong = await Peer.join(uuid, `?pw=${WRONG}`);
     expect(await wrong.closed()).toEqual({ code: 4002, reason: 'wrong-password' });
+  });
+});
+
+/** `POST /test/rooms` with `body` as JSON. */
+async function createWithCode(body: Record<string, unknown>): Promise<Response> {
+  return call('/test/rooms', { method: 'POST', body: JSON.stringify(body) });
+}
+
+describe('POST /test/rooms (HNCH_ENABLE_TEST_ROUTES=1)', () => {
+  it('creates a room holding the requested code', async () => {
+    const res = await createWithCode({ code: 'cap-234' });
+    expect(res.status).toBe(201);
+    const { uuid, code } = (await res.json()) as { uuid: string; code: string };
+    expect(code).toBe('CAP234');
+    expect(await (await call('/rooms/CAP234')).json()).toEqual({ uuid, accessMode: 'open' });
+  });
+
+  it('takes the code from a room still holding it, so a second capture gets it too', async () => {
+    const first = (await (await createWithCode({ code: 'CAP235' })).json()) as { uuid: string };
+    const res = await createWithCode({ code: 'CAP235', passwordHash: HASH });
+    expect(res.status).toBe(201);
+    const second = (await res.json()) as { uuid: string; code: string };
+    expect(second.uuid).not.toBe(first.uuid);
+    expect(await (await call('/rooms/CAP235')).json()).toEqual({
+      uuid: second.uuid,
+      accessMode: 'password',
+    });
+    expect((await upgrade(first.uuid)).status).toBe(404);
+  });
+
+  it('answers 400 for a missing or malformed code', async () => {
+    for (const body of [{}, { code: 'OOO111' }, { code: 'ABC' }, { code: 7 }]) {
+      const res = await createWithCode(body);
+      expect(res.status, JSON.stringify(body)).toBe(400);
+    }
+    expect((await createWithCode({ code: 'CAP237', passwordHash: 'short' })).status).toBe(400);
+  });
+
+  it('answers 503 when the room holding the code is evicted but keeps it', async () => {
+    const first = (await (await createWithCode({ code: 'CAP238' })).json()) as { uuid: string };
+    // Spied on the prototype: RPC refuses a method that is an own property.
+    await runInDurableObject(codesStub('CAP238'), (codes) =>
+      vi
+        .spyOn(Object.getPrototypeOf(codes) as Codes, 'release')
+        .mockRejectedValue(new Error('Durable Object is overloaded')),
+    );
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const res = await createWithCode({ code: 'CAP238' });
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: 'unavailable' });
+    expect(await codesStub('CAP238').lookup()).toBe(first.uuid);
+    expect(JSON.stringify(log.mock.calls)).toContain('relay-test-create-unavailable');
+  });
+
+  it('takes the code from a tombstoned room once its release works again', async () => {
+    const first = (await (await createWithCode({ code: 'CAP239' })).json()) as { uuid: string };
+    const release = await runInDurableObject(codesStub('CAP239'), (codes) =>
+      vi
+        .spyOn(Object.getPrototypeOf(codes) as Codes, 'release')
+        .mockRejectedValueOnce(new Error('Durable Object is overloaded')),
+    );
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    expect((await createWithCode({ code: 'CAP239' })).status).toBe(503);
+    expect(release).toHaveBeenCalledTimes(1);
+
+    const res = await createWithCode({ code: 'CAP239' });
+    expect(res.status).toBe(201);
+    const second = (await res.json()) as { uuid: string };
+    expect(second.uuid).not.toBe(first.uuid);
+    expect(await codesStub('CAP239').lookup()).toBe(second.uuid);
   });
 });

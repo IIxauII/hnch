@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import {
-  formatRoundElapsed,
   formatRoundStats,
   isAbstainVote,
   isActiveParticipant,
@@ -18,6 +17,7 @@ import type {
 import { IonChip, IonIcon, IonItemGroup, IonLabel } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { timerOutline } from 'ionicons/icons';
+import { roundElapsedLabel } from '../core/elapsed-label';
 
 /**
  * One card's worth of voters, ready for template rendering.
@@ -493,7 +493,7 @@ export class VoteResultsComponent {
   );
 
   /** Elapsed voting time, or null when the round has no knowable duration. */
-  readonly elapsedLabel = computed<string | null>(() => formatRoundElapsed(this.round()));
+  readonly elapsedLabel = computed<string | null>(() => roundElapsedLabel(this.round()));
 
   /**
    * Stats for the round. Abstain stripping lives behind `roundStatsFor`, so
