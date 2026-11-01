@@ -1,3 +1,10 @@
+## [1.4.2](https://github.com/IIxauII/hnch/compare/relay-v1.4.1...relay-v1.4.2) (2026-11-01)
+
+
+### Bug Fixes
+
+* **relay:** send a refused join's close after the client's first frame ([#767](https://github.com/IIxauII/hnch/issues/767)) ([785813b](https://github.com/IIxauII/hnch/commit/785813bffcf0a98d6cec76f6ab6462f201c68906))
+
 ## [1.4.1](https://github.com/IIxauII/hnch/compare/relay-v1.4.0...relay-v1.4.1) (2026-11-01)
 
 
