@@ -17,7 +17,7 @@
 
 import { DurableObject } from 'cloudflare:workers';
 import * as Y from 'yjs';
-import { JOIN_REJECTION_CLOSE_CODES } from '@hnch/shared/auth';
+import { JOIN_REJECTION_CLOSE_CODES, type JoinRejectionReason } from '@hnch/shared/auth';
 import { clock } from './clock';
 import { concatBytes } from './bytes';
 import { configOf, type RelayConfig } from './config';
@@ -725,16 +725,13 @@ function deadlineOf(meta: RoomMeta): number {
 }
 
 /** Why a join is refused after the upgrade (ADR-0016, ADR-0035). */
-type JoinRefusal = 'wrong-password' | 'room-full';
+type JoinRefusal = Extract<JoinRejectionReason, 'wrong-password' | 'room-full'>;
 
 /** Tag of a socket accepted only to be refused; it never becomes a peer. */
 const REFUSED_TAG = 'refused';
-/** Prefix of the tag carrying a refused socket's reason, read when it is closed. */
+/** The reason follows this prefix in a second tag, read back when the socket is closed. */
 const REFUSAL_TAG_PREFIX = 'refused:';
-/**
- * A refused client that has sent nothing by then gets its close anyway. Real
- * clients send sync-step-1 on open, so this is for probes and broken ones.
- */
+/** A refused client that has sent nothing by then gets its close anyway. */
 const REFUSED_CLOSE_FALLBACK_MS = 1_000;
 
 function isRefused(ctx: DurableObjectState, ws: WebSocket): boolean {
@@ -749,16 +746,20 @@ function isRefused(ctx: DurableObjectState, ws: WebSocket): boolean {
  * restored, or read from. A plain `accept()` would keep the fetch invocation
  * open until the socket ends, which workerd ≤ 1.20261019.1 then logs as the
  * uncaught error "Network connection lost."
- * (https://github.com/cloudflare/workerd/issues/5290).
+ * (https://github.com/cloudflare/workerd/issues/5290, fixed after that version
+ * by cloudflare/workerd#7865).
  *
  * The close is not sent here but from `webSocketMessage`, on the client's first
- * frame, or after {@link REFUSED_CLOSE_FALLBACK_MS}. On workerd 1.20261019.1 a
- * hibernatable socket the relay closes before any frame has come in keeps its
- * TCP connection for about 10 s after the closing handshake; one closed after
- * a frame ends it at once. Clients that wait for the server to end the
- * connection (Chrome for 2 s, Node's WebSocket for 10 s) saw the refusal that
- * late (#577). Every client the relay has sends sync-step-1 on open, so its
- * close goes out a round trip after the upgrade.
+ * frame, or after {@link REFUSED_CLOSE_FALLBACK_MS}. A hibernatable socket the
+ * object closes before any frame has come in keeps its TCP connection until the
+ * object is evicted, about 10 s after the closing handshake; one closed after a
+ * frame ends it at once (https://github.com/cloudflare/workerd/issues/7566).
+ * Clients that wait for the server to end the connection (Chrome for 2 s,
+ * Node's WebSocket for 10 s) saw the refusal that late (#577). Every client the
+ * relay has sends sync-step-1 on open, so its close goes out a round trip after
+ * the upgrade; the fallback is for probes and broken clients. An eviction in
+ * that second drops the timer, and that socket stays open until its client
+ * gives up: the tag keeps it out of the room either way.
  *
  * At {@link REFUSED_SOCKETS_BOUND} held refused sockets the answer is a 503
  * with `Retry-After` instead, same status and body for both reasons.
@@ -777,11 +778,17 @@ function refuse(ctx: DurableObjectState, reason: JoinRefusal): Response {
   return new Response(null, { status: 101, webSocket: client });
 }
 
-/** Sends a refused socket its close code; harmless once it has one. */
+/** Sends a refused socket its close code, unless it already has one or is gone. */
 function closeRefused(ctx: DurableObjectState, ws: WebSocket): void {
-  const tag = ctx.getTags(ws).find((t) => t.startsWith(REFUSAL_TAG_PREFIX));
-  const reason = (tag?.slice(REFUSAL_TAG_PREFIX.length) ?? 'wrong-password') as JoinRefusal;
-  closeQuietly(ws, JOIN_REJECTION_CLOSE_CODES[reason], reason);
+  if (ws.readyState !== WebSocket.OPEN) return;
+  try {
+    const tag = ctx.getTags(ws).find((t) => t.startsWith(REFUSAL_TAG_PREFIX));
+    if (tag === undefined) return;
+    const reason = tag.slice(REFUSAL_TAG_PREFIX.length) as JoinRefusal;
+    ws.close(JOIN_REJECTION_CLOSE_CODES[reason], reason);
+  } catch {
+    // Closed or released meanwhile.
+  }
 }
 
 function closeQuietly(ws: WebSocket, code: number, reason: string): void {

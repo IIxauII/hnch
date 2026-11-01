@@ -193,9 +193,11 @@ describe('joining a room', () => {
         };
       });
     expect(await wake()).toEqual({ refusedState: WebSocket.OPEN, peers: 1, owners: 1 });
-    // The silent client gets its close anyway, within the fallback.
-    await eventually(async () =>
-      expect(await wake()).toEqual({ refusedState: WebSocket.CLOSING, peers: 1, owners: 1 }),
+    // The silent client gets its close anyway, within the 1 s fallback.
+    await eventually(
+      async () =>
+        expect(await wake()).toEqual({ refusedState: WebSocket.CLOSING, peers: 1, owners: 1 }),
+      3_000,
     );
 
     // A legitimate join is still admitted while it closes.
