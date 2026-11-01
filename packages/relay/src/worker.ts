@@ -6,7 +6,7 @@
  *   POST   /rooms                → 201 {uuid, code}
  *   GET    /rooms/:code          → 200 {uuid, accessMode} | 404 {reason:'unknown-room'}
  *   PATCH  /rooms/:uuid/access   → 200 {accessMode} | 404 {reason:'unknown-room'}
- *   WS     /ws/:uuid             → handed to Room(uuid)
+ *   WS     /ws/:uuid             → handed to Room(uuid); 503 {error, detail} at its refused bound
  *   DELETE /test/rooms/:uuid     → ADR-0027, only with HNCH_ENABLE_TEST_ROUTES=1
  *   OPTIONS *                    → 204
  *

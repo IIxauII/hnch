@@ -22,6 +22,7 @@ import { clock } from './clock';
 import { concatBytes } from './bytes';
 import { configOf, type RelayConfig } from './config';
 import { passwordDigest, passwordMatches } from './digest';
+import { json } from './http';
 import {
   AwarenessTooLargeError,
   Presence,
@@ -72,6 +73,18 @@ const ATTACHMENT_PRESENCE_BUDGET = 15 * 1024;
 
 /** Password checks per join, if the password keeps changing while it is checked. */
 const PASSWORD_CHECKS = 3;
+
+/**
+ * Refused sockets a room holds at once (#566). A refused client that never
+ * answers its close keeps its socket until the runtime drops it, and each one
+ * counts toward the object's WebSocket limit. At the bound a refusal is plain
+ * HTTP instead, so a flood of wrong passwords can't shut legitimate joins out.
+ */
+export const REFUSED_SOCKETS_BOUND = 64;
+/** The 503's `detail` at the bound; same for both reasons, and no verdict (ADR-0050). */
+export const REFUSED_BOUND_DETAIL = 'too many refused joins';
+/** `Retry-After` of a refusal answered at the bound. */
+const REFUSED_RETRY_AFTER_S = 5;
 
 const SCHEMA_VERSION = 1;
 const META = 'meta';
@@ -212,7 +225,11 @@ export class Room extends DurableObject<Env> {
 
   // WebSocket
 
-  /** `WS /ws/:uuid`, forwarded by the Worker once it saw an upgrade request. */
+  /**
+   * `WS /ws/:uuid`, forwarded by the Worker once it saw an upgrade request.
+   * Answers 101 (admitted, or refused with a close code), 404, 400, or 503 at
+   * {@link REFUSED_SOCKETS_BOUND}.
+   */
   override async fetch(request: Request): Promise<Response> {
     const meta = await this.liveMeta();
     // Pre-upgrade rejections stay plain HTTP (ADR-0016, ADR-0050).
@@ -220,7 +237,6 @@ export class Room extends DurableObject<Env> {
     const pw = new URL(request.url).searchParams.get('pw');
     if (meta.digest !== null && !pw) return new Response(null, { status: 400 });
 
-    const { 0: client, 1: server } = new WebSocketPair();
     // The password can be changed or cleared while it is being checked (the
     // object's input gate stays open across this await), so a verdict counts only
     // against the digest still in force; otherwise check again, a few times.
@@ -238,7 +254,7 @@ export class Room extends DurableObject<Env> {
       digest = current.digest;
       admitted = digest === null;
     }
-    if (!admitted) return refuse(this.ctx, server, client, 'wrong-password');
+    if (!admitted) return refuse(this.ctx, 'wrong-password');
 
     // Everything that can fail runs before the accept: sync-step-1, then every
     // state the room holds plus the relay's own.
@@ -251,8 +267,9 @@ export class Room extends DurableObject<Env> {
 
     // No await between the cap check and the accept, so it can't be overrun.
     if (this.openSockets().length >= this.config.roomCap) {
-      return refuse(this.ctx, server, client, 'room-full');
+      return refuse(this.ctx, 'room-full');
     }
+    const { 0: client, 1: server } = new WebSocketPair();
     const id = crypto.randomUUID();
     this.ctx.acceptWebSocket(server);
     try {
@@ -718,13 +735,19 @@ function isRefused(ctx: DurableObjectState, ws: WebSocket): boolean {
  * from. A plain `accept()` would keep the fetch invocation open until the socket
  * ends, which workerd ≤ 1.20261019.1 then logs as the uncaught error "Network
  * connection lost." (https://github.com/cloudflare/workerd/issues/5290).
+ *
+ * At {@link REFUSED_SOCKETS_BOUND} held refused sockets the answer is a 503
+ * with `Retry-After` instead, same status and body for both reasons.
  */
-function refuse(
-  ctx: DurableObjectState,
-  server: WebSocket,
-  client: WebSocket,
-  reason: 'wrong-password' | 'room-full',
-): Response {
+function refuse(ctx: DurableObjectState, reason: 'wrong-password' | 'room-full'): Response {
+  if (ctx.getWebSockets(REFUSED_TAG).length >= REFUSED_SOCKETS_BOUND) {
+    return json(
+      503,
+      { error: 'unavailable', detail: REFUSED_BOUND_DETAIL },
+      { 'retry-after': String(REFUSED_RETRY_AFTER_S) },
+    );
+  }
+  const { 0: client, 1: server } = new WebSocketPair();
   ctx.acceptWebSocket(server, [REFUSED_TAG]);
   server.close(JOIN_REJECTION_CLOSE_CODES[reason], reason);
   return new Response(null, { status: 101, webSocket: client });

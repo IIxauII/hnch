@@ -136,7 +136,7 @@ The CLI is keyboard-driven end to end via Ink's input handling.
 
 ## Protocol parity
 
-The CLI uses the same `@hnch/shared` Yjs doc schema, the same `hashPassword()` function, and the same relay WebSocket handshake (`GET /rooms/:code` → `WS /ws/:uuid?did=...&pw=...`) as the mobile client. There is no feature delta in core session behavior: rounds (ADR-0013), voting and reveal (ADR-0018, ADR-0020), host election (ADR-0010), session end (ADR-0023), removal by the host (ADR-0036 §5), host-change notices, and access control (ADR-0009, ADR-0017) all behave identically, because both surfaces run the same shared drivers and command set. The CLI runs them through the shared live session (`live-session` in `@hnch/shared`: the doc, presence, the relay connection, the drivers and the command set); the client moves onto it in the second half of #529. One delta remains: `Q` disconnects without writing a `leave`, so peers see the CLI as offline rather than gone (ADR-0036 Trade-offs).
+The CLI uses the same `@hnch/shared` Yjs doc schema, the same `hashPassword()` function, and the same relay WebSocket handshake (`GET /rooms/:code` → `WS /ws/:uuid?did=...&pw=...`) as the mobile client. There is no feature delta in core session behavior: rounds (ADR-0013), voting and reveal (ADR-0018, ADR-0020), host election (ADR-0010), session end (ADR-0023), removal by the host (ADR-0036 §5), host-change notices, and access control (ADR-0009, ADR-0017) all behave identically, because both surfaces run the same shared drivers and command set. Both run them through the shared live session (`live-session` in `@hnch/shared`: the doc, presence, the relay connection, the drivers and the command set). One delta remains: `Q` disconnects without writing a `leave`, so peers see the CLI as offline rather than gone (ADR-0036 Trade-offs).
 
 Scale customization (preset overrides, custom scales) is persisted in `config.json` under `presetOverrides` and `customScales` keys, matching the `PresetOverrides` / `CustomScale` types from `@hnch/shared` (ADR-0019).
 
@@ -150,6 +150,8 @@ packages/cli/
     commands/
       agenda.ts               — hnch agenda subcommand handlers
     session.ts                — createSession / joinSession / openSession: the adapter over the shared live session
+    session-exit.ts           — the one way out of a live session: quit, ended, removed, refused
+    refusal.ts                — what a refusal does: when it ends the session, and its verdict
     config.ts                 — config read/write helpers
     last-session.ts           — last-session cache read/write
     room-code-input.ts        — room-code parsing / formatting helpers
@@ -172,4 +174,4 @@ packages/cli/
 pnpm --filter @xauyxau/hnch test
 ```
 
-Unit tests are spread across `src/*.test.ts` files (`session` — against the run's relay, which `vitest.relay-setup.ts` starts once through the `@hnch/relay/testing` harness, `about`, `config`, `last-session`, `room-code-input`, `session-expired`, `share`), `src/commands/agenda.test.ts`, and `src/ui/components/settings.test.ts`. A terminal-level e2e harness (node-pty + vitest, covering `create`/`join`/`resume` against a live relay) is planned but not yet implemented ([#608](https://github.com/IIxauII/hnch/issues/608)).
+Unit tests are spread across `src/*.test.ts` files (`session` — against the run's relay, which `vitest.relay-setup.ts` starts once through the `@hnch/relay/testing` harness, `session-exit`, `refusal`, `about`, `config`, `last-session`, `room-code-input`, `session-expired`, `share`), `src/commands/agenda.test.ts`, and `src/ui/components/settings.test.ts`. A terminal-level e2e harness (node-pty + vitest, covering `create`/`join`/`resume` against a live relay) is planned but not yet implemented ([#608](https://github.com/IIxauII/hnch/issues/608)).

@@ -13,7 +13,7 @@ import { hideBin } from 'yargs/helpers';
 import React from 'react';
 import { render } from 'ink';
 import { loadConfig, readConfig, updateConfig } from './config.js';
-import { createSession, joinSession, openSession, type SessionHandle } from './session.js';
+import { createSession, joinSession, openSession } from './session.js';
 import {
   BUILTIN_SCALES,
   parseAvatarColor,
@@ -32,7 +32,8 @@ import {
 import { onSessionExpired } from './session-expired.js';
 import { promptPassword } from './prompt-password.js';
 import { validatePassword } from './password-validation.js';
-import { refusalVerdict, watchForRefusal, type EndingRefusal } from './refusal.js';
+import { watchForRefusal } from './refusal.js';
+import { onRejectionFor, runUntilExit, sessionExit } from './session-exit.js';
 import { App } from './ui/App.js';
 import { CLI_VERSION, withAbout } from './about.js';
 import { ConfigSettings } from './ui/components/ConfigSettings.js';
@@ -59,48 +60,6 @@ async function promptValidPassword(): Promise<string> {
     process.exit(1);
   }
   return result.password;
-}
-
-/**
- * The relay has turned the connection away for good and the UI is down: say
- * why, bring what is remembered of the session in line, and end.
- */
-function endRefused(
-  reason: EndingRefusal,
-  session: SessionHandle,
-  ctx: { wasIn: boolean; typedPassword: boolean },
-): never {
-  const verdict = refusalVerdict(reason, { roomCode: session.roomCode, ...ctx });
-  if (verdict.remembered === 'forget-password') clearPasswordHash(session.roomUuid);
-  if (verdict.remembered === 'forget-session') removeEntry(session.roomUuid);
-  console.error(verdict.message);
-  session.teardown();
-  process.exit(verdict.exitCode);
-}
-
-/**
- * Forget one session. The others this device remembers are none of its
- * business: leaving one session used to wipe them all.
- */
-function forgetSession(roomUuid: string): void {
-  try {
-    removeEntry(roomUuid);
-  } catch (err) {
-    console.error(
-      `Failed to clear cached session: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
-}
-
-/** The relay no longer has the session: forget it — it, not the others — and end. */
-function endExpired(roomUuid: string | undefined): void {
-  void onSessionExpired({
-    clearLastSession: () => {
-      if (roomUuid !== undefined) removeEntry(roomUuid);
-    },
-    logger: console,
-    exit: process.exit,
-  });
 }
 
 async function handleCreate(argv: {
@@ -132,7 +91,8 @@ async function handleCreate(argv: {
   // has forgotten the room, or the password was changed from another device
   // — as in `join` and `resume` (ADR-0050).
   const refusal = watchForRefusal();
-  let roomUuid: string | undefined;
+  // Whoever made the session was in it.
+  const exiting = sessionExit({ wasIn: () => true, typedPassword: password !== undefined });
 
   const session = await createSession({
     participantId: config.participantId,
@@ -142,12 +102,9 @@ async function handleCreate(argv: {
     password,
     defaultScale: scale,
     ...(config.avatarColor !== undefined && { avatarColor: config.avatarColor }),
-    onRejection(reason) {
-      if (reason === 'unknown-room') endExpired(roomUuid);
-      else refusal.note(reason);
-    },
+    onRejection: onRejectionFor(refusal, exiting),
   });
-  roomUuid = session.roomUuid;
+  exiting.bind(session);
 
   recordEntry({
     roomCode: session.roomCode,
@@ -170,28 +127,7 @@ async function handleCreate(argv: {
       customScales: config.customScales,
     }),
   );
-  refusal.attach(inkInstance.unmount);
-
-  session.onSessionEvent((event) => {
-    if (event.kind === 'host-changed') return;
-    console.error(event.message);
-    inkInstance.unmount();
-    forgetSession(session.roomUuid);
-    session.teardown();
-    process.exit(0);
-  });
-
-  await inkInstance.waitUntilExit();
-
-  const refused = refusal.refused();
-  if (refused !== null) {
-    // Whoever made the session was in it.
-    endRefused(refused, session, { wasIn: true, typedPassword: password !== undefined });
-  }
-
-  session.teardown();
-  forgetSession(session.roomUuid);
-  process.exit(0);
+  await runUntilExit(session, inkInstance, refusal, exiting);
 }
 
 async function handleJoin(argv: { code: string; password?: boolean }): Promise<void> {
@@ -217,6 +153,12 @@ async function handleJoin(argv: { code: string; password?: boolean }): Promise<v
   }
 
   const refusal = watchForRefusal();
+  const exiting = sessionExit({
+    room: { roomCode: code, roomUuid: resolved.uuid },
+    // Asked only once the UI is up, by when `session` is set.
+    wasIn: () => session.hasJoined(),
+    typedPassword: passwordInput !== undefined,
+  });
 
   const session = await joinSession({
     participantId: config.participantId,
@@ -225,11 +167,9 @@ async function handleJoin(argv: { code: string; password?: boolean }): Promise<v
     roomCode: code,
     password: passwordInput,
     ...(config.avatarColor !== undefined && { avatarColor: config.avatarColor }),
-    onRejection(reason) {
-      if (reason === 'unknown-room') endExpired(resolved.uuid);
-      else refusal.note(reason);
-    },
+    onRejection: onRejectionFor(refusal, exiting),
   });
+  exiting.bind(session);
 
   recordEntry({
     roomCode: session.roomCode,
@@ -251,30 +191,7 @@ async function handleJoin(argv: { code: string; password?: boolean }): Promise<v
       customScales: config.customScales,
     }),
   );
-  refusal.attach(inkInstance.unmount);
-
-  session.onSessionEvent((event) => {
-    if (event.kind === 'host-changed') return;
-    console.error(event.message);
-    inkInstance.unmount();
-    forgetSession(session.roomUuid);
-    session.teardown();
-    process.exit(0);
-  });
-
-  await inkInstance.waitUntilExit();
-
-  const refused = refusal.refused();
-  if (refused !== null) {
-    endRefused(refused, session, {
-      wasIn: session.hasJoined(),
-      typedPassword: passwordInput !== undefined,
-    });
-  }
-
-  session.teardown();
-  forgetSession(session.roomUuid);
-  process.exit(0);
+  await runUntilExit(session, inkInstance, refusal, exiting);
 }
 
 /** Tiny relative-time helper — keeps moment/dayjs out of CLI. */
@@ -336,6 +253,12 @@ async function resumeEntry(
   console.error('');
 
   const refusal = watchForRefusal();
+  const exiting = sessionExit({
+    room: { roomCode: entry.roomCode, roomUuid: entry.roomUuid },
+    // A session that is resumed is one this device has been in.
+    wasIn: () => true,
+    typedPassword: false,
+  });
 
   // `hnch resume` is a join like `hnch join`: if this participant left the
   // room earlier, the first sync clears the `leftAt` it carries (ADR-0036 §6).
@@ -347,11 +270,9 @@ async function resumeEntry(
     roomUuid: entry.roomUuid,
     passwordHash: entry.passwordHash,
     ...(config.avatarColor !== undefined && { avatarColor: config.avatarColor }),
-    onRejection(reason) {
-      if (reason === 'unknown-room') endExpired(entry.roomUuid);
-      else refusal.note(reason);
-    },
+    onRejection: onRejectionFor(refusal, exiting),
   });
+  exiting.bind(session);
 
   recordEntry({
     roomCode: session.roomCode,
@@ -370,28 +291,7 @@ async function resumeEntry(
       customScales: config.customScales,
     }),
   );
-  refusal.attach(inkInstanceResume.unmount);
-
-  session.onSessionEvent((event) => {
-    if (event.kind === 'host-changed') return;
-    console.error(event.message);
-    inkInstanceResume.unmount();
-    forgetSession(entry.roomUuid);
-    session.teardown();
-    process.exit(0);
-  });
-
-  await inkInstanceResume.waitUntilExit();
-
-  const refused = refusal.refused();
-  if (refused !== null) {
-    // A session that is resumed is one this device has been in.
-    endRefused(refused, session, { wasIn: true, typedPassword: false });
-  }
-
-  session.teardown();
-  forgetSession(entry.roomUuid);
-  process.exit(0);
+  await runUntilExit(session, inkInstanceResume, refusal, exiting);
 }
 
 async function handleResume(): Promise<void> {

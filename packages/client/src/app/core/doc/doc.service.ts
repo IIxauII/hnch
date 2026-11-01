@@ -8,148 +8,100 @@ import {
 } from '@angular/core';
 import {
   activeRound as activeRoundFromProjection,
-  AWARENESS_PARTICIPANT_ID_FIELD,
-  bindSessionCommands,
   currentRound as currentRoundFromProjection,
-  DOC_AGENDA_KEY,
-  DOC_META_KEY,
-  DOC_PARTICIPANTS_KEY,
-  DOC_ROUNDS_KEY,
-  DOC_SETTINGS_KEY,
-  initDoc,
   isActiveParticipant,
-  joinDoc,
   nextPendingAgendaItem as nextPendingAgendaItemFromProjection,
-  onlineIdsFrom,
-  patchSettings,
-  projectDoc,
-  patchRoundDescriptor as patchRoundDescriptorY,
-  promoteHost as promoteHostCommand,
-  rejoin as rejoinRoster,
+  openLiveSession,
   screenFor,
-  startAutoReveal,
-  startElection,
-  startSessionEvents,
   UNBOUND_SESSION_COMMANDS,
   type AgendaItem,
   type DocProjection,
-  type AutoRevealHandle,
-  type ElectionHandle,
-  type InitDocInit,
-  type JoinCredentials,
   type JoinRejectionReason,
+  type LiveSession,
+  type LiveSessionRoom,
+  type LiveSessionSeed,
   type Meta,
   type ParticipantSnapshot,
-  type Round,
-  type Scale,
-  type Screen,
+  type PatchRoundDescriptorInit,
   type PublicSettingsPatch,
+  type Round,
   type RosterResult,
+  type Screen,
   type SessionCommands,
   type SessionEvent,
-  type SessionEventsHandle,
   type Settings,
+  type SyncStatus,
 } from '@hnch/shared';
 import { Capacitor } from '@capacitor/core';
-import { Awareness } from 'y-protocols/awareness';
-import * as Y from 'yjs';
+import type * as Y from 'yjs';
 import { IndexeddbPersistence } from 'y-indexeddb';
 
 import { AppPreferenceService } from '../app-preference.service';
-import { ParticipantIdService } from '../participant-id.service';
 import { ToastService } from '../../services/toast.service';
-import { connectToRelay, type RelayConnection, type SyncStatus } from '@hnch/shared';
 
-/** {@link InitDocInit} for {@link DocService.createSession}; the service stamps `createdAt`. */
-export interface CreateSessionInit {
+/** What {@link DocService.open} needs: the room as the relay issued it, who this peer is, the seed. */
+export interface OpenSessionInit {
+  /** Minted at `POST /rooms` (ADR-0016) or resolved from the code. */
+  readonly room: LiveSessionRoom;
+  /** Also the device id the connection presents to the relay. */
   readonly participantId: string;
   readonly displayName: string;
-  readonly defaultScale: Scale;
-  readonly sessionName?: string;
   /** Pre-validated by `AvatarColorService`, so peers see it from the first snapshot (ADR-0043). */
   readonly avatarColor?: string;
+  /** Present for a password-protected room (ADR-0017). */
+  readonly passwordHash?: string;
   /**
-   * Minted by the relay's `POST /rooms` (ADR-0016). Omitted only by tests that build a purely
-   * local doc; a fresh UUID fills in.
+   * `create` seeds the whole doc and makes this peer the host; `join` writes only this peer's
+   * record, so settings, meta and the host arrive from the relay without a merge conflict.
    */
-  readonly roomUuid?: string;
-  /** Held as a signal, not in the doc: the code is a relay-side lookup (ADR-0008). */
-  readonly roomCode?: string;
+  readonly seed: LiveSessionSeed;
+  /** Defaults to the resolved relay URL. */
+  readonly httpBaseUrl?: string;
   readonly now?: () => number;
 }
 
-export interface ConnectOptions {
-  /** Defaults to the resolved relay URL; `relay-client` derives the WebSocket URL from it. */
-  readonly httpBaseUrl?: string;
-  /** Required for {@link DocService.joinSession}, since meta has not synced yet. */
-  readonly roomUuid?: string;
-}
-
 /**
- * Yjs-backed session state as Angular signals. Components never import `yjs`: the projection
- * and mutation logic lives in `@hnch/shared`, testable against a headless `Y.Doc`, and this
- * service is the Angular adapter plus the relay connection ({@link connect}).
+ * The client's adapter over the shared live session (#529), as Angular signals. How a session
+ * behaves — the doc, presence, the relay connection, change tracking, the drivers, the bound
+ * commands, teardown — is `@hnch/shared`'s `live-session`, the module the CLI runs on too. What
+ * stays here is the client's own: the signals that mirror its readings, the session epoch, the
+ * auto-reveal counter, the IndexedDB load before the socket opens (ADR-0004) and the copy of the
+ * repeated-trouble toast. Components never import `yjs`.
  */
 @Injectable({ providedIn: 'root' })
 export class DocService {
   private readonly appPrefs = inject(AppPreferenceService);
   private readonly toastService = inject(ToastService);
-  private readonly participantIdService = inject(ParticipantIdService);
 
-  // Private Yjs + sync state
+  // The live session and what it reports
 
-  private doc: Y.Doc | null = null;
-  /** Backs {@link commands}; `null` outside a session so a stale set can never leak. */
-  private boundCommands: SessionCommands | null = null;
+  /** `null` before {@link open} and after {@link teardown}. */
+  private live: LiveSession | null = null;
   private persistence: IndexeddbPersistence | null = null;
-  private observers: Array<() => void> = [];
   private readonly projection: WritableSignal<DocProjection | null> = signal<DocProjection | null>(
     null,
   );
   private readonly roomCodeSignal: WritableSignal<string | null> = signal<string | null>(null);
-  private provider: RelayConnection | null = null;
-  /**
-   * Held here, not only in the provider: the provider does not exist while the local snapshot
-   * loads, and a password set in that window would otherwise be dropped.
-   */
-  private credentials: JoinCredentials | null = null;
-  private sessionParticipantId: string | null = null;
-  /** Set by joinSession for the next connect; gates the post-sync `rejoin` (ADR-0036 §6). */
-  private joinParticipantId: string | null = null;
   private readonly syncStatusSignal: WritableSignal<SyncStatus | 'offline'> = signal<
     SyncStatus | 'offline'
   >('offline');
   private readonly lastRejectionSignal: WritableSignal<JoinRejectionReason | null> =
     signal<JoinRejectionReason | null>(null);
-  /** The last value `relay-client` pushed; it owns the reconnecting derivation. */
   private readonly reconnectingSignal: WritableSignal<boolean> = signal(false);
-  private readonly hasFirstSyncCompletedSignal: WritableSignal<boolean> = signal(false);
   private readonly relaySyncedSignal: WritableSignal<boolean> = signal(false);
   private readonly sessionEpochSignal: WritableSignal<number> = signal(0);
   private readonly relayRoomUuidSignal: WritableSignal<string | null> = signal<string | null>(null);
-  /** Our own end-session write applied, so the events driver says "Session ended." */
-  readonly endingSessionLocally: WritableSignal<boolean> = signal(false);
-  private awareness: Awareness | null = null;
-  private awarenessOff: (() => void) | null = null;
-  /** Session-scoped, not app-lifetime, so a doc-less app arms no timers (ADR-0010). */
-  private electionHandle: ElectionHandle | null = null;
-  private autoRevealHandle: AutoRevealHandle | null = null;
-  /** Stopping it drops undelivered events, so nothing reaches a listener after teardown. */
-  private sessionEventsHandle: SessionEventsHandle | null = null;
-  /** App-lifetime, unlike the driver: the app-level sinks outlive every session. */
-  private readonly sessionEventListeners = new Set<(event: SessionEvent) => void>();
-  /** One fan-out for every driver, so one place decides what counts as a change. */
-  private readonly driverNotifiers = new Set<() => void>();
   private readonly onlineParticipantIdsSignal: WritableSignal<ReadonlySet<string>> = signal<
     ReadonlySet<string>
   >(new Set());
   private readonly autoRevealCountSignal: WritableSignal<number> = signal(0);
+  /** App-lifetime, unlike the sessions whose events they hear: the app-level sinks register once. */
+  private readonly sessionEventListeners = new Set<(event: SessionEvent) => void>();
 
   // Public signals
 
   readonly hasSession: Signal<boolean> = computed(() => this.projection() !== null);
 
-  /** Also feeds the host-election driver started in {@link attach} (ADR-0048). */
   readonly projectionSnapshot: Signal<DocProjection | null> = this.projection.asReadonly();
 
   readonly meta: Signal<Meta | null> = computed(() => this.projection()?.meta ?? null);
@@ -208,15 +160,16 @@ export class DocService {
   });
 
   /**
-   * Auto-reveals this session wrote (ADR-0018), an edge signal for the success haptic. A counter,
-   * not a timestamp, so two in the same millisecond still notify.
+   * Auto-reveals this peer wrote (ADR-0018), bumped on the live session's "auto-reveal applied"
+   * reading, so a lost race does not count. An edge signal for the success haptic: a counter, not
+   * a timestamp, so two in the same millisecond still notify.
    */
   readonly autoRevealCount: Signal<number> = this.autoRevealCountSignal.asReadonly();
 
-  /** `null` for local-only docs created without a code (ADR-0008). */
+  /** The 6-character code the session was opened under (ADR-0008); `null` with no session. */
   readonly roomCode: Signal<string | null> = this.roomCodeSignal.asReadonly();
 
-  /** `'offline'` while no provider is attached; otherwise the y-websocket status. */
+  /** `'offline'` with no session; `'connecting'` from {@link open} on, until the live session says otherwise. */
   readonly syncStatus: Signal<SyncStatus | 'offline'> = this.syncStatusSignal.asReadonly();
 
   /** The last close-code rejection (ADR-0016); reset on each successful connect. */
@@ -248,35 +201,17 @@ export class DocService {
   );
 
   /**
-   * Set by the first `onSynced`, reset on teardown. The events driver ignores `leftAt` seen
-   * before it: that came from the snapshot, not a live kick (ADR-0036 §6).
-   */
-  readonly hasFirstSyncCompleted: Signal<boolean> = this.hasFirstSyncCompletedSignal.asReadonly();
-
-  /**
    * Retrying after a transient drop. False before the first connect, while connected, once
-   * rejected for good, and during a manual teardown.
+   * rejected for good, and after teardown.
    */
   readonly reconnecting: Signal<boolean> = this.reconnectingSignal.asReadonly();
 
   /**
-   * Ids online per awareness, seeded with the local participant at session start so no screen
-   * shows its own row offline.
+   * Ids present on the relay, as the live session reports them. This peer's own id is in it from
+   * the moment the session opens, so no screen shows its own row offline.
    */
   readonly onlineParticipantIds: Signal<ReadonlySet<string>> =
     this.onlineParticipantIdsSignal.asReadonly();
-
-  /** Active and in awareness: a silent disconnect drops off here but keeps its cast vote. */
-  readonly onlineParticipants: Signal<readonly ParticipantSnapshot[]> = computed(() => {
-    const online = this.onlineParticipantIdsSignal();
-    return this.activeParticipants().filter((p) => online.has(p.id));
-  });
-
-  /** Complement of {@link onlineParticipants} within the active set. Rendered dimmed. */
-  readonly offlineParticipants: Signal<readonly ParticipantSnapshot[]> = computed(() => {
-    const online = this.onlineParticipantIdsSignal();
-    return this.activeParticipants().filter((p) => !online.has(p.id));
-  });
 
   // Writer seam (#516)
 
@@ -286,13 +221,13 @@ export class DocService {
    * signal: writers are not reactive state.
    */
   get commands(): SessionCommands {
-    return this.boundCommands ?? UNBOUND_SESSION_COMMANDS;
+    return this.live?.commands ?? UNBOUND_SESSION_COMMANDS;
   }
 
   /**
    * Session ended, host changed, or this peer was removed: each once, with its text written.
-   * Delivered a microtask after the change, only while a driver runs, with no replay. Returns
-   * unsubscribe.
+   * Delivered a microtask after the change, only while a session is held, with no replay.
+   * Listeners outlive sessions. Returns unsubscribe.
    */
   onSessionEvent(listener: (event: SessionEvent) => void): () => void {
     this.sessionEventListeners.add(listener);
@@ -303,417 +238,150 @@ export class DocService {
 
   // Lifecycle
 
-  /** Throws while a session is live: call {@link teardown} first. Returns the room UUID. */
-  createSession(init: CreateSessionInit): string {
-    if (this.doc !== null) {
-      throw new Error('DocService.createSession: a session is already active');
+  /**
+   * Open a session, created or joined, and connect it in one call; any session held is torn down
+   * first. The signals report the seeded doc at once; the IndexedDB snapshot then loads into it
+   * before the socket opens (ADR-0004). A teardown while it loads opens no socket, and a password
+   * set while it loads is the one the socket opens with.
+   */
+  open(init: OpenSessionInit): void {
+    this.teardown();
+    this.sessionEpochSignal.update((n) => n + 1);
+    this.roomCodeSignal.set(init.room.code);
+    this.relayRoomUuidSignal.set(init.room.uuid);
+
+    try {
+      this.live = this.openLive(init);
+    } catch (err) {
+      // Nothing half-open is left to look connected.
+      this.teardown();
+      throw err;
     }
-
-    const now = init.now ?? (() => Date.now());
-    const roomUuid = init.roomUuid ?? crypto.randomUUID();
-    const createdAt = now();
-
-    const doc = new Y.Doc();
-    const seed: InitDocInit = {
-      roomUuid,
-      createdAt,
-      participantId: init.participantId,
-      displayName: init.displayName,
-      defaultScale: init.defaultScale,
-      ...(init.sessionName !== undefined && { sessionName: init.sessionName }),
-      ...(init.avatarColor !== undefined && { avatarColor: init.avatarColor }),
-    };
-    initDoc(doc, seed);
-
-    // Awareness first: `attach` starts the host-election driver, whose initial
-    // evaluation reads the online set. Seeding the local peer beforehand means
-    // the driver never sees a present host as absent (ADR-0010).
-    this.initAwareness(doc, init.participantId);
-    this.attach(doc, init.participantId);
-    this.roomCodeSignal.set(init.roomCode ?? null);
-    return roomUuid;
   }
 
   /**
-   * Writes only the participant entry: meta, settings and the host arrive by sync, which avoids
-   * merge conflicts with the creator's initial writes.
+   * Its first readings — the projection, this peer online, `connecting` — arrive before it
+   * returns, so the connection banner's clock starts with the attempt.
    */
-  joinSession(init: {
-    participantId: string;
-    displayName: string;
-    roomCode?: string;
-    /** Pre-validated by `AvatarColorService` (ADR-0043). */
-    avatarColor?: string;
-  }): void {
-    if (this.doc !== null) {
-      throw new Error('DocService.joinSession: a session is already active');
-    }
-
-    const doc = new Y.Doc();
-    joinDoc(doc, {
-      participantId: init.participantId,
-      displayName: init.displayName,
-      joinedAt: Date.now(),
-      ...(init.avatarColor !== undefined && { avatarColor: init.avatarColor }),
-    });
-
-    // Awareness before attach — see the note in `createSession`.
-    this.initAwareness(doc, init.participantId);
-    this.attach(doc, init.participantId);
-    this.roomCodeSignal.set(init.roomCode ?? null);
-    // The `leftAt` clear must run after the relay snapshot merges (ADR-0036 §6).
-    this.joinParticipantId = init.participantId;
-  }
-
-  /** Throws without a session; a no-op while a connection is open or opening. */
-  connect(credentials: JoinCredentials, opts: ConnectOptions = {}): void {
-    const doc = this.requireDoc('connect');
-    // Connected, or about to be: the snapshot is loading and the socket opens
-    // when it has. A second one would never be closed.
-    if (this.provider !== null || this.credentials !== null) return;
-    // What the relay issued, handed in by whoever asked it. The doc's own
-    // word for it is only taken for a doc that has not been anywhere yet.
-    const roomUuid = opts.roomUuid ?? this.meta()?.roomUuid;
-    if (roomUuid === undefined) {
-      throw new Error('DocService.connect: session has no roomUuid');
-    }
-
-    // `connecting` now, so the banner's clock starts now, not at the first `status` event.
-    this.syncStatusSignal.set('connecting');
-    this.credentials = credentials;
-    this.relayRoomUuidSignal.set(roomUuid);
-
-    const httpUrl = opts.httpBaseUrl ?? this.appPrefs.resolvedRelayHttpUrl();
-
-    void this.connectWithPersistence(doc, roomUuid, httpUrl, this.joinParticipantId);
-    this.joinParticipantId = null;
-  }
-
-  private async connectWithPersistence(
-    doc: Y.Doc,
-    roomUuid: string,
-    httpBaseUrl: string,
-    joinParticipantId: string | null = null,
-  ): Promise<void> {
-    // PWA: load the IndexedDB snapshot before the socket opens, so the UI fills from cache.
-    // Native has no local persistence yet (ADR-0004).
-    if (!Capacitor.isNativePlatform()) {
-      const persistence = new IndexeddbPersistence(roomUuid, doc);
-      this.persistence = persistence;
-      await persistence.whenSynced;
-      // The session may have been torn down, or replaced, while the snapshot
-      // loaded. A provider created now would be bound to a destroyed doc and
-      // would block the next session's `connect()`.
-      if (this.doc !== doc) {
-        if (this.persistence === persistence) this.persistence = null;
-        void persistence.destroy();
-        return;
-      }
-    }
-    // Read after the wait: the credentials may have changed during it.
-    const credentials = this.credentials;
-    if (credentials === null) return;
-
-    this.provider = connectToRelay({
-      httpBaseUrl,
-      roomUuid,
-      doc,
-      credentials,
-      ...(this.awareness !== null && { awareness: this.awareness }),
+  private openLive(init: OpenSessionInit): LiveSession {
+    return openLiveSession({
+      httpBaseUrl: init.httpBaseUrl ?? this.appPrefs.resolvedRelayHttpUrl(),
+      room: init.room,
+      credentials: {
+        deviceId: init.participantId,
+        ...(init.passwordHash !== undefined && { passwordHash: init.passwordHash }),
+      },
+      self: {
+        participantId: init.participantId,
+        displayName: init.displayName,
+        ...(init.avatarColor !== undefined && { avatarColor: init.avatarColor }),
+      },
+      seed: init.seed,
+      ...(init.now !== undefined && { now: init.now }),
+      beforeConnect: (doc) => this.loadLocalSnapshot(init.room.uuid, doc),
+      onProjectionChange: (projection) => this.projection.set(projection),
+      onOnlineIdsChange: (onlineIds) => this.onlineParticipantIdsSignal.set(onlineIds),
       onStatusChange: (status) => this.syncStatusSignal.set(status),
       onRejectionChange: (reason) => this.lastRejectionSignal.set(reason),
       onReconnectingChange: (reconnecting) => this.reconnectingSignal.set(reconnecting),
-      // The throttle (3 transient closes inside 60 s) lives in `relay-client`;
-      // the toast is surface-side, so only the copy is decided here.
+      // The throttle lives in `relay-client`; only the copy is decided here.
       onRepeatRejection: () => {
         void this.toastService.error('Trouble reaching the session. Still trying.');
       },
-      // Flip the flag before clearing a stale `leftAt`, so the events driver can tell the
-      // snapshot from a live kick. A joiner's delete outclocks the snapshot's set and wins the
-      // LWW merge (ADR-0036 §6).
-      onSynced: () => {
-        this.hasFirstSyncCompletedSignal.set(true);
-        if (joinParticipantId !== null) {
-          rejoinRoster(doc, joinParticipantId);
-        }
-      },
-      // The online set only means something while synced. Re-notify on both
-      // edges: a round that went unanimous while we were away reveals on the
-      // rising edge, and nothing evaluates on the falling one.
-      onSyncedChange: (synced) => {
-        this.relaySyncedSignal.set(synced);
-        this.notifyDrivers();
+      onSyncedChange: (synced) => this.relaySyncedSignal.set(synced),
+      onAutoReveal: () => this.autoRevealCountSignal.update((n) => n + 1),
+      onSessionEvent: (event) => {
+        for (const listener of this.sessionEventListeners) listener(event);
       },
     });
   }
 
   /**
-   * Wait (polling every 16 ms, up to `cap` ms) for the socket's `bufferedAmount` to drain, so a
-   * last update such as `leaveSession` can reach peers before teardown. Never rejects: delivery
-   * is best-effort and teardown must not block on it.
+   * Wait, up to `cap` ms, for what this peer wrote last — a leave — to leave the socket before
+   * the caller tears the session down. Resolves at once with no session; never rejects.
    */
   async flushUpdates(cap = 500): Promise<void> {
-    if (this.provider === null) return;
-    const ws = (this.provider as unknown as { ws?: WebSocket }).ws;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    const deadline = Date.now() + cap;
-    while (ws.bufferedAmount > 0 && Date.now() < deadline) {
-      await new Promise<void>((r) => setTimeout(r, 16));
-    }
+    await this.live?.flushUpdates(cap);
   }
 
   /**
    * Re-handshake with a new password hash (`null` for an open room) without a teardown
-   * (ADR-0017), so this client's reconnects stop carrying the stale hash. No-op when unchanged.
-   * If the socket has not opened yet (the snapshot is still loading), it opens with the new hash.
+   * (ADR-0017), so this client's reconnects stop carrying the stale hash. If the socket has not
+   * opened yet (the snapshot is still loading), it opens with the new hash. A no-op with no session.
    */
   updateCredentials(passwordHash: string | null): void {
-    if (this.credentials !== null) {
-      const { passwordHash: _previous, ...rest } = this.credentials;
-      this.credentials = passwordHash === null ? rest : { ...rest, passwordHash };
-    }
-    // No provider yet means the socket has not been opened: it will open
-    // with the credentials above.
-    this.provider?.updateCredentials({ passwordHash });
-  }
-
-  /** Drop the socket but keep the local session; {@link teardown} calls this. */
-  disconnect(): void {
-    // Also calls off a connection that was still on its way: the socket
-    // opens with credentials, and there are none now.
-    this.credentials = null;
-    if (this.provider === null) {
-      this.syncStatusSignal.set('offline');
-      this.reconnectingSignal.set(false);
-      this.relaySyncedSignal.set(false);
-      return;
-    }
-    this.provider.disconnect();
-    this.provider = null;
-    this.syncStatusSignal.set('offline');
-    this.reconnectingSignal.set(false);
-    this.relaySyncedSignal.set(false);
+    this.live?.updateCredentials(passwordHash);
   }
 
   /**
-   * Destroy the local doc and write nothing; idempotent. The opposite of `commands.endSession`,
-   * which ends the session for everyone. Later calls refuse via `UNBOUND_SESSION_COMMANDS` (#516).
+   * Tear down the session held — the live session's `teardown`: destroy the doc, stop the drivers,
+   * drop the command set, write nothing — and reset every signal. Idempotent. The opposite of
+   * `commands.endSession`, which ends the session for everyone.
    */
   teardown(): void {
-    this.disconnect();
-    this.persistence?.destroy();
+    // A store that never opened rejects its close too; there is nothing to close.
+    this.persistence?.destroy().catch(() => undefined);
     this.persistence = null;
-    this.teardownAwareness();
-    this.detach();
-    this.doc?.destroy();
-    this.doc = null;
+    this.live?.teardown();
+    this.live = null;
     this.projection.set(null);
+    this.onlineParticipantIdsSignal.set(new Set());
     this.roomCodeSignal.set(null);
+    this.syncStatusSignal.set('offline');
     this.lastRejectionSignal.set(null);
-    this.hasFirstSyncCompletedSignal.set(false);
-    this.endingSessionLocally.set(false);
-    this.joinParticipantId = null;
-    this.credentials = null;
+    this.reconnectingSignal.set(false);
+    this.relaySyncedSignal.set(false);
     this.relayRoomUuidSignal.set(null);
     this.sessionEpochSignal.update((n) => n + 1);
   }
 
-  // Mutations carrying client behaviour (#516); every other write goes through `commands`.
+  // Writes that are not commands (#516)
 
   /**
    * `PublicSettingsPatch` excludes `hostParticipantId`: host changes go through `handoffHost` or
    * the election, where the rules live (#507). That narrowed type is the gate.
    */
   updateSettings(patch: PublicSettingsPatch): void {
-    patchSettings(this.requireDoc('updateSettings'), patch);
+    this.requireLive('updateSettings').updateSettings(patch);
   }
 
-  /** A plain forward: there is no rule to apply. */
-  updateRoundDescriptor(roundId: string, fields: { title?: string; description?: string }): void {
-    patchRoundDescriptorY(this.requireDoc('updateRoundDescriptor'), roundId, fields);
+  updateRoundDescriptor(roundId: string, fields: PatchRoundDescriptorInit): void {
+    this.requireLive('updateRoundDescriptor').updateRoundDescriptor(roundId, fields);
   }
 
   /**
-   * Sets `endingSessionLocally` only once the host gate applied the write, so a refused mis-tap
-   * does not arm the banner. Setting it after the write is safe: the driver reads it at
-   * delivery, a microtask later.
+   * `commands.endSession()`. The live session notes that this peer's own end applied, so its
+   * session event reads "Session ended." rather than naming the host; a refused mis-tap notes
+   * nothing.
    */
   endSessionForEveryone(): RosterResult {
-    const result = this.commands.endSession();
-    if (result.applied) this.endingSessionLocally.set(true);
-    return result;
+    return this.commands.endSession();
   }
 
   // Internals
 
-  /** Every container event rebuilds the whole projection, which is cheap at session scale. */
-  private attach(doc: Y.Doc, participantId: string): void {
-    this.doc = doc;
-    this.sessionParticipantId = participantId;
-    this.sessionEpochSignal.update((n) => n + 1);
-    // Bind the writer seam before the drivers start — the auto-reveal
-    // driver's `reveal()` adapter reaches it immediately below (#516).
-    this.boundCommands = bindSessionCommands({
-      doc,
-      participantId,
-      onlineIds: () => this.onlineParticipantIdsSignal(),
-    });
-    this.rebuildProjection();
-    this.startElectionDriver();
-    this.startAutoRevealDriver();
-    this.startSessionEventsDriver(participantId);
-
-    const rebuild = (): void => this.rebuildProjection();
-    const meta = doc.getMap(DOC_META_KEY);
-    const settings = doc.getMap(DOC_SETTINGS_KEY);
-    const participants = doc.getMap(DOC_PARTICIPANTS_KEY);
-    const rounds = doc.getArray(DOC_ROUNDS_KEY);
-    const agenda = doc.getArray(DOC_AGENDA_KEY);
-
-    meta.observeDeep(rebuild);
-    settings.observeDeep(rebuild);
-    participants.observeDeep(rebuild);
-    rounds.observeDeep(rebuild);
-    agenda.observeDeep(rebuild);
-
-    this.observers = [
-      () => meta.unobserveDeep(rebuild),
-      () => settings.unobserveDeep(rebuild),
-      () => participants.unobserveDeep(rebuild),
-      () => rounds.unobserveDeep(rebuild),
-      () => agenda.unobserveDeep(rebuild),
-    ];
-  }
-
-  private detach(): void {
-    this.electionHandle?.stop();
-    this.electionHandle = null;
-    this.autoRevealHandle?.stop();
-    this.autoRevealHandle = null;
-    this.sessionEventsHandle?.stop();
-    this.sessionEventsHandle = null;
-    for (const off of this.observers) off();
-    this.observers = [];
-    // A late call after leaving now refuses instead of writing to a destroyed doc (#516).
-    this.boundCommands = null;
-    this.sessionParticipantId = null;
-  }
-
-  private rebuildProjection(): void {
-    if (!this.doc) return;
-    this.projection.set(projectDoc(this.doc));
-    // Synchronous notify — the drivers are plain callbacks, not effect()s,
-    // so nothing has to be flushed for them to re-evaluate.
-    this.notifyDrivers();
-  }
-
   /**
-   * Adapter for the shared election driver (ADR-0010, ADR-0048). Notified on every rebuild and
-   * every awareness change: a kicked host sets `leftAt` without touching awareness, and vice
-   * versa. Must start after {@link initAwareness}, or it would debounce against a present host.
+   * The live session's `beforeConnect`: the IndexedDB snapshot into the doc before the socket
+   * opens, so the UI fills from cache (ADR-0004). Native has no local persistence yet.
+   *
+   * A store that cannot be opened (IndexedDB blocked or missing) is no cache, not a reason to
+   * stay offline: `whenSynced` never settles then, so the open's own failure ends the wait.
    */
-  private startElectionDriver(): void {
-    this.electionHandle?.stop();
-    this.electionHandle = startElection({
-      projection: () => this.projection(),
-      onlineIds: () => this.onlineParticipantIdsSignal(),
-      myId: () => this.participantIdService.id(),
-      subscribe: (cb) => this.subscribeDriver(cb),
-      promote: (winnerId) => {
-        promoteHostCommand(this.requireDoc('promoteHost'), winnerId);
-      },
-    });
+  private async loadLocalSnapshot(roomUuid: string, doc: Y.Doc): Promise<void> {
+    if (Capacitor.isNativePlatform()) return;
+    const persistence = new IndexeddbPersistence(roomUuid, doc);
+    this.persistence = persistence;
+    const storeFailed = persistence._db.then(
+      () => new Promise<void>(() => {}),
+      () => undefined,
+    );
+    await Promise.race([persistence.whenSynced, storeFailed]);
   }
 
-  /**
-   * Adapter for the shared auto-reveal driver (ADR-0018). Session-scoped, not page-scoped: every
-   * peer checks, and an online voter counts toward the denominator whatever screen it is on.
-   */
-  private startAutoRevealDriver(): void {
-    this.autoRevealHandle?.stop();
-    this.autoRevealHandle = startAutoReveal({
-      projection: () => this.projection(),
-      onlineIds: () => this.onlineParticipantIdsSignal(),
-      // The gate itself — and the solo exemption — are the shared driver's;
-      // this only says what the relay client reported.
-      presenceTrusted: () => this.relaySyncedSignal(),
-      selfId: () => this.sessionParticipantId,
-      subscribe: (cb) => this.subscribeDriver(cb),
-      reveal: () => {
-        // Bump only when the write actually landed — a lost race no-ops, and
-        // the Estimating page keys its haptic off this counter.
-        if (this.commands.revealCurrentRound().applied) {
-          this.autoRevealCountSignal.update((n) => n + 1);
-        }
-      },
-    });
-  }
-
-  /**
-   * Adapter for the shared session events driver (ADR-0023, ADR-0036 §5–6). `selfId` goes by
-   * value: the id `attach` received is fixed for the session. Presence trust is
-   * the live `relaySynced`, not the sticky first-sync flag: a host looks disconnected only to a
-   * peer that is in sync itself.
-   */
-  private startSessionEventsDriver(participantId: string): void {
-    this.sessionEventsHandle?.stop();
-    this.sessionEventsHandle = startSessionEvents({
-      projection: () => this.projection(),
-      onlineIds: () => this.onlineParticipantIdsSignal(),
-      presenceTrusted: () => this.relaySyncedSignal(),
-      firstSyncCompleted: () => this.hasFirstSyncCompletedSignal(),
-      endedLocally: () => this.endingSessionLocally(),
-      selfId: participantId,
-      subscribe: (cb) => this.subscribeDriver(cb),
-      emit: (event) => {
-        for (const listener of this.sessionEventListeners) listener(event);
-      },
-    });
-  }
-
-  private subscribeDriver(cb: () => void): () => void {
-    this.driverNotifiers.add(cb);
-    return (): void => {
-      this.driverNotifiers.delete(cb);
-    };
-  }
-
-  private notifyDrivers(): void {
-    for (const notify of this.driverNotifiers) notify();
-  }
-
-  /**
-   * The provider reuses this instance, so the local state reaches the wire as the socket opens
-   * and survives reconnects. Seeded synchronously so no screen shows its own row offline.
-   */
-  private initAwareness(doc: Y.Doc, participantId: string): void {
-    const awareness = new Awareness(doc);
-    awareness.setLocalStateField(AWARENESS_PARTICIPANT_ID_FIELD, participantId);
-
-    const refresh = (): void => {
-      this.onlineParticipantIdsSignal.set(onlineIdsFrom(awareness.getStates()));
-      this.notifyDrivers();
-    };
-
-    awareness.on('change', refresh);
-    refresh();
-
-    this.awareness = awareness;
-    this.awarenessOff = (): void => awareness.off('change', refresh);
-  }
-
-  private teardownAwareness(): void {
-    this.awarenessOff?.();
-    this.awarenessOff = null;
-    this.awareness?.destroy();
-    this.awareness = null;
-    this.onlineParticipantIdsSignal.set(new Set());
-  }
-
-  private requireDoc(op: string): Y.Doc {
-    if (!this.doc) {
+  private requireLive(op: string): LiveSession {
+    if (this.live === null) {
       throw new Error(`DocService.${op}: no active session`);
     }
-    return this.doc;
+    return this.live;
   }
 }

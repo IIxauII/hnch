@@ -72,9 +72,9 @@ import { isComposingKey } from '../utils/composing-key';
  * Join session — ux.md §1.3.
  *
  * The user types a 6-character code; we `GET /rooms/:code` to resolve
- * it to a UUID (ADR-0016) and then hand off to `DocService.connect()`.
- * On a successful resolve we seed the doc with the returned UUID + the
- * code the user typed, open the y-websocket, and navigate to Lobby.
+ * it to a UUID (ADR-0016) and then hand off to `DocService.open()`,
+ * which joins the room under that UUID. We stay here until the relay
+ * has said yes, no, or nothing in time, and only then navigate to Lobby.
  *
  * Three join paths feed this screen: manual code entry, `?code=`
  * deep link (auto-populates), and QR scan (auto-populates + submits).
@@ -571,23 +571,15 @@ export class JoinPage {
       if (stale()) return;
 
       const avatarColor = this.avatarColorService.value();
-      this.docService.teardown();
-      this.docService.joinSession({
+      this.docService.open({
+        room: { uuid, code },
         participantId,
         displayName: displayName ?? '',
-        roomCode: code,
         ...(avatarColor && { avatarColor }),
+        ...(passwordHash !== undefined && { passwordHash }),
+        seed: { kind: 'join' },
       });
       joinedEpoch = this.docService.sessionEpoch();
-
-      this.docService.connect(
-        {
-          roomCode: code,
-          deviceId: participantId,
-          ...(passwordHash !== undefined && { passwordHash }),
-        },
-        { roomUuid: uuid },
-      );
 
       // Stay here until the relay has said yes or no. A slow relay is not a
       // no: on a timeout go in, and let the Lobby show that it is connecting.

@@ -73,6 +73,7 @@ import { HapticService } from '../core/haptic.service';
 import { LastSessionService } from '../core/last-session.service';
 import { ScalePreferenceService } from '../core/scale-preference.service';
 import { ParticipantIdService } from '../core/participant-id.service';
+import { SessionExitService } from '../core/session-exit.service';
 import {
   RoundStartSheetComponent,
   type RoundStartSubmission,
@@ -107,8 +108,8 @@ import {
  *
  * The Lobby owns the session's lifetime: leaving prompts an
  * `ion-alert` confirmation per ux.md §2 "Destructive confirmation" and
- * calls `docService.teardown()` before popping to Home. The back chevron is
- * a soft exit — it keeps the session alive and the way back in on Home.
+ * leaves through `SessionExitService` as `left`. The back chevron is a soft
+ * exit — it keeps the session alive and the way back in on Home.
  *
  * After a round is revealed, Estimating navigates back to Lobby.
  * Lobby shows the full VoteResultsComponent for the latest finished
@@ -793,6 +794,7 @@ export class LobbyPage implements OnDestroy {
   private readonly participantIdService = inject(ParticipantIdService);
   private readonly lastSessionService = inject(LastSessionService);
   private readonly scalePrefs = inject(ScalePreferenceService);
+  private readonly sessionExit = inject(SessionExitService);
   protected readonly surface = inject(SurfaceService);
   private readonly alertCtrl = inject(AlertController);
   private readonly popoverCtrl = inject(PopoverController);
@@ -1488,29 +1490,12 @@ export class LobbyPage implements OnDestroy {
           role: 'destructive',
           handler: () => {
             this.haptic.impactHeavy();
-            void this.leaveSession();
+            void this.sessionExit.exit({ kind: 'left' });
           },
         },
       ],
     });
     await alert.present();
-  }
-
-  private async leaveSession(): Promise<void> {
-    // The UUID the relay issued, which is what the entry was recorded under.
-    // Not the one in the doc: any participant can rewrite that. Read before
-    // anything is waited for — the session may be gone by the time it is over.
-    const uuid = this.docService.relayRoomUuid();
-    if (this.myId()) {
-      // Write the soft-delete before disconnecting so peers see the removal (ADR-0036).
-      this.docService.commands.leave();
-      // Flush the Yjs update through the WebSocket before closing (best-effort, 500 ms cap).
-      await this.docService.flushUpdates();
-    }
-    this.docService.teardown();
-    // Destructive leave — remove the entry, so Home does not offer the session again (ADR-0044).
-    if (uuid !== null) await this.lastSessionService.removeByUuid(uuid);
-    await this.router.navigate(['/home']);
   }
 
   /**
