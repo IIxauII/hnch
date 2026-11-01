@@ -9,10 +9,14 @@ export const CORS_HEADERS: Readonly<Record<string, string>> = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-export function json(status: number, body: unknown): Response {
+export function json(
+  status: number,
+  body: unknown,
+  headers: Readonly<Record<string, string>> = {},
+): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'content-type': 'application/json; charset=utf-8', ...CORS_HEADERS },
+    headers: { 'content-type': 'application/json; charset=utf-8', ...CORS_HEADERS, ...headers },
   });
 }
 

@@ -145,6 +145,7 @@ async function mount(opts: MountOpts = {}) {
   const { ParticipantIdService } = await import('../core/participant-id.service');
   const { HapticService } = await import('../core/haptic.service');
   const { LastSessionService } = await import('../core/last-session.service');
+  const { SessionExitService } = await import('../core/session-exit.service');
   const { TimerTickService } = await import('../core/timer-tick.service');
   const { SurfaceService } = await import('../core/surface.service');
   const { Router } = await import('@angular/router');
@@ -205,6 +206,7 @@ async function mount(opts: MountOpts = {}) {
     removeByUuid: vi.fn().mockResolvedValue(undefined),
     clearAll: vi.fn().mockResolvedValue(undefined),
   };
+  const sessionExit = { exit: vi.fn().mockResolvedValue(undefined) };
   const hostId = opts.isHost === false ? 'other-host' : 'me';
   const roster = opts.participants ?? [{ id: 'me', joinedAt: 0 }];
   const onlineIds = opts.onlineIds ?? new Set<string>();
@@ -221,7 +223,6 @@ async function mount(opts: MountOpts = {}) {
     activeRound: activeRoundSig,
     screen: screenSig.asReadonly(),
     rounds: roundsSig.asReadonly(),
-    onlineParticipants: signal([]).asReadonly(),
     onlineParticipantIds: signal(onlineIds).asReadonly(),
     participants: signal(roster).asReadonly(),
     activeParticipants: signal(roster).asReadonly(),
@@ -258,6 +259,7 @@ async function mount(opts: MountOpts = {}) {
       },
       { provide: HapticService, useValue: haptic },
       { provide: LastSessionService, useValue: lastSession },
+      { provide: SessionExitService, useValue: sessionExit },
       { provide: TimerTickService, useValue: { now: () => 0 } },
       {
         provide: SurfaceService,
@@ -308,6 +310,7 @@ async function mount(opts: MountOpts = {}) {
     haptic,
     docService,
     lastSession,
+    sessionExit,
     alerts,
     currentRoundSig,
     roundsSig,
@@ -1042,38 +1045,39 @@ describe('EstimatingPage — onToggleRole', () => {
   });
 });
 
+// What leaving does (write `leave`, flush, tear down, forget, Home) is
+// `SessionExitService`'s `left` exit and is tested there.
 describe('EstimatingPage — leaveSession', () => {
-  it('writes the soft-delete, flushes, tears down, and drops the cached entry', async () => {
-    const { fixture, docService, lastSession, alerts, navigate, haptic, openSheetOrPopover } =
-      await mount();
+  it("leaves the session as left from the host's menu", async () => {
+    const { fixture, sessionExit, alerts, haptic, openSheetOrPopover } = await mount();
 
     await tapSheetItem(fixture, openSheetOrPopover, 'Leave session');
     tapAlertButton(alerts, 'Leave');
-    await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith(['/home']));
 
     expect(haptic.impactHeavy).toHaveBeenCalled();
-    expect(docService.commands.leave).toHaveBeenCalledTimes(1);
-    expect(docService.flushUpdates).toHaveBeenCalledTimes(1);
-    expect(docService.teardown).toHaveBeenCalledTimes(1);
-    expect(lastSession.removeByUuid).toHaveBeenCalledWith('uuid');
-    expect(lastSession.clearAll).not.toHaveBeenCalled();
+    expect(sessionExit.exit).toHaveBeenCalledExactlyOnceWith({ kind: 'left' });
   });
 
-  it('skips the soft-delete and the flush when there is no participant id', async () => {
-    const { fixture, docService, alerts, navigate } = await mount({
-      myId: null,
-    });
+  it("leaves the session as left from everyone else's toolbar button", async () => {
+    const { fixture, sessionExit, alerts } = await mount({ isHost: false });
 
-    // Nobody without an id is the host, so this is the toolbar button's path.
     await (
       fixture.componentInstance as unknown as { confirmLeave(): Promise<void> }
     ).confirmLeave();
     tapAlertButton(alerts, 'Leave');
-    await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith(['/home']));
 
-    expect(docService.commands.leave).not.toHaveBeenCalled();
-    expect(docService.flushUpdates).not.toHaveBeenCalled();
-    expect(docService.teardown).toHaveBeenCalledTimes(1);
+    expect(sessionExit.exit).toHaveBeenCalledExactlyOnceWith({ kind: 'left' });
+  });
+
+  it('stays in the session when Leave is cancelled', async () => {
+    const { fixture, sessionExit, alerts } = await mount({ isHost: false });
+
+    await (
+      fixture.componentInstance as unknown as { confirmLeave(): Promise<void> }
+    ).confirmLeave();
+    tapAlertButton(alerts, 'Cancel');
+
+    expect(sessionExit.exit).not.toHaveBeenCalled();
   });
 });
 

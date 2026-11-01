@@ -1,3 +1,10 @@
+## [1.47.2](https://github.com/IIxauII/hnch/compare/client-v1.47.1...client-v1.47.2) (2026-11-01)
+
+
+### Bug Fixes
+
+* **client:** shorten the home greeting line to "Let's estimate!" ([#535](https://github.com/IIxauII/hnch/issues/535)) ([c5e14d0](https://github.com/IIxauII/hnch/commit/c5e14d004fe447c1e0b9a9b33205a1248a7b6cdf))
+
 ## [1.47.1](https://github.com/IIxauII/hnch/compare/client-v1.47.0...client-v1.47.1) (2026-11-01)
 
 

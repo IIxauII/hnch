@@ -743,6 +743,30 @@ describe('connectToRelay refusal before the upgrade', () => {
     expect(sockets.length).toBeGreaterThan(socketCount);
   });
 
+  // The relay answers a join it would refuse with HTTP 503 once a room holds
+  // too many refused sockets (#566). A browser reports that as a close without
+  // a code, so it must read as "relay busy, try again", never as a verdict on
+  // the password: the room is still there and the hash is still on the URL.
+  it('keeps retrying with the same password after an upgrade the relay answered 503', async () => {
+    relayAnswers({ accessMode: 'password' });
+    const { onRejectionChange, onReconnectingChange } = observed();
+    makeConnection({
+      onRejectionChange,
+      onReconnectingChange,
+      credentials: { deviceId: 'device-001', roomCode: 'ABC123', passwordHash: 'hash' },
+    });
+    const socketCount = sockets.length;
+
+    latestSocket().simulateClose(1006, '', false);
+    await answered();
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(onRejectionChange).not.toHaveBeenCalledWith(expect.any(String));
+    expect(onReconnectingChange).not.toHaveBeenCalledWith(true);
+    expect(sockets.length).toBeGreaterThan(socketCount);
+    expect(socketParams()['pw']).toBe('hash');
+  });
+
   it('goes by the password the connection carries now, not the one it started with', async () => {
     relayAnswers({ accessMode: 'password' });
     const { onRejectionChange } = observed();

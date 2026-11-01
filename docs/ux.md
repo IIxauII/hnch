@@ -216,7 +216,7 @@ Lobby / Estimating
 
 Effect on peers: the leaver disappears from active rosters (lobby list, voter denominator, "didn't vote" set) immediately. Their votes in already-revealed rounds remain in round history because `round.votes` references `participantId`, and the raw `participants` map still resolves the displayName.
 
-If the leaver later re-enters via room code, `joinSession` clears `leftAt`/`removedBy` for self — they rejoin as an active participant with their existing record (preserves `joinedAt` and any historical vote attribution).
+If the leaver later re-enters via room code, the join clears `leftAt`/`removedBy` for self after its first sync — they rejoin as an active participant with their existing record (preserves `joinedAt` and any historical vote attribution).
 
 **Host removes a participant (kick, host only, destructive):**
 
@@ -307,7 +307,7 @@ On Lobby or Estimating, the socket reconnects and the relay refuses it
 
 The page the user was on is not kept to go back to: Back from where they land does not lead into a session that is closed to them.
 
-The relay refuses some of these before there is a socket to close with a reason — a session it no longer has, a protected one asked for without a password — and the browser reports that like any dropped connection. The client asks the relay over HTTP what the socket could not say (ADR-0050), so nobody is left behind a "Reconnecting…" that will never end.
+The relay refuses some of these before there is a socket to close with a reason — a session it no longer has, a protected one asked for without a password — and the browser reports that like any dropped connection. The client asks the relay over HTTP what the socket could not say (ADR-0050), so nobody is left behind a "Reconnecting…" that will never end. One exception is a session under a flood of refused joins: while it holds its bound of refused sockets ([deployment](deployment.md#free-plan-budget-and-alerts)), a join it would refuse gets a plain "try again later" answer with no verdict, so a wrong password or a full session reads as "Reconnecting…" until the flood passes.
 
 ---
 

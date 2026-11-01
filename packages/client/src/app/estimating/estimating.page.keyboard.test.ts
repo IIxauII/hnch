@@ -101,6 +101,7 @@ async function mountEstimating(opts: MountOptions = {}) {
   const { ParticipantIdService } = await import('../core/participant-id.service');
   const { HapticService } = await import('../core/haptic.service');
   const { LastSessionService } = await import('../core/last-session.service');
+  const { SessionExitService } = await import('../core/session-exit.service');
   const { TimerTickService } = await import('../core/timer-tick.service');
   const { SurfaceService } = await import('../core/surface.service');
   const { Router } = await import('@angular/router');
@@ -122,7 +123,6 @@ async function mountEstimating(opts: MountOptions = {}) {
     // active round means Estimating, otherwise Lobby (#508).
     screen: signal(activeRoundValue ? ('estimating' as const) : ('lobby' as const)).asReadonly(),
     rounds: signal([round].filter(Boolean) as Round[]).asReadonly(),
-    onlineParticipants: signal([]).asReadonly(),
     onlineParticipantIds: signal(new Set<string>()).asReadonly(),
     participants: signal(
       opts.isViewer
@@ -182,6 +182,7 @@ async function mountEstimating(opts: MountOptions = {}) {
           clear: vi.fn().mockResolvedValue(undefined),
         },
       },
+      { provide: SessionExitService, useValue: { exit: vi.fn() } },
       { provide: TimerTickService, useValue: { now: () => 0 } },
       {
         provide: SurfaceService,

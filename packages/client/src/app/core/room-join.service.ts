@@ -67,7 +67,7 @@ export interface RejoinDeps {
   getParticipantId: () => Promise<string>;
   /** Avatar color wire value (ADR-0043). Null = "no value set yet". */
   getAvatarColor: () => string | null;
-  docService: Pick<DocService, 'teardown' | 'joinSession' | 'connect' | 'sessionEpoch'>;
+  docService: Pick<DocService, 'teardown' | 'open' | 'sessionEpoch'>;
   waitForJoinOutcome: (opts?: JoinWaitOptions) => Promise<JoinOutcome>;
 }
 
@@ -131,21 +131,14 @@ export async function rejoinRoom(
   if (givenUp()) return { type: 'superseded' };
 
   const avatarColor = deps.getAvatarColor();
-  deps.docService.teardown();
-  deps.docService.joinSession({
+  deps.docService.open({
+    room: { uuid: resolved.uuid, code },
     participantId,
     displayName: displayName ?? '',
-    roomCode: code,
     ...(avatarColor && { avatarColor }),
+    ...(opts.passwordHash ? { passwordHash: opts.passwordHash } : {}),
+    seed: { kind: 'join' },
   });
-  deps.docService.connect(
-    {
-      roomCode: code,
-      deviceId: participantId,
-      ...(opts.passwordHash ? { passwordHash: opts.passwordHash } : {}),
-    },
-    { roomUuid: resolved.uuid },
-  );
 
   // The session this rejoin has just opened. What it does not get into, it
   // closes again itself — and only that: by then the caller has no way of
@@ -248,8 +241,7 @@ export class RoomJoinService {
       getAvatarColor: () => this.avatarColorService.value(),
       docService: {
         teardown: () => this.docService.teardown(),
-        joinSession: (init) => this.docService.joinSession(init),
-        connect: (creds, opts) => this.docService.connect(creds, opts),
+        open: (init) => this.docService.open(init),
         sessionEpoch: this.docService.sessionEpoch,
       },
       waitForJoinOutcome: (opts) => this.waitForJoinOutcome(opts),
@@ -257,7 +249,7 @@ export class RoomJoinService {
   }
 
   /**
-   * Await first decisive event from doc-service signals after a connect()
+   * Await first decisive event from doc-service signals after an `open()`
    * call.
    *
    * "Connected" means connected *and synced*. The relay accepts the socket

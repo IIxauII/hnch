@@ -147,11 +147,11 @@ export function App({
     },
   );
 
-  // Confirm quit handler — active only during confirmation
+  // The confirm-quit keys, active only while the question is up. Quitting
+  // takes the UI down; the entry flow's session exit closes the session.
   useInput(
     (input, key) => {
       if (input === 'y' || input === 'Y') {
-        session.teardown();
         exit();
       } else if (input === 'n' || input === 'N' || key.escape) {
         setConfirmingQuit(false);

@@ -8,10 +8,12 @@ import { env } from 'cloudflare:workers';
 import { evictDurableObject, runInDurableObject } from 'cloudflare:test';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Codes } from './codes';
+import { REFUSED_BOUND_DETAIL, REFUSED_SOCKETS_BOUND } from './room';
 import { Peer, call, createRoom, eventually, upgrade } from './test-support/peer';
 import { handleFetch } from './worker';
 
 const HASH = 'ab'.repeat(32);
+const WRONG = 'cd'.repeat(32);
 const settle = () => new Promise((r) => setTimeout(r, 50));
 const roomStub = (uuid: string) => env.ROOM.get(env.ROOM.idFromName(uuid));
 const codesStub = (code: string) => env.CODES.get(env.CODES.idFromName(code));
@@ -22,6 +24,9 @@ const seatedCount = (uuid: string) =>
     roomStub(uuid),
     (room) => (room as unknown as { openSockets(): WebSocket[] }).openSockets().length,
   );
+/** The sockets the room accepted only to refuse, still held while their clients don't close. */
+const refusedCount = (uuid: string) =>
+  runInDurableObject(roomStub(uuid), (_room, state) => state.getWebSockets('refused').length);
 
 async function joined(uuid: string, query = ''): Promise<Peer> {
   const peer = await Peer.join(uuid, query);
@@ -72,22 +77,20 @@ describe('participant cap (HNCH_ROOM_CAP=3)', () => {
     const { uuid } = await createRoom({ passwordHash: HASH });
     const seated = [await joined(uuid, `?pw=${HASH}`), await joined(uuid, `?pw=${HASH}`)];
     // Its client never reads the close, so the relay's side stays CLOSING.
-    const refused = await upgrade(uuid, `?pw=${'cd'.repeat(32)}`);
+    const refused = await upgrade(uuid, `?pw=${WRONG}`);
     expect(refused.status).toBe(101);
-    const refusedCount = () =>
-      runInDurableObject(roomStub(uuid), (_room, state) => state.getWebSockets('refused').length);
-    expect(await refusedCount()).toBe(1);
+    expect(await refusedCount(uuid)).toBe(1);
 
     const third = await joined(uuid, `?pw=${HASH}`);
     const fourth = await Peer.join(uuid, `?pw=${HASH}`);
     expect(await fourth.closed()).toEqual({ code: 4006, reason: 'room-full' });
     for (const peer of [...seated, third]) expect(peer.closeEvent).toBeNull();
-    expect(await refusedCount()).toBe(1);
+    expect(await refusedCount(uuid)).toBe(1);
 
     // Once its client answers the close it drains, and an eviction keeps the
     // three peers seated: still full.
     refused.webSocket!.accept();
-    await eventually(async () => expect(await refusedCount()).toBe(0));
+    await eventually(async () => expect(await refusedCount(uuid)).toBe(0));
     await evictDurableObject(roomStub(uuid));
     const fifth = await Peer.join(uuid, `?pw=${HASH}`);
     expect(await fifth.closed()).toEqual({ code: 4006, reason: 'room-full' });
@@ -112,7 +115,7 @@ describe('participant cap (HNCH_ROOM_CAP=3)', () => {
     const { uuid } = await createRoom({ passwordHash: HASH });
     const peers = [await joined(uuid, `?pw=${HASH}`), await joined(uuid, `?pw=${HASH}`)];
     // Refusals of either kind leave the room at two.
-    const wrong = await Peer.join(uuid, `?pw=${'cd'.repeat(32)}`);
+    const wrong = await Peer.join(uuid, `?pw=${WRONG}`);
     expect((await wrong.closed()).code).toBe(4002);
     const third = await joined(uuid, `?pw=${HASH}`);
     const full = await Peer.join(uuid, `?pw=${HASH}`);
@@ -196,5 +199,63 @@ describe('DELETE /test/rooms/:uuid (HNCH_ENABLE_TEST_ROUTES=1)', () => {
           .n,
       })),
     ).toEqual({ log: 0, snapshot: 0 });
+  });
+});
+
+describe('refused-socket bound (#566)', () => {
+  /** Refused upgrades whose clients never answer the close, so each keeps its socket. */
+  async function holdRefused(uuid: string, query: string, count: number): Promise<Response[]> {
+    const held: Response[] = [];
+    for (let i = 0; i < count; i++) {
+      const res = await upgrade(uuid, query);
+      expect(res.status, `refusal ${i}`).toBe(101);
+      held.push(res);
+    }
+    return held;
+  }
+
+  async function expectBoundRefusal(res: Response): Promise<void> {
+    expect(res.status).toBe(503);
+    expect(res.webSocket).toBeNull();
+    expect(res.headers.get('retry-after')).toMatch(/^\d+$/);
+    expect(await res.json()).toEqual({ error: 'unavailable', detail: REFUSED_BOUND_DETAIL });
+  }
+
+  it('answers a wrong password with 503 at the bound, and still admits the right one', async () => {
+    const { uuid } = await createRoom({ passwordHash: HASH });
+    const held = await holdRefused(uuid, `?pw=${WRONG}`, REFUSED_SOCKETS_BOUND);
+    expect(await refusedCount(uuid)).toBe(REFUSED_SOCKETS_BOUND);
+
+    await expectBoundRefusal(await upgrade(uuid, `?pw=${WRONG}`));
+    expect(await refusedCount(uuid)).toBe(REFUSED_SOCKETS_BOUND);
+
+    const peer = await joined(uuid, `?pw=${HASH}`);
+    expect(peer.closeEvent).toBeNull();
+    expect(await seatedCount(uuid)).toBe(1);
+    expect(held).toHaveLength(REFUSED_SOCKETS_BOUND);
+  });
+
+  it('answers room-full with the same 503 at the bound', async () => {
+    const { uuid } = await createRoom({ passwordHash: HASH });
+    for (let i = 0; i < 3; i++) await joined(uuid, `?pw=${HASH}`);
+    // Kept until the end: a client the test lets go of is one that has gone
+    // away, and the runtime drops its refused socket.
+    const held = await holdRefused(uuid, `?pw=${HASH}`, REFUSED_SOCKETS_BOUND);
+
+    await expectBoundRefusal(await upgrade(uuid, `?pw=${HASH}`));
+    await expectBoundRefusal(await upgrade(uuid, `?pw=${WRONG}`));
+    expect(held).toHaveLength(REFUSED_SOCKETS_BOUND);
+  });
+
+  it('refuses with a close code again once a held socket drains', async () => {
+    const { uuid } = await createRoom({ passwordHash: HASH });
+    const held = await holdRefused(uuid, `?pw=${WRONG}`, REFUSED_SOCKETS_BOUND);
+    await expectBoundRefusal(await upgrade(uuid, `?pw=${WRONG}`));
+
+    held[0]!.webSocket!.accept();
+    await eventually(async () => expect(await refusedCount(uuid)).toBe(REFUSED_SOCKETS_BOUND - 1));
+
+    const wrong = await Peer.join(uuid, `?pw=${WRONG}`);
+    expect(await wrong.closed()).toEqual({ code: 4002, reason: 'wrong-password' });
   });
 });

@@ -3,6 +3,7 @@
 // node_modules. Run locally with `pnpm test:ci-scripts`.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import process from 'node:process';
 import { describe, it } from 'node:test';
@@ -89,6 +90,60 @@ describe('checkPrTitle', () => {
 
   it('accepts a breaking multi-scope title', () => {
     assert.deepEqual(checkPrTitle('feat(client,cli,shared)!: drop legacy join URL'), { ok: true });
+  });
+
+  // The scope Dependabot appends for devDependencies when a config sets
+  // `commit-message.include: scope`. .github/dependabot.yml must not.
+  it('rejects the deps-dev scope', () => {
+    const result = checkPrTitle('chore(deps-dev): bump vitest from 3.2.4 to 4.0.0');
+    assert.equal(result.ok, false);
+    assert.match(result.error, /^Unknown scope "deps-dev" found in pull request title/);
+  });
+});
+
+// The titles Dependabot opens PRs with are `<prefix>: bump ...`, where
+// <prefix> is `commit-message.prefix` (or `prefix-development`) from
+// .github/dependabot.yml. An `include: scope` would append `(deps)` or
+// `(deps-dev)` to the prefix, so the config must not set it. Read with a
+// regex, not a YAML parser: this file runs without node_modules.
+describe('.github/dependabot.yml titles', () => {
+  const config = readFileSync(
+    join(import.meta.dirname, '..', '..', '.github', 'dependabot.yml'),
+    'utf8',
+  );
+  // Key, then the value with optional quotes and an optional trailing
+  // comment. One regex for the count and the values, so a line the value
+  // capture cannot read fails the count instead of dropping out silently.
+  const prefixLines = [
+    ...config.matchAll(/^\s*(prefix(?:-development)?):\s*(['"]?)([^'"#\s]+)\2\s*(?:#.*)?$/gm),
+  ];
+  const prefixes = prefixLines.map((m) => m[3]);
+
+  it('sets a commit-message prefix for every ecosystem', () => {
+    const ecosystems = config.match(/^\s*- package-ecosystem:/gm) ?? [];
+    assert.ok(ecosystems.length > 0, 'no package-ecosystem entries found');
+    const prefixKeys = config.match(/^\s*prefix(?:-development)?:/gm) ?? [];
+    assert.equal(prefixLines.length, prefixKeys.length, 'a prefix line has an unreadable value');
+    const productionPrefixes = prefixLines.filter((m) => m[1] === 'prefix');
+    assert.equal(
+      productionPrefixes.length,
+      ecosystems.length,
+      'every package-ecosystem needs a commit-message prefix',
+    );
+  });
+
+  it('produces titles that pass the lint, with the deps scope', () => {
+    for (const prefix of prefixes) {
+      const title = `${prefix}: bump the angular group across 1 directory with 17 updates`;
+      assert.deepEqual(checkPrTitle(title), { ok: true }, title);
+      assert.match(prefix, /\(deps\)$/, `${prefix} does not end in the deps scope`);
+    }
+  });
+
+  // In Dependabot's schema `include` only exists under commit-message, and
+  // `scope` is its only value, so any `include:` key is the hazard.
+  it('does not append a scope to the prefix', () => {
+    assert.doesNotMatch(config, /^\s*include:/m);
   });
 });
 
