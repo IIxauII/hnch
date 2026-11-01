@@ -73,7 +73,7 @@
     "node-types": "npm:@types/node@^22.0.0",
     "typescript": "~5.9.0",
     "vitest": "4.1.12",
-    "wrangler": "4.151.3"
+    "wrangler": "4.155.0"
   },
   "description": "Pointing poker web and mobile client for agile teams"
 }
