@@ -1,6 +1,6 @@
 /* eslint-disable max-lines-per-function -- linear capture script */
 /**
- * Screenshot capture for #154 (PWA keyboard shortcuts).
+ * Screenshot capture for PWA keyboard shortcuts (#154).
  *
  * Produces PNGs under docs/screenshots/<sha>/kbd/:
  *   - estimating-empty.png       Estimating screen, no vote

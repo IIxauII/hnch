@@ -83,8 +83,8 @@ export async function mintRoom(
 }
 
 /**
- * Only a reason the relay has: a proxy or captive portal may answer instead, and the reason
- * ends up in front of the user, in the CLI as it came.
+ * The reason in a 404 body, or `null` unless it is one the relay sends: a proxy or captive
+ * portal may answer instead, and the reason ends up in front of the user, in the CLI as it came.
  */
 function rejectionReasonIn(body: unknown): JoinRejectionReason | null {
   if (typeof body !== 'object' || body === null) return null;
@@ -216,7 +216,8 @@ export interface ConnectToRelayOptions {
   readonly onReconnectingChange?: ((reconnecting: boolean) => void) | undefined;
   /**
    * {@link REPEAT_REJECTION_THRESHOLD} transient closes inside {@link REPEAT_REJECTION_WINDOW_MS}
-   * ms, so a surface can tell "still retrying" from "hung". The CLI may leave it unbound.
+   * ms, then resets its buffer, so a surface can tell "still retrying" from "hung". The CLI may
+   * leave it unbound.
    */
   readonly onRepeatRejection?: (() => void) | undefined;
   /**
@@ -260,7 +261,7 @@ export function relayHttpToWsUrl(httpBaseUrl: string): string {
   );
 }
 
-/** `did` always, `pw` for protected rooms (ADR-0016); no invite param, the relay never read one. */
+/** `did` always, `pw` for protected rooms (ADR-0016). No invite param: ADR-0017 dropped invite-only. */
 function credentialsToParams(credentials: JoinCredentials): Record<string, string> {
   const params: Record<string, string> = { did: credentials.deviceId };
   if (credentials.passwordHash !== undefined) {

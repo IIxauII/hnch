@@ -9,7 +9,7 @@
  *
  * Coverage: host-side lobby states across {390, 1440} × {light, dark}.
  * Whether to widen this to a full state × viewport × theme × role matrix
- * is decided in #642.
+ * is still open (#642).
  *
  * Run with:
  *   SCREENSHOT_CAPTURE=1 pnpm --filter @hnch/e2e exec playwright test \

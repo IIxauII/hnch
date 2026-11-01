@@ -261,8 +261,6 @@ describe('LastSessionService v2', () => {
     });
   });
 
-  // clearPasswordHash()
-
   describe('clearPasswordHash()', () => {
     it('removes passwordHash but keeps all other fields', async () => {
       const svc = await createService();
@@ -455,8 +453,6 @@ describe('LastSessionService v2', () => {
       await expect(svc.removeByUuid('ghost')).resolves.toBeUndefined();
     });
   });
-
-  // clearAll()
 
   describe('clearAll()', () => {
     it('removes the Preferences key', async () => {

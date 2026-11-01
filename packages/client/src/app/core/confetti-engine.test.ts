@@ -199,8 +199,6 @@ describe('ConfettiEngine — center pattern', () => {
   });
 });
 
-// ConfettiEngine — top-sprinkle pattern
-
 describe('ConfettiEngine — top-sprinkle pattern', () => {
   let layer: HTMLDivElement;
   let animateSpy: ReturnType<typeof vi.spyOn>;
@@ -240,8 +238,6 @@ describe('ConfettiEngine — top-sprinkle pattern', () => {
     expect(Math.abs(y - -20)).toBeLessThan(1);
   });
 });
-
-// ConfettiEngine — side-cannons pattern
 
 describe('ConfettiEngine — side-cannons pattern', () => {
   let layer: HTMLDivElement;

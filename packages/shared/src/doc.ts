@@ -4,8 +4,6 @@
  * are Unix milliseconds. No runtime Yjs import, so the relay can use these types without Yjs.
  */
 
-// Scale
-
 /**
  * Inlined into each round at creation, so custom scales need no shared registry and a round's
  * scale is frozen against later edits to `settings.defaultScale`.
@@ -48,9 +46,12 @@ export interface Participant {
   role?: 'voter' | 'viewer';
   /** Set by a leave or a host kick, never by a disconnect (ADR-0036); absent means active. */
   leftAt?: number;
-  /** Who wrote `leftAt`: the participant's own id for a leave, the host's for a kick. */
+  /** Who wrote `leftAt` (own id: leave, host's id: kick). Set exactly when `leftAt` is set. */
   removedBy?: string;
-  /** An `AccentKey` or `#rrggbb` (ADR-0043). Read it through `resolveAvatarColor`. */
+  /**
+   * An `AccentKey` or `#rrggbb` (ADR-0043). Absent means `deterministicAvatarColor(participantId)`.
+   * Read it through `resolveAvatarColor`, which tolerates malformed values from old or future clients.
+   */
   avatarColor?: string;
 }
 
@@ -81,7 +82,7 @@ export interface AgendaItem {
   source: string;
   /** The importer's id for the item, paired with `source`. Nothing writes it yet. */
   externalId?: string;
-  /** Fractional-index key, sorted lexicographically. Frozen once the item leaves `pending`. */
+  /** Base-62 fractional-index key, sorted lexicographically. Frozen once the item leaves `pending`. */
   sortKey: string;
   createdAt: number;
   /** Written together with `consumedByRoundId`. */
@@ -150,8 +151,6 @@ export interface Round extends Omit<StoredRound, 'revealedAt' | 'skippedAt' | 'd
 }
 
 // Presence (awareness) is not in the doc: its shape is `live-session`'s.
-
-// Builtin scales
 
 export const FIBONACCI_SCALE: Scale = {
   id: 'fibonacci',

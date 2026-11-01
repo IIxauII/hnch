@@ -380,8 +380,6 @@ describe('rejoinRoom', () => {
   });
 });
 
-// dedupRejoin
-
 describe('dedupRejoin', () => {
   it('(a) two concurrent calls return the same Promise reference and factory invoked once', async () => {
     const { dedupRejoin } = await import('./room-join.service');
@@ -456,8 +454,6 @@ describe('dedupRejoin', () => {
     expect(factory2).toHaveBeenCalledTimes(1);
   });
 });
-
-// assertRoomCode
 
 describe('assertRoomCode', () => {
   it('does not throw when code is non-null', async () => {

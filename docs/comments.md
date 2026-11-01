@@ -16,7 +16,7 @@ How to comment code in every package. Reviewers apply this; no lint rule checks 
 /** Whether this client is the host (Phase 2). */
 isHost(): boolean;
 
-// Good: says what the signature does not.
-/** Unix ms; absent while the session is active. */
-sessionEndedAt?: number;
+// Good: states an invariant the type cannot (packages/shared/src/doc.ts).
+/** Who wrote `leftAt` (own id: leave, host's id: kick). Set exactly when `leftAt` is set. */
+removedBy?: string;
 ```

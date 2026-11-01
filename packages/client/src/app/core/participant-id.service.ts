@@ -21,7 +21,6 @@ import { Preferences } from '@capacitor/preferences';
  * guards can read it synchronously after bootstrap. An
  * `APP_INITIALIZER` pre-warms {@link ensureLoaded} so consumers never
  * race the first-access promise.
-
  */
 @Injectable({ providedIn: 'root' })
 export class ParticipantIdService {

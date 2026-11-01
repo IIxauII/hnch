@@ -1,6 +1,6 @@
 /* eslint-disable max-lines-per-function -- long linear capture script */
 /**
- * Screenshot capture for the local-room-history feature (PR for #224).
+ * Screenshot capture for the local-room-history feature (#224).
  *
  * Captures the Home screen at 0/1/2/5-entry states, and the × that forgets
  * an entry with keyboard focus on it. The × is always on screen — it used to

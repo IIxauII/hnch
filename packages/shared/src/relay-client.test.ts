@@ -170,8 +170,6 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// mintRoom
-
 describe('mintRoom', () => {
   it('POSTs an empty body and returns the minted room', async () => {
     const fetchMock = stubFetch({
@@ -204,8 +202,6 @@ describe('mintRoom', () => {
     await expect(mintRoom('http://relay.test')).rejects.toThrow('POST /rooms failed: 500');
   });
 });
-
-// resolveRoom
 
 describe('resolveRoom', () => {
   it('returns uuid and accessMode', async () => {
@@ -285,8 +281,6 @@ describe('resolveRoom', () => {
     expect((err as Error).message).toBe('GET /rooms/:code failed: 503');
   });
 });
-
-// patchRoomAccess
 
 describe('patchRoomAccess', () => {
   it('sends the hash and returns the resulting access mode', async () => {
@@ -372,8 +366,6 @@ describe('a request the relay does not answer', () => {
     expect(RELAY_REQUEST_TIMEOUT_MS).toBeGreaterThanOrEqual(5_000);
   });
 });
-
-// relayHttpToWsUrl
 
 describe('relayHttpToWsUrl', () => {
   it('maps https to wss and never to plain ws', () => {

@@ -90,7 +90,6 @@ export class Participant {
 
   // Onboarding
 
-  /** Complete the onboarding flow by entering a display name. */
   async onboard(): Promise<void> {
     await this.page.waitForURL(/\/onboarding/);
     const input = this.page.locator(ONBOARDING.nameInput);
@@ -179,7 +178,6 @@ export class Participant {
       .filter({ hasText: LOBBY.startRoundBtn });
     await startRoundBtn.waitFor({ state: 'visible' });
     await startRoundBtn.click();
-    // Wait for the round-start modal to appear
     const modal = this.page.locator('app-round-start-sheet');
     await modal.waitFor({ state: 'visible' });
     if (title) {
@@ -218,17 +216,14 @@ export class Participant {
 
   // Voting
 
-  /** Tap a card to cast (or change) a vote. */
   async castVote(value: string): Promise<void> {
     await this.page.locator(ESTIMATING.card(value)).first().click();
   }
 
-  /** Tap the "Abstain this round" button on the Estimating page. */
   async abstain(): Promise<void> {
     await this.page.locator(ESTIMATING.abstainBtn).first().click();
   }
 
-  /** Toggle role between voter and viewer on the estimating page. */
   async toggleRole(): Promise<void> {
     // The switch reads either "Voter" or "Observer".
     // .first() ensures we target the active (topmost) app-estimating page in the Ionic stack
@@ -366,7 +361,6 @@ export class Participant {
     await expectToast(this.page, 'Password removed');
   }
 
-  /** Join with a password — enters code, waits for password field, fills it. */
   async joinSessionWithPassword(code: string, password: string): Promise<void> {
     await this.page.goto(`${BASE_URL}/home`);
     await this.page.waitForURL(/\/(home|onboarding)/);
@@ -380,7 +374,6 @@ export class Participant {
     const pwInput = this.page.locator(JOIN.passwordInput).locator('input');
     await pwInput.waitFor({ state: 'visible', timeout: 5_000 });
     await pwInput.fill(password);
-    // Join connects with the password
     await this.page.locator(JOIN.joinBtn).click();
     await this.page.waitForURL(/\/lobby/, { timeout: 10_000 });
   }
@@ -403,12 +396,10 @@ export class Participant {
     await this.page.locator(LOBBY.roomCode).waitFor({ state: 'visible', timeout: 10_000 });
   }
 
-  /** Close the session settings sheet. */
   async closeSettings(): Promise<void> {
     const doneBtn = this.page.locator(SETTINGS_SHEET.doneBtn);
     await doneBtn.waitFor({ state: 'visible' });
     await doneBtn.click();
-    // Wait for modal dismiss animation
     await this.page.locator('app-session-settings-sheet').waitFor({ state: 'hidden' });
   }
 
@@ -430,13 +421,11 @@ export class Participant {
       await leaveBtn.click();
     }
 
-    // Confirm in alert
     const alert = this.page.locator('ion-alert');
     await alert.waitFor({ state: 'visible', timeout: 5_000 });
     const confirmBtn = this.page.locator('ion-alert button:has-text("Leave")');
     await confirmBtn.click();
 
-    // Navigate to /home
     await this.page.waitForURL(/\/home/, { timeout: 5_000 });
   }
 
@@ -482,7 +471,6 @@ export class Participant {
 
   // App settings (device-level preferences)
 
-  /** Navigate to the app settings page (/settings). */
   async navigateToAppSettings(): Promise<void> {
     await this.page.goto(`${BASE_URL}/settings`);
     await this.page.waitForURL(/\/settings/);
@@ -496,10 +484,8 @@ export class Participant {
     const doneBtn = this.page.locator(APP_SETTINGS_SCALE_PICKER.doneBtn);
     await doneBtn.waitFor({ state: 'visible' });
     await doneBtn.click();
-    // Wait for modal dismiss animation
     await this.page.locator('app-scale-picker-sheet').waitFor({ state: 'hidden' });
   }
-  /** Toggle a preset scale card on or off. */
   async togglePresetCard(presetLabel: string, cardValue: string): Promise<void> {
     await this.page.locator(APP_SETTINGS.defaultScaleRow).click();
 
@@ -508,21 +494,17 @@ export class Participant {
     await editBtn.waitFor({ state: 'visible' });
     await editBtn.click();
 
-    // Wait for the scale editor to appear
     await this.page.locator('app-scale-editor-sheet').waitFor({ state: 'visible' });
 
-    // Click the toggle for the target card
     const cardToggle = this.page.locator(PRESET_CARD_EDITOR.cardToggle(cardValue));
     await cardToggle.waitFor({ state: 'visible' });
     await cardToggle.click();
 
-    // Close the editor
     const doneBtn = this.page.locator(PRESET_CARD_EDITOR.doneBtn);
     await doneBtn.waitFor({ state: 'visible' });
     await doneBtn.click();
     await this.page.locator('app-scale-editor-sheet').waitFor({ state: 'hidden' });
 
-    // Close the scale picker
     const pickerDoneBtn = this.page.locator(APP_SETTINGS_SCALE_PICKER.doneBtn);
     await pickerDoneBtn.waitFor({ state: 'visible' });
     await pickerDoneBtn.click();
@@ -721,7 +703,6 @@ export class Participant {
     await resultsSection.waitFor({ state: 'visible', timeout: 10_000 });
     const cards = this.page.locator(LOBBY.groupCard);
     await cards.first().waitFor({ state: 'visible' });
-    // Collect all card values from vote groups (scoped to results section)
     const allChips: string[] = [];
     const groupCount = await this.page.locator(LOBBY.voteGroups).count();
     for (let i = 0; i < groupCount; i++) {
@@ -739,7 +720,6 @@ export class Participant {
     }
   }
 
-  /** Assert votes are hidden (on the estimating page). */
   async expectVotesHidden(): Promise<void> {
     // On the estimating page, there is no revealed data — just dot indicators
     // Verify we are on estimating (not revealed, no results section visible)

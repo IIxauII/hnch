@@ -67,8 +67,6 @@ function seedDoc(overrides: Partial<InitDocInit> = {}): { doc: Y.Doc; init: Init
   return { doc, init };
 }
 
-// initDoc
-
 describe('initDoc', () => {
   it('seeds meta, settings, and the host participant in one pass', () => {
     const { doc, init } = seedDoc();
@@ -135,8 +133,6 @@ describe('initDoc', () => {
   });
 });
 
-// patchSettings
-
 describe('patchSettings', () => {
   it('shallow-merges a partial patch', () => {
     const { doc } = seedDoc();
@@ -165,8 +161,6 @@ describe('patchSettings', () => {
     expect(snap.settings.defaultScale).toEqual(TSHIRT_SCALE);
   });
 });
-
-// upsertParticipant
 
 describe('upsertParticipant', () => {
   it('adds a new participant', () => {
@@ -331,8 +325,6 @@ describe('joinDoc avatarColor plumbing (ADR-0043)', () => {
   });
 });
 
-// appendRound
-
 describe('appendRound', () => {
   it('inherits scale from settings.defaultScale and snapshots it', () => {
     const { doc } = seedDoc();
@@ -401,8 +393,6 @@ describe('appendRound', () => {
     );
   });
 });
-
-// castVote / clearVote
 
 describe('castVote / clearVote', () => {
   it('sets a vote and overwrites on re-cast', () => {
@@ -481,8 +471,6 @@ describe('castVote / clearVote', () => {
     expect(snap.rounds[0]!.terminalAt).toBe(200);
   });
 });
-
-// revealRound
 
 describe('revealRound', () => {
   it('stamps revealedAt (projects status=revealed + terminalAt)', () => {
@@ -663,8 +651,6 @@ describe('appendRound timerStartedAt', () => {
   });
 });
 
-// currentRound
-
 describe('currentRound', () => {
   it('returns null for empty rounds', () => {
     const { doc } = seedDoc();
@@ -698,8 +684,6 @@ describe('currentRound', () => {
     expect(currentRound(projectDoc(doc))!.id).toBe('r2');
   });
 });
-
-// activeRound
 
 describe('activeRound', () => {
   it('returns null for empty rounds', () => {
@@ -817,8 +801,6 @@ describe('custom scales round-trip', () => {
     expect(snap.rounds[0]!.scale).toEqual(custom);
   });
 });
-
-// isConsensus
 
 describe('isConsensus', () => {
   it('returns false when no votes exist', () => {
@@ -953,8 +935,6 @@ describe('participant role projection round-trip', () => {
     expect(snap.participants[0]!.role).toBe('viewer');
   });
 });
-
-// endSessionForEveryone
 
 describe('endSessionForEveryone', () => {
   it('writes the caller-supplied endedAt to meta projection', () => {
@@ -1272,8 +1252,6 @@ describe('concurrent leaveSession + removeParticipant converge (ADR-0036 §7)', 
     expect(['p-target', 'p-host']).toContain(targetA.removedBy);
   });
 });
-
-// patchRoundDescriptor
 
 describe('patchRoundDescriptor', () => {
   function makeDocWithRound(overrides: { title?: string; description?: string } = {}) {
@@ -1880,8 +1858,6 @@ describe('discardRound', () => {
     expect(item.state).toBe('pending');
   });
 });
-
-// revealRound / skipRound atomic agenda consume
 
 describe('revealRound / skipRound atomic agenda consume', () => {
   it('revealRound consumes linked pending agenda item in same transaction', () => {

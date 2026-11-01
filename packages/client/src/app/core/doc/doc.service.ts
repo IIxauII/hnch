@@ -465,6 +465,7 @@ export class DocService {
   /**
    * Re-handshake with a new password hash (`null` for an open room) without a teardown
    * (ADR-0017), so this client's reconnects stop carrying the stale hash. No-op when unchanged.
+   * If the socket has not opened yet (the snapshot is still loading), it opens with the new hash.
    */
   updateCredentials(passwordHash: string | null): void {
     if (this.credentials !== null) {
@@ -649,7 +650,8 @@ export class DocService {
   }
 
   /**
-   * Adapter for the shared session events driver (ADR-0023, ADR-0036 §5–6). Presence trust is
+   * Adapter for the shared session events driver (ADR-0023, ADR-0036 §5–6). `selfId` goes by
+   * value: the id `attach` received is fixed for the session. Presence trust is
    * the live `relaySynced`, not the sticky first-sync flag: a host looks disconnected only to a
    * peer that is in sync itself.
    */

@@ -1,5 +1,5 @@
 /**
- * Render tests for Lobby.tsx covering the patch lines added by #111:
+ * Render tests for Lobby.tsx covering the lines the re-vote lineage patch added (#111):
  *  - `pastRounds.map(... compactRoundSummary(r, rounds))` (history row)
  *  - `const header = buildResultsHeader(round, rounds)` + the two
  *     `<Text bold>{header}</Text>` bindings in ResultsSection (revealed +

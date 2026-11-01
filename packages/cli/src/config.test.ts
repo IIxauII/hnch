@@ -59,8 +59,6 @@ function writeFullConfig(overrides: Record<string, unknown> = {}): void {
   writeFileSync(join(dir, 'config.json'), JSON.stringify(cfg, null, 2) + '\n', 'utf-8');
 }
 
-// configDir
-
 describe('configDir', () => {
   it('returns XDG_CONFIG_HOME/hnch when XDG_CONFIG_HOME is set', () => {
     expect(configDir()).toBe(join(tmpBase, 'hnch'));
@@ -74,8 +72,6 @@ describe('configDir', () => {
     expect(dir).not.toContain(tmpBase);
   });
 });
-
-// readConfig
 
 describe('readConfig', () => {
   it('returns {} when no config file exists', () => {
@@ -105,8 +101,6 @@ describe('readConfig', () => {
     expect(readConfig()).toEqual({});
   });
 });
-
-// writeConfig
 
 describe('writeConfig', () => {
   it('creates the config directory and file if they do not exist', () => {
@@ -138,8 +132,6 @@ describe('writeConfig', () => {
     expect(raw.endsWith('\n')).toBe(true);
   });
 });
-
-// loadConfig
 
 describe('loadConfig', () => {
   it('returns stored config when all fields are present', async () => {
@@ -270,8 +262,6 @@ describe('loadConfig', () => {
     expect(cfg.displayName).toBe('Alice');
   });
 });
-
-// updateConfig
 
 describe('updateConfig', () => {
   it('writes new fields to a fresh config', () => {

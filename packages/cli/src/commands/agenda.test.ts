@@ -285,8 +285,6 @@ describe('agenda command flow', () => {
   });
 });
 
-// handleAgendaAdd
-
 describe('handleAgendaAdd', () => {
   it('exits 1 when neither --title nor --ticket provided', async () => {
     const { handleAgendaAdd } = await import('./agenda.js');
@@ -369,8 +367,6 @@ describe('handleAgendaAdd', () => {
   });
 });
 
-// handleAgendaList
-
 describe('handleAgendaList', () => {
   it('prints "No agenda items." when agenda is empty', async () => {
     const { handleAgendaList } = await import('./agenda.js');
@@ -395,8 +391,6 @@ describe('handleAgendaList', () => {
     logSpy.mockRestore();
   });
 });
-
-// handleAgendaSkip
 
 describe('handleAgendaSkip', () => {
   it('exits 1 and logs error for unknown item id', async () => {
@@ -424,8 +418,6 @@ describe('handleAgendaSkip', () => {
     logSpy.mockRestore();
   });
 });
-
-// handleAgendaCancel
 
 describe('handleAgendaCancel', () => {
   it('exits 1 and logs error for unknown item id', async () => {
@@ -455,8 +447,6 @@ describe('handleAgendaCancel', () => {
     logSpy.mockRestore();
   });
 });
-
-// handleAgendaMv
 
 describe('handleAgendaMv', () => {
   it('exits 1 for unknown item id', async () => {

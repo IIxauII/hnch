@@ -2,7 +2,6 @@
 // https://ionicframework.com/docs/theming/
 
 // Mono surface tokens — light mode (default)
-// Values from ionic-screens.jsx:31–48
 
 :root {
   // What the browser draws itself — scrollbars, native controls — follows
@@ -49,7 +48,6 @@
   --hnch-fill:         rgba(120, 120, 128, 0.16);
 
   // Semantic — light
-  // Values from ionic-screens.jsx:24–28
   --hnch-success:      #30D158;
   --hnch-warning:      #FF9F0A;
   --hnch-danger:       #FF453A;

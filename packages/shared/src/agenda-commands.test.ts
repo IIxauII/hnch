@@ -56,8 +56,6 @@ function expectApplied(result: AgendaResult): Extract<AgendaResult, { applied: t
   return result;
 }
 
-// addItem
-
 describe('addItem', () => {
   it('appends a pending item, stamping createdAt from the injected clock', () => {
     const doc = seedDoc();
@@ -118,8 +116,6 @@ describe('addItem', () => {
     expect(projectDoc(doc).agenda).toHaveLength(0);
   });
 });
-
-// editItem
 
 describe('editItem', () => {
   it('patches title, ticketId and description on a pending item', () => {
@@ -268,8 +264,6 @@ describe('cancelItem', () => {
     expect(itemState(doc, id)).toBe('skipped');
   });
 });
-
-// moveItem
 
 describe('moveItem', () => {
   it('reorders a pending item and stamps no timestamp', () => {

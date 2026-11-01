@@ -9,8 +9,6 @@ import { UNBOUND_SESSION_COMMANDS, type CustomScale, type Scale } from '@hnch/sh
 import { ACCENTS } from '../core/accent.tokens';
 import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.helpers';
 
-// isValidTheme
-
 describe('isValidTheme', () => {
   it('accepts "system"', () => {
     expect(isValidTheme('system')).toBe(true);
@@ -42,8 +40,6 @@ describe('isValidTheme', () => {
   });
 });
 
-// isValidAccent
-
 describe('isValidAccent', () => {
   it('accepts all keys present in ACCENTS', () => {
     for (const key of Object.keys(ACCENTS)) {
@@ -68,8 +64,6 @@ describe('isValidAccent', () => {
     expect(isValidAccent(42)).toBe(false);
   });
 });
-
-// relayUrlDisplayLabel
 
 describe('relayUrlDisplayLabel', () => {
   it('returns the URL when a relay URL override is set', () => {

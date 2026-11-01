@@ -40,8 +40,6 @@ function makeRound(overrides: Partial<Round> = {}): Round {
   };
 }
 
-// formatRoundLabel
-
 describe('formatRoundLabel', () => {
   it('returns "ticketId · title" when both are set', () => {
     expect(formatRoundLabel({ ticketId: 'PROJ-42', title: 'Auth migration' })).toBe(
@@ -146,8 +144,6 @@ describe('nextRoundNumber', () => {
     expect(nextRoundNumber([makeRound({ id: 'r1', status: 'discarded' })])).toBe(1);
   });
 });
-
-// formatRoundPosition
 
 describe('formatRoundPosition', () => {
   it('standalone round → plain "Round N" from array position', () => {
@@ -498,8 +494,6 @@ describe('roundStatsFor', () => {
   });
 });
 
-// formatRoundStats
-
 describe('formatRoundStats', () => {
   it('null in → null out', () => {
     expect(formatRoundStats(null)).toBeNull();
@@ -590,8 +584,6 @@ describe('formatRoundStats', () => {
     });
   });
 });
-
-// formatRoundElapsed
 
 describe('formatRoundElapsed', () => {
   it('revealed round with a timer → M:SS', () => {

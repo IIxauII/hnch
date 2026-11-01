@@ -1,6 +1,6 @@
 /* eslint-disable max-lines-per-function -- linear capture script */
 /**
- * Screenshot capture for #191 (Estimating screen visual hierarchy).
+ * Screenshot capture for the Estimating screen visual hierarchy (#191).
  *
  * Three voters onboard, host creates a Fibonacci room, starts a titled
  * round, and two of three cast votes — leaving one outstanding so the

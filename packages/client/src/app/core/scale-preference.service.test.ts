@@ -164,8 +164,6 @@ describe('ScalePreferenceService', () => {
     });
   });
 
-  // togglePresetCard
-
   describe('togglePresetCard', () => {
     it('disables a card index for a known builtin scale', async () => {
       mockPreferences.get.mockImplementation(allKeysNull());
@@ -227,8 +225,6 @@ describe('ScalePreferenceService', () => {
     });
   });
 
-  // addCustomScale
-
   describe('addCustomScale', () => {
     it('appends a new scale and returns its id', async () => {
       mockPreferences.get.mockImplementation(allKeysNull());
@@ -274,8 +270,6 @@ describe('ScalePreferenceService', () => {
     });
   });
 
-  // updateCustomScale
-
   describe('updateCustomScale', () => {
     it('updates label and cards in place', async () => {
       mockPreferences.get.mockImplementation(allKeysNull());
@@ -303,8 +297,6 @@ describe('ScalePreferenceService', () => {
       expect(svc.customScales().length).toBe(before);
     });
   });
-
-  // deleteCustomScale
 
   describe('deleteCustomScale', () => {
     it('removes the scale by id', async () => {
@@ -372,8 +364,6 @@ describe('ScalePreferenceService', () => {
       expect(svc.customScales()[0]!.label).toBe('Keep');
     });
   });
-
-  // setDefaultScaleId
 
   describe('setDefaultScaleId', () => {
     it('updates the defaultScaleId signal', async () => {

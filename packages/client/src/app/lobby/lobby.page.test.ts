@@ -1483,7 +1483,7 @@ describe('LobbyPage — autoNav effect (wiring)', () => {
   });
 });
 
-// Agenda form submit — the one deliberate UX consequence of #507.
+// Agenda form submit — the one deliberate UX consequence of moving the agenda writers into shared (#507).
 //
 // Wiring only: the gate that produces the refusal is pinned in
 // `@hnch/shared`'s agenda-commands.test.ts. What matters here is client
