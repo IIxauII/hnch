@@ -1,3 +1,10 @@
+## [1.47.1](https://github.com/IIxauII/hnch/compare/client-v1.47.0...client-v1.47.1) (2026-11-01)
+
+
+### Bug Fixes
+
+* **client,ci,deps,docs,repo:** prepare the repo for going public ([#756](https://github.com/IIxauII/hnch/issues/756)) ([42a10e5](https://github.com/IIxauII/hnch/commit/42a10e50357167826fd8949b9a2fe6f39fb37eda))
+
 # [1.47.0](https://github.com/IIxauII/hnch/compare/client-v1.46.0...client-v1.47.0) (2026-10-31)
 
 
