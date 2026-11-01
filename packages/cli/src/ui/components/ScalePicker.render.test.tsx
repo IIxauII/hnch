@@ -24,10 +24,6 @@ const LINEAR: Scale = { id: 'linear', cards: ['1', '2', '3', '4', '5'] };
 const CUSTOM: CustomScale = { id: 'custom-team', label: 'Team Points', cards: ['S', 'M', 'L'] };
 const CUSTOM_SCALE: Scale = { id: CUSTOM.id, cards: CUSTOM.cards };
 
-// ---------------------------------------------------------------------------
-// Empty state
-// ---------------------------------------------------------------------------
-
 // Exercises: ui/components/ScalePicker:ScalePicker (empty branch)
 describe('ScalePicker — empty state', () => {
   it('renders "no scales available" when scales list is empty', () => {
@@ -44,9 +40,7 @@ describe('ScalePicker — empty state', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Browsing — rendering
-// ---------------------------------------------------------------------------
 
 // Exercises: ui/components/ScalePicker:ScalePicker (browsing render)
 describe('ScalePicker — browsing render', () => {
@@ -94,9 +88,7 @@ describe('ScalePicker — browsing render', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Browsing — keyboard navigation
-// ---------------------------------------------------------------------------
 
 // Exercises: ui/components/ScalePicker:ScalePicker (cursor movement)
 describe('ScalePicker — navigation', () => {
@@ -135,9 +127,7 @@ describe('ScalePicker — navigation', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Browsing — selection
-// ---------------------------------------------------------------------------
 
 // Exercises: ui/components/ScalePicker:ScalePicker (onSelect dispatch)
 describe('ScalePicker — selection', () => {
@@ -187,10 +177,6 @@ describe('ScalePicker — selection', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 });
-
-// ---------------------------------------------------------------------------
-// Delete-confirm flow
-// ---------------------------------------------------------------------------
 
 // Exercises: ui/components/ScalePicker:ScalePicker (confirming-delete state)
 describe('ScalePicker — delete-confirm flow', () => {

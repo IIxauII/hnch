@@ -194,8 +194,6 @@ export function deployedVersionProblems(live, { versionId, sha, tag }) {
   return problems;
 }
 
-// ------------------------------------------------------------------ CLI
-
 async function readDeployConfig() {
   const { unstable_readConfig } = await import('wrangler');
   return /** @type {DeployConfig} */ (

@@ -1,11 +1,11 @@
 /**
- * Render tests for Lobby.tsx covering the patch lines added by issue #111:
+ * Render tests for Lobby.tsx covering the patch lines added by #111:
  *  - `pastRounds.map(... compactRoundSummary(r, rounds))` (history row)
  *  - `const header = buildResultsHeader(round, rounds)` + the two
  *     `<Text bold>{header}</Text>` bindings in ResultsSection (revealed +
  *     skipped branches).
  *
- * …plus the stat row's adoption of shared round presentation (issue #509).
+ * …plus the stat row's adoption of shared round presentation (#509).
  *
  * Mounts with ink-testing-library and asserts header / history content.
  */
@@ -146,7 +146,7 @@ function baseProps(rounds: readonly Round[], currentRound: Round | null) {
   };
 }
 
-describe('Lobby render — issue #111 patch lines', () => {
+describe('Lobby render — #111 patch lines', () => {
   it('ResultsSection renders re-vote header for a re-voted current round', () => {
     const r1 = makeRound({ id: 'r1', revealedAt: 1000 });
     const r2 = makeRound({
@@ -206,7 +206,7 @@ describe('Lobby render — issue #111 patch lines', () => {
     expect(plain(frame)).toContain('Avg: 5.0');
     expect(plain(frame)).toContain('Med: 5.0');
     expect(plain(frame)).toContain('Spread: Unanimous');
-    // Agreement percentage is retired, not relocated (issue #509).
+    // Agreement percentage is retired, not relocated (#509).
     expect(frame).not.toContain('Agreement');
   });
 
@@ -263,7 +263,7 @@ describe('Lobby render — issue #111 patch lines', () => {
     expect(frame).not.toContain('hnch_abstain');
   });
 
-  it('renders ticket ID prompt block when roundTicketIdPromptActive is true (issue #109)', () => {
+  it('renders ticket ID prompt block when roundTicketIdPromptActive is true (#109)', () => {
     const props = {
       ...baseProps([], null),
       roundTicketIdPromptActive: true,
@@ -370,10 +370,8 @@ describe('Lobby render — issue #111 patch lines', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Cancelled rounds (ADR-0046). A cancelled round is a tombstone: it is listed
 // nowhere and takes no number. Shown, it came out as "Round 0".
-// ---------------------------------------------------------------------------
 
 describe('Lobby render — cancelled rounds', () => {
   it('leaves a cancelled round out of the history', () => {
@@ -425,9 +423,7 @@ describe('Lobby render — cancelled rounds', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Agenda panel render tests (issue #153)
-// ---------------------------------------------------------------------------
+// Agenda panel render tests (#153)
 
 function makeAgendaItem(overrides: Partial<AgendaItem> & { id: string }): AgendaItem {
   return {

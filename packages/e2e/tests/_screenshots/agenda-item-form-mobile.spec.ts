@@ -4,7 +4,7 @@
  *
  * Writes PNGs to docs/screenshots/<sha>/agenda/ showing the sheet at the 0.6
  * breakpoint with the header actions visible (add mode and edit mode). The
- * regression guard for those actions (issue #446) runs in every e2e run from
+ * regression guard for those actions (#446) runs in every e2e run from
  * `tests/sheet-actions-mobile.spec.ts`; the assertions kept here only wait
  * for the state the shots show.
  *

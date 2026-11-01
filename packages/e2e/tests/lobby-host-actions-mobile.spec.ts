@@ -24,9 +24,7 @@ import { KICK_AFFORDANCE, LOBBY } from './fixtures/helpers';
 const { defaultBrowserType: _iphoneDefaultBrowserType, ...IPHONE_13 } = devices['iPhone 13'];
 test.use(IPHONE_13);
 
-// ---------------------------------------------------------------------------
 // Minimal two-context fixture (mirrors app.fixture.ts host+player pattern)
-// ---------------------------------------------------------------------------
 
 async function clearStorage(context: import('@playwright/test').BrowserContext): Promise<void> {
   await context.addInitScript(() => {
@@ -56,10 +54,6 @@ async function openPhone(
   const page = await context.newPage();
   return { context, participant: new Participant(context, page, name) };
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 test.describe('Host actions on a phone (iPhone 13)', () => {
   test('the row menu is an action sheet, titled with the name; Remove works', async ({

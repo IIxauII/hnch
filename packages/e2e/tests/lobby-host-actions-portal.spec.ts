@@ -24,9 +24,7 @@
 import { test, expect } from './fixtures/app.fixture';
 import { KICK_AFFORDANCE, LOBBY, watchForToast } from './fixtures/helpers';
 
-// ---------------------------------------------------------------------------
 // Helper: click the overflow button for a named participant (desktop)
-// ---------------------------------------------------------------------------
 
 async function clickOverflow(
   page: import('@playwright/test').Page,
@@ -37,9 +35,7 @@ async function clickOverflow(
   await btn.click();
 }
 
-// ---------------------------------------------------------------------------
 // Helper: click a named item inside the MenuPopover
-// ---------------------------------------------------------------------------
 
 async function clickPopoverItem(
   page: import('@playwright/test').Page,
@@ -51,10 +47,6 @@ async function clickPopoverItem(
   await item.waitFor({ state: 'visible', timeout: 5_000 });
   await item.click();
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 test.describe('Desktop host-actions popover', () => {
   test('Remove via overflow: row disappears after confirm', async ({ host, player }) => {

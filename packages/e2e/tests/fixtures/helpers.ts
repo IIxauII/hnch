@@ -87,9 +87,7 @@ export async function watchForToast(page: Page, message: string): Promise<ToastW
   };
 }
 
-// ---------------------------------------------------------------------------
 // The sessions this device remembers
-// ---------------------------------------------------------------------------
 
 /** Capacitor Preferences on the web is localStorage under this prefix. */
 const LAST_SESSION_STORAGE_KEY = 'CapacitorStorage.hnch.lastSession';
@@ -116,17 +114,13 @@ export async function rememberedSessionCodes(page: Page): Promise<string[]> {
   }, LAST_SESSION_STORAGE_KEY);
 }
 
-// ---------------------------------------------------------------------------
 // Onboarding
-// ---------------------------------------------------------------------------
 export const ONBOARDING = {
   nameInput: 'ion-input[autocapitalize="words"]',
   continueBtn: 'ion-button:has-text("Continue")',
 } as const;
 
-// ---------------------------------------------------------------------------
 // Home
-// ---------------------------------------------------------------------------
 export const HOME = {
   createCard: 'ion-item:has(h3:text-is("New session"))',
   joinCard: 'ion-item:has(h3:text-is("Join session"))',
@@ -136,9 +130,7 @@ export const HOME = {
   recentRemoveBtn: 'app-recent-rooms-list ion-button.remove-btn',
 } as const;
 
-// ---------------------------------------------------------------------------
 // Join
-// ---------------------------------------------------------------------------
 export const JOIN = {
   /**
    * Segmented 6-tile code input. Each tile is `<input maxlength="1">`,
@@ -170,9 +162,7 @@ export async function fillRoomCode(page: Page, code: string): Promise<void> {
   await page.keyboard.type(code);
 }
 
-// ---------------------------------------------------------------------------
 // Lobby
-// ---------------------------------------------------------------------------
 export const LOBBY = {
   roomCode: 'button.room-code',
   roomCodeText: 'button.room-code span',
@@ -213,9 +203,7 @@ export const SESSION_TOOLBAR = {
   leaveBtn: 'Leave session',
 } as const;
 
-// ---------------------------------------------------------------------------
 // QR display modal
-// ---------------------------------------------------------------------------
 export const QR_MODAL = {
   showBtn: 'app-lobby:not(.ion-page-hidden) ion-button.qr-btn',
   img: 'app-qr-display-sheet img',
@@ -223,9 +211,7 @@ export const QR_MODAL = {
   doneBtn: 'app-qr-display-sheet ion-button:has-text("Done")',
 } as const;
 
-// ---------------------------------------------------------------------------
 // Round-start modal
-// ---------------------------------------------------------------------------
 /**
  * What the fields of the round form are called on screen — and therefore to
  * assistive tech: the label *is* the accessible name. The round-edit sheet
@@ -281,9 +267,7 @@ export async function clickRoundStartSubmit(page: Page): Promise<void> {
   await page.waitForURL(/\/estimating/, { timeout: 15_000 });
 }
 
-// ---------------------------------------------------------------------------
 // Estimating
-// ---------------------------------------------------------------------------
 export const ESTIMATING = {
   /** "Round N", in the toolbar. */
   roundTitle: 'app-estimating:not(.ion-page-hidden) ion-title',
@@ -305,9 +289,7 @@ export const ESTIMATING = {
   cardGridAbstained: 'app-estimating div.grid.abstained',
 } as const;
 
-// ---------------------------------------------------------------------------
 // Session settings
-// ---------------------------------------------------------------------------
 export const SETTINGS_SHEET = {
   scaleRow: 'app-session-settings-sheet ion-item:has(h3:text-is("Scale"))',
   scaleValue: 'app-session-settings-sheet ion-item:has(h3:text-is("Scale")) ion-note',
@@ -323,9 +305,7 @@ export const SCALE_PICKER = {
   doneBtn: 'app-scale-picker-sheet ion-button:has-text("Done")',
 } as const;
 
-// ---------------------------------------------------------------------------
 // App settings (settings page, not session settings)
-// ---------------------------------------------------------------------------
 // Display name + default session name use inline ion-input (blur-save).
 // Theme + accent use ion-select interface="popover" — Ionic auto-creates
 // an ion-select-popover with ion-radio rows when the trigger is clicked.
@@ -343,9 +323,7 @@ export const SELECT_POPOVER = {
   option: (label: string) => `ion-select-popover ion-radio:has-text("${label}")`,
 } as const;
 
-// ---------------------------------------------------------------------------
 // App settings scale picker (picker mode - builtin scales only)
-// ---------------------------------------------------------------------------
 // Selectors use display label text (h3) because Angular [value] bindings set
 // DOM properties, not HTML attributes, so CSS [value="..."] doesn't match.
 export const APP_SETTINGS_SCALE_PICKER = {
@@ -356,9 +334,7 @@ export const APP_SETTINGS_SCALE_PICKER = {
   doneBtn: 'app-scale-picker-sheet ion-button:has-text("Done")',
 } as const;
 
-// ---------------------------------------------------------------------------
 // Preset card toggle editor (scale-editor-sheet)
-// ---------------------------------------------------------------------------
 export const PRESET_CARD_EDITOR = {
   cardToggle: (cardFace: string) =>
     `app-scale-editor-sheet ion-item:has(h3:text-is("${cardFace}")) ion-toggle`,
@@ -366,9 +342,7 @@ export const PRESET_CARD_EDITOR = {
   cardList: 'app-scale-editor-sheet ion-list',
 } as const;
 
-// ---------------------------------------------------------------------------
 // Host actions on a participant (⋯ on their roster row → Make host / Remove)
-// ---------------------------------------------------------------------------
 export const KICK_AFFORDANCE = {
   /** A participant's roster row, by the name it shows. */
   row: (name: string) =>
@@ -378,9 +352,7 @@ export const KICK_AFFORDANCE = {
     `app-lobby:not(.ion-page-hidden) ion-list.participants ion-item:has(.participant-name:text-is("${name}")) ion-button.participant-menu-btn`,
 } as const;
 
-// ---------------------------------------------------------------------------
 // Connection banner
-// ---------------------------------------------------------------------------
 // app-connection-status-banner renders its bar only while the session is not
 // connected: "Reconnecting…" as soon as a connection that was up drops,
 // "Connecting…" once a first connection is taking a while. Connected: no bar.
@@ -388,9 +360,7 @@ export const CONNECTION_BANNER = {
   banner: '[data-testid="connection-status-banner"]',
 } as const;
 
-// ---------------------------------------------------------------------------
 // Round history
-// ---------------------------------------------------------------------------
 // app-round-history renders content only when entries.length > 0; the lobby
 // only mounts the component when there is at least one past revealed round,
 // so the host element absence is the empty-state signal.
@@ -400,8 +370,6 @@ export const ROUND_HISTORY = {
   skippedItem: 'app-round-history li.history-item.skipped',
 } as const;
 
-// ---------------------------------------------------------------------------
 // Shared constants
-// ---------------------------------------------------------------------------
 export const BASE_URL =
   process.env['PLAYWRIGHT_BASE_URL'] ?? `http://localhost:${process.env['CLIENT_PORT'] ?? 4200}`;

@@ -247,9 +247,7 @@ describe('resolveKeyboardCardAction', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // isEditableElement
-// ---------------------------------------------------------------------------
 
 function makeEl(tag: string, opts: { isContentEditable?: boolean } = {}): Element {
   return {
@@ -287,9 +285,7 @@ describe('isEditableElement', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // shouldHandleKeyEvent
-// ---------------------------------------------------------------------------
 
 // Exercises: estimating.keyboard:shouldHandleKeyEvent
 describe('shouldHandleKeyEvent', () => {

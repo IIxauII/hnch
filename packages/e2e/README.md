@@ -70,7 +70,7 @@ A new screenshot spec starts with that line too. An assertion that must hold on 
 |---|---|---|
 | `SCREENSHOT_CAPTURE` | unset | When set (`1`), unlocks the screenshot specs. Without it, they skip. |
 | `SCREENSHOT_SHA` | `local` | Output subdir name. CI/hook pass `sha-<short>`; manual runs default to `local`. |
-| `SCREENSHOT_TAGS` | unset | Playwright `--grep` regex — narrows capture to scenes tagged with the listed tags (Phase 4). |
+| `SCREENSHOT_TAGS` | unset | Playwright `--grep` regex — narrows capture to scenes tagged with the listed tags. |
 | `HNCH_ROOM_CAP` | unset | Relay-side participant cap, exercised by `participant-cap.spec.ts`. |
 
 ### Output
@@ -192,5 +192,5 @@ Every `test()` under `_screenshots/` is annotated with one or more Playwright ta
 | `round-start-mobile.spec.ts` | `round-start/` | round-start sheet at 375px |
 | `keyboard-shortcuts.spec.ts` | `keyboard/` | shortcuts overlay |
 | `vote-bars-shot.spec.ts` | `vote-bars/` | vote distribution bars (light/dark, desktop/mobile) |
-| `vote-dots-196.spec.ts` | `vote-dots/` | vote dot layout (issue #196) |
-| `estimating-shot.spec.ts` | `layout/` | estimating screen visual hierarchy (issue #191) |
+| `vote-dots-196.spec.ts` | `vote-dots/` | vote dot layout (#196) |
+| `estimating-shot.spec.ts` | `layout/` | estimating screen visual hierarchy (#191) |

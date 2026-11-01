@@ -490,7 +490,7 @@ function ResultsSection({ projection, round, rounds }: ResultsSectionProps): Rea
 
   // Statistics and elapsed come from the shared round-presentation module, so
   // the terminal and the mobile client describe a round with the same words
-  // (issue #509). Categorical scales get a real row instead of dashes.
+  // (#509). Categorical scales get a real row instead of dashes.
   const stats = formatRoundStats(roundStatsFor(round));
   const nameMap = new Map(projection.participants.map((p) => [p.id, p.displayName]));
 
@@ -573,9 +573,7 @@ function ResultsSection({ projection, round, rounds }: ResultsSectionProps): Rea
   );
 }
 
-// ---------------------------------------------------------------------------
 // AgendaPanel
-// ---------------------------------------------------------------------------
 
 const AGENDA_STATE_MARKER: Record<string, string> = {
   pending: '•',

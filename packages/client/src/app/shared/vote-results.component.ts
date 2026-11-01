@@ -186,7 +186,7 @@ interface VoteGroup {
         padding: 4px 0 12px;
       }
       /*
-       * Distribution bar (issue #123): a track under the row with the share
+       * Distribution bar (#123): a track under the row with the share
        * filled in. It used to be the row's background, where its end landed
        * in the middle of a name.
        */
@@ -510,7 +510,7 @@ export class VoteResultsComponent {
     return n === 1 ? '1 vote' : `${n} votes`;
   }
 
-  /** Denominator for distribution bars: cast non-abstain votes only (AC #3). */
+  /** Denominator for distribution bars: cast non-abstain votes only. */
   private readonly totalVoted = computed(
     () => Object.values(this.round().votes).filter((v) => !isAbstainVote(v)).length,
   );
@@ -533,7 +533,7 @@ export class VoteResultsComponent {
   /**
    * Ionic colour for the spread chip. Deliberately *not* part of the shared
    * round-presentation module — Ionic colour names are surface vocabulary,
-   * not presentation-neutral (issue #509). Called only from inside the
+   * not presentation-neutral (#509). Called only from inside the
    * `@if (statsDisplay(); as s)` block, where `stats()` is non-null.
    */
   protected spreadColor(s: SpreadLabel): 'success' | 'warning' | 'danger' {

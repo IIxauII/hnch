@@ -19,9 +19,7 @@ import {
   fillRoomCode,
 } from './helpers';
 
-// ---------------------------------------------------------------------------
 // Surface-agnostic menu helpers
-// ---------------------------------------------------------------------------
 
 /**
  * Click a named item in a menu that is already opening — the host's ⋯ menu,
@@ -58,9 +56,7 @@ export async function clickMenuOption(page: Page, text: string): Promise<void> {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Scale label normalization
-// ---------------------------------------------------------------------------
 
 // Maps caller-provided scale names to the exact text rendered by formatScaleId()
 // in the scale-picker template. Angular [value] bindings set DOM properties,
@@ -83,9 +79,7 @@ function resolveScaleDisplayLabel(label: string): string {
   return SCALE_DISPLAY_LABELS[label] ?? label;
 }
 
-// ---------------------------------------------------------------------------
 // Participant — page-object wrapper around a single browser context
-// ---------------------------------------------------------------------------
 
 export class Participant {
   constructor(
@@ -94,7 +88,7 @@ export class Participant {
     private readonly displayName: string,
   ) {}
 
-  // -- Onboarding -----------------------------------------------------------
+  // Onboarding
 
   /** Complete the onboarding flow by entering a display name. */
   async onboard(): Promise<void> {
@@ -125,7 +119,7 @@ export class Participant {
     await this.page.waitForURL(/\/home/);
   }
 
-  // -- Session lifecycle ----------------------------------------------------
+  // Session lifecycle
 
   /** Create a new session from /home. Returns the room code. */
   async createSession(): Promise<string> {
@@ -174,7 +168,7 @@ export class Participant {
     await this.page.waitForURL(/\/lobby/);
   }
 
-  // -- Lobby actions --------------------------------------------------------
+  // Lobby actions
 
   /** Tap "Start round N" and confirm the modal. */
   async startRound(title?: string, ticketId?: string): Promise<void> {
@@ -207,38 +201,22 @@ export class Participant {
   }
 
   /**
-   * Wait for auto-navigation to /estimating (non-host clients) AND for the
-   * Ionic page transition to complete.
-   *
-   * `waitForURL` resolves on router URL change, which fires before Ionic
-   * finishes the slide-in animation. During the animation the new
-   * `<app-estimating>` carries `.ion-page-invisible` (opacity: 0). Playwright's
-   * `state: 'visible'` check ignores opacity, so subsequent clicks land on
-   * an element that is technically in the DOM but mid-transition — and the
-   * Angular signal-based change detection / Y.doc projection rebuild that
-   * fires alongside the route change can leave handlers reading transient
-   * state. Manifested as a flake in `revote-role-toggle.spec.ts` where the
-   * role-chip click fired but `DocService.toggleRole` silently bailed
-   * because the participant lookup raced the projection rebuild.
-   *
-   * Waiting for `:not(.ion-page-invisible):not(.ion-page-hidden)` ensures
-   * the page is the active, fully-transitioned page before we return.
+   * Wait for /estimating and for the Ionic page transition to finish. `waitForURL` resolves
+   * before the slide-in ends, while the new page is still `.ion-page-invisible` (opacity 0,
+   * which Playwright's visibility check ignores), and a click then can race the projection
+   * rebuild (a past flake in `revote-role-toggle.spec.ts`).
    */
   async waitForEstimating(): Promise<void> {
     await this.page.waitForURL(/\/estimating/, { timeout: 10_000 });
-    // After URL change, Ionic keeps the previous page in the router-outlet
-    // stack until the slide-in animation finishes — meanwhile both old and
-    // new `<app-estimating>` are non-hidden and visible. Wait until exactly
-    // one active page remains (Ionic adds `.ion-page-hidden` to the stale
-    // one when the transition completes) AND that page no longer carries
-    // `.ion-page-invisible` (opacity:0 pre-animation state).
+    // Until the transition completes, the old and new pages are both unhidden: wait for
+    // exactly one that is neither hidden nor invisible.
     const active = this.page.locator(
       'app-estimating:not(.ion-page-hidden):not(.ion-page-invisible)',
     );
     await pwExpect(active).toHaveCount(1, { timeout: 10_000 });
   }
 
-  // -- Voting ---------------------------------------------------------------
+  // Voting
 
   /** Tap a card to cast (or change) a vote. */
   async castVote(value: string): Promise<void> {
@@ -310,7 +288,7 @@ export class Participant {
     await this.page.waitForURL(/\/lobby/, { timeout: 10_000 });
   }
 
-  // -- Lobby results actions -------------------------------------------------
+  // Lobby results actions
 
   /** Tap "Next round N" in the lobby footer and confirm the modal. */
   async nextRound(title?: string, ticketId?: string): Promise<void> {
@@ -326,11 +304,7 @@ export class Participant {
     const startBtn = this.page.locator(ROUND_START.startBtn);
     await startBtn.waitFor({ state: 'visible' });
     await startBtn.click();
-    // Wait for the round-start sheet to fully dismiss. Ionic leaves the
-    // ion-modal in the DOM with show-modal + full viewport size during
-    // the closing animation; callers that then dispatch keyboard events
-    // (vs .click() which auto-waits for actionability) would otherwise
-    // race the still-present modal overlay.
+    // Wait for the sheet to dismiss, as in `startRound`.
     await modal.waitFor({ state: 'hidden' });
     await this.waitForEstimating();
   }
@@ -341,7 +315,7 @@ export class Participant {
     await this.waitForEstimating();
   }
 
-  // -- Settings (from lobby) ------------------------------------------------
+  // Settings (from lobby)
 
   /** Open session settings sheet from the lobby subtitle button (host only). */
   async openSettings(): Promise<void> {
@@ -466,7 +440,7 @@ export class Participant {
     await this.page.waitForURL(/\/home/, { timeout: 5_000 });
   }
 
-  // -- Host actions on a participant --------------------------------------
+  // Host actions on a participant
 
   /**
    * Open the ⋯ menu on a participant's roster row (host only). An action
@@ -506,7 +480,7 @@ export class Participant {
     await confirmBtn.click();
   }
 
-  // -- App settings (device-level preferences) -----
+  // App settings (device-level preferences)
 
   /** Navigate to the app settings page (/settings). */
   async navigateToAppSettings(): Promise<void> {
@@ -555,7 +529,7 @@ export class Participant {
     await this.page.locator('app-scale-picker-sheet').waitFor({ state: 'hidden' });
   }
 
-  // -- Agenda ---------------------------------------------------------------
+  // Agenda
 
   /** The agenda list on the active Lobby. One layout on every surface. */
   private agendaList() {
@@ -709,7 +683,7 @@ export class Participant {
     await expect(next.locator('span.item-title')).toContainText(expectedTitle);
   }
 
-  // -- Disconnect / reconnect -----------------------------------------------
+  // Disconnect / reconnect
 
   /** Simulate disconnect by closing the page (abrupt; awareness clears via WS close). */
   async disconnect(): Promise<void> {
@@ -735,7 +709,7 @@ export class Participant {
     await this.page.waitForURL(/\/(lobby|estimating)/, { timeout: 10_000 });
   }
 
-  // -- Assertions -----------------------------------------------------------
+  // Assertions
 
   /**
    * Assert the lobby results section shows the given vote values (unordered).
@@ -821,9 +795,7 @@ export class Participant {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Fixture definition
-// ---------------------------------------------------------------------------
 
 interface AppFixtures {
   host: Participant;
@@ -843,7 +815,7 @@ interface AppFixtures {
  * failure across Playwright versions — collecting and asserting at teardown
  * is the canonical pattern.
  *
- * History: PR #84 shipped an `inject()`-after-await in the AccentService
+ * History: #84 shipped an `inject()`-after-await in the AccentService
  * APP_INITIALIZER. Bootstrap rejected → blank page → 73 tests × 20s ≈ full
  * 10-min CI cap. This guard plus 0-bootstrap-smoke.spec.ts turns that class
  * of regression into a fast, readable failure.

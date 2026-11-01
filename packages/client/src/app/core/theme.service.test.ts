@@ -10,10 +10,6 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// ---------------------------------------------------------------------------
-// Mock Capacitor Preferences
-// ---------------------------------------------------------------------------
-
 const mockPreferences = {
   get: vi.fn<(opts: { key: string }) => Promise<{ value: string | null }>>(),
   set: vi.fn<(opts: { key: string; value: string }) => Promise<void>>(),
@@ -22,10 +18,6 @@ const mockPreferences = {
 vi.mock('@capacitor/preferences', () => ({
   Preferences: mockPreferences,
 }));
-
-// ---------------------------------------------------------------------------
-// matchMedia mock helpers
-// ---------------------------------------------------------------------------
 
 type MediaChangeHandler = (e: MediaQueryListEvent) => void;
 
@@ -54,10 +46,6 @@ function simulateMediaChange(matches: boolean): void {
     mediaChangeHandler({ matches } as MediaQueryListEvent);
   }
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe('ThemeService', () => {
   const DARK_CLASS = 'ion-palette-dark';
@@ -111,9 +99,7 @@ describe('ThemeService', () => {
     return new mod.ThemeService();
   }
 
-  // -------------------------------------------------------------------------
   // applyTheme logic (exercised via ensureLoaded / setTheme)
-  // -------------------------------------------------------------------------
 
   it('adds .ion-palette-dark when theme is dark', async () => {
     mockPreferences.get.mockResolvedValue({ value: 'dark' });
@@ -249,10 +235,6 @@ describe('ThemeService', () => {
     await svc.setTheme('dark');
     expect(mql.removeEventListener).toHaveBeenCalledWith('change', expect.any(Function));
   });
-
-  // -------------------------------------------------------------------------
-  // Persistence
-  // -------------------------------------------------------------------------
 
   it('persists theme to Preferences on setTheme', async () => {
     mockPreferences.get.mockResolvedValue({ value: null });

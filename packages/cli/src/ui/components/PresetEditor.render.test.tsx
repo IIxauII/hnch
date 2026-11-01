@@ -16,10 +16,6 @@ import { PresetEditor } from './PresetEditor.js';
 
 const CARDS = ['1', '2', '3', '5', '8'];
 
-// ---------------------------------------------------------------------------
-// Rendering
-// ---------------------------------------------------------------------------
-
 describe('PresetEditor — rendering', () => {
   it('renders all card faces', () => {
     const { lastFrame } = render(
@@ -50,10 +46,6 @@ describe('PresetEditor — rendering', () => {
     expect(lastFrame() ?? '').toContain('space toggle');
   });
 });
-
-// ---------------------------------------------------------------------------
-// Space to toggle
-// ---------------------------------------------------------------------------
 
 describe('PresetEditor — space to toggle', () => {
   it('space at cursor=0 disables the first card and reports [0]', async () => {
@@ -119,10 +111,6 @@ describe('PresetEditor — space to toggle', () => {
     expect(onOverrideChange).not.toHaveBeenCalled();
   });
 });
-
-// ---------------------------------------------------------------------------
-// Close callbacks
-// ---------------------------------------------------------------------------
 
 describe('PresetEditor — close', () => {
   it('enter calls onClose', async () => {

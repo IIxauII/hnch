@@ -1,6 +1,6 @@
 /* eslint-disable max-lines-per-function -- linear capture tour; splitting obscures capture order */
 /**
- * Screenshot capture for the lobby section visual hierarchy (issue #266).
+ * Screenshot capture for the lobby section visual hierarchy (#266).
  *
  * Captures the lobby's section-grid layout at mobile (390) and desktop
  * (1440) viewports in both themes. Tagged `@lobby-hierarchy` so the

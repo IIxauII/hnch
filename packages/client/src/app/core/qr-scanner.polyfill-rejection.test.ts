@@ -14,10 +14,8 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
-// ---------------------------------------------------------------------------
 // Module-level mocks — hoisted before imports.
 // The polyfill throws to exercise the production .catch path.
-// ---------------------------------------------------------------------------
 
 vi.mock('barcode-detector/polyfill', () => {
   throw new Error('chunk load failed');
@@ -41,15 +39,9 @@ vi.mock('./web-qr-scanner.overlay', () => ({
   mapDomErrorToReason: () => 'unknown',
 }));
 
-// ---------------------------------------------------------------------------
 // Imported after mocks
-// ---------------------------------------------------------------------------
 
 import { ensurePolyfill, resetPolyfillPromise, getPolyfillPromise } from './qr-scanner.service';
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe('ensurePolyfill() — rejection path (production .catch at service.ts:41-44)', () => {
   beforeEach(() => {
@@ -61,7 +53,7 @@ describe('ensurePolyfill() — rejection path (production .catch at service.ts:4
   });
 
   /**
-   * R4-1: drives the production `.catch` path directly.
+   * Drives the production `.catch` path directly.
    *
    * The top-level vi.mock above makes `import('barcode-detector/polyfill')`
    * throw, so ensurePolyfill() itself (not a test mirror) runs the .catch
@@ -75,7 +67,7 @@ describe('ensurePolyfill() — rejection path (production .catch at service.ts:4
    *      import), confirming the retry mechanism works once the cache is null.
    */
   it('clears cache on rejection so a subsequent call gets a fresh promise', async () => {
-    // --- 1. First call: production .catch must reject and clear cache --------
+    // 1. First call: production .catch must reject and clear cache
     // Vitest wraps factory-throw errors; we assert it rejects (any error) —
     // what matters is the cache state, not the exact message.
     await expect(ensurePolyfill()).rejects.toThrow();
@@ -83,7 +75,7 @@ describe('ensurePolyfill() — rejection path (production .catch at service.ts:4
     // Cache cleared by production .catch (not by test code).
     expect(getPolyfillPromise()).toBeNull();
 
-    // --- 2. Second call: a new promise must be created (retry attempted) -----
+    // 2. Second call: a new promise must be created (retry attempted)
     // ensurePolyfill() finds null cache → creates a new promise.
     // The new promise will also reject (same mock), but a new attempt was made.
     const secondAttempt = ensurePolyfill();

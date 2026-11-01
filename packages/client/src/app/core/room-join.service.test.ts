@@ -6,9 +6,7 @@
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-// ---------------------------------------------------------------------------
 // Module-level mocks (hoisted)
-// ---------------------------------------------------------------------------
 
 vi.mock('@ionic/angular/standalone', () => ({}));
 
@@ -39,9 +37,7 @@ vi.mock('y-indexeddb', () => ({
   },
 }));
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 function makeDocService(
   overrides: { syncStatus?: string; lastRejection?: string | null; roomCode?: string | null } = {},
@@ -78,9 +74,7 @@ type RejoinDepsOverrides = {
   waitOutcome?: string;
 };
 
-// ---------------------------------------------------------------------------
 // Test suite
-// ---------------------------------------------------------------------------
 
 describe('rejoinRoom', () => {
   let RelayRejectionError: typeof import('@hnch/shared').RelayRejectionError;
@@ -386,9 +380,7 @@ describe('rejoinRoom', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // dedupRejoin
-// ---------------------------------------------------------------------------
 
 describe('dedupRejoin', () => {
   it('(a) two concurrent calls return the same Promise reference and factory invoked once', async () => {
@@ -465,9 +457,7 @@ describe('dedupRejoin', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // assertRoomCode
-// ---------------------------------------------------------------------------
 
 describe('assertRoomCode', () => {
   it('does not throw when code is non-null', async () => {

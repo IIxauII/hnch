@@ -1,5 +1,5 @@
 /**
- * Pure key→action resolver for the Estimating card grid (issue #154).
+ * Pure key→action resolver for the Estimating card grid (#154).
  *
  * The HostListener on EstimatingPage is a thin shell: it gathers the
  * relevant context (active element, scale cards, current vote, focus

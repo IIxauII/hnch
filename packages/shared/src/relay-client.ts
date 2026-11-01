@@ -1,34 +1,14 @@
 /**
- * The relay contract — one module, both surfaces.
+ * The relay contract for both surfaces: the HTTP routes (ADR-0016) and the WebSocket handshake.
+ * The client and the CLI both import it, so the contract cannot drift between them.
  *
- * Everything a client needs to talk to the relay lives here: the three
- * HTTP routes (ADR-0016) and the WebSocket handshake that follows them.
- * The Angular client and the CLI both import this directly; neither
- * keeps a local copy, so the contract cannot drift between them.
+ * Handshake: `${wsBase}/ws/${roomUuid}?did=…[&pw=…]`; close codes 4000–4099 decode to a
+ * {@link JoinRejectionReason}. `connectToRelay` takes the **http** base URL and derives the ws
+ * form itself ({@link relayHttpToWsUrl}), so the transform exists once.
  *
- * HTTP routes:
- *
- *   - `POST /rooms` → `{ uuid, code }` — mints a fresh room; the
- *     response pairs the UUID the y-websocket layer uses as the roomname
- *     with the 6-character code the UI surfaces for Join.
- *   - `GET /rooms/:code` → `{ uuid, accessMode }` — resolves a code to a
- *     UUID ahead of the WS upgrade; 404 with `{ reason }` on miss.
- *   - `PATCH /rooms/:uuid/access` → `{ accessMode }` — sets or clears the
- *     room password on a live room (ADR-0017).
- *
- * Handshake (ADR-0016): `${wsBase}/ws/${roomUuid}?did=…[&pw=…]`, with
- * private-use close codes 4000–4099 decoding to a
- * {@link JoinRejectionReason}.
- *
- * `connectToRelay` takes the **http** base URL and derives the ws form
- * itself ({@link relayHttpToWsUrl}), so the transform exists once.
- *
- * Framework-free by construction: state leaves through callbacks, never
- * signals, and no `ToastService`/Ink/Angular primitive crosses the seam.
- * Unlike a *driver* (`startElection`, `startAutoReveal`), `relay-client`
- * owns a connection rather than a re-evaluation rule, so `Y.Doc` and
- * `Awareness` do cross this boundary — handing a doc to a transport is
- * the module's entire job.
+ * Framework-free: state leaves through callbacks, never signals. Unlike a driver
+ * (`startElection`), this owns a connection rather than a rule, so `Y.Doc` and `Awareness` do
+ * cross the boundary: handing a doc to a transport is the module's whole job.
  */
 
 import type * as Y from 'yjs';
@@ -41,9 +21,7 @@ import {
   type JoinRejectionReason,
 } from './auth.js';
 
-// ---------------------------------------------------------------------------
 // HTTP surface
-// ---------------------------------------------------------------------------
 
 /** Successful response to `POST /rooms`. Mirrors the relay's type. */
 export interface MintedRoom {
@@ -69,11 +47,7 @@ export interface PatchAccessResponse {
   readonly accessMode: ResolvedAccessMode;
 }
 
-/**
- * Thrown when the relay rejects a resolve lookup with a 4xx that maps
- * to a {@link JoinRejectionReason}. Carries the reason so callers can
- * route the UI without re-parsing the body.
- */
+/** A resolve 404 carrying a {@link JoinRejectionReason}, so callers route without re-parsing. */
 export class RelayRejectionError extends Error {
   constructor(readonly reason: JoinRejectionReason) {
     super(`relay rejected resolve: ${reason}`);
@@ -86,11 +60,8 @@ export interface MintRoomOptions {
 }
 
 /**
- * How long a request to the relay may go unanswered. `fetch` has no limit of
- * its own: on a connection that went stale — a laptop that slept, a phone
- * that changed networks — a request can hang for minutes, and whatever waits
- * for it ("Creating…", "Joining…") hangs with it. Past this it fails like a
- * relay that cannot be reached.
+ * `fetch` has no limit of its own: on a stale connection (a laptop that slept) a request can
+ * hang for minutes, and "Joining…" with it. Past this it fails like an unreachable relay.
  */
 export const RELAY_REQUEST_TIMEOUT_MS = 10_000;
 
@@ -112,8 +83,7 @@ export async function mintRoom(
 }
 
 /**
- * The reason in a 404 body, if it is one of the reasons there are. What
- * answers may not be the relay — a proxy, a captive portal — and a reason
+ * Only a reason the relay has: a proxy or captive portal may answer instead, and the reason
  * ends up in front of the user, in the CLI as it came.
  */
 function rejectionReasonIn(body: unknown): JoinRejectionReason | null {
@@ -125,13 +95,9 @@ function rejectionReasonIn(body: unknown): JoinRejectionReason | null {
 }
 
 /**
- * `GET /rooms/:code`. Throws {@link RelayRejectionError} on a 404 that gives
- * the relay's reason. Anything else that is not an answer — another status,
- * a 404 that says nothing the relay would say, a request that is not
- * answered in time — surfaces as a generic `Error`: the relay could not be
- * asked, which is not the same as the relay saying no. Callers forget a
- * session on the strength of `unknown-room`; a proxy's 404, or that of a
- * relay URL that points at something else, must not be taken for it.
+ * Throws {@link RelayRejectionError} only on a 404 with the relay's reason. Anything else that
+ * is not an answer (another status, a proxy's 404, a timeout) is a generic `Error`: callers
+ * forget a session on `unknown-room`, so "could not ask" must not read as "said no".
  */
 export async function resolveRoom(httpBaseUrl: string, code: string): Promise<ResolvedRoom> {
   const res = await fetch(`${httpBaseUrl}/rooms/${encodeURIComponent(code)}`, {
@@ -148,11 +114,7 @@ export async function resolveRoom(httpBaseUrl: string, code: string): Promise<Re
   return (await res.json()) as ResolvedRoom;
 }
 
-/**
- * `PATCH /rooms/:uuid/access` — set or remove the password on a live room.
- * Pass `passwordHash` to protect, `null` to revert to open. Returns the
- * resulting access mode so callers can confirm without a follow-up read.
- */
+/** `null` reverts to open. Returns the resulting mode, so no follow-up read is needed. */
 export async function patchRoomAccess(
   httpBaseUrl: string,
   uuid: string,
@@ -170,27 +132,17 @@ export async function patchRoomAccess(
   return (await res.json()) as PatchAccessResponse;
 }
 
-// ---------------------------------------------------------------------------
 // Handshake
-// ---------------------------------------------------------------------------
 
-/**
- * Connection state. Mirrors the y-websocket `status` event's three
- * values exactly so a chip can bind directly.
- */
+/** The y-websocket `status` values, exactly, so a chip can bind directly. */
 export type SyncStatus = 'connecting' | 'connected' | 'disconnected';
 
-/**
- * Structural stand-in for a `WebSocket` constructor. Typed loosely on
- * purpose: the browser's DOM `WebSocket`, the `ws` package's Node class,
- * and a test fake are all assignable, and none of them share a lib.
- */
+/** Loose on purpose: the DOM `WebSocket`, the `ws` package and a test fake share no lib. */
 export type WebSocketConstructorLike = new (url: string, protocols?: string | string[]) => unknown;
 
 /** `WebSocket.OPEN`, spelled out: the constructor in use may not carry it. */
 const OPEN = 1;
 
-/** Milliseconds of history the repeat-rejection throttle looks back over. */
 const REPEAT_REJECTION_WINDOW_MS = 60_000;
 
 /** Transient closes inside the window before {@link ConnectToRelayOptions.onRepeatRejection} fires. */
@@ -199,26 +151,14 @@ const REPEAT_REJECTION_THRESHOLD = 3;
 /** The least time between two questions to the relay about why a socket closed. */
 const REFUSAL_LOOKUP_INTERVAL_MS = 5_000;
 
-/**
- * How long such a question may go unanswered. A request on a connection
- * that went stale — after a sleep, say — can otherwise hang for minutes,
- * and no second question goes out while the first is pending.
- */
+/** A stale connection can hang a request for minutes, and no second one goes out meanwhile. */
 const REFUSAL_LOOKUP_TIMEOUT_MS = 8_000;
 
 /**
- * Why the relay will not take this connection, where it says so over HTTP —
- * or `null` when it has nothing against it, or cannot be reached.
- *
- * The relay refuses two kinds of connection *before* the upgrade (ADR-0035):
- * one to a session it no longer has (HTTP 404), and one to a protected
- * session that brings no password (HTTP 400). Neither status reaches the
- * page. A browser reports a refused handshake as a close without a code,
- * which is also what a dropped link looks like.
- *
- * A verdict ends the session for its user, so only the relay's own words
- * count. A 404 without the relay's reason in it may be anybody's — a proxy,
- * a load balancer mid-deploy — and says nothing about the session.
+ * Why the relay refuses this connection before the upgrade (ADR-0035), or `null`. A gone
+ * session (404) and a protected one without a password (400) both reach the page as a close
+ * without a code, like a dropped link. A verdict ends the session for its user, so only the
+ * relay's own words count: a 404 without its reason may be a proxy's.
  */
 async function refusalBehindClose(
   httpBaseUrl: string,
@@ -255,111 +195,64 @@ async function refusalBehindClose(
 }
 
 export interface ConnectToRelayOptions {
-  /**
-   * Base **http** URL of the relay, e.g. `http://localhost:1234` (no
-   * trailing slash). The ws form is derived internally.
-   */
+  /** E.g. `http://localhost:1234`, no trailing slash; the ws form is derived. */
   readonly httpBaseUrl: string;
   /** Room UUID resolved from `GET /rooms/:code` (ADR-0016). */
   readonly roomUuid: string;
-  /** Local `Y.Doc` the connection will sync. */
   readonly doc: Y.Doc;
-  /** Credentials — `deviceId` is required, `passwordHash` rides on protected rooms. */
+  /** `deviceId` is required; `passwordHash` rides on protected rooms. */
   readonly credentials: JoinCredentials;
-  /**
-   * Awareness instance to share. Optional — if omitted, `y-websocket`
-   * creates and owns a fresh one, reachable via {@link RelayConnection.awareness}.
-   */
+  /** If omitted, `y-websocket` creates one, reachable via {@link RelayConnection.awareness}. */
   readonly awareness?: Awareness | undefined;
-  /**
-   * Override the `WebSocket` implementation. Node callers pass the `ws`
-   * package; tests pass a fake. Defaults to the ambient global.
-   */
+  /** Node callers pass the `ws` package, tests a fake; defaults to the global. */
   readonly WebSocketPolyfill?: WebSocketConstructorLike | undefined;
-  /** Fires on every `y-websocket` `status` event. */
   readonly onStatusChange?: ((status: SyncStatus) => void) | undefined;
   /**
-   * Fires when the relay closes the socket with a private-use code from
-   * ADR-0016's table — or turns out, when asked, to refuse the connection
-   * before it is a socket at all: the session is gone, or has been given a
-   * password this connection does not carry. `null` is passed on a
-   * successful (re)connect to clear any prior rejection surfaced to the UI.
-   *
-   * A rejection is final. Reconnecting stops with it.
+   * A close code from ADR-0016's table, or a refusal found by asking (the session is gone, or now
+   * needs a password). `null` on a successful (re)connect. A rejection stops reconnecting.
    */
   readonly onRejectionChange?: ((reason: JoinRejectionReason | null) => void) | undefined;
-  /**
-   * Fires whenever the derived "reconnecting" state flips. True while a
-   * connection that had previously succeeded is down with no permanent
-   * rejection and no manual teardown; false otherwise.
-   */
+  /** True while a connection that was up is down, not rejected, and not put down on purpose. */
   readonly onReconnectingChange?: ((reconnecting: boolean) => void) | undefined;
   /**
-   * Fires when {@link REPEAT_REJECTION_THRESHOLD} transient closes land
-   * inside {@link REPEAT_REJECTION_WINDOW_MS}, then resets its buffer.
-   * Lets a surface tell "still retrying" apart from "hung" — the client
-   * wires it to a toast; the CLI may leave it unbound.
+   * {@link REPEAT_REJECTION_THRESHOLD} transient closes inside {@link REPEAT_REJECTION_WINDOW_MS}
+   * ms, so a surface can tell "still retrying" from "hung". The CLI may leave it unbound.
    */
   readonly onRepeatRejection?: (() => void) | undefined;
   /**
-   * Fires exactly once, on the first successful Yjs sync with the relay.
-   * Callers use this for post-sync mutations whose Lamport clock must be
-   * higher than any op in the relay snapshot — e.g. clearing a stale
-   * `leftAt` for a rejoining participant (ADR-0036 §6).
+   * Once, on the first sync: for writes whose Lamport clock must beat everything in the
+   * snapshot, e.g. clearing a rejoiner's stale `leftAt` (ADR-0036 §6).
    */
   readonly onSynced?: (() => void) | undefined;
   /**
-   * Fires when "synced" changes: `true` once the relay's state has applied on
-   * the *current* connection, `false` when that connection goes away or the
-   * network is reported offline. Unlike {@link onSynced} it is not one-shot,
-   * and it only fires on a change — never `false` for a connection that was
-   * not synced to begin with.
+   * `true` once the relay's state has applied on the current connection, `false` when it goes
+   * away or the network reports offline; fires only on a change.
    *
-   * This is the signal that awareness can be trusted. `y-websocket` drops
-   * every remote awareness state when a socket closes, and the relay pushes
-   * the room's states ahead of its sync-step-2 reply — so between a socket
-   * opening and `true` arriving here, a peer sees itself as the only one
-   * online. A rule that counts online peers (unanimous auto-reveal) must not
-   * evaluate in that window.
-   *
-   * What it does not cover: a link that dies without the platform noticing
-   * (no `offline` event, no close). Awareness then times its peers out after
-   * 30 s, about when `y-websocket` gives up on the socket, and for that
-   * moment the peers are gone while this still says `true`.
+   * This is when awareness can be trusted. `y-websocket` drops remote states on close and the
+   * relay pushes them ahead of its sync-step-2, so until `true` a peer sees itself alone, and a
+   * rule that counts online peers (auto-reveal) must not run. A link that dies unnoticed still
+   * reads `true` until awareness times the peers out, after 30 s.
    */
   readonly onSyncedChange?: ((synced: boolean) => void) | undefined;
 }
 
-/** Public handle. Everything else is observed through the callbacks. */
+/** Everything else is observed through the callbacks. */
 export interface RelayConnection {
-  /** The underlying awareness instance — shared with `y-websocket`. */
   readonly awareness: Awareness;
-  /**
-   * Re-handshake with a different password hash, without tearing the
-   * session down. A no-op when the hash is unchanged; `null` drops `pw`.
-   */
+  /** Re-handshake with a new hash without a teardown; no-op if unchanged, `null` drops `pw`. */
   updateCredentials(opts: { passwordHash?: string | null }): void;
   /**
-   * Resolve once the open socket has handed everything queued on it to the
-   * network, or after `capMs`, whichever is first; at once with no socket
-   * open. Never rejects. Called between a last write (a leave) and the
-   * teardown that closes the socket, so the write gets a chance to go out.
+   * Resolve once the socket has handed its queue to the network, or after `capMs`; at once with
+   * no socket. Never rejects. Lets a last write (a leave) go out before teardown.
    */
   flush(capMs: number): Promise<void>;
-  /**
-   * Stop reconnecting, close the socket, and release observers. Safe to
-   * call multiple times; suppresses any further reconnecting signal.
-   */
+  /** Idempotent; suppresses any further reconnecting signal. */
   disconnect(): void;
 }
 
 /**
- * `http://` → `ws://`, `https://` → `wss://`. Any other input is
- * returned untouched, so a URL already in ws form passes through.
- *
- * The single home for this transform: `connectToRelay` calls it, and so
- * does the client's relay-URL preference, which is what keeps an
- * `https://` override from silently downgrading to plain `ws://`.
+ * `http` → `ws`, `https` → `wss`, anything else untouched. The one home for this, shared with
+ * the client's relay-URL preference so an `https` override never downgrades to `ws`.
  */
 export function relayHttpToWsUrl(httpBaseUrl: string): string {
   return httpBaseUrl.replace(/^https?:\/\//, (match) =>
@@ -367,12 +260,7 @@ export function relayHttpToWsUrl(httpBaseUrl: string): string {
   );
 }
 
-/**
- * Build the URL-param bag for the WS upgrade per ADR-0016. `did` is
- * always present; `pw` only for password-protected rooms. There is no
- * invite param — ADR-0017 dropped invite-only from v1 and the relay
- * never read one.
- */
+/** `did` always, `pw` for protected rooms (ADR-0016); no invite param, the relay never read one. */
 function credentialsToParams(credentials: JoinCredentials): Record<string, string> {
   const params: Record<string, string> = { did: credentials.deviceId };
   if (credentials.passwordHash !== undefined) {
@@ -393,12 +281,8 @@ function windowOrUndefined(): WindowLike | undefined {
 }
 
 /**
- * Opens a `WebsocketProvider` against the relay's `/ws/:uuid` endpoint
- * (ADR-0016) and returns a callback-fed handle.
- *
- * `y-websocket` appends `/<roomname>` to the server URL, so we pass
- * `${wsBase}/ws` as the server and `roomUuid` as the roomname, yielding
- * `${wsBase}/ws/${roomUuid}`.
+ * `y-websocket` appends `/<roomname>` to the server URL, so the server is `${wsBase}/ws` and the
+ * roomname the UUID: `${wsBase}/ws/${roomUuid}` (ADR-0016).
  */
 export function connectToRelay(opts: ConnectToRelayOptions): RelayConnection {
   let status: SyncStatus = 'connecting';

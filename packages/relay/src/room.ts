@@ -132,7 +132,7 @@ export class Room extends DurableObject<Env> {
     }
   }
 
-  // ------------------------------------------------------------ RPC
+  // RPC
 
   /** Creates the room. Called once by the Worker, after the code is claimed. */
   async init(uuid: string, code: string, passwordHash: string | null): Promise<void> {
@@ -210,7 +210,7 @@ export class Room extends DurableObject<Env> {
     return true;
   }
 
-  // ------------------------------------------------------------ WebSocket
+  // WebSocket
 
   /** `WS /ws/:uuid`, forwarded by the Worker once it saw an upgrade request. */
   override async fetch(request: Request): Promise<Response> {
@@ -310,7 +310,7 @@ export class Room extends DurableObject<Env> {
     await this.dropSocket(ws);
   }
 
-  // ------------------------------------------------------------ alarm
+  // alarm
 
   /**
    * The hourly occupancy check (contract item 11): stamp an occupied room,
@@ -355,7 +355,7 @@ export class Room extends DurableObject<Env> {
     }
   }
 
-  // ------------------------------------------------------------ frames
+  // frames
 
   private handleFrame(ws: WebSocket, id: string, frame: Uint8Array, now: number): void {
     const inbound = readMessage(frame);
@@ -475,7 +475,7 @@ export class Room extends DurableObject<Env> {
     }
   }
 
-  // ------------------------------------------------------------ lifecycle
+  // lifecycle
 
   /**
    * Every entry: the room's metadata, after making sure an alarm is set. The
@@ -588,7 +588,7 @@ export class Room extends DurableObject<Env> {
     return true;
   }
 
-  // ------------------------------------------------------------ storage
+  // storage
 
   private loadMeta(): RoomMeta | null {
     if (this.meta === undefined) {

@@ -1,6 +1,5 @@
 /**
  * Per-round abstain — e2e coverage (ADR-0041, #120).
- * Phase 4 of 4.
  *
  * Four cases:
  *  1. Abstain + numeric vote → auto-reveal fires (denominator reduced by abstainer).

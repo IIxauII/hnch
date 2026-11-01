@@ -21,9 +21,7 @@ import { bindSessionCommands, FIBONACCI_SCALE, initDoc, projectDoc } from '@hnch
 import type { AgendaItem } from '@hnch/shared';
 import type { SessionHandle } from '../session.js';
 
-// ---------------------------------------------------------------------------
 // agendaItemLabel unit tests (no mocking needed)
-// ---------------------------------------------------------------------------
 
 import { agendaItemLabel } from './agenda.js';
 
@@ -76,9 +74,7 @@ describe('agendaItemLabel', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Handler integration tests — uses real Y.Doc, mocks relay/config/session
-// ---------------------------------------------------------------------------
 
 const MOCK_CONFIG = {
   participantId: 'user-1',
@@ -220,9 +216,7 @@ function titles(): Array<string | undefined> {
   return projectDoc(_lastSeenDoc).agenda.map((item) => item.title);
 }
 
-// ---------------------------------------------------------------------------
 // The command flow
-// ---------------------------------------------------------------------------
 
 describe('agenda command flow', () => {
   it('joins the remembered room with its hash, like any join', async () => {
@@ -291,9 +285,7 @@ describe('agenda command flow', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // handleAgendaAdd
-// ---------------------------------------------------------------------------
 
 describe('handleAgendaAdd', () => {
   it('exits 1 when neither --title nor --ticket provided', async () => {
@@ -377,9 +369,7 @@ describe('handleAgendaAdd', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // handleAgendaList
-// ---------------------------------------------------------------------------
 
 describe('handleAgendaList', () => {
   it('prints "No agenda items." when agenda is empty', async () => {
@@ -406,9 +396,7 @@ describe('handleAgendaList', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // handleAgendaSkip
-// ---------------------------------------------------------------------------
 
 describe('handleAgendaSkip', () => {
   it('exits 1 and logs error for unknown item id', async () => {
@@ -437,9 +425,7 @@ describe('handleAgendaSkip', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // handleAgendaCancel
-// ---------------------------------------------------------------------------
 
 describe('handleAgendaCancel', () => {
   it('exits 1 and logs error for unknown item id', async () => {
@@ -470,9 +456,7 @@ describe('handleAgendaCancel', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // handleAgendaMv
-// ---------------------------------------------------------------------------
 
 describe('handleAgendaMv', () => {
   it('exits 1 for unknown item id', async () => {

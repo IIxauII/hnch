@@ -293,7 +293,6 @@ export class AgendaPanelComponent {
   /** Full agenda list (all states), sorted by sortKey. */
   readonly items = input.required<readonly AgendaItem[]>();
 
-  /** Whether this client is the host. */
   readonly isHost = input<boolean>(false);
 
   /** Fires when host taps Add story. */

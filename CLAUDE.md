@@ -14,6 +14,7 @@ The one list of project docs; README and CONTRIBUTING point here. A fact lives i
 - [`docs/roadmap.md`](docs/roadmap.md) — phased plan + current status. A map, not a spec.
 - [`docs/deployment.md`](docs/deployment.md) — production hosting on Cloudflare: topology, deploy flow, rollback.
 - [`docs/angular.md`](docs/angular.md), [`docs/ionic.md`](docs/ionic.md), [`docs/cli.md`](docs/cli.md) — client/CLI conventions (consulted from the relevant `packages/*/CLAUDE.md`).
+- [`docs/comments.md`](docs/comments.md) — comment convention for every package: what a comment or JSDoc may say, issue-reference form, no banners.
 - [`adr/`](adr/README.md) — Architecture Decision Records. Authoritative for *why* each structural choice was made.
 - [`GLOSSARY.md`](GLOSSARY.md) — domain terms and the names to avoid.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — commit and PR rules, worktrees and dev ports.

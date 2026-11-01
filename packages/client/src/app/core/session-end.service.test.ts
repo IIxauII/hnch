@@ -21,10 +21,6 @@ import { DocService } from './doc/doc.service';
 import { LastSessionService } from './last-session.service';
 import { ToastService } from '../services/toast.service';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 const ENDED: SessionEvent = {
   kind: 'ended',
   endedAt: 100,
@@ -59,10 +55,6 @@ async function flushAll(): Promise<void> {
     await Promise.resolve();
   }
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe('SessionEndService', () => {
   let docMock: ReturnType<typeof makeDocMock>;

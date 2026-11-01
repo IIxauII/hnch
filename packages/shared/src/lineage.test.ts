@@ -36,7 +36,7 @@ describe('resolveRoundLineage', () => {
     expect(lineage?.chainRoot.id).toBe('r1');
   });
 
-  it('depth-3 middle round → { depth: 2, total: 3 } (AC#2)', () => {
+  it('depth-3 middle round → { depth: 2, total: 3 }', () => {
     const r1 = makeRound('r1');
     const r2 = makeRound('r2', 'r1');
     const r3 = makeRound('r3', 'r2');
@@ -46,7 +46,7 @@ describe('resolveRoundLineage', () => {
     expect(lineage?.chainRoot.id).toBe('r1');
   });
 
-  it('depth-3 leaf → { depth: 3, total: 3 } (AC#5)', () => {
+  it('depth-3 leaf → { depth: 3, total: 3 }', () => {
     const r1 = makeRound('r1');
     const r2 = makeRound('r2', 'r1');
     const r3 = makeRound('r3', 'r2');
@@ -56,7 +56,7 @@ describe('resolveRoundLineage', () => {
     expect(lineage?.chainRoot.id).toBe('r1');
   });
 
-  it('missing parent ref → null (AC#6)', () => {
+  it('missing parent ref → null', () => {
     const orphan = makeRound('r2', 'missing-root');
     expect(resolveRoundLineage('r2', [orphan])).toBeNull();
   });

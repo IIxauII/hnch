@@ -14,7 +14,7 @@ export const LAST_SESSION_KEY = 'hnch.lastSession';
 /**
  * The screens that count as "inside a session" for route restoration
  * (ADR-0022, ADR-0044). An alias of the shared `Screen` union so the cache,
- * the routes, and both surfaces speak one word (issue #508) — same two
+ * the routes, and both surfaces speak one word (#508) — same two
  * members, so no cache migration and the structural validation on read is
  * unaffected. The field itself stays a client-only extension on the cache
  * entry; the shared entry shape deliberately excludes it.
@@ -31,16 +31,12 @@ export interface ClientLastSessionEntry extends LastSessionEntry {
   readonly lastScreen?: LastSessionScreen;
 }
 
-// ---------------------------------------------------------------------------
 // Back-compat type alias — old consumers imported `LastSessionCache`
-// ---------------------------------------------------------------------------
 
 /** @deprecated Use `ClientLastSessionEntry` directly. */
 export type LastSessionCache = ClientLastSessionEntry;
 
-// ---------------------------------------------------------------------------
 // Service
-// ---------------------------------------------------------------------------
 
 /**
  * Thin Preferences wrapper backing Home's "Jump back in" list (ADR-0044).
@@ -78,9 +74,7 @@ export class LastSessionService {
   /** @deprecated Use `LAST_SESSION_TTL_MS` from `@hnch/shared`. */
   static readonly TTL_MS = LAST_SESSION_TTL_MS;
 
-  // -------------------------------------------------------------------------
   // Read helpers
-  // -------------------------------------------------------------------------
 
   private async readCache(): Promise<{
     version: 2;
@@ -154,9 +148,7 @@ export class LastSessionService {
     return result;
   }
 
-  // -------------------------------------------------------------------------
   // Public API
-  // -------------------------------------------------------------------------
 
   /**
    * Read cache, migrate from v1 if needed, prune expired entries, sort
@@ -338,9 +330,7 @@ export class LastSessionService {
     });
   }
 
-  // -------------------------------------------------------------------------
   // Back-compat methods kept for existing callers during migration
-  // -------------------------------------------------------------------------
 
   /**
    * @deprecated Use `list()` and take `[0]` or use `recordJoin()`.

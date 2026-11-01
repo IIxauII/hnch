@@ -179,9 +179,7 @@ export class WebQrScannerOverlayComponent implements AfterViewInit, OnDestroy {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Error-reason mapper (exported for unit tests)
-// ---------------------------------------------------------------------------
 
 const UNSUPPORTED_PHRASES = ['unsupported', 'not implemented', 'Barcode Detection API'];
 

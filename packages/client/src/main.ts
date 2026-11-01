@@ -26,7 +26,7 @@ bootstrapApplication(AppComponent, {
     provideRouter(routes, withPreloading(PreloadAllModules), withComponentInputBinding()),
     { provide: RouteReuseStrategy, useClass: IonicRouteStrategy },
     // Pre-warm the participant id so every downstream screen can read
-    // `participantIdService.id()` synchronously (plan §3.6). The
+    // `participantIdService.id()` synchronously. The
     // Capacitor Device bridge is the slow path on cold start; doing it
     // once here keeps Home / Lobby / Estimating from ever observing a
     // transient `null`.

@@ -1,10 +1,6 @@
 import { test, expect } from './fixtures/app.fixture';
 import { LOBBY, ROUND_FIELD } from './fixtures/helpers';
 
-// ---------------------------------------------------------------------------
-// Selectors
-// ---------------------------------------------------------------------------
-
 // NOTE: `ion-button` is a web component — Ionic reflects `aria-label` onto
 // the inner shadow <button>, not the host element. CSS attribute selectors
 // ([aria-label="..."]) do not match. Use page.getByLabel() which uses ARIA
@@ -41,9 +37,7 @@ async function saveTitleInModal(page: import('@playwright/test').Page, newTitle:
   await page.locator(ROUND_EDIT.modal).waitFor({ state: 'hidden', timeout: 5_000 });
 }
 
-// ---------------------------------------------------------------------------
 // Shared setup: two clients, vote and reveal one round
-// ---------------------------------------------------------------------------
 async function revealOneRound(
   host: import('./fixtures/app.fixture').Participant,
   player: import('./fixtures/app.fixture').Participant,
@@ -60,11 +54,8 @@ async function revealOneRound(
   return code;
 }
 
-// ---------------------------------------------------------------------------
-// Specs
-// ---------------------------------------------------------------------------
 test.describe('Round descriptor edit (post-reveal)', () => {
-  test('host sees pencil; joiner does not (AC #1)', async ({ host, player }) => {
+  test('host sees pencil; joiner does not', async ({ host, player }) => {
     await revealOneRound(host, player, 'Foo');
 
     // Host: pencil visible in results section
@@ -74,10 +65,7 @@ test.describe('Round descriptor edit (post-reveal)', () => {
     await expect(player.page.locator(ROUND_EDIT.currentRoundPencil)).not.toBeVisible();
   });
 
-  test('modal pre-fills and save propagates to both clients (AC #2, #3, #4, #9)', async ({
-    host,
-    player,
-  }) => {
+  test('modal pre-fills and save propagates to both clients', async ({ host, player }) => {
     await revealOneRound(host, player, 'Foo');
 
     // Open modal on host — verify pre-fill
@@ -94,10 +82,7 @@ test.describe('Round descriptor edit (post-reveal)', () => {
     await expect(player.page.locator(descriptor)).toHaveText('Foo (backend)', { timeout: 3_000 });
   });
 
-  test('Save disabled when title empty; re-enabled when non-empty (AC #6)', async ({
-    host,
-    player,
-  }) => {
+  test('Save disabled when title empty; re-enabled when non-empty', async ({ host, player }) => {
     await revealOneRound(host, player, 'Foo');
     await openCurrentRoundEdit(host.page);
 
@@ -118,7 +103,7 @@ test.describe('Round descriptor edit (post-reveal)', () => {
     await expect(saveBtnNative).toBeEnabled();
   });
 
-  test('history row pencil edits past round; both clients see updated label (AC #5)', async ({
+  test('history row pencil edits past round; both clients see updated label', async ({
     host,
     player,
   }) => {
@@ -162,7 +147,7 @@ test.describe('Round descriptor edit (post-reveal)', () => {
     await expect(playerHistoryTitle).toBeVisible({ timeout: 3_000 });
   });
 
-  test('cancel discards change — descriptor unchanged (AC #7)', async ({ host, player }) => {
+  test('cancel discards change — descriptor unchanged', async ({ host, player }) => {
     await revealOneRound(host, player, 'Original');
     await openCurrentRoundEdit(host.page);
 

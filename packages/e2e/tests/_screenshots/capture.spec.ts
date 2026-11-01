@@ -293,7 +293,7 @@ test.describe('screenshot capture', () => {
       // After a single round the history list is absent (the current round shows
       // in VoteResultsComponent, not history). No empty-state element rendered.
       // This shot captures lobby pre-next-round (equivalent to 06-lobby-1440 with results).
-      // Note: redundant with 15-lobby-results-1440; kept per plan §4a for completeness.
+      // Note: redundant with 15-lobby-results-1440; kept for completeness.
       await shot(page, '4a-lobby-no-history-yet-1440');
 
       // 6a — preset card editor sheet

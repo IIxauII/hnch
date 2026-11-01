@@ -23,7 +23,7 @@ interface HistoryEntry {
   readonly summary: string;
   readonly elapsed: string | null;
   readonly skipped: boolean;
-  /** `"Re-vote"` for a round that re-votes an earlier one; `null` otherwise (issue #111). */
+  /** `"Re-vote"` for a round that re-votes an earlier one; `null` otherwise (#111). */
   readonly lineageLabel: string | null;
 }
 
@@ -198,7 +198,7 @@ export class RoundHistoryComponent {
    * *this* list (`roundNumber`), so a row reads "Round 3" for the round that
    * was "Round 3" on the Estimating screen, whatever was filtered out of
    * `rounds`. Also resolves `parentRoundId` chains for the re-vote badge
-   * (issue #111). Defaults to `rounds` when omitted.
+   * (#111). Defaults to `rounds` when omitted.
    */
   readonly allRounds = input<readonly Round[]>([]);
   /** Reserved for future name-based display; unused in compact summary mode. */
@@ -268,9 +268,7 @@ export class RoundHistoryComponent {
   });
 }
 
-// ---------------------------------------------------------------------------
 // Module-private helpers
-// ---------------------------------------------------------------------------
 
 /**
  * Compact vote summary: "card×count, card×count" sorted by count desc, then

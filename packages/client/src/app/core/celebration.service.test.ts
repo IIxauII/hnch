@@ -1,9 +1,9 @@
 /**
- * Tests for CelebrationService — the new owner of consensus overlay state
- * (moved from VoteResultsComponent per T1/T2 refactor).
+ * Tests for CelebrationService — the owner of consensus overlay state
+ * (moved from VoteResultsComponent).
  *
- * Covers AC-11, AC-12, AC-13 (consensus() guards), AC-14 (viewer path),
- * and the round-swap cancel behavior previously in vote-results.component.test.ts.
+ * Covers overlay state, the consensus() guards, the viewer path, and the
+ * round-swap cancel behavior previously in vote-results.component.test.ts.
  */
 
 import { describe, expect, it, vi } from 'vitest';
@@ -13,9 +13,7 @@ import { ABSTAIN_SENTINEL } from '@hnch/shared';
 import { HapticService } from './haptic.service';
 import { CelebrationService } from './celebration.service';
 
-// ---------------------------------------------------------------------------
 // Ionic stubs (needed transitively by some shared imports in test env)
-// ---------------------------------------------------------------------------
 vi.mock('@ionic/angular/standalone', async () => {
   const { Component: Comp, Input } = await import('@angular/core');
   const stub = (selector: string) =>
@@ -32,9 +30,7 @@ vi.mock('@ionic/angular/standalone', async () => {
 });
 vi.mock('ionicons', () => ({ addIcons: vi.fn() }));
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 const SCALE = { id: 'fibonacci', cards: ['1', '2', '3', '5', '8'] };
 
@@ -67,9 +63,7 @@ function mountService(): CelebrationService {
   return TestBed.inject(CelebrationService);
 }
 
-// ---------------------------------------------------------------------------
 // consensus() computed guards
-// ---------------------------------------------------------------------------
 
 describe('CelebrationService — consensus()', () => {
   it('false when round is null', () => {
@@ -105,7 +99,7 @@ describe('CelebrationService — consensus()', () => {
     expect(svc.consensus()).toBe(false);
   });
 
-  it('true on unanimous revealed round (AC-14: viewer path same result)', () => {
+  it('true on unanimous revealed round (viewer path same result)', () => {
     const svc = mountService();
     svc.setRound(makeRound({ votes: { p1: '5', p2: '5' } }));
     TestBed.flushEffects();
@@ -113,17 +107,15 @@ describe('CelebrationService — consensus()', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Overlay state (AC-11)
-// ---------------------------------------------------------------------------
+// Overlay state
 
-describe('CelebrationService — overlay state (AC-11)', () => {
+describe('CelebrationService — overlay state', () => {
   it('showOverlay starts false', () => {
     const svc = mountService();
     expect(svc.showOverlay()).toBe(false);
   });
 
-  it('celebration fires after stagger delay on consensus round (AC-11)', () => {
+  it('celebration fires after stagger delay on consensus round', () => {
     vi.useFakeTimers();
     try {
       hapticStub.notificationSuccess.mockClear();
@@ -146,7 +138,7 @@ describe('CelebrationService — overlay state (AC-11)', () => {
     }
   });
 
-  it('auto-dismiss after 3s clears overlay (AC-11)', () => {
+  it('auto-dismiss after 3s clears overlay', () => {
     vi.useFakeTimers();
     try {
       const svc = mountService();
@@ -180,9 +172,7 @@ describe('CelebrationService — overlay state (AC-11)', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Engine presence: attachLayer + pendingPattern flush
-// ---------------------------------------------------------------------------
 
 describe('CelebrationService — attachLayer / pendingPattern', () => {
   it('startConfetti() without prior attachLayer stores pendingPattern; no animate calls', () => {
@@ -233,11 +223,9 @@ describe('CelebrationService — attachLayer / pendingPattern', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// AC-12: round swap before celebration timer fires cancels overlay
-// ---------------------------------------------------------------------------
+// Round swap before celebration timer fires cancels overlay
 
-describe('CelebrationService — AC-12: round-swap cancel', () => {
+describe('CelebrationService — round-swap cancel', () => {
   it('round swap before celebration timer fires cancels overlay + haptic bump', () => {
     vi.useFakeTimers();
     try {
@@ -275,7 +263,7 @@ describe('CelebrationService — AC-12: round-swap cancel', () => {
     }
   });
 
-  it('AC-12 mid-celebration round swap: engine null and layer children cleared', () => {
+  it('mid-celebration round swap: engine null and layer children cleared', () => {
     vi.useFakeTimers();
     try {
       const animateSpy = vi.spyOn(HTMLElement.prototype, 'animate');
@@ -308,11 +296,9 @@ describe('CelebrationService — AC-12: round-swap cancel', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// AC-15: Live transition false→true (no remount, effect re-arms)
-// ---------------------------------------------------------------------------
+// Live transition false→true (no remount, effect re-arms)
 
-describe('CelebrationService — AC-15: live false→true transition', () => {
+describe('CelebrationService — live false→true transition', () => {
   it('setRound to non-revealed, then to same id+revealed arms overlay without remount', () => {
     vi.useFakeTimers();
     try {
@@ -354,12 +340,10 @@ describe('CelebrationService — AC-15: live false→true transition', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Regression: consecutive unanimous rounds — overlay must fire for round N+1
 // even when consensus() stays true across the round swap. Without explicit
 // round-id tracking in the celebration effect, Angular skips the re-run
 // because the tracked signal value is unchanged.
-// ---------------------------------------------------------------------------
 
 describe('CelebrationService — consecutive unanimous rounds', () => {
   it('overlay fires on round B unanimous after round A unanimous', () => {
@@ -389,11 +373,9 @@ describe('CelebrationService — consecutive unanimous rounds', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// AC-17: Skip-race — true→false transition cancels overlay + clears timers
-// ---------------------------------------------------------------------------
+// Skip-race — true→false transition cancels overlay + clears timers
 
-describe('CelebrationService — AC-17: skip-race cancel', () => {
+describe('CelebrationService — skip-race cancel', () => {
   it('consensus true→false (skip-after-reveal) cancels pending timers + overlay', () => {
     vi.useFakeTimers();
     try {
@@ -429,7 +411,6 @@ describe('CelebrationService — AC-17: skip-race cancel', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Race regression (#310): projection-tick reference-thrash must not cancel
 // in-flight celebration. Doc.service rewrites `projection` on every observeDeep
 // callback (awareness, heartbeats, vote settles), and `rounds()` rebuilds as a
@@ -441,7 +422,6 @@ describe('CelebrationService — AC-17: skip-race cancel', () => {
 // IMPORTANT: this test must call `setRound` with a NEW object reference
 // each tick (e.g. `{ ...round }`); calling with the same ref is a signal-
 // equality no-op that would pass against the buggy code.
-// ---------------------------------------------------------------------------
 
 describe('CelebrationService — #310 race: projection-tick reference-thrash', () => {
   it('celebration survives repeated same-id setRound across the 3s window', () => {
@@ -514,12 +494,10 @@ describe('CelebrationService — #310 race: projection-tick reference-thrash', (
   });
 });
 
-// ---------------------------------------------------------------------------
 // Null-cycle remount (C2): setRound(round) → setRound(null) → setRound(sameRound)
 // must re-arm. The identity guard early-returns when ids match, but null
 // transitions must still run the reset and a new non-null after null must
 // re-arm cleanly.
-// ---------------------------------------------------------------------------
 
 describe('CelebrationService — null-cycle remount', () => {
   it('setRound(round) → null → same round re-arms overlay', () => {
@@ -562,11 +540,9 @@ describe('CelebrationService — null-cycle remount', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// AC-18: Reduced-motion — no engine instantiation
-// ---------------------------------------------------------------------------
+// Reduced-motion — no engine instantiation
 
-describe('CelebrationService — AC-18: reduced-motion', () => {
+describe('CelebrationService — reduced-motion', () => {
   it('prefers-reduced-motion: no animate calls, showOverlay true after stagger', () => {
     vi.useFakeTimers();
     try {
@@ -610,12 +586,10 @@ describe('CelebrationService — AC-18: reduced-motion', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // scheduleCelebration early-return guard (changed line ~131):
 // `if (r?.status !== 'revealed') return;`
 // The guard is reachable when consensus() returns true but the round status
 // is not 'revealed' (e.g. 'voting' with unanimous votes). Verify both paths.
-// ---------------------------------------------------------------------------
 
 describe('CelebrationService — scheduleCelebration status guard', () => {
   it('early-return: unanimous voting round (status !== revealed) never shows overlay', () => {

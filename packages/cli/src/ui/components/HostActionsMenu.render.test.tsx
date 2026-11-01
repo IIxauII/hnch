@@ -15,10 +15,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { HostActionsMenu } from './HostActionsMenu.js';
 
-// ---------------------------------------------------------------------------
-// Rendering
-// ---------------------------------------------------------------------------
-
 describe('HostActionsMenu — rendering', () => {
   it('renders the "Host Actions" title', () => {
     const { lastFrame } = render(<HostActionsMenu onPick={vi.fn()} onClose={vi.fn()} />);
@@ -35,10 +31,6 @@ describe('HostActionsMenu — rendering', () => {
     expect(lastFrame() ?? '').toContain('Cannot be undone');
   });
 });
-
-// ---------------------------------------------------------------------------
-// Keyboard interactions
-// ---------------------------------------------------------------------------
 
 describe('HostActionsMenu — keyboard interactions', () => {
   it('Enter calls onPick with "end-session"', async () => {

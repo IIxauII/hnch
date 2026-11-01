@@ -4,7 +4,7 @@
  *
  * Writes a PNG to docs/screenshots/<sha>/round-start/ showing the sheet at
  * the 0.6 breakpoint with the header actions visible. The regression guard
- * for those actions (issue #445) runs in every e2e run from
+ * for those actions (#445) runs in every e2e run from
  * `tests/sheet-actions-mobile.spec.ts`; the assertions kept here only wait
  * for the state the shot shows.
  *

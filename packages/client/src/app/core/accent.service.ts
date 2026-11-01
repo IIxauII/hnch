@@ -12,9 +12,7 @@ import {
 const PREF_KEY = 'hnch.accent';
 const DARK_CLASS = 'ion-palette-dark';
 
-// ---------------------------------------------------------------------------
 // Pure helpers — exported for unit tests
-// ---------------------------------------------------------------------------
 
 /** Parse a 3- or 6-digit hex color to an `r,g,b` tuple string. */
 export function hexToRgbTuple(hex: string): string {
@@ -176,10 +174,6 @@ export function accessibleAccentText(base: string, isDark: boolean): string {
   }
   return isDark ? '#ffffff' : '#000000';
 }
-
-// ---------------------------------------------------------------------------
-// Service
-// ---------------------------------------------------------------------------
 
 /**
  * Manages the app's accent colour preference.

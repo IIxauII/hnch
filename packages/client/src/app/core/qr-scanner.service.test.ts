@@ -7,9 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// ---------------------------------------------------------------------------
 // Module-level mocks (hoisted before imports)
-// ---------------------------------------------------------------------------
 
 const mockScan = vi.fn();
 const mockRequestPermissions = vi.fn();
@@ -40,9 +38,7 @@ vi.mock('./web-qr-scanner.overlay', async (importOriginal) => {
 
 vi.mock('barcode-detector/polyfill', () => ({}));
 
-// ---------------------------------------------------------------------------
 // Imported after mocks
-// ---------------------------------------------------------------------------
 
 import {
   scanNative,
@@ -56,9 +52,7 @@ import {
   type QrScanErrorReason,
 } from './qr-scanner.service';
 
-// ---------------------------------------------------------------------------
 // Helper: stub navigator.mediaDevices.enumerateDevices for pre-flight camera check
-// ---------------------------------------------------------------------------
 
 function stubMediaDevices(devices: { kind: string }[] | 'missing' | 'throws'): void {
   if (devices === 'missing') {
@@ -82,9 +76,7 @@ import { mapDomErrorToReason } from './web-qr-scanner.overlay';
 import { TestBed } from '@angular/core/testing';
 import { ModalController } from '@ionic/angular/standalone';
 
-// ---------------------------------------------------------------------------
 // Helper: build a mock ModalController
-// ---------------------------------------------------------------------------
 
 function makeMockModalCtrl(dismissData: string | { reason: QrScanErrorReason } | null = null): {
   ctrl: MinimalModalController;
@@ -101,9 +93,7 @@ function makeMockModalCtrl(dismissData: string | { reason: QrScanErrorReason } |
   return { ctrl: { create: mockCreate }, mockCreate, mockPresent, mockOnWillDismiss };
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 describe('ensurePolyfill()', () => {
   beforeEach(() => {
@@ -293,9 +283,7 @@ describe('scanWeb()', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // QrScannerService.scanForCode() — branch routing (uses TestBed for inject())
-// ---------------------------------------------------------------------------
 
 describe('QrScannerService.scanForCode() routing', () => {
   let mockModalCreate: ReturnType<typeof vi.fn>;
@@ -394,9 +382,7 @@ describe('QrScannerService.scanForCode() routing', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // mapDomErrorToReason
-// ---------------------------------------------------------------------------
 
 describe('mapDomErrorToReason()', () => {
   it.each([

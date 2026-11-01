@@ -1,5 +1,5 @@
 /**
- * Tests for the screen selector (issue #508).
+ * Tests for the screen selector (#508).
  *
  * The rule is stated against plain projections and a returned screen name —
  * no page, no framework, no stubs. Every case below is a fact about the rule,

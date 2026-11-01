@@ -7,10 +7,6 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// ---------------------------------------------------------------------------
-// Mock Capacitor Preferences
-// ---------------------------------------------------------------------------
-
 const mockPreferences = {
   get: vi.fn<(opts: { key: string }) => Promise<{ value: string | null }>>(),
   set: vi.fn<(opts: { key: string; value: string }) => Promise<void>>(),
@@ -20,10 +16,6 @@ vi.mock('@capacitor/preferences', () => ({
   Preferences: mockPreferences,
 }));
 
-// ---------------------------------------------------------------------------
-// Mock Capacitor Device
-// ---------------------------------------------------------------------------
-
 const mockDevice = {
   getId: vi.fn<() => Promise<{ identifier: string }>>(),
 };
@@ -31,10 +23,6 @@ const mockDevice = {
 vi.mock('@capacitor/device', () => ({
   Device: mockDevice,
 }));
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 async function createService() {
   const mod = await import('./participant-id.service');
@@ -51,10 +39,6 @@ describe('ParticipantIdService', () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
-
-  // -------------------------------------------------------------------------
-  // Legacy key migration
-  // -------------------------------------------------------------------------
 
   describe('legacy key migration', () => {
     it('returns the legacy participantId when it exists in Preferences', async () => {
@@ -79,9 +63,7 @@ describe('ParticipantIdService', () => {
     });
   });
 
-  // -------------------------------------------------------------------------
   // Fresh install path (Device.getId())
-  // -------------------------------------------------------------------------
 
   describe('fresh install (Device.getId() fallback)', () => {
     it('calls Device.getId() when no legacy key exists', async () => {
@@ -122,10 +104,6 @@ describe('ParticipantIdService', () => {
     });
   });
 
-  // -------------------------------------------------------------------------
-  // Caching / dedup
-  // -------------------------------------------------------------------------
-
   describe('caching / dedup', () => {
     it('id() returns null before getOrCreateId() has resolved', async () => {
       const svc = await createService();
@@ -154,10 +132,6 @@ describe('ParticipantIdService', () => {
       expect(mockPreferences.get).toHaveBeenCalledOnce();
     });
   });
-
-  // -------------------------------------------------------------------------
-  // ensureLoaded alias
-  // -------------------------------------------------------------------------
 
   describe('ensureLoaded', () => {
     it('returns the same id as getOrCreateId()', async () => {

@@ -16,10 +16,6 @@ import {
 import { revealCurrentRound } from './round-commands.js';
 import { toggleCurrentVote, clearCurrentVote } from './vote-commands.js';
 
-// ---------------------------------------------------------------------------
-// Fixtures
-// ---------------------------------------------------------------------------
-
 /** Freshly seeded doc with no rounds. Seeded host `p-host` is a voter by default. */
 function seedDoc(): Y.Doc {
   const doc = new Y.Doc();
@@ -43,10 +39,6 @@ function seedWithRound(): Y.Doc {
 function makeViewer(doc: Y.Doc, id: string, displayName: string): void {
   upsertParticipant(doc, id, { displayName, joinedAt: 1, role: 'viewer' });
 }
-
-// ---------------------------------------------------------------------------
-// Active-round gate
-// ---------------------------------------------------------------------------
 
 describe('active-round gate', () => {
   it('toggleCurrentVote refuses with no-active-round when there are no rounds at all', () => {
@@ -107,9 +99,7 @@ describe('active-round gate', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Role gate (toggleCurrentVote only)
-// ---------------------------------------------------------------------------
 
 describe('role gate', () => {
   it('toggleCurrentVote refuses a viewer with not-a-voter', () => {
@@ -145,10 +135,6 @@ describe('role gate', () => {
     expect(projectDoc(doc).rounds[0]!.votes).toEqual({});
   });
 });
-
-// ---------------------------------------------------------------------------
-// Toggle rule
-// ---------------------------------------------------------------------------
 
 describe('toggleCurrentVote — toggle rule', () => {
   it('cast, then re-select the same card clears, then re-select casts again', () => {
@@ -203,9 +189,7 @@ describe('toggleCurrentVote — toggle rule', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Role-flip mid-round: viewer may still clear
-// ---------------------------------------------------------------------------
 
 describe('clearCurrentVote — role-flip mid-round', () => {
   it('a voter who becomes a viewer mid-round can still clear their vote', () => {

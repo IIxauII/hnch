@@ -79,11 +79,8 @@ export interface SessionHandle {
    */
   readonly commands: SessionCommands;
 
-  /** The latest projection. */
   projection(): DocProjection;
-  /** Current round (or null). */
   current(): Round | null;
-  /** Whether this client is the host. */
   isHost(): boolean;
   /**
    * Whether the session has been got into at least once: the relay's state

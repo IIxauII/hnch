@@ -32,10 +32,6 @@ import { displayNameGuard } from './display-name.guard';
 import { DisplayNameService } from './display-name.service';
 import { Router } from '@angular/router';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function seg(path: string): UrlSegment {
   return { path, parameters: {}, parameterMap: null as never, toString: () => path } as UrlSegment;
 }
@@ -78,10 +74,6 @@ async function runGuard(
   );
   return result;
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 afterEach(() => {
   TestBed.resetTestingModule();

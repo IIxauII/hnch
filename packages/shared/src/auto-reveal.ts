@@ -71,10 +71,6 @@ export function shouldAutoReveal(
   return numericCount >= denominator;
 }
 
-// ---------------------------------------------------------------------------
-// Driver
-// ---------------------------------------------------------------------------
-
 /** True when the session has an active participant other than `selfId`. */
 function hasPeers(projection: DocProjection, selfId: string | null): boolean {
   return projection.participants.some((p) => isActiveParticipant(p) && p.id !== selfId);

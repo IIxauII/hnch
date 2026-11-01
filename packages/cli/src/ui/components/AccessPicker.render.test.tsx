@@ -15,10 +15,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { AccessPicker } from './AccessPicker.js';
 
-// ---------------------------------------------------------------------------
-// Initial rendering by mode
-// ---------------------------------------------------------------------------
-
 describe('AccessPicker — initial rendering', () => {
   it('shows [Open] active label in open mode', () => {
     const { lastFrame } = render(
@@ -77,10 +73,6 @@ describe('AccessPicker — initial rendering', () => {
     expect(lastFrame() ?? '').toContain('←→ toggle');
   });
 });
-
-// ---------------------------------------------------------------------------
-// Keyboard interactions
-// ---------------------------------------------------------------------------
 
 describe('AccessPicker — keyboard interactions', () => {
   it('right arrow + Enter from "open" mode calls onModeChange("password")', async () => {

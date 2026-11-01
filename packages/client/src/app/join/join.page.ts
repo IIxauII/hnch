@@ -535,7 +535,7 @@ export class JoinPage {
     };
 
     try {
-      // Phase 1: resolve the code to get UUID + accessMode.
+      // Step 1: resolve the code to get UUID + accessMode.
       // If we already resolved (user is submitting with a password),
       // skip the resolve step and go straight to connect.
       let uuid = this.resolvedUuid;
@@ -559,7 +559,7 @@ export class JoinPage {
       }
       relayAnswered = true;
 
-      // Phase 2: connect with credentials.
+      // Step 2: connect with credentials.
       const [displayName, participantId] = await Promise.all([
         this.displayNameService.getDisplayName(),
         this.participantIdService.getOrCreateId(),

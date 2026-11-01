@@ -14,10 +14,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { CustomScaleEditor } from './CustomScaleEditor.js';
 
-// ---------------------------------------------------------------------------
-// Title rendering
-// ---------------------------------------------------------------------------
-
 describe('CustomScaleEditor — title', () => {
   it('shows "Create Custom Scale" title when no initialName provided', () => {
     const { lastFrame } = render(<CustomScaleEditor onSave={vi.fn()} onCancel={vi.fn()} />);
@@ -36,10 +32,6 @@ describe('CustomScaleEditor — title', () => {
     expect(lastFrame() ?? '').toContain('Name:');
   });
 });
-
-// ---------------------------------------------------------------------------
-// Validation errors
-// ---------------------------------------------------------------------------
 
 describe('CustomScaleEditor — validation', () => {
   it('submitting empty name shows the validation error message', async () => {
@@ -62,10 +54,6 @@ describe('CustomScaleEditor — validation', () => {
     expect(lastFrame() ?? '').toContain('Name must be 1-40 characters');
   });
 });
-
-// ---------------------------------------------------------------------------
-// Cancel callback
-// ---------------------------------------------------------------------------
 
 describe('CustomScaleEditor — cancel', () => {
   it('escape while in name-editing mode calls onCancel', async () => {

@@ -19,9 +19,7 @@ import {
   fillRoomCode,
 } from './fixtures/helpers';
 
-// ---------------------------------------------------------------------------
 // 1. Single-host flow
-// ---------------------------------------------------------------------------
 
 test.describe('Agenda single-host flow', () => {
   test('add items, start rounds, consume + skip → correct final states', async ({ host }) => {
@@ -128,9 +126,7 @@ test.describe('Agenda single-host flow', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // 2. Multi-client agenda visibility
-// ---------------------------------------------------------------------------
 
 test.describe('Agenda multi-client visibility', () => {
   test('joiner sees full list; no edit controls; "Next" badge on mobile', async ({ host }) => {
@@ -204,9 +200,7 @@ test.describe('Agenda multi-client visibility', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // 2b. Ordering and editing — the rest of the row menu
-// ---------------------------------------------------------------------------
 
 test.describe('Agenda ordering and editing', () => {
   test('stories move up and down, and the next round follows the order', async ({
@@ -293,9 +287,7 @@ test.describe('Agenda ordering and editing', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // 3. Re-vote preserves agendaItemId
-// ---------------------------------------------------------------------------
 
 test.describe('Agenda re-vote linkage', () => {
   /**
@@ -358,9 +350,7 @@ test.describe('Agenda re-vote linkage', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // 4. Host handoff preserves agenda edit ability
-// ---------------------------------------------------------------------------
 
 test.describe('Agenda host handoff', () => {
   /**

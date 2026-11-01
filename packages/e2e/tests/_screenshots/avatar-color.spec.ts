@@ -1,6 +1,6 @@
 /* eslint-disable max-lines-per-function -- linear screenshot tour */
 /**
- * Screenshot capture for ADR-0043 / issue #159 avatar color feature.
+ * Screenshot capture for ADR-0043 / #159 avatar color feature.
  *
  *   SCREENSHOT_CAPTURE=1 pnpm --filter @hnch/e2e exec playwright test \
  *     --project=chromium --workers=1 --reporter=list \

@@ -2,7 +2,7 @@ import { resolveRoundLineage } from '@hnch/shared';
 import type { Round } from '@hnch/shared';
 
 /**
- * Badge for a round that re-votes an earlier one (ADR-0013, issue #111):
+ * Badge for a round that re-votes an earlier one (ADR-0013, #111):
  * `"Re-vote"`, or `null` for a round that is not a re-vote and for one whose
  * parent chain cannot be resolved.
  *

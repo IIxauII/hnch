@@ -103,7 +103,7 @@ export class CelebrationService {
     });
 
     // Celebration effect: arm on false→true transition of consensus().
-    // Also handles true→false (skip-after-reveal per ADR-0040 AC-17).
+    // Also handles true→false (skip-after-reveal, ADR-0040).
     // Track round id explicitly so the effect re-runs across rounds when
     // consensus() stays true (round N unanimous → round N+1 unanimous);
     // otherwise Angular skips the re-run on equal signal values and the
@@ -117,7 +117,7 @@ export class CelebrationService {
         this.previousConsensus = true;
         this.scheduleCelebration();
       } else if (!nowConsensus && prev) {
-        // true → false: cancel pending celebration (AC-17: skip-after-reveal)
+        // true → false: cancel pending celebration (skip-after-reveal)
         this.previousConsensus = false;
         this.clearAllTimers();
         this.stopConfetti();

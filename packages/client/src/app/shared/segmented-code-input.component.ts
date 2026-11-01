@@ -21,7 +21,7 @@ const TILE_COUNT = 6;
  * - Form value: always `XXXXXX` (no separator).
  * - writeValue: accepts `XXXXXX` or `XXX-XXX` or `XXX XXX`.
  *
- * Reuse target: join.page.ts IonInput swap (issue #2).
+ * Reuse target: join.page.ts IonInput swap (#2).
  *
  * See ionic-screens.jsx:380–391.
  */
@@ -145,7 +145,7 @@ export class SegmentedCodeInputComponent implements ControlValueAccessor {
   private onChange: (value: string) => void = () => {};
   private onTouched: () => void = () => {};
 
-  // ControlValueAccessor -------------------------------------------------
+  // ControlValueAccessor
 
   writeValue(value: string | null | undefined): void {
     if (!value) {
@@ -178,7 +178,7 @@ export class SegmentedCodeInputComponent implements ControlValueAccessor {
     this.focusTile(firstEmpty === -1 ? TILE_COUNT - 1 : firstEmpty);
   }
 
-  // Event handlers -------------------------------------------------------
+  // Event handlers
 
   protected onFocus(index: number, event?: Event): void {
     this.focusedIndex.set(index);
@@ -275,7 +275,7 @@ export class SegmentedCodeInputComponent implements ControlValueAccessor {
     this.focusTile(nextFocus);
   }
 
-  // Private helpers ------------------------------------------------------
+  // Private helpers
 
   private setTile(index: number, char: string): void {
     this.tiles.update((prev) => prev.map((t, i) => (i === index ? char : t)));

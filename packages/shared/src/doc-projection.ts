@@ -1,24 +1,13 @@
 /**
- * Pure Yjs ↔ plain-JS projection + mutation helpers.
+ * Yjs ↔ plain-JS projection and mutation helpers: the one place the Yjs runtime types are read
+ * or written. Framework-free, so the client's `DocService` wraps them in signals while every line
+ * of CRDT-shape logic stays testable against a headless `Y.Doc`.
  *
- * These functions are the single place where the Yjs runtime types
- * (`Y.Doc`, `Y.Map`, `Y.Array`) are read from or written to. They're
- * deliberately framework-free — no Angular, no RxJS — so the client's
- * `DocService` can wrap them with signals while keeping every line
- * of CRDT-shape logic unit-testable against a headless `Y.Doc`.
+ * `projectDoc` returns an immutable snapshot; callers compare snapshots by identity. Every
+ * mutation runs in one `Y.transact`, so observers fire once per logical change.
  *
- * Design contract:
- *  - `projectDoc(doc)` returns an immutable plain-JS snapshot of the
- *    entire session state. Callers compare snapshots by identity; any
- *    mutation through the helpers below produces a new snapshot value.
- *  - `initDoc(doc, init)` seeds a fresh session.
- *  - Every mutation runs inside a `Y.transact` so observers fire once
- *    per logical change, matching the Phase 2 plan's stated doc-service
- *    rebuild-on-event approach.
- *
- * When `schema.md` evolves, update the types in `doc.ts` AND this
- * file in the same commit — the pairing is load-bearing for the
- * round-trip property tests below.
+ * When `schema.md` changes, update `doc.ts` and this file in the same commit: the round-trip
+ * tests rely on the pairing.
  */
 
 import * as Y from 'yjs';
@@ -39,9 +28,7 @@ import { keyBetween } from './fractional-index.js';
 import { terminalState } from './round-status.js';
 import { canEnterTerminal } from './round-transitions.js';
 
-// ---------------------------------------------------------------------------
 // Snapshot shape
-// ---------------------------------------------------------------------------
 
 /**
  * A participant projection. Keyed by `participantId` (the `Y.Map`
@@ -52,30 +39,19 @@ export interface ParticipantSnapshot extends Participant {
 }
 
 /**
- * Immutable plain-JS snapshot of the Yjs doc. The shape is stable
- * across the wire (Phase 3+) and across client versions — treat
- * changes to this shape as you would a schema change.
+ * Stable across the wire and across client versions: treat a change to this shape as a schema
+ * change.
  */
 export interface DocProjection {
   readonly meta: Meta;
   readonly settings: Settings;
   readonly participants: readonly ParticipantSnapshot[];
   readonly rounds: readonly Round[];
-  /**
-   * Pre-session agenda items, sorted by `sortKey` (ascending lex order).
-   * All states included — callers filter by state as needed.
-   * See ADR-0042.
-   */
+  /** Sorted by `sortKey`, every state included (ADR-0042). */
   readonly agenda: readonly AgendaItem[];
 }
 
-// ---------------------------------------------------------------------------
-// Top-level container keys
-// ---------------------------------------------------------------------------
-//
-// Centralized so the projection + mutation paths, and (in Phase 3) the
-// relay's snapshot diffing, all reach for the same string.
-//
+// Top-level container keys, shared so every path reaches for the same string
 
 export const DOC_META_KEY = 'meta';
 export const DOC_SETTINGS_KEY = 'settings';
@@ -124,14 +100,8 @@ const ROUND_FIELDS = [
   'agendaItemId',
 ] as const;
 
-// ---------------------------------------------------------------------------
-// Typed accessors for the top-level containers
-// ---------------------------------------------------------------------------
-//
-// Using `getMap` / `getArray` with consistent key names and casting to
-// `Y.Map<unknown>` / `Y.Array<Y.Map<unknown>>` keeps the Yjs generic
-// noise out of every call site below.
-//
+// Typed accessors for the top-level containers: they keep the Yjs generic noise out of
+// every call site below.
 
 type UnknownMap = Y.Map<unknown>;
 type RoundsArray = Y.Array<UnknownMap>;
@@ -156,9 +126,7 @@ export function agendaArray(doc: Y.Doc): RoundsArray {
   return doc.getArray(DOC_AGENDA_KEY) as RoundsArray;
 }
 
-// ---------------------------------------------------------------------------
 // Projection (Y -> plain JS)
-// ---------------------------------------------------------------------------
 
 function projectFields<T>(map: UnknownMap, fields: readonly (keyof T & string)[]): T {
   const out: Record<string, unknown> = {};
@@ -244,15 +212,13 @@ function projectAgenda(doc: Y.Doc): readonly AgendaItem[] {
   arr.forEach((itemMap) => {
     out.push(projectAgendaItem(itemMap));
   });
-  // Sort by sortKey ascending (lex order).
   out.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
   return out;
 }
 
 /**
- * Build a plain-JS immutable snapshot of the doc. Cheap enough to call
- * on every Yjs event at Phase 2 scale (<10 participants, <50 rounds);
- * fine-grained projections are a noted risk in the Phase 2 plan.
+ * Cheap enough to rebuild on every Yjs event at session scale (<10 participants, <50 rounds);
+ * a much larger session would want fine-grained projections.
  */
 export function projectDoc(doc: Y.Doc): DocProjection {
   return {
@@ -264,16 +230,9 @@ export function projectDoc(doc: Y.Doc): DocProjection {
   };
 }
 
-// ---------------------------------------------------------------------------
 // Initial seeding (Create Room)
-// ---------------------------------------------------------------------------
 
-/**
- * Arguments required to seed a fresh session into an empty `Y.Doc`.
- * `displayName` is this client's name for the seeded participant
- * record; `participantId` doubles as the initial `hostParticipantId`
- * and the key in `participants` (ADR-0005, ADR-0010).
- */
+/** `participantId` is also the initial `hostParticipantId` (ADR-0005, ADR-0010). */
 export interface InitDocInit {
   readonly roomUuid: string;
   readonly createdAt: number;
@@ -281,20 +240,13 @@ export interface InitDocInit {
   readonly displayName: string;
   readonly defaultScale: Scale;
   readonly sessionName?: string;
-  /**
-   * Optional avatar color wire value (ADR-0043). Pre-validated by the
-   * caller via `parseAvatarColor`; written verbatim to the seeded
-   * participant record so the room creator's color is visible from
-   * the first relay snapshot onward.
-   */
+  /** Pre-validated via `parseAvatarColor`, written verbatim (ADR-0043). */
   readonly avatarColor?: string;
 }
 
 /**
- * Seed `meta`, `settings`, and a single-entry `participants` map on
- * an empty `Y.Doc`. Throws if the doc already has a seeded `meta`
- * (idempotency is not part of this helper's contract — the DocService
- * is responsible for calling `endSession()` before `createSession()`).
+ * Seed `meta`, `settings` and a single-entry `participants` map on an empty `Y.Doc`. Throws if
+ * `meta` is already seeded: not idempotent, the caller tears the old session down first.
  */
 export function initDoc(doc: Y.Doc, init: InitDocInit): void {
   if (metaMap(doc).has('roomUuid')) {
@@ -379,9 +331,7 @@ export function joinDoc(doc: Y.Doc, init: JoinDocInit): void {
   });
 }
 
-// ---------------------------------------------------------------------------
 // Mutations (plain JS -> Y)
-// ---------------------------------------------------------------------------
 
 /**
  * The settings a caller outside this package may patch. Excludes
@@ -424,9 +374,6 @@ export function patchSettings(doc: Y.Doc, patch: PublicSettingsPatch): void {
   patchSettingsInternal(doc, patch);
 }
 
-/**
- * Upsert a participant record by id.
- */
 export function upsertParticipant(doc: Y.Doc, id: string, value: Participant): void {
   doc.transact(() => {
     const map = participantsMap(doc);
@@ -793,9 +740,7 @@ export function removeParticipant(
   });
 }
 
-// ---------------------------------------------------------------------------
 // Derived state helpers
-// ---------------------------------------------------------------------------
 
 /**
  * Current round = last round whose `status` is non-terminal (`'pending'` or
@@ -846,13 +791,8 @@ export function isConsensus(round: Round): boolean {
   return values.every((v) => v === values[0]);
 }
 
-// ---------------------------------------------------------------------------
 // Agenda mutations (ADR-0042)
-// ---------------------------------------------------------------------------
 
-/**
- * Find an agenda item's Y.Map by id. Returns undefined when not found.
- */
 function findAgendaItemMap(doc: Y.Doc, id: string): UnknownMap | undefined {
   const arr = agendaArray(doc);
   for (let i = 0; i < arr.length; i++) {
@@ -862,21 +802,15 @@ function findAgendaItemMap(doc: Y.Doc, id: string): UnknownMap | undefined {
   return undefined;
 }
 
-/**
- * Init options for a new agenda item.
- */
 export interface AppendAgendaItemInit {
-  /** Story title. At least one of `{title, ticketId}` required. */
+  /** At least one of `title` and `ticketId` is required. */
   readonly title?: string;
-  /** Story description. */
   readonly description?: string;
-  /** Issue tracker reference. At least one of `{title, ticketId}` required. */
   readonly ticketId?: string;
-  /** Import source. Defaults to `'manual'`. */
+  /** Defaults to `'manual'`. */
   readonly source?: string;
-  /** External system identifier for future importers. */
   readonly externalId?: string;
-  /** Unix milliseconds when the item was created. */
+  /** Unix milliseconds. */
   readonly createdAt: number;
 }
 
@@ -985,9 +919,6 @@ export function updateAgendaItemFields(
   });
 }
 
-/**
- * Options for `setAgendaItemState`.
- */
 export interface SetAgendaItemStateOpts {
   readonly consumedByRoundId?: string;
   /**
@@ -1087,9 +1018,7 @@ export function reorderAgendaItem(
   });
 }
 
-// ---------------------------------------------------------------------------
 // Agenda selectors (derived state)
-// ---------------------------------------------------------------------------
 
 /**
  * Return the first `pending` item in the sorted agenda projection, or `null`

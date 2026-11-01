@@ -9,9 +9,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ConfettiEngine, computeTrajectory } from './confetti-engine';
 
-// ---------------------------------------------------------------------------
 // Seeded RNG — linear congruential generator
-// ---------------------------------------------------------------------------
 
 function makeSeededRng(seed: number): () => number {
   let s = seed >>> 0;
@@ -24,9 +22,7 @@ function makeSeededRng(seed: number): () => number {
 const EMOJIS = ['🎉', '🎊', '🥳'] as const;
 const VIEWPORT = { w: 390, h: 844 };
 
-// ---------------------------------------------------------------------------
 // computeTrajectory — pure function
-// ---------------------------------------------------------------------------
 
 describe('computeTrajectory', () => {
   it('final keyframe y exceeds viewport floor (gravity acts downward)', () => {
@@ -73,9 +69,7 @@ describe('computeTrajectory', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // ConfettiEngine — spawn behavior
-// ---------------------------------------------------------------------------
 
 describe('ConfettiEngine — center pattern', () => {
   let layer: HTMLDivElement;
@@ -205,9 +199,7 @@ describe('ConfettiEngine — center pattern', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // ConfettiEngine — top-sprinkle pattern
-// ---------------------------------------------------------------------------
 
 describe('ConfettiEngine — top-sprinkle pattern', () => {
   let layer: HTMLDivElement;
@@ -249,9 +241,7 @@ describe('ConfettiEngine — top-sprinkle pattern', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // ConfettiEngine — side-cannons pattern
-// ---------------------------------------------------------------------------
 
 describe('ConfettiEngine — side-cannons pattern', () => {
   let layer: HTMLDivElement;
@@ -303,9 +293,7 @@ describe('ConfettiEngine — side-cannons pattern', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Hard cap: liveCount() never exceeds maxParticles
-// ---------------------------------------------------------------------------
 
 describe('ConfettiEngine — maxParticles hard cap', () => {
   let layer: HTMLDivElement;
@@ -339,9 +327,7 @@ describe('ConfettiEngine — maxParticles hard cap', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Window hook rng
-// ---------------------------------------------------------------------------
 
 describe('ConfettiEngine — __confettiRng window hook', () => {
   let layer: HTMLDivElement;
@@ -384,11 +370,9 @@ describe('ConfettiEngine — __confettiRng window hook', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Spawn fires assert layer.children.length > 0 (P2-C7 attached-layer guard)
-// ---------------------------------------------------------------------------
+// Spawn fires assert layer.children.length > 0 (attached-layer guard)
 
-describe('ConfettiEngine — attached-layer guard (P2-C7)', () => {
+describe('ConfettiEngine — attached-layer guard', () => {
   let layer: HTMLDivElement;
 
   beforeEach(() => {

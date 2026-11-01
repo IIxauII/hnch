@@ -8,10 +8,8 @@
  *   cap-01  — lobby at capacity (3 participants)
  *   cap-02  — 4th joiner's home page after rejection (WS close 4006 → /home with toast)
  *
- * TODO Phase 1 verification: this spec requires the relay to be running with
- * HNCH_ROOM_CAP=3. If the env is not set in playwright.config.ts or via the
- * shell, the 4th joiner will succeed and cap-02 won't show rejection UI.
- * Workaround: document in runner script or .env.test.
+ * If HNCH_ROOM_CAP is not set in playwright.config.ts or via the shell, the
+ * 4th joiner succeeds and cap-02 shows no rejection UI.
  *
  * Run:
  *   SCREENSHOT_CAPTURE=1 HNCH_ROOM_CAP=3 pnpm --filter @hnch/relay dev &

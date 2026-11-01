@@ -40,9 +40,7 @@ function makeRound(overrides: Partial<Round> = {}): Round {
   };
 }
 
-// ---------------------------------------------------------------------------
 // formatRoundLabel
-// ---------------------------------------------------------------------------
 
 describe('formatRoundLabel', () => {
   it('returns "ticketId · title" when both are set', () => {
@@ -80,9 +78,7 @@ describe('formatRoundLabel', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // roundNumber / nextRoundNumber
-// ---------------------------------------------------------------------------
 
 describe('roundNumber', () => {
   it('is the 1-based position in the session', () => {
@@ -151,9 +147,7 @@ describe('nextRoundNumber', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // formatRoundPosition
-// ---------------------------------------------------------------------------
 
 describe('formatRoundPosition', () => {
   it('standalone round → plain "Round N" from array position', () => {
@@ -206,9 +200,7 @@ describe('formatRoundPosition', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // computeRoundStats — raw primitive
-// ---------------------------------------------------------------------------
 
 describe('computeRoundStats', () => {
   it('empty votes → null', () => {
@@ -337,7 +329,7 @@ describe('computeRoundStats', () => {
     expect(r).toMatchObject({ kind: 'numeric', mean: 8, median: 8, spread: 'unanimous' });
   });
 
-  // --- Bug-fix regression tests ---
+  // Bug-fix regression tests
 
   it('unknown-card tie-break: fibonacci scale, votes foo+bar (both off-scale, 1 each) → mode "bar" (alphabetical first among unknowns)', () => {
     // 'bar' < 'foo' alphabetically → cardOrder('bar') < cardOrder('foo') → mode = 'bar'
@@ -410,14 +402,12 @@ describe('computeRoundStats', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Abstain sentinel — caller contract (ADR-0041)
 //
 // computeRoundStats does NOT filter the abstain sentinel. Callers are
 // responsible for pre-filtering, and in production that caller is
 // `roundStatsFor`. These tests document the degradation behaviour of the raw
 // primitive and guard against accidental changes to that contract.
-// ---------------------------------------------------------------------------
 
 describe('computeRoundStats — abstain sentinel caller contract (ADR-0041)', () => {
   it('numeric scale: mean/median exclude abstain via NaN filter; spread is skewed by off-scale index', () => {
@@ -447,9 +437,7 @@ describe('computeRoundStats — abstain sentinel caller contract (ADR-0041)', ()
   });
 });
 
-// ---------------------------------------------------------------------------
 // roundStatsFor — the abstain-stripping caller
-// ---------------------------------------------------------------------------
 
 describe('roundStatsFor', () => {
   it('round with no votes → null', () => {
@@ -510,9 +498,7 @@ describe('roundStatsFor', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // formatRoundStats
-// ---------------------------------------------------------------------------
 
 describe('formatRoundStats', () => {
   it('null in → null out', () => {
@@ -605,9 +591,7 @@ describe('formatRoundStats', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // formatRoundElapsed
-// ---------------------------------------------------------------------------
 
 describe('formatRoundElapsed', () => {
   it('revealed round with a timer → M:SS', () => {

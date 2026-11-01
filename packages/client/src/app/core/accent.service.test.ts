@@ -10,9 +10,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// ---------------------------------------------------------------------------
 // Mock Capacitor Preferences
-// ---------------------------------------------------------------------------
 
 const mockPreferences = {
   get: vi.fn<(opts: { key: string }) => Promise<{ value: string | null }>>(),
@@ -23,9 +21,7 @@ vi.mock('@capacitor/preferences', () => ({
   Preferences: mockPreferences,
 }));
 
-// ---------------------------------------------------------------------------
 // MutationObserver mock
-// ---------------------------------------------------------------------------
 
 type MutationCb = MutationCallback;
 
@@ -41,9 +37,7 @@ class MockMutationObserver {
 
 vi.stubGlobal('MutationObserver', MockMutationObserver);
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 const DARK_CLASS = 'ion-palette-dark';
 
@@ -57,9 +51,7 @@ function getCssVar(name: string): string | null {
   return document.documentElement.style.getPropertyValue(name) || null;
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 describe('AccentService', () => {
   beforeEach(() => {
@@ -79,9 +71,7 @@ describe('AccentService', () => {
     return new mod.AccentService();
   }
 
-  // -------------------------------------------------------------------------
   // Defaults
-  // -------------------------------------------------------------------------
 
   it('defaults to racing-green when storage is empty', async () => {
     mockPreferences.get.mockResolvedValue({ value: null });
@@ -101,9 +91,7 @@ describe('AccentService', () => {
     expect(svc.accent()).toBe('racing-green');
   });
 
-  // -------------------------------------------------------------------------
   // setAccent — CSS vars + persistence
-  // -------------------------------------------------------------------------
 
   it('setAccent writes Preferences and updates --ion-color-primary', async () => {
     mockPreferences.get.mockResolvedValue({ value: null });
@@ -138,9 +126,7 @@ describe('AccentService', () => {
     expect(getCssVar('--ion-color-primary-tint')).toBeTruthy();
   });
 
-  // -------------------------------------------------------------------------
   // Dark-mode override — graphite
-  // -------------------------------------------------------------------------
 
   it('flips graphite base to #F2F2F7 when dark class is present', async () => {
     mockPreferences.get.mockResolvedValue({ value: 'graphite' });
@@ -169,9 +155,7 @@ describe('AccentService', () => {
     expect(getCssVar('--ion-color-primary')).toBe('#F2F2F7');
   });
 
-  // -------------------------------------------------------------------------
   // Dark-mode override — racing-green
-  // -------------------------------------------------------------------------
 
   it('flips racing-green base to #1F6B4F when dark class is present', async () => {
     mockPreferences.get.mockResolvedValue({ value: 'racing-green' });
@@ -201,9 +185,7 @@ describe('AccentService', () => {
     expect(getCssVar('--ion-color-primary')).toBe('#0B3D2E');
   });
 
-  // -------------------------------------------------------------------------
   // hexToRgbTuple helper
-  // -------------------------------------------------------------------------
 
   it('hexToRgbTuple parses #0A84FF → 10,132,255', async () => {
     const { hexToRgbTuple } = await import('./accent.service');
@@ -221,9 +203,7 @@ describe('AccentService', () => {
     expect(hexToRgbTuple('#fff')).toBe('255,255,255');
   });
 
-  // -------------------------------------------------------------------------
   // shade / tint helpers
-  // -------------------------------------------------------------------------
 
   it('shade darkens by percentage', async () => {
     const { shade } = await import('./accent.service');
@@ -239,9 +219,7 @@ describe('AccentService', () => {
     expect(tint('#000000', 0)).toBe('#000000');
   });
 
-  // -------------------------------------------------------------------------
   // Accessible accent text — `--hnch-accent-text`
-  // -------------------------------------------------------------------------
 
   it('contrastRatio matches the WCAG reference pairs', async () => {
     const { contrastRatio } = await import('./accent.service');
@@ -393,9 +371,7 @@ describe('AccentService', () => {
     expect(getCssVar('--hnch-accent-text')).not.toBe(lightText);
   });
 
-  // -------------------------------------------------------------------------
   // Persistence round-trip
-  // -------------------------------------------------------------------------
 
   it('reads persisted value from Preferences on loadFromStorage', async () => {
     mockPreferences.get.mockResolvedValue({ value: 'teal' });

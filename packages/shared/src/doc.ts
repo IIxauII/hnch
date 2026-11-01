@@ -1,373 +1,184 @@
 /**
- * Yjs doc shape — platform-neutral TypeScript mirror of `schema.md`.
- *
- * This module defines the logical shape of session state (ADR-0003's Yjs
- * doc). It carries no runtime Yjs dependency: the CRDT bindings (Y.Map,
- * Y.Array) live in the client package. Shared stays platform-neutral so
- * the relay can import these types without pulling Angular or Yjs into
- * its dependency graph.
- *
- * The authoritative description is `schema.md`; this file mirrors it
- * one-to-one. Any divergence is a bug in one of the two — fix schema.md
- * first (and write an ADR if it's a shape-level change), then update here.
+ * TypeScript mirror of the Yjs doc in `docs/schema.md`, which is authoritative for what each
+ * field means: change schema.md first (with an ADR for a shape change), then this file. Times
+ * are Unix milliseconds. No runtime Yjs import, so the relay can use these types without Yjs.
  */
 
-// ---------------------------------------------------------------------------
 // Scale
-// ---------------------------------------------------------------------------
 
 /**
- * A voting scale — the set of card faces available in a round.
- *
- * Scales are inlined into each round at creation time rather than looked
- * up from a shared registry, so custom scales work without coordination
- * between client versions and a round's scale is frozen against later
- * edits to `settings.defaultScale`.
- *
- * `cards` entries are arbitrary strings — numbers, t-shirt sizes, risk
- * labels, or any other values a custom scale defines.
+ * Inlined into each round at creation, so custom scales need no shared registry and a round's
+ * scale is frozen against later edits to `settings.defaultScale`.
  */
 export interface Scale {
-  /** Builtin IDs: `'fibonacci'`, `'t-shirt'`, `'powers-of-2'`, `'linear'`, `'risk'`. Custom scales use a `custom-` prefix. */
+  /** A builtin id (see `BUILTIN_SCALES`) or `custom-<uuid>`. */
   id: string;
   /** Card faces, in display order. */
   cards: string[];
 }
 
-// ---------------------------------------------------------------------------
-// meta — session header (set once at creation, immutable)
-// ---------------------------------------------------------------------------
+// meta — set once at creation; only `sessionEndedAt` is written later
 
 export interface Meta {
-  /** Internal UUID for this session. Room codes (ADR-0008) are a relay-side lookup to this UUID. */
+  /** Room codes (ADR-0008) are a relay-side lookup to this UUID. */
   roomUuid: string;
-  /** Unix milliseconds when the session was created. */
   createdAt: number;
-  /** `participantId` of the creator. This is also the initial host (ADR-0010). */
+  /** `participantId` of the creator, who is also the initial host (ADR-0010). */
   createdBy: string;
-  /** Unix milliseconds when the host ended the session for everyone. Optional. Absent means session is still active. */
+  /** When the host ended the session for everyone; absent while it is active. */
   sessionEndedAt?: number;
 }
 
-// ---------------------------------------------------------------------------
-// settings — host-editable session config
-// ---------------------------------------------------------------------------
+// settings — host-editable
 
 export interface Settings {
-  /** Human-readable session name, e.g. `"Sprint 42 planning"`. Optional. */
   name?: string;
-  /** Scale inherited by newly-created rounds. Snapshotted into each round at creation. */
+  /** Snapshotted into each round at creation. */
   defaultScale: Scale;
-  /** The `participantId` currently holding host authority (ADR-0010). */
+  /** The current host (ADR-0010). */
   hostParticipantId: string;
 }
 
-// ---------------------------------------------------------------------------
-// participants — who's in the session (cumulative; online status via awareness)
-// ---------------------------------------------------------------------------
+// participants — cumulative for the session; online status lives in awareness
 
 export interface Participant {
-  /** The name shown to other participants. User-editable. */
   displayName: string;
-  /** Unix milliseconds when this participant first joined the session. */
   joinedAt: number;
-  /**
-   * Participant role in the session (ADR-0020). Absent means `'voter'`.
-   * Voters cast estimates; viewers observe without voting and are excluded
-   * from unanimous auto-reveal (ADR-0018).
-   */
+  /** Absent means `'voter'` (ADR-0020). Viewers are left out of auto-reveal (ADR-0018). */
   role?: 'voter' | 'viewer';
-  /**
-   * Unix milliseconds when the participant left or was removed (ADR-0036).
-   * Absent means the participant is active. Set by `leaveSession` (voluntary
-   * leave) or `removeParticipant` (host kick). Tab-close / network drop do
-   * NOT set this — those are handled by Yjs awareness.
-   */
+  /** Set by a leave or a host kick, never by a disconnect (ADR-0036); absent means active. */
   leftAt?: number;
-  /**
-   * `participantId` of the actor who triggered the removal (ADR-0036).
-   * Equal to the participant's own id ⇒ voluntary leave.
-   * Different id ⇒ kicked by that host.
-   * Always set alongside `leftAt`; absent when `leftAt` is absent.
-   */
+  /** Who wrote `leftAt`: the participant's own id for a leave, the host's for a kick. */
   removedBy?: string;
-  /**
-   * User-chosen avatar color (ADR-0043). Wire value is one of:
-   * - `AccentKey` from `avatar-palette.ts` (one of 12 palette keys), or
-   * - `#rrggbb` hex literal for a custom user color.
-   *
-   * Absent → readers fall back to `deterministicAvatarColor(participantId)`
-   * so pre-feature peers and brand-new joiners still render with a stable hue.
-   * Readers must funnel through `parseAvatarColor` / `resolveAvatarColor`
-   * to tolerate unknown / malformed values from old or future clients.
-   */
+  /** An `AccentKey` or `#rrggbb` (ADR-0043). Read it through `resolveAvatarColor`. */
   avatarColor?: string;
 }
 
-/**
- * Returns the effective role for a participant. Absent field → `'voter'`
- * (backward-compatible default — existing sessions have no role field).
- */
+/** Sessions from before roles existed carry no `role`; that reads as `'voter'`. */
 export function participantRole(p: Pick<Participant, 'role'>): 'voter' | 'viewer' {
   return p.role ?? 'voter';
 }
 
-// ---------------------------------------------------------------------------
 // agenda — pre-session story queue (ADR-0042)
-// ---------------------------------------------------------------------------
 
-/**
- * Valid `state` values for an agenda item. Defined as a const tuple so that
- * the derived union type is exact, but callers must tolerate unknown string
- * values from future clients (the field is an open enum on the wire).
- */
+/** An open enum on the wire: callers must tolerate values from future clients. */
 export const AGENDA_ITEM_STATES = ['pending', 'consumed', 'skipped', 'cancelled'] as const;
 
 /**
- * The state of an agenda item in its lifecycle.
- *
- * - `pending`   — waiting to be estimated.
- * - `consumed`  — a round has been created for this item.
- * - `skipped`   — host skipped the item without creating a round.
- * - `cancelled` — soft-deleted; excluded from active agenda views.
- *
- * Open enum: the wire format is a plain string; future clients may send
- * values not in this union. Guards should treat unknown values as `pending`
- * or handle them explicitly.
+ * `consumed`: a round was created for the item. `skipped`: dropped without a round.
+ * `cancelled`: soft-deleted. Treat an unknown value as `pending` or handle it explicitly.
  */
 export type AgendaItemState = (typeof AGENDA_ITEM_STATES)[number];
 
-/**
- * A single item in the pre-session agenda (ADR-0042).
- *
- * In the Yjs doc this lives in `doc.agenda: Y.Array<Y.Map>`. The projected
- * representation here is a plain-object snapshot — identical shape to what
- * `projectDoc()` returns under `agenda[]`.
- */
 export interface AgendaItem {
-  /** `crypto.randomUUID()` — stable per item. */
   id: string;
-  /** Human-readable story title. At least one of `{title, ticketId}` is required. */
+  /** At least one of `title` and `ticketId` is set. */
   title?: string;
-  /** Longer story context; optional. */
   description?: string;
-  /** Issue tracker reference, e.g. `"PROJ-1234"`. At least one of `{title, ticketId}` required. */
   ticketId?: string;
-  /**
-   * Item lifecycle state. Open string enum — see `AgendaItemState`.
-   * Consumers must guard against unknown values from future clients.
-   */
   state: AgendaItemState;
-  /**
-   * Import source. Open string enum: `'manual'` (default), or future values
-   * such as `'jira'`, `'linear'`, `'github'`. Shipped now to avoid a schema
-   * change when importers land.
-   */
+  /** Open enum: `'manual'` today, importers such as `'jira'` later. */
   source: string;
-  /**
-   * External system identifier for future importers (e.g. Jira issue key,
-   * Linear issue ID). Paired with `source`. Not used by the base app.
-   */
+  /** The importer's id for the item, paired with `source`. Nothing writes it yet. */
   externalId?: string;
-  /**
-   * Fractional-index sort key (base-62 string). Items are displayed in
-   * ascending lexicographic order of this field. Only `pending` items may
-   * have their `sortKey` changed; all other states are frozen.
-   */
+  /** Fractional-index key, sorted lexicographically. Frozen once the item leaves `pending`. */
   sortKey: string;
-  /** Unix milliseconds when the item was created. */
   createdAt: number;
-  /**
-   * Unix milliseconds when the item was consumed (state → `'consumed'`).
-   * Set atomically alongside `consumedByRoundId`.
-   */
+  /** Written together with `consumedByRoundId`. */
   consumedAt?: number;
-  /**
-   * ID of the round that consumed this item. Set atomically alongside
-   * `consumedAt`. Use as a backref to the round for history display.
-   */
   consumedByRoundId?: string;
 }
 
 /**
- * Returns true when the participant is active — i.e. has not voluntarily
- * left or been removed by the host (ADR-0036). Absent `leftAt` ⇒ active.
- *
- * Use this as the single choke point for "who is in the session right now?"
- * queries. Round history must read the raw `participants` map — never
- * filtered — so departed names still resolve on past rounds.
+ * The one test for "is this participant in the session now?" (ADR-0036). Round history reads
+ * the unfiltered `participants` map instead, so departed names still resolve on past rounds.
  */
 export function isActiveParticipant(p: Pick<Participant, 'leftAt'>): boolean {
   return p.leftAt === undefined;
 }
 
-// ---------------------------------------------------------------------------
-// rounds — flat list with optional parentRoundId for re-vote lineage (ADR-0013)
-// ---------------------------------------------------------------------------
+// rounds — flat list, re-votes linked by `parentRoundId` (ADR-0013)
 
 /**
- * A round's resolved lifecycle state, materialized on the projection `Round`
- * (never stored in the doc). Readers branch on this single field instead of
- * re-deriving terminal state from raw timestamps.
- *
- *  - `pending`   — created but no timer started (rare; `appendRound` always
- *                  stamps `timerStartedAt`, so this is effectively unreachable
- *                  for normally-created rounds — kept for totality).
- *  - `voting`    — timer started, no terminal field set.
- *  - `revealed` / `skipped` / `discarded` — resolved terminal outcome (the
- *    winner under the earliest-wins / reveal→skip→discard tie-break; see the
- *    internal `terminalState` helper).
+ * Resolved for the projection, never stored. `pending` is effectively unreachable, since
+ * `appendRound` always stamps `timerStartedAt`, but is kept for totality.
  */
 export type RoundStatus = 'pending' | 'voting' | 'revealed' | 'skipped' | 'discarded';
 
-/** The three terminal members of `RoundStatus`. */
 export type TerminalRoundStatus = 'revealed' | 'skipped' | 'discarded';
 
 /**
- * The doc/writer-side shape of a round — the raw fields written to the Yjs
- * `Y.Map`, including the three raw terminal timestamps. Internal to
- * `packages/shared`'s writer + projection paths; readers never see this type.
- * The projected, reader-facing view is `Round` (resolved `status` + `terminalAt`).
+ * A round as written to the doc; internal to the shared writer and projection, readers get
+ * `Round`. The writer keeps the three terminal timestamps exclusive, but a concurrent merge
+ * can leave several set: `terminalState()` picks the earliest, then reveal → skip → discard.
  */
 export interface StoredRound {
-  /** UUID. */
   id: string;
-  /** E.g. `"Auth migration"`. Optional; inherited from parent on re-vote. */
+  /** `title`, `description` and `ticketId` are inherited from the parent on re-vote. */
   title?: string;
-  /** Longer context; inherited from parent on re-vote. */
   description?: string;
-  /** Tracker reference like `"PROJ-1234"`; inherited from parent on re-vote. */
   ticketId?: string;
-  /** If this is a re-vote, the `id` of the previous round in the chain. */
   parentRoundId?: string;
-  /** Snapshotted at round creation from `settings.defaultScale`; independent after creation. */
+  /** Copied from `settings.defaultScale` at creation; independent after that. */
   scale: Scale;
-  /**
-   * Unix milliseconds when voting started (written at round creation).
-   * Used as a stopwatch origin to show elapsed voting time (ADR-0018).
-   */
+  /** The stopwatch origin for elapsed voting time (ADR-0018). */
   timerStartedAt?: number;
-  /**
-   * Unix milliseconds when the round was revealed. Written by the host
-   * (manual reveal) or by any client when all online participants have
-   * voted (unanimous auto-reveal, ADR-0018). Absent means not yet revealed.
-   */
+  /** Written by the host, or by any client on unanimous auto-reveal (ADR-0018). */
   revealedAt?: number;
-  /**
-   * Unix milliseconds when the host skipped the round (ADR-0040). Mutually
-   * exclusive terminal state with `revealedAt` at the writer; both fields
-   * can coexist after a concurrent CRDT merge, in which case the earlier
-   * timestamp wins (resolve via `terminalState()`). Absent means not skipped.
-   */
+  /** Host skip (ADR-0040). */
   skippedAt?: number;
-  /**
-   * Unix milliseconds when the host discarded the round via the Estimating
-   * back chevron. Distinct from `skippedAt` — discard leaves the linked
-   * agenda item `pending` (no consumption), writes no history entry, and
-   * suppresses the round from `currentRound()` and history projections.
-   * Earliest-timestamp-wins tie-break against `revealedAt`/`skippedAt`
-   * (resolve via `terminalState()`). Absent means not discarded.
-   */
+  /** Host discard (ADR-0046): the agenda item stays `pending` and no history entry is left. */
   discardedAt?: number;
-  /**
-   * `participantId` of the host that wrote `discardedAt`. Audit/attribution
-   * hook; no immediate UI consumer. Always written alongside `discardedAt`.
-   */
+  /** Written with `discardedAt`, for attribution; nothing reads it yet. */
   discardedBy?: string;
-  /** `participantId` of whoever created the round. */
   createdBy: string;
-  /** Unix milliseconds when the round was created. */
   createdAt: number;
-  /**
-   * Votes keyed by `participantId`. Value is the card face string (e.g.
-   * `"5"`, `"M"`, `"High"`). Vote-change-before-reveal is just overwriting
-   * this key — only the final value is retained (ADR-0013).
-   *
-   * In the Yjs doc this is a `Y.Map<string, string>`; the `Record` shape
-   * here is the platform-neutral projection.
-   */
+  /** Card face keyed by `participantId`; a vote change overwrites the key (ADR-0013). */
   votes: Record<string, string>;
-  /**
-   * ID of the agenda item this round was started from (ADR-0042). Optional
-   * backref — absent when the round was not created from an agenda item.
-   * On re-vote, the caller passes the parent round's `agendaItemId` unchanged;
-   * the agenda item state is not modified again.
-   */
+  /** The agenda item the round started from (ADR-0042); a re-vote passes the parent's on. */
   agendaItemId?: string;
 }
 
 /**
- * The projection-side view of a round — the shape `projectDoc` emits and every
- * reader (client, CLI) consumes. Carries a resolved `status` and `terminalAt`;
- * the raw terminal timestamps (`revealedAt` / `skippedAt` / `discardedAt`) are
- * deliberately absent so readers branch on `status` and never re-derive terminal
- * state. `terminalAt` is the sole source for elapsed-time display.
+ * A round as readers see it: the raw terminal timestamps are replaced by `status` and
+ * `terminalAt`, so no reader re-derives terminal state.
  */
 export interface Round extends Omit<StoredRound, 'revealedAt' | 'skippedAt' | 'discardedAt'> {
-  /** Resolved lifecycle state, computed once in `projectRound`. */
   status: RoundStatus;
-  /**
-   * The resolved winning terminal timestamp (Unix ms). Present only when
-   * `status` is terminal (`'revealed' | 'skipped' | 'discarded'`); it is the
-   * timestamp of whichever terminal event won the tie-break. Source for
-   * elapsed-time display (e.g. `terminalAt - timerStartedAt`).
-   */
+  /** The winning terminal timestamp; set only when `status` is terminal. */
   terminalAt?: number;
 }
 
 // Presence (awareness) is not in the doc: its shape is `live-session`'s.
 
-// ---------------------------------------------------------------------------
 // Builtin scales
-// ---------------------------------------------------------------------------
 
-/**
- * Modified-Fibonacci sequence. Same sequence used by most planning-poker tools.
- */
 export const FIBONACCI_SCALE: Scale = {
   id: 'fibonacci',
   cards: ['0', '1', '2', '3', '5', '8', '13', '21'],
 };
 
-/**
- * T-shirt sizes for teams that prefer relative-size estimation over
- * numeric points.
- */
 export const TSHIRT_SCALE: Scale = {
   id: 't-shirt',
   cards: ['XS', 'S', 'M', 'L', 'XL'],
 };
 
-/**
- * Powers-of-two sequence. Common in engineering sub-teams that think in
- * binary multiples.
- */
 export const POWERS_OF_2_SCALE: Scale = {
   id: 'powers-of-2',
   cards: ['1', '2', '4', '8', '16', '32', '64'],
 };
 
-/**
- * Simple linear 1–10 scale for teams unfamiliar with Fibonacci.
- */
 export const LINEAR_SCALE: Scale = {
   id: 'linear',
   cards: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'],
 };
 
-/**
- * Risk assessment scale for risk-estimation ceremonies.
- */
 export const RISK_SCALE: Scale = {
   id: 'risk',
   cards: ['Low', 'Medium', 'High', 'Critical'],
 };
 
-/**
- * Convenience lookup for the builtin scales. Custom scales created by
- * users at runtime are not registered here — they live inline in the
- * `Scale` values stored on `settings` and individual rounds.
- */
+/** Custom scales are not registered here: they live inline on `settings` and each round. */
 export const BUILTIN_SCALES: Readonly<Record<string, Scale>> = {
   [FIBONACCI_SCALE.id]: FIBONACCI_SCALE,
   [TSHIRT_SCALE.id]: TSHIRT_SCALE,
@@ -376,9 +187,6 @@ export const BUILTIN_SCALES: Readonly<Record<string, Scale>> = {
   [RISK_SCALE.id]: RISK_SCALE,
 };
 
-/**
- * Human-readable display names for the builtin scale IDs.
- */
 export const SCALE_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   fibonacci: 'Fibonacci',
   't-shirt': 'T-shirt',
@@ -393,15 +201,9 @@ const CUSTOM_SCALE_FALLBACK_LABEL = 'Custom scale';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 
 /**
- * Returns a human-readable label for a scale ID. For builtin scales this is
- * the value from SCALE_DISPLAY_NAMES. For custom IDs (prefixed `custom-`) the
- * prefix is stripped and each hyphen-separated word is title-cased. Any other
- * unknown ID is title-cased word-by-word as a best-effort fallback.
- *
- * A custom scale's id is `custom-<uuid>`, and its name lives on the device
- * that made it (ADR-0019) — the doc carries the id and the cards. Everyone
- * else in the session, and the owner once the scale is deleted, has only the
- * id to go by: that reads {@link CUSTOM_SCALE_FALLBACK_LABEL}, not the UUID.
+ * The builtin name, else the id without its `custom-` prefix, title-cased word by word. A
+ * `custom-<uuid>` id reads {@link CUSTOM_SCALE_FALLBACK_LABEL}: the scale's name lives only on
+ * the device that made it (ADR-0019), and nobody should see the UUID.
  */
 export function formatScaleId(id: string): string {
   if (id in SCALE_DISPLAY_NAMES) return SCALE_DISPLAY_NAMES[id]!;

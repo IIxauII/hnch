@@ -102,28 +102,21 @@ export interface SessionCommandsContext {
  * session yet.
  */
 export interface SessionCommands {
-  // --- round commands ------------------------------------------------------
-
   /**
    * Start a round, attributed to the session's host and stamped from the bound
    * clock. Pass `parentRoundId` for a re-vote (ADR-0013).
    */
   startRound(init?: StartRoundInit): RoundResult;
-  /** Reveal the current round. */
   revealCurrentRound(): TerminalResult;
   /** Skip the current round (ADR-0040). */
   skipCurrentRound(): TerminalResult;
   /** Discard the current round, attributed to the bound participant. */
   discardCurrentRound(): TerminalResult;
 
-  // --- vote commands -------------------------------------------------------
-
   /** Cast, change, or clear the bound participant's vote on the active round. */
   toggleCurrentVote(card: string): VoteResult;
   /** Clear the bound participant's vote on the active round. */
   clearCurrentVote(): VoteResult;
-
-  // --- agenda commands -----------------------------------------------------
 
   /** Append a pre-session agenda item (ADR-0042). */
   addItem(init: AddItemInit): AgendaResult;
@@ -135,8 +128,6 @@ export interface SessionCommands {
   cancelItem(id: string): AgendaResult;
   /** Reorder a pending agenda item between two sortKeys. */
   moveItem(id: string, before?: string | null, after?: string | null): AgendaResult;
-
-  // --- roster commands -----------------------------------------------------
 
   /** Change the bound participant's display name. */
   rename(displayName: string): RosterResult;

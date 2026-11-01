@@ -229,10 +229,6 @@ export class SessionSettingsSheetComponent {
   private readonly sessionNameInput = viewChild<IonInput>('sessionNameInput');
   private readonly scaleModalRef = viewChild<IonModal>('scaleModal');
 
-  // ---------------------------------------------------------------------------
-  // Row handlers
-  // ---------------------------------------------------------------------------
-
   protected onSessionNameBlur(): void {
     if (!this.isHost()) return;
     const sessionNameInputElement = this.sessionNameInput();
@@ -257,10 +253,6 @@ export class SessionSettingsSheetComponent {
     await this.scaleModalRef()?.dismiss();
     this.scaleOpen.set(false);
   }
-
-  // ---------------------------------------------------------------------------
-  // Password
-  // ---------------------------------------------------------------------------
 
   /**
    * Blur / Enter on the password field. A blank field changes nothing —

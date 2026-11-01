@@ -45,9 +45,7 @@ import { Awareness } from 'y-protocols/awareness';
 import * as Y from 'yjs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-// ---------------------------------------------------------------------------
 // Fixtures
-// ---------------------------------------------------------------------------
 
 const FIBONACCI: Scale = {
   id: 'fibonacci',
@@ -75,12 +73,10 @@ function makeInit(
   };
 }
 
-// ---------------------------------------------------------------------------
 // DocServiceHarness
 //
 // Replicates DocService's signal-projection wiring against a real Y.Doc.
 // Does NOT replicate connect/sync (those belong in sync-provider.test.ts).
-// ---------------------------------------------------------------------------
 
 class DocServiceHarness {
   private doc: Y.Doc | null = null;
@@ -272,17 +268,13 @@ class DocServiceHarness {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 function makeHarness(): DocServiceHarness {
   return new DocServiceHarness();
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 describe('DocService — createSession', () => {
   let h: DocServiceHarness;
@@ -344,8 +336,6 @@ describe('DocService — createSession', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-
 describe('DocService — joinSession', () => {
   let h: DocServiceHarness;
 
@@ -395,8 +385,6 @@ describe('DocService — joinSession', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-
 describe('DocService — teardown', () => {
   let h: DocServiceHarness;
 
@@ -443,11 +431,9 @@ describe('DocService — teardown', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // commands binding (#516) — what binding adds on the client side. The rules
 // behind every member are pinned in shared's command-module tests and in
 // session-commands.test.ts; this is only the adapter's own contract.
-// ---------------------------------------------------------------------------
 
 describe('DocService — commands binding', () => {
   let h: DocServiceHarness;
@@ -493,8 +479,6 @@ describe('DocService — commands binding', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-
 describe('DocService — updateSettings', () => {
   let h: DocServiceHarness;
 
@@ -523,8 +507,6 @@ describe('DocService — updateSettings', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-
 describe('DocService — participant projection ordering', () => {
   let h: DocServiceHarness;
 
@@ -543,8 +525,6 @@ describe('DocService — participant projection ordering', () => {
     expect(ids.indexOf('p-early')).toBeLessThan(ids.indexOf('p-host'));
   });
 });
-
-// ---------------------------------------------------------------------------
 
 describe('DocService — updateRoundDescriptor', () => {
   let h: DocServiceHarness;
@@ -568,8 +548,6 @@ describe('DocService — updateRoundDescriptor', () => {
     expect(r?.description).toBe('Some desc');
   });
 });
-
-// ---------------------------------------------------------------------------
 
 describe('DocService — endSessionForEveryone', () => {
   let h: DocServiceHarness;
@@ -616,8 +594,6 @@ describe('DocService — endSessionForEveryone', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-
 describe('DocService — projection signal updates reactively', () => {
   let h: DocServiceHarness;
 
@@ -654,8 +630,6 @@ describe('DocService — projection signal updates reactively', () => {
     expect(h.rounds().length).toBe(2);
   });
 });
-
-// ---------------------------------------------------------------------------
 
 describe('DocService — multi-peer merge via Y.Doc', () => {
   let host: DocServiceHarness;
@@ -727,8 +701,6 @@ describe('DocService — multi-peer merge via Y.Doc', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-
 describe('DocService — activeParticipants / onlineParticipants / offlineParticipants (ADR-0036)', () => {
   let h: DocServiceHarness;
 
@@ -789,8 +761,6 @@ describe('DocService — activeParticipants / onlineParticipants / offlinePartic
     expect(ids).not.toContain('p-joiner');
   });
 });
-
-// ---------------------------------------------------------------------------
 
 describe('DocService — hasFirstSyncCompleted signal (ADR-0036 §6 rejoin race fix)', () => {
   it('starts false before any session', () => {

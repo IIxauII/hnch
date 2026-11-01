@@ -105,7 +105,7 @@ import {
  * Sections are plain cards in one column, the newest result right under the
  * session code. Nothing collapses.
  *
- * The Lobby owns the session's lifetime (plan §3.10): leaving prompts an
+ * The Lobby owns the session's lifetime: leaving prompts an
  * `ion-alert` confirmation per ux.md §2 "Destructive confirmation" and
  * calls `docService.teardown()` before popping to Home. The back chevron is
  * a soft exit — it keeps the session alive and the way back in on Home.
@@ -956,7 +956,7 @@ export class LobbyPage implements OnDestroy {
     buildResultsHeading(this.lastRevealedRoundNumber()),
   );
 
-  /** "Re-vote" beside the heading when the round re-votes an earlier one (issue #111). */
+  /** "Re-vote" beside the heading when the round re-votes an earlier one (#111). */
   protected readonly resultsLineageNote = computed(() => {
     const round = this.lastRevealedRound();
     return round === null ? null : revoteLabel(round.id, this.rounds());
@@ -1067,7 +1067,7 @@ export class LobbyPage implements OnDestroy {
     });
 
     // Auto-navigate to Estimating whenever this peer no longer belongs on
-    // Lobby (issue #508). Covers non-host clients sitting here when the host
+    // Lobby (#508). Covers non-host clients sitting here when the host
     // taps "Start Round" — without this, only the host's click handler
     // navigates. The rule lives in the shared `screenFor` selector; this is
     // the adapter, and unlike Estimating's it pushes rather than replaces.
@@ -1080,7 +1080,7 @@ export class LobbyPage implements OnDestroy {
 
     // Wire confetti layer DOM node to CelebrationService after each render.
     // afterRenderEffect guarantees the read runs after view commit so the
-    // element is document-attached when attachLayer() is called (P3-C3).
+    // element is document-attached when attachLayer() is called.
     afterRenderEffect(() => {
       this.celebration.attachLayer(this.confettiLayer()?.nativeElement ?? null);
     });
@@ -1464,7 +1464,7 @@ export class LobbyPage implements OnDestroy {
    * Does not tear down the WebSocket; the session stays alive in the
    * background while the user is on Home.
    *
-   * Per plan §4: back is NOT destructive, so no confirmation dialog.
+   * Back is not destructive, so no confirmation dialog.
    */
   protected softExit(): void {
     void this.router.navigate(['/home']);

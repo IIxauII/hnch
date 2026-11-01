@@ -145,7 +145,7 @@ describe('AvatarColorService.setValue', () => {
   });
 });
 
-describe('deterministic-first-launch stability (issue #159 AC #5)', () => {
+describe('deterministic-first-launch stability (#159)', () => {
   it('two cold launches with the same deviceId yield the same color', async () => {
     mockPreferences.get.mockResolvedValueOnce({ value: null });
     const svc1 = setUp('device-stable');

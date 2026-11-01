@@ -64,9 +64,7 @@ import {
 } from './session-commands.js';
 import { startSessionEvents, type SessionEvent } from './session-events.js';
 
-// ---------------------------------------------------------------------------
 // Presence shape
-// ---------------------------------------------------------------------------
 
 /**
  * Awareness field name carrying a peer's `participantId`. The awareness
@@ -99,9 +97,7 @@ function sameIds(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
   return true;
 }
 
-// ---------------------------------------------------------------------------
 // Interface
-// ---------------------------------------------------------------------------
 
 /** A room the relay has already issued: minted, or resolved from its code. */
 export interface LiveSessionRoom {
@@ -230,9 +226,7 @@ export interface LiveSession {
   teardown(): void;
 }
 
-// ---------------------------------------------------------------------------
 // Implementation
-// ---------------------------------------------------------------------------
 
 /**
  * Open a live session. On open, in this order:

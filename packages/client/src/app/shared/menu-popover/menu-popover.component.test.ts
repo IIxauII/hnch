@@ -3,10 +3,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 
-// ---------------------------------------------------------------------------
 // Ionic stubs — hoisted before the component import.
 // PopoverController must be @Injectable so DI can provide it.
-// ---------------------------------------------------------------------------
 
 vi.mock('@ionic/angular/standalone', async () => {
   const { Component: Comp, Injectable } = await import('@angular/core');
@@ -28,9 +26,7 @@ vi.mock('@ionic/angular/standalone', async () => {
   };
 });
 
-// ---------------------------------------------------------------------------
 // visibleItems — cancel-role filtering
-// ---------------------------------------------------------------------------
 
 describe('MenuPopoverComponent — visibleItems', () => {
   it('cancel-role items are excluded', async () => {
@@ -89,9 +85,7 @@ describe('MenuPopoverComponent — visibleItems', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // onItemClick — dismiss-then-handler sequencing
-// ---------------------------------------------------------------------------
 
 describe('MenuPopoverComponent — onItemClick', () => {
   it('calls popoverCtrl.dismiss then item handler', async () => {

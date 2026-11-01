@@ -111,10 +111,6 @@ test.describe('App Settings', () => {
     await expect(host.page.locator(APP_SETTINGS.versionValue)).toHaveText(/^\d+\.\d+\.\d+$/);
   });
 
-  // ---------------------------------------------------------------------------
-  // Default Scale tests
-  // ---------------------------------------------------------------------------
-
   test('set default scale in Settings → row updates to show new scale name', async ({ host }) => {
     await setupAndGoToSettings(host);
 
@@ -186,10 +182,6 @@ test.describe('App Settings', () => {
     });
     expect(isChecked).toBe(true);
   });
-
-  // ---------------------------------------------------------------------------
-  // Preset Modification tests
-  // ---------------------------------------------------------------------------
 
   test('modify preset (toggle card off on Fibonacci) → reflected in session', async ({ host }) => {
     await setupAndGoToSettings(host);

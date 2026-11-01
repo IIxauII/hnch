@@ -129,10 +129,6 @@ export function resolvePromotion(
   return { promote: true, winner };
 }
 
-// ---------------------------------------------------------------------------
-// Driver
-// ---------------------------------------------------------------------------
-
 /**
  * The five callbacks a consumer supplies to drive an election. Deliberately
  * framework-free: the client passes signal reads, the CLI passes closures
