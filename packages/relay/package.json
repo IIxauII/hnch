@@ -1,6 +1,6 @@
 {
   "name": "@hnch/relay",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "license": "AGPL-3.0-only",
   "private": true,
   "type": "module",
@@ -31,9 +31,11 @@
     "@cloudflare/vitest-plugin": "1.4.6",
     "@cloudflare/workers-types": "5.20261019.1",
     "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.2",
     "@vitest/coverage-istanbul": "4.1.12",
     "typescript": "^5.5.0",
     "vitest": "4.1.12",
-    "wrangler": "4.151.3"
+    "wrangler": "4.151.3",
+    "ws": "^8.22.0"
   }
 }

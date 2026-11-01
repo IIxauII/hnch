@@ -223,7 +223,7 @@ describe('refused-socket bound (#566)', () => {
 
   it('answers a wrong password with 503 at the bound, and still admits the right one', async () => {
     const { uuid } = await createRoom({ passwordHash: HASH });
-    await holdRefused(uuid, `?pw=${WRONG}`, REFUSED_SOCKETS_BOUND);
+    const held = await holdRefused(uuid, `?pw=${WRONG}`, REFUSED_SOCKETS_BOUND);
     expect(await refusedCount(uuid)).toBe(REFUSED_SOCKETS_BOUND);
 
     await expectBoundRefusal(await upgrade(uuid, `?pw=${WRONG}`));
@@ -232,15 +232,19 @@ describe('refused-socket bound (#566)', () => {
     const peer = await joined(uuid, `?pw=${HASH}`);
     expect(peer.closeEvent).toBeNull();
     expect(await seatedCount(uuid)).toBe(1);
+    expect(held).toHaveLength(REFUSED_SOCKETS_BOUND);
   });
 
   it('answers room-full with the same 503 at the bound', async () => {
     const { uuid } = await createRoom({ passwordHash: HASH });
     for (let i = 0; i < 3; i++) await joined(uuid, `?pw=${HASH}`);
-    await holdRefused(uuid, `?pw=${HASH}`, REFUSED_SOCKETS_BOUND);
+    // Kept until the end: a client the test lets go of is one that has gone
+    // away, and the runtime drops its refused socket.
+    const held = await holdRefused(uuid, `?pw=${HASH}`, REFUSED_SOCKETS_BOUND);
 
     await expectBoundRefusal(await upgrade(uuid, `?pw=${HASH}`));
     await expectBoundRefusal(await upgrade(uuid, `?pw=${WRONG}`));
+    expect(held).toHaveLength(REFUSED_SOCKETS_BOUND);
   });
 
   it('refuses with a close code again once a held socket drains', async () => {
