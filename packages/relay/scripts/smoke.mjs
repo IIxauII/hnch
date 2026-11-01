@@ -17,10 +17,19 @@
  * Every y-websocket client runs in its own process: y-websocket links clients
  * of one process on the same URL in memory, which would hide what the relay
  * does. Exits non-zero if any check fails.
+ *
+ * Sockets are the `ws` package's, as the CLI's are. Node's own WebSocket fires
+ * no close after a refused handshake (HTTP 400, 404), so the client's lookup of
+ * the reason would never start, and it waits for the server to end the TCP
+ * connection before reporting a close (#577).
  */
 
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
+import WebSocket from 'ws';
+
+/** y-websocket's first frame on open: sync-step-1 with an empty state vector. */
+const SYNC_STEP_1 = new Uint8Array([0, 0, 1, 0]);
 
 const BASE = (process.env['BASE'] ?? 'http://localhost:1234').replace(/\/$/, '');
 const HOLD_SECONDS = Number(process.env['HOLD_SECONDS'] ?? '0');
@@ -219,13 +228,20 @@ async function cap(check) {
   const { mintRoom } = await shared();
   const room = await mintRoom(BASE);
   const wsBase = BASE.replace(/^http/, 'ws');
+  /** A bare socket that, as a client does, sends sync-step-1 on open. */
+  const connect = (/** @type {number} */ n) => {
+    const ws = new WebSocket(`${wsBase}/ws/${room.uuid}?did=smoke-${n}`);
+    ws.on('open', () => ws.send(SYNC_STEP_1));
+    ws.on('error', () => {});
+    return ws;
+  };
   /** @type {WebSocket[]} */
   const sockets = [];
   for (let i = 0; i < 20; i++) {
-    const ws = new WebSocket(`${wsBase}/ws/${room.uuid}?did=smoke-${i}`);
+    const ws = connect(i);
     const opened = await new Promise((resolve) => {
-      ws.addEventListener('open', () => resolve(true));
-      ws.addEventListener('close', () => resolve(false));
+      ws.on('open', () => resolve(true));
+      ws.on('close', () => resolve(false));
     });
     if (!opened) {
       check(false, `socket ${i + 1} opens`);
@@ -234,13 +250,14 @@ async function cap(check) {
     sockets.push(ws);
   }
   check(true, '20 sockets open');
-  const extra = new WebSocket(`${wsBase}/ws/${room.uuid}?did=smoke-21`);
+  const t = Date.now();
+  const extra = connect(21);
   const close = await new Promise((resolve) => {
-    extra.addEventListener('close', (e) => resolve({ code: e.code, reason: e.reason }));
+    extra.on('close', (code, reason) => resolve({ code, reason: reason.toString() }));
   });
   check(
     JSON.stringify(close) === JSON.stringify({ code: 4006, reason: 'room-full' }),
-    `21st socket → ${JSON.stringify(close)}`,
+    `21st socket → ${JSON.stringify(close)} (${Date.now() - t} ms)`,
   );
   for (const ws of sockets) ws.close();
 }
@@ -335,6 +352,10 @@ async function runPeer() {
         onStatusChange: (status) => out({ ev: 'status', status }),
         onSyncedChange: (synced) => out({ ev: 'synced', synced }),
         onRejectionChange: (reason) => out({ ev: 'rejection', reason }),
+        // As the CLI: `ws` stands in for the browser's WebSocket.
+        WebSocketPolyfill: /** @type {import('@hnch/shared').WebSocketConstructorLike} */ (
+          /** @type {unknown} */ (WebSocket)
+        ),
       });
       const awareness = conn.awareness;
       awareness.setLocalStateField('participantId', `smoke-${cmd.name}`);

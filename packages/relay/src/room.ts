@@ -270,8 +270,12 @@ export class Room extends DurableObject<Env> {
   }
 
   override async webSocketMessage(ws: WebSocket, message: ArrayBuffer | string): Promise<void> {
-    // A refused client can send frames before it reads its close; drop them.
-    if (isRefused(this.ctx, ws)) return;
+    // A refused client's frames are dropped; its first one is when its close
+    // goes out (see `refuse`).
+    if (isRefused(this.ctx, ws)) {
+      closeRefused(this.ctx, ws);
+      return;
+    }
     const meta = this.loadMeta();
     if (isGone(meta)) return;
     const id = this.idOf(ws);
@@ -703,8 +707,18 @@ function deadlineOf(meta: RoomMeta): number {
   return meta.lastOccupiedAt + ROOM_TTL_MS + OCCUPANCY_CHECK_MS;
 }
 
+/** Why a join is refused after the upgrade (ADR-0016, ADR-0035). */
+type JoinRefusal = 'wrong-password' | 'room-full';
+
 /** Tag of a socket accepted only to be refused; it never becomes a peer. */
 const REFUSED_TAG = 'refused';
+/** Prefix of the tag carrying a refused socket's reason, read when it is closed. */
+const REFUSAL_TAG_PREFIX = 'refused:';
+/**
+ * A refused client that has sent nothing by then gets its close anyway. Real
+ * clients send sync-step-1 on open, so this is for probes and broken ones.
+ */
+const REFUSED_CLOSE_FALLBACK_MS = 1_000;
 
 function isRefused(ctx: DurableObjectState, ws: WebSocket): boolean {
   return ctx.getTags(ws).includes(REFUSED_TAG);
@@ -713,21 +727,38 @@ function isRefused(ctx: DurableObjectState, ws: WebSocket): boolean {
 /**
  * Refuses a join after the upgrade, with its close code (ADR-0016, ADR-0035).
  *
- * The socket is accepted as hibernatable, tagged {@link REFUSED_TAG}, and has
- * no attachment, so it is never a peer: not counted, sent to, restored, or read
- * from. A plain `accept()` would keep the fetch invocation open until the socket
- * ends, which workerd ≤ 1.20261019.1 then logs as the uncaught error "Network
- * connection lost." (https://github.com/cloudflare/workerd/issues/5290).
+ * The socket is accepted as hibernatable, tagged {@link REFUSED_TAG} and its
+ * reason, and has no attachment, so it is never a peer: not counted, sent to,
+ * restored, or read from. A plain `accept()` would keep the fetch invocation
+ * open until the socket ends, which workerd ≤ 1.20261019.1 then logs as the
+ * uncaught error "Network connection lost."
+ * (https://github.com/cloudflare/workerd/issues/5290).
+ *
+ * The close is not sent here but from `webSocketMessage`, on the client's first
+ * frame, or after {@link REFUSED_CLOSE_FALLBACK_MS}. On workerd 1.20261019.1 a
+ * hibernatable socket the relay closes before any frame has come in keeps its
+ * TCP connection for about 10 s after the closing handshake; one closed after
+ * a frame ends it at once. Clients that wait for the server to end the
+ * connection (Chrome for 2 s, Node's WebSocket for 10 s) saw the refusal that
+ * late (#577). Every client the relay has sends sync-step-1 on open, so its
+ * close goes out a round trip after the upgrade.
  */
 function refuse(
   ctx: DurableObjectState,
   server: WebSocket,
   client: WebSocket,
-  reason: 'wrong-password' | 'room-full',
+  reason: JoinRefusal,
 ): Response {
-  ctx.acceptWebSocket(server, [REFUSED_TAG]);
-  server.close(JOIN_REJECTION_CLOSE_CODES[reason], reason);
+  ctx.acceptWebSocket(server, [REFUSED_TAG, `${REFUSAL_TAG_PREFIX}${reason}`]);
+  setTimeout(() => closeRefused(ctx, server), REFUSED_CLOSE_FALLBACK_MS);
   return new Response(null, { status: 101, webSocket: client });
+}
+
+/** Sends a refused socket its close code; harmless once it has one. */
+function closeRefused(ctx: DurableObjectState, ws: WebSocket): void {
+  const tag = ctx.getTags(ws).find((t) => t.startsWith(REFUSAL_TAG_PREFIX));
+  const reason = (tag?.slice(REFUSAL_TAG_PREFIX.length) ?? 'wrong-password') as JoinRefusal;
+  closeQuietly(ws, JOIN_REJECTION_CLOSE_CODES[reason], reason);
 }
 
 function closeQuietly(ws: WebSocket, code: number, reason: string): void {
