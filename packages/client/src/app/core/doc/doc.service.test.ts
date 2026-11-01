@@ -187,6 +187,14 @@ describe('DocService — open', () => {
     );
   });
 
+  it('takes a relay URL and a clock of its own when given', () => {
+    const now = (): number => 42;
+    svc.open({ ...JOIN, httpBaseUrl: 'http://other.test', now });
+
+    expect(latest().options.httpBaseUrl).toBe('http://other.test');
+    expect(latest().options.now).toBe(now);
+  });
+
   it('passes a create seed through as it is', () => {
     svc.open({
       ...JOIN,
@@ -426,6 +434,18 @@ describe('DocService — the local snapshot (ADR-0004)', () => {
     svc.teardown();
 
     expect(stores.opened.map((s) => s.destroyed)).toEqual([true]);
+  });
+
+  it('closes a store that is still loading when the session is torn down', async () => {
+    stores.loaded = new Promise<void>(() => {});
+    svc.open(JOIN);
+    void latest().options.beforeConnect?.(new Y.Doc());
+    await settle();
+
+    svc.teardown();
+
+    expect(stores.opened.map((s) => s.destroyed)).toEqual([true]);
+    expect(latest().handle.teardown).toHaveBeenCalledOnce();
   });
 
   it('goes on without a cache when IndexedDB cannot be opened', async () => {

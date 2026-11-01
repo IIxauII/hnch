@@ -99,11 +99,11 @@ _Avoid_: agendaMutation, agendaAction, addAgendaItem (on the command specificall
 **roster command**:
 A shared writer-side action on who is in a session, what they are called, and who is in charge — `rename` / `recolor` / `toggleRole` / `leave` / `rejoin` / `kick` / `handoffHost` / `promoteHost` / `endSession` in the `roster-commands` module. `kick`, `handoffHost` and `endSession` gate on host authority; the rest act on the caller's own record. After deepening, every host write goes through this module — which is what `patchSettings`' narrowed public parameter type enforces (see `PublicSettingsPatch`).
 
-Seven of the nine are on the **session commands** set. `promoteHost` and `rejoin` are held back on purpose: `promoteHost` is ungated, and sitting it beside the gated `handoffHost` invites the call site that erases the distinction the gate depends on; `rejoin`'s contract is *called at first sync, for the merge ordering*, and a bound member would advertise it as callable at any time. Both keep their direct call sites in the adapters that own them. Note also that `endSession` here means "end it for everyone" — a doc write — and is a different act from the client's local `teardown`, which destroys the local doc and writes nothing. The client member was renamed when the set adopted the shared name, because one object cannot carry both meanings.
+Seven of the nine are on the **session commands** set. `promoteHost` and `rejoin` are held back on purpose: `promoteHost` is ungated, and sitting it beside the gated `handoffHost` invites the call site that erases the distinction the gate depends on; `rejoin`'s contract is *called at first sync, for the merge ordering*, and a bound member would advertise it as callable at any time. Both are called by the **live session** and nowhere else: `promoteHost` as the election's sink, `rejoin` from the first sync of a join. Note also that `endSession` here means "end it for everyone" — a doc write — and is a different act from the client's local `teardown`, which destroys the local doc and writes nothing. The client member was renamed when the set adopted the shared name, because one object cannot carry both meanings.
 _Avoid_: participantCommand, memberCommand, rosterMutation
 
 **leave vs. rejoin**:
-Two halves of one departure. `leave` stamps `leftAt` / `removedBy` so the roster stops counting a participant; `rejoin` deletes both so it counts them again. Deleting rather than stamping an "active" flag is what makes `rejoin` win: absence is what the projection reads as active, and a delete applied after the relay snapshot outranks the snapshot's `set('leftAt', …)` in the LWW merge (ADR-0036 §6). That is why both surfaces call it from `connectToRelay`'s `onSynced` and nowhere else.
+Two halves of one departure. `leave` stamps `leftAt` / `removedBy` so the roster stops counting a participant; `rejoin` deletes both so it counts them again. Deleting rather than stamping an "active" flag is what makes `rejoin` win: absence is what the projection reads as active, and a delete applied after the relay snapshot outranks the snapshot's `set('leftAt', …)` in the LWW merge (ADR-0036 §6). That is why the **live session** calls it from `connectToRelay`'s `onSynced` and nowhere else.
 _Avoid_: unleave, restore, reactivate, clearLeftAt (names the field, not the act)
 
 **handoffHost vs. promoteHost**:
@@ -167,7 +167,7 @@ The `startAutoReveal` half of the `auto-reveal` module: subscribes to projection
 _Avoid_: autoRevealWatcher, revealPoller, unanimityService
 
 **autoRevealCount**:
-The client-side monotonic counter `DocService` bumps when its auto-reveal driver's write actually applies. An edge signal, not a timestamp — two reveals in the same millisecond must still notify, and there is nothing to reset. The Estimating page keys its success haptic off it, which is how device feedback stays out of the doc layer.
+The client-side monotonic counter `DocService` bumps on the live session's "auto-reveal applied" reading: this peer's reveal write actually applied, not a lost race. An edge signal, not a timestamp — two reveals in the same millisecond must still notify, and there is nothing to reset. The Estimating page keys its success haptic off it, which is how device feedback stays out of the doc layer.
 _Avoid_: lastAutoRevealAt, autoRevealed, revealSignal
 
 **session events driver**:

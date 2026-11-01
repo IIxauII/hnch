@@ -72,9 +72,9 @@ import { isComposingKey } from '../utils/composing-key';
  * Join session — ux.md §1.3.
  *
  * The user types a 6-character code; we `GET /rooms/:code` to resolve
- * it to a UUID (ADR-0016) and then hand off to `DocService.open()`.
- * On a successful resolve we seed the doc with the returned UUID + the
- * code the user typed, open the y-websocket, and navigate to Lobby.
+ * it to a UUID (ADR-0016) and then hand off to `DocService.open()`,
+ * which joins the room under that UUID. We stay here until the relay
+ * has said yes, no, or nothing in time, and only then navigate to Lobby.
  *
  * Three join paths feed this screen: manual code entry, `?code=`
  * deep link (auto-populates), and QR scan (auto-populates + submits).

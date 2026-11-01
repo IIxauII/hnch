@@ -17,8 +17,8 @@ const PREF_KEY = 'hnch.avatarColor';
  * from the very first session.
  *
  * The chosen value is published into the Yjs participant record via
- * `DocService.open` / `commands.recolor`. This
- * service owns local storage only — no doc writes.
+ * `DocService.open` / `commands.recolor`. This service owns local storage
+ * only — no doc writes.
  *
  * Pre-warmed at bootstrap by an `APP_INITIALIZER` so screens can read
  * the signal synchronously.

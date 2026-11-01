@@ -18,6 +18,7 @@ import {
   type DocProjection,
   type JoinRejectionReason,
   type LiveSession,
+  type LiveSessionRoom,
   type LiveSessionSeed,
   type Meta,
   type ParticipantSnapshot,
@@ -40,11 +41,8 @@ import { ToastService } from '../../services/toast.service';
 
 /** What {@link DocService.open} needs: the room as the relay issued it, who this peer is, the seed. */
 export interface OpenSessionInit {
-  /**
-   * Minted at `POST /rooms` (ADR-0016) or resolved from the code. The code is the typeable twin
-   * (ADR-0008): it travels with the handshake and never appears in the doc.
-   */
-  readonly room: { readonly uuid: string; readonly code: string };
+  /** Minted at `POST /rooms` (ADR-0016) or resolved from the code. */
+  readonly room: LiveSessionRoom;
   /** Also the device id the connection presents to the relay. */
   readonly participantId: string;
   readonly displayName: string;
@@ -347,7 +345,6 @@ export class DocService {
     this.requireLive('updateSettings').updateSettings(patch);
   }
 
-  /** A plain forward: there is no rule to apply. */
   updateRoundDescriptor(roundId: string, fields: PatchRoundDescriptorInit): void {
     this.requireLive('updateRoundDescriptor').updateRoundDescriptor(roundId, fields);
   }
