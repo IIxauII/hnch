@@ -12,13 +12,9 @@ file=$(printf '%s' "$input" | jq -r '.tool_input.file_path // ""')
 
 [ -z "$file" ] && exit 0
 
-REPO="${CLAUDE_PROJECT_DIR:-$(pwd)}"
-
-# only guard files under adr/
-case "$file" in
-  "$REPO"/adr/*) ;;
-  *) exit 0 ;;
-esac
+# Guard any file directly in an adr/ directory, not only $CLAUDE_PROJECT_DIR/adr:
+# a session rooted in the main checkout can edit a sibling worktree's ADRs.
+[ "$(basename "$(dirname "$file")")" = adr ] || exit 0
 
 base=$(basename "$file")
 

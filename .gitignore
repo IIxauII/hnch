@@ -56,7 +56,6 @@ Thumbs.db
 # Claude Code per-user settings (not committed)
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
-.claude/.state/
 
 # Code review receipts — local cache of "this commit was reviewed", keyed by
 # sha. The review itself lives on the PR.

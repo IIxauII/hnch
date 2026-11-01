@@ -13,6 +13,7 @@ The one list of project docs; README and CONTRIBUTING point here. A fact lives i
 - [`docs/ux.md`](docs/ux.md) — user flows + interaction patterns. Authoritative for *what the user does*.
 - [`docs/roadmap.md`](docs/roadmap.md) — phased plan + current status. A map, not a spec.
 - [`docs/deployment.md`](docs/deployment.md) — production hosting on Cloudflare: topology, deploy flow, rollback.
+- [`docs/release.md`](docs/release.md) — how PRs merge, how releases are cut from commit history, and the screenshot flow.
 - [`docs/angular.md`](docs/angular.md), [`docs/ionic.md`](docs/ionic.md), [`docs/cli.md`](docs/cli.md) — client/CLI conventions (consulted from the relevant `packages/*/CLAUDE.md`).
 - [`adr/`](adr/README.md) — Architecture Decision Records. Authoritative for *why* each structural choice was made.
 - [`GLOSSARY.md`](GLOSSARY.md) — domain terms and the names to avoid.
@@ -31,7 +32,7 @@ Repo supports parallel git worktrees with per-worktree port isolation ([how port
 
 ## Commit conventions
 
-Commit style, required PR scopes (incl. multi-package comma scopes), screenshots flow, release flow, and pre-push checklist all live in [CONTRIBUTING.md](CONTRIBUTING.md). Read it before committing or opening a PR.
+Commit style, required PR scopes (incl. multi-package comma scopes) and the pre-push checklist live in [CONTRIBUTING.md](CONTRIBUTING.md). Read it before committing or opening a PR. The merge, release and screenshot flows live in [docs/release.md](docs/release.md).
 
 ## Agent skills
 

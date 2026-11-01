@@ -155,6 +155,10 @@ echo "→ Wrote .env.local"
 echo "→ Running pnpm install..."
 pnpm install
 
+# The client's postinstall does not always run here (it was skipped in fresh
+# worktrees), and `pnpm typecheck` fails without the gitignored version.ts.
+pnpm --filter @hnch/client generate-version
+
 echo ""
 echo "✓ Worktree bootstrap complete."
 echo ""

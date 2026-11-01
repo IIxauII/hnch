@@ -21,6 +21,8 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 
 **Template:** see `0000-template.md` — copy it to start a new ADR.
 
+**Index:** every new ADR adds its row to the [Index](#index) below in the same PR. A status change or supersession updates the existing row.
+
 ## Index
 
 | # | Title | Status | Superseded by |
