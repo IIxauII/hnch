@@ -181,7 +181,7 @@ function nextSpawnDelay(t: number): number | null {
 }
 
 /** The time of the spawn after one at `t`, or null when there is none. */
-function advance(t: number): number | null {
+function nextSpawnAt(t: number): number | null {
   const delay = nextSpawnDelay(t);
   return delay === null || t + delay >= SPAWN_WINDOW_MS ? null : t + delay;
 }
@@ -238,7 +238,7 @@ export class ConfettiEngine {
     for (
       let t: number | null = 0;
       t !== null && t <= freezeMs && this.animations.length < this.maxParticles;
-      t = advance(t)
+      t = nextSpawnAt(t)
     ) {
       const anim = this.spawnParticle(layer, t);
       anim.currentTime = freezeMs - t;

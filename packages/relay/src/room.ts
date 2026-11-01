@@ -217,13 +217,17 @@ export class Room extends DurableObject<Env> {
 
   /**
    * ADR-0027 `DELETE /test/rooms/:uuid`, and `POST /test/rooms` taking a code over: delete now.
-   * False if the room is unknown.
+   * A tombstoned room retries the code release it still owes, so a code it kept is
+   * freed now rather than at its alarm. False if the room was unknown or already
+   * tombstoned. True does not mean the code is free: a failed release leaves it
+   * held until the alarm retries.
    */
   async testEvict(): Promise<boolean> {
     const meta = this.loadMeta();
-    if (isGone(meta)) return false;
+    if (meta === null) return false;
+    const live = meta.tombstonedAt === null;
     await this.delete();
-    return true;
+    return live;
   }
 
   // WebSocket

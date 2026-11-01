@@ -311,4 +311,22 @@ describe('POST /test/rooms (HNCH_ENABLE_TEST_ROUTES=1)', () => {
     expect(await codesStub('CAP238').lookup()).toBe(first.uuid);
     expect(JSON.stringify(log.mock.calls)).toContain('relay-test-create-unavailable');
   });
+
+  it('takes the code from a tombstoned room once its release works again', async () => {
+    const first = (await (await createWithCode({ code: 'CAP239' })).json()) as { uuid: string };
+    const release = await runInDurableObject(codesStub('CAP239'), (codes) =>
+      vi
+        .spyOn(Object.getPrototypeOf(codes) as Codes, 'release')
+        .mockRejectedValueOnce(new Error('Durable Object is overloaded')),
+    );
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    expect((await createWithCode({ code: 'CAP239' })).status).toBe(503);
+    expect(release).toHaveBeenCalledTimes(1);
+
+    const res = await createWithCode({ code: 'CAP239' });
+    expect(res.status).toBe(201);
+    const second = (await res.json()) as { uuid: string };
+    expect(second.uuid).not.toBe(first.uuid);
+    expect(await codesStub('CAP239').lookup()).toBe(second.uuid);
+  });
 });

@@ -22,8 +22,9 @@
  *
  * `formatElapsed(ms)` in `format-time` is deliberately *not* absorbed: it is a
  * duration primitive, not round presentation, and it remains the single clamp
- * point. Live tickers call it directly because a ticking display has no
- * terminal timestamp to hand a Round-shaped function.
+ * point. A live ticker formats with it (the client through `liveElapsedLabel`)
+ * because a ticking display has no terminal timestamp to hand a Round-shaped
+ * function.
  */
 
 import { isAbstainVote } from './abstain.js';
