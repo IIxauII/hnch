@@ -184,6 +184,10 @@ describe('DELETE /test/rooms/:uuid (HNCH_ENABLE_TEST_ROUTES=1)', () => {
 
     expect((await call(`/test/rooms/${uuid}`, { method: 'DELETE' })).status).toBe(200);
     expect(release).toHaveBeenCalledWith(uuid);
+    // Already tombstoned: gone to a probe, whatever the retried release does.
+    const again = await call(`/test/rooms/${uuid}`, { method: 'DELETE' });
+    expect(again.status).toBe(404);
+    expect(await again.json()).toEqual({ error: 'not-found' });
     alice.doc.getArray('votes').push(['5']);
     await settle();
     alice.close();
