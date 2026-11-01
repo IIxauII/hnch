@@ -36,9 +36,7 @@ import {
 } from './relay-client.js';
 import { JOIN_REJECTION_CLOSE_CODES, type JoinRejectionReason } from './auth.js';
 
-// ---------------------------------------------------------------------------
 // Fake WebSocket
-// ---------------------------------------------------------------------------
 
 /** Minimal fake that lets tests drive open/close/error events. */
 class FakeWebSocket {
@@ -114,9 +112,7 @@ function socketParams(index = -1): Record<string, string> {
   return Object.fromEntries(query.entries());
 }
 
-// ---------------------------------------------------------------------------
 // Harness
-// ---------------------------------------------------------------------------
 
 const connections: RelayConnection[] = [];
 
@@ -174,10 +170,6 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// ---------------------------------------------------------------------------
-// mintRoom
-// ---------------------------------------------------------------------------
-
 describe('mintRoom', () => {
   it('POSTs an empty body and returns the minted room', async () => {
     const fetchMock = stubFetch({
@@ -210,10 +202,6 @@ describe('mintRoom', () => {
     await expect(mintRoom('http://relay.test')).rejects.toThrow('POST /rooms failed: 500');
   });
 });
-
-// ---------------------------------------------------------------------------
-// resolveRoom
-// ---------------------------------------------------------------------------
 
 describe('resolveRoom', () => {
   it('returns uuid and accessMode', async () => {
@@ -294,10 +282,6 @@ describe('resolveRoom', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// patchRoomAccess
-// ---------------------------------------------------------------------------
-
 describe('patchRoomAccess', () => {
   it('sends the hash and returns the resulting access mode', async () => {
     const fetchMock = stubFetch({ json: async () => ({ accessMode: 'password' }) });
@@ -335,9 +319,7 @@ describe('patchRoomAccess', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // A relay that does not answer
-// ---------------------------------------------------------------------------
 
 // `fetch` waits for as long as it takes. On a connection that went stale that
 // is minutes, with "Creating…" or "Joining…" on screen all the while.
@@ -385,10 +367,6 @@ describe('a request the relay does not answer', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// relayHttpToWsUrl
-// ---------------------------------------------------------------------------
-
 describe('relayHttpToWsUrl', () => {
   it('maps https to wss and never to plain ws', () => {
     expect(relayHttpToWsUrl('https://hnch.dev')).toBe('wss://hnch.dev');
@@ -403,9 +381,7 @@ describe('relayHttpToWsUrl', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // connectToRelay — URL and params
-// ---------------------------------------------------------------------------
 
 describe('connectToRelay URL', () => {
   it('derives wss from an https base and appends /ws/:roomUuid', () => {
@@ -449,9 +425,7 @@ describe('connectToRelay URL', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // connectToRelay — status and rejection
-// ---------------------------------------------------------------------------
 
 describe('connectToRelay status', () => {
   it('reports connected once the socket opens', () => {
@@ -530,9 +504,7 @@ describe('connectToRelay rejection', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // connectToRelay — a refusal the socket cannot report
-// ---------------------------------------------------------------------------
 
 describe('connectToRelay refusal before the upgrade', () => {
   /** What `GET /rooms/ABC123` answers while the socket is being refused. */
@@ -962,9 +934,7 @@ describe('connectToRelay refusal before the upgrade', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // connectToRelay — repeat-rejection throttle
-// ---------------------------------------------------------------------------
 
 describe('connectToRelay repeat rejection', () => {
   /** Close the live socket transiently and let the backoff open the next one. */
@@ -1027,9 +997,7 @@ describe('connectToRelay repeat rejection', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // connectToRelay — onSynced
-// ---------------------------------------------------------------------------
 
 /**
  * Feed the connection a real y-websocket sync-step-2 frame, which is what
@@ -1074,9 +1042,7 @@ describe('connectToRelay onSynced', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // connectToRelay — onSyncedChange
-// ---------------------------------------------------------------------------
 
 describe('connectToRelay onSyncedChange', () => {
   it('stays silent while the socket is open but not yet synced', () => {
@@ -1149,9 +1115,7 @@ describe('connectToRelay onSyncedChange', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // connectToRelay — updateCredentials
-// ---------------------------------------------------------------------------
 
 describe('connectToRelay updateCredentials', () => {
   it('is a no-op when the hash is unchanged', () => {
@@ -1190,7 +1154,6 @@ describe('connectToRelay updateCredentials', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // connectToRelay — presence across a reconnect
 //
 // `y-protocols` takes an awareness state only when its clock is newer than
@@ -1198,7 +1161,6 @@ describe('connectToRelay updateCredentials', () => {
 // holding clocks that are not. What is asserted here is what a peer and a
 // caller can observe: what goes out on the new socket, and who is in
 // `awareness.getStates()` after the relay has replayed the room's presence.
-// ---------------------------------------------------------------------------
 
 const MESSAGE_AWARENESS = 1;
 
@@ -1447,9 +1409,7 @@ describe('connectToRelay presence across a reconnect', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // connectToRelay — disconnect
-// ---------------------------------------------------------------------------
 
 describe('connectToRelay disconnect', () => {
   it('is idempotent', () => {
@@ -1495,9 +1455,7 @@ describe('connectToRelay disconnect', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // connectToRelay — flush
-// ---------------------------------------------------------------------------
 
 describe('connectToRelay flush', () => {
   /** Start a flush and report whether it has resolved yet. */
@@ -1557,13 +1515,9 @@ describe('connectToRelay flush', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // connectToRelay — window online/offline
-// ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
 // connectToRelay — window online/offline
-// ---------------------------------------------------------------------------
 
 describe('connectToRelay window events', () => {
   const listeners = new Map<string, Set<() => void>>();

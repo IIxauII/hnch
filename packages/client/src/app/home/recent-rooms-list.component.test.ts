@@ -4,10 +4,6 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-// ---------------------------------------------------------------------------
-// Ionic stubs
-// ---------------------------------------------------------------------------
-
 vi.mock('@ionic/angular/standalone', async () => {
   const { Component: Comp, Input } = await import('@angular/core');
 
@@ -43,18 +39,12 @@ vi.mock('@ionic/angular/standalone', async () => {
 vi.mock('ionicons', () => ({ addIcons: vi.fn() }));
 vi.mock('ionicons/icons', () => ({ closeOutline: '', returnUpBackOutline: '' }));
 
-// ---------------------------------------------------------------------------
 // Imports (after mocks)
-// ---------------------------------------------------------------------------
 
 import { TestBed } from '@angular/core/testing';
 
 import { formatRelativeTime } from './recent-rooms-list.component';
 import type { ClientLastSessionEntry } from '../core/last-session.service';
-
-// ---------------------------------------------------------------------------
-// formatRelativeTime helper
-// ---------------------------------------------------------------------------
 
 describe('formatRelativeTime', () => {
   const now = 1_000_000_000; // arbitrary epoch
@@ -85,10 +75,6 @@ describe('formatRelativeTime', () => {
     expect(result).toMatch(/3 day/);
   });
 });
-
-// ---------------------------------------------------------------------------
-// Component tests
-// ---------------------------------------------------------------------------
 
 function makeEntry(overrides: Partial<ClientLastSessionEntry> = {}): ClientLastSessionEntry {
   return {

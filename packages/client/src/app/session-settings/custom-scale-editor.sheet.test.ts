@@ -1,7 +1,7 @@
 /**
  * TestBed tests for CustomScaleEditorSheetComponent.
  *
- * Focuses on the abstain-sentinel validation added in ADR-0041 Phase 2
+ * Focuses on the abstain-sentinel validation added in ADR-0041
  * (onAddCard rejecting 'hnch_abstain') and the surrounding error/clear
  * paths. Secondary coverage: create-mode auto-save and cancel, the header's
  * one button, the card rows, the note about what is not saved, and deleting
@@ -24,9 +24,7 @@ vi.mock('../core/surface.service', () => ({ SurfaceService: class SurfaceService
 vi.mock('../services/toast.service', () => ({ ToastService: class ToastService {} }));
 vi.mock('../utils/focus-field', () => ({ focusField: focusFieldMock }));
 
-// ---------------------------------------------------------------------------
 // Ionic component stubs — hoisted before component import.
-// ---------------------------------------------------------------------------
 vi.mock('@ionic/angular/standalone', async () => {
   const { Component: Comp, Input, forwardRef } = await import('@angular/core');
   const { NG_VALUE_ACCESSOR } = await import('@angular/forms');
@@ -101,9 +99,7 @@ vi.mock('@ionic/angular/standalone', async () => {
 vi.mock('ionicons', () => ({ addIcons: vi.fn() }));
 vi.mock('ionicons/icons', () => ({ addOutline: '', closeCircle: '', trashOutline: '' }));
 
-// ---------------------------------------------------------------------------
 // Service stubs
-// ---------------------------------------------------------------------------
 import { AlertController } from '@ionic/angular/standalone';
 
 import { HapticService } from '../core/haptic.service';
@@ -136,9 +132,7 @@ const scalePrefsStub = {
   },
 };
 
-// ---------------------------------------------------------------------------
 // Mount helper
-// ---------------------------------------------------------------------------
 type EditorInternals = {
   name: () => string;
   cards: () => string[];
@@ -179,9 +173,7 @@ function internals(fixture: Awaited<ReturnType<typeof mountEditor>>): EditorInte
   return fixture.componentInstance as unknown as EditorInternals;
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 describe('CustomScaleEditorSheetComponent — onAddCard validation', () => {
   beforeEach(() => {
     vi.clearAllMocks();

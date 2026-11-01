@@ -12,7 +12,7 @@ import { describe, it, expect } from 'vitest';
 import { filterSettingsItems } from './LobbySettings.js';
 import { buildAvailableScales } from '@hnch/shared';
 
-// ── LobbySettings item-filter logic ─────────────────────────────────────────
+// LobbySettings item-filter logic
 
 const ALL_SETTINGS_ITEMS = [
   { label: 'Room name', value: 'room-name' },
@@ -51,7 +51,7 @@ describe('filterSettingsItems (LobbySettings)', () => {
   });
 });
 
-// ── Scale availability ───────────────────────────────────────────────────────
+// Scale availability
 
 describe('buildAvailableScales', () => {
   it('returns all 5 builtins by default', () => {

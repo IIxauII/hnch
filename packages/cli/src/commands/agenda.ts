@@ -19,10 +19,6 @@ import { openSession, type OpenSessionOptions, type SessionHandle } from '../ses
 /** How long a command waits for the room's state before acting regardless. */
 export const FIRST_SYNC_FALLBACK_MS = 2000;
 
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
 /** State markers for agenda list display. */
 const STATE_MARKER: Record<string, string> = {
   pending: '•',
@@ -98,10 +94,6 @@ async function resolveLastSessionOrDie(): Promise<{
     ...(cache.passwordHash !== undefined && { passwordHash: cache.passwordHash }),
   };
 }
-
-// ---------------------------------------------------------------------------
-// Public handler functions
-// ---------------------------------------------------------------------------
 
 export async function handleAgendaAdd(argv: {
   title?: string;

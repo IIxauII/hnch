@@ -3,11 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 import type { DocProjection, ParticipantSnapshot } from './doc-projection.js';
 import { startSessionEvents, type SessionEvent } from './session-events.js';
 
-// ---------------------------------------------------------------------------
 // Fixtures — plain projections, as the election and auto-reveal suites use.
 // The driver reads `meta.{createdBy,sessionEndedAt}`,
 // `settings.hostParticipantId` and `participants[]`.
-// ---------------------------------------------------------------------------
 
 const SELF = 'p-self';
 
@@ -137,9 +135,7 @@ const HOST = person('p-host', 'Hana');
 const CREATOR = person('p-creator', 'Cleo');
 const ME = person(SELF, 'Sam');
 
-// ---------------------------------------------------------------------------
 // ended
-// ---------------------------------------------------------------------------
 
 describe('startSessionEvents — ended', () => {
   it('delivers an end already in the projection at start, before the first sync, never synchronously (ADR-0023 §5)', async () => {
@@ -317,9 +313,7 @@ describe('startSessionEvents — ended', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // host changed
-// ---------------------------------------------------------------------------
 
 const BOB = person('p-bob', 'Bob');
 const ALICE = person('p-alice', 'Alice');
@@ -598,9 +592,7 @@ describe('startSessionEvents — host changed, flags and names', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // removed
-// ---------------------------------------------------------------------------
 
 const KICKED = (leftAt: number, by = 'p-host'): ParticipantSnapshot =>
   person(SELF, 'Sam', { leftAt, removedBy: by });
@@ -744,9 +736,7 @@ describe('startSessionEvents — removed, fires', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // delivery
-// ---------------------------------------------------------------------------
 
 describe('startSessionEvents — delivery', () => {
   /** A session one doc change can end, remove this peer from and re-host. */

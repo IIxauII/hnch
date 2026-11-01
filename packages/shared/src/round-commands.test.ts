@@ -10,10 +10,6 @@ import {
   startRound,
 } from './round-commands.js';
 
-// ---------------------------------------------------------------------------
-// Fixtures
-// ---------------------------------------------------------------------------
-
 /** Freshly seeded doc with no rounds. */
 function seedDoc(): Y.Doc {
   const doc = new Y.Doc();
@@ -35,10 +31,6 @@ function seedWithRound(): Y.Doc {
 }
 
 const FIXED = () => 1_700_000_900_000;
-
-// ---------------------------------------------------------------------------
-// startRound
-// ---------------------------------------------------------------------------
 
 describe('startRound', () => {
   it('applies: mints an id, stamps the clock into createdAt/timerStartedAt, attributes the host', () => {
@@ -123,10 +115,6 @@ describe('startRound', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// revealCurrentRound
-// ---------------------------------------------------------------------------
-
 describe('revealCurrentRound', () => {
   it('reveals an active round: applied + stamped clock + doc effect', () => {
     const doc = seedWithRound();
@@ -152,10 +140,6 @@ describe('revealCurrentRound', () => {
     expect(result).toEqual({ applied: false, reason: 'no-current-round' });
   });
 });
-
-// ---------------------------------------------------------------------------
-// skipCurrentRound
-// ---------------------------------------------------------------------------
 
 describe('skipCurrentRound', () => {
   it('skips an active round: applied + stamped clock + doc effect', () => {
@@ -184,10 +168,6 @@ describe('skipCurrentRound', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// discardCurrentRound
-// ---------------------------------------------------------------------------
-
 describe('discardCurrentRound', () => {
   it('discards an active round: applied + stamped clock + doc effect', () => {
     const doc = seedWithRound();
@@ -214,9 +194,7 @@ describe('discardCurrentRound', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Cross-cutting: lost race no-ops instead of throwing; clock defaults to now
-// ---------------------------------------------------------------------------
 
 describe('round commands — gate behavior', () => {
   it('illegal transition no-ops instead of throwing (lost race)', () => {

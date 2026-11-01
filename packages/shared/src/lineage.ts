@@ -19,7 +19,7 @@ export interface RoundLineage {
  * Returns lineage info for a round when it is a re-vote (i.e. has a
  * `parentRoundId`). Returns `null` for first rounds, standalone rounds,
  * cycles, or when the chain references a missing round — callers treat
- * `null` as "no breadcrumb" (issue #111, AC#3, AC#6).
+ * `null` as "no breadcrumb" (#111).
  *
  * Pure function — no side effects, derived live from the rounds array.
  * Cross-consumer (mobile client + CLI) so behavior stays identical.

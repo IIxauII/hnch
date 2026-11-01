@@ -1,5 +1,5 @@
 /**
- * Contract of the `@hnch/relay/testing` harness — what Phase 1b's workerd-backed
+ * Contract of the `@hnch/relay/testing` harness — what any workerd-backed
  * implementation must keep. Nothing here depends on how the relay is run.
  */
 

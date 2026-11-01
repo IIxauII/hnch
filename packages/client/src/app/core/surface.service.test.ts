@@ -12,11 +12,9 @@
 import { TestBed } from '@angular/core/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// ---------------------------------------------------------------------------
 // Ionic module stubs (hoisted; no importOriginal — ESM-only pkg)
 // These stubs only need to satisfy the module resolution; actual controller
 // instances are provided via useValue below.
-// ---------------------------------------------------------------------------
 
 vi.mock('@ionic/angular/standalone', () => ({
   PopoverController: class PopoverController {},
@@ -34,10 +32,6 @@ vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false }
 
 import { ActionSheetController, PopoverController } from '@ionic/angular/standalone';
 import { SurfaceService } from './surface.service';
-
-// ---------------------------------------------------------------------------
-// matchMedia mock helpers
-// ---------------------------------------------------------------------------
 
 type MediaChangeHandler = (e: MediaQueryListEvent) => void;
 
@@ -65,10 +59,6 @@ function simulateMediaChange(matches: boolean): void {
     mediaChangeHandler({ matches } as MediaQueryListEvent);
   }
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe('SurfaceService', () => {
   let mql: MediaQueryList;

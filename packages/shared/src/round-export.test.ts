@@ -5,9 +5,7 @@ import type { Participant, Round } from './doc.js';
 import { terminalState } from './round-status.js';
 import { roundsToMarkdown } from './round-export.js';
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /**
  * Build a projection `Round`. Accepts the raw terminal timestamps
@@ -49,9 +47,7 @@ function makeParticipant(displayName: string, extra?: Partial<Participant>): Par
   return { displayName, joinedAt: 0, ...extra };
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 describe('roundsToMarkdown', () => {
   it('empty session → empty string', () => {
@@ -92,7 +88,7 @@ describe('roundsToMarkdown', () => {
     expect(result).toContain('Elapsed 1:30');
   });
 
-  it('whole-number median exports with one decimal, matching every surface (issue #509)', () => {
+  it('whole-number median exports with one decimal, matching every surface (#509)', () => {
     const round = makeRound({
       id: 'r1',
       votes: { p1: '5', p2: '5' },

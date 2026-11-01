@@ -241,10 +241,6 @@ export class ScalePreferenceService {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Guards
-// ---------------------------------------------------------------------------
-
 function tryParse(value: string): unknown {
   try {
     return JSON.parse(value);

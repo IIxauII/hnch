@@ -2,7 +2,7 @@ import { expect, test } from './fixtures/app.fixture';
 import { ESTIMATING } from './fixtures/helpers';
 
 /**
- * Issue #154 — keyboard shortcuts on the Estimating card grid.
+ * Keyboard shortcuts on the Estimating card grid (#154).
  *
  * Coverage:
  *  - Digit cast + real-time propagation to a second client.

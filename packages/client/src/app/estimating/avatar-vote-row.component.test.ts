@@ -16,7 +16,7 @@ function mount(participants: readonly ParticipantSnapshot[], votedIds: ReadonlyS
 }
 
 describe('AvatarVoteRowComponent', () => {
-  // ── Bug 1.1 regression ───────────────────────────────────────────────────
+  // Bug 1.1 regression
   // Before the fix, EstimatingPage passed ALL online participants (voters +
   // viewers) as the denominator. Auto-reveal fired at "1 of 2 voters" but
   // the display said "1 of 3" (total). The fix: page pre-filters to
@@ -60,7 +60,7 @@ describe('AvatarVoteRowComponent', () => {
     expect(row?.getAttribute('aria-label')).toBe('0 of 1 voted');
   });
 
-  // ── Identity rendering (#196) ─────────────────────────────────────────────
+  // Identity rendering (#196)
   it('renders uppercase first-character initial inside each dot', () => {
     const ps = [makeParticipant('v1', 'alice'), makeParticipant('v2', 'Bob')];
     const fixture = mount(ps, new Set(['v1']));
@@ -87,7 +87,7 @@ describe('AvatarVoteRowComponent', () => {
     expect(allDots.length).toBe(2);
   });
 
-  // ── Pending-line (#196 v3) ────────────────────────────────────────────────
+  // Pending-line (#196 v3)
   // The "Waiting for …" line surfaces names of unvoted participants once at
   // least 50 % of voters have voted (the decision-time signal for hosts).
   function pendingLineText(fixture: { nativeElement: HTMLElement }): string | null {

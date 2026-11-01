@@ -50,7 +50,7 @@ import { greetingFor, routeForScreen } from './home.helpers';
  * sessions this device can still get back into. Settings is one tap away in
  * the header — it used to be the only item in an overflow menu.
  *
- * Rejoin outcome handling (plan §3.8): we open the socket while still
+ * Rejoin outcome handling: we open the socket while still
  * mounted on Home and wait for the relay's verdict
  * (`RoomJoinService.rejoin`). A session the relay no longer knows drops its
  * entry; a refusal is reported; a session that is there opens on the screen
@@ -385,9 +385,7 @@ export class HomePage {
   }
 
   /**
-   * Fast-path rejoin per plan §3.8.
-   *
-   * Prechecks via `GET /rooms/:code` to detect `unknown-room` (relay
+   * Fast-path rejoin. Prechecks via `GET /rooms/:code` to detect `unknown-room` (relay
    * denies pre-upgrade with HTTP 404, not a WS close code), then opens
    * the socket; any post-upgrade rejection is handled by the existing
    * `waitForJoinOutcome` race.
@@ -473,9 +471,7 @@ export class HomePage {
     await this.toastService.error(message);
   }
 
-  // ---------------------------------------------------------------------------
   // Password prompt handlers
-  // ---------------------------------------------------------------------------
   //
   // The session already exists by the time this sheet is up, so every way out
   // of it — Done, Skip, a swipe down, a tap on the backdrop — has to end in

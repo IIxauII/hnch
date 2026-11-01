@@ -129,9 +129,7 @@ describe('ScalePicker — custom scale label rendering', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // ConfigSettings — needs config.ts mocked so readConfig() does not touch disk
-// ---------------------------------------------------------------------------
 
 vi.mock('../../config.js', () => ({
   readConfig: () => ({

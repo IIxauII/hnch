@@ -117,8 +117,6 @@ export function isDowngrade(next, live) {
   return isDowngradeFrom(next, live, TAG_PREFIX);
 }
 
-// ------------------------------------------------------------------ CLI
-
 async function readDeployConfig() {
   const { unstable_readConfig } = await import('wrangler');
   return /** @type {DeployConfig} */ (

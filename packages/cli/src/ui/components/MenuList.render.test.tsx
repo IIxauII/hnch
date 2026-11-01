@@ -23,10 +23,6 @@ const ITEMS: MenuItem[] = [
   { label: 'Delta', value: 'd' },
 ];
 
-// ---------------------------------------------------------------------------
-// Rendering
-// ---------------------------------------------------------------------------
-
 describe('MenuList — rendering', () => {
   it('shows "(no items)" when the list is empty', () => {
     const { lastFrame } = render(<MenuList items={[]} onSelect={vi.fn()} />);
@@ -51,10 +47,6 @@ describe('MenuList — rendering', () => {
     expect(lastFrame() ?? '').toContain('↑↓ select');
   });
 });
-
-// ---------------------------------------------------------------------------
-// Keyboard interactions
-// ---------------------------------------------------------------------------
 
 describe('MenuList — keyboard interactions', () => {
   it('enter on default cursor calls onSelect with the first non-disabled item', async () => {

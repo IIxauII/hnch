@@ -8,9 +8,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// ---------------------------------------------------------------------------
 // Mock Capacitor Preferences
-// ---------------------------------------------------------------------------
 
 const mockPreferences = {
   get: vi.fn<(opts: { key: string }) => Promise<{ value: string | null }>>(),
@@ -22,9 +20,7 @@ vi.mock('@capacitor/preferences', () => ({
   Preferences: mockPreferences,
 }));
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 async function createService() {
   const mod = await import('./scale-preference.service');
@@ -50,9 +46,7 @@ describe('ScalePreferenceService', () => {
     vi.unstubAllGlobals();
   });
 
-  // -------------------------------------------------------------------------
   // ensureLoaded — defaults
-  // -------------------------------------------------------------------------
 
   describe('ensureLoaded (defaults when empty Preferences)', () => {
     it('defaultScaleId defaults to fibonacci', async () => {
@@ -85,9 +79,7 @@ describe('ScalePreferenceService', () => {
     });
   });
 
-  // -------------------------------------------------------------------------
   // ensureLoaded — restoring persisted values
-  // -------------------------------------------------------------------------
 
   describe('ensureLoaded (restoring persisted data)', () => {
     it('restores presetOverrides from JSON', async () => {
@@ -172,10 +164,6 @@ describe('ScalePreferenceService', () => {
     });
   });
 
-  // -------------------------------------------------------------------------
-  // togglePresetCard
-  // -------------------------------------------------------------------------
-
   describe('togglePresetCard', () => {
     it('disables a card index for a known builtin scale', async () => {
       mockPreferences.get.mockImplementation(allKeysNull());
@@ -237,10 +225,6 @@ describe('ScalePreferenceService', () => {
     });
   });
 
-  // -------------------------------------------------------------------------
-  // addCustomScale
-  // -------------------------------------------------------------------------
-
   describe('addCustomScale', () => {
     it('appends a new scale and returns its id', async () => {
       mockPreferences.get.mockImplementation(allKeysNull());
@@ -286,10 +270,6 @@ describe('ScalePreferenceService', () => {
     });
   });
 
-  // -------------------------------------------------------------------------
-  // updateCustomScale
-  // -------------------------------------------------------------------------
-
   describe('updateCustomScale', () => {
     it('updates label and cards in place', async () => {
       mockPreferences.get.mockImplementation(allKeysNull());
@@ -317,10 +297,6 @@ describe('ScalePreferenceService', () => {
       expect(svc.customScales().length).toBe(before);
     });
   });
-
-  // -------------------------------------------------------------------------
-  // deleteCustomScale
-  // -------------------------------------------------------------------------
 
   describe('deleteCustomScale', () => {
     it('removes the scale by id', async () => {
@@ -389,10 +365,6 @@ describe('ScalePreferenceService', () => {
     });
   });
 
-  // -------------------------------------------------------------------------
-  // setDefaultScaleId
-  // -------------------------------------------------------------------------
-
   describe('setDefaultScaleId', () => {
     it('updates the defaultScaleId signal', async () => {
       mockPreferences.get.mockImplementation(allKeysNull());
@@ -409,9 +381,7 @@ describe('ScalePreferenceService', () => {
     });
   });
 
-  // -------------------------------------------------------------------------
   // availableScales computed signal
-  // -------------------------------------------------------------------------
 
   describe('availableScales', () => {
     it('includes all builtin scales when no overrides or customs', async () => {
@@ -436,9 +406,7 @@ describe('ScalePreferenceService', () => {
     });
   });
 
-  // -------------------------------------------------------------------------
   // defaultScale computed signal
-  // -------------------------------------------------------------------------
 
   describe('defaultScale', () => {
     it('resolves to fibonacci when defaultScaleId is fibonacci', async () => {
@@ -466,9 +434,7 @@ describe('ScalePreferenceService', () => {
     });
   });
 
-  // -------------------------------------------------------------------------
   // A device that cannot store
-  // -------------------------------------------------------------------------
 
   // The screen is changed before the device has stored the change. What is
   // on screen and not on the device is gone with the next start of the app —

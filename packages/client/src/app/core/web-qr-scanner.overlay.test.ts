@@ -8,9 +8,7 @@
 import { TestBed } from '@angular/core/testing';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// ---------------------------------------------------------------------------
 // Module-level mocks (hoisted before imports)
-// ---------------------------------------------------------------------------
 
 const mockDismiss = vi.fn().mockResolvedValue();
 const mockModalCtrlCreate = vi.fn();
@@ -35,17 +33,13 @@ vi.mock('@capacitor-mlkit/barcode-scanning', () => ({
   },
 }));
 
-// ---------------------------------------------------------------------------
 // Imported after mocks
-// ---------------------------------------------------------------------------
 
 import { WebQrScannerOverlayComponent } from './web-qr-scanner.overlay';
 import { ModalController } from '@ionic/angular/standalone';
 import { ComponentFixture } from '@angular/core/testing';
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /**
  * Sets up the TestBed module (does NOT yet create or render the component).
@@ -89,9 +83,7 @@ async function renderComponent(): Promise<{
   return { fixture, comp: fixture.componentInstance, flush };
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 describe('WebQrScannerOverlayComponent', () => {
   beforeEach(() => {
@@ -103,9 +95,7 @@ describe('WebQrScannerOverlayComponent', () => {
     TestBed.resetTestingModule();
   });
 
-  // -------------------------------------------------------------------------
   // Barcode scan success
-  // -------------------------------------------------------------------------
 
   it('dismisses with rawValue when barcode is scanned', async () => {
     let capturedListener: ((e: unknown) => void) | null = null;
@@ -142,9 +132,7 @@ describe('WebQrScannerOverlayComponent', () => {
     expect(listenerHandle.remove).toHaveBeenCalled();
   });
 
-  // -------------------------------------------------------------------------
   // Cancel
-  // -------------------------------------------------------------------------
 
   it('dismisses with null when cancel is pressed', async () => {
     const listenerHandle = { remove: vi.fn().mockResolvedValue() };
@@ -160,9 +148,7 @@ describe('WebQrScannerOverlayComponent', () => {
     expect(mockDismiss).toHaveBeenCalledWith(null);
   });
 
-  // -------------------------------------------------------------------------
   // ngOnDestroy teardown
-  // -------------------------------------------------------------------------
 
   it('calls stopScan and removes listener on ngOnDestroy', async () => {
     const listenerHandle = { remove: vi.fn().mockResolvedValue() };
@@ -193,9 +179,7 @@ describe('WebQrScannerOverlayComponent', () => {
     expect(mockStopScan).toHaveBeenCalledTimes(1);
   });
 
-  // -------------------------------------------------------------------------
   // startScan receives videoElement (B1 fix verification)
-  // -------------------------------------------------------------------------
 
   it('passes videoElement to startScan', async () => {
     const listenerHandle = { remove: vi.fn().mockResolvedValue() };
@@ -219,9 +203,7 @@ describe('WebQrScannerOverlayComponent', () => {
     expect(mockStartScan).toHaveBeenCalledWith(expect.objectContaining({ formats: ['QR_CODE'] }));
   });
 
-  // -------------------------------------------------------------------------
   // startScan throws (B1/B3 — plugin error → dismiss with reason)
-  // -------------------------------------------------------------------------
 
   it('dismisses with { reason: unknown } when startScan throws generic error', async () => {
     const listenerHandle = { remove: vi.fn().mockResolvedValue() };
@@ -269,9 +251,7 @@ describe('WebQrScannerOverlayComponent', () => {
     expect(mockStopScan).toHaveBeenCalled();
   });
 
-  // -------------------------------------------------------------------------
   // Race: component destroyed mid-init (B3 fix verification)
-  // -------------------------------------------------------------------------
 
   it('does not dismiss when destroyed before addListener resolves', async () => {
     let resolveAddListener!: (v: unknown) => void;
@@ -335,9 +315,7 @@ describe('WebQrScannerOverlayComponent', () => {
     expect(mockStopScan).toHaveBeenCalled();
   });
 
-  // -------------------------------------------------------------------------
   // Listener fires twice — idempotency guard
-  // -------------------------------------------------------------------------
 
   it('dismiss runs only once even when listener fires twice', async () => {
     let capturedListener: ((e: unknown) => void) | null = null;

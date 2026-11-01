@@ -1,9 +1,9 @@
 /**
  * DOM-render tests for CelebrationService overlay styling and reduced-motion glyph.
  *
- * AC-16: consensus text styling (transparent bg + accent color)
- * AC-18: reduced-motion 🎉 glyph rendering
- * P3-C8: .confetti-layer overflow: hidden
+ * - consensus text styling (transparent bg + accent color)
+ * - reduced-motion 🎉 glyph rendering
+ * - .confetti-layer overflow: hidden
  */
 
 import { describe, expect, it, vi } from 'vitest';
@@ -12,9 +12,6 @@ import type { Round } from '@hnch/shared';
 import { HapticService } from './haptic.service';
 import { CelebrationService } from './celebration.service';
 
-// ---------------------------------------------------------------------------
-// Ionic stubs
-// ---------------------------------------------------------------------------
 vi.mock('@ionic/angular/standalone', async () => {
   const { Component: Comp, Input } = await import('@angular/core');
   const stub = (selector: string) =>
@@ -30,10 +27,6 @@ vi.mock('@ionic/angular/standalone', async () => {
   };
 });
 vi.mock('ionicons', () => ({ addIcons: vi.fn() }));
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 const SCALE = { id: 'fibonacci', cards: ['1', '2', '3', '5', '8'] };
 
@@ -58,11 +51,9 @@ const hapticStub = {
   impactHeavy: vi.fn(),
 };
 
-// ---------------------------------------------------------------------------
-// AC-16: consensus text styling — transparent background + accent color
-// ---------------------------------------------------------------------------
+// Consensus text styling — transparent background + accent color
 
-describe('CelebrationService overlay DOM — AC-16: text styling', () => {
+describe('CelebrationService overlay DOM — text styling', () => {
   it('consensus text renders with transparent background and is colored', async () => {
     vi.useFakeTimers();
     try {
@@ -131,11 +122,9 @@ describe('CelebrationService overlay DOM — AC-16: text styling', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// P3-C8: .confetti-layer exists and has overflow: hidden
-// ---------------------------------------------------------------------------
+// .confetti-layer exists and has overflow: hidden
 
-describe('CelebrationService overlay DOM — P3-C8: confetti-layer overflow', () => {
+describe('CelebrationService overlay DOM — confetti-layer overflow', () => {
   it('.confetti-layer renders when showOverlay() is true and has overflow hidden', async () => {
     vi.useFakeTimers();
     try {
@@ -232,11 +221,9 @@ describe('CelebrationService overlay DOM — P3-C8: confetti-layer overflow', ()
   });
 });
 
-// ---------------------------------------------------------------------------
-// AC-18: reduced-motion — 🎉 glyph rendering
-// ---------------------------------------------------------------------------
+// Reduced-motion — 🎉 glyph rendering
 
-describe('CelebrationService overlay DOM — AC-18: reduced-motion glyph', () => {
+describe('CelebrationService overlay DOM — reduced-motion glyph', () => {
   it('prefers-reduced-motion: 🎉 glyph renders in consensus text', async () => {
     vi.useFakeTimers();
     try {

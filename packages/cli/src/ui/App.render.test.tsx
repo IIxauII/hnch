@@ -1,5 +1,5 @@
 /**
- * Render-driven coverage for App.tsx focused on the issue #109 two-step
+ * Render-driven coverage for App.tsx focused on the #109 two-step
  * round-start prompt (title → ticketId → session.commands.startRound).
  * Mounts App with a stub SessionHandle, presses `s` to open the title
  * prompt, walks the user through both fields, then asserts
@@ -113,7 +113,7 @@ function makeSession(
   };
 }
 
-describe('App — round-start two-step prompt (issue #109)', () => {
+describe('App — round-start two-step prompt (#109)', () => {
   it('runs title -> ticketId -> session.commands.startRound({ title, ticketId })', async () => {
     const { session, startRound } = makeSession();
     const { stdin } = await renderInk(
@@ -202,11 +202,9 @@ describe('App — re-vote inherits parent round descriptor (ADR-0013 / #516)', (
   });
 });
 
-// ---------------------------------------------------------------------------
 // What the Lobby is given to show. The host cancelling a round sends everyone
 // to the Lobby with that round last in the list; it is a tombstone (ADR-0046)
 // and the headline belongs to the round before it.
-// ---------------------------------------------------------------------------
 
 describe('App — a cancelled round is not what the Lobby shows', () => {
   const revealed: Round = {
@@ -254,13 +252,11 @@ describe('App — a cancelled round is not what the Lobby shows', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Bound command call sites (#516)
 //
 // `SessionHandle` no longer carries per-act forwards — App reaches the whole
 // writer seam through `session.commands`. These press the keys that reach each
 // callback so the wiring itself is pinned; the rules live in `@hnch/shared`.
-// ---------------------------------------------------------------------------
 
 const VOTING_ROUND: Round = {
   id: 'r-active',

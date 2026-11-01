@@ -15,10 +15,6 @@ import type { SyncStatus } from '../../sync.js';
 
 import { StatusBar } from './StatusBar.js';
 
-// ---------------------------------------------------------------------------
-// Room code / session name
-// ---------------------------------------------------------------------------
-
 describe('StatusBar — room code and session name', () => {
   it('shows room code when no session name provided', () => {
     const { lastFrame } = render(<StatusBar roomCode="ABC123" status="connected" isHost={false} />);
@@ -47,10 +43,6 @@ describe('StatusBar — room code and session name', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Connection status text
-// ---------------------------------------------------------------------------
-
 describe('StatusBar — connection status text', () => {
   const cases: SyncStatus[] = ['connecting', 'connected', 'disconnected'];
 
@@ -61,10 +53,6 @@ describe('StatusBar — connection status text', () => {
     });
   }
 });
-
-// ---------------------------------------------------------------------------
-// Host indicator
-// ---------------------------------------------------------------------------
 
 describe('StatusBar — host indicator', () => {
   it('shows [host] when isHost=true', () => {

@@ -9,10 +9,6 @@ import { UNBOUND_SESSION_COMMANDS, type CustomScale, type Scale } from '@hnch/sh
 import { ACCENTS } from '../core/accent.tokens';
 import { isValidAccent, isValidTheme, relayUrlDisplayLabel } from './settings.helpers';
 
-// ---------------------------------------------------------------------------
-// isValidTheme
-// ---------------------------------------------------------------------------
-
 describe('isValidTheme', () => {
   it('accepts "system"', () => {
     expect(isValidTheme('system')).toBe(true);
@@ -44,10 +40,6 @@ describe('isValidTheme', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// isValidAccent
-// ---------------------------------------------------------------------------
-
 describe('isValidAccent', () => {
   it('accepts all keys present in ACCENTS', () => {
     for (const key of Object.keys(ACCENTS)) {
@@ -73,10 +65,6 @@ describe('isValidAccent', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// relayUrlDisplayLabel
-// ---------------------------------------------------------------------------
-
 describe('relayUrlDisplayLabel', () => {
   it('returns the URL when a relay URL override is set', () => {
     expect(relayUrlDisplayLabel('http://localhost:1234')).toBe('http://localhost:1234');
@@ -95,9 +83,7 @@ describe('relayUrlDisplayLabel', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // SettingsPage.scaleLabel
-// ---------------------------------------------------------------------------
 
 vi.mock('@ionic/angular/standalone', async () => {
   const { Component: Comp } = await import('@angular/core');
@@ -366,7 +352,7 @@ describe('SettingsPage — avatar color picker (ADR-0043)', () => {
   });
 });
 
-describe('SettingsPage — themeIconName (issue #251)', () => {
+describe('SettingsPage — themeIconName (#251)', () => {
   async function mountWithTheme(theme: 'system' | 'light' | 'dark') {
     const { AccentService } = await import('../core/accent.service');
     const { AppPreferenceService } = await import('../core/app-preference.service');
@@ -479,12 +465,10 @@ describe('SettingsPage — scaleLabel (default scale)', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Display-name save — `commands.rename` with no session guard (#507, #516)
 //
 // The unbound adapter refuses honestly when no session is live, so the page
 // calls the command unconditionally rather than branching on `hasSession()`.
-// ---------------------------------------------------------------------------
 
 interface DisplayNameMethods {
   displayName: ReturnType<typeof signal<string>>;

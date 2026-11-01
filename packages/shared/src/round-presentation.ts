@@ -8,7 +8,7 @@
  * scattered: elapsed formatting had three implementations, the "does this round
  * have a knowable duration" guard was spelled four times, the abstain-stripping
  * rule that must precede statistics was spelled three times, and
- * `formatRoundLabel` named two unrelated ideas in two packages (issue #509).
+ * `formatRoundLabel` named two unrelated ideas in two packages (#509).
  *
  * The module answers five questions:
  *
@@ -31,9 +31,7 @@ import type { Round, Scale } from './doc.js';
 import { formatElapsed } from './format-time.js';
 import { resolveRoundLineage } from './lineage.js';
 
-// ---------------------------------------------------------------------------
 // Label and chain position
-// ---------------------------------------------------------------------------
 
 /**
  * Build a single human-readable label for a round combining its optional
@@ -47,7 +45,7 @@ import { resolveRoundLineage } from './lineage.js';
  *   - `null` when neither is set (caller decides the placeholder)
  *
  * Ticket IDs are rendered as plain text. Hyperlinking to trackers is
- * intentionally out of scope for v1 (issue #109; ADR-0013 export follow-up
+ * intentionally out of scope for v1 (#109; ADR-0013 export follow-up
  * handles markdown autolinking separately via `round-export.ts`).
  */
 export function formatRoundLabel(round: {
@@ -96,7 +94,7 @@ export function nextRoundNumber(allRounds: readonly Round[]): number {
 /**
  * Where a round sits in its re-vote chain, as one string:
  * `"Round 3"` for a chain root or standalone round, `"Round 2/3 [re-vote]"`
- * for a re-vote (issue #111 AC#7).
+ * for a re-vote (#111).
  *
  * A distinct name from `formatRoundLabel` because it is a distinct idea —
  * position, not identity. The two used to share the name across packages.
@@ -111,9 +109,7 @@ export function formatRoundPosition(round: Round, allRounds: readonly Round[]): 
   return `Round ${roundNumber(round, allRounds)}`;
 }
 
-// ---------------------------------------------------------------------------
 // Statistics
-// ---------------------------------------------------------------------------
 
 export type SpreadLabel = 'unanimous' | 'close' | 'spread';
 
@@ -299,9 +295,7 @@ export function formatRoundStats(stats: RoundStats): RoundStatsDisplay {
   return { kind: 'categorical', mode, spread };
 }
 
-// ---------------------------------------------------------------------------
 // Elapsed
-// ---------------------------------------------------------------------------
 
 /**
  * How long a round took, as `M:SS`, or `null` when it has no knowable

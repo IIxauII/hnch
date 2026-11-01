@@ -1,10 +1,7 @@
 // For information on how to create your own theme, please refer to:
 // https://ionicframework.com/docs/theming/
 
-// ---------------------------------------------------------------------------
 // Mono surface tokens — light mode (default)
-// Values from ionic-screens.jsx:31–48
-// ---------------------------------------------------------------------------
 
 :root {
   // What the browser draws itself — scrollbars, native controls — follows
@@ -27,9 +24,9 @@
   --hnch-elev-2:       #FAFAFB;
   --hnch-elev-3:       #F5F5F7;
 
-  // Glass — plan §variables.scss values
+  // Glass
   --hnch-glass:        rgba(255, 255, 255, 0.72);
-  // --hnch-glass-strong: not in plan spec; used by _glass.scss mixin $strong:true branch (toolbars)
+  // --hnch-glass-strong: used by _glass.scss mixin $strong:true branch (toolbars)
   --hnch-glass-strong: rgba(255, 255, 255, 0.82);
   --hnch-glass-edge:   rgba(0, 0, 0, 0.06);
 
@@ -51,7 +48,6 @@
   --hnch-fill:         rgba(120, 120, 128, 0.16);
 
   // Semantic — light
-  // Values from ionic-screens.jsx:24–28
   --hnch-success:      #30D158;
   --hnch-warning:      #FF9F0A;
   --hnch-danger:       #FF453A;
@@ -119,10 +115,8 @@
   --hnch-brand-spark: #1F6B4F;
 }
 
-// ---------------------------------------------------------------------------
 // Dark mode overrides
 // Activated when ThemeService adds .ion-palette-dark to <html>
-// ---------------------------------------------------------------------------
 
 :root.ion-palette-dark {
   color-scheme: dark;
@@ -139,9 +133,9 @@
   --hnch-elev-2:       #3A3A3C;
   --hnch-elev-3:       #48484A;
 
-  // Glass — plan §variables.scss values
+  // Glass
   --hnch-glass:        rgba(28, 28, 30, 0.66);
-  // --hnch-glass-strong: not in plan spec; used by _glass.scss mixin $strong:true branch (toolbars)
+  // --hnch-glass-strong: used by _glass.scss mixin $strong:true branch (toolbars)
   --hnch-glass-strong: rgba(28, 28, 30, 0.82);
   --hnch-glass-edge:   rgba(255, 255, 255, 0.08);
 
@@ -221,13 +215,11 @@
   --hnch-brand-spark: #0B3D2E;
 }
 
-// ---------------------------------------------------------------------------
 // Layer 3 — Ionic component CSS-var wiring
 // Centralized here so per-component .scss can stay focused on layout.
 // Tokens resolve per mode via the :root / :root.ion-palette-dark cascade.
 // Component-scoped overrides (Angular view encapsulation) still win where
 // intentional (e.g. transparent toolbars in onboarding/CTA bar).
-// ---------------------------------------------------------------------------
 
 ion-card {
   --background: var(--hnch-elev-1);

@@ -2,7 +2,7 @@
  * Tests for VoteResultsComponent — TestBed rendering.
  *
  * Exercises the abstain sentinel (ADR-0041) and proportional vote-distribution
- * bar (issue #123) code paths at runtime via TestBed + JSDOM.
+ * bar (#123) code paths at runtime via TestBed + JSDOM.
  *
  * Intentionally absent:
  *  - CSS media-query properties (prefers-reduced-motion, ::before bar) — JSDOM
@@ -18,9 +18,7 @@ import { TestBed } from '@angular/core/testing';
 import type { ParticipantSnapshot, Round } from '@hnch/shared';
 import { HapticService } from '../core/haptic.service';
 
-// ---------------------------------------------------------------------------
 // Ionic stubs — must be hoisted before the component import.
-// ---------------------------------------------------------------------------
 vi.mock('@ionic/angular/standalone', async () => {
   const { Component: Comp, Input } = await import('@angular/core');
   const stub = (selector: string) =>
@@ -41,9 +39,7 @@ vi.mock('@ionic/angular/standalone', async () => {
 
 vi.mock('ionicons', () => ({ addIcons: vi.fn() }));
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 const SCALE = { id: 'fibonacci', cards: ['1', '2', '3', '5', '8'] };
 
@@ -94,9 +90,7 @@ async function mountVoteResults(
   return fixture;
 }
 
-// ---------------------------------------------------------------------------
 // TestBed rendering
-// ---------------------------------------------------------------------------
 
 // Exercises: vote-results.component:VoteResultsComponent
 describe('VoteResultsComponent — TestBed rendering', () => {
@@ -171,7 +165,7 @@ describe('VoteResultsComponent — TestBed rendering', () => {
     expect(abstained).not.toContain('Carol');
   });
 
-  it('plurality group has .plurality class; others do not (issue #123)', async () => {
+  it('plurality group has .plurality class; others do not (#123)', async () => {
     const round = makeRound({ votes: { p1: '3', p2: '5', p3: '5', p4: '5', p5: '8' } });
     const participants = [
       makeParticipant('p1', 'Alice'),
@@ -239,7 +233,7 @@ describe('VoteResultsComponent — TestBed rendering', () => {
     expect(el.textContent).toContain('Cy');
   });
 
-  it('--bar-width inline style is proportional to group share (issue #123)', async () => {
+  it('--bar-width inline style is proportional to group share (#123)', async () => {
     const round = makeRound({ votes: { p1: '3', p2: '5', p3: '5', p4: '5', p5: '8' } });
     const participants = [
       makeParticipant('p1', 'Alice'),
@@ -258,7 +252,7 @@ describe('VoteResultsComponent — TestBed rendering', () => {
     expect(groups[2]!.style.getPropertyValue('--bar-width')).toBe('20%');
   });
 
-  it('unanimous round → single 100%-width plurality bar (issue #123 AC #5)', async () => {
+  it('unanimous round → single 100%-width plurality bar (#123)', async () => {
     const round = makeRound({ votes: { p1: '5', p2: '5', p3: '5' } });
     const participants = [
       makeParticipant('p1', 'Alice'),
@@ -275,7 +269,7 @@ describe('VoteResultsComponent — TestBed rendering', () => {
     expect(groups[0]!.classList.contains('plurality')).toBe(true);
   });
 
-  it('categorical scale → consensus chip rendered with aria-label (issue #157)', async () => {
+  it('categorical scale → consensus chip rendered with aria-label (#157)', async () => {
     const TSHIRT = { id: 't-shirt', cards: ['XS', 'S', 'M', 'L', 'XL'] };
     const round = makeRound({
       scale: TSHIRT,
@@ -290,7 +284,7 @@ describe('VoteResultsComponent — TestBed rendering', () => {
     expect(chip!.textContent).toContain('Close');
   });
 
-  it('categorical unanimous → consensus chip "Unanimous" (issue #157)', async () => {
+  it('categorical unanimous → consensus chip "Unanimous" (#157)', async () => {
     const TSHIRT = { id: 't-shirt', cards: ['XS', 'S', 'M', 'L', 'XL'] };
     const round = makeRound({ scale: TSHIRT, votes: { p1: 'M', p2: 'M' } });
     const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
@@ -300,7 +294,7 @@ describe('VoteResultsComponent — TestBed rendering', () => {
     expect(chip!.getAttribute('aria-label')).toBe('Consensus level: Unanimous');
   });
 
-  it('categorical 3-distinct → consensus chip "Spread" (issue #157 AC #4)', async () => {
+  it('categorical 3-distinct → consensus chip "Spread" (#157)', async () => {
     const TSHIRT = { id: 't-shirt', cards: ['XS', 'S', 'M', 'L', 'XL'] };
     const round = makeRound({ scale: TSHIRT, votes: { p1: 'S', p2: 'M', p3: 'L' } });
     const participants = [
@@ -374,7 +368,7 @@ describe('VoteResultsComponent — TestBed rendering', () => {
     expect((abstained.nativeElement as HTMLElement).querySelector('.no-votes')).toBeNull();
   });
 
-  it('zero votes → no consensus chip (issue #157 AC #5)', async () => {
+  it('zero votes → no consensus chip (#157)', async () => {
     const TSHIRT = { id: 't-shirt', cards: ['XS', 'S', 'M', 'L', 'XL'] };
     const round = makeRound({ scale: TSHIRT, votes: {} });
     const participants = [makeParticipant('p1', 'Alice')];
@@ -383,7 +377,7 @@ describe('VoteResultsComponent — TestBed rendering', () => {
     expect(el.querySelector('ion-chip.spread-chip')).toBeNull();
   });
 
-  it('median carries one decimal place, matching mean and export (issue #509)', async () => {
+  it('median carries one decimal place, matching mean and export (#509)', async () => {
     const round = makeRound({ votes: { p1: '5', p2: '5' } });
     const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
     const fixture = await mountVoteResults(round, participants);
@@ -394,7 +388,7 @@ describe('VoteResultsComponent — TestBed rendering', () => {
     expect(values).toEqual(['5.0', '5.0']);
   });
 
-  it('fractional mean and median both render to one decimal (issue #509)', async () => {
+  it('fractional mean and median both render to one decimal (#509)', async () => {
     const round = makeRound({ votes: { p1: '5', p2: '8' } });
     const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
     const fixture = await mountVoteResults(round, participants);
@@ -405,7 +399,7 @@ describe('VoteResultsComponent — TestBed rendering', () => {
     expect(values).toEqual(['6.5', '6.5']);
   });
 
-  it('all-abstain round renders no stats block at all (issue #509)', async () => {
+  it('all-abstain round renders no stats block at all (#509)', async () => {
     const round = makeRound({ votes: { p1: ABSTAIN_SENTINEL, p2: ABSTAIN_SENTINEL } });
     const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
     const fixture = await mountVoteResults(round, participants);
@@ -413,7 +407,7 @@ describe('VoteResultsComponent — TestBed rendering', () => {
     expect(el.querySelector('.stats')).toBeNull();
   });
 
-  it('numeric chip carries aria-label too (issue #157 AC #7)', async () => {
+  it('numeric chip carries aria-label too (#157)', async () => {
     const round = makeRound({ votes: { p1: '5', p2: '5' } });
     const participants = [makeParticipant('p1', 'Alice'), makeParticipant('p2', 'Bob')];
     const fixture = await mountVoteResults(round, participants);
@@ -422,7 +416,7 @@ describe('VoteResultsComponent — TestBed rendering', () => {
     expect(chip!.getAttribute('aria-label')).toBe('Consensus level: Unanimous');
   });
 
-  it('abstain entries excluded from bar denominator (issue #123 AC #3)', async () => {
+  it('abstain entries excluded from bar denominator (#123)', async () => {
     const round = makeRound({ votes: { p1: '5', p2: '5', p3: ABSTAIN_SENTINEL } });
     const participants = [
       makeParticipant('p1', 'Alice'),
@@ -440,7 +434,6 @@ describe('VoteResultsComponent — TestBed rendering', () => {
 });
 
 // consensus() + stats() abstain guard (ADR-0041)
-// ---------------------------------------------------------------------------
 
 // Exercises: vote-results.component:VoteResultsComponent.consensus
 describe('VoteResultsComponent — consensus() abstain guard', () => {
@@ -503,17 +496,15 @@ describe('VoteResultsComponent — stats() abstain filtering', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// consensus() computed guards on VoteResultsComponent (AC-13, AC-14)
+// consensus() computed guards on VoteResultsComponent
 //
-// Celebration overlay ownership (AC-11, AC-12) moved to CelebrationService
+// Celebration overlay ownership moved to CelebrationService
 // (packages/client/src/app/core/celebration.service.test.ts) per T1/T2
 // refactor. Assertions are equivalent — only the owner changed.
-// ---------------------------------------------------------------------------
 
 // Exercises: vote-results.component:VoteResultsComponent consensus()
 describe('VoteResultsComponent — consensus()', () => {
-  it('consensus() is false when round is skipped (AC-13: skip-race guard, ADR-0040)', async () => {
+  it('consensus() is false when round is skipped (skip-race guard, ADR-0040)', async () => {
     const round = makeRound({
       votes: { p1: '5', p2: '5' },
       status: 'skipped',
@@ -525,7 +516,7 @@ describe('VoteResultsComponent — consensus()', () => {
     expect(component.consensus()).toBe(false);
   });
 
-  it('consensus() is true when round is revealed (AC-13: reveal wins)', async () => {
+  it('consensus() is true when round is revealed (reveal wins)', async () => {
     const round = makeRound({
       votes: { p1: '5', p2: '5' },
       status: 'revealed',
@@ -537,7 +528,7 @@ describe('VoteResultsComponent — consensus()', () => {
     expect(component.consensus()).toBe(true);
   });
 
-  it('consensus() is false when only skippedAt is set (AC-13)', async () => {
+  it('consensus() is false when only skippedAt is set', async () => {
     const round = makeRound({
       votes: { p1: '5', p2: '5' },
       status: 'skipped',
@@ -549,7 +540,7 @@ describe('VoteResultsComponent — consensus()', () => {
     expect(component.consensus()).toBe(false);
   });
 
-  it('consensus() is not gated on participant role — viewer sees same result (AC-14, ADR-0020)', async () => {
+  it('consensus() is not gated on participant role — viewer sees same result (ADR-0020)', async () => {
     const round = makeRound({ votes: { p1: '5', p2: '5' } });
     const viewerParticipant: ParticipantSnapshot = {
       id: 'viewer1',

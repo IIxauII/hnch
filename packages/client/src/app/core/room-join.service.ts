@@ -321,9 +321,7 @@ export class RoomJoinService {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Utility
-// ---------------------------------------------------------------------------
 
 /**
  * Assert that `code` is non-null at call time. Throws a descriptive error

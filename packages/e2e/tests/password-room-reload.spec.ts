@@ -84,8 +84,8 @@ test.describe('Password-room reload', () => {
     const joinUrl = host.page.url();
     expect(joinUrl).toContain(`code=${code}`);
 
-    // The join page auto-submits phase 1 when ?code= is in the URL and the user has
-    // a display name (shouldAutoSubmitDeepLink). For a password room, phase 1 resolves
+    // The join page auto-submits the resolve step when ?code= is in the URL and the user
+    // has a display name (shouldAutoSubmitDeepLink). For a password room, that step resolves
     // the room, sets needsPassword=true, and surfaces the password field automatically —
     // no manual Join click needed.
     const pwInput = host.page.locator(JOIN.passwordInput).locator('input');

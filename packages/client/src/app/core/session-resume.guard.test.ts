@@ -21,9 +21,7 @@ vi.mock('@capacitor/core', () => ({
   Capacitor: { isNativePlatform: () => false },
 }));
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 function makeSegments(screen: string, code?: string): UrlSegment[] {
   const seg0 = { path: screen } as UrlSegment;
@@ -75,9 +73,7 @@ function makeRoomJoinService(outcome: unknown) {
   };
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 describe('sessionResumeGuardLogic', () => {
   beforeEach(() => {

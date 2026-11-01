@@ -1,5 +1,5 @@
 /**
- * Render tests for Voting.tsx — abstain keybind (ADR-0041 Phase 3).
+ * Render tests for Voting.tsx — abstain keybind (ADR-0041).
  */
 
 import { render } from 'ink-testing-library';
@@ -151,7 +151,7 @@ describe('Voting — round number', () => {
 
 // The voting timer's elapsed value is raw wall-clock arithmetic against the
 // host's `timerStartedAt`, so a peer whose clock lags the host's gets a
-// negative number. Clamping is the shared formatter's job (issue #509).
+// negative number. Clamping is the shared formatter's job (#509).
 // Exercises: ui/Voting:Voting
 describe('Voting — elapsed timer', () => {
   it('renders M:SS for a positive elapsed value', () => {

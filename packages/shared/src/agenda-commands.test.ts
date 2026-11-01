@@ -22,9 +22,7 @@ import {
 import { FIBONACCI_SCALE } from './doc.js';
 import { initDoc, projectDoc, setAgendaItemState } from './doc-projection.js';
 
-// ---------------------------------------------------------------------------
 // Fixtures
-// ---------------------------------------------------------------------------
 
 const FIXED = () => 1_700_000_900_000;
 
@@ -57,10 +55,6 @@ function expectApplied(result: AgendaResult): Extract<AgendaResult, { applied: t
   if (!result.applied) throw new Error('unreachable');
   return result;
 }
-
-// ---------------------------------------------------------------------------
-// addItem
-// ---------------------------------------------------------------------------
 
 describe('addItem', () => {
   it('appends a pending item, stamping createdAt from the injected clock', () => {
@@ -122,10 +116,6 @@ describe('addItem', () => {
     expect(projectDoc(doc).agenda).toHaveLength(0);
   });
 });
-
-// ---------------------------------------------------------------------------
-// editItem
-// ---------------------------------------------------------------------------
 
 describe('editItem', () => {
   it('patches title, ticketId and description on a pending item', () => {
@@ -216,9 +206,7 @@ describe('editItem', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // skipItem / cancelItem
-// ---------------------------------------------------------------------------
 
 describe('skipItem', () => {
   it('moves a pending item to skipped and stamps no timestamp', () => {
@@ -277,10 +265,6 @@ describe('cancelItem', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// moveItem
-// ---------------------------------------------------------------------------
-
 describe('moveItem', () => {
   it('reorders a pending item and stamps no timestamp', () => {
     const doc = seedDoc();
@@ -319,9 +303,7 @@ describe('moveItem', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Clock determinism
-// ---------------------------------------------------------------------------
 
 describe('injected clock', () => {
   it('addItem uses the injected clock rather than the ambient one', () => {

@@ -1,9 +1,8 @@
 import { test, expect } from './fixtures/app.fixture';
 import { LOBBY } from './fixtures/helpers';
 
-// Issue #109 — ticket ID exposure in the round-start modal.
-// Covers AC #2 (ticketId written), #3 (results heading format),
-// #4 (history row format), #8 (cross-client sync).
+// Ticket ID exposure in the round-start modal (#109): ticketId written,
+// results heading format, history row format, cross-client sync.
 test.describe('Round ticket ID', () => {
   test('host enters ticket ID; both clients see "PROJ-42 · Auth migration" in results heading and history', async ({
     host,

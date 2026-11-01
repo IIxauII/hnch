@@ -46,9 +46,7 @@ import {
   type InitDocInit,
 } from './doc-projection.js';
 
-// ---------------------------------------------------------------------------
 // Test fixtures
-// ---------------------------------------------------------------------------
 
 /**
  * A freshly seeded doc suitable for most tests. Returns both the doc
@@ -68,10 +66,6 @@ function seedDoc(overrides: Partial<InitDocInit> = {}): { doc: Y.Doc; init: Init
   initDoc(doc, init);
   return { doc, init };
 }
-
-// ---------------------------------------------------------------------------
-// initDoc
-// ---------------------------------------------------------------------------
 
 describe('initDoc', () => {
   it('seeds meta, settings, and the host participant in one pass', () => {
@@ -139,10 +133,6 @@ describe('initDoc', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// patchSettings
-// ---------------------------------------------------------------------------
-
 describe('patchSettings', () => {
   it('shallow-merges a partial patch', () => {
     const { doc } = seedDoc();
@@ -171,10 +161,6 @@ describe('patchSettings', () => {
     expect(snap.settings.defaultScale).toEqual(TSHIRT_SCALE);
   });
 });
-
-// ---------------------------------------------------------------------------
-// upsertParticipant
-// ---------------------------------------------------------------------------
 
 describe('upsertParticipant', () => {
   it('adds a new participant', () => {
@@ -251,9 +237,7 @@ describe('upsertParticipant', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // setAvatarColor + initDoc/joinDoc avatarColor plumbing (ADR-0043)
-// ---------------------------------------------------------------------------
 
 describe('setAvatarColor', () => {
   it('writes avatarColor on the caller participant', () => {
@@ -341,10 +325,6 @@ describe('joinDoc avatarColor plumbing (ADR-0043)', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// appendRound
-// ---------------------------------------------------------------------------
-
 describe('appendRound', () => {
   it('inherits scale from settings.defaultScale and snapshots it', () => {
     const { doc } = seedDoc();
@@ -413,10 +393,6 @@ describe('appendRound', () => {
     );
   });
 });
-
-// ---------------------------------------------------------------------------
-// castVote / clearVote
-// ---------------------------------------------------------------------------
 
 describe('castVote / clearVote', () => {
   it('sets a vote and overwrites on re-cast', () => {
@@ -496,10 +472,6 @@ describe('castVote / clearVote', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// revealRound
-// ---------------------------------------------------------------------------
-
 describe('revealRound', () => {
   it('stamps revealedAt (projects status=revealed + terminalAt)', () => {
     const { doc } = seedDoc();
@@ -531,9 +503,7 @@ describe('revealRound', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // skipRound (ADR-0040)
-// ---------------------------------------------------------------------------
 
 describe('skipRound', () => {
   it('stamps skippedAt (projects status=skipped + terminalAt)', () => {
@@ -564,9 +534,7 @@ describe('skipRound', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // terminalState (ADR-0040)
-// ---------------------------------------------------------------------------
 
 describe('terminalState', () => {
   it('returns null when no terminal field is set', () => {
@@ -618,9 +586,7 @@ describe('terminalState', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // projectRound — resolved status / terminalAt materialization
-// ---------------------------------------------------------------------------
 
 describe('projectRound status / terminalAt', () => {
   it('non-terminal round projects status=voting and no terminalAt', () => {
@@ -672,9 +638,7 @@ describe('projectRound status / terminalAt', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // appendRound always writes timerStartedAt (stopwatch)
-// ---------------------------------------------------------------------------
 
 describe('appendRound timerStartedAt', () => {
   it('always writes timerStartedAt equal to createdAt', () => {
@@ -686,10 +650,6 @@ describe('appendRound timerStartedAt', () => {
     expect(snap.rounds[0]!.terminalAt).toBeUndefined();
   });
 });
-
-// ---------------------------------------------------------------------------
-// currentRound
-// ---------------------------------------------------------------------------
 
 describe('currentRound', () => {
   it('returns null for empty rounds', () => {
@@ -724,10 +684,6 @@ describe('currentRound', () => {
     expect(currentRound(projectDoc(doc))!.id).toBe('r2');
   });
 });
-
-// ---------------------------------------------------------------------------
-// activeRound
-// ---------------------------------------------------------------------------
 
 describe('activeRound', () => {
   it('returns null for empty rounds', () => {
@@ -773,9 +729,7 @@ describe('activeRound', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Projection round-trip + containers
-// ---------------------------------------------------------------------------
 
 describe('projectDoc round-trip', () => {
   it('produces a fully-typed snapshot over a populated doc', () => {
@@ -834,9 +788,7 @@ describe('projectDoc round-trip', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Custom scale round-trip (sanity: projections don't collapse unknown scales)
-// ---------------------------------------------------------------------------
 
 describe('custom scales round-trip', () => {
   it('preserves a non-builtin scale verbatim', () => {
@@ -849,10 +801,6 @@ describe('custom scales round-trip', () => {
     expect(snap.rounds[0]!.scale).toEqual(custom);
   });
 });
-
-// ---------------------------------------------------------------------------
-// isConsensus
-// ---------------------------------------------------------------------------
 
 describe('isConsensus', () => {
   it('returns false when no votes exist', () => {
@@ -909,9 +857,7 @@ describe('isConsensus', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // participant role (ADR-0020)
-// ---------------------------------------------------------------------------
 
 describe('participant role projection round-trip', () => {
   it('projects voter role when explicitly set', () => {
@@ -990,10 +936,6 @@ describe('participant role projection round-trip', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// endSessionForEveryone
-// ---------------------------------------------------------------------------
-
 describe('endSessionForEveryone', () => {
   it('writes the caller-supplied endedAt to meta projection', () => {
     const { doc } = seedDoc();
@@ -1016,9 +958,7 @@ describe('endSessionForEveryone', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // participantRole helper
-// ---------------------------------------------------------------------------
 
 describe('participantRole', () => {
   it('returns voter when role is explicitly voter', () => {
@@ -1038,9 +978,7 @@ describe('participantRole', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // isActiveParticipant (ADR-0036)
-// ---------------------------------------------------------------------------
 
 describe('isActiveParticipant', () => {
   it('returns true when leftAt is absent', () => {
@@ -1056,9 +994,7 @@ describe('isActiveParticipant', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // leaveSession (ADR-0036)
-// ---------------------------------------------------------------------------
 
 describe('leaveSession', () => {
   it('sets the caller-supplied leftAt and removedBy=selfId on the record', () => {
@@ -1097,9 +1033,7 @@ describe('leaveSession', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // removeParticipant (ADR-0036)
-// ---------------------------------------------------------------------------
 
 describe('removeParticipant', () => {
   it('sets the caller-supplied leftAt and removedBy=hostId on the target record', () => {
@@ -1143,9 +1077,7 @@ describe('removeParticipant', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // joinDoc re-join clears removal state (ADR-0036)
-// ---------------------------------------------------------------------------
 
 describe('joinDoc re-join clears leftAt / removedBy', () => {
   it('clears leftAt and removedBy when participant re-joins after leave', () => {
@@ -1194,9 +1126,7 @@ describe('joinDoc re-join clears leftAt / removedBy', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Auto-reveal denominator excludes left voters (ADR-0036)
-// ---------------------------------------------------------------------------
 
 describe('auto-reveal denominator excludes left voters', () => {
   it('2 of 3 voters voting triggers reveal when the 3rd has left without voting', () => {
@@ -1270,9 +1200,7 @@ describe('auto-reveal denominator excludes left voters', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // CRDT concurrency: concurrent leaveSession + removeParticipant (ADR-0036 §7)
-// ---------------------------------------------------------------------------
 
 describe('concurrent leaveSession + removeParticipant converge (ADR-0036 §7)', () => {
   it('both docs reach same leftAt and removedBy after exchanging updates', () => {
@@ -1324,10 +1252,6 @@ describe('concurrent leaveSession + removeParticipant converge (ADR-0036 §7)', 
     expect(['p-target', 'p-host']).toContain(targetA.removedBy);
   });
 });
-
-// ---------------------------------------------------------------------------
-// patchRoundDescriptor
-// ---------------------------------------------------------------------------
 
 describe('patchRoundDescriptor', () => {
   function makeDocWithRound(overrides: { title?: string; description?: string } = {}) {
@@ -1416,9 +1340,7 @@ describe('patchRoundDescriptor', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Agenda — appendAgendaItem
-// ---------------------------------------------------------------------------
 
 describe('appendAgendaItem', () => {
   it('appends a title-only item with defaults', () => {
@@ -1486,9 +1408,7 @@ describe('appendAgendaItem', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Agenda — updateAgendaItemFields
-// ---------------------------------------------------------------------------
 
 describe('updateAgendaItemFields', () => {
   function makeItemDoc(): { doc: Y.Doc; id: string } {
@@ -1551,9 +1471,7 @@ describe('updateAgendaItemFields', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Agenda — setAgendaItemState
-// ---------------------------------------------------------------------------
 
 describe('setAgendaItemState', () => {
   function makeDoc(): { doc: Y.Doc; id: string } {
@@ -1611,9 +1529,7 @@ describe('setAgendaItemState', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Agenda — consuming an item (ADR-0045)
-// ---------------------------------------------------------------------------
 
 describe('setAgendaItemState — consume', () => {
   it('sets state=consumed, consumedAt, consumedByRoundId atomically', () => {
@@ -1640,9 +1556,7 @@ describe('setAgendaItemState — consume', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Agenda — reorderAgendaItem
-// ---------------------------------------------------------------------------
 
 describe('reorderAgendaItem', () => {
   it('moves item to a new position by rewriting sortKey', () => {
@@ -1683,9 +1597,7 @@ describe('reorderAgendaItem', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Agenda — appendRound with agendaItemId
-// ---------------------------------------------------------------------------
 
 describe('appendRound with agendaItemId', () => {
   it('projects agendaItemId on the round', () => {
@@ -1736,9 +1648,7 @@ describe('appendRound with agendaItemId', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Agenda — nextPendingAgendaItem selector
-// ---------------------------------------------------------------------------
 
 describe('nextPendingAgendaItem', () => {
   it('returns null when agenda is empty', () => {
@@ -1772,9 +1682,7 @@ describe('nextPendingAgendaItem', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Agenda — projection sort order
-// ---------------------------------------------------------------------------
 
 describe('agenda projection sort', () => {
   it('returns items sorted by sortKey regardless of insertion order', () => {
@@ -1815,9 +1723,7 @@ describe('agenda projection sort', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Agenda — CRDT concurrent append
-// ---------------------------------------------------------------------------
 
 describe('agenda CRDT concurrent append', () => {
   it('two YDocs each appendAgendaItem → both items present after merge, distinct sortKeys', () => {
@@ -1885,9 +1791,7 @@ describe('agenda CRDT concurrent append', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // discardRound — host back-chevron tombstone
-// ---------------------------------------------------------------------------
 
 describe('discardRound', () => {
   it('stamps discardedAt and discardedBy (projects status=discarded + terminalAt)', () => {
@@ -1954,10 +1858,6 @@ describe('discardRound', () => {
     expect(item.state).toBe('pending');
   });
 });
-
-// ---------------------------------------------------------------------------
-// revealRound / skipRound atomic agenda consume
-// ---------------------------------------------------------------------------
 
 describe('revealRound / skipRound atomic agenda consume', () => {
   it('revealRound consumes linked pending agenda item in same transaction', () => {
@@ -2028,9 +1928,7 @@ describe('revealRound / skipRound atomic agenda consume', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // currentRound fallback when last round is discarded
-// ---------------------------------------------------------------------------
 
 describe('currentRound discard handling', () => {
   it('returns null when the only round is discarded', () => {
@@ -2060,9 +1958,7 @@ describe('currentRound discard handling', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // appendRound parent-guard (discarded parent rejected)
-// ---------------------------------------------------------------------------
 
 describe('appendRound discarded-parent guard', () => {
   it('rejects parentRoundId pointing at a discarded round', () => {
@@ -2094,9 +1990,7 @@ describe('appendRound discarded-parent guard', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Late-vote race vs discard (deterministic CRDT merge)
-// ---------------------------------------------------------------------------
 
 describe('discard vs late vote (CRDT merge)', () => {
   it('does not resurrect: a vote merged after discard is projection-ignored via currentRound', () => {
@@ -2131,9 +2025,7 @@ describe('discard vs late vote (CRDT merge)', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // castVote / clearVote — abstain sentinel (ADR-0041)
-// ---------------------------------------------------------------------------
 
 // Exercises: doc-projection:castVote, doc-projection:clearVote
 describe('castVote / clearVote — abstain sentinel (ADR-0041)', () => {
@@ -2161,9 +2053,7 @@ describe('castVote / clearVote — abstain sentinel (ADR-0041)', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // isConsensus — abstain sentinel (ADR-0041)
-// ---------------------------------------------------------------------------
 
 // Exercises: doc-projection:isConsensus
 describe('isConsensus — abstain sentinel (ADR-0041)', () => {

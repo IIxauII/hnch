@@ -1,9 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { keyBetween } from './fractional-index.js';
 
-// ---------------------------------------------------------------------------
 // Null / null — initial key
-// ---------------------------------------------------------------------------
 
 describe('keyBetween(null, null)', () => {
   it('returns a stable non-empty key', () => {
@@ -17,9 +15,7 @@ describe('keyBetween(null, null)', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Append — keyBetween(a, null)
-// ---------------------------------------------------------------------------
 
 describe('keyBetween(a, null) — append', () => {
   it('returns key strictly after a', () => {
@@ -42,9 +38,7 @@ describe('keyBetween(a, null) — append', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Prepend — keyBetween(null, b)
-// ---------------------------------------------------------------------------
 
 describe('keyBetween(null, b) — prepend', () => {
   it('returns key strictly before b', () => {
@@ -66,9 +60,7 @@ describe('keyBetween(null, b) — prepend', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Midpoint — keyBetween(a, b)
-// ---------------------------------------------------------------------------
 
 describe('keyBetween(a, b) — midpoint', () => {
   it('returns key strictly between a and b', () => {
@@ -112,10 +104,6 @@ describe('keyBetween(a, b) — midpoint', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Lexicographic ordering invariant
-// ---------------------------------------------------------------------------
-
 describe('lexicographic ordering invariant', () => {
   it('building an append-only list produces keys in insertion order', () => {
     const keys: string[] = [];
@@ -156,10 +144,6 @@ describe('lexicographic ordering invariant', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Never returns equal-to-bound key
-// ---------------------------------------------------------------------------
-
 describe('never returns equal-to-bound key', () => {
   it('append key !== a', () => {
     const a = 'a0';
@@ -185,10 +169,6 @@ describe('never returns equal-to-bound key', () => {
     }
   });
 });
-
-// ---------------------------------------------------------------------------
-// Edge cases
-// ---------------------------------------------------------------------------
 
 describe('edge cases', () => {
   it('handles single-character bounds', () => {

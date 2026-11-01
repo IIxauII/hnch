@@ -480,7 +480,7 @@ export class EstimatingPage {
     });
 
     // Bump `hnch.lastSession` so a reopen lands on Estimating rather
-    // than Lobby (plan §3.8). Deduped via lastRecordedUuid so we don't
+    // than Lobby. Deduped via lastRecordedUuid so we don't
     // write on every Yjs doc mutation while staying connected
     // (ADR-0022 §5).
     effect(() => {
@@ -503,7 +503,7 @@ export class EstimatingPage {
     });
 
     // Auto-navigate to Lobby whenever this peer no longer belongs on
-    // Estimating (issue #508). The rule lives in the shared `screenFor`
+    // Estimating (#508). The rule lives in the shared `screenFor`
     // selector; this is the adapter. It covers every way the round can close
     // — unanimous auto-reveal, host manual reveal, host skip, and host
     // discard, including the discard of a session's only round, which the
@@ -521,7 +521,7 @@ export class EstimatingPage {
     });
 
     // Clear the transient keyboard focus cursor when the round changes
-    // (issue #154) — otherwise a stale index from a previous scale leaks
+    // (#154) — otherwise a stale index from a previous scale leaks
     // into the new round's grid. Only reacts to id transitions: a bare
     // `currentRound()` read inside an effect would re-fire on every Yjs
     // awareness update (new projection ref, same id) and wipe the focus
@@ -572,7 +572,7 @@ export class EstimatingPage {
   private readonly cardEls!: QueryList<ElementRef<HTMLElement>>;
 
   /**
-   * Transient keyboard focus cursor (issue #154). Distinct from `myVote()`
+   * Transient keyboard focus cursor (#154). Distinct from `myVote()`
    * — arrow keys move this without writing to the doc; Enter/Space then
    * commits the focused card.
    */
@@ -639,7 +639,7 @@ export class EstimatingPage {
    * its entry in `round.votes` — cast vote is authoritative — but we
    * don't want the avatar row to keep showing
    * them as "voted" when the tally won't include them on reveal.
-   * Revealed chips (§3.7) intentionally skip this filter because
+   * Revealed chips intentionally skip this filter because
    * there the tally *is* the post-reveal record.
    */
   protected readonly votedIds = computed<ReadonlySet<string>>(() => {
@@ -730,7 +730,7 @@ export class EstimatingPage {
   }
 
   /**
-   * Keyboard shortcuts for the Estimating card grid (issue #154).
+   * Keyboard shortcuts for the Estimating card grid (#154).
    *
    * Bail conditions enforced here (out of the pure resolver):
    *  - active element is editable (input / textarea / contenteditable);
@@ -811,7 +811,7 @@ export class EstimatingPage {
     const code = this.docService.roomCode();
     assertRoomCode(code, 'estimating.onReveal');
     // replaceUrl: back-nav from Lobby (results view) should pop to the
-    // screen before Estimating, not bounce back here (plan §3.10).
+    // screen before Estimating, not bounce back here.
     await this.router.navigate(['/lobby', code], { replaceUrl: true });
   }
 

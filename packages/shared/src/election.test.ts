@@ -9,10 +9,8 @@ import {
   HOST_ABSENCE_ELECTION_DEBOUNCE_MS,
 } from './election.js';
 
-// ---------------------------------------------------------------------------
 // Minimal projection builder — the election fns only read
 // `settings.hostParticipantId` and `participants[].{id,leftAt}`.
-// ---------------------------------------------------------------------------
 
 function participant(id: string, leftAt?: number): ParticipantSnapshot {
   return { id, displayName: id, joinedAt: 0, ...(leftAt !== undefined ? { leftAt } : {}) };
@@ -201,9 +199,7 @@ describe('resolvePromotion', () => {
   }
 });
 
-// ---------------------------------------------------------------------------
 // Driver behaviour — fake deps + fake timers. No Y.Doc, no framework.
-// ---------------------------------------------------------------------------
 
 function makeDeps(init: {
   hostId: string;

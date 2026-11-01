@@ -64,10 +64,8 @@ describe('LobbyPage — buildCopyRoomCodeToast', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // buildResultsHeading — the round's number in the session, nothing else.
-// The re-vote breadcrumb (issue #111) is `revoteLabel`, tested next to it.
-// ---------------------------------------------------------------------------
+// The re-vote breadcrumb (#111) is `revoteLabel`, tested next to it.
 
 function makeRound(overrides: Partial<Round> & { id: string }): Round {
   return {
@@ -141,9 +139,7 @@ describe('LobbyPage — buildWaitingNote', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // LobbyPage.subtitle — exercises getScaleLabel(id, customScales()) at line 649
-// ---------------------------------------------------------------------------
 
 vi.mock('@ionic/angular/standalone', async () => {
   const { Component: Comp, Injectable } = await import('@angular/core');
@@ -498,9 +494,7 @@ describe('LobbyPage — subtitle (custom scale label)', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // LobbyPage subtitle affordance — host vs viewer rendering
-// ---------------------------------------------------------------------------
 
 async function mountLobbySubtitleAffordance(opts: { isHost: boolean; subtitle: string }) {
   const { Router } = await import('@angular/router');
@@ -631,9 +625,7 @@ describe('LobbyPage — subtitle affordance', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// LobbyPage.onCopyRoomCode — tap-to-copy handler (issue #116)
-// ---------------------------------------------------------------------------
+// LobbyPage.onCopyRoomCode — tap-to-copy handler (#116)
 
 // Exercises: lobby/lobby.page:LobbyPage (onCopyRoomCode via TestBed)
 describe('LobbyPage — onCopyRoomCode', () => {
@@ -755,11 +747,9 @@ describe('LobbyPage — onCopyRoomCode', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // LobbyPage.openParticipantActions — the ⋯ button on a roster row. One
 // affordance on every surface: `SurfaceService` turns the items into an
 // action sheet on touch and a popover with a pointer.
-// ---------------------------------------------------------------------------
 
 describe('LobbyPage — openParticipantActions', () => {
   type Internals = {
@@ -920,9 +910,7 @@ describe('LobbyPage — openParticipantActions', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // LobbyPage.ngOnDestroy — dismisses popover and swallows rejections
-// ---------------------------------------------------------------------------
 
 describe('LobbyPage — ngOnDestroy', () => {
   async function mountForDestroy(dismissImpl: () => Promise<unknown>) {
@@ -1034,10 +1022,8 @@ describe('LobbyPage — ngOnDestroy', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // LobbyPage.closeRoundStart — Cancel button dismisses modal (regression for
-// presentSheet vs [isOpen] mismatch — reported by Phase 4 e2e agent)
-// ---------------------------------------------------------------------------
+// a presentSheet vs [isOpen] mismatch)
 
 describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
   type Internals = {
@@ -1243,11 +1229,9 @@ describe('LobbyPage — closeRoundStart calls modal.dismiss()', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// LobbyPage — terminal-round computeds (status-driven, issue #468)
+// LobbyPage — terminal-round computeds (status-driven, #468)
 // lastRevealedRound / lastRoundWasSkipped / pastRevealedRounds branch on the
 // projection `status` now that the raw terminal timestamps are gone.
-// ---------------------------------------------------------------------------
 
 describe('LobbyPage — terminal-round computeds (status)', () => {
   type Computeds = {
@@ -1370,13 +1354,11 @@ describe('LobbyPage — terminal-round computeds (status)', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // LobbyPage autoNav effect: wiring only — the `DocService.screen` signal
 // drives the navigation. The rule itself is the shared `screenFor` selector
-// and is tested there against plain projections (issue #508). What is
+// and is tested there against plain projections (#508). What is
 // asserted here is the destination, the history behaviour (a push, not a
 // replace — unlike Estimating's), and the pre-load `null` guard.
-// ---------------------------------------------------------------------------
 
 describe('LobbyPage — autoNav effect (wiring)', () => {
   async function mountWithScreen(screen: Screen | null) {
@@ -1501,15 +1483,13 @@ describe('LobbyPage — autoNav effect (wiring)', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Agenda form submit — the one deliberate UX consequence of #507.
+// Agenda form submit — the one deliberate UX consequence of moving the agenda writers into shared (#507).
 //
 // Wiring only: the gate that produces the refusal is pinned in
 // `@hnch/shared`'s agenda-commands.test.ts. What matters here is client
 // behaviour — an edit that refuses (a peer cancelled the item while this form
 // was open) must leave the modal on screen rather than dismissing it and
 // eating the user's typing.
-// ---------------------------------------------------------------------------
 
 describe('LobbyPage — agenda form refusal keeps the modal open', () => {
   async function mountWithAgendaResult(result: AgendaResult) {
@@ -1675,7 +1655,6 @@ describe('LobbyPage — agenda form refusal keeps the modal open', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // `docService.commands` call sites (#516)
 //
 // The refactor that moved the writer seam into `@hnch/shared` left these
@@ -1688,7 +1667,6 @@ describe('LobbyPage — agenda form refusal keeps the modal open', () => {
 // `startRound` refuses (rather than throwing) when the room has no host to
 // attribute the round to, and both Lobby call sites must stay put rather than
 // navigate to an Estimating page with no round on it.
-// ---------------------------------------------------------------------------
 
 /** An `ion-alert` button as the page declares it. */
 interface AlertButton {
@@ -2306,14 +2284,12 @@ describe('LobbyPage — onRemoveTap', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Host / joiner split
 //
 // One screen for both. What differs is what each can do, and that has to be
 // visible: the host gets the round buttons, a menu, and an actions button on
 // every other roster row; a joiner gets a one-tap Leave and a line saying what
 // they are waiting for.
-// ---------------------------------------------------------------------------
 
 const ADA: ParticipantSnapshot = { id: 'me', displayName: 'Ada', joinedAt: 1 };
 const BOB: ParticipantSnapshot = { id: 'bob', displayName: 'Bob', joinedAt: 2 };
@@ -2643,13 +2619,11 @@ describe('LobbyPage — roster', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Access mode — relay state (ADR-0009), kept by `SessionAccessService`. The
 // Lobby shows what that service knows and asks it to look again on entry. A
 // session created with a password, reloaded, or locked by a previous host
 // used to show as open, and its invite link lost the `pw=1` hint that makes
 // Join ask for the password up front.
-// ---------------------------------------------------------------------------
 
 describe('LobbyPage — access mode', () => {
   interface AccessInternals {
@@ -2722,12 +2696,10 @@ describe('LobbyPage — access mode', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Re-entry. Ionic keeps the Lobby alive under Estimating and re-shows the
 // same instance on Back; nothing the autoNav effect reads has changed by
 // then, so it does not run again. Without the hook the host could sit on the
 // Lobby — and open its sheets — while everyone else was voting.
-// ---------------------------------------------------------------------------
 
 describe('LobbyPage — ionViewWillEnter', () => {
   interface EnterInternals {

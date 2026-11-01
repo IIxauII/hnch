@@ -5,7 +5,7 @@
  * Covers:
  *  - autoNav effect: wiring only — the screen signal drives the navigation.
  *    The rule itself lives in the shared `screenFor` selector and is tested
- *    there against plain projections (issue #508).
+ *    there against plain projections (#508).
  *  - showBackChevron computed: non-host + terminal round → true
  *  - backChevronLabel computed: host + active round → cancel label
  *  - keyboard-gate roundActive: host + active round passes gate
@@ -88,9 +88,7 @@ vi.mock('./avatar-vote-row.component', async () => {
   return { AvatarVoteRowComponent };
 });
 
-// ---------------------------------------------------------------------------
 // Fixtures
-// ---------------------------------------------------------------------------
 
 function votingRound(id = 'r1'): Round {
   return {
@@ -117,9 +115,7 @@ function terminalRound(status: 'revealed' | 'skipped' | 'discarded', id = 'r1'):
   };
 }
 
-// ---------------------------------------------------------------------------
 // Mount helpers
-// ---------------------------------------------------------------------------
 
 interface MountOpts {
   /** Initial currentRound value. */
@@ -320,9 +316,7 @@ async function mount(opts: MountOpts = {}) {
   };
 }
 
-// ---------------------------------------------------------------------------
 // autoNav effect
-// ---------------------------------------------------------------------------
 
 describe('EstimatingPage — autoNav effect (wiring)', () => {
   beforeEach(() => {
@@ -363,9 +357,7 @@ describe('EstimatingPage — autoNav effect (wiring)', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // showBackChevron computed
-// ---------------------------------------------------------------------------
 
 describe('EstimatingPage — showBackChevron computed', () => {
   type Internals = { showBackChevron: () => boolean };
@@ -401,9 +393,7 @@ describe('EstimatingPage — showBackChevron computed', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // backChevronLabel computed
-// ---------------------------------------------------------------------------
 
 describe('EstimatingPage — backChevronLabel computed', () => {
   type Internals = { backChevronLabel: () => string };
@@ -427,9 +417,7 @@ describe('EstimatingPage — backChevronLabel computed', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // keyboard-gate roundActive (via shouldHandleKeyEvent)
-// ---------------------------------------------------------------------------
 
 describe('EstimatingPage — keyboard gate: roundActive', () => {
   it('skips vote when round is terminal (revealed)', async () => {
@@ -465,11 +453,9 @@ describe('EstimatingPage — keyboard gate: roundActive', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // softExit — wiring only. The terminal-legality gate now lives in the shared
 // `discardCurrentRound` command (covered in round-commands.test.ts); the page
 // delegates to it whenever the user is host, then navigates regardless.
-// ---------------------------------------------------------------------------
 
 describe('EstimatingPage — softExit', () => {
   type Internals = { softExit(): void };
@@ -521,11 +507,9 @@ describe('EstimatingPage — softExit', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Cancelled round, seen from everyone else. The page is sent back to the
 // Lobby by the autoNav effect whatever ended the round; only a cancelled one
 // leaves no trace there, so only that one is announced.
-// ---------------------------------------------------------------------------
 
 describe('EstimatingPage — a round that ends under a voter', () => {
   async function mountVoting(isHost: boolean) {
@@ -581,9 +565,7 @@ describe('EstimatingPage — a round that ends under a voter', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // openActionSheet — host + active round → inserts Skip round item
-// ---------------------------------------------------------------------------
 
 describe('EstimatingPage — openActionSheet skip-round insertion', () => {
   type Internals = { openActionSheet(e: Event): Promise<void> };
@@ -667,9 +649,7 @@ describe('EstimatingPage — openActionSheet skip-round insertion', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Host / joiner split of the template
-// ---------------------------------------------------------------------------
 
 describe('EstimatingPage — toolbar and footer', () => {
   function textOf(el: Element | null | undefined): string {
@@ -734,9 +714,7 @@ describe('EstimatingPage — toolbar and footer', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // onReveal — routes through revealCurrentRound; haptics + navigates on applied
-// ---------------------------------------------------------------------------
 
 describe('EstimatingPage — onReveal', () => {
   type Internals = { onReveal(): Promise<void> };
@@ -764,9 +742,7 @@ describe('EstimatingPage — onReveal', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Skip-round action handler — routes through skipCurrentRound; haptics on applied
-// ---------------------------------------------------------------------------
 
 describe('EstimatingPage — skip-round action', () => {
   it('asks first: choosing Skip round skips nothing yet', async () => {
@@ -903,12 +879,10 @@ describe('EstimatingPage — leaving the page', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // auto-reveal feedback effect — the rule and its driver are session-scoped in
 // DocService (shared `startAutoReveal`); this page only fires the haptic off
 // the counter the driver bumps. Rule coverage: shared/src/auto-reveal.test.ts;
 // wiring coverage: core/doc/doc.service.auto-reveal.test.ts.
-// ---------------------------------------------------------------------------
 
 describe('EstimatingPage — auto-reveal feedback effect', () => {
   it('counter bump → success haptic', async () => {
@@ -956,11 +930,9 @@ describe('EstimatingPage — auto-reveal feedback effect', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // card grid / abstain-button visibility — mirrors the `@else if (activeRound();
 // as activeR)` branch. Success criterion: the card grid is gone as soon as
 // the round is terminal, with no interactive frame in between.
-// ---------------------------------------------------------------------------
 
 describe('EstimatingPage — card grid visibility follows activeRound', () => {
   it('active (voting) round → card grid and abstain button are rendered', async () => {
@@ -982,10 +954,8 @@ describe('EstimatingPage — card grid visibility follows activeRound', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // onCardTap / onAbstain — applied:false suppresses the haptic (mirrors the
 // keydown-gate coverage in estimating.page.keyboard.test.ts).
-// ---------------------------------------------------------------------------
 
 describe('EstimatingPage — vote-command applied:false suppresses haptics', () => {
   type CardTapInternals = { onCardTap(card: string): void };
@@ -1014,14 +984,12 @@ describe('EstimatingPage — vote-command applied:false suppresses haptics', () 
   });
 });
 
-// ---------------------------------------------------------------------------
 // `docService.commands` call sites (#516)
 //
 // After the writer seam moved into `@hnch/shared` these handlers are thin
 // adapters over the bound command set: fire the haptic only on `applied`, and
 // bail before the command when there is no participant id to act as. The rules
 // themselves are covered in `packages/shared`.
-// ---------------------------------------------------------------------------
 
 /** Action-sheet / alert item as the page declares it. */
 interface SheetItem {

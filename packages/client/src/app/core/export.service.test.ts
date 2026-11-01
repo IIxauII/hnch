@@ -8,10 +8,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RoundExportInput } from '@hnch/shared';
 
-// ---------------------------------------------------------------------------
-// Mock @capacitor/core
-// ---------------------------------------------------------------------------
-
 const mockIsNativePlatform = vi.fn<() => boolean>();
 
 vi.mock('@capacitor/core', () => ({
@@ -19,10 +15,6 @@ vi.mock('@capacitor/core', () => ({
     isNativePlatform: () => mockIsNativePlatform(),
   },
 }));
-
-// ---------------------------------------------------------------------------
-// Mock @capacitor/clipboard
-// ---------------------------------------------------------------------------
 
 const mockClipboardWrite = vi.fn<(opts: { string: string }) => Promise<void>>();
 
@@ -32,17 +24,11 @@ vi.mock('@capacitor/clipboard', () => ({
   },
 }));
 
-// ---------------------------------------------------------------------------
 // Stub roundsToMarkdown so tests don't depend on shared logic
-// ---------------------------------------------------------------------------
 
 vi.mock('@hnch/shared', () => ({
   roundsToMarkdown: (_input: RoundExportInput) => 'stub-markdown',
 }));
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 async function createService() {
   const mod = await import('./export.service');
@@ -53,10 +39,6 @@ const minimalInput: RoundExportInput = {
   rounds: [],
   participants: {},
 };
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe('ExportService', () => {
   beforeEach(() => {

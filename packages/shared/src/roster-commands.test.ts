@@ -25,9 +25,7 @@ import {
   toggleRole,
 } from './roster-commands.js';
 
-// ---------------------------------------------------------------------------
 // Fixtures
-// ---------------------------------------------------------------------------
 
 const FIXED = () => 1_700_000_900_000;
 
@@ -62,10 +60,6 @@ function hostId(doc: Y.Doc): string {
   return projectDoc(doc).settings.hostParticipantId;
 }
 
-// ---------------------------------------------------------------------------
-// rename
-// ---------------------------------------------------------------------------
-
 describe('rename', () => {
   it('changes the display name and stamps no timestamp', () => {
     const doc = seedDoc();
@@ -96,10 +90,6 @@ describe('rename', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// recolor
-// ---------------------------------------------------------------------------
-
 describe('recolor', () => {
   it('writes the avatar colour and stamps no timestamp', () => {
     const doc = seedDoc();
@@ -120,10 +110,6 @@ describe('recolor', () => {
     expect(recolor(doc, 'p-ghost', 'green')).toEqual({ applied: false, reason: 'not-found' });
   });
 });
-
-// ---------------------------------------------------------------------------
-// toggleRole
-// ---------------------------------------------------------------------------
 
 describe('toggleRole', () => {
   it('flips an implicit voter to viewer', () => {
@@ -159,10 +145,6 @@ describe('toggleRole', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// leave
-// ---------------------------------------------------------------------------
-
 describe('leave', () => {
   it('soft-deletes the caller and stamps leftAt from the injected clock', () => {
     const doc = seedDoc();
@@ -197,10 +179,6 @@ describe('leave', () => {
     expect(result.at).toBeLessThanOrEqual(after);
   });
 });
-
-// ---------------------------------------------------------------------------
-// rejoin
-// ---------------------------------------------------------------------------
 
 describe('rejoin', () => {
   it('clears leftAt and removedBy so the roster counts the caller again', () => {
@@ -246,10 +224,6 @@ describe('rejoin', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// kick
-// ---------------------------------------------------------------------------
-
 describe('kick', () => {
   it('lets the host remove another participant, stamping the injected clock', () => {
     const doc = seedDoc();
@@ -290,10 +264,6 @@ describe('kick', () => {
     expect(kick(doc, 'p-host', 'p-bob', FIXED).applied).toBe(true);
   });
 });
-
-// ---------------------------------------------------------------------------
-// handoffHost
-// ---------------------------------------------------------------------------
 
 describe('handoffHost', () => {
   it('installs the target as host and stamps no timestamp', () => {
@@ -338,10 +308,6 @@ describe('handoffHost', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// promoteHost
-// ---------------------------------------------------------------------------
-
 describe('promoteHost', () => {
   it('installs the winner as host with no authority check', () => {
     const doc = seedDoc();
@@ -376,10 +342,6 @@ describe('promoteHost', () => {
     expect(promoteHost(doc, 'p-bob')).toEqual({ applied: true });
   });
 });
-
-// ---------------------------------------------------------------------------
-// endSession
-// ---------------------------------------------------------------------------
 
 describe('endSession', () => {
   it('stamps sessionEndedAt from the injected clock for the host', () => {
@@ -423,7 +385,6 @@ describe('endSession', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Departed participants (ADR-0036 tombstones)
 //
 // `projectDoc` keeps departed participants in `participants` — the record
@@ -432,7 +393,6 @@ describe('endSession', () => {
 // asserting a departure gate: #507 asked for no such rule, and the raw
 // writers behaved this way before the commands existed. The `kick` case is
 // the one with teeth, and is called out as a follow-up candidate.
-// ---------------------------------------------------------------------------
 
 describe('commands against a departed participant', () => {
   it('rename still applies — the record outlives the departure', () => {

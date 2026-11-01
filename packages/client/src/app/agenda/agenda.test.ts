@@ -1,5 +1,5 @@
 /**
- * Tests for agenda Phase 2 components:
+ * Tests for the agenda components:
  * - AgendaItemFormSheetComponent: validator, pre-fill in edit mode
  * - AgendaPanelComponent: renders pending items, hides cancelled by default,
  *   shows cancelled on toggle, host-only controls
@@ -11,9 +11,7 @@ import { TestBed } from '@angular/core/testing';
 import { describe, expect, it, vi } from 'vitest';
 import type { AgendaItem, Round } from '@hnch/shared';
 
-// ---------------------------------------------------------------------------
 // Ionic stubs
-// ---------------------------------------------------------------------------
 
 vi.mock('@ionic/angular/standalone', async () => {
   const { Component: Comp } = await import('@angular/core');
@@ -57,9 +55,7 @@ vi.mock('ionicons/icons', () => ({
   trashOutline: '',
 }));
 
-// ---------------------------------------------------------------------------
 // DocService + SurfaceService stubs (injected via TestBed providers)
-// ---------------------------------------------------------------------------
 
 const mockAgendaSignal = signal<readonly AgendaItem[]>([]);
 
@@ -72,9 +68,7 @@ class MockSurfaceService {
   readonly openSheetOrPopover = vi.fn().mockResolvedValue(undefined);
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 function makeAgendaItem(overrides: Partial<AgendaItem> & { id: string }): AgendaItem {
   return {
@@ -99,9 +93,7 @@ function makeScale(cards: string[]) {
   return { id: 'fibonacci', cards };
 }
 
-// ---------------------------------------------------------------------------
 // AgendaItemFormSheetComponent
-// ---------------------------------------------------------------------------
 
 type FormAccess = {
   form: {
@@ -393,9 +385,7 @@ describe('AgendaItemFormSheetComponent — validity and the submit latch', () =>
   });
 });
 
-// ---------------------------------------------------------------------------
 // AgendaPanelComponent
-// ---------------------------------------------------------------------------
 
 type PanelAccess = {
   visibleItems: () => AgendaItem[];
@@ -503,9 +493,7 @@ describe('AgendaPanelComponent', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // AgendaPanelComponent — itemDisplayTitle and stateWord branches
-// ---------------------------------------------------------------------------
 
 type PanelMethodAccess = {
   itemDisplayTitle: (item: AgendaItem) => string;
@@ -587,9 +575,7 @@ describe('AgendaPanelComponent — what a screen reader is given', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // AgendaPanelComponent — rendering and the per-story menu
-// ---------------------------------------------------------------------------
 
 type PanelMenuAccess = {
   menuFor: (
@@ -744,9 +730,7 @@ describe('AgendaPanelComponent — per-story menu', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // RoundHistoryComponent — agenda backref fallback
-// ---------------------------------------------------------------------------
 
 describe('RoundHistoryComponent — agenda backref label fallback', () => {
   it('uses agenda item title when round has no title and agendaItemId set', async () => {

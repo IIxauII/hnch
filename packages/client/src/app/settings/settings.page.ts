@@ -240,7 +240,7 @@ import { isComposingKey } from '../utils/composing-key';
           </ion-item>
         </ion-list>
 
-        <!-- Keyboard shortcuts (issue #154) — pointless without a keyboard -->
+        <!-- Keyboard shortcuts (#154) — pointless without a keyboard -->
         @if (surface.mode() === 'desktop') {
           <h2 class="section-label">Keyboard shortcuts</h2>
           <ion-list inset="true" lines="inset" class="shortcuts">
@@ -498,9 +498,7 @@ export class SettingsPage {
     if (name) this.displayName.set(name);
   }
 
-  // ---------------------------------------------------------------------------
   // Display name — inline blur-save
-  // ---------------------------------------------------------------------------
 
   protected onDisplayNameBlur(): void {
     const input = this.displayNameInput();
@@ -525,9 +523,7 @@ export class SettingsPage {
     this.docService.commands.rename(newName);
   }
 
-  // ---------------------------------------------------------------------------
   // Theme + accent pickers (ion-select interface="popover")
-  // ---------------------------------------------------------------------------
 
   protected onThemeSelected(value: Theme | null | undefined): void {
     if (!isValidTheme(value)) return;
@@ -541,9 +537,7 @@ export class SettingsPage {
     this.accentService.setAccent(value);
   }
 
-  // ---------------------------------------------------------------------------
   // Avatar color picker (ADR-0043)
-  // ---------------------------------------------------------------------------
 
   /**
    * Dropdown change handler. Palette key → persist directly.
@@ -587,9 +581,7 @@ export class SettingsPage {
     this.docService.commands.recolor(wire);
   }
 
-  // ---------------------------------------------------------------------------
   // Scale picker
-  // ---------------------------------------------------------------------------
 
   protected openScalePicker(): void {
     const modal = this.scalePickerModalRef();
@@ -605,9 +597,7 @@ export class SettingsPage {
     void this.scalePrefs.setDefaultScaleId(scale.id);
   }
 
-  // ---------------------------------------------------------------------------
   // Default session name — inline blur-save
-  // ---------------------------------------------------------------------------
 
   protected onDefaultSessionNameBlur(): void {
     const input = this.defaultSessionNameInput();
@@ -616,17 +606,13 @@ export class SettingsPage {
     void this.appPrefs.setDefaultSessionName(trimmed || undefined);
   }
 
-  // ---------------------------------------------------------------------------
   // Default password toggle
-  // ---------------------------------------------------------------------------
 
   protected onDefaultPasswordToggle(checked: boolean): void {
     void this.appPrefs.setDefaultPassword(checked);
   }
 
-  // ---------------------------------------------------------------------------
   // Relay URL editor
-  // ---------------------------------------------------------------------------
 
   protected openRelayUrlEditor(): void {
     const modal = this.relayUrlModalRef();

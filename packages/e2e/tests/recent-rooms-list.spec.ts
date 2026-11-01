@@ -53,9 +53,7 @@ async function goHomePreservingCache(
   await page.waitForURL(/\/home/);
 }
 
-// ---------------------------------------------------------------------------
 // Selector constants for the recent-rooms-list component
-// ---------------------------------------------------------------------------
 const RECENT_ROOMS = {
   list: 'app-recent-rooms-list',
   rows: HOME.recentRow,
@@ -71,8 +69,6 @@ async function listedCodes(page: import('@playwright/test').Page): Promise<strin
       els.map((el) => (el.querySelector('h3')?.textContent ?? '').replace('-', '')),
     );
 }
-
-// ---------------------------------------------------------------------------
 
 test.describe('Recent rooms list', () => {
   /**

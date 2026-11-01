@@ -7,10 +7,6 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// ---------------------------------------------------------------------------
-// Mock Capacitor Preferences
-// ---------------------------------------------------------------------------
-
 const mockPreferences = {
   get: vi.fn<(opts: { key: string }) => Promise<{ value: string | null }>>(),
   set: vi.fn<(opts: { key: string; value: string }) => Promise<void>>(),
@@ -20,10 +16,6 @@ const mockPreferences = {
 vi.mock('@capacitor/preferences', () => ({
   Preferences: mockPreferences,
 }));
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 async function createService() {
   const mod = await import('./display-name.service');
@@ -41,10 +33,6 @@ describe('DisplayNameService', () => {
     vi.restoreAllMocks();
   });
 
-  // -------------------------------------------------------------------------
-  // getDisplayName
-  // -------------------------------------------------------------------------
-
   describe('getDisplayName', () => {
     it('returns the stored display name', async () => {
       mockPreferences.get.mockResolvedValue({ value: 'Alice' });
@@ -61,10 +49,6 @@ describe('DisplayNameService', () => {
       expect(result).toBeNull();
     });
   });
-
-  // -------------------------------------------------------------------------
-  // setDisplayName
-  // -------------------------------------------------------------------------
 
   describe('setDisplayName', () => {
     it('persists the display name to Preferences', async () => {
@@ -91,10 +75,6 @@ describe('DisplayNameService', () => {
     });
   });
 
-  // -------------------------------------------------------------------------
-  // getPendingJoinUrl
-  // -------------------------------------------------------------------------
-
   describe('getPendingJoinUrl', () => {
     it('returns the stored pending join URL', async () => {
       mockPreferences.get.mockResolvedValue({ value: '/join?code=ABC123' });
@@ -114,10 +94,6 @@ describe('DisplayNameService', () => {
     });
   });
 
-  // -------------------------------------------------------------------------
-  // setPendingJoinUrl
-  // -------------------------------------------------------------------------
-
   describe('setPendingJoinUrl', () => {
     it('persists the URL to Preferences', async () => {
       mockPreferences.set.mockResolvedValue();
@@ -129,10 +105,6 @@ describe('DisplayNameService', () => {
       });
     });
   });
-
-  // -------------------------------------------------------------------------
-  // clearPendingJoinUrl
-  // -------------------------------------------------------------------------
 
   describe('clearPendingJoinUrl', () => {
     it('removes the pending URL from Preferences', async () => {
@@ -152,10 +124,6 @@ describe('DisplayNameService', () => {
       expect(mockPreferences.remove).toHaveBeenCalledTimes(2);
     });
   });
-
-  // -------------------------------------------------------------------------
-  // setPendingJoinUrl + clearPendingJoinUrl flow
-  // -------------------------------------------------------------------------
 
   describe('set then clear flow', () => {
     it('after clear, getPendingJoinUrl returns null', async () => {

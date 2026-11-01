@@ -21,10 +21,6 @@ import { DocService } from './doc/doc.service';
 import { LastSessionService } from './last-session.service';
 import { ToastService } from '../services/toast.service';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 const REMOVED: SessionEvent = {
   kind: 'removed',
   leftAt: 1_700_000_000_001,
@@ -60,10 +56,6 @@ async function flushAll(): Promise<void> {
     await Promise.resolve();
   }
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe('ParticipantRemovalService', () => {
   let docMock: ReturnType<typeof makeDocMock>;

@@ -1,6 +1,6 @@
 /* eslint-disable max-lines-per-function -- linear capture script */
 /**
- * Screenshot capture for issue #196 — participant initials on vote-progress dots.
+ * Screenshot capture for participant initials on vote-progress dots (#196).
  *
  * Captures the AvatarVoteRowComponent in multiple states at mobile (390) and
  * desktop (1280) viewports, in both light and dark color schemes.

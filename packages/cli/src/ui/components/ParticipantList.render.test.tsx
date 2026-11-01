@@ -20,10 +20,6 @@ function makePart(id: string, displayName: string, role?: 'voter' | 'viewer'): P
   return { id, displayName, joinedAt: 0, role };
 }
 
-// ---------------------------------------------------------------------------
-// Participant count
-// ---------------------------------------------------------------------------
-
 describe('ParticipantList — participant count header', () => {
   it('shows the correct count for a single participant', () => {
     const { lastFrame } = render(
@@ -50,10 +46,6 @@ describe('ParticipantList — participant count header', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Online/offline indicators
-// ---------------------------------------------------------------------------
-
 describe('ParticipantList — online/offline dots', () => {
   it('shows ● for an online participant', () => {
     const { lastFrame } = render(
@@ -79,10 +71,6 @@ describe('ParticipantList — online/offline dots', () => {
     expect(lastFrame() ?? '').toContain('○');
   });
 });
-
-// ---------------------------------------------------------------------------
-// Role labels
-// ---------------------------------------------------------------------------
 
 describe('ParticipantList — role labels', () => {
   it('shows (host) for the host participant', () => {
@@ -124,9 +112,7 @@ describe('ParticipantList — role labels', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Vote indicators (unrevealed)
-// ---------------------------------------------------------------------------
 
 describe('ParticipantList — vote indicators (unrevealed)', () => {
   it('shows ✓ for a voter who has voted', () => {
@@ -168,9 +154,7 @@ describe('ParticipantList — vote indicators (unrevealed)', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Vote indicators (revealed)
-// ---------------------------------------------------------------------------
 
 describe('ParticipantList — vote indicators (revealed)', () => {
   it('shows the actual vote value with → prefix when revealed', () => {
@@ -200,10 +184,6 @@ describe('ParticipantList — vote indicators (revealed)', () => {
     expect(frame).not.toContain('✓');
   });
 });
-
-// ---------------------------------------------------------------------------
-// Self-voter label
-// ---------------------------------------------------------------------------
 
 describe('ParticipantList — self voter label', () => {
   it('shows (voter) for the local participant when they have not yet voted (unrevealed)', () => {

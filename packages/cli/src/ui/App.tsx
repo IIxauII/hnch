@@ -160,7 +160,7 @@ export function App({
     { isActive: confirmingQuit },
   );
 
-  // The screen rule is shared with the mobile client (issue #508); the Ink
+  // The screen rule is shared with the mobile client (#508); the Ink
   // component names below describe views, not screens — `Voting` renders what
   // the shared union calls `estimating`.
   const screen = screenFor(projection);
@@ -171,7 +171,7 @@ export function App({
   const myRole = participantRole(myParticipant ?? {});
 
   const handleStartRoundPrompt = useCallback(() => {
-    // Pre-fill from next pending agenda item (ADR-0042 / issue #153)
+    // Pre-fill from next pending agenda item (ADR-0042 / #153)
     const preFill = buildRoundPreFill(nextPendingAgendaItem(projection));
     setRoundTitleInput(preFill.title);
     setPendingAgendaItemId(preFill.agendaItemId);
@@ -275,7 +275,7 @@ export function App({
   }, [session]);
 
   const handleNewRound = useCallback(() => {
-    // Pre-fill from next pending agenda item (ADR-0042 / issue #153)
+    // Pre-fill from next pending agenda item (ADR-0042 / #153)
     const preFill = buildRoundPreFill(nextPendingAgendaItem(projection));
     setRoundTitleInput(preFill.title);
     setPendingAgendaItemId(preFill.agendaItemId);

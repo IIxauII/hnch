@@ -68,10 +68,6 @@ function atPosition(round: Round, n: number): readonly Round[] {
   return [...filler, round];
 }
 
-// ---------------------------------------------------------------------------
-// compactRoundSummary
-// ---------------------------------------------------------------------------
-
 describe('compactRoundSummary', () => {
   it('no votes → (no votes)', () => {
     const r = makeRound();
@@ -144,7 +140,7 @@ describe('compactRoundSummary', () => {
     expect(compactRoundSummary(r, [r])).toBe('Round 1: — Skipped');
   });
 
-  // ── Re-vote lineage (issue #111 AC#7) ──────────────────────────────────────
+  // Re-vote lineage (#111)
 
   it('re-voted round gets "Round D/T [re-vote]" label', () => {
     const r1 = makeRound({ id: 'r1', votes: {} });
@@ -152,20 +148,20 @@ describe('compactRoundSummary', () => {
     expect(compactRoundSummary(r2, [r1, r2])).toBe('Round 2/2 [re-vote]: — 5×1');
   });
 
-  it('chain root keeps plain "Round N" label (AC#4)', () => {
+  it('chain root keeps plain "Round N" label', () => {
     const r1 = makeRound({ id: 'r1', votes: { p1: '5' } });
     const r2 = makeRound({ id: 'r2', parentRoundId: 'r1', votes: {} });
     expect(compactRoundSummary(r1, [r1, r2])).toBe('Round 1: — 5×1');
   });
 
-  it('3-deep chain → "Round 3/3 [re-vote]" (AC#5)', () => {
+  it('3-deep chain → "Round 3/3 [re-vote]"', () => {
     const r1 = makeRound({ id: 'r1', votes: {} });
     const r2 = makeRound({ id: 'r2', parentRoundId: 'r1', votes: {} });
     const r3 = makeRound({ id: 'r3', parentRoundId: 'r2', votes: { p1: '8' } });
     expect(compactRoundSummary(r3, [r1, r2, r3])).toBe('Round 3/3 [re-vote]: — 8×1');
   });
 
-  it('missing parent ref falls back to plain "Round N" (AC#6)', () => {
+  it('missing parent ref falls back to plain "Round N"', () => {
     const orphan = makeRound({ id: 'r2', parentRoundId: 'missing-root', votes: { p1: '5' } });
     expect(compactRoundSummary(orphan, [orphan])).toBe('Round 1: — 5×1');
   });
@@ -202,10 +198,6 @@ describe('compactRoundSummary — abstain sentinel', () => {
     expect(compactRoundSummary(r, [r])).toBe('Round 1: — 5×1, 8×1');
   });
 });
-
-// ---------------------------------------------------------------------------
-// buildResultsHeader
-// ---------------------------------------------------------------------------
 
 describe('buildResultsHeader', () => {
   it('plain revealed round: "Round 1 — Results"', () => {

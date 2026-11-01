@@ -1,6 +1,6 @@
 /**
  * TestBed component tests for the EstimatingPage keyboard handler
- * (issue #154). Mounts the real EstimatingPage with stub services and
+ * (#154). Mounts the real EstimatingPage with stub services and
  * dispatches synthetic KeyboardEvents on `document` to drive the
  * @HostListener.
  */
@@ -119,7 +119,7 @@ async function mountEstimating(opts: MountOptions = {}) {
     currentRound: signal(round).asReadonly(),
     activeRound: signal(activeRoundValue).asReadonly(),
     // `DocService.screen` mirrors the shared `screenFor()` selector: an
-    // active round means Estimating, otherwise Lobby (issue #508).
+    // active round means Estimating, otherwise Lobby (#508).
     screen: signal(activeRoundValue ? ('estimating' as const) : ('lobby' as const)).asReadonly(),
     rounds: signal([round].filter(Boolean) as Round[]).asReadonly(),
     onlineParticipants: signal([]).asReadonly(),
@@ -220,7 +220,7 @@ function dispatchKey(init: Partial<KeyboardEventInit> & { code?: string; key?: s
 }
 
 // Exercises: estimating.page:EstimatingPage (document:keydown HostListener via real component)
-describe('EstimatingPage — keyboard handler (issue #154)', () => {
+describe('EstimatingPage — keyboard handler (#154)', () => {
   beforeEach(() => {
     // Reset focus and ensure no editable element holds focus between tests.
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();

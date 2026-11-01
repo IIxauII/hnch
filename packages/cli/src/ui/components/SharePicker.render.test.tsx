@@ -20,9 +20,7 @@ import { SharePicker } from './SharePicker.js';
 
 const ROOM_CODE = 'ABC123';
 
-// ---------------------------------------------------------------------------
 // Rendering — detail values match share helper output
-// ---------------------------------------------------------------------------
 
 describe('SharePicker — rendering', () => {
   it('renders the "Share" title', () => {
@@ -63,10 +61,6 @@ describe('SharePicker — rendering', () => {
     expect(frame).toContain('Copy npx command');
   });
 });
-
-// ---------------------------------------------------------------------------
-// Keyboard interactions
-// ---------------------------------------------------------------------------
 
 describe('SharePicker — keyboard interactions', () => {
   it('Enter on the first item calls onPick with "code"', async () => {

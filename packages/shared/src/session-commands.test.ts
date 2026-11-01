@@ -33,9 +33,7 @@ import {
   type SessionCommands,
 } from './session-commands.js';
 
-// ---------------------------------------------------------------------------
 // Fixtures
-// ---------------------------------------------------------------------------
 
 const FIXED = () => 1_700_000_900_000;
 
@@ -84,11 +82,9 @@ function participant(doc: Y.Doc, id: string) {
   return projectDoc(doc).participants.find((p) => p.id === id)!;
 }
 
-// ---------------------------------------------------------------------------
 // Reachability — every one of the eighteen members reaches its command
 // through the bound context. One focused assertion each; the rule behind
 // each command is pinned in that command's own test file.
-// ---------------------------------------------------------------------------
 
 describe('reachability', () => {
   it('startRound reaches round-commands.startRound', () => {
@@ -245,10 +241,8 @@ describe('reachability', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Self-acting members write as the bound participant id — the id never
 // travels through the call site.
-// ---------------------------------------------------------------------------
 
 describe('self-acting members bind the caller as the actor', () => {
   it('toggleCurrentVote records the vote under the bound id, not the other participant', () => {
@@ -284,10 +278,8 @@ describe('self-acting members bind the caller as the actor', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Target-acting members: kick / handoffHost act on the target parameter and
 // use the bound id as the actor.
-// ---------------------------------------------------------------------------
 
 describe('target-acting members use the bound id as the actor', () => {
   it('kick(targetId) removes the target and attributes removedBy to the bound host', () => {
@@ -321,10 +313,8 @@ describe('target-acting members use the bound id as the actor', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // handoffHost reads the online set through the context getter at call time,
 // not once at bind time.
-// ---------------------------------------------------------------------------
 
 describe('handoffHost reads onlineIds live', () => {
   it('a target absent from the set at bind time refuses, then succeeds once the set is mutated — no rebinding', () => {
@@ -341,11 +331,9 @@ describe('handoffHost reads onlineIds live', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // The injectable `now` reaches every member that stamps a timestamp:
 // `startRound`, the three terminal acts, `addItem`, `leave`, `kick`,
 // `endSession`.
-// ---------------------------------------------------------------------------
 
 describe('the injectable now reaches every timestamp-stamping member', () => {
   it('startRound', () => {
@@ -409,12 +397,10 @@ describe('the injectable now reaches every timestamp-stamping member', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // UNBOUND_SESSION_COMMANDS — every member refuses with the reason its own
 // result type already carries, for a surface with no session yet. Table
 // makes the expected reason per member explicit; the loop avoids eighteen
 // near-identical `it`s.
-// ---------------------------------------------------------------------------
 
 const UNBOUND_CALLS: { [K in keyof SessionCommands]: () => ReturnType<SessionCommands[K]> } = {
   startRound: () => UNBOUND_SESSION_COMMANDS.startRound(),

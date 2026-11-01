@@ -16,10 +16,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { TextInput } from './TextInput.js';
 
-// ---------------------------------------------------------------------------
-// Rendering
-// ---------------------------------------------------------------------------
-
 describe('TextInput — display', () => {
   it('shows value when non-empty', () => {
     const { lastFrame } = render(<TextInput value="hello" onChange={vi.fn()} onSubmit={vi.fn()} />);
@@ -64,10 +60,6 @@ describe('TextInput — display', () => {
     expect(frame).not.toContain('*');
   });
 });
-
-// ---------------------------------------------------------------------------
-// Keyboard callbacks
-// ---------------------------------------------------------------------------
 
 describe('TextInput — keyboard callbacks', () => {
   it('calls onChange with value + typed char on printable input', async () => {

@@ -40,9 +40,7 @@ vi.mock('ionicons/icons', () => ({ pencilOutline: '' }));
 // Import signal here (not inside vi.mock factory) — hoisting is not needed.
 import { signal } from '@angular/core';
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 function makeScale(cards: string[]) {
   return { id: 'fibonacci', cards };
@@ -88,12 +86,10 @@ async function createComponentWithAllRounds(rounds: readonly Round[], allRounds:
   return fixture.componentInstance;
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 describe('RoundHistoryComponent.entries', () => {
-  // ── Filtering ─────────────────────────────────────────────────────────────
+  // Filtering
 
   it('returns empty array when no rounds', async () => {
     const c = await createComponent([]);
@@ -122,7 +118,7 @@ describe('RoundHistoryComponent.entries', () => {
     expect(c.entries()[0]!.roundId).toBe('r1');
   });
 
-  // ── Ordering & round numbering ────────────────────────────────────────────
+  // Ordering & round numbering
 
   it('returns entries in reverse chronological order (newest first)', async () => {
     const scale = makeScale(['1', '2']);
@@ -149,7 +145,7 @@ describe('RoundHistoryComponent.entries', () => {
     expect(entries[1]!.roundNumber).toBe(1); // r1 is entry 1 (oldest), but was round 1
   });
 
-  // ── Vote summary ──────────────────────────────────────────────────────────
+  // Vote summary
 
   it('"No votes" when round has no votes', async () => {
     const scale = makeScale(['1', '2', '3']);
@@ -199,7 +195,7 @@ describe('RoundHistoryComponent.entries', () => {
     expect(c.entries()[0]!.summary).toBe('1×1, 3×1');
   });
 
-  // ── Elapsed time ──────────────────────────────────────────────────────────
+  // Elapsed time
 
   it('computes elapsed as formatElapsed(terminalAt − timerStartedAt)', async () => {
     const scale = makeScale(['1', '2']);
@@ -231,7 +227,7 @@ describe('RoundHistoryComponent.entries', () => {
     expect(c.entries()).toHaveLength(0);
   });
 
-  // ── Label passthrough (formatRoundLabel: ticketId · title) ────────────────
+  // Label passthrough (formatRoundLabel: ticketId · title)
 
   it('label is null when round has no title and no ticketId', async () => {
     const scale = makeScale(['1']);
@@ -283,7 +279,7 @@ describe('RoundHistoryComponent.entries', () => {
     expect(c.entries()[0]!.label).toBe('PROJ-42 · Auth migration');
   });
 
-  // ── Skipped rounds ────────────────────────────────────────────────────────
+  // Skipped rounds
 
   it('includes a skipped round', async () => {
     const scale = makeScale(['1', '2', '3']);
@@ -375,16 +371,16 @@ describe('RoundHistoryComponent.entries', () => {
     expect(c.entries()[0]!.roundId).toBe('r2');
   });
 
-  // ── Re-vote lineage (issue #111) ──────────────────────────────────────────
+  // Re-vote lineage (#111)
 
-  it('first-round (no parent, no children) has null lineageLabel (AC#3)', async () => {
+  it('first-round (no parent, no children) has null lineageLabel', async () => {
     const scale = makeScale(['1', '2']);
     const r1 = makeRound({ id: 'r1', scale, votes: {}, status: 'revealed', terminalAt: 1000 });
     const c = await createComponent([r1]);
     expect(c.entries()[0]!.lineageLabel).toBeNull();
   });
 
-  it('chain root with descendants has null lineageLabel (AC#4)', async () => {
+  it('chain root with descendants has null lineageLabel', async () => {
     const scale = makeScale(['1', '2']);
     const r1 = makeRound({ id: 'r1', scale, votes: {}, status: 'revealed', terminalAt: 1000 });
     const r2 = makeRound({
@@ -405,7 +401,7 @@ describe('RoundHistoryComponent.entries', () => {
     expect(entries[0]!.lineageLabel).toBe('Re-vote');
   });
 
-  it('re-voted round (with parent) has lineageLabel "Re-vote" (AC#4)', async () => {
+  it('re-voted round (with parent) has lineageLabel "Re-vote"', async () => {
     const scale = makeScale(['1', '2']);
     const r1 = makeRound({ id: 'r1', scale, votes: {}, status: 'revealed', terminalAt: 1000 });
     const r2 = makeRound({
@@ -434,7 +430,7 @@ describe('RoundHistoryComponent.entries', () => {
     expect(entries[2]!.lineageLabel).toBeNull();
   });
 
-  it('missing parent ref falls back to null lineageLabel (AC#6)', async () => {
+  it('missing parent ref falls back to null lineageLabel', async () => {
     const scale = makeScale(['1']);
     const orphan = makeRound({
       id: 'r2',
@@ -466,7 +462,7 @@ describe('RoundHistoryComponent.entries', () => {
     expect(c.entries()[0]!.lineageLabel).toBeNull();
   });
 
-  // ── Abstentions (ADR-0041) ────────────────────────────────────────────────
+  // Abstentions (ADR-0041)
 
   it('never shows the abstain sentinel — abstentions trail the cards as a count', async () => {
     const scale = makeScale(['1', '2', '3', '5', '8']);
@@ -509,7 +505,7 @@ describe('RoundHistoryComponent.entries', () => {
     expect(c.entries()[0]!.summary).toBe('2 abstained');
   });
 
-  // ── Discarded rounds (ADR-0046) ───────────────────────────────────────────
+  // Discarded rounds (ADR-0046)
 
   it('leaves a discarded round out — a tombstone is not history', async () => {
     const scale = makeScale(['1', '2']);

@@ -1,6 +1,6 @@
 /* eslint-disable max-lines-per-function -- linear capture script */
 /**
- * One-off screenshot capture for issue #123 (vote distribution bars).
+ * One-off screenshot capture for vote distribution bars (#123).
  *
  * Drives 5 participants with a spread vote distribution (3 / 5×3 / 8) so the
  * row-fill bars render with a clear plurality and two trailing groups.

@@ -129,7 +129,7 @@ function buildVoteTable(round: Round, nameById: ReadonlyMap<string, string>): st
 function buildStatsLine(round: Round): string {
   // Statistics and elapsed both come from the round-presentation module, so an
   // export is a record of what the session saw rather than a second opinion
-  // about it (issue #509).
+  // about it (#509).
   const stats = formatRoundStats(roundStatsFor(round));
   const elapsed = formatRoundElapsed(round);
 

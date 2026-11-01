@@ -31,7 +31,7 @@ const sleep = (/** @type {number} */ ms) => new Promise((r) => setTimeout(r, ms)
 const log = (/** @type {unknown[]} */ ...a) =>
   console.log(new Date().toISOString().slice(11, 23), ...a);
 
-// ------------------------------------------------------------------ parent
+// parent
 
 async function runMode(/** @type {string} */ mode) {
   let failures = 0;
@@ -304,7 +304,7 @@ async function preflight(check) {
   }
 }
 
-// ------------------------------------------------------------------ child
+// child
 
 async function runPeer() {
   const { connectToRelay } = await shared();

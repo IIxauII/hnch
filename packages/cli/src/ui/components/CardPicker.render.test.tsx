@@ -19,10 +19,6 @@ import { CardPicker } from './CardPicker.js';
 
 const SCALE: Scale = { id: 'fibonacci', cards: ['1', '3', '5', '8'] };
 
-// ---------------------------------------------------------------------------
-// Rendering
-// ---------------------------------------------------------------------------
-
 describe('CardPicker — rendering', () => {
   it('renders all cards from the scale', () => {
     const { lastFrame } = render(
@@ -53,10 +49,6 @@ describe('CardPicker — rendering', () => {
     expect(lastFrame() ?? '').toContain('←→ navigate');
   });
 });
-
-// ---------------------------------------------------------------------------
-// Keyboard interactions
-// ---------------------------------------------------------------------------
 
 describe('CardPicker — keyboard interactions', () => {
   it('enter at cursor=0 (default) calls onToggleCurrentVote with the first card', async () => {

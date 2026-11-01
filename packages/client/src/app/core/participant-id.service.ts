@@ -8,11 +8,10 @@ import { Preferences } from '@capacitor/preferences';
  * Resolution order, single-shot on first access:
  *
  *   1. If Preferences holds a legacy `hnch.participantId` (minted by
- *      the Phase-2 `crypto.randomUUID()` stub), keep using it. Phase 2
- *      has no durable sessions, so the only thing this preserves is
- *      the user's display-name binding across the Phase-3 upgrade.
- *      Plan §2.2 and the schema-version comment below for the
- *      eventual retirement path.
+ *      the early `crypto.randomUUID()` stub), keep using it. That build
+ *      had no durable sessions, so the only thing this preserves is
+ *      the user's display-name binding across the upgrade. See the
+ *      schema-version comment below for the eventual retirement path.
  *   2. Otherwise, ask the Capacitor Device plugin for a stable id
  *      (`Device.getId().identifier`). On iOS/Android that's the
  *      platform-native vendor identifier; on web the plugin generates
@@ -22,9 +21,6 @@ import { Preferences } from '@capacitor/preferences';
  * guards can read it synchronously after bootstrap. An
  * `APP_INITIALIZER` pre-warms {@link ensureLoaded} so consumers never
  * race the first-access promise.
- *
- * The public signal shape is unchanged from Phase 2; call sites that
- * read `participantIdService.id()` compile and run identically.
  */
 @Injectable({ providedIn: 'root' })
 export class ParticipantIdService {
@@ -42,7 +38,7 @@ export class ParticipantIdService {
   readonly id: Signal<string | null> = this.idSignal.asReadonly();
 
   /**
-   * Resolve the participant id, draining the Phase-2 legacy key first
+   * Resolve the participant id, draining the legacy key first
    * and falling back to `Device.getId()` for fresh installs. Safe to
    * call concurrently — a single in-flight promise is shared so we
    * never double-read the Preferences backing store.
@@ -65,7 +61,7 @@ export class ParticipantIdService {
 
   /**
    * Alias for {@link getOrCreateId}. Named for the `APP_INITIALIZER`
-   * call site (plan §3.6) — "ensure this is loaded before the app
+   * call site — "ensure this is loaded before the app
    * paints" is the intent at bootstrap, not "create if missing".
    */
   async ensureLoaded(): Promise<string> {
@@ -73,7 +69,7 @@ export class ParticipantIdService {
   }
 
   private async resolve(): Promise<string> {
-    // Migration read (plan §2.2): keep the Phase-2 stub id if present.
+    // Migration read: keep the legacy stub id if present.
     // We intentionally do NOT overwrite it with the Device id — doing
     // so would detach the display-name binding on upgrade. Once we
     // bump a `schemaVersion` in a later phase, this branch can retire.

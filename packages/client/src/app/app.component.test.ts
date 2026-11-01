@@ -17,9 +17,7 @@
 import { TestBed } from '@angular/core/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// ---------------------------------------------------------------------------
 // Module-level mocks — must be hoisted above imports
-// ---------------------------------------------------------------------------
 
 vi.mock('@ionic/angular/standalone', async () => {
   const { Component } = await import('@angular/core');
@@ -56,9 +54,7 @@ vi.mock('@capacitor/device', () => ({
   Device: { getId: vi.fn().mockResolvedValue({ identifier: 'test-device-id' }) },
 }));
 
-// ---------------------------------------------------------------------------
 // Imports (after mocks)
-// ---------------------------------------------------------------------------
 
 import type { SessionEvent } from '@hnch/shared';
 
@@ -70,10 +66,6 @@ import { SessionEndService } from './core/session-end.service';
 import { SessionRejectionService } from './core/session-rejection.service';
 import { ThemeService } from './core/theme.service';
 import { ToastService } from './services/toast.service';
-
-// ---------------------------------------------------------------------------
-// Mock factories
-// ---------------------------------------------------------------------------
 
 function makeDocMock() {
   let listener: ((event: SessionEvent) => void) | null = null;
@@ -90,10 +82,6 @@ function makeDocMock() {
     },
   };
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe('AppComponent — host-change toast', () => {
   let docMock: ReturnType<typeof makeDocMock>;

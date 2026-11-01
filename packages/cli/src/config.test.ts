@@ -13,9 +13,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-// ---------------------------------------------------------------------------
 // readline mock — hoisted so it applies before config.ts is imported
-// ---------------------------------------------------------------------------
 
 const mockRl = vi.hoisted(() => ({
   question: vi.fn<[string, (ans: string) => void], void>(),
@@ -26,15 +24,11 @@ vi.mock('node:readline', () => ({
   createInterface: vi.fn().mockReturnValue(mockRl),
 }));
 
-// ---------------------------------------------------------------------------
 // Module under test (imported AFTER vi.mock is in place)
-// ---------------------------------------------------------------------------
 
 import { configDir, readConfig, writeConfig, loadConfig, updateConfig } from './config.js';
 
-// ---------------------------------------------------------------------------
 // Test lifecycle
-// ---------------------------------------------------------------------------
 
 let tmpBase: string;
 
@@ -65,10 +59,6 @@ function writeFullConfig(overrides: Record<string, unknown> = {}): void {
   writeFileSync(join(dir, 'config.json'), JSON.stringify(cfg, null, 2) + '\n', 'utf-8');
 }
 
-// ---------------------------------------------------------------------------
-// configDir
-// ---------------------------------------------------------------------------
-
 describe('configDir', () => {
   it('returns XDG_CONFIG_HOME/hnch when XDG_CONFIG_HOME is set', () => {
     expect(configDir()).toBe(join(tmpBase, 'hnch'));
@@ -82,10 +72,6 @@ describe('configDir', () => {
     expect(dir).not.toContain(tmpBase);
   });
 });
-
-// ---------------------------------------------------------------------------
-// readConfig
-// ---------------------------------------------------------------------------
 
 describe('readConfig', () => {
   it('returns {} when no config file exists', () => {
@@ -115,10 +101,6 @@ describe('readConfig', () => {
     expect(readConfig()).toEqual({});
   });
 });
-
-// ---------------------------------------------------------------------------
-// writeConfig
-// ---------------------------------------------------------------------------
 
 describe('writeConfig', () => {
   it('creates the config directory and file if they do not exist', () => {
@@ -150,10 +132,6 @@ describe('writeConfig', () => {
     expect(raw.endsWith('\n')).toBe(true);
   });
 });
-
-// ---------------------------------------------------------------------------
-// loadConfig
-// ---------------------------------------------------------------------------
 
 describe('loadConfig', () => {
   it('returns stored config when all fields are present', async () => {
@@ -284,10 +262,6 @@ describe('loadConfig', () => {
     expect(cfg.displayName).toBe('Alice');
   });
 });
-
-// ---------------------------------------------------------------------------
-// updateConfig
-// ---------------------------------------------------------------------------
 
 describe('updateConfig', () => {
   it('writes new fields to a fresh config', () => {

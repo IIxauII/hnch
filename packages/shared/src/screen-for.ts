@@ -1,6 +1,6 @@
 /**
  * Screen selection — the single home for "which screen should this peer be
- * on?", for every surface that has more than one (issue #508).
+ * on?", for every surface that has more than one (#508).
  *
  * The rule is the one `activeRound` already encodes: an active round means
  * the peer belongs on Estimating; otherwise it belongs on Lobby. Because

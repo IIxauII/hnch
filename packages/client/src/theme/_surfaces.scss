@@ -6,9 +6,7 @@
 @use 'a11y' as *;
 @use 'breakpoints' as *;
 
-// ---------------------------------------------------------------------------
 // Card — the one elevated container. Pairs elev-1 with shadow-1 (ionic.md).
-// ---------------------------------------------------------------------------
 
 .hnch-card {
   box-sizing: border-box;
@@ -63,9 +61,7 @@
   --inner-border-width: 0;
 }
 
-// ---------------------------------------------------------------------------
 // Section label — small caps line above a group of rows
-// ---------------------------------------------------------------------------
 
 .section-label {
   margin: 24px 4px 8px;
@@ -90,9 +86,7 @@
   text-transform: uppercase;
 }
 
-// ---------------------------------------------------------------------------
 // Visually hidden — text for a screen reader where the screen shows an icon
-// ---------------------------------------------------------------------------
 
 .visually-hidden {
   position: absolute;
@@ -106,10 +100,8 @@
   white-space: nowrap;
 }
 
-// ---------------------------------------------------------------------------
 // Ticket chip — a tracker reference, set in monospace. Wrapped in
 // `a.ticket-link` where the reference resolves to a URL.
-// ---------------------------------------------------------------------------
 
 ion-chip.ticket-chip {
   --background: var(--hnch-fill);
@@ -134,9 +126,7 @@ ion-chip.ticket-chip ion-label {
   @include touch-target;
 }
 
-// ---------------------------------------------------------------------------
 // Icon tile — rounded square behind a leading row icon
-// ---------------------------------------------------------------------------
 
 .icon-tile {
   display: flex;
@@ -160,9 +150,7 @@ ion-chip.ticket-chip ion-label {
   color: var(--hnch-text);
 }
 
-// ---------------------------------------------------------------------------
 // Empty state — one muted line where a list would be
-// ---------------------------------------------------------------------------
 
 .empty-state {
   margin: 0;
@@ -172,11 +160,9 @@ ion-chip.ticket-chip ion-label {
   line-height: 1.4;
 }
 
-// ---------------------------------------------------------------------------
 // CTA bar — add class="cta-bar" to an ion-footer holding the primary action.
 // Buttons go inside `<div class="cta-inner">`, which the page's
 // `page-container` mixin lines up with the content column.
-// ---------------------------------------------------------------------------
 
 ion-footer.cta-bar ion-toolbar {
   --background: var(--hnch-bg);

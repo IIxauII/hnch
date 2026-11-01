@@ -7,9 +7,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// ---------------------------------------------------------------------------
 // Mock Capacitor Preferences
-// ---------------------------------------------------------------------------
 
 const store: Record<string, string> = {};
 
@@ -25,9 +23,7 @@ const mockPreferences = {
 
 vi.mock('@capacitor/preferences', () => ({ Preferences: mockPreferences }));
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 const KEY = 'hnch.lastSession';
 const TTL = 24 * 60 * 60 * 1000;
@@ -51,9 +47,7 @@ async function createService() {
   return new mod.LastSessionService();
 }
 
-// ---------------------------------------------------------------------------
 // Test suite
-// ---------------------------------------------------------------------------
 
 describe('LastSessionService v2', () => {
   beforeEach(() => {
@@ -68,9 +62,7 @@ describe('LastSessionService v2', () => {
     vi.restoreAllMocks();
   });
 
-  // -------------------------------------------------------------------------
   // list() — empty initial state
-  // -------------------------------------------------------------------------
 
   describe('list()', () => {
     it('returns empty array when Preferences has no entry', async () => {
@@ -152,9 +144,7 @@ describe('LastSessionService v2', () => {
     });
   });
 
-  // -------------------------------------------------------------------------
   // recordJoin() — upsert + dedup + cap
-  // -------------------------------------------------------------------------
 
   describe('recordJoin()', () => {
     it('records a new entry', async () => {
@@ -271,10 +261,6 @@ describe('LastSessionService v2', () => {
     });
   });
 
-  // -------------------------------------------------------------------------
-  // clearPasswordHash()
-  // -------------------------------------------------------------------------
-
   describe('clearPasswordHash()', () => {
     it('removes passwordHash but keeps all other fields', async () => {
       const svc = await createService();
@@ -296,18 +282,14 @@ describe('LastSessionService v2', () => {
     });
   });
 
-  // -------------------------------------------------------------------------
   // removeByUuid()
-  // -------------------------------------------------------------------------
 
-  // -------------------------------------------------------------------------
   // The hash the device keeps, and the one waiting to be kept
   //
   // A hash handed over before the session has an entry waits for the entry's
   // first record. It must not outlive being given up: a hash left waiting is
   // written back by the next record, for a session whose password the host
   // has since removed.
-  // -------------------------------------------------------------------------
 
   describe('rememberPasswordHash()', () => {
     const now = 1_000_000;
@@ -472,10 +454,6 @@ describe('LastSessionService v2', () => {
     });
   });
 
-  // -------------------------------------------------------------------------
-  // clearAll()
-  // -------------------------------------------------------------------------
-
   describe('clearAll()', () => {
     it('removes the Preferences key', async () => {
       const svc = await createService();
@@ -489,9 +467,7 @@ describe('LastSessionService v2', () => {
     });
   });
 
-  // -------------------------------------------------------------------------
   // Changes take turns
-  // -------------------------------------------------------------------------
 
   // Every change writes back what it read. Leaving a session and being
   // refused by it can reach the cache in the same moment, and so can the
@@ -570,9 +546,7 @@ describe('LastSessionService v2', () => {
     });
   });
 
-  // -------------------------------------------------------------------------
   // v1 → v2 migration
-  // -------------------------------------------------------------------------
 
   describe('v1 migration', () => {
     it('migrates v1 single-object shape to single-entry list on list()', async () => {
@@ -599,9 +573,7 @@ describe('LastSessionService v2', () => {
     });
   });
 
-  // -------------------------------------------------------------------------
   // Back-compat: get() / record() / clear()
-  // -------------------------------------------------------------------------
 
   describe('back-compat methods', () => {
     it('get() returns first entry from list', async () => {

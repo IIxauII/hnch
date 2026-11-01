@@ -10,10 +10,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { environment } from '../../environments/environment';
 
-// ---------------------------------------------------------------------------
-// Mock Capacitor Preferences
-// ---------------------------------------------------------------------------
-
 const mockPreferences = {
   get: vi.fn<(opts: { key: string }) => Promise<{ value: string | null }>>(),
   set: vi.fn<(opts: { key: string; value: string }) => Promise<void>>(),
@@ -23,10 +19,6 @@ const mockPreferences = {
 vi.mock('@capacitor/preferences', () => ({
   Preferences: mockPreferences,
 }));
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 async function createService() {
   const mod = await import('./app-preference.service');
@@ -44,9 +36,7 @@ describe('AppPreferenceService', () => {
     vi.restoreAllMocks();
   });
 
-  // -------------------------------------------------------------------------
   // ensureLoaded — reading from Preferences
-  // -------------------------------------------------------------------------
 
   describe('ensureLoaded', () => {
     it('loads defaultSessionName from Preferences', async () => {
@@ -117,10 +107,6 @@ describe('AppPreferenceService', () => {
     });
   });
 
-  // -------------------------------------------------------------------------
-  // setDefaultSessionName
-  // -------------------------------------------------------------------------
-
   describe('setDefaultSessionName', () => {
     it('updates the signal and persists to Preferences', async () => {
       mockPreferences.get.mockResolvedValue({ value: null });
@@ -145,10 +131,6 @@ describe('AppPreferenceService', () => {
       });
     });
   });
-
-  // -------------------------------------------------------------------------
-  // setDefaultPassword
-  // -------------------------------------------------------------------------
 
   describe('setDefaultPassword', () => {
     it('sets flag to true and persists', async () => {
@@ -176,10 +158,6 @@ describe('AppPreferenceService', () => {
     });
   });
 
-  // -------------------------------------------------------------------------
-  // setRelayUrl
-  // -------------------------------------------------------------------------
-
   describe('setRelayUrl', () => {
     it('persists HTTP URL and updates signal', async () => {
       mockPreferences.get.mockResolvedValue({ value: null });
@@ -202,10 +180,6 @@ describe('AppPreferenceService', () => {
       expect(mockPreferences.remove).toHaveBeenCalledWith({ key: 'hnch.relayUrl' });
     });
   });
-
-  // -------------------------------------------------------------------------
-  // relayWsUrl computed signal
-  // -------------------------------------------------------------------------
 
   describe('relayWsUrl', () => {
     it('is undefined when no HTTP URL is set', async () => {
@@ -247,9 +221,7 @@ describe('AppPreferenceService', () => {
     });
   });
 
-  // -------------------------------------------------------------------------
   // resolved* computed signals — the override-or-default fold, expressed once
-  // -------------------------------------------------------------------------
 
   describe('resolvedRelayHttpUrl / resolvedRelayWsUrl', () => {
     it('falls back to the environment defaults when no override is set', async () => {

@@ -9,10 +9,6 @@
 import { BUILTIN_SCALES, formatScaleId, type Scale } from './doc.js';
 import { ABSTAIN_SENTINEL } from './abstain.js';
 
-// ---------------------------------------------------------------------------
-// Validation
-// ---------------------------------------------------------------------------
-
 /**
  * Returns `true` if `label` is a valid card face for a custom scale.
  *
@@ -25,10 +21,6 @@ export function isValidCustomCardLabel(label: string): boolean {
   if (label === ABSTAIN_SENTINEL) return false;
   return true;
 }
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 /**
  * Per-device preset overrides: maps a builtin scale ID to the set of card
@@ -51,10 +43,6 @@ export interface CustomScale {
   /** Card faces in display order. */
   cards: string[];
 }
-
-// ---------------------------------------------------------------------------
-// Resolution
-// ---------------------------------------------------------------------------
 
 /**
  * Resolves a scale ID to a flat `{ id, cards }` ready to write into the Yjs
@@ -106,10 +94,6 @@ export function buildAvailableScales(
 
   return [...builtins, ...customScales];
 }
-
-// ---------------------------------------------------------------------------
-// Display
-// ---------------------------------------------------------------------------
 
 /**
  * Returns the user-facing label for a scale id. For custom scales (`custom-*`),

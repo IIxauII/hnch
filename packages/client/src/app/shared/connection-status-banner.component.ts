@@ -58,7 +58,7 @@ export function computeBannerLabel(
 }
 
 /**
- * Connection banner — plan §3.9 / issue #42. The one place the app reports
+ * Connection banner (#42). The one place the app reports
  * on its connection.
  *
  * Renders a bar at the top of `<ion-content>` while the session is not

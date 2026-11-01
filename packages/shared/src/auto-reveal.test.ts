@@ -125,9 +125,7 @@ describe('shouldAutoReveal', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Driver
-// ---------------------------------------------------------------------------
 
 /**
  * Minimal projection builder — the driver only reads `participants` and
@@ -364,11 +362,9 @@ describe('startAutoReveal', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // The trust gate. Awareness is cleared when a socket closes and refilled by
 // the relay once the next one has synced; in between, "everyone online has
 // voted" is true of a peer that has voted and sees nobody else.
-// ---------------------------------------------------------------------------
 
 describe('startAutoReveal — presence that cannot be trusted', () => {
   afterEach(() => {
