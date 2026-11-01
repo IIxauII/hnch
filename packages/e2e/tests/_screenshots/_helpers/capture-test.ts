@@ -37,7 +37,11 @@ import { test as base, type BrowserContext, type Page, type TestInfo } from '@pl
 
 export { expect } from '@playwright/test';
 
-/** Room-code alphabet (ADR-0008, packages/shared/src/room-code.ts). */
+/**
+ * Room-code alphabet (ADR-0008), copied from packages/shared/src/room-code.ts:
+ * e2e does not depend on @hnch/shared. A drift fails loudly, as the relay
+ * answers 400 to a code outside it.
+ */
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
 /** Where the app keeps its participant ID (Capacitor Preferences on the web). */
@@ -104,9 +108,10 @@ async function pinContext(ctx: BrowserContext, testInfo: TestInfo, index: number
       w.Ionic = { ...w.Ionic, config: { ...w.Ionic?.config, animated: false } };
       w.__captureElapsedMs = 0;
       w.__confettiFreezeMs = freezeMs;
-      // The LCG the reveal specs seed; a page-level init script runs later and wins.
+      // The LCG the reveal specs seed. Only when no spec set its own: Playwright
+      // runs context and page init scripts in no set order.
       let seed = 1;
-      w.__confettiRng = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 0x100000000;
+      w.__confettiRng ??= () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 0x100000000;
       try {
         if (localStorage.getItem(key) === null) localStorage.setItem(key, id);
       } catch {

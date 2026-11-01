@@ -257,6 +257,9 @@ describe('refused-socket bound (#566)', () => {
 
     const wrong = await Peer.join(uuid, `?pw=${WRONG}`);
     expect(await wrong.closed()).toEqual({ code: 4002, reason: 'wrong-password' });
+  });
+});
+
 /** `POST /test/rooms` with `body` as JSON. */
 async function createWithCode(body: Record<string, unknown>): Promise<Response> {
   return call('/test/rooms', { method: 'POST', body: JSON.stringify(body) });
@@ -289,5 +292,23 @@ describe('POST /test/rooms (HNCH_ENABLE_TEST_ROUTES=1)', () => {
       const res = await createWithCode(body);
       expect(res.status, JSON.stringify(body)).toBe(400);
     }
+    expect((await createWithCode({ code: 'CAP237', passwordHash: 'short' })).status).toBe(400);
+  });
+
+  it('answers 503 when the room holding the code is evicted but keeps it', async () => {
+    const first = (await (await createWithCode({ code: 'CAP238' })).json()) as { uuid: string };
+    // Spied on the prototype: RPC refuses a method that is an own property.
+    await runInDurableObject(codesStub('CAP238'), (codes) =>
+      vi
+        .spyOn(Object.getPrototypeOf(codes) as Codes, 'release')
+        .mockRejectedValue(new Error('Durable Object is overloaded')),
+    );
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const res = await createWithCode({ code: 'CAP238' });
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: 'unavailable' });
+    expect(await codesStub('CAP238').lookup()).toBe(first.uuid);
+    expect(JSON.stringify(log.mock.calls)).toContain('relay-test-create-unavailable');
   });
 });

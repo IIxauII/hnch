@@ -56,6 +56,22 @@ export function diffSets(baseDir, headDir) {
   };
 }
 
+/** True when no scene changed, appeared or went. */
+export function isIdentical({ changed, added, removed }) {
+  return changed.length + added.length + removed.length === 0;
+}
+
+/** One `<changed|added|removed>\t<scene>` line per differing scene, then the counts. */
+export function formatDiff({ changed, added, removed, unchanged }) {
+  const lines = [
+    ...changed.map((name) => `changed\t${name}`),
+    ...added.map((name) => `added\t${name}`),
+    ...removed.map((name) => `removed\t${name}`),
+    `${unchanged} unchanged, ${changed.length} changed, ${added.length} added, ${removed.length} removed`,
+  ];
+  return `${lines.join('\n')}\n`;
+}
+
 function main([baseDir, headDir, ...rest]) {
   if (!baseDir || !headDir || rest.length > 0) {
     stderr.write('usage: screenshot-diff.mjs <base-dir> <head-dir>\n');
@@ -67,19 +83,9 @@ function main([baseDir, headDir, ...rest]) {
       return 2;
     }
   }
-  const { changed, added, removed, unchanged } = diffSets(baseDir, headDir);
-  for (const [label, names] of [
-    ['changed', changed],
-    ['added', added],
-    ['removed', removed],
-  ]) {
-    for (const name of names) stdout.write(`${label}\t${name}\n`);
-  }
-  const differing = changed.length + added.length + removed.length;
-  stdout.write(
-    `${unchanged} unchanged, ${changed.length} changed, ${added.length} added, ${removed.length} removed\n`,
-  );
-  return differing === 0 ? 0 : 1;
+  const diff = diffSets(baseDir, headDir);
+  stdout.write(formatDiff(diff));
+  return isIdentical(diff) ? 0 : 1;
 }
 
 if (argv[1] === fileURLToPath(import.meta.url)) exit(main(argv.slice(2)));

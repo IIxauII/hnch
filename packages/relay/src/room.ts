@@ -215,7 +215,10 @@ export class Room extends DurableObject<Env> {
     }
   }
 
-  /** ADR-0027 `DELETE /test/rooms/:uuid`: delete now. False if the room is unknown. */
+  /**
+   * ADR-0027 `DELETE /test/rooms/:uuid`, and `POST /test/rooms` taking a code over: delete now.
+   * False if the room is unknown.
+   */
   async testEvict(): Promise<boolean> {
     const meta = this.loadMeta();
     if (isGone(meta)) return false;

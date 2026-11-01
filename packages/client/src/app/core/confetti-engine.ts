@@ -173,6 +173,19 @@ function spawnRate(t: number): number {
   return PEAK_RATE * Math.pow(1 - tNorm, K);
 }
 
+/** Ms from a spawn at `t` to the next one, or null once the spawn window has closed. */
+function nextSpawnDelay(t: number): number | null {
+  const r = spawnRate(t);
+  if (r <= 0) return null;
+  return Math.min(1000 / r, SPAWN_WINDOW_MS - t + 10);
+}
+
+/** The time of the spawn after one at `t`, or null when there is none. */
+function advance(t: number): number | null {
+  const delay = nextSpawnDelay(t);
+  return delay === null || t + delay >= SPAWN_WINDOW_MS ? null : t + delay;
+}
+
 export class ConfettiEngine {
   private readonly opts: Required<ConfettiEngineOpts>;
   private readonly rng: () => number;
@@ -222,14 +235,14 @@ export class ConfettiEngine {
   private drawFrozen(freezeMs: number): void {
     const layer = this.layerRef;
     if (!layer) return;
-    let t = 0;
-    while (t <= freezeMs && t < SPAWN_WINDOW_MS && this.animations.length < this.maxParticles) {
+    for (
+      let t: number | null = 0;
+      t !== null && t <= freezeMs && this.animations.length < this.maxParticles;
+      t = advance(t)
+    ) {
       const anim = this.spawnParticle(layer, t);
       anim.currentTime = freezeMs - t;
       anim.playbackRate = 0;
-      const r = spawnRate(t);
-      if (r <= 0) return;
-      t += Math.min(1000 / r, SPAWN_WINDOW_MS - t + 10);
     }
   }
 
@@ -251,11 +264,8 @@ export class ConfettiEngine {
       this.spawnParticle(layer, t);
     }
 
-    const r = spawnRate(t);
-    if (r <= 0) return;
-    const rawDelay = 1000 / r;
-    const nextDelay = Math.min(rawDelay, SPAWN_WINDOW_MS - t + 10);
-    this.scheduleNext(nextDelay);
+    const delay = nextSpawnDelay(t);
+    if (delay !== null) this.scheduleNext(delay);
   }
 
   private spawnParticle(layer: HTMLElement, _t: number): Animation {

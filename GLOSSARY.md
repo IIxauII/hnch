@@ -69,7 +69,7 @@ The display form of `RoundStats` — same discriminant, every field a string rea
 _Avoid_: statsViewModel, formatStats, spreadDisplay (the client's retired private helper)
 
 **formatRoundElapsed**:
-How long a round took, as `M:SS`, or `null` when it has no knowable duration — the `timerStartedAt` / `status` / `terminalAt` guard that used to be spelled at four call sites. Distinct from `formatElapsed(ms)` in `format-time`, which is the duration *primitive* and the single clamp point: live tickers call that directly because a ticking display has no terminal timestamp to hand a Round-shaped function. Clamping is the primitive's job and only its job — no call site clamps.
+How long a round took, as `M:SS`, or `null` when it has no knowable duration — the `timerStartedAt` / `status` / `terminalAt` guard that used to be spelled at four call sites. Distinct from `formatElapsed(ms)` in `format-time`, which is the duration *primitive* and the single clamp point: live tickers call that directly because a ticking display has no terminal timestamp to hand a Round-shaped function. Clamping is the primitive's job and only its job — no call site clamps. The client reaches both through `core/elapsed-label.ts` (`liveElapsedLabel`, `roundElapsedLabel`), which adds only the screenshot-capture pin (#762).
 _Avoid_: elapsedLabel (that is a surface's binding, not the rule), roundDuration, formatElapsed (the primitive keeps that name)
 
 ## Round commands (writer side)

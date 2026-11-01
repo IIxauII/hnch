@@ -200,7 +200,9 @@ async function patchAccess(uuid: string, request: Request, env: Env): Promise<Re
  * ADR-0027 test route for deterministic screenshot capture (#762): a room with
  * the code the caller names, so two captures of one tree show the same code. A
  * room still holding the code (from an earlier capture against the same relay)
- * is evicted first. A malformed code answers 400.
+ * is evicted first; if that does not free the code, 503. A malformed code
+ * answers 400. Unlike DELETE, it answers 400 and 503 rather than 404: with the
+ * gate on, DELETE's 200 already shows the routes are mounted.
  */
 async function testCreateRoom(request: Request, env: Env): Promise<Response> {
   const body = await readJsonBody(request);
@@ -211,9 +213,16 @@ async function testCreateRoom(request: Request, env: Env): Promise<Response> {
   }
   try {
     const holder = await codesStub(env, code).lookup();
-    if (holder !== null) await roomStub(env, holder).testEvict();
+    if (holder !== null) {
+      await roomStub(env, holder).testEvict();
+      // Eviction releases the code; a failed release leaves it with the old room.
+      if ((await codesStub(env, code).lookup()) !== null) {
+        logEvent('relay-test-create-unavailable');
+        return unavailable();
+      }
+    }
   } catch (err) {
-    logEvent('relay-create-unavailable', err);
+    logEvent('relay-test-create-unavailable', err);
     return unavailable();
   }
   return mintRoom(body as Record<string, unknown>, env, [code]);

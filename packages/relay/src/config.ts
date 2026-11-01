@@ -14,7 +14,7 @@ export interface RelayConfig {
   readonly jurisdiction: 'eu' | null;
   /** Open sockets per room before the next is refused with 4006 (ADR-0024). */
   readonly roomCap: number;
-  /** Whether `DELETE /test/rooms/:uuid` is mounted (ADR-0027). */
+  /** Whether the ADR-0027 test routes are mounted: `DELETE /test/rooms/:uuid` and `POST /test/rooms`. */
   readonly testRoutes: boolean;
   /** A lowered cap or mounted test routes: logged at WARN. */
   readonly nonProduction: boolean;

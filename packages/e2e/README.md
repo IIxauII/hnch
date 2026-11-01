@@ -72,6 +72,7 @@ A new screenshot spec starts with that line too, and imports `test` and `expect`
 | `SCREENSHOT_SHA` | `local` | Output subdir name. CI/hook pass `sha-<short>`; manual runs default to `local`. |
 | `SCREENSHOT_TAGS` | unset | Playwright `--grep` regex — narrows capture to scenes tagged with the listed tags. |
 | `HNCH_ROOM_CAP` | unset | Relay-side participant cap, exercised by `participant-cap.spec.ts`. |
+| `HNCH_ENABLE_TEST_ROUTES` | `1` on the relay Playwright starts | Mounts the relay's test routes (ADR-0027), among them `POST /test/rooms`, which pinned room codes need (see [Pinned sources](#pinned-sources)). |
 
 ### Output
 
@@ -107,6 +108,8 @@ Two captures of one tree write byte-identical PNGs, so a diff between two sets s
 | Other motion and hover | settled | each `page.screenshot()` moves the pointer off the page, waits up to 5 s for running animations to end, and shoots with `animations: 'disabled'` |
 
 Room IDs, round IDs and agenda-item IDs stay random: none reaches the screen or decides an order.
+
+A room code follows the test's title path, so renaming a test or its `describe`, or moving its spec file, gives its scenes new codes: they show as changed once, in the PR that renames.
 
 App specs never import the helper, so app tests and production run unpinned; the client hooks are `window` properties only the helper sets.
 

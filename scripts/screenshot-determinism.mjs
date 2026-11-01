@@ -16,7 +16,7 @@ import { spawnSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { argv, env, exit, stdout } from 'node:process';
-import { diffSets } from './ci/screenshot-diff.mjs';
+import { diffSets, formatDiff, isIdentical } from './ci/screenshot-diff.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const sets = ['determinism-a', 'determinism-b'];
@@ -45,12 +45,6 @@ for (const set of sets) {
 }
 
 const [a, b] = sets.map((set) => join(root, 'docs/screenshots', set));
-const { changed, added, removed, unchanged } = diffSets(a, b);
-for (const name of changed) stdout.write(`changed\t${name}\n`);
-for (const name of added) stdout.write(`only in b\t${name}\n`);
-for (const name of removed) stdout.write(`only in a\t${name}\n`);
-const differing = changed.length + added.length + removed.length;
-stdout.write(
-  `\n${unchanged} identical, ${differing} differing (docs/screenshots/${sets[0]}/ vs ${sets[1]}/)\n`,
-);
-exit(differing === 0 && unchanged > 0 ? 0 : 1);
+const diff = diffSets(a, b);
+stdout.write(`\ndocs/screenshots/${sets[0]}/ → ${sets[1]}/\n${formatDiff(diff)}`);
+exit(isIdentical(diff) && diff.unchanged > 0 ? 0 : 1);
