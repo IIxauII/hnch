@@ -221,7 +221,6 @@ async function mount(opts: MountOpts = {}) {
     activeRound: activeRoundSig,
     screen: screenSig.asReadonly(),
     rounds: roundsSig.asReadonly(),
-    onlineParticipants: signal([]).asReadonly(),
     onlineParticipantIds: signal(onlineIds).asReadonly(),
     participants: signal(roster).asReadonly(),
     activeParticipants: signal(roster).asReadonly(),
