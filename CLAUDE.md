@@ -17,6 +17,7 @@ The one list of project docs; README and CONTRIBUTING point here. A fact lives i
 - [`adr/`](adr/README.md) — Architecture Decision Records. Authoritative for *why* each structural choice was made.
 - [`GLOSSARY.md`](GLOSSARY.md) — domain terms and the names to avoid.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — commit and PR rules, worktrees and dev ports.
+- [`SECURITY.md`](SECURITY.md) — how to report a vulnerability privately, and what is supported.
 
 ## ADRs
 

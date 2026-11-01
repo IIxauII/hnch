@@ -18,7 +18,7 @@ An estimating app for teams. The name is a vowel-dropped spelling of "hunch", re
 
 ## Codecov
 
-[![codecov](https://codecov.io/gh/IIxauII/hnch/branch/main/graph/badge.svg?token=5WZDV0OV3F)](https://codecov.io/gh/IIxauII/hnch)
+[![codecov](https://codecov.io/gh/IIxauII/hnch/branch/main/graph/badge.svg)](https://codecov.io/gh/IIxauII/hnch)
 
 ## Architecture at a glance
 
