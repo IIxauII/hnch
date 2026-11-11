@@ -1,0 +1,73 @@
+# robots.txt for https://hnch.dev (RFC 9309)
+#
+# Room pages and invite links carry a room code and only mean something to the
+# people in that room. The relay paths are an API, not pages. Everything else
+# (the start page, icons, licenses) may be crawled.
+#
+# Content signals (https://contentsignals.org/, IETF draft
+# draft-romm-aipref-contentsignals): what crawled pages may be used for.
+# search: a search index with links and short excerpts. ai-input: feeding
+# pages into AI models to answer a question (grounding, RAG). ai-train:
+# training or fine-tuning AI models.
+#
+# A crawler follows only the most specific User-agent group that names it, so
+# every group repeats the Content-Signal line and the rules of the * group.
+
+User-agent: *
+Content-Signal: ai-train=yes, search=yes, ai-input=yes
+Disallow: /lobby/
+Disallow: /estimating/
+Disallow: /join
+Disallow: /rooms
+Disallow: /ws/
+Disallow: /health
+Allow: /
+
+# AI crawlers, named so each one's access is explicit.
+
+# AI search: pages that AI assistants cite in answers.
+User-agent: OAI-SearchBot
+User-agent: Claude-SearchBot
+User-agent: PerplexityBot
+Content-Signal: ai-train=yes, search=yes, ai-input=yes
+Disallow: /lobby/
+Disallow: /estimating/
+Disallow: /join
+Disallow: /rooms
+Disallow: /ws/
+Disallow: /health
+Allow: /
+
+# AI training. Claude-Web is Anthropic's retired token.
+User-agent: GPTBot
+User-agent: ClaudeBot
+User-agent: Claude-Web
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+User-agent: meta-externalagent
+User-agent: CCBot
+User-agent: Bytespider
+User-agent: Amazonbot
+Content-Signal: ai-train=yes, search=yes, ai-input=yes
+Disallow: /lobby/
+Disallow: /estimating/
+Disallow: /join
+Disallow: /rooms
+Disallow: /ws/
+Disallow: /health
+Allow: /
+
+# Pages a person asks an assistant to open. Some vendors skip robots.txt here.
+User-agent: ChatGPT-User
+User-agent: Claude-User
+User-agent: Perplexity-User
+Content-Signal: ai-train=yes, search=yes, ai-input=yes
+Disallow: /lobby/
+Disallow: /estimating/
+Disallow: /join
+Disallow: /rooms
+Disallow: /ws/
+Disallow: /health
+Allow: /
+
+Sitemap: https://hnch.dev/sitemap.xml

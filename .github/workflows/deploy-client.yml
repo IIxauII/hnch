@@ -259,4 +259,14 @@ jobs:
             echo "::error::/_headers is served as a file, expected the SPA index.html"
             failed=1
           fi
+          # Crawlers read a text/html answer (the SPA fallback) as no robots.txt.
+          check /robots.txt 'no-cache, must-revalidate'
+          robots_type="$(curl -fsS --max-time 10 -o /dev/null -w '%{content_type}' https://hnch.dev/robots.txt)"
+          case "${robots_type}" in
+            text/plain*) ;;
+            *)
+              echo "::error::/robots.txt is '${robots_type}', expected text/plain"
+              failed=1
+              ;;
+          esac
           exit "${failed}"

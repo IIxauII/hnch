@@ -138,8 +138,8 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z
                     └── if HNCH_LIVE == 'true':  https://hnch.dev/ serves this build (retried
                                                  up to 60 s), from Cloudflare, with exactly one
                                                  Cache-Control on /, /lobby/x, the licenses, the
-                                                 hashed main.js and /_headers (the SPA, not the
-                                                 file)
+                                                 hashed main.js, /_headers (the SPA, not the
+                                                 file) and /robots.txt (text/plain, the file)
 ```
 
 `web` deploys exactly the `www` that `build` uploaded, so a failed `web` job can be re-run without a rebuild. The guards live in `packages/client/scripts/deploy-guard.mjs`; the route, version and Cloudflare API helpers are shared with the relay's guard through `scripts/cloudflare/worker-guard.mjs`.
@@ -148,11 +148,12 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z
 
 - **Cache headers come from `packages/client/src/_headers`**, which `angular.json` copies to the root of `www`. `hnch-web` applies it; wrangler does not serve the file itself. Each response carries exactly one `Cache-Control`:
   - `/*.js` and `/*.css`: `public, max-age=31536000, immutable`;
-  - everything else (`index.html`, SPA deep links such as `/lobby/x`, `/svg/*`, `/assets/*`, `favicon.ico`, `3rdpartylicenses.txt`): `no-cache, must-revalidate`;
+  - everything else (`index.html`, SPA deep links such as `/lobby/x`, `/svg/*`, `/assets/*`, `favicon.ico`, `robots.txt`, `3rdpartylicenses.txt`): `no-cache, must-revalidate`;
   - a missing `/x.<hash>.js` falls back to `index.html` with `immutable`.
 
   Because `/*.js` and `/*.css` are immutable for a year, every one of them must be content-hashed (`outputHashing: all`). The hash guard (`deploy-guard.mjs www`) fails the build unless each matches `\.[0-9a-f]{16}\.(js|css)$`, the webpack builder's exact hash form; a builder change that alters it fails the deploy rather than slipping through.
 - **SPA fallback.** Any path without a file answers `index.html` with `200`. `/index.html` itself redirects (`307`) to `/`.
+- **robots.txt** ([RFC 9309](https://www.rfc-editor.org/rfc/rfc9309)) is `packages/client/src/robots.txt`, which `angular.json` copies to the root of `www`. It keeps crawlers off room pages, invite links (`/join`) and the relay paths. The smoke fails the deploy unless `/robots.txt` answers `text/plain`: crawlers read a `text/html` answer (the SPA fallback) as no robots.txt. Its `Content-Signal` line ([contentsignals.org](https://contentsignals.org/)) states the AI-use preferences. A crawler obeys only the most specific `User-agent` group that names it, so a group added for one bot repeats the `*` group's `Content-Signal` and rules.
 - **No service worker.** Plain SPA: no offline shell, no install prompt (deferred from v1). Adding one needs a re-read of the cache headers above against the service-worker lifecycle.
 - **Tags and messages.** The `hnch-web` version is tagged `client-vX.Y.Z` only when the deployed commit is that release tag's commit; any other commit deploys untagged. Every version's message names the full commit SHA, and `verify` checks the version id `wrangler deploy` just uploaded (from `WRANGLER_OUTPUT_FILE_PATH`) is the one serving, so a re-dispatch can't pass on an earlier upload.
 - **Cold installs.** The `build` and `web` jobs run on GitHub-hosted `ubuntu-24.04-arm` ([ADR-0056](../adr/0056-github-hosted-runners.md)) and restore no Actions cache. Each runs `pnpm install --frozen-lockfile --ignore-scripts` into the fresh runner's empty store, so pnpm checks every package against the lockfile; `build` filters to `@hnch/client...`, `web` to `@hnch/client` (pnpm still installs the workspace root's packages). Node 22 comes from `actions/setup-node`, and pnpm's version from `packageManager` through Corepack.
