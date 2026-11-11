@@ -24,9 +24,9 @@ import { sessionResumeGuard } from './core/session-resume.guard';
  * `/home` so old bookmarks fall through to Home's "Jump back in" list
  * instead of 404-ing.
  *
- * A page a visitor can open without onboarding or a session goes in
- * `src/sitemap.xml`; `sitemap.test.ts` fails while it lists a path that is
- * no longer a route here.
+ * A page anyone can open (no parameter, redirect or guard) that is worth
+ * finding from a search goes in `src/sitemap.xml`; `sitemap.test.ts` fails
+ * while it lists any other path, or one robots.txt blocks.
  */
 export const routes: Routes = [
   {

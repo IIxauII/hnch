@@ -116,7 +116,7 @@ jobs:
       - name: Hash guard
         # _headers serves every .js and .css as immutable for a year, so each
         # must carry the build's content hash (`\.[0-9a-f]{16}\.(js|css)$`), and
-        # _headers and sitemap.xml must sit at the root of www.
+        # _headers, robots.txt and sitemap.xml must sit at the root of www.
         working-directory: packages/client
         run: node scripts/deploy-guard.mjs www
 
@@ -259,36 +259,29 @@ jobs:
             echo "::error::/_headers is served as a file, expected the SPA index.html"
             failed=1
           fi
-          # This build's robots.txt, as text/plain: crawlers read a text/html
-          # answer (the SPA fallback) as no robots.txt.
-          check /robots.txt 'no-cache, must-revalidate'
-          robots="${RUNNER_TEMP}/robots.txt"
-          robots_type="$(curl -fsS --max-time 10 -o "${robots}" -w '%{content_type}' https://hnch.dev/robots.txt)"
-          case "${robots_type}" in
-            text/plain*) ;;
-            *)
-              echo "::error::/robots.txt is '${robots_type}', expected text/plain"
+          # served_file <file> <Content-Type regex> <expected, for the error>:
+          # /<file> is this build's www/<file>, with a Content-Type matching the
+          # regex. Without the file the SPA fallback answers index.html with a
+          # 200. The step runs under `bash -e`, so a failed curl is caught here
+          # rather than ending the step before the remaining checks.
+          served_file() {
+            check "/$1" 'no-cache, must-revalidate'
+            local body="${RUNNER_TEMP}/served-$1" content_type
+            if ! content_type="$(curl -fsS --max-time 10 -o "${body}" -w '%{content_type}' "https://hnch.dev/$1")"; then
+              echo "::error::/$1 did not answer"
               failed=1
-              ;;
-          esac
-          if ! cmp -s "${robots}" packages/client/www/robots.txt; then
-            echo "::error::/robots.txt is not this build's www/robots.txt"
-            failed=1
-          fi
-          # This build's sitemap.xml, as XML: without the file the SPA fallback
-          # answers index.html with a 200.
-          check /sitemap.xml 'no-cache, must-revalidate'
-          sitemap="${RUNNER_TEMP}/sitemap.xml"
-          sitemap_type="$(curl -fsS --max-time 10 -o "${sitemap}" -w '%{content_type}' https://hnch.dev/sitemap.xml)"
-          case "${sitemap_type}" in
-            application/xml*|text/xml*) ;;
-            *)
-              echo "::error::/sitemap.xml is '${sitemap_type}', expected application/xml"
+              return
+            fi
+            if [[ ! "${content_type}" =~ $2 ]]; then
+              echo "::error::/$1 is '${content_type}', expected $3"
               failed=1
-              ;;
-          esac
-          if ! cmp -s "${sitemap}" packages/client/www/sitemap.xml; then
-            echo "::error::/sitemap.xml is not this build's www/sitemap.xml"
-            failed=1
-          fi
+            fi
+            if ! cmp -s "${body}" "packages/client/www/$1"; then
+              echo "::error::/$1 is not this build's www/$1"
+              failed=1
+            fi
+          }
+          # Crawlers read a text/html answer as no robots.txt.
+          served_file robots.txt '^text/plain' text/plain
+          served_file sitemap.xml '^(application|text)/xml' 'an XML type'
           exit "${failed}"
