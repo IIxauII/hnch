@@ -1,3 +1,10 @@
+# [1.51.0](https://github.com/IIxauII/hnch/compare/client-v1.50.0...client-v1.51.0) (2026-11-11)
+
+
+### Features
+
+* **client,ci,docs,repo:** publish an RFC 9727 API catalog for the relay ([#776](https://github.com/IIxauII/hnch/issues/776)) ([4c59a51](https://github.com/IIxauII/hnch/commit/4c59a51272e4f860c0d55e3b8e47a2f630bb6571))
+
 # [1.50.0](https://github.com/IIxauII/hnch/compare/client-v1.49.0...client-v1.50.0) (2026-11-11)
 
 
