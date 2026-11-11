@@ -92,6 +92,19 @@ export class RelayAccessError extends Error {
   }
 }
 
+/**
+ * How an access change or a handoff failed, sorted: the relay's own reason, the room gone, or
+ * `unreachable` when no usable answer came back (a network error, a timeout, a proxy's status).
+ */
+export type RelayRefusalReason = AccessRefusalReason | 'unknown-room' | 'unreachable';
+
+/** Sort what {@link patchRoomAccess} or {@link handoffHostOnRelay} threw into its reason. */
+export function relayRefusalReason(err: unknown): RelayRefusalReason {
+  if (err instanceof RelayAccessError) return err.reason;
+  if (err instanceof RelayRejectionError) return 'unknown-room';
+  return 'unreachable';
+}
+
 /** Who a keyed PATCH or handoff says it is, and the room key that proves it (ADR-0059). */
 export interface ParticipantCaller {
   readonly participantId: string;

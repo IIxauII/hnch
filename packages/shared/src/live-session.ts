@@ -53,9 +53,8 @@ import { startElection } from './election.js';
 import {
   connectToRelay,
   handoffHostOnRelay,
-  RelayAccessError,
-  RelayRejectionError,
-  type AccessRefusalReason,
+  relayRefusalReason,
+  type RelayRefusalReason,
   type RelayConnection,
   type SyncStatus,
   type WebSocketConstructorLike,
@@ -133,11 +132,7 @@ export type HandoffResult =
   | { applied: true }
   | {
       applied: false;
-      reason:
-        | Extract<RosterResult, { applied: false }>['reason']
-        | AccessRefusalReason
-        | 'unknown-room'
-        | 'unreachable';
+      reason: Extract<RosterResult, { applied: false }>['reason'] | RelayRefusalReason;
     };
 
 /** Who this peer is in the session. */
@@ -512,9 +507,7 @@ export function openLiveSession(options: OpenLiveSessionOptions): LiveSession {
           target: targetId,
         });
       } catch (err) {
-        if (err instanceof RelayAccessError) return { applied: false, reason: err.reason };
-        if (err instanceof RelayRejectionError) return { applied: false, reason: 'unknown-room' };
-        return { applied: false, reason: 'unreachable' };
+        return { applied: false, reason: relayRefusalReason(err) };
       }
       // Torn down meanwhile, there is no doc to write.
       if (tornDown) return { applied: false, reason: 'not-found' };
