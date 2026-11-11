@@ -1,5 +1,11 @@
 import { effect, inject, Injectable, signal, untracked, type Signal } from '@angular/core';
-import { hashPassword, normalizePassword, patchRoomAccess, resolveRoom } from '@hnch/shared';
+import {
+  hashPassword,
+  normalizePassword,
+  patchRoomAccess,
+  relayRefusalReason,
+  resolveRoom,
+} from '@hnch/shared';
 
 import { AppPreferenceService } from './app-preference.service';
 import { DocService } from './doc/doc.service';
@@ -12,7 +18,12 @@ export type AccessMode = 'open' | 'password';
 export type AccessChangeResult =
   /** The relay took it. */
   | 'applied'
-  /** The relay refused, or could not be reached. Nothing changed. */
+  /**
+   * The relay takes access changes from the host only, and this device is not it to the relay
+   * (ADR-0059). Nothing changed.
+   */
+  | 'not-host'
+  /** The relay refused otherwise, or could not be reached. Nothing changed. */
   | 'failed'
   /** There was nothing to send: no session, or a blank password. */
   | 'skipped';
@@ -121,13 +132,21 @@ export class SessionAccessService {
     // The UUID the relay issued for this connection — not the one in the
     // doc, which every participant can write.
     const uuid = this.docService.relayRoomUuid();
-    if (uuid === null || this.savingSignal()) return 'skipped';
+    // Who this peer is to the relay, and its key for the room: the relay takes the change from
+    // its access holder only (ADR-0059).
+    const caller = this.docService.accessCaller();
+    if (uuid === null || caller === null || this.savingSignal()) return 'skipped';
 
     const epoch = this.docService.sessionEpoch();
     this.savingSignal.set(true);
     try {
       const hash = password === null ? null : await hashPassword(password, uuid);
-      const answer = await patchRoomAccess(this.appPrefs.resolvedRelayHttpUrl(), uuid, hash);
+      const answer = await patchRoomAccess(
+        this.appPrefs.resolvedRelayHttpUrl(),
+        uuid,
+        hash,
+        caller,
+      );
 
       // Only while the session is still the one this was for. If it was left
       // in the meantime there is nothing here to show it on, or to reconnect.
@@ -145,8 +164,8 @@ export class SessionAccessService {
       // the session is kept by its UUID, not by its being open here.
       await this.remember(uuid, hash);
       return 'applied';
-    } catch {
-      return 'failed';
+    } catch (err) {
+      return relayRefusalReason(err) === 'not-host' ? 'not-host' : 'failed';
     } finally {
       if (this.docService.sessionEpoch() === epoch) this.savingSignal.set(false);
     }

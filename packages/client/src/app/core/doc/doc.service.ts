@@ -16,11 +16,13 @@ import {
   UNBOUND_SESSION_COMMANDS,
   type AgendaItem,
   type DocProjection,
+  type HandoffResult,
   type JoinRejectionReason,
   type LiveSession,
   type LiveSessionRoom,
   type LiveSessionSeed,
   type Meta,
+  type ParticipantCaller,
   type ParticipantSnapshot,
   type PatchRoundDescriptorInit,
   type PublicSettingsPatch,
@@ -45,6 +47,11 @@ export interface OpenSessionInit {
   readonly room: LiveSessionRoom;
   /** Also the device id the connection presents to the relay. */
   readonly participantId: string;
+  /**
+   * This device's key for the room (`ParticipantIdService.participantKeyFor`, ADR-0059). Rides
+   * on every handshake, and proves this peer on an access change or a handoff. Never logged.
+   */
+  readonly participantKey: string;
   readonly displayName: string;
   /** Pre-validated by `AvatarColorService`, so peers see it from the first snapshot (ADR-0043). */
   readonly avatarColor?: string;
@@ -77,6 +84,8 @@ export class DocService {
 
   /** `null` before {@link open} and after {@link teardown}. */
   private live: LiveSession | null = null;
+  /** Who the session held proves to be on the relay's HTTP routes. */
+  private caller: ParticipantCaller | null = null;
   private persistence: IndexeddbPersistence | null = null;
   private readonly projection: WritableSignal<DocProjection | null> = signal<DocProjection | null>(
     null,
@@ -252,6 +261,7 @@ export class DocService {
 
     try {
       this.live = this.openLive(init);
+      this.caller = { participantId: init.participantId, pk: init.participantKey };
     } catch (err) {
       // Nothing half-open is left to look connected.
       this.teardown();
@@ -269,6 +279,7 @@ export class DocService {
       room: init.room,
       credentials: {
         deviceId: init.participantId,
+        participantKey: init.participantKey,
         ...(init.passwordHash !== undefined && { passwordHash: init.passwordHash }),
       },
       self: {
@@ -324,6 +335,7 @@ export class DocService {
     this.persistence = null;
     this.live?.teardown();
     this.live = null;
+    this.caller = null;
     this.projection.set(null);
     this.onlineParticipantIdsSignal.set(new Set());
     this.roomCodeSignal.set(null);
@@ -347,6 +359,24 @@ export class DocService {
 
   updateRoundDescriptor(roundId: string, fields: PatchRoundDescriptorInit): void {
     this.requireLive('updateRoundDescriptor').updateRoundDescriptor(roundId, fields);
+  }
+
+  /**
+   * Who this peer is to the relay for the session held, and its key for the room: what a keyed
+   * access change sends (ADR-0059). `null` with no session.
+   */
+  accessCaller(): ParticipantCaller | null {
+    return this.caller;
+  }
+
+  /**
+   * Hand the host role to `targetId`, relay first (ADR-0059): the doc changes only once the relay
+   * has moved its access holder, so the two never name different hosts. Resolves with why not
+   * otherwise; never rejects.
+   */
+  async handoffHost(targetId: string): Promise<HandoffResult> {
+    if (this.live === null) return { applied: false, reason: 'not-found' };
+    return this.live.handoffHost(targetId);
   }
 
   /**

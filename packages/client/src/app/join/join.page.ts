@@ -560,9 +560,11 @@ export class JoinPage {
       relayAnswered = true;
 
       // Step 2: connect with credentials.
-      const [displayName, participantId] = await Promise.all([
+      const [displayName, participantId, participantKey] = await Promise.all([
         this.displayNameService.getDisplayName(),
         this.participantIdService.getOrCreateId(),
+        // This device's key for the room: it proves this peer to the relay (ADR-0059).
+        this.participantIdService.participantKeyFor(uuid),
       ]);
 
       const passwordHash = this.needsPassword()
@@ -574,6 +576,7 @@ export class JoinPage {
       this.docService.open({
         room: { uuid, code },
         participantId,
+        participantKey,
         displayName: displayName ?? '',
         ...(avatarColor && { avatarColor }),
         ...(passwordHash !== undefined && { passwordHash }),
