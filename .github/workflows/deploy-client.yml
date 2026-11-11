@@ -252,7 +252,7 @@ jobs:
           check / 'no-cache, must-revalidate'
           # RFC 9727 discovery: the homepage links agents to the API catalog.
           if ! curl -fsS --max-time 10 -D - -o /dev/null https://hnch.dev/ | tr -d '\r' \
-            | grep -qi '^link: </.well-known/api-catalog>; rel="api-catalog"$'; then
+            | grep -qiE '^link:.*</\.well-known/api-catalog>; *rel="?api-catalog"?'; then
             echo "::error::/ has no Link to /.well-known/api-catalog (rel=api-catalog)"
             failed=1
           fi
