@@ -60,6 +60,8 @@ describe('.well-known/api-catalog (RFC 9727)', () => {
       'Content-Type: application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"',
     );
     expect(block).toContain('Link: </.well-known/api-catalog>; rel="api-catalog"');
+    expect(block).toContain('Access-Control-Allow-Origin: *');
+    expect(headers).toMatch(/^\/openapi\.json\n {2}Access-Control-Allow-Origin: \*$/mu);
   });
 });
 

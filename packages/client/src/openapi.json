@@ -5,10 +5,19 @@
     "version": "1",
     "summary": "Create, find and protect pointing poker rooms on hnch.dev.",
     "description": "The HTTP surface of the hnch relay. A room's live state (votes, participants) is not here: it syncs as a Yjs document over the WebSocket at /ws/{uuid}. Human-readable guide: https://github.com/IIxauII/hnch/blob/main/docs/api.md",
-    "license": { "name": "MIT", "identifier": "MIT" }
+    "license": {
+      "name": "MIT",
+      "identifier": "MIT"
+    }
   },
-  "externalDocs": { "url": "https://github.com/IIxauII/hnch/blob/main/docs/api.md" },
-  "servers": [{ "url": "https://hnch.dev" }],
+  "externalDocs": {
+    "url": "https://github.com/IIxauII/hnch/blob/main/docs/api.md"
+  },
+  "servers": [
+    {
+      "url": "https://hnch.dev"
+    }
+  ],
   "security": [],
   "paths": {
     "/health": {
@@ -19,7 +28,11 @@
           "200": {
             "description": "The relay is up.",
             "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/Health" } }
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
             }
           }
         }
@@ -29,7 +42,7 @@
       "post": {
         "operationId": "createRoom",
         "summary": "Create a room",
-        "description": "Answers a fresh room UUID and its 6-character join code. Rate-limited per IP; a burst answers 429.",
+        "description": "Answers a fresh room UUID and its 6-character join code. Send {}: to protect the room, PATCH /rooms/{uuid}/access afterwards, because the password hash is salted with the UUID this call answers. Rate-limited per IP; a burst answers 429.",
         "requestBody": {
           "required": false,
           "content": {
@@ -37,7 +50,10 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "passwordHash": { "$ref": "#/components/schemas/PasswordHash" }
+                  "passwordHash": {
+                    "description": "Accepted, but no client can salt it correctly before the room exists; use PATCH /rooms/{uuid}/access instead.",
+                    "$ref": "#/components/schemas/PasswordHash"
+                  }
                 }
               }
             }
@@ -47,15 +63,25 @@
           "201": {
             "description": "Room created.",
             "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/MintedRoom" } }
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MintedRoom"
+                }
+              }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "429": {
             "description": "Too many rooms created from this IP; retry after a few seconds."
           },
-          "500": { "$ref": "#/components/responses/InternalError" },
-          "503": { "$ref": "#/components/responses/Unavailable" }
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
         }
       }
     },
@@ -69,7 +95,9 @@
             "in": "path",
             "required": true,
             "description": "The join code; case and separators are normalised.",
-            "schema": { "type": "string" },
+            "schema": {
+              "type": "string"
+            },
             "example": "K7M2QX"
           }
         ],
@@ -77,11 +105,22 @@
           "200": {
             "description": "The room behind the code.",
             "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/ResolvedRoom" } }
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedRoom"
+                }
+              }
             }
           },
-          "404": { "$ref": "#/components/responses/UnknownRoom" },
-          "503": { "$ref": "#/components/responses/Unavailable" }
+          "404": {
+            "$ref": "#/components/responses/UnknownRoom"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
         }
       }
     },
@@ -89,7 +128,11 @@
       "patch": {
         "operationId": "setRoomAccess",
         "summary": "Set or clear a room's password",
-        "parameters": [{ "$ref": "#/components/parameters/RoomUuid" }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RoomUuid"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -99,7 +142,14 @@
                 "properties": {
                   "passwordHash": {
                     "description": "The new password's hash, or null to make the room open.",
-                    "oneOf": [{ "$ref": "#/components/schemas/PasswordHash" }, { "type": "null" }]
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/PasswordHash"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 }
               }
@@ -114,14 +164,27 @@
                 "schema": {
                   "type": "object",
                   "required": ["accessMode"],
-                  "properties": { "accessMode": { "$ref": "#/components/schemas/AccessMode" } }
+                  "properties": {
+                    "accessMode": {
+                      "$ref": "#/components/schemas/AccessMode"
+                    }
+                  }
                 }
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "404": { "$ref": "#/components/responses/UnknownRoom" },
-          "503": { "$ref": "#/components/responses/Unavailable" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/UnknownRoom"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
         }
       }
     },
@@ -129,30 +192,49 @@
       "get": {
         "operationId": "syncRoom",
         "summary": "Join a room's live session (WebSocket upgrade)",
-        "description": "A y-websocket sync connection to the room's Yjs document. A refused join after the upgrade closes the socket with a code from 4001 to 4010 (4001 unknown room, 4002 wrong password, 4006 room full, 4010 malformed credentials).",
+        "description": "A y-websocket sync connection to the room's Yjs document. A join refused after the upgrade closes the socket with a code in 4000-4099: 4002 wrong password, 4006 room full. The reasons are JOIN_REJECTION_CLOSE_CODES in packages/shared/src/auth.ts. An unknown room is refused before the upgrade, with a 404.",
         "parameters": [
-          { "$ref": "#/components/parameters/RoomUuid" },
+          {
+            "$ref": "#/components/parameters/RoomUuid"
+          },
           {
             "name": "did",
             "in": "query",
-            "required": true,
-            "description": "The joining device's id.",
-            "schema": { "type": "string" }
+            "required": false,
+            "description": "The joining device's id. Clients send it; the relay does not read it.",
+            "schema": {
+              "type": "string"
+            }
           },
           {
             "name": "pw",
             "in": "query",
             "required": false,
             "description": "The room password's hash; required when the room's accessMode is password.",
-            "schema": { "$ref": "#/components/schemas/PasswordHash" }
+            "schema": {
+              "$ref": "#/components/schemas/PasswordHash"
+            }
           }
         ],
         "responses": {
-          "101": { "description": "Upgraded to a WebSocket." },
-          "400": { "description": "The room has a password and no pw was given." },
-          "404": { "description": "No such room." },
-          "426": { "description": "The request was not a WebSocket upgrade." },
-          "503": { "$ref": "#/components/responses/Unavailable" }
+          "101": {
+            "description": "Upgraded to a WebSocket."
+          },
+          "400": {
+            "description": "The room has a password and no pw was given."
+          },
+          "404": {
+            "description": "No such room, or it has ended."
+          },
+          "426": {
+            "description": "The request was not a WebSocket upgrade."
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
         }
       }
     }
@@ -164,7 +246,10 @@
         "in": "path",
         "required": true,
         "description": "The room's UUID, as POST /rooms or GET /rooms/{code} answered it.",
-        "schema": { "type": "string", "format": "uuid" }
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
       }
     },
     "schemas": {
@@ -172,7 +257,9 @@
         "type": "object",
         "required": ["status", "version"],
         "properties": {
-          "status": { "const": "ok" },
+          "status": {
+            "const": "ok"
+          },
           "version": {
             "type": "string",
             "description": "The deployed relay release.",
@@ -184,7 +271,10 @@
         "type": "object",
         "required": ["uuid", "code"],
         "properties": {
-          "uuid": { "type": "string", "format": "uuid" },
+          "uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
           "code": {
             "type": "string",
             "description": "The 6-character join code people type.",
@@ -196,8 +286,13 @@
         "type": "object",
         "required": ["uuid", "accessMode"],
         "properties": {
-          "uuid": { "type": "string", "format": "uuid" },
-          "accessMode": { "$ref": "#/components/schemas/AccessMode" }
+          "uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accessMode": {
+            "$ref": "#/components/schemas/AccessMode"
+          }
         }
       },
       "AccessMode": {
@@ -214,8 +309,12 @@
         "type": "object",
         "required": ["error"],
         "properties": {
-          "error": { "type": "string" },
-          "detail": { "type": "string" }
+          "error": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          }
         }
       }
     },
@@ -224,7 +323,9 @@
         "description": "The body is not JSON, is over 4 KiB, or holds an invalid passwordHash.",
         "content": {
           "application/json": {
-            "schema": { "$ref": "#/components/schemas/Error" },
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
             "example": {
               "error": "bad-request",
               "detail": "passwordHash must be a 64-character hex string"
@@ -239,7 +340,11 @@
             "schema": {
               "type": "object",
               "required": ["reason"],
-              "properties": { "reason": { "const": "unknown-room" } }
+              "properties": {
+                "reason": {
+                  "const": "unknown-room"
+                }
+              }
             }
           }
         }
@@ -248,8 +353,12 @@
         "description": "A transient platform failure; retry. Never means the room is gone.",
         "content": {
           "application/json": {
-            "schema": { "$ref": "#/components/schemas/Error" },
-            "example": { "error": "unavailable" }
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": "unavailable"
+            }
           }
         }
       },
@@ -257,8 +366,12 @@
         "description": "An unexpected relay error.",
         "content": {
           "application/json": {
-            "schema": { "$ref": "#/components/schemas/Error" },
-            "example": { "error": "internal-error" }
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": "internal-error"
+            }
           }
         }
       }

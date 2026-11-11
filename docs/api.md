@@ -6,7 +6,7 @@ The HTTP API of the hnch relay at `https://hnch.dev`, for anyone building a clie
 - **Discovery:** [`https://hnch.dev/.well-known/api-catalog`](https://hnch.dev/.well-known/api-catalog) lists this API per [RFC 9727](https://www.rfc-editor.org/rfc/rfc9727).
 - **Status:** `GET https://hnch.dev/health` answers `{"status":"ok","version":"…"}`.
 
-No account or API key is needed. Every response allows any origin (CORS).
+No account or API key is needed. Every API response, the spec and the catalog allow any origin (CORS).
 
 ## How a client joins a session
 
@@ -14,7 +14,7 @@ No account or API key is needed. Every response allows any origin (CORS).
 2. **Find a room by its code:** `GET /rooms/{code}` → `200 {"uuid", "accessMode"}`, or `404 {"reason":"unknown-room"}` when the session has ended.
 3. **Join:** open a WebSocket to `wss://hnch.dev/ws/{uuid}?did={deviceId}` (add `&pw={passwordHash}` for a password room) and sync the room's Yjs document with the y-websocket protocol. The document's shape is in [`schema.md`](schema.md).
 
-A refused join closes the socket with a code from 4001 to 4010, for example 4001 for an unknown room, 4002 for a wrong password and 4006 for a full room. The full list is `JOIN_REJECTION_CLOSE_CODES` in [`packages/shared/src/auth.ts`](../packages/shared/src/auth.ts).
+An unknown or ended room is refused before the upgrade with a `404`. A join refused after it (wrong password, full room) closes the socket with a code from `JOIN_REJECTION_CLOSE_CODES` in [`packages/shared/src/auth.ts`](../packages/shared/src/auth.ts).
 
 ## Passwords
 

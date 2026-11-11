@@ -1,7 +1,7 @@
 {
   "linkset": [
     {
-      "anchor": "https://hnch.dev/rooms",
+      "anchor": "https://hnch.dev/",
       "service-desc": [
         {
           "href": "https://hnch.dev/openapi.json",

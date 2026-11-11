@@ -189,7 +189,7 @@ export function wwwReport(wwwDir, srcDir) {
     const built = resolve(wwwDir, name);
     const source = resolve(srcDir, name);
     if (!existsSync(built)) {
-      problems.push(`${wwwDir} has no ${name} at its root`);
+      problems.push(`${wwwDir} has no ${name}`);
     } else if (readFileSync(built, 'utf8') !== readFileSync(source, 'utf8')) {
       problems.push(`${wwwDir}/${name} differs from ${source}`);
     }
