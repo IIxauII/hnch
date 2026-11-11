@@ -10,6 +10,7 @@ This is the Markdown version of <https://hnch.dev>, for clients that ask for `te
 
 - **In a browser:** open <https://hnch.dev>, choose a nickname, then start a new session or join one with its session code.
 - **In a terminal** (Node.js 22 or later): `npx @xauyxau/hnch create` starts a session with you as host. `npx @xauyxau/hnch join K7P9MR` joins one by its code. `npm i -g @xauyxau/hnch` installs the client as `hnch`. The first run asks for a display name.
+- **For agents in a browser:** the app registers WebMCP tools on page load: `get_session_state`, `list_recent_sessions`, `join_session`, `cast_vote` and `open_page`. Votes still hidden in a round stay hidden from them.
 - **Invite links** look like `https://hnch.dev/join?code=K7P9MR`: the `code` parameter is the session code. Open the link in a browser, or pass the code to `hnch join`. The pages of a running session (`/lobby/K7P9MR`, `/estimating/K7P9MR`) carry the code in the path.
 
 A session code is 6 characters, uppercase letters and digits without the look-alikes 0, O, 1, I and L. It is shown with a dash (`K7P-9MR`) and accepted with or without it, in any case.
