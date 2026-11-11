@@ -51,6 +51,11 @@
                 "output": "/"
               },
               {
+                "glob": "auth.md",
+                "input": "src",
+                "output": "/"
+              },
+              {
                 "glob": "openapi.json",
                 "input": "src",
                 "output": "/"

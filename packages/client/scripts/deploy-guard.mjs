@@ -63,8 +63,9 @@ export const WORKER_FIRST = ['/*', '!/*.*'];
 /**
  * Files angular.json copies from src to the root of www, which the build must
  * carry unchanged: `_headers` configures hnch-web's caching, without
- * `robots.txt` or `sitemap.xml` crawlers get the SPA's index.html, and without
- * `index.md` Markdown requests quietly get the HTML (worker/index.ts).
+ * `robots.txt` or `sitemap.xml` crawlers get the SPA's index.html, without
+ * `index.md` Markdown requests quietly get the HTML (worker/index.ts), and
+ * without `auth.md` an agent asking how to get in gets the HTML too.
  * `.well-known/api-catalog` (RFC 9727) and the `openapi.json` it links to
  * would otherwise also answer the SPA's index.html, which agents read as no
  * API.
@@ -74,6 +75,7 @@ export const ROOT_FILES = [
   'robots.txt',
   'sitemap.xml',
   'index.md',
+  'auth.md',
   'openapi.json',
   '.well-known/api-catalog',
 ];
