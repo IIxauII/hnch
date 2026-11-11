@@ -88,6 +88,9 @@ describe('hnch-web Worker', () => {
     const response = await worker.fetch(get('/', AGENT, 'HEAD'), fakeAssets().env);
     expect(response.headers.get('content-type')).toBe('text/markdown; charset=utf-8');
     expect(response.headers.get('x-markdown-tokens')).toBe(String(markdownTokens(MARKDOWN)));
+    expect(response.headers.get('content-length')).toBe(
+      String(new TextEncoder().encode(MARKDOWN).byteLength),
+    );
     expect(response.body).toBeNull();
   });
 
@@ -159,5 +162,17 @@ describe('index.md', () => {
   it('uses a valid example session code, in its displayed form too', () => {
     expect(isValidRoomCode('K7P9MR')).toBe(true);
     expect(MARKDOWN).toContain(`\`${formatRoomCode('K7P9MR')}\``);
+  });
+
+  it('states the code length and exactly the letters and digits the code leaves out', () => {
+    expect(MARKDOWN).toContain(
+      'A session code is 6 characters, uppercase letters and digits without the look-alikes 0, O, 1, I and L.',
+    );
+    expect(isValidRoomCode('K7P9M')).toBe(false);
+    expect(isValidRoomCode('K7P9MRX')).toBe(false);
+    const excluded = new Set('0O1IL');
+    for (const c of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789') {
+      expect(isValidRoomCode(`K7P9M${c}`)).toBe(!excluded.has(c));
+    }
   });
 });

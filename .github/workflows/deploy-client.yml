@@ -1,8 +1,9 @@
 name: Deploy client (PWA)
 
 # Triggered when semantic-release cuts a `client-vX.Y.Z` tag (see release.yml).
-# Builds the production PWA once, then deploys it to hnch-web, an assets-only
-# Worker on Workers Static Assets (ADR-0051). Its hnch.dev/* route is inert
+# Builds the production PWA once, then deploys it to hnch-web: Workers Static
+# Assets (ADR-0051), with a Worker on page paths that answers Markdown to
+# agents (ADR-0058); files never run it. Its hnch.dev/* route is inert
 # until the switch (repo variable HNCH_LIVE != 'true'), so before it the job
 # only checks the deploy took. The IONOS VPS gets no deploys (ADR-0054).
 # Topology, release flow, rollback: docs/deployment.md.
@@ -250,14 +251,22 @@ jobs:
               failed=1
             fi
           }
-          # An agent asking for Markdown gets it (ADR-0058); the HTML check
-          # above already sent the default Accept.
-          md_type="$(curl -fsS --max-time 10 -D - -o /dev/null -H 'Accept: text/markdown' \
-            https://hnch.dev/ | tr -d '\r' | grep -i '^content-type:' | sed 's/^[^:]*: *//')"
-          if [ "${md_type}" != 'text/markdown; charset=utf-8' ]; then
-            echo "::error::/ with Accept: text/markdown answers '${md_type}', expected text/markdown"
-            failed=1
-          fi
+          # An agent asking for Markdown gets it on the root and on a deep link,
+          # which only run_worker_first's glob sends to the Worker (ADR-0058).
+          # The HTML check above already sent the default Accept.
+          for path in / /lobby/x; do
+            md="$(curl -fsS --max-time 10 -D - -o /dev/null -H 'Accept: text/markdown' \
+              "https://hnch.dev${path}" | tr -d '\r')"
+            md_type="$(printf '%s\n' "${md}" | grep -i '^content-type:' | sed 's/^[^:]*: *//')"
+            if [ "${md_type}" != 'text/markdown; charset=utf-8' ]; then
+              echo "::error::${path} with Accept: text/markdown answers '${md_type}', expected text/markdown"
+              failed=1
+            fi
+            if ! printf '%s\n' "${md}" | grep -qiE '^vary:(.*[ ,])?accept *(,|$)'; then
+              echo "::error::${path} Markdown answer lacks Vary: Accept"
+              failed=1
+            fi
+          done
           check / 'no-cache, must-revalidate'
           check /lobby/x 'no-cache, must-revalidate'
           check /3rdpartylicenses.txt 'no-cache, must-revalidate'

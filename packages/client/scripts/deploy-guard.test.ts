@@ -78,12 +78,21 @@ describe('configProblems', () => {
     }
   });
 
-  it('refuses Workers Logs, which would record room codes from page URLs', () => {
+  it('refuses every sink that would record room codes from page URLs', () => {
     expect(configProblems(omit(prod, 'observability'))).toHaveLength(1);
     expect(configProblems({ ...prod, observability: { enabled: true } })).toHaveLength(1);
     expect(
       configProblems({ ...prod, observability: { enabled: false, logs: { enabled: true } } }),
     ).toHaveLength(1);
+    expect(
+      configProblems({ ...prod, observability: { enabled: false, traces: { enabled: true } } }),
+    ).toHaveLength(1);
+    expect(configProblems({ ...prod, logpush: true })).toHaveLength(1);
+    expect(configProblems({ ...prod, tail_consumers: [{ service: 'tap' }] })).toHaveLength(1);
+    expect(
+      configProblems({ ...prod, streaming_tail_consumers: [{ service: 'tap' }] }),
+    ).toHaveLength(1);
+    expect(configProblems({ ...prod, logpush: false, tail_consumers: [] })).toEqual([]);
   });
 
   it('refuses assets other than www with SPA fallback', () => {

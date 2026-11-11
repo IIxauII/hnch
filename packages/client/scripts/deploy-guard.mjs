@@ -69,7 +69,14 @@ export const WORKER_FIRST = ['/*', '!/*.*'];
  *   routes?: (RouteConfig | string)[],
  *   workers_dev?: boolean,
  *   preview_urls?: boolean,
- *   observability?: { enabled?: boolean, logs?: { enabled?: boolean } },
+ *   observability?: {
+ *     enabled?: boolean,
+ *     logs?: { enabled?: boolean },
+ *     traces?: { enabled?: boolean },
+ *   },
+ *   logpush?: boolean,
+ *   tail_consumers?: unknown[],
+ *   streaming_tail_consumers?: unknown[],
  *   assets?: {
  *     directory?: string,
  *     binding?: string,
@@ -99,9 +106,18 @@ export function configProblems(config) {
   if (entry !== WORKER_MAIN) {
     problems.push(`main must be ${WORKER_MAIN}, is ${JSON.stringify(config.main)}`);
   }
-  // Page URLs carry room codes; nothing may log them.
-  if (config.observability?.enabled !== false || config.observability.logs?.enabled === true) {
-    problems.push('observability.enabled must be false, with no logs override');
+  // Page URLs carry room codes; nothing may record them.
+  const observability = config.observability;
+  if (
+    observability?.enabled !== false ||
+    observability.logs?.enabled === true ||
+    observability.traces?.enabled === true
+  ) {
+    problems.push('observability.enabled must be false, with no logs or traces override');
+  }
+  if (config.logpush === true) problems.push('logpush must not be set');
+  for (const sink of /** @type {const} */ (['tail_consumers', 'streaming_tail_consumers'])) {
+    if ((config[sink] ?? []).length > 0) problems.push(`${sink} must not be set`);
   }
   const assets = config.assets;
   if (assets === undefined) {

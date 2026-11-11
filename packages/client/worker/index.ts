@@ -44,10 +44,13 @@ async function markdownResponse(request: Request, env: Env): Promise<Response | 
   const headers = new Headers(asset.headers);
   headers.set('content-type', 'text/markdown; charset=utf-8');
   headers.set('x-markdown-tokens', String(markdownTokens(markdown)));
-  // Validators and length belong to /index.md, not to this URL's variant.
+  // Validators belong to /index.md, not to this URL's variant.
   for (const name of ['etag', 'last-modified', 'content-length']) headers.delete(name);
   headers.append('vary', 'Accept');
-  return new Response(request.method === 'HEAD' ? null : markdown, { status: 200, headers });
+  if (request.method !== 'HEAD') return new Response(markdown, { status: 200, headers });
+  // A body sets its own length; HEAD has none, so state the GET's.
+  headers.set('content-length', String(new TextEncoder().encode(markdown).byteLength));
+  return new Response(null, { status: 200, headers });
 }
 
 /** The assets' response, with `Vary: Accept` added. */
