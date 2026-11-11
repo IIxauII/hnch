@@ -58,7 +58,7 @@ function agendaRefusal(reason: Extract<AgendaResult, { applied: false }>['reason
 }
 
 async function openAgendaSession(opts: OpenSessionOptions): Promise<SessionHandle> {
-  const session = openSession(opts);
+  const session = await openSession(opts);
 
   // Act once the room's state has arrived. A socket that is merely open has
   // not delivered it yet; a relay that never answers must not hang the command.
@@ -118,6 +118,7 @@ export async function handleAgendaAdd(argv: {
   const session = await openAgendaSession({
     relayUrl: config.relayUrl,
     participantId: config.participantId,
+    deviceKey: config.deviceKey,
     displayName: config.displayName,
     roomCode: cached.roomCode,
     roomUuid: cached.roomUuid,
@@ -159,6 +160,7 @@ export async function handleAgendaList(): Promise<void> {
   const session = await openAgendaSession({
     relayUrl: config.relayUrl,
     participantId: config.participantId,
+    deviceKey: config.deviceKey,
     displayName: config.displayName,
     roomCode: cached.roomCode,
     roomUuid: cached.roomUuid,
@@ -194,6 +196,7 @@ export async function handleAgendaSkip(argv: { id: string }): Promise<void> {
   const session = await openAgendaSession({
     relayUrl: config.relayUrl,
     participantId: config.participantId,
+    deviceKey: config.deviceKey,
     displayName: config.displayName,
     roomCode: cached.roomCode,
     roomUuid: cached.roomUuid,
@@ -229,6 +232,7 @@ export async function handleAgendaCancel(argv: { id: string }): Promise<void> {
   const session = await openAgendaSession({
     relayUrl: config.relayUrl,
     participantId: config.participantId,
+    deviceKey: config.deviceKey,
     displayName: config.displayName,
     roomCode: cached.roomCode,
     roomUuid: cached.roomUuid,
@@ -268,6 +272,7 @@ export async function handleAgendaMv(argv: {
   const session = await openAgendaSession({
     relayUrl: config.relayUrl,
     participantId: config.participantId,
+    deviceKey: config.deviceKey,
     displayName: config.displayName,
     roomCode: cached.roomCode,
     roomUuid: cached.roomUuid,

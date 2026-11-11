@@ -73,6 +73,23 @@ A connection that drops is retried. One the relay refuses for good ends the sess
 
 What is forgotten is the one session, never the others this device remembers. The same goes for leaving a session and for a session that ends.
 
+### Changing access and handing off
+
+Only the host can change a room's password or hand host to someone else, and the relay checks it, not just the doc (ADR-0059). The CLI proves who it is with its **device key**: 32 random bytes kept as `deviceKey` in `config.json`, generated on first run (or the first run after an upgrade) and never shown or logged. From it the CLI derives the room's participant key and sends it on every connection, including `hnch resume` and `hnch agenda`, and with every access change and handoff. `hnch create` makes the creator the room's access holder, so `hnch create --password` sets the password before the session opens.
+
+Copying `config.json` to another machine copies the key with it. A device with the same `participantId` but another key is not the host to the relay.
+
+The access entry in Settings (`E`) is offered to the host only, and closes if the host role is lost while it is open. A handoff (`H`) asks the relay first and changes the doc only once the relay agrees. A refusal leaves the host as it was and prints why:
+
+| The relay says | The CLI prints |
+|---|---|
+| This participant is not the access holder (an access change) | `Failed to update access: Only the host can change the password` |
+| This participant is not the access holder (a handoff) | `Handoff failed: only the current host can hand off` |
+| The key is missing or wrong, or the id never joined | `… the relay did not accept this device as the host` |
+| The target is not connected with a proven key | `Handoff failed: the relay cannot hand host to that participant` |
+| The room is gone | `Handoff failed: the relay no longer knows this room` |
+| No answer | `Handoff failed: the relay could not be reached` |
+
 ### `hnch resume`
 
 Rejoins the most recent session from the last-session cache (`~/.config/hnch/last-session.json`). Exits cleanly if the session is no longer active on the relay.
@@ -136,7 +153,7 @@ The CLI is keyboard-driven end to end via Ink's input handling.
 
 ## Protocol parity
 
-The CLI uses the same `@hnch/shared` Yjs doc schema, the same `hashPassword()` function, and the same relay WebSocket handshake (`GET /rooms/:code` → `WS /ws/:uuid?did=...&pw=...`) as the mobile client. There is no feature delta in core session behavior: rounds (ADR-0013), voting and reveal (ADR-0018, ADR-0020), host election (ADR-0010), session end (ADR-0023), removal by the host (ADR-0036 §5), host-change notices, and access control (ADR-0009, ADR-0017) all behave identically, because both surfaces run the same shared drivers and command set. Both run them through the shared live session (`live-session` in `@hnch/shared`: the doc, presence, the relay connection, the drivers and the command set). One delta remains: `Q` disconnects without writing a `leave`, so peers see the CLI as offline rather than gone (ADR-0036 Trade-offs).
+The CLI uses the same `@hnch/shared` Yjs doc schema, the same `hashPassword()` function, and the same relay WebSocket handshake (`GET /rooms/:code` → `WS /ws/:uuid?did=...&pk=...&pw=...`) as the mobile client. There is no feature delta in core session behavior: rounds (ADR-0013), voting and reveal (ADR-0018, ADR-0020), host election (ADR-0010), session end (ADR-0023), removal by the host (ADR-0036 §5), host-change notices, and access control (ADR-0009, ADR-0017, ADR-0059) all behave identically, because both surfaces run the same shared drivers and command set. Both run them through the shared live session (`live-session` in `@hnch/shared`: the doc, presence, the relay connection, the drivers and the command set). One delta remains: `Q` disconnects without writing a `leave`, so peers see the CLI as offline rather than gone (ADR-0036 Trade-offs).
 
 Scale customization (preset overrides, custom scales) is persisted in `config.json` under `presetOverrides` and `customScales` keys, matching the `PresetOverrides` / `CustomScale` types from `@hnch/shared` (ADR-0019).
 

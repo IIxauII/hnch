@@ -96,6 +96,7 @@ async function handleCreate(argv: {
 
   const session = await createSession({
     participantId: config.participantId,
+    deviceKey: config.deviceKey,
     displayName: config.displayName,
     relayUrl: config.relayUrl,
     sessionName: resolvedName,
@@ -162,6 +163,7 @@ async function handleJoin(argv: { code: string; password?: boolean }): Promise<v
 
   const session = await joinSession({
     participantId: config.participantId,
+    deviceKey: config.deviceKey,
     displayName: config.displayName,
     relayUrl: config.relayUrl,
     roomCode: code,
@@ -262,8 +264,9 @@ async function resumeEntry(
 
   // `hnch resume` is a join like `hnch join`: if this participant left the
   // room earlier, the first sync clears the `leftAt` it carries (ADR-0036 §6).
-  const session = openSession({
+  const session = await openSession({
     participantId: config.participantId,
+    deviceKey: config.deviceKey,
     displayName: config.displayName,
     relayUrl: config.relayUrl,
     roomCode: entry.roomCode,

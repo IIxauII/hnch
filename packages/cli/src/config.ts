@@ -1,9 +1,9 @@
 /**
  * Persistent CLI config stored at `~/.config/hnch/config.json`.
  *
- * Holds the device identity (participantId), display name, and relay
- * URL. On first run, generates a stable participantId and prompts for
- * a display name via stdin.
+ * Holds the device identity (participantId and its device key), display
+ * name, and relay URL. On first run, generates a stable participantId and
+ * device key, and prompts for a display name via stdin.
  *
  * Respects `XDG_CONFIG_HOME` if set; otherwise falls back to
  * `~/.config`. `HNCH_RELAY_URL` env var overrides the stored relay URL.
@@ -12,7 +12,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
 import {
   deterministicAvatarColor,
@@ -23,6 +23,12 @@ import {
 
 export interface CliConfig {
   participantId: string;
+  /**
+   * This device's secret (ADR-0059): 32 random bytes as 64 lowercase hex
+   * chars, from which each room's participant key is derived. Generated once,
+   * next to `participantId`, and never shown or logged.
+   */
+  deviceKey: string;
   displayName: string;
   relayUrl: string;
   defaultScale?: string | undefined;
@@ -41,6 +47,8 @@ export interface CliConfig {
 // Production relay (http scheme for Node.js fetch; ws scheme derived in sync.ts).
 // Override with HNCH_RELAY_URL env var or `hnch config --relay-url`.
 const DEFAULT_RELAY_URL = 'https://hnch.dev';
+
+const DEVICE_KEY_PATTERN = /^[0-9a-f]{64}$/;
 
 export function configDir(): string {
   const xdg = process.env['XDG_CONFIG_HOME'];
@@ -110,6 +118,13 @@ export async function loadConfig(): Promise<CliConfig> {
     changed = true;
   }
 
+  // Configs from before ADR-0059 have none. A malformed one derives no key, so
+  // it is replaced too.
+  if (!stored.deviceKey || !DEVICE_KEY_PATTERN.test(stored.deviceKey)) {
+    stored.deviceKey = randomBytes(32).toString('hex');
+    changed = true;
+  }
+
   if (!stored.displayName) {
     const name = await promptLine('Enter your display name: ');
     stored.displayName = name || `user-${stored.participantId.slice(0, 6)}`;
@@ -138,6 +153,7 @@ export async function loadConfig(): Promise<CliConfig> {
 
   return {
     participantId: stored.participantId!,
+    deviceKey: stored.deviceKey,
     displayName: stored.displayName!,
     relayUrl,
     defaultScale: stored.defaultScale,

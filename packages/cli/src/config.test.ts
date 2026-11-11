@@ -249,6 +249,37 @@ describe('loadConfig', () => {
     expect(cfg.avatarColor).toBeDefined();
   });
 
+  it('gives an existing config a device key once, and reuses it on every later run (ADR-0059)', async () => {
+    writeFullConfig();
+    const cfg = await loadConfig();
+    expect(cfg.deviceKey).toMatch(/^[0-9a-f]{64}$/);
+    expect(cfg.participantId).toBe('test-pid-abc123');
+    expect(readConfig().deviceKey).toBe(cfg.deviceKey);
+
+    const cfg2 = await loadConfig();
+    expect(cfg2.deviceKey).toBe(cfg.deviceKey);
+  });
+
+  it('gives each new device its own key', async () => {
+    const first = await loadConfig();
+    rmSync(join(tmpBase, 'hnch'), { recursive: true, force: true });
+    const second = await loadConfig();
+    expect(second.deviceKey).not.toBe(first.deviceKey);
+  });
+
+  it('keeps a stored device key unchanged', async () => {
+    const stored = '0123456789abcdef'.repeat(4);
+    writeFullConfig({ deviceKey: stored });
+    expect((await loadConfig()).deviceKey).toBe(stored);
+  });
+
+  it('replaces a malformed device key, which no room key could be derived from', async () => {
+    writeFullConfig({ deviceKey: 'NOT-HEX' });
+    const cfg = await loadConfig();
+    expect(cfg.deviceKey).toMatch(/^[0-9a-f]{64}$/);
+    expect(readConfig().deviceKey).toBe(cfg.deviceKey);
+  });
+
   it('uses the display name returned by promptLine', async () => {
     const dir = join(tmpBase, 'hnch');
     mkdirSync(dir, { recursive: true });
