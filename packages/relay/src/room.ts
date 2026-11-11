@@ -142,15 +142,18 @@ export interface RoomMeta {
 export type AccessMode = 'open' | 'password';
 export type ExpireOutcome = 'deleted' | 'gone' | 'moved' | 'live';
 
+/** ADR-0059's 401 reasons: no proof of the id, or proof but not the holder. */
+export type AccessRefusal = 'unauthenticated' | 'not-host';
+
 /** What PATCH answers; null (unknown room) is separate. */
 export type AccessAnswer =
   | { readonly accessMode: AccessMode }
-  | { readonly refused: 'unauthenticated' | 'not-host' };
+  | { readonly refused: AccessRefusal };
 
 /** What handoff answers; null (unknown room) is separate. */
 export type HandoffAnswer =
   | { readonly accessHolder: string }
-  | { readonly refused: 'unauthenticated' | 'not-host' | 'bad-target' };
+  | { readonly refused: AccessRefusal | 'bad-target' };
 
 /** Who a socket said it is (`did`) and, if it proved it with its `pk`, its bound id. */
 interface SocketIdentity {
@@ -258,7 +261,7 @@ export class Room extends DurableObject<Env> {
     const meta = await this.liveMeta();
     if (meta === null) return null;
     // Every await first; from the re-read below to the write, one synchronous block.
-    const proof = await submittedKeyDigest(meta.uuid, caller);
+    const submitted = await submittedKeyDigest(meta.uuid, caller);
     const digest = passwordHash === null ? null : await passwordDigest(meta.uuid, passwordHash);
     const current = this.loadMeta();
     if (isGone(current)) return null;
@@ -270,7 +273,7 @@ export class Room extends DurableObject<Env> {
       updated = { ...current, digest, keylessGrace: false };
     } else {
       const evaluated = this.evaluateHolder(now);
-      const refusal = this.authorise(caller, proof, evaluated);
+      const refusal = this.authorise(caller, submitted, evaluated);
       if (refusal !== null) return { refused: refusal };
       updated = { ...this.loadMeta()!, digest };
     }
@@ -286,17 +289,15 @@ export class Room extends DurableObject<Env> {
   async handoff(caller: Caller | null, target: string): Promise<HandoffAnswer | null> {
     const meta = await this.liveMeta();
     if (meta === null) return null;
-    const proof = await submittedKeyDigest(meta.uuid, caller);
+    const submitted = await submittedKeyDigest(meta.uuid, caller);
     const current = this.loadMeta();
     if (isGone(current)) return null;
     if (caller === null) return { refused: 'unauthenticated' };
     const evaluated = this.evaluateHolder(clock.now());
-    if (!keyDigestMatches(this.bindingOf(caller.participantId), proof ?? '')) {
-      return { refused: 'unauthenticated' };
-    }
-    if (evaluated.accessHolder !== caller.participantId || this.isContested(caller.participantId)) {
-      return { refused: 'not-host' };
-    }
+    const refusal =
+      this.proveCaller(caller, submitted) ??
+      (evaluated.accessHolder === caller.participantId ? null : 'not-host');
+    if (refusal !== null) return { refused: refusal };
     if (!this.isClaimable(target)) return { refused: 'bad-target' };
     this.writeMeta({ ...evaluated, accessHolder: target, holderAbsentSince: null });
     return { accessHolder: target };
@@ -720,17 +721,27 @@ export class Room extends DurableObject<Env> {
   }
 
   /**
-   * ADR-0059's PATCH checks, after {@link evaluateHolder}: key, contest, holder
-   * (or claim, which writes the new holder), doc host. Null when allowed.
+   * The checks PATCH and handoff share: the caller's key matches its binding
+   * (an unbound id compares against a dummy), and its id is not contested.
+   */
+  private proveCaller(caller: Caller, submitted: string | null): AccessRefusal | null {
+    const id = caller.participantId;
+    if (!keyDigestMatches(this.bindingOf(id), submitted ?? '')) return 'unauthenticated';
+    return this.isContested(id) ? 'not-host' : null;
+  }
+
+  /**
+   * ADR-0059's PATCH checks, after {@link evaluateHolder}: {@link proveCaller},
+   * then holder (or claim, which writes the new holder) and doc host. Null when allowed.
    */
   private authorise(
     caller: Caller,
-    proof: string | null,
+    submitted: string | null,
     meta: RoomMeta,
-  ): 'unauthenticated' | 'not-host' | null {
+  ): AccessRefusal | null {
+    const refusal = this.proveCaller(caller, submitted);
+    if (refusal !== null) return refusal;
     const id = caller.participantId;
-    if (!keyDigestMatches(this.bindingOf(id), proof ?? '')) return 'unauthenticated';
-    if (this.isContested(id)) return 'not-host';
     const host = this.docHost();
     const holder = meta.accessHolder ?? null;
     if (holder === null) {

@@ -95,7 +95,7 @@ async function route(request: Request, env: Env): Promise<Response> {
 
   const host = HOST_PATH_RE.exec(path);
   if (method === 'POST' && host !== null) {
-    return UUID_RE.test(host[1]!) ? handoffHost(host[1]!, request, env) : unknownRoom();
+    return UUID_RE.test(host[1]!) ? moveAccessHolder(host[1]!, request, env) : unknownRoom();
   }
 
   const code = CODE_PATH_RE.exec(path);
@@ -220,7 +220,7 @@ async function patchAccess(uuid: string, request: Request, env: Env): Promise<Re
 }
 
 /** ADR-0059 handoff: the access holder moves the holder to `target`. */
-async function handoffHost(uuid: string, request: Request, env: Env): Promise<Response> {
+async function moveAccessHolder(uuid: string, request: Request, env: Env): Promise<Response> {
   const body = await readJsonBody(request);
   const target = (body as Record<string, unknown> | null | undefined)?.['target'];
   if (body === undefined || typeof body !== 'object' || typeof target !== 'string') {
