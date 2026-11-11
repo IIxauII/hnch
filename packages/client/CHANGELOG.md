@@ -1,3 +1,10 @@
+# [1.50.0](https://github.com/IIxauII/hnch/compare/client-v1.49.0...client-v1.50.0) (2026-11-11)
+
+
+### Features
+
+* **client,ci,docs:** link the homepage to the API catalog ([#775](https://github.com/IIxauII/hnch/issues/775)) ([5f7367a](https://github.com/IIxauII/hnch/commit/5f7367a61ac92a31886fbd23086bf88e15204a93))
+
 # [1.49.0](https://github.com/IIxauII/hnch/compare/client-v1.48.0...client-v1.49.0) (2026-11-11)
 
 
