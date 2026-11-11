@@ -4,9 +4,10 @@
  * Joining a session and keeping it live — the doc, presence, the relay
  * connection, the drivers, the bound commands, teardown — is `@hnch/shared`'s
  * `live-session`, the same module the web client runs on. What stays here is
- * the CLI's own: minting a room, hashing a password and changing a room's
- * access (each with a terminal step between the calls), the console messages,
- * and fanning the readings out to the Ink listeners.
+ * the CLI's own: minting a room, deriving this device's key for it, hashing a
+ * password and changing a room's access (each with a terminal step between
+ * the calls), the console messages, and fanning the readings out to the Ink
+ * listeners.
  */
 
 import {
@@ -16,11 +17,15 @@ import {
   mintRoom,
   normalizePassword,
   openLiveSession,
+  participantKeyFor,
   patchRoomAccess,
+  relayRefusalReason,
   resolveRoom,
   type DocProjection,
+  type HandoffResult,
   type JoinRejectionReason,
   type LiveSessionSeed,
+  type ParticipantCaller,
   type PatchRoundDescriptorInit,
   type Round,
   type Scale,
@@ -31,9 +36,12 @@ import {
 } from '@hnch/shared';
 import WebSocket from 'ws';
 import { validatePassword } from './password-validation.js';
+import { ACCESS_REFUSAL } from './relay-refusal.js';
 
 export interface CreateSessionOptions {
   readonly participantId: string;
+  /** This device's key (ADR-0059, `CliConfig.deviceKey`). Never logged. */
+  readonly deviceKey: string;
   readonly displayName: string;
   readonly relayUrl: string;
   readonly sessionName?: string | undefined;
@@ -46,6 +54,8 @@ export interface CreateSessionOptions {
 
 export interface JoinSessionOptions {
   readonly participantId: string;
+  /** This device's key (ADR-0059, `CliConfig.deviceKey`). Never logged. */
+  readonly deviceKey: string;
   readonly displayName: string;
   readonly relayUrl: string;
   readonly roomCode: string;
@@ -76,8 +86,9 @@ export interface SessionHandle {
    * The session commands, bound to this session (#516). Every write the TUI
    * makes goes through them — or through the two patches below, which carry
    * their own gate — so every write meets its rule. Refuse once torn down.
+   * The doc-only `handoffHost` is left out: {@link handoffHost} is the one.
    */
-  readonly commands: SessionCommands;
+  readonly commands: CliSessionCommands;
 
   projection(): DocProjection;
   current(): Round | null;
@@ -99,8 +110,17 @@ export interface SessionHandle {
   updateName(name?: string): void;
   /** Update the default estimation scale. */
   updateScale(scale: Scale): void;
-  /** Update room access mode (open or password-protected). */
+  /**
+   * Update room access mode (open or password-protected). Only the host gets
+   * through (ADR-0059): anyone else is refused with
+   * "Only the host can change the password".
+   */
   updateAccess(mode: 'open' | 'password', password?: string): Promise<void>;
+  /**
+   * Hand host to `targetId`, relay first (ADR-0059): the doc changes only once
+   * the relay has moved its access holder. Never rejects; a refusal says why.
+   */
+  handoffHost(targetId: string): Promise<HandoffResult>;
 
   /** Subscribe to projection and online-set changes. Returns unsubscribe fn. */
   onChange(cb: () => void): () => void;
@@ -123,14 +143,34 @@ export interface SessionHandle {
 }
 
 export async function createSession(opts: CreateSessionOptions): Promise<SessionHandle> {
-  // Mint first: the room's UUID is the password's salt.
-  const minted = await mintRoom(opts.relayUrl);
+  // Mint first: the room's UUID is the password's salt and the key's message.
+  // A keyed create makes this device the room's access holder (ADR-0059).
+  const minted = await mintRoom(opts.relayUrl, {
+    creator: { participantId: opts.participantId, deviceKey: opts.deviceKey },
+  });
+  const caller: ParticipantCaller = {
+    participantId: opts.participantId,
+    pk: await participantKeyFor(opts.deviceKey, minted.uuid),
+  };
 
   let passwordHash: string | undefined;
   // Whitespace alone is no password: the hash would be that of nothing.
   if (opts.password !== undefined && normalizePassword(opts.password) !== '') {
     passwordHash = await hashPassword(opts.password, minted.uuid);
-    await patchRoomAccess(opts.relayUrl, minted.uuid, passwordHash);
+    // Before any socket: the relay takes it from the holder while the doc is empty.
+    try {
+      await patchAccess(opts.relayUrl, minted.uuid, passwordHash, caller);
+    } catch (err) {
+      // The room exists now, open and unjoined; say so rather than only why.
+      // `patchAccess` throws nothing but an `Error` with a sentence.
+      const why = (err as Error).message;
+      throw new Error(
+        `Room ${minted.code} was created, but its password was not set: ${why}. ` +
+          'The room is open to anyone with the code and was not joined. ' +
+          'Run `hnch create --password` again.',
+        { cause: err },
+      );
+    }
   }
 
   return open(
@@ -140,6 +180,7 @@ export async function createSession(opts: CreateSessionOptions): Promise<Session
       roomUuid: minted.uuid,
       passwordHash,
     },
+    caller.pk,
     {
       kind: 'create',
       defaultScale: opts.defaultScale ?? FIBONACCI_SCALE,
@@ -165,13 +206,51 @@ export async function joinSession(opts: JoinSessionOptions): Promise<SessionHand
 /**
  * A join like {@link joinSession}'s, for a room already resolved: the same
  * seed, so the same `rejoin` after the first sync clears a stale `leftAt`
- * (ADR-0036 §6).
+ * (ADR-0036 §6). It presents this device's key too, so a resumed host is
+ * still the one the relay takes access changes from.
  */
-export function openSession(opts: OpenSessionOptions): SessionHandle {
-  return open(opts, { kind: 'join' });
+export async function openSession(opts: OpenSessionOptions): Promise<SessionHandle> {
+  const participantKey = await participantKeyFor(opts.deviceKey, opts.roomUuid);
+  return open(opts, participantKey, { kind: 'join' });
 }
 
-function open(opts: OpenSessionOptions, seed: LiveSessionSeed): SessionHandle {
+/** {@link patchRoomAccess}, failing in words for the person at the terminal (docs/cli.md). */
+async function patchAccess(
+  relayUrl: string,
+  roomUuid: string,
+  passwordHash: string | null,
+  caller: ParticipantCaller,
+): Promise<void> {
+  try {
+    await patchRoomAccess(relayUrl, roomUuid, passwordHash, caller);
+  } catch (err) {
+    throw new Error(ACCESS_REFUSAL[relayRefusalReason(err)], { cause: err });
+  }
+}
+
+/**
+ * The commands minus the doc-only `handoffHost`, which skips the relay
+ * (ADR-0059); {@link SessionHandle.handoffHost} asks the relay first.
+ */
+export type CliSessionCommands = Omit<SessionCommands, 'handoffHost'>;
+
+/** `commands` without `handoffHost`, one copy per commands object. */
+const withoutDocHandoff = new WeakMap<SessionCommands, CliSessionCommands>();
+function cliCommands(commands: SessionCommands): CliSessionCommands {
+  let stripped = withoutDocHandoff.get(commands);
+  if (stripped === undefined) {
+    const { handoffHost: _docOnly, ...rest } = commands;
+    stripped = rest;
+    withoutDocHandoff.set(commands, stripped);
+  }
+  return stripped;
+}
+
+function open(
+  opts: Omit<OpenSessionOptions, 'deviceKey'>,
+  participantKey: string,
+  seed: LiveSessionSeed,
+): SessionHandle {
   const { relayUrl, roomUuid } = opts;
   const changeListeners = new Set<() => void>();
   const statusListeners = new Set<(status: SyncStatus) => void>();
@@ -197,6 +276,7 @@ function open(opts: OpenSessionOptions, seed: LiveSessionSeed): SessionHandle {
     room: { uuid: roomUuid, code: opts.roomCode },
     credentials: {
       deviceId: opts.participantId,
+      participantKey,
       ...(opts.passwordHash !== undefined && { passwordHash: opts.passwordHash }),
     },
     self: {
@@ -245,8 +325,9 @@ function open(opts: OpenSessionOptions, seed: LiveSessionSeed): SessionHandle {
     roomUuid,
     passwordHash: opts.passwordHash,
 
-    get commands(): SessionCommands {
-      return live.commands;
+    // Read each time: `live.commands` turns unbound at teardown.
+    get commands(): CliSessionCommands {
+      return cliCommands(live.commands);
     },
 
     projection: latest,
@@ -296,9 +377,16 @@ function open(opts: OpenSessionOptions, seed: LiveSessionSeed): SessionHandle {
         }
         passwordHash = await hashPassword(validated.password, roomUuid);
       }
-      await patchRoomAccess(relayUrl, roomUuid, passwordHash);
+      await patchAccess(relayUrl, roomUuid, passwordHash, {
+        participantId: opts.participantId,
+        pk: participantKey,
+      });
       // So this client's own reconnects present the new hash.
       live.updateCredentials(passwordHash);
+    },
+
+    handoffHost(targetId) {
+      return live.handoffHost(targetId);
     },
 
     onChange(cb) {

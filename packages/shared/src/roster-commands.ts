@@ -230,13 +230,29 @@ export function handoffHost(
   targetId: string,
   onlineIds: ReadonlySet<string>,
 ): RosterResult {
+  const refusal = handoffRefusal(doc, actorId, targetId, onlineIds);
+  if (refusal !== null) return refusal;
+
+  patchSettingsInternal(doc, { hostParticipantId: targetId });
+  return { applied: true };
+}
+
+/**
+ * {@link handoffHost}'s gate alone: the refusal it would return, or `null` when it would write.
+ * Writes nothing, so a caller can ask before an act that must come first (the relay's handoff,
+ * ADR-0059).
+ */
+export function handoffRefusal(
+  doc: Y.Doc,
+  actorId: string,
+  targetId: string,
+  onlineIds: ReadonlySet<string>,
+): Extract<RosterResult, { applied: false }> | null {
   const roster = readRoster(doc, actorId, targetId);
   if (!roster.isHost) return { applied: false, reason: 'not-host' };
   if (!roster.target) return { applied: false, reason: 'not-found' };
   if (!onlineIds.has(targetId)) return { applied: false, reason: 'not-online' };
-
-  patchSettingsInternal(doc, { hostParticipantId: targetId });
-  return { applied: true };
+  return null;
 }
 
 /**
@@ -246,6 +262,10 @@ export function handoffHost(
  * has no reachable host, so there is nobody to authorise the write. The
  * election has already restricted `winnerId` to the eligible peer set, which
  * is why there is no existence check either.
+ *
+ * The live session's relay-first handoff (ADR-0059) also ends here: the doc's
+ * gate ran before the relay call, and the relay checked the target, so the
+ * doc follows the relay's yes without a second gate.
  *
  * Always returns `{ applied: true }`; it is a `RosterResult` for one union
  * per module, not because it can refuse.

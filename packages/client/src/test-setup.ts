@@ -5,7 +5,17 @@ import {
   BrowserDynamicTestingModule,
   platformBrowserDynamicTesting,
 } from '@angular/platform-browser-dynamic/testing';
+import { webcrypto } from 'node:crypto';
 import { vi } from 'vitest';
+
+// jsdom's `crypto` has no `subtle`, which every browser the app runs in has. Node's is the same
+// Web Crypto, so participant keys (ADR-0059) derive here exactly as they do in the app.
+if (typeof globalThis.crypto !== 'undefined' && !globalThis.crypto.subtle) {
+  Object.defineProperty(globalThis.crypto, 'subtle', {
+    configurable: true,
+    value: webcrypto.subtle,
+  });
+}
 
 // jsdom does not implement matchMedia — define a stub so vi.spyOn can replace it
 if (typeof window !== 'undefined' && !window.matchMedia) {

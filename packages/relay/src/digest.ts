@@ -36,7 +36,7 @@ export async function passwordMatches(
   return crypto.subtle.timingSafeEqual(submitted, stored);
 }
 
-function hexToBytes(hex: string): Uint8Array | null {
+export function hexToBytes(hex: string): Uint8Array | null {
   if (!/^[0-9a-f]{64}$/.test(hex)) return null;
   const bytes = new Uint8Array(32);
   for (let i = 0; i < 32; i++) bytes[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);

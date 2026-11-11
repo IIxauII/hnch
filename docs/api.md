@@ -20,6 +20,17 @@ An unknown or ended room is refused before the upgrade with a `404`. A join refu
 
 `PATCH /rooms/{uuid}/access` with `{"passwordHash": "…"}` protects a room; `{"passwordHash": null}` opens it again. The relay never receives a password: clients send a PBKDF2-SHA-256 hash of it, salted with the room UUID ([ADR-0017](../adr/0017-password-hashing-drop-invite-only.md); see `hashPassword` in [`packages/shared/src/password.ts`](../packages/shared/src/password.ts)). Since the salt is the UUID, a client creates a protected room in two steps: `POST /rooms`, then `PATCH` its access.
 
+Only the room's **access holder** may change access ([ADR-0059](../adr/0059-host-only-access-changes.md)):
+
+- Each device keeps a random 256-bit **device key**. Its **participant key** for a room is `pk = HMAC-SHA-256(device key bytes, room UUID)` as lowercase hex.
+- Create with `{"creator": {"participantId", "deviceKey"}}`: the creator holds access.
+- Join with `&pk={pk}` next to `did`: the first joined socket with a `pk` binds that id for the room.
+- Send `PATCH` and `POST /rooms/{uuid}/host` (handoff to `{"target"}`) with `Authorization: Bearer {pk}` and `participantId` in the body.
+- A handoff answers `200 {"accessHolder"}` naming the new holder.
+- Refusals: `401 {"reason":"unauthenticated"}` (key missing, wrong, or id never joined), `401 {"reason":"not-host"}`, `409 {"reason":"bad-target"}` (handoff target not connected with a proven id), and `404` for an unknown room on both routes.
+- When the holder has been gone 5 s, or there is none, the document's host claims access on its next `PATCH` or handoff ([ADR-0060](../adr/0060-handoff-claims-unset-holder.md)); a refused handoff claims nothing.
+- A room created without `creator` accepts one `PATCH` without `Authorization`, within 60 s and before anyone joined, for older clients.
+
 ## Errors and limits
 
 - `503 {"error":"unavailable"}` is a transient platform failure: retry. Only a `404` with `"reason":"unknown-room"` means the session is gone.

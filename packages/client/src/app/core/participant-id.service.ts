@@ -1,6 +1,9 @@
 import { Injectable, signal, type Signal } from '@angular/core';
 import { Device } from '@capacitor/device';
 import { Preferences } from '@capacitor/preferences';
+import { participantKeyFor } from '@hnch/shared';
+
+const DEVICE_KEY_PATTERN = /^[0-9a-f]{64}$/;
 
 /**
  * Persistent per-install participant identifier — ADR-0005.
@@ -25,9 +28,11 @@ import { Preferences } from '@capacitor/preferences';
 @Injectable({ providedIn: 'root' })
 export class ParticipantIdService {
   static readonly PARTICIPANT_ID_KEY = 'hnch.participantId';
+  static readonly DEVICE_KEY_KEY = 'hnch.deviceKey';
 
   private readonly idSignal = signal<string | null>(null);
   private loading: Promise<string> | null = null;
+  private deviceKeyLoading: Promise<string> | null = null;
 
   /**
    * Readable signal of the cached id, or `null` if {@link ensureLoaded}
@@ -66,6 +71,42 @@ export class ParticipantIdService {
    */
   async ensureLoaded(): Promise<string> {
     return this.getOrCreateId();
+  }
+
+  /**
+   * This install's device key (ADR-0059): 32 random bytes as 64 lowercase hex chars, made on
+   * first need and kept next to the participant id. It proves this device to the relay, so it
+   * is never logged and never leaves the device except in a `POST /rooms` body.
+   */
+  async getOrCreateDeviceKey(): Promise<string> {
+    this.deviceKeyLoading ??= this.resolveDeviceKey().catch((err: unknown) => {
+      // A failed read is not a key: the next call tries again.
+      this.deviceKeyLoading = null;
+      throw err;
+    });
+    return this.deviceKeyLoading;
+  }
+
+  /** This device's key for one room, as the relay derives it (`pk`, ADR-0059). Never log it. */
+  async participantKeyFor(roomUuid: string): Promise<string> {
+    return participantKeyFor(await this.getOrCreateDeviceKey(), roomUuid);
+  }
+
+  private async resolveDeviceKey(): Promise<string> {
+    const stored = (await Preferences.get({ key: ParticipantIdService.DEVICE_KEY_KEY })).value;
+    const normalized = stored?.toLowerCase();
+    if (normalized !== undefined && DEVICE_KEY_PATTERN.test(normalized)) {
+      if (normalized !== stored) {
+        await Preferences.set({ key: ParticipantIdService.DEVICE_KEY_KEY, value: normalized });
+      }
+      return normalized;
+    }
+    // None yet, or one this build cannot use: a fresh key. A replaced key makes this device a
+    // stranger to rooms it was bound in, which is what a broken key would be anyway.
+    const bytes = crypto.getRandomValues(new Uint8Array(32));
+    const key = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    await Preferences.set({ key: ParticipantIdService.DEVICE_KEY_KEY, value: key });
+    return key;
   }
 
   private async resolve(): Promise<string> {

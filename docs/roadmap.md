@@ -180,7 +180,7 @@ This design work is ~1 hour; resolve it before relay code lands.
 
 **Risks.**
 - QR scanning on web relies on the browser's `BarcodeDetector` API or ZXing fallback — quality varies by device. Native ML Kit scanning (Phase 6) will be more reliable.
-- `PATCH /rooms/:uuid/access` has no host authentication in v1 — mitigated by UUID unguessability, flagged for future hardening.
+- `PATCH /rooms/:uuid/access` had no host authentication in v1 — mitigated by UUID unguessability. Hardened by [ADR-0059](../adr/0059-host-only-access-changes.md): only the relay's access holder may change access.
 
 **Exit bar.** A user can create a password-protected room, share the invite URL, and have another user join via (a) QR scan, (b) manual code entry with the password, or (c) `/join?code=` deep link. Invalid / expired cases produce the expected error states. Universal link interception (native OS opening the app directly from a tapped URL) lands in Phase 6 alongside the iOS build.
 

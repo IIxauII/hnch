@@ -42,7 +42,7 @@
       "post": {
         "operationId": "createRoom",
         "summary": "Create a room",
-        "description": "Answers a fresh room UUID and its 6-character join code. Send {}: to protect the room, PATCH /rooms/{uuid}/access afterwards, because the password hash is salted with the UUID this call answers. Rate-limited per IP; a burst answers 429.",
+        "description": "Answers a fresh room UUID and its 6-character join code. Send creator so the creating device holds the room's access (ADR-0059); to protect the room, PATCH /rooms/{uuid}/access afterwards, because the password hash is salted with the UUID this call answers. Rate-limited per IP; a burst answers 429.",
         "requestBody": {
           "required": false,
           "content": {
@@ -53,6 +53,9 @@
                   "passwordHash": {
                     "description": "Accepted, but no client can salt it correctly before the room exists; use PATCH /rooms/{uuid}/access instead.",
                     "$ref": "#/components/schemas/PasswordHash"
+                  },
+                  "creator": {
+                    "$ref": "#/components/schemas/Creator"
                   }
                 }
               }
@@ -140,6 +143,9 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "participantId": {
+                    "$ref": "#/components/schemas/ParticipantId"
+                  },
                   "passwordHash": {
                     "description": "The new password's hash, or null to make the room open.",
                     "oneOf": [
@@ -176,8 +182,102 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "404": {
             "$ref": "#/components/responses/UnknownRoom"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "description": "Only the room's access holder may change access: the creator, or whoever it handed it to, or the doc's host once the holder has been gone 5 s. Prove the id with Authorization: Bearer <participant key>. A room created without creator accepts one request without Authorization, within 60 s and before anyone joined, for older clients.",
+        "security": [
+          {
+            "ParticipantKey": []
+          }
+        ]
+      }
+    },
+    "/rooms/{uuid}/host": {
+      "post": {
+        "operationId": "moveAccessHolder",
+        "summary": "Hand the room's access to another participant",
+        "description": "The access holder hands access to target, which must be connected and have proved its id with its participant key. With no access holder, the document's host claims access on its handoff as on PATCH (connected and proven), in the same write; a refused handoff leaves access unclaimed. Clients call this before writing the host handoff to the document, and write it only on a 200.",
+        "security": [
+          {
+            "ParticipantKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RoomUuid"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["participantId", "target"],
+                "properties": {
+                  "participantId": {
+                    "$ref": "#/components/schemas/ParticipantId"
+                  },
+                  "target": {
+                    "$ref": "#/components/schemas/ParticipantId"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "target now holds access.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["accessHolder"],
+                  "properties": {
+                    "accessHolder": {
+                      "$ref": "#/components/schemas/ParticipantId"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/UnknownRoom"
+          },
+          "409": {
+            "description": "target is not connected with a proven id; access is unchanged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["reason"],
+                  "properties": {
+                    "reason": {
+                      "const": "bad-target"
+                    }
+                  }
+                }
+              }
+            }
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
@@ -201,9 +301,18 @@
             "name": "did",
             "in": "query",
             "required": false,
-            "description": "The joining device's id. Clients send it; the relay does not read it.",
+            "description": "The joining device's participant id. With pk it binds or proves that id for this room; without a matching pk the socket still joins, unproven.",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "pk",
+            "in": "query",
+            "required": false,
+            "description": "The device's participant key for this room. The first joined socket with a pk for an id binds it.",
+            "schema": {
+              "$ref": "#/components/schemas/ParticipantKey"
             }
           },
           {
@@ -316,11 +425,36 @@
             "type": "string"
           }
         }
+      },
+      "ParticipantId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "description": "A device's participant id, the did it joins with."
+      },
+      "ParticipantKey": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$",
+        "description": "HMAC-SHA-256 keyed with the device key's 32 bytes over the room UUID (UTF-8), lowercase hex. Never logged."
+      },
+      "Creator": {
+        "type": "object",
+        "required": ["participantId", "deviceKey"],
+        "properties": {
+          "participantId": {
+            "$ref": "#/components/schemas/ParticipantId"
+          },
+          "deviceKey": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "The device's random 256-bit key, lowercase hex. The relay derives the creator's participant key from it and keeps neither."
+          }
+        }
       }
     },
     "responses": {
       "BadRequest": {
-        "description": "The body is not JSON, is over 4 KiB, or holds an invalid passwordHash.",
+        "description": "The body is not JSON, is over 4 KiB, or holds an invalid passwordHash, creator or target.",
         "content": {
           "application/json": {
             "schema": {
@@ -374,6 +508,32 @@
             }
           }
         }
+      },
+      "Unauthorized": {
+        "description": "unauthenticated: no Authorization, a malformed or wrong participant key, or an id that never joined. not-host: the key is right, but the caller does not hold access (or its id is contested, or the document names another host).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": ["reason"],
+              "properties": {
+                "reason": {
+                  "enum": ["unauthenticated", "not-host"]
+                }
+              }
+            },
+            "example": {
+              "reason": "not-host"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "ParticipantKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "The caller's participant key for this room (ADR-0059), with its participantId in the body."
       }
     }
   }

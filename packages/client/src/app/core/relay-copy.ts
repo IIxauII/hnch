@@ -3,7 +3,7 @@
  * the same refusal reads the same wherever it surfaces.
  */
 
-import { MAX_ROOM_PARTICIPANTS, type JoinRejectionReason } from '@hnch/shared';
+import { MAX_ROOM_PARTICIPANTS, type HandoffResult, type JoinRejectionReason } from '@hnch/shared';
 
 /**
  * Shown whenever a relay call never got an answer — offline, a wrong relay
@@ -64,5 +64,38 @@ export function rejectionCopy(
       return context === 'join'
         ? "Couldn't join with the info provided."
         : "Couldn't rejoin with the info on file.";
+  }
+}
+
+/** Why a refused access change was refused, when the relay says this device is not the host. */
+export const ACCESS_NOT_HOST_COPY = 'Only the host can change the password';
+
+/**
+ * Why handing the host role to `name` did not happen (ADR-0059): the doc's own refusals, then the
+ * relay's. The switch is exhaustive, so a new reason fails the build until it has copy.
+ */
+export function handoffRefusalCopy(
+  reason: Extract<HandoffResult, { applied: false }>['reason'],
+  name: string,
+): string {
+  switch (reason) {
+    case 'not-found':
+      return `${name} isn't in the session anymore.`;
+    case 'not-online':
+      return `${name} is offline. Try again once they are back.`;
+    case 'self-target':
+      // `kick`'s reason; a handoff never gives it.
+      return 'You are the host already.';
+    case 'not-host':
+      return 'Only the host can hand off the host role.';
+    case 'bad-target':
+      // The relay can only hand to a peer that proves itself, which a released app cannot.
+      return `Couldn't make ${name} the host. They may need to update hnch.`;
+    case 'unauthenticated':
+      return "The relay didn't accept this device as the host.";
+    case 'unknown-room':
+      return "That session isn't active anymore.";
+    case 'unreachable':
+      return RELAY_UNREACHABLE_COPY;
   }
 }

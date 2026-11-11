@@ -2,11 +2,14 @@
 
 import { concatBytes } from './bytes';
 
-/** Same CORS headers as the Node relay: native apps preflight `POST /rooms`. */
+/**
+ * Native apps preflight `POST /rooms`; keyed PATCH and handoff send
+ * `Authorization` (ADR-0059).
+ */
 export const CORS_HEADERS: Readonly<Record<string, string>> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
 export function json(

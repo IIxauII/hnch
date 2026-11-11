@@ -33,7 +33,7 @@ import { DocService } from '../core/doc/doc.service';
 import type { ClientLastSessionEntry } from '../core/last-session.service';
 import { LastSessionService } from '../core/last-session.service';
 import { ParticipantIdService } from '../core/participant-id.service';
-import { rejectionCopy, RELAY_UNREACHABLE_COPY } from '../core/relay-copy';
+import { ACCESS_NOT_HOST_COPY, rejectionCopy, RELAY_UNREACHABLE_COPY } from '../core/relay-copy';
 import { ScalePreferenceService } from '../core/scale-preference.service';
 import { RoomJoinService } from '../core/room-join.service';
 import { SessionAccessService } from '../core/session-access.service';
@@ -305,15 +305,22 @@ export class HomePage {
       // in depth rather than an expected branch.
       let displayName: string | null;
       let participantId: string;
+      let participantKey: string;
       let minted: Awaited<ReturnType<typeof mintRoom>>;
       try {
-        [displayName, participantId, minted] = await Promise.all([
-          this.displayNameService.getDisplayName(),
+        // Who creates the room comes first: the mint binds this device's key and makes it the
+        // access holder (ADR-0059), so it cannot run alongside reading them.
+        let deviceKey: string;
+        [participantId, deviceKey, displayName] = await Promise.all([
           this.participantIdService.getOrCreateId(),
-          // Mint the room on the relay (ADR-0016 `POST /rooms`).
-          // Use AppPreferenceService relay URL override, fallback to environment default.
-          mintRoom(this.appPrefs.resolvedRelayHttpUrl()),
+          this.participantIdService.getOrCreateDeviceKey(),
+          this.displayNameService.getDisplayName(),
         ]);
+        // Mint the room on the relay (ADR-0016 `POST /rooms`), on the resolved relay URL.
+        minted = await mintRoom(this.appPrefs.resolvedRelayHttpUrl(), {
+          creator: { participantId, deviceKey },
+        });
+        participantKey = await this.participantIdService.participantKeyFor(minted.uuid);
       } catch {
         // The relay never answered (offline, wrong relay URL, relay down). No
         // session exists yet, so there is nothing to clean up — say so and
@@ -329,6 +336,7 @@ export class HomePage {
       this.docService.open({
         room: { uuid: minted.uuid, code: minted.code },
         participantId,
+        participantKey,
         displayName: displayName ?? '',
         ...(avatarColor && { avatarColor }),
         seed: {
@@ -480,7 +488,12 @@ export class HomePage {
     // The same change the session's settings make later on, by the same
     // means: the relay is told, the socket carries the password from then
     // on, and the device remembers it for the host's own way back in.
-    if ((await this.access.setPassword(password)) === 'failed') {
+    const result = await this.access.setPassword(password);
+    if (result === 'not-host') {
+      // The creator is the access holder from the mint on, so this is the relay disagreeing.
+      await this.toast(`${ACCESS_NOT_HOST_COPY}. The session was created without one.`);
+    }
+    if (result === 'failed') {
       await this.toast("Couldn't set the password. The session was created without one.");
     }
     await this.passwordModalRef()?.dismiss();

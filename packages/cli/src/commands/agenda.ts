@@ -12,7 +12,7 @@
  */
 
 import { resolveRoom, type AgendaItem, type AgendaResult } from '@hnch/shared';
-import { loadConfig } from '../config.js';
+import { loadConfig, participantOptions } from '../config.js';
 import { readEntries } from '../last-session.js';
 import { openSession, type OpenSessionOptions, type SessionHandle } from '../session.js';
 
@@ -58,7 +58,7 @@ function agendaRefusal(reason: Extract<AgendaResult, { applied: false }>['reason
 }
 
 async function openAgendaSession(opts: OpenSessionOptions): Promise<SessionHandle> {
-  const session = openSession(opts);
+  const session = await openSession(opts);
 
   // Act once the room's state has arrived. A socket that is merely open has
   // not delivered it yet; a relay that never answers must not hang the command.
@@ -116,12 +116,9 @@ export async function handleAgendaAdd(argv: {
   }
 
   const session = await openAgendaSession({
-    relayUrl: config.relayUrl,
-    participantId: config.participantId,
-    displayName: config.displayName,
-    roomCode: cached.roomCode,
-    roomUuid: cached.roomUuid,
-    ...(cached.passwordHash !== undefined && { passwordHash: cached.passwordHash }),
+    ...participantOptions(config),
+    // The room as remembered: its code, its uuid and the hash, if it has one.
+    ...cached,
   });
 
   try {
@@ -157,12 +154,9 @@ export async function handleAgendaList(): Promise<void> {
   }
 
   const session = await openAgendaSession({
-    relayUrl: config.relayUrl,
-    participantId: config.participantId,
-    displayName: config.displayName,
-    roomCode: cached.roomCode,
-    roomUuid: cached.roomUuid,
-    ...(cached.passwordHash !== undefined && { passwordHash: cached.passwordHash }),
+    ...participantOptions(config),
+    // The room as remembered: its code, its uuid and the hash, if it has one.
+    ...cached,
   });
 
   try {
@@ -192,12 +186,9 @@ export async function handleAgendaSkip(argv: { id: string }): Promise<void> {
   }
 
   const session = await openAgendaSession({
-    relayUrl: config.relayUrl,
-    participantId: config.participantId,
-    displayName: config.displayName,
-    roomCode: cached.roomCode,
-    roomUuid: cached.roomUuid,
-    ...(cached.passwordHash !== undefined && { passwordHash: cached.passwordHash }),
+    ...participantOptions(config),
+    // The room as remembered: its code, its uuid and the hash, if it has one.
+    ...cached,
   });
 
   try {
@@ -227,12 +218,9 @@ export async function handleAgendaCancel(argv: { id: string }): Promise<void> {
   }
 
   const session = await openAgendaSession({
-    relayUrl: config.relayUrl,
-    participantId: config.participantId,
-    displayName: config.displayName,
-    roomCode: cached.roomCode,
-    roomUuid: cached.roomUuid,
-    ...(cached.passwordHash !== undefined && { passwordHash: cached.passwordHash }),
+    ...participantOptions(config),
+    // The room as remembered: its code, its uuid and the hash, if it has one.
+    ...cached,
   });
 
   try {
@@ -266,12 +254,9 @@ export async function handleAgendaMv(argv: {
   }
 
   const session = await openAgendaSession({
-    relayUrl: config.relayUrl,
-    participantId: config.participantId,
-    displayName: config.displayName,
-    roomCode: cached.roomCode,
-    roomUuid: cached.roomUuid,
-    ...(cached.passwordHash !== undefined && { passwordHash: cached.passwordHash }),
+    ...participantOptions(config),
+    // The room as remembered: its code, its uuid and the hash, if it has one.
+    ...cached,
   });
 
   try {

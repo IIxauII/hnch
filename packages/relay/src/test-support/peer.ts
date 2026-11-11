@@ -12,6 +12,7 @@ import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate } from 'y-protoc
 import * as syncProtocol from 'y-protocols/sync';
 import * as Y from 'yjs';
 import { clock } from '../clock';
+import { participantKey } from '../participant-key';
 
 export function call(path: string, init?: RequestInit): Promise<Response> {
   return exports.default.fetch(new Request(`http://relay.test${path}`, init));
@@ -23,6 +24,30 @@ export async function createRoom(
   const res = await call('/rooms', { method: 'POST', body: JSON.stringify(body) });
   if (res.status !== 201) throw new Error(`POST /rooms answered ${res.status}`);
   return res.json();
+}
+
+/** A creator that holds access (ADR-0059), for tests that change a room's password. */
+export const TEST_HOST = { participantId: 'test-host', deviceKey: 'ee'.repeat(32) } as const;
+
+/** A room created by {@link TEST_HOST}, so {@link patchAccess} may change its access. */
+export function createHostedRoom(
+  body: Record<string, unknown> = {},
+): Promise<{ uuid: string; code: string }> {
+  return createRoom({ ...body, creator: TEST_HOST });
+}
+
+/**
+ * `PATCH /rooms/:uuid/access` as {@link TEST_HOST}. It holds access only while
+ * it has no socket for under 5 s of relay time after create (ADR-0059's lapse).
+ */
+export async function patchAccess(uuid: string, passwordHash?: string | null): Promise<Response> {
+  const body: Record<string, unknown> = { participantId: TEST_HOST.participantId };
+  if (passwordHash !== undefined) body['passwordHash'] = passwordHash;
+  return call(`/rooms/${uuid}/access`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${await participantKey(TEST_HOST.deviceKey, uuid)}` },
+    body: JSON.stringify(body),
+  });
 }
 
 /** The raw upgrade, for tests of what happens before a socket exists. */

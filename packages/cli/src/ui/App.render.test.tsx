@@ -82,7 +82,6 @@ function makeSession(
       toggleRole: vi.fn(() => ({ applied: true })),
       leave: vi.fn(() => ({ applied: true })),
       kick: vi.fn(() => ({ applied: true })),
-      handoffHost: vi.fn(() => ({ applied: true })),
       endSession: vi.fn(() => ({ applied: true })),
     },
     projection: () => makeProjection(overrides.rounds ?? [], overrides.participants),
@@ -93,6 +92,7 @@ function makeSession(
     updateName: vi.fn(),
     updateScale: vi.fn(),
     updateAccess: vi.fn().mockResolvedValue(undefined),
+    handoffHost: vi.fn().mockResolvedValue({ applied: true }),
     onChange: (cb) => {
       changeListeners.add(cb);
       return () => changeListeners.delete(cb);
@@ -332,7 +332,7 @@ describe('App — Voting keys reach the bound commands', () => {
   });
 });
 
-describe('App — Lobby handoff reaches the bound command', () => {
+describe('App — Lobby handoff goes through the relay first (ADR-0059)', () => {
   const ROSTER: DocProjection['participants'] = [
     { id: 'host', displayName: 'Host', joinedAt: 0, role: 'voter' },
     { id: 'ada', displayName: 'Ada', joinedAt: 1, role: 'voter' },
@@ -351,17 +351,25 @@ describe('App — Lobby handoff reaches the bound command', () => {
     await press(stdin, '1');
     await press(stdin, 'y');
 
-    expect(session.commands.handoffHost).toHaveBeenCalledWith('ada');
+    // The doc-only command is not on `session.commands` at all (session.test.ts).
+    expect(session.handoffHost).toHaveBeenCalledWith('ada');
   });
 
-  it('reports the refusal reason instead of throwing when the command refuses', async () => {
+  it.each([
+    ['not-online', 'Handoff failed: that participant is offline'],
+    ['not-host', 'Handoff failed: only the current host can hand off'],
+    ['unauthenticated', 'Handoff failed: the relay did not accept this device as the host'],
+    ['bad-target', 'Handoff failed: the relay cannot hand host to that participant'],
+    ['unknown-room', 'Handoff failed: the relay no longer knows this room'],
+    ['unreachable', 'Handoff failed: the relay could not be reached'],
+  ] as const)('says why when the handoff is refused (%s)', async (reason, message) => {
     const { session } = makeSession({
       participants: ROSTER,
       onlineIds: new Set(['host', 'ada']),
     });
-    (session.commands.handoffHost as ReturnType<typeof vi.fn>).mockReturnValue({
+    (session.handoffHost as ReturnType<typeof vi.fn>).mockResolvedValue({
       applied: false,
-      reason: 'not-online',
+      reason,
     });
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const { stdin } = await renderInk(
@@ -372,7 +380,7 @@ describe('App — Lobby handoff reaches the bound command', () => {
     await press(stdin, '1');
     await press(stdin, 'y');
 
-    expect(consoleError).toHaveBeenCalledWith(expect.stringContaining('Handoff failed'));
+    await vi.waitFor(() => expect(consoleError).toHaveBeenCalledWith(message));
     consoleError.mockRestore();
   });
 });

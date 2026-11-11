@@ -3,9 +3,11 @@
  * surface, DO failure handling and expiry sweep clauses).
  *
  *   GET    /health               → 200 {status, version}; never touches a room
- *   POST   /rooms                → 201 {uuid, code}
+ *   POST   /rooms                → 201 {uuid, code}; optional `creator` (ADR-0059)
  *   GET    /rooms/:code          → 200 {uuid, accessMode} | 404 {reason:'unknown-room'}
- *   PATCH  /rooms/:uuid/access   → 200 {accessMode} | 404 {reason:'unknown-room'}
+ *   PATCH  /rooms/:uuid/access   → 200 {accessMode} | 401 {reason} | 404 {reason:'unknown-room'}
+ *   POST   /rooms/:uuid/host     → 200 {accessHolder} | 401 {reason} | 409 {reason:'bad-target'}
+ *                                  | 404 {reason:'unknown-room'}
  *   WS     /ws/:uuid             → handed to Room(uuid); 503 {error, detail} at its refused bound
  *   POST   /test/rooms           → 201 {uuid, code} with the code asked for; ADR-0027, as below
  *   DELETE /test/rooms/:uuid     → ADR-0027, only with HNCH_ENABLE_TEST_ROUTES=1
@@ -22,10 +24,12 @@ import { version } from '../package.json';
 import { clock } from './clock';
 import { configOf } from './config';
 import { CORS_HEADERS, UUID_RE, isPasswordHash, json, readJsonBody } from './http';
+import { type Caller, type Creator, isKeyHex, isParticipantId } from './participant-key';
 import { codesStub, expiryStub, logEvent, roomStub, utcDay } from './stubs';
 
 const WS_PATH_RE = /^\/ws\/([0-9a-fA-F-]{36})\/?$/;
 const ACCESS_PATH_RE = /^\/rooms\/([0-9a-fA-F-]{36})\/access\/?$/;
+const HOST_PATH_RE = /^\/rooms\/([0-9a-fA-F-]{36})\/host\/?$/;
 const CODE_PATH_RE = /^\/rooms\/([^/]+)\/?$/;
 const TEST_DELETE_PATH_RE = /^\/test\/rooms\/([^/]+)\/?$/;
 const TEST_CREATE_PATH = '/test/rooms';
@@ -89,6 +93,11 @@ async function route(request: Request, env: Env): Promise<Response> {
     return UUID_RE.test(access[1]!) ? patchAccess(access[1]!, request, env) : unknownRoom();
   }
 
+  const host = HOST_PATH_RE.exec(path);
+  if (method === 'POST' && host !== null) {
+    return UUID_RE.test(host[1]!) ? moveAccessHolder(host[1]!, request, env) : unknownRoom();
+  }
+
   const code = CODE_PATH_RE.exec(path);
   if (method === 'GET' && code !== null) return resolveRoom(code[1]!, env);
 
@@ -132,11 +141,19 @@ async function mintRoom(
     });
   }
 
+  const creator = body?.['creator'];
+  if (creator !== undefined && !isCreator(creator)) {
+    return json(400, {
+      error: 'bad-request',
+      detail: 'creator must be {participantId, deviceKey} with a 64-character hex deviceKey',
+    });
+  }
+
   const uuid = crypto.randomUUID();
   for (const code of codes) {
     try {
       if (!(await codesStub(env, code).claim(uuid))) continue;
-      await roomStub(env, uuid).init(uuid, code, passwordHash ?? null);
+      await roomStub(env, uuid).init(uuid, code, passwordHash ?? null, creator ?? null);
     } catch (err) {
       // A claimed code whose room never initialised reads as free to the next claim.
       logEvent('relay-create-unavailable', err);
@@ -188,12 +205,60 @@ async function patchAccess(uuid: string, request: Request, env: Env): Promise<Re
     });
   }
   try {
-    const accessMode = await roomStub(env, uuid).setPassword(passwordHash ?? null);
-    return accessMode === null ? unknownRoom() : json(200, { accessMode });
+    const answer = await roomStub(env, uuid).setPassword(
+      passwordHash ?? null,
+      callerOf(request, body as Record<string, unknown> | null),
+    );
+    if (answer === null) return unknownRoom();
+    return 'refused' in answer
+      ? json(401, { reason: answer.refused })
+      : json(200, { accessMode: answer.accessMode });
   } catch (err) {
     logEvent('relay-access-unavailable', err);
     return unavailable();
   }
+}
+
+/** ADR-0059 handoff: the access holder moves the holder to `target`. */
+async function moveAccessHolder(uuid: string, request: Request, env: Env): Promise<Response> {
+  const body = await readJsonBody(request);
+  const target = (body as Record<string, unknown> | null | undefined)?.['target'];
+  if (body === undefined || typeof body !== 'object' || typeof target !== 'string') {
+    return json(400, { error: 'bad-request', detail: 'target must be a participant id' });
+  }
+  // Keyless handoff has no grace: the room still answers, so an unknown room stays 404.
+  const caller = callerOf(request, body as Record<string, unknown> | null);
+  try {
+    const result = await roomStub(env, uuid).handoff(caller, target);
+    if (result === null) return unknownRoom();
+    if ('accessHolder' in result) return json(200, { accessHolder: result.accessHolder });
+    return json(result.refused === 'bad-target' ? 409 : 401, { reason: result.refused });
+  } catch (err) {
+    logEvent('relay-handoff-unavailable', err);
+    return unavailable();
+  }
+}
+
+/**
+ * The keyed caller of a PATCH or handoff: the body's `participantId` and the
+ * `Authorization: Bearer <pk>`. Null when there is no `Authorization` at all
+ * (a released, keyless client). Never logged.
+ */
+function callerOf(request: Request, body: Record<string, unknown> | null): Caller | null {
+  const header = request.headers.get('Authorization');
+  if (header === null) return null;
+  const bearer = /^Bearer\s+(\S+)$/i.exec(header.trim());
+  const participantId = body?.['participantId'];
+  return {
+    participantId: typeof participantId === 'string' ? participantId : '',
+    pk: bearer?.[1] ?? '',
+  };
+}
+
+function isCreator(value: unknown): value is Creator {
+  if (value === null || typeof value !== 'object') return false;
+  const { participantId, deviceKey } = value as Record<string, unknown>;
+  return isParticipantId(participantId) && isKeyHex(deviceKey);
 }
 
 /**

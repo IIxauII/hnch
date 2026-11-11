@@ -45,6 +45,11 @@ export interface JoinCredentials {
   passwordHash?: PasswordHash;
   /** The joiner's device ID (ADR-0005). Also serves as the session's participantId. */
   deviceId: string;
+  /**
+   * The device's key for this room (ADR-0059, `participantKeyFor`), sent as `pk` so the relay can
+   * bind or prove `deviceId`. Without it the socket is still admitted, unproven.
+   */
+  participantKey?: string;
 }
 
 /**

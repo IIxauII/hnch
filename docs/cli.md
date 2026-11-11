@@ -73,6 +73,24 @@ A connection that drops is retried. One the relay refuses for good ends the sess
 
 What is forgotten is the one session, never the others this device remembers. The same goes for leaving a session and for a session that ends.
 
+### Changing access and handing off
+
+Only the host can change a room's password or hand host to someone else, and the relay checks it, not just the doc (ADR-0059). The CLI proves who it is with its **device key**: 32 random bytes kept as `deviceKey` in `config.json`, generated on first run (or the first run after an upgrade) and never shown or logged. The CLI keeps `config.json` readable by its owner only (mode 0600). From it the CLI derives the room's participant key and sends it on every connection, including `hnch resume` and `hnch agenda`, and with every access change and handoff. `hnch create` makes the creator the room's access holder, so `hnch create --password` sets the password before the session opens.
+
+Copying `config.json` to another machine copies the key with it. A device with the same `participantId` but another key is not the host to the relay.
+
+The Settings entries that change the room (`E`: name, scale, access) are offered to the host only, and the one open closes if the host role is lost meanwhile. A handoff (`H`) asks the relay first and changes the doc only once the relay agrees. A refusal leaves the host and the access as they were, and prints why:
+
+| The relay says | An access change prints | A handoff prints |
+|---|---|---|
+| This participant is not the access holder, and may not claim it | `Failed to update access: Only the host can change the password` | `Handoff failed: only the current host can hand off` |
+| The key is missing or wrong, or the id never joined | `Failed to update access: The relay did not accept this device as the host` | `Handoff failed: the relay did not accept this device as the host` |
+| The target is not connected with a proven key | — | `Handoff failed: the relay cannot hand host to that participant` |
+| The room is gone | `Failed to update access: The relay no longer knows this room` | `Handoff failed: the relay no longer knows this room` |
+| No usable answer | `Failed to update access: The relay could not be reached` | `Handoff failed: the relay could not be reached` |
+
+If `hnch create --password` makes the room but the relay then refuses the password, the CLI stops without joining and prints the code, the reason from the access column and what to do, for example: ``Room ABC123 was created, but its password was not set: The relay could not be reached. The room is open to anyone with the code and was not joined. Run `hnch create --password` again.``
+
 ### `hnch resume`
 
 Rejoins the most recent session from the last-session cache (`~/.config/hnch/last-session.json`). Exits cleanly if the session is no longer active on the relay.
@@ -136,7 +154,7 @@ The CLI is keyboard-driven end to end via Ink's input handling.
 
 ## Protocol parity
 
-The CLI uses the same `@hnch/shared` Yjs doc schema, the same `hashPassword()` function, and the same relay WebSocket handshake (`GET /rooms/:code` → `WS /ws/:uuid?did=...&pw=...`) as the mobile client. There is no feature delta in core session behavior: rounds (ADR-0013), voting and reveal (ADR-0018, ADR-0020), host election (ADR-0010), session end (ADR-0023), removal by the host (ADR-0036 §5), host-change notices, and access control (ADR-0009, ADR-0017) all behave identically, because both surfaces run the same shared drivers and command set. Both run them through the shared live session (`live-session` in `@hnch/shared`: the doc, presence, the relay connection, the drivers and the command set). One delta remains: `Q` disconnects without writing a `leave`, so peers see the CLI as offline rather than gone (ADR-0036 Trade-offs).
+The CLI uses the same `@hnch/shared` Yjs doc schema, the same `hashPassword()` function, and the same relay WebSocket handshake (`GET /rooms/:code` → `WS /ws/:uuid?did=...&pk=...&pw=...`) as the mobile client. There is no feature delta in core session behavior: rounds (ADR-0013), voting and reveal (ADR-0018, ADR-0020), host election (ADR-0010), session end (ADR-0023), removal by the host (ADR-0036 §5), host-change notices, and access control (ADR-0009, ADR-0017, ADR-0059) all behave identically, because both surfaces run the same shared drivers and command set. Both run them through the shared live session (`live-session` in `@hnch/shared`: the doc, presence, the relay connection, the drivers and the command set). Two deltas remain. `Q` disconnects without writing a `leave`, so peers see the CLI as offline rather than gone (ADR-0036 Trade-offs). And the wording of a refused access change differs: the CLI prints a sentence per refusal, while the client words only `not-host` and gives the rest one generic message.
 
 Scale customization (preset overrides, custom scales) is persisted in `config.json` under `presetOverrides` and `customScales` keys, matching the `PresetOverrides` / `CustomScale` types from `@hnch/shared` (ADR-0019).
 
@@ -152,6 +170,7 @@ packages/cli/
     session.ts                — createSession / joinSession / openSession: the adapter over the shared live session
     session-exit.ts           — the one way out of a live session: quit, ended, removed, refused
     refusal.ts                — what a refusal does: when it ends the session, and its verdict
+    relay-refusal.ts          — the words for an access change or handoff the relay turns down
     config.ts                 — config read/write helpers
     last-session.ts           — last-session cache read/write
     room-code-input.ts        — room-code parsing / formatting helpers

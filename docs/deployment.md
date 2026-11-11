@@ -40,7 +40,7 @@ Zone `hnch.dev` on Cloudflare (Free plan). The registration stays at IONOS, with
 | Path | Handled by |
 |---|---|
 | `GET /health` | relay (liveness probe + smoke test) |
-| `POST /rooms`, `GET /rooms/:code`, `PATCH /rooms/:uuid/access` | relay (per ADR-0016 / ADR-0017) |
+| `POST /rooms`, `GET /rooms/:code`, `PATCH /rooms/:uuid/access`, `POST /rooms/:uuid/host` | relay (per ADR-0016 / ADR-0017 / ADR-0059) |
 | `WS /ws/:uuid` | relay (y-websocket sync) |
 | Everything else | static PWA, with SPA fallback to `/index.html`; a page path asked for `text/markdown` answers `/index.md` ([Markdown for agents](#pwa-release-rules)) |
 
