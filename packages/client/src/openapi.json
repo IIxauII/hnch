@@ -1,0 +1,267 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "hnch relay",
+    "version": "1",
+    "summary": "Create, find and protect pointing poker rooms on hnch.dev.",
+    "description": "The HTTP surface of the hnch relay. A room's live state (votes, participants) is not here: it syncs as a Yjs document over the WebSocket at /ws/{uuid}. Human-readable guide: https://github.com/IIxauII/hnch/blob/main/docs/api.md",
+    "license": { "name": "MIT", "identifier": "MIT" }
+  },
+  "externalDocs": { "url": "https://github.com/IIxauII/hnch/blob/main/docs/api.md" },
+  "servers": [{ "url": "https://hnch.dev" }],
+  "security": [],
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "summary": "Liveness and the deployed relay version",
+        "responses": {
+          "200": {
+            "description": "The relay is up.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Health" } }
+            }
+          }
+        }
+      }
+    },
+    "/rooms": {
+      "post": {
+        "operationId": "createRoom",
+        "summary": "Create a room",
+        "description": "Answers a fresh room UUID and its 6-character join code. Rate-limited per IP; a burst answers 429.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "passwordHash": { "$ref": "#/components/schemas/PasswordHash" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Room created.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/MintedRoom" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "429": {
+            "description": "Too many rooms created from this IP; retry after a few seconds."
+          },
+          "500": { "$ref": "#/components/responses/InternalError" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/rooms/{code}": {
+      "get": {
+        "operationId": "resolveRoom",
+        "summary": "Find a room by its join code",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "description": "The join code; case and separators are normalised.",
+            "schema": { "type": "string" },
+            "example": "K7M2QX"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The room behind the code.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ResolvedRoom" } }
+            }
+          },
+          "404": { "$ref": "#/components/responses/UnknownRoom" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/rooms/{uuid}/access": {
+      "patch": {
+        "operationId": "setRoomAccess",
+        "summary": "Set or clear a room's password",
+        "parameters": [{ "$ref": "#/components/parameters/RoomUuid" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "passwordHash": {
+                    "description": "The new password's hash, or null to make the room open.",
+                    "oneOf": [{ "$ref": "#/components/schemas/PasswordHash" }, { "type": "null" }]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The room's access mode after the change.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["accessMode"],
+                  "properties": { "accessMode": { "$ref": "#/components/schemas/AccessMode" } }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/UnknownRoom" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/ws/{uuid}": {
+      "get": {
+        "operationId": "syncRoom",
+        "summary": "Join a room's live session (WebSocket upgrade)",
+        "description": "A y-websocket sync connection to the room's Yjs document. A refused join after the upgrade closes the socket with a code from 4001 to 4010 (4001 unknown room, 4002 wrong password, 4006 room full, 4010 malformed credentials).",
+        "parameters": [
+          { "$ref": "#/components/parameters/RoomUuid" },
+          {
+            "name": "did",
+            "in": "query",
+            "required": true,
+            "description": "The joining device's id.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "pw",
+            "in": "query",
+            "required": false,
+            "description": "The room password's hash; required when the room's accessMode is password.",
+            "schema": { "$ref": "#/components/schemas/PasswordHash" }
+          }
+        ],
+        "responses": {
+          "101": { "description": "Upgraded to a WebSocket." },
+          "400": { "description": "The room has a password and no pw was given." },
+          "404": { "description": "No such room." },
+          "426": { "description": "The request was not a WebSocket upgrade." },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "RoomUuid": {
+        "name": "uuid",
+        "in": "path",
+        "required": true,
+        "description": "The room's UUID, as POST /rooms or GET /rooms/{code} answered it.",
+        "schema": { "type": "string", "format": "uuid" }
+      }
+    },
+    "schemas": {
+      "Health": {
+        "type": "object",
+        "required": ["status", "version"],
+        "properties": {
+          "status": { "const": "ok" },
+          "version": {
+            "type": "string",
+            "description": "The deployed relay release.",
+            "example": "1.3.1"
+          }
+        }
+      },
+      "MintedRoom": {
+        "type": "object",
+        "required": ["uuid", "code"],
+        "properties": {
+          "uuid": { "type": "string", "format": "uuid" },
+          "code": {
+            "type": "string",
+            "description": "The 6-character join code people type.",
+            "example": "K7M2QX"
+          }
+        }
+      },
+      "ResolvedRoom": {
+        "type": "object",
+        "required": ["uuid", "accessMode"],
+        "properties": {
+          "uuid": { "type": "string", "format": "uuid" },
+          "accessMode": { "$ref": "#/components/schemas/AccessMode" }
+        }
+      },
+      "AccessMode": {
+        "type": "string",
+        "enum": ["open", "password", "invite"],
+        "description": "open: anyone with the code joins. password: joining needs the password's hash. invite: reserved, not used by current clients."
+      },
+      "PasswordHash": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$",
+        "description": "PBKDF2-SHA-256 of the normalised password (100,000 iterations, 32 bytes, lowercase hex). The relay never sees the password itself."
+      },
+      "Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": { "type": "string" },
+          "detail": { "type": "string" }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "The body is not JSON, is over 4 KiB, or holds an invalid passwordHash.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" },
+            "example": {
+              "error": "bad-request",
+              "detail": "passwordHash must be a 64-character hex string"
+            }
+          }
+        }
+      },
+      "UnknownRoom": {
+        "description": "No such room, or it has ended.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": ["reason"],
+              "properties": { "reason": { "const": "unknown-room" } }
+            }
+          }
+        }
+      },
+      "Unavailable": {
+        "description": "A transient platform failure; retry. Never means the room is gone.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" },
+            "example": { "error": "unavailable" }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "An unexpected relay error.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" },
+            "example": { "error": "internal-error" }
+          }
+        }
+      }
+    }
+  }
+}

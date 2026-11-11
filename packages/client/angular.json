@@ -51,6 +51,16 @@
                 "output": "/"
               },
               {
+                "glob": "openapi.json",
+                "input": "src",
+                "output": "/"
+              },
+              {
+                "glob": "api-catalog",
+                "input": "src/.well-known",
+                "output": "/.well-known"
+              },
+              {
                 "glob": "**/*.svg",
                 "input": "node_modules/ionicons/dist/ionicons/svg",
                 "output": "./svg"

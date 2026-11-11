@@ -1,0 +1,25 @@
+{
+  "linkset": [
+    {
+      "anchor": "https://hnch.dev/rooms",
+      "service-desc": [
+        {
+          "href": "https://hnch.dev/openapi.json",
+          "type": "application/vnd.oai.openapi+json"
+        }
+      ],
+      "service-doc": [
+        {
+          "href": "https://github.com/IIxauII/hnch/blob/main/docs/api.md",
+          "type": "text/html"
+        }
+      ],
+      "status": [
+        {
+          "href": "https://hnch.dev/health",
+          "type": "application/json"
+        }
+      ]
+    }
+  ]
+}
