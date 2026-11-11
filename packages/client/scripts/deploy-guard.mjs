@@ -5,8 +5,9 @@
  *
  *   node scripts/deploy-guard.mjs config   wrangler.jsonc is a production config
  *   node scripts/deploy-guard.mjs www      the build in www is fit to deploy:
- *                                          _headers and robots.txt at its root,
- *                                          every .js and .css content-hashed
+ *                                          _headers, robots.txt and sitemap.xml at
+ *                                          its root, every .js and .css
+ *                                          content-hashed
  *   node scripts/deploy-guard.mjs live     the deploy would not remove a live route
  *   node scripts/deploy-guard.mjs verify   the version this run uploaded is the
  *                                          live one, and every configured route
@@ -52,9 +53,9 @@ export const HASHED = /\.[0-9a-f]{16}\.(js|css)$/;
 /**
  * Files angular.json copies from src to the root of www, which the build must
  * carry unchanged: `_headers` configures hnch-web's caching, and without
- * `robots.txt` crawlers get the SPA's index.html.
+ * `robots.txt` or `sitemap.xml` crawlers get the SPA's index.html.
  */
-export const ROOT_FILES = ['_headers', 'robots.txt'];
+export const ROOT_FILES = ['_headers', 'robots.txt', 'sitemap.xml'];
 
 /**
  * @typedef {import('../../../scripts/cloudflare/worker-guard.mjs').RouteConfig} RouteConfig
@@ -226,7 +227,7 @@ async function main() {
     const { problems, assets } = wwwReport(wwwDir, resolve(clientDir, 'src'));
     if (problems.length > 0) fail(problems);
     console.log(
-      `www ok: ${ROOT_FILES.join(' and ')} in place, ${assets} .js/.css files, all content-hashed`,
+      `www ok: ${ROOT_FILES.join(', ')} in place, ${assets} .js/.css files, all content-hashed`,
     );
     return;
   }

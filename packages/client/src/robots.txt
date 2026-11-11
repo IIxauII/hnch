@@ -70,3 +70,6 @@ Disallow: /rooms
 Disallow: /ws/
 Disallow: /health
 Allow: /
+
+# Not part of any group (RFC 9309 section 2.2.4).
+Sitemap: https://hnch.dev/sitemap.xml

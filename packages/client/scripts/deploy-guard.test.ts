@@ -104,6 +104,7 @@ describe('wwwProblems', () => {
     put('index.html', '<app-root></app-root>');
     put('_headers', readFileSync(join(SRC, '_headers'), 'utf8'));
     put('robots.txt', readFileSync(join(SRC, 'robots.txt'), 'utf8'));
+    put('sitemap.xml', readFileSync(join(SRC, 'sitemap.xml'), 'utf8'));
     put('main.66e4893120763c69.js');
     put('styles.876f054718d41689.css');
     put('219.b341d1532e91059a.js');
@@ -140,6 +141,14 @@ describe('wwwProblems', () => {
     expect(wwwProblems(www, SRC)).toEqual([expect.stringContaining('no robots.txt')]);
     put('robots.txt', 'User-agent: *\nDisallow:\n');
     expect(wwwProblems(www, SRC)).toEqual([expect.stringContaining('robots.txt differs')]);
+  });
+
+  it('refuses a build without the sitemap.xml it was built from', () => {
+    rmSync(join(www, 'sitemap.xml'));
+    put('assets/sitemap.xml', readFileSync(join(SRC, 'sitemap.xml'), 'utf8'));
+    expect(wwwProblems(www, SRC)).toEqual([expect.stringContaining('no sitemap.xml')]);
+    put('sitemap.xml', '<urlset/>');
+    expect(wwwProblems(www, SRC)).toEqual([expect.stringContaining('sitemap.xml differs')]);
   });
 
   it('refuses a directory that is not a build', () => {

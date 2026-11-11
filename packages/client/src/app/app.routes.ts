@@ -23,6 +23,10 @@ import { sessionResumeGuard } from './core/session-resume.guard';
  * Legacy parameterless variants (`lobby`, `estimating`) redirect to
  * `/home` so old bookmarks fall through to Home's "Jump back in" list
  * instead of 404-ing.
+ *
+ * A page a visitor can open without onboarding or a session goes in
+ * `src/sitemap.xml`; `sitemap.test.ts` fails while it lists a path that is
+ * no longer a route here.
  */
 export const routes: Routes = [
   {
