@@ -76,6 +76,7 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0056](0056-github-hosted-runners.md) | GitHub-hosted runners for all CI/CD — self-hosted pool retired (supersedes ADR-0049, ADR-0052, ADR-0053) | Accepted |  |
 | [0057](0057-screenshot-reference-on-the-screenshots-branch.md) | Screenshot reference set — captured in main's e2e run, stored on the `screenshots` branch | Accepted |  |
 | [0058](0058-markdown-for-agents-worker.md) | Markdown for agents — `hnch-web` runs a Worker on page paths (partially supersedes ADR-0051) | Accepted |  |
+| [0059](0059-host-only-access-changes.md) | Host-only access changes — participant keys and a relay-held access holder (supersedes ADR-0017 PATCH-auth clause) | Proposed |  |
 
 ## When to write an ADR
 
