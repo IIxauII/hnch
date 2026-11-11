@@ -21,7 +21,7 @@ Session state is a Yjs document synced over binary y-websocket, so your own clie
 1. `GET https://hnch.dev/rooms/K7P9MR` returns `{"uuid": "<session UUID>", "accessMode": "open" | "password"}`, or `404`.
 2. For a password session, hash it: PBKDF2-SHA-256 over the password (Unicode NFC, then whitespace and the zero-width characters U+200B to U+200D and U+2060 removed from both ends), salt the session UUID as UTF-8, 100000 iterations, 32 bytes, lowercase hex.
 3. Open `wss://hnch.dev/ws/<session UUID>?did=<your participant ID>&pw=<hash>`, with `pw` only for a password session. The participant ID is any ID you keep for every session you join.
-4. After the first sync, add yourself to the `participants` map under your participant ID, with `displayName` and `joinedAt` (Unix milliseconds), and set `participantId` in your awareness state so the others see you online. The full document shape: <https://github.com/IIxauII/hnch/blob/main/docs/schema.md>.
+4. After the first sync, add yourself to the `participants` map under your participant ID as a nested `Y.Map` (not a plain object: the other clients read it as a `Y.Map`) holding `displayName` (string) and `joinedAt` (Unix milliseconds). If your entry is already there, keep its `joinedAt` and delete `leftAt` and `removedBy`. Then set `participantId` in your awareness state so the others see you online. The full document shape: <https://github.com/IIxauII/hnch/blob/main/docs/schema.md>.
 
 Refusals: `400` before the upgrade when `pw` is missing, `404` for an unknown session, close `4002` (`wrong-password`), close `4006` (`room-full`).
 

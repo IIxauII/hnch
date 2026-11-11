@@ -1,8 +1,16 @@
 import { pbkdf2Sync } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { hashPassword, isValidRoomCode, JOIN_REJECTION_CLOSE_CODES } from '@hnch/shared';
+import {
+  AWARENESS_PARTICIPANT_ID_FIELD,
+  DOC_PARTICIPANTS_KEY,
+  hashPassword,
+  isValidRoomCode,
+  JOIN_REJECTION_CLOSE_CODES,
+  joinDoc,
+} from '@hnch/shared';
 import { describe, expect, it } from 'vitest';
+import * as Y from 'yjs';
 
 // src/auth.md restates access facts by hand for agents. These pin them to the
 // code, so the file breaks a test before it misleads a client.
@@ -41,5 +49,18 @@ describe('auth.md', () => {
     expect(stripped).toBe('caf\u00E9');
     const byRecipe = pbkdf2Sync(stripped, uuid, 100_000, 32, 'sha256');
     expect(await hashPassword(typed, uuid)).toBe(byRecipe.toString('hex'));
+  });
+
+  it('names the participant fields and awareness field a joining client writes', () => {
+    const doc = new Y.Doc();
+    joinDoc(doc, { participantId: 'agent-1', displayName: 'Estimation agent', joinedAt: 1 });
+    const entry = doc.getMap(DOC_PARTICIPANTS_KEY).get('agent-1');
+    expect(entry).toBeInstanceOf(Y.Map);
+    expect(AUTH_MD).toContain(`\`${DOC_PARTICIPANTS_KEY}\` map`);
+    expect(AUTH_MD).toContain('nested `Y.Map`');
+    for (const field of (entry as Y.Map<unknown>).keys()) {
+      expect(AUTH_MD).toContain(`\`${field}\``);
+    }
+    expect(AUTH_MD).toContain(`set \`${AWARENESS_PARTICIPANT_ID_FIELD}\` in your awareness state`);
   });
 });
