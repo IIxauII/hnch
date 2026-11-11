@@ -75,20 +75,19 @@ What is forgotten is the one session, never the others this device remembers. Th
 
 ### Changing access and handing off
 
-Only the host can change a room's password or hand host to someone else, and the relay checks it, not just the doc (ADR-0059). The CLI proves who it is with its **device key**: 32 random bytes kept as `deviceKey` in `config.json`, generated on first run (or the first run after an upgrade) and never shown or logged. From it the CLI derives the room's participant key and sends it on every connection, including `hnch resume` and `hnch agenda`, and with every access change and handoff. `hnch create` makes the creator the room's access holder, so `hnch create --password` sets the password before the session opens.
+Only the host can change a room's password or hand host to someone else, and the relay checks it, not just the doc (ADR-0059). The CLI proves who it is with its **device key**: 32 random bytes kept as `deviceKey` in `config.json`, generated on first run (or the first run after an upgrade) and never shown or logged. The CLI keeps `config.json` readable by its owner only (mode 0600). From it the CLI derives the room's participant key and sends it on every connection, including `hnch resume` and `hnch agenda`, and with every access change and handoff. `hnch create` makes the creator the room's access holder, so `hnch create --password` sets the password before the session opens.
 
 Copying `config.json` to another machine copies the key with it. A device with the same `participantId` but another key is not the host to the relay.
 
-The access entry in Settings (`E`) is offered to the host only, and closes if the host role is lost while it is open. A handoff (`H`) asks the relay first and changes the doc only once the relay agrees. A refusal leaves the host as it was and prints why:
+The Settings entries that change the room (`E`: name, scale, access) are offered to the host only, and the one open closes if the host role is lost meanwhile. A handoff (`H`) asks the relay first and changes the doc only once the relay agrees. A refusal leaves the host and the access as they were, and prints why:
 
-| The relay says | The CLI prints |
-|---|---|
-| This participant is not the access holder (an access change) | `Failed to update access: Only the host can change the password` |
-| This participant is not the access holder (a handoff) | `Handoff failed: only the current host can hand off` |
-| The key is missing or wrong, or the id never joined | `… the relay did not accept this device as the host` |
-| The target is not connected with a proven key | `Handoff failed: the relay cannot hand host to that participant` |
-| The room is gone | `Handoff failed: the relay no longer knows this room` |
-| No answer | `Handoff failed: the relay could not be reached` |
+| The relay says | An access change prints | A handoff prints |
+|---|---|---|
+| This participant is not the access holder | `Failed to update access: Only the host can change the password` | `Handoff failed: only the current host can hand off` |
+| The key is missing or wrong, or the id never joined | `Failed to update access: The relay did not accept this device as the host` | `Handoff failed: the relay did not accept this device as the host` |
+| The target is not connected with a proven key | — | `Handoff failed: the relay cannot hand host to that participant` |
+| The room is gone | `Failed to update access: The relay no longer knows this room` | `Handoff failed: the relay no longer knows this room` |
+| No usable answer | `Failed to update access: The relay could not be reached` | `Handoff failed: the relay could not be reached` |
 
 ### `hnch resume`
 

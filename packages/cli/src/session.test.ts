@@ -43,6 +43,7 @@ function keyOf(participantId: string): string {
 const open: SessionHandle[] = [];
 
 afterEach(() => {
+  vi.restoreAllMocks();
   for (const session of open.splice(0)) session.teardown();
 });
 
@@ -416,6 +417,37 @@ describe('session integration — host-only access (ADR-0059)', () => {
     );
   });
 
+  it.each([
+    [
+      'the room is gone',
+      () => Response.json({ reason: 'unknown-room' }, { status: 404 }),
+      'The relay no longer knows this room',
+    ],
+    [
+      'no answer comes',
+      () => {
+        throw new TypeError('fetch failed');
+      },
+      'The relay could not be reached',
+    ],
+  ])('says so in words when an access change fails because %s', async (_case, answer, message) => {
+    const host = track(
+      await createSession({
+        participantId: `acc-${message.length}`,
+        deviceKey: keyOf(`acc-${message.length}`),
+        displayName: 'Alice',
+        relayUrl,
+      }),
+    );
+    await host.whenJoined();
+    const realFetch = globalThis.fetch;
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) =>
+      String(input).endsWith('/access') ? answer() : realFetch(input, init),
+    );
+
+    await expect(host.updateAccess('open')).rejects.toThrow(message);
+  });
+
   it('a handoff moves the power to change access along with the host', async () => {
     const { host, joiner } = await hostAndJoiner('ho');
 
@@ -452,7 +484,14 @@ describe('session integration — host-only access (ADR-0059)', () => {
       reason: 'unauthenticated',
     });
     expect(elsewhere.projection().settings.hostParticipantId).toBe('rf-host');
-    expect(joiner.isHost()).toBe(false);
+    // A later write from the same socket: once the joiner has it, it would have
+    // any handoff written before it too.
+    elsewhere.updateName('after the refusal');
+    await vi.waitFor(() => expect(joiner.projection().settings.name).toBe('after the refusal'), {
+      timeout: SYNC_TIMEOUT,
+    });
+    expect(joiner.projection().settings.hostParticipantId).toBe('rf-host');
+    expect(host.isHost()).toBe(true);
   });
 
   it('a resumed host still holds access: the resume presents its key', async () => {

@@ -9,7 +9,15 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -278,6 +286,23 @@ describe('loadConfig', () => {
     const cfg = await loadConfig();
     expect(cfg.deviceKey).toMatch(/^[0-9a-f]{64}$/);
     expect(readConfig().deviceKey).toBe(cfg.deviceKey);
+  });
+
+  it('lowercases a stored device key typed in upper case, rather than replacing it', async () => {
+    const stored = '0123456789ABCDEF'.repeat(4);
+    writeFullConfig({ deviceKey: stored });
+    expect((await loadConfig()).deviceKey).toBe(stored.toLowerCase());
+  });
+
+  it('keeps the config, which holds the device key, readable by its owner alone', async () => {
+    writeFullConfig();
+    const path = join(tmpBase, 'hnch', 'config.json');
+    chmodSync(path, 0o644);
+    await loadConfig();
+    expect(statSync(path).mode & 0o777).toBe(0o600);
+
+    updateConfig({ displayName: 'Bob' });
+    expect(statSync(path).mode & 0o777).toBe(0o600);
   });
 
   it('uses the display name returned by promptLine', async () => {

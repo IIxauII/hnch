@@ -9,7 +9,7 @@
  * `~/.config`. `HNCH_RELAY_URL` env var overrides the stored relay URL.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -63,8 +63,19 @@ function configPath(): string {
 function ensureDir(): void {
   const dir = configDir();
   if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
+}
+
+/**
+ * The file holds the device key, which proves this device to the relay
+ * (ADR-0059): owner-only. `mode` applies only to a new file, so an older,
+ * wider one is narrowed too.
+ */
+function writeConfigFile(config: Record<string, unknown>): void {
+  const path = configPath();
+  writeFileSync(path, JSON.stringify(config, null, 2) + '\n', { encoding: 'utf-8', mode: 0o600 });
+  chmodSync(path, 0o600);
 }
 
 export function readConfig(): Partial<CliConfig> {
@@ -86,7 +97,7 @@ export function writeConfig(config: Partial<CliConfig>): void {
   ensureDir();
   const existing = readConfig();
   const merged = { ...existing, ...config };
-  writeFileSync(configPath(), JSON.stringify(merged, null, 2) + '\n', 'utf-8');
+  writeConfigFile(merged);
 }
 
 export async function promptLine(question: string): Promise<string> {
@@ -119,7 +130,13 @@ export async function loadConfig(): Promise<CliConfig> {
   }
 
   // Configs from before ADR-0059 have none. A malformed one derives no key, so
-  // it is replaced too.
+  // it is replaced too; one merely in upper case is kept, or this device would
+  // lose its binding in every room.
+  const lowered = stored.deviceKey?.toLowerCase();
+  if (lowered !== stored.deviceKey && lowered !== undefined && DEVICE_KEY_PATTERN.test(lowered)) {
+    stored.deviceKey = lowered;
+    changed = true;
+  }
   if (!stored.deviceKey || !DEVICE_KEY_PATTERN.test(stored.deviceKey)) {
     stored.deviceKey = randomBytes(32).toString('hex');
     changed = true;
@@ -180,5 +197,5 @@ export function updateConfig(patch: Partial<CliConfig>): void {
       merged[key] = value;
     }
   }
-  writeFileSync(configPath(), JSON.stringify(merged, null, 2) + '\n', 'utf-8');
+  writeConfigFile(merged);
 }

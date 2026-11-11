@@ -58,12 +58,13 @@ describe('LobbySettings — access is the host’s (ADR-0059)', () => {
   it('closes the access picker when the host role is lost while it is open', async () => {
     const { stdin, lastFrame, rerender } = await renderInk(settings({ isHost: true }));
     await openAccessPicker(stdin);
-    expect(lastFrame()).toContain('Password');
+    // The picker's own hint: the menu has none of it.
+    expect(lastFrame()).toContain('switch mode');
 
     rerender(settings({ isHost: false }));
     await press(stdin, '');
 
-    expect(lastFrame()).not.toContain('[Password]');
+    expect(lastFrame()).not.toContain('switch mode');
     expect(lastFrame()).not.toContain('Access');
     expect(lastFrame()).toContain('Display name');
   });

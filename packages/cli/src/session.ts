@@ -20,6 +20,7 @@ import {
   participantKeyFor,
   patchRoomAccess,
   RelayAccessError,
+  RelayRejectionError,
   resolveRoom,
   type DocProjection,
   type HandoffResult,
@@ -201,14 +202,21 @@ export async function openSession(opts: OpenSessionOptions): Promise<SessionHand
   return open(opts, participantKey, { kind: 'join' });
 }
 
-/** What the relay's access refusals mean to the person at the terminal. */
-const ACCESS_REFUSAL: Record<RelayAccessError['reason'], string> = {
-  'not-host': 'Only the host can change the password',
-  unauthenticated: 'The relay did not accept this device as the host',
-  'bad-target': 'The relay refused the change',
-};
+/** Why an access change failed, in words for the person at the terminal (docs/cli.md). */
+const ACCESS_FAILURE: Record<RelayAccessError['reason'] | 'unknown-room' | 'unreachable', string> =
+  {
+    'not-host': 'Only the host can change the password',
+    unauthenticated: 'The relay did not accept this device as the host',
+    // A handoff's reason: the access route never gives it.
+    'bad-target': 'The relay refused the change',
+    'unknown-room': 'The relay no longer knows this room',
+    unreachable: 'The relay could not be reached',
+  };
 
-/** {@link patchRoomAccess}, with the relay's refusal put into words. */
+/**
+ * {@link patchRoomAccess}, failing in words. Sorted as the shared handoff
+ * sorts it: the relay's reason, the room gone, or no usable answer.
+ */
 async function patchAccess(
   relayUrl: string,
   roomUuid: string,
@@ -218,9 +226,13 @@ async function patchAccess(
   try {
     await patchRoomAccess(relayUrl, roomUuid, passwordHash, caller);
   } catch (err) {
-    if (err instanceof RelayAccessError)
-      throw new Error(ACCESS_REFUSAL[err.reason], { cause: err });
-    throw err;
+    const reason =
+      err instanceof RelayAccessError
+        ? err.reason
+        : err instanceof RelayRejectionError
+          ? 'unknown-room'
+          : 'unreachable';
+    throw new Error(ACCESS_FAILURE[reason], { cause: err });
   }
 }
 
