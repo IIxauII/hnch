@@ -118,8 +118,8 @@ jobs:
       - name: Hash guard
         # _headers serves every .js and .css as immutable for a year, so each
         # must carry the build's content hash (`\.[0-9a-f]{16}\.(js|css)$`), and
-        # _headers, robots.txt, sitemap.xml and index.md must sit at the root of
-        # www.
+        # _headers, robots.txt, sitemap.xml, index.md, openapi.json and
+        # .well-known/api-catalog must sit at the root of www.
         working-directory: packages/client
         run: node scripts/deploy-guard.mjs www
 
@@ -291,7 +291,7 @@ jobs:
           # rather than ending the step before the remaining checks.
           served_file() {
             check "/$1" 'no-cache, must-revalidate'
-            local body="${RUNNER_TEMP}/served-$1" content_type
+            local body="${RUNNER_TEMP}/served-${1//\//-}" content_type
             if ! content_type="$(curl -fsS --max-time 10 -o "${body}" -w '%{content_type}' "https://hnch.dev/$1")"; then
               echo "::error::/$1 did not answer"
               failed=1
@@ -309,4 +309,13 @@ jobs:
           # Crawlers read a text/html answer as no robots.txt.
           served_file robots.txt '^text/plain' text/plain
           served_file sitemap.xml '^(application|text)/xml' 'an XML type'
+          # RFC 9727: the API catalog is Linkset JSON, the spec it links to is JSON.
+          served_file .well-known/api-catalog '^application/linkset\+json' application/linkset+json
+          served_file openapi.json '^application/(json|vnd\.oai\.openapi\+json)' 'a JSON type'
+          # RFC 9727 §2: a HEAD of the catalog carries a Link with rel=api-catalog.
+          if ! curl -fsSI --max-time 10 https://hnch.dev/.well-known/api-catalog \
+            | tr -d '\r' | grep -qiE '^link:.*rel="?api-catalog'; then
+            echo "::error::HEAD /.well-known/api-catalog lacks a Link with rel=api-catalog"
+            failed=1
+          fi
           exit "${failed}"

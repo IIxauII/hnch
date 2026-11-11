@@ -8,3 +8,9 @@
   Cache-Control: public, max-age=31536000, immutable
 /
   Link: </.well-known/api-catalog>; rel="api-catalog"
+/.well-known/api-catalog
+  Content-Type: application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"
+  Link: </.well-known/api-catalog>; rel="api-catalog"
+  Access-Control-Allow-Origin: *
+/openapi.json
+  Access-Control-Allow-Origin: *

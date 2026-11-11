@@ -140,6 +140,8 @@ describe('wwwProblems', () => {
     put('robots.txt', readFileSync(join(SRC, 'robots.txt'), 'utf8'));
     put('sitemap.xml', readFileSync(join(SRC, 'sitemap.xml'), 'utf8'));
     put('index.md', readFileSync(join(SRC, 'index.md'), 'utf8'));
+    put('openapi.json', readFileSync(join(SRC, 'openapi.json'), 'utf8'));
+    put('.well-known/api-catalog', readFileSync(join(SRC, '.well-known/api-catalog'), 'utf8'));
     put('main.66e4893120763c69.js');
     put('styles.876f054718d41689.css');
     put('219.b341d1532e91059a.js');
@@ -191,6 +193,17 @@ describe('wwwProblems', () => {
     expect(wwwProblems(www, SRC)).toEqual([expect.stringContaining('no index.md')]);
     put('index.md', '# hnch\n');
     expect(wwwProblems(www, SRC)).toEqual([expect.stringContaining('index.md differs')]);
+  });
+
+  it('refuses a build without the API catalog and the OpenAPI spec it links to', () => {
+    rmSync(join(www, '.well-known'), { recursive: true });
+    put('api-catalog', readFileSync(join(SRC, '.well-known/api-catalog'), 'utf8'));
+    expect(wwwProblems(www, SRC)).toEqual([expect.stringContaining('no .well-known/api-catalog')]);
+    rmSync(join(www, 'openapi.json'));
+    expect(wwwProblems(www, SRC)).toEqual([
+      expect.stringContaining('no openapi.json'),
+      expect.stringContaining('no .well-known/api-catalog'),
+    ]);
   });
 
   it('refuses a directory that is not a build', () => {

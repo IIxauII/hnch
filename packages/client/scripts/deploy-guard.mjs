@@ -5,9 +5,8 @@
  *
  *   node scripts/deploy-guard.mjs config   wrangler.jsonc is a production config
  *   node scripts/deploy-guard.mjs www      the build in www is fit to deploy:
- *                                          _headers, robots.txt, sitemap.xml and
- *                                          index.md at its root, every .js and
- *                                          .css content-hashed
+ *                                          ROOT_FILES at its root, every .js
+ *                                          and .css content-hashed
  *   node scripts/deploy-guard.mjs live     the deploy would not remove a live route
  *   node scripts/deploy-guard.mjs verify   the version this run uploaded is the
  *                                          live one, and every configured route
@@ -66,8 +65,18 @@ export const WORKER_FIRST = ['/*', '!/*.*'];
  * carry unchanged: `_headers` configures hnch-web's caching, without
  * `robots.txt` or `sitemap.xml` crawlers get the SPA's index.html, and without
  * `index.md` Markdown requests quietly get the HTML (worker/index.ts).
+ * `.well-known/api-catalog` (RFC 9727) and the `openapi.json` it links to
+ * would otherwise also answer the SPA's index.html, which agents read as no
+ * API.
  */
-export const ROOT_FILES = ['_headers', 'robots.txt', 'sitemap.xml', 'index.md'];
+export const ROOT_FILES = [
+  '_headers',
+  'robots.txt',
+  'sitemap.xml',
+  'index.md',
+  'openapi.json',
+  '.well-known/api-catalog',
+];
 
 /**
  * @typedef {import('../../../scripts/cloudflare/worker-guard.mjs').RouteConfig} RouteConfig
@@ -180,7 +189,7 @@ export function wwwReport(wwwDir, srcDir) {
     const built = resolve(wwwDir, name);
     const source = resolve(srcDir, name);
     if (!existsSync(built)) {
-      problems.push(`${wwwDir} has no ${name} at its root`);
+      problems.push(`${wwwDir} has no ${name}`);
     } else if (readFileSync(built, 'utf8') !== readFileSync(source, 'utf8')) {
       problems.push(`${wwwDir}/${name} differs from ${source}`);
     }
