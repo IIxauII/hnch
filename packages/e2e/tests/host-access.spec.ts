@@ -9,7 +9,7 @@ import { test, expect } from './fixtures/app.fixture';
 import { LOBBY, SETTINGS_SHEET } from './fixtures/helpers';
 
 test.describe('Host-only access changes', () => {
-  test('after a handoff the new host can change the password and the old host cannot', async ({
+  test('after a handoff the new host can change the password and the old host loses the control', async ({
     host,
     player,
     createParticipant,

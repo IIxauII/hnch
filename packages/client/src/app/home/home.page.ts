@@ -33,7 +33,7 @@ import { DocService } from '../core/doc/doc.service';
 import type { ClientLastSessionEntry } from '../core/last-session.service';
 import { LastSessionService } from '../core/last-session.service';
 import { ParticipantIdService } from '../core/participant-id.service';
-import { rejectionCopy, RELAY_UNREACHABLE_COPY } from '../core/relay-copy';
+import { ACCESS_NOT_HOST_COPY, rejectionCopy, RELAY_UNREACHABLE_COPY } from '../core/relay-copy';
 import { ScalePreferenceService } from '../core/scale-preference.service';
 import { RoomJoinService } from '../core/room-join.service';
 import { SessionAccessService } from '../core/session-access.service';
@@ -489,7 +489,11 @@ export class HomePage {
     // means: the relay is told, the socket carries the password from then
     // on, and the device remembers it for the host's own way back in.
     const result = await this.access.setPassword(password);
-    if (result === 'failed' || result === 'not-host') {
+    if (result === 'not-host') {
+      // The creator is the access holder from the mint on, so this is the relay disagreeing.
+      await this.toast(`${ACCESS_NOT_HOST_COPY}. The session was created without one.`);
+    }
+    if (result === 'failed') {
       await this.toast("Couldn't set the password. The session was created without one.");
     }
     await this.passwordModalRef()?.dismiss();

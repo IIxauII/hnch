@@ -28,7 +28,7 @@ import {
 import { DocService } from '../core/doc/doc.service';
 import { ACCESS_NOT_HOST_COPY } from '../core/relay-copy';
 import { ScalePreferenceService } from '../core/scale-preference.service';
-import { SessionAccessService } from '../core/session-access.service';
+import { SessionAccessService, type AccessChangeResult } from '../core/session-access.service';
 import { SurfaceService } from '../core/surface.service';
 import { ToastService } from '../services/toast.service';
 import { ScalePickerSheetComponent } from './scale-picker.sheet';
@@ -284,10 +284,7 @@ export class SessionSettingsSheetComponent {
    * Say how the change went. Runs to the end even when the sheet has been
    * closed in the meantime — the toast is how the user finds out.
    */
-  private async report(
-    result: Awaited<ReturnType<SessionAccessService['setPassword']>>,
-    done: string,
-  ): Promise<void> {
+  private async report(result: AccessChangeResult, done: string): Promise<void> {
     if (result === 'applied') await this.toastService.info(done);
     if (result === 'not-host') {
       await this.toastService.error(ACCESS_NOT_HOST_COPY);
