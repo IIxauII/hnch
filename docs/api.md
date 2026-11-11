@@ -28,7 +28,7 @@ Only the room's **access holder** may change access ([ADR-0059](../adr/0059-host
 - Send `PATCH` and `POST /rooms/{uuid}/host` (handoff to `{"target"}`) with `Authorization: Bearer {pk}` and `participantId` in the body.
 - A handoff answers `200 {"accessHolder"}` naming the new holder.
 - Refusals: `401 {"reason":"unauthenticated"}` (key missing, wrong, or id never joined), `401 {"reason":"not-host"}`, `409 {"reason":"bad-target"}` (handoff target not connected with a proven id), and `404` for an unknown room on both routes.
-- When the holder has been gone 5 s, the document's host claims access on its next `PATCH`.
+- When the holder has been gone 5 s, or there is none, the document's host claims access on its next `PATCH` or handoff ([ADR-0060](../adr/0060-handoff-claims-unset-holder.md)); a refused handoff claims nothing.
 - A room created without `creator` accepts one `PATCH` without `Authorization`, within 60 s and before anyone joined, for older clients.
 
 ## Errors and limits

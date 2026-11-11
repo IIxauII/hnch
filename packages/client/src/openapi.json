@@ -207,7 +207,7 @@
       "post": {
         "operationId": "moveAccessHolder",
         "summary": "Hand the room's access to another participant",
-        "description": "The access holder hands access to target, which must be connected and have proved its id with its participant key. Clients call this before writing the host handoff to the document, and write it only on a 200.",
+        "description": "The access holder hands access to target, which must be connected and have proved its id with its participant key. With no access holder, the document's host claims access on its handoff as on PATCH (connected and proven), in the same write; a refused handoff leaves access unclaimed. Clients call this before writing the host handoff to the document, and write it only on a 200.",
         "security": [
           {
             "ParticipantKey": []

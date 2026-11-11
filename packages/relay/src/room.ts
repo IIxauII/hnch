@@ -283,8 +283,10 @@ export class Room extends DurableObject<Env> {
 
   /**
    * ADR-0059 handoff: the access holder hands it to `target`, which must be
-   * bound, uncontested and connected. The client writes `handoffHost` to the
-   * doc only after this answers. Null if the room is unknown.
+   * bound, uncontested and connected. With the holder unset, a caller that
+   * {@link mayClaim} hands it on as if it held it (ADR-0060); claim and move are
+   * one write, so a refused handoff leaves the holder unset. The client writes
+   * `handoffHost` to the doc only after this answers. Null if the room is unknown.
    */
   async handoff(caller: Caller | null, target: string): Promise<HandoffAnswer | null> {
     const meta = await this.liveMeta();
@@ -294,9 +296,11 @@ export class Room extends DurableObject<Env> {
     if (isGone(current)) return null;
     if (caller === null) return { refused: 'unauthenticated' };
     const evaluated = this.evaluateHolder(clock.now());
+    const id = caller.participantId;
+    const holder = evaluated.accessHolder ?? null;
     const refusal =
       this.proveCaller(caller, submitted) ??
-      (evaluated.accessHolder === caller.participantId ? null : 'not-host');
+      (holder === id || (holder === null && this.mayClaim(id)) ? null : 'not-host');
     if (refusal !== null) return { refused: refusal };
     if (!this.isClaimable(target)) return { refused: 'bad-target' };
     this.writeMeta({ ...evaluated, accessHolder: target, holderAbsentSince: null });
@@ -731,6 +735,14 @@ export class Room extends DurableObject<Env> {
   }
 
   /**
+   * Whether a caller {@link proveCaller} passed may take an unset holder: it is
+   * the doc host and has an open bound socket. PATCH and handoff share this rule.
+   */
+  private mayClaim(participantId: string): boolean {
+    return this.docHost() === participantId && this.hasBoundSocket(participantId);
+  }
+
+  /**
    * ADR-0059's PATCH checks, after {@link evaluateHolder}: {@link proveCaller},
    * then holder (or claim, which writes the new holder) and doc host. Null when allowed.
    */
@@ -742,14 +754,13 @@ export class Room extends DurableObject<Env> {
     const refusal = this.proveCaller(caller, submitted);
     if (refusal !== null) return refusal;
     const id = caller.participantId;
-    const host = this.docHost();
     const holder = meta.accessHolder ?? null;
     if (holder === null) {
-      // Claim: the doc host, connected and proven, takes the lapsed holder.
-      if (host !== id || !this.hasBoundSocket(id)) return 'not-host';
+      if (!this.mayClaim(id)) return 'not-host';
       this.writeMeta({ ...meta, accessHolder: id, holderAbsentSince: null });
       return null;
     }
+    const host = this.docHost();
     // An absent doc host is the creator before its first socket seeded the doc.
     if (holder !== id || (host !== id && host !== undefined)) return 'not-host';
     return null;

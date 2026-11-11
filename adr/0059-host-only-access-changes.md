@@ -1,6 +1,6 @@
 # ADR-0059: Host-only access changes — participant keys and a relay-held access holder
 
-**Status:** Accepted
+**Status:** Accepted (handoff holder-only clause superseded by ADR-0060)
 **Date:** 2026-11-11
 
 Supersedes ADR-0017's "no host auth on `PATCH /rooms/:uuid/access`" clause. Builds on ADR-0010, ADR-0016, ADR-0036, ADR-0048, ADR-0051.

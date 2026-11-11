@@ -1,7 +1,7 @@
 /**
  * Host-only access changes (ADR-0059): participant keys bind ids, the relay's
  * access holder gates `PATCH /rooms/:uuid/access`, and `POST /rooms/:uuid/host`
- * moves it.
+ * moves it, claiming an unset holder for the doc host (ADR-0060).
  */
 
 import { evictDurableObject, runInDurableObject } from 'cloudflare:test';
@@ -90,6 +90,16 @@ async function handoff(uuid: string, who: Device, target: string): Promise<Answe
       headers: { Authorization: `Bearer ${await pkOf(who, uuid)}` },
       body: JSON.stringify({ participantId: who.id, target }),
     }),
+  );
+}
+
+/** The access holder as stored, null when unset. */
+async function holderOf(uuid: string): Promise<string | null> {
+  const stub = env.ROOM.get(env.ROOM.idFromName(uuid));
+  return runInDurableObject(
+    stub,
+    (_room, state) =>
+      state.storage.kv.get<{ accessHolder?: string | null }>('meta')?.accessHolder ?? null,
   );
 }
 
@@ -209,6 +219,87 @@ describe('the holder lapsing and the doc host claiming it', () => {
     expect(await patch(uuid, bob)).toEqual(NOT_HOST);
     await join(uuid, bob);
     expect(await patch(uuid, bob)).toEqual(OK);
+  });
+});
+
+describe('handoff with the holder unset (ADR-0060)', () => {
+  const T0 = Date.UTC(2026, 10, 11, 12);
+
+  /** alice created and held, then lapsed; bob is the doc host, carol is connected. */
+  async function lapsed(): Promise<{ uuid: string; alice: Device; bob: Device; carol: Device }> {
+    const [alice, bob, carol] = [device('alice'), device('bob'), device('carol')];
+    setNow(T0);
+    const uuid = await createKeyed(alice);
+    const a = await join(uuid, alice);
+    const b = await join(uuid, bob);
+    await join(uuid, carol);
+    await setDocHost(uuid, b, bob.id);
+    a.close();
+    await a.closed();
+    setNow(T0 + 5_000);
+    return { uuid, alice, bob, carol };
+  }
+
+  it('lets the doc host claim and hand off, and not the old holder', async () => {
+    const { uuid, alice, bob, carol } = await lapsed();
+    expect(await handoff(uuid, bob, carol.id)).toEqual({
+      status: 200,
+      body: { accessHolder: carol.id },
+    });
+    expect(await holderOf(uuid)).toBe(carol.id);
+    expect(await handoff(uuid, alice, bob.id)).toEqual(NOT_HOST);
+  });
+
+  it('refuses a caller that is not the doc host', async () => {
+    const { uuid, bob, carol } = await lapsed();
+    expect(await handoff(uuid, carol, bob.id)).toEqual(NOT_HOST);
+    expect(await holderOf(uuid)).toBeNull();
+  });
+
+  it('refuses a contested doc host', async () => {
+    const { uuid, bob, carol } = await lapsed();
+    const impostor = await join(uuid, device('bob'));
+    expect(await handoff(uuid, bob, carol.id)).toEqual(NOT_HOST);
+    impostor.close();
+    await impostor.closed();
+    expect((await handoff(uuid, bob, carol.id)).status).toBe(200);
+  });
+
+  it('refuses a doc host with no open bound socket', async () => {
+    const [alice, bob, carol] = [device('alice'), device('bob'), device('carol')];
+    setNow(T0);
+    const uuid = await createKeyed(alice);
+    const b = await join(uuid, bob);
+    await join(uuid, carol);
+    await setDocHost(uuid, b, bob.id);
+    b.close();
+    await b.closed();
+    setNow(T0 + 5_000);
+    expect(await handoff(uuid, bob, carol.id)).toEqual(NOT_HOST);
+    expect(await holderOf(uuid)).toBeNull();
+  });
+
+  it('leaves the holder unset when the target is refused', async () => {
+    const { uuid, bob, carol } = await lapsed();
+    expect(await handoff(uuid, bob, device('dave').id)).toEqual(BAD_TARGET);
+    expect(await holderOf(uuid)).toBeNull();
+    expect(await handoff(uuid, bob, carol.id)).toEqual({
+      status: 200,
+      body: { accessHolder: carol.id },
+    });
+  });
+
+  it('lets the keyed doc host of a keyless-created room hand off', async () => {
+    const [bob, carol] = [device('bob'), device('carol')];
+    const uuid = await createKeyless();
+    const b = await join(uuid, bob);
+    await join(uuid, carol);
+    await setDocHost(uuid, b, bob.id);
+    expect(await holderOf(uuid)).toBeNull();
+    expect(await handoff(uuid, bob, carol.id)).toEqual({
+      status: 200,
+      body: { accessHolder: carol.id },
+    });
   });
 });
 

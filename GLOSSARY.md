@@ -197,7 +197,7 @@ The per-room proof that a caller is the participant id it claims (ADR-0059). Eac
 _Avoid_: token, session key, auth token (it proves an id, not a session); device ID (that is the public `did`)
 
 **access holder**:
-The one participant the relay lets change a room's access (ADR-0059), kept in the room's own meta, never read from the doc. It starts as the keyed creator, moves only by the holder's own `POST /rooms/:uuid/host`, and **lapses** after 5 s with no open socket proving it (or when its socket comes back while the doc names another host); the doc's `hostParticipantId`, connected and proven, then **claims** it on its next PATCH. Usually the same participant as the doc's host, but not always: when they disagree, nobody changes access until the holder lapses.
+The one participant the relay lets change a room's access (ADR-0059), kept in the room's own meta, never read from the doc. It starts as the keyed creator, moves only by `POST /rooms/:uuid/host` from the holder (or from a caller who may claim it), and **lapses** after 5 s with no open socket proving it (or when its socket comes back while the doc names another host); the doc's `hostParticipantId`, connected and proven, then **claims** it on its next PATCH or handoff (ADR-0060). Usually the same participant as the doc's host, but not always: when they disagree, nobody changes access until the holder lapses.
 _Avoid_: host (that is the doc's `hostParticipantId`), owner, admin
 
 **onSynced**:
