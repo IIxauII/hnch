@@ -7,7 +7,13 @@
 import { runInDurableObject } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Peer, call, createRoom, eventually, upgrade } from './test-support/peer';
+import {
+  Peer,
+  createHostedRoom as createRoom,
+  eventually,
+  patchAccess,
+  upgrade,
+} from './test-support/peer';
 
 const OLD = 'ab'.repeat(32);
 const NEW = 'cd'.repeat(32);
@@ -41,11 +47,7 @@ function holdFirstDigest(): Hold {
 }
 
 async function setPassword(uuid: string, passwordHash: string | null): Promise<void> {
-  const res = await call(`/rooms/${uuid}/access`, {
-    method: 'PATCH',
-    body: JSON.stringify({ passwordHash }),
-  });
-  expect(res.status).toBe(200);
+  expect((await patchAccess(uuid, passwordHash)).status).toBe(200);
 }
 
 afterEach(() => vi.restoreAllMocks());

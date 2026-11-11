@@ -5,7 +5,14 @@
 import { env } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 import pkg from '../package.json';
-import { Peer, call, createRoom, eventually } from './test-support/peer';
+import {
+  Peer,
+  call,
+  createHostedRoom,
+  createRoom,
+  eventually,
+  patchAccess,
+} from './test-support/peer';
 import { handleFetch } from './worker';
 
 const HASH = 'ab'.repeat(32);
@@ -15,7 +22,7 @@ const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
 const CORS = {
   'access-control-allow-origin': '*',
   'access-control-allow-methods': 'GET, POST, PATCH, DELETE, OPTIONS',
-  'access-control-allow-headers': 'Content-Type',
+  'access-control-allow-headers': 'Content-Type, Authorization',
 };
 
 function corsOf(res: Response): Record<string, string | null> {
@@ -152,23 +159,17 @@ describe('GET /rooms/:code', () => {
 });
 
 describe('PATCH /rooms/:uuid/access', () => {
-  it('sets and clears the password', async () => {
-    const { uuid, code } = await createRoom();
-    const set = await call(`/rooms/${uuid}/access`, {
-      method: 'PATCH',
-      body: JSON.stringify({ passwordHash: HASH }),
-    });
+  it('sets and clears the password, for the access holder', async () => {
+    const { uuid, code } = await createHostedRoom();
+    const set = await patchAccess(uuid, HASH);
     expect(set.status).toBe(200);
     expect(await set.json()).toEqual({ accessMode: 'password' });
     expect(await (await call(`/rooms/${code}`)).json()).toEqual({ uuid, accessMode: 'password' });
 
-    for (const body of [JSON.stringify({ passwordHash: null }), '{}', '']) {
-      await call(`/rooms/${uuid}/access`, {
-        method: 'PATCH',
-        body: JSON.stringify({ passwordHash: HASH }),
-      });
-      const cleared = await call(`/rooms/${uuid}/access`, { method: 'PATCH', body });
-      expect(await cleared.json(), body).toEqual({ accessMode: 'open' });
+    for (const passwordHash of [null, undefined]) {
+      await patchAccess(uuid, HASH);
+      const cleared = await patchAccess(uuid, passwordHash);
+      expect(await cleared.json(), String(passwordHash)).toEqual({ accessMode: 'open' });
     }
   });
 
@@ -192,13 +193,10 @@ describe('PATCH /rooms/:uuid/access', () => {
   });
 
   it('leaves open sockets connected, and the new password applies to the next join', async () => {
-    const { uuid } = await createRoom();
+    const { uuid } = await createHostedRoom();
     const alice = await Peer.join(uuid);
     const bob = await Peer.join(uuid);
-    await call(`/rooms/${uuid}/access`, {
-      method: 'PATCH',
-      body: JSON.stringify({ passwordHash: HASH }),
-    });
+    expect((await patchAccess(uuid, HASH)).status).toBe(200);
 
     alice.doc.getMap('m').set('after', true);
     await eventually(() => expect(bob.doc.getMap('m').get('after')).toBe(true));

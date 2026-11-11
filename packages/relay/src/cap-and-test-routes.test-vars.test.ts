@@ -8,6 +8,7 @@ import { env } from 'cloudflare:workers';
 import { evictDurableObject, runInDurableObject } from 'cloudflare:test';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Codes } from './codes';
+import { participantKey } from './participant-key';
 import { REFUSED_BOUND_DETAIL, REFUSED_SOCKETS_BOUND } from './room';
 import { Peer, call, createRoom, eventually, upgrade } from './test-support/peer';
 import { handleFetch } from './worker';
@@ -42,6 +43,33 @@ describe('participant cap (HNCH_ROOM_CAP=3)', () => {
     for (let i = 0; i < 3; i++) await joined(uuid);
     const fourth = await Peer.join(uuid);
     expect(await fourth.closed()).toEqual({ code: 4006, reason: 'room-full' });
+  });
+
+  it('never binds the participant key of a socket refused 4006 (ADR-0059)', async () => {
+    const alice = 'cd'.repeat(32);
+    const res = await call('/rooms', {
+      method: 'POST',
+      body: JSON.stringify({ creator: { participantId: 'alice', deviceKey: alice } }),
+    });
+    const { uuid } = (await res.json()) as { uuid: string };
+    const pk = (deviceKey: string) => participantKey(deviceKey, uuid);
+    await joined(uuid, `?did=alice&pk=${await pk(alice)}`);
+    const spare = await joined(uuid);
+    await joined(uuid);
+
+    const refused = await Peer.join(uuid, `?did=carol&pk=${await pk('ef'.repeat(32))}`);
+    expect((await refused.closed()).code).toBe(4006);
+    spare.close();
+    await spare.closed();
+    const carol = '01'.repeat(32);
+    await joined(uuid, `?did=carol&pk=${await pk(carol)}`);
+
+    const handoff = await call(`/rooms/${uuid}/host`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${await pk(alice)}` },
+      body: JSON.stringify({ participantId: 'alice', target: 'carol' }),
+    });
+    expect(handoff.status).toBe(200);
   });
 
   it('shares nothing with a socket refused 4006, either way', async () => {

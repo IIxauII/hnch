@@ -192,6 +192,14 @@ _Avoid_: createSyncProvider, connect, openSocket
 What `connectToRelay` does after a socket closed without a relay code: it asks `GET /rooms/:code` what the socket could not say. The relay turns two handshakes away before there is a socket to close with a reason — a room it does not have, a protected one asked for without a password — and a client sees those exactly like a dead link. An answer that is the relay's and says so ends the retrying with a rejection (`unknown-room`, `wrong-password`); anything else, silence included, is a dead link and is retried (ADR-0050).
 _Avoid_: health check (it asks about one room), probe, preflight (it comes after)
 
+**participant key**:
+The per-room proof that a caller is the participant id it claims (ADR-0059). Each device keeps one random 256-bit **device key** (64 lowercase hex chars) next to its `participantId`; its key for a room is `pk = HMAC-SHA-256(key = the device key's 32 bytes, message = the room UUID as UTF-8)`, as 64 lowercase hex chars. Sent as `pk` next to `did` on the WebSocket upgrade, and as `Authorization: Bearer <pk>` (with `participantId` in the body) on `PATCH /rooms/:uuid/access` and `POST /rooms/:uuid/host`. `POST /rooms` takes `creator: { participantId, deviceKey }` and derives the creator's `pk` itself. The first admitted socket with a `pk` for an id **binds** it for the room's life; the relay keeps only `SHA-256(uuid ‖ pk)`. An open socket that names an id without its key makes that id **contested**. Never logged.
+_Avoid_: token, session key, auth token (it proves an id, not a session); device ID (that is the public `did`)
+
+**access holder**:
+The one participant the relay lets change a room's access (ADR-0059), kept in the room's own meta, never read from the doc. It starts as the keyed creator, moves only by the holder's own `POST /rooms/:uuid/host`, and **lapses** after 5 s with no open socket proving it (or when its socket comes back while the doc names another host); the doc's `hostParticipantId`, connected and proven, then **claims** it on its next PATCH. Usually the same participant as the doc's host, but not always: when they disagree, nobody changes access until the holder lapses.
+_Avoid_: host (that is the doc's `hostParticipantId`), owner, admin
+
 **onSynced**:
 `connectToRelay`'s one-shot callback, fired the first time the relay's Yjs snapshot has applied. The timing is the contract: a write made from here carries a Lamport clock higher than anything in the snapshot, which is what lets `rejoin` win the LWW merge (ADR-0036 §6). Never fires on a later reconnect — "first sync of this connection" is the only moment that guarantees the ordering.
 _Avoid_: onConnected (a different moment), onReady, onFirstUpdate

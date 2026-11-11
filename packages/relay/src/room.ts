@@ -13,6 +13,12 @@
  *   kv `meta`          RoomMeta, written at init, changed additively only
  *   sql `log`          coalesced doc updates, one row per flush
  *   sql `snapshot`     the compacted doc, in chunks of at most 1 MiB
+ *   sql `bindings`     participantId → SHA-256(uuid ‖ pk), capped (ADR-0059)
+ *
+ * Access changes (ADR-0059): only the room's access holder may PATCH, and the
+ * holder moves only on what the relay sees itself (create, handoff, sockets
+ * opening and closing, the clock), never on a doc write. The doc is read, never
+ * trusted alone, at PATCH and when the holder's socket comes back.
  */
 
 import { DurableObject } from 'cloudflare:workers';
@@ -23,6 +29,15 @@ import { concatBytes } from './bytes';
 import { configOf, type RelayConfig } from './config';
 import { passwordDigest, passwordMatches } from './digest';
 import { json } from './http';
+import {
+  type Caller,
+  type Creator,
+  isKeyHex,
+  isParticipantId,
+  keyDigest,
+  keyDigestMatches,
+  participantKey,
+} from './participant-key';
 import {
   AwarenessTooLargeError,
   Presence,
@@ -86,6 +101,16 @@ export const REFUSED_BOUND_DETAIL = 'too many refused joins';
 /** `Retry-After` of a refusal answered at the bound. */
 const REFUSED_RETRY_AFTER_S = 5;
 
+/** ADR-0059: the holder lapses once it has had no open bound socket this long (ADR-0010's debounce). */
+export const HOLDER_LAPSE_MS = 5_000;
+/** ADR-0059 released-client grace: a keyless create's one keyless PATCH, this soon after create. */
+export const KEYLESS_GRACE_MS = 60_000;
+/** Bindings a room keeps, per seat of its cap; at the bound new ids stay unbound. */
+const BINDINGS_PER_SEAT = 4;
+/** `settings.hostParticipantId` in the doc (docs/schema.md). */
+const DOC_SETTINGS = 'settings';
+const DOC_HOST = 'hostParticipantId';
+
 const SCHEMA_VERSION = 1;
 const META = 'meta';
 const STORAGE_ORIGIN = Symbol('storage');
@@ -103,12 +128,37 @@ export interface RoomMeta {
   readonly tombstonedAt: number | null;
   /** The relay's own awareness client ID, stable across wakes. */
   readonly relayClientId: number;
+  // ADR-0059, additive: absent on rooms made before it.
+  /** The one participant that may change access, or null/absent when none holds it. */
+  readonly accessHolder?: string | null;
+  /** When the holder was first seen with no open bound socket; null while it has one. */
+  readonly holderAbsentSince?: number | null;
+  /** Whether a socket was ever admitted. Absent reads as true (no grace for old rooms). */
+  readonly everAdmitted?: boolean;
+  /** A keyless create's one keyless PATCH is still unused. Absent reads as false. */
+  readonly keylessGrace?: boolean;
 }
 
 export type AccessMode = 'open' | 'password';
 export type ExpireOutcome = 'deleted' | 'gone' | 'moved' | 'live';
 
-interface SocketAttachment {
+/** What PATCH answers; null (unknown room) is separate. */
+export type AccessAnswer =
+  | { readonly accessMode: AccessMode }
+  | { readonly refused: 'unauthenticated' | 'not-host' };
+
+/** What handoff answers; null (unknown room) is separate. */
+export type HandoffAnswer =
+  | { readonly accessHolder: string }
+  | { readonly refused: 'unauthenticated' | 'not-host' | 'bad-target' };
+
+/** Who a socket said it is (`did`) and, if it proved it with its `pk`, its bound id. */
+interface SocketIdentity {
+  readonly did: string | null;
+  readonly participantId: string | null;
+}
+
+interface SocketAttachment extends Partial<SocketIdentity> {
   readonly id: string;
   readonly presence: readonly PresenceEntry[];
 }
@@ -119,6 +169,8 @@ export class Room extends DurableObject<Env> {
   /** When each socket (by attachment id) was last sent a frame. */
   private readonly lastSentAt = new Map<string, number>();
   private readonly socketIds = new WeakMap<WebSocket, string>();
+  private readonly identities = new WeakMap<WebSocket, SocketIdentity>();
+  private bindingsReady = false;
 
   /** undefined until read from storage. */
   private meta: RoomMeta | null | undefined;
@@ -148,9 +200,19 @@ export class Room extends DurableObject<Env> {
   // RPC
 
   /** Creates the room. Called once by the Worker, after the code is claimed. */
-  async init(uuid: string, code: string, passwordHash: string | null): Promise<void> {
+  async init(
+    uuid: string,
+    code: string,
+    passwordHash: string | null,
+    creator: Creator | null = null,
+  ): Promise<void> {
     if (this.loadMeta() !== null) throw new Error('room already initialised');
     const digest = passwordHash === null ? null : await passwordDigest(uuid, passwordHash);
+    // The relay derives the creator's pk itself; the device key goes no further.
+    const creatorDigest =
+      creator === null
+        ? null
+        : await keyDigest(uuid, await participantKey(creator.deviceKey, uuid));
     const now = clock.now();
     const meta: RoomMeta = {
       schemaVersion: SCHEMA_VERSION,
@@ -161,6 +223,10 @@ export class Room extends DurableObject<Env> {
       lastOccupiedAt: now,
       tombstonedAt: null,
       relayClientId: crypto.getRandomValues(new Uint32Array(1))[0]!,
+      accessHolder: creator?.participantId ?? null,
+      holderAbsentSince: creator === null ? null : now,
+      everAdmitted: false,
+      keylessGrace: creator === null,
     };
     this.ctx.storage.transactionSync(() => {
       const sql = this.ctx.storage.sql;
@@ -168,6 +234,7 @@ export class Room extends DurableObject<Env> {
       sql.exec(
         'CREATE TABLE IF NOT EXISTS snapshot (chunk INTEGER PRIMARY KEY, data BLOB NOT NULL)',
       );
+      if (creator !== null) this.insertBinding(creator.participantId, creatorDigest!);
       this.writeMeta(meta);
     });
     await this.ctx.storage.setAlarm(now + OCCUPANCY_CHECK_MS);
@@ -179,16 +246,60 @@ export class Room extends DurableObject<Env> {
     return meta === null ? null : { accessMode: accessModeOf(meta) };
   }
 
-  /** Sets or clears the password. Open sockets stay. Null if the room is unknown. */
-  async setPassword(passwordHash: string | null): Promise<AccessMode | null> {
+  /**
+   * Sets or clears the password, for the access holder only (ADR-0059's PATCH
+   * rule), or once for a released keyless client. Open sockets stay. Null if
+   * the room is unknown.
+   */
+  async setPassword(
+    passwordHash: string | null,
+    caller: Caller | null,
+  ): Promise<AccessAnswer | null> {
     const meta = await this.liveMeta();
     if (meta === null) return null;
+    // Every await first; from the re-read below to the write, one synchronous block.
+    const proof = await submittedKeyDigest(meta.uuid, caller);
     const digest = passwordHash === null ? null : await passwordDigest(meta.uuid, passwordHash);
     const current = this.loadMeta();
     if (isGone(current)) return null;
-    const updated = { ...current, digest };
+    const now = clock.now();
+
+    let updated: RoomMeta;
+    if (caller === null) {
+      if (!graceOpen(current, now)) return { refused: 'unauthenticated' };
+      updated = { ...current, digest, keylessGrace: false };
+    } else {
+      const evaluated = this.evaluateHolder(now);
+      const refusal = this.authorise(caller, proof, evaluated);
+      if (refusal !== null) return { refused: refusal };
+      updated = { ...this.loadMeta()!, digest };
+    }
     this.writeMeta(updated);
-    return accessModeOf(updated);
+    return { accessMode: accessModeOf(updated) };
+  }
+
+  /**
+   * ADR-0059 handoff: the access holder hands it to `target`, which must be
+   * bound, uncontested and connected. The client writes `handoffHost` to the
+   * doc only after this answers. Null if the room is unknown.
+   */
+  async handoff(caller: Caller | null, target: string): Promise<HandoffAnswer | null> {
+    const meta = await this.liveMeta();
+    if (meta === null) return null;
+    const proof = await submittedKeyDigest(meta.uuid, caller);
+    const current = this.loadMeta();
+    if (isGone(current)) return null;
+    if (caller === null) return { refused: 'unauthenticated' };
+    const evaluated = this.evaluateHolder(clock.now());
+    if (!keyDigestMatches(this.bindingOf(caller.participantId), proof ?? '')) {
+      return { refused: 'unauthenticated' };
+    }
+    if (evaluated.accessHolder !== caller.participantId || this.isContested(caller.participantId)) {
+      return { refused: 'not-host' };
+    }
+    if (!this.isClaimable(target)) return { refused: 'bad-target' };
+    this.writeMeta({ ...evaluated, accessHolder: target, holderAbsentSince: null });
+    return { accessHolder: target };
   }
 
   /**
@@ -241,16 +352,29 @@ export class Room extends DurableObject<Env> {
     const meta = await this.liveMeta();
     // Pre-upgrade rejections stay plain HTTP (ADR-0016, ADR-0050).
     if (meta === null) return new Response(null, { status: 404 });
-    const pw = new URL(request.url).searchParams.get('pw');
+    const params = new URL(request.url).searchParams;
+    const pw = params.get('pw');
     if (meta.digest !== null && !pw) return new Response(null, { status: 400 });
+    // ADR-0059: a `did` with a well-formed `pk` may bind or prove that id. A bad
+    // or missing `pk` still joins, unbound.
+    const did = params.get('did');
+    const claimedId = isParticipantId(did) ? did : null;
+    const pk = params.get('pk');
+    const pkWork = claimedId !== null && isKeyHex(pk) ? keyDigest(meta.uuid, pk) : null;
 
     // The password can be changed or cleared while it is being checked (the
     // object's input gate stays open across this await), so a verdict counts only
-    // against the digest still in force; otherwise check again, a few times.
+    // against the digest still in force; otherwise check again, a few times. The
+    // pk digest is worked out in the same await, so nothing waits after the verdict.
     let digest = meta.digest;
-    let admitted = digest === null;
-    for (let attempt = 0; digest !== null && attempt < PASSWORD_CHECKS; attempt++) {
-      const matches = await passwordMatches(meta.uuid, pw!, digest);
+    let admitted: boolean | null = digest === null && pkWork === null ? true : null;
+    let pkDigest: string | null = null;
+    for (let attempt = 0; admitted === null && attempt < PASSWORD_CHECKS; attempt++) {
+      const [matches, submitted] = await Promise.all([
+        digest === null ? true : passwordMatches(meta.uuid, pw ?? '', digest),
+        pkWork,
+      ]);
+      pkDigest = submitted;
       const current = this.loadMeta();
       // The room may have been deleted while the password was checked.
       if (isGone(current)) return new Response(null, { status: 404 });
@@ -259,8 +383,8 @@ export class Room extends DurableObject<Env> {
         break;
       }
       digest = current.digest;
-      admitted = digest === null;
     }
+    if (admitted === null) admitted = digest === null;
     if (!admitted) return refuse(this.ctx, 'wrong-password');
 
     // Everything that can fail runs before the accept: sync-step-1, then every
@@ -281,7 +405,12 @@ export class Room extends DurableObject<Env> {
     this.ctx.acceptWebSocket(server);
     try {
       this.socketIds.set(server, id);
+      // Only an admitted socket binds; the table is read here, after every await.
+      const participantId =
+        claimedId !== null && pkDigest !== null ? this.tryProveOrBind(claimedId, pkDigest) : null;
+      this.identities.set(server, { did: claimedId, participantId });
       this.saveAttachment(server, id);
+      this.socketsChanged(now, undefined, participantId);
       for (const frame of opening) this.send(server, id, frame, now);
     } catch (err) {
       // Never leave an accepted socket holding a seat behind a failed join.
@@ -429,6 +558,7 @@ export class Room extends DurableObject<Env> {
     const now = clock.now();
     if (removed.length > 0)
       this.broadcast(awarenessMessage(this.presence.encode(removed)), id, now);
+    this.socketsChanged(now, ws);
     if (this.openSockets(ws).length === 0) this.flush();
     await this.touch();
   }
@@ -493,14 +623,183 @@ export class Room extends DurableObject<Env> {
     }
   }
 
+  /** Overflow drops presence only: the identity must survive hibernation. */
   private saveAttachment(ws: WebSocket, id: string): void {
+    const identity = this.identityOf(ws);
     let presence = this.presence.ownedBy(id);
     if (JSON.stringify(presence).length > ATTACHMENT_PRESENCE_BUDGET) presence = [];
     try {
-      ws.serializeAttachment({ id, presence } satisfies SocketAttachment);
+      ws.serializeAttachment({ id, presence, ...identity } satisfies SocketAttachment);
     } catch {
-      ws.serializeAttachment({ id, presence: [] } satisfies SocketAttachment);
+      ws.serializeAttachment({ id, presence: [], ...identity } satisfies SocketAttachment);
     }
+  }
+
+  private identityOf(ws: WebSocket): SocketIdentity {
+    let identity = this.identities.get(ws);
+    if (identity === undefined) {
+      const attachment = ws.deserializeAttachment() as SocketAttachment | null;
+      identity = { did: attachment?.did ?? null, participantId: attachment?.participantId ?? null };
+      this.identities.set(ws, identity);
+    }
+    return identity;
+  }
+
+  // access holder (ADR-0059)
+
+  /**
+   * A socket was admitted (`except` unset) or dropped: stamp `everAdmitted` and
+   * re-evaluate the holder. A failed write is logged, never fails the join or
+   * close; memory still closes the keyless grace.
+   */
+  private socketsChanged(now: number, except?: WebSocket, opened: string | null = null): void {
+    try {
+      const meta = this.loadMeta()!;
+      if (except === undefined && meta.everAdmitted !== true) {
+        this.writeMeta({ ...meta, everAdmitted: true });
+      }
+      this.evaluateHolder(now, except, opened);
+    } catch (err) {
+      if (except === undefined) this.meta = { ...this.loadMeta()!, everAdmitted: true };
+      logEvent('room-access-state-write-failed', err);
+    }
+  }
+
+  /** Whether `participantId` has an open, admitted socket that proved it. */
+  private hasBoundSocket(participantId: string, except?: WebSocket): boolean {
+    return this.openSockets(except).some(
+      (ws) => this.identityOf(ws).participantId === participantId,
+    );
+  }
+
+  /** An open socket says it is `participantId` but did not prove it. */
+  private isContested(participantId: string): boolean {
+    return this.openSockets().some((ws) => {
+      const { did, participantId: bound } = this.identityOf(ws);
+      return did === participantId && bound !== participantId;
+    });
+  }
+
+  /** May become the holder now: bound, uncontested, with an open bound socket. */
+  private isClaimable(participantId: string): boolean {
+    return (
+      isParticipantId(participantId) &&
+      this.hasBoundSocket(participantId) &&
+      !this.isContested(participantId)
+    );
+  }
+
+  /**
+   * Re-derives the holder's absence from the open sockets, never from a close
+   * event, and lapses it after {@link HOLDER_LAPSE_MS}, or when its socket
+   * comes back (`opened`) after an absence while the doc names another host.
+   * Writes only on change; returns the metadata in force.
+   */
+  private evaluateHolder(now: number, except?: WebSocket, opened: string | null = null): RoomMeta {
+    const meta = this.loadMeta()!;
+    const holder = meta.accessHolder ?? null;
+    if (holder === null) return meta;
+    let accessHolder: string | null = holder;
+    let since = meta.holderAbsentSince ?? null;
+    if (since !== null && now - since >= HOLDER_LAPSE_MS) {
+      accessHolder = null;
+      since = null;
+    } else if (this.hasBoundSocket(holder, except)) {
+      if (since !== null) {
+        const host = this.docHost();
+        if (opened === holder && typeof host === 'string' && host !== holder) accessHolder = null;
+        since = null;
+      }
+    } else if (since === null) {
+      since = now;
+    }
+    if (accessHolder === holder && since === (meta.holderAbsentSince ?? null)) return meta;
+    const updated = { ...meta, accessHolder, holderAbsentSince: since };
+    this.writeMeta(updated);
+    return updated;
+  }
+
+  /**
+   * ADR-0059's PATCH checks, after {@link evaluateHolder}: key, contest, holder
+   * (or claim, which writes the new holder), doc host. Null when allowed.
+   */
+  private authorise(
+    caller: Caller,
+    proof: string | null,
+    meta: RoomMeta,
+  ): 'unauthenticated' | 'not-host' | null {
+    const id = caller.participantId;
+    if (!keyDigestMatches(this.bindingOf(id), proof ?? '')) return 'unauthenticated';
+    if (this.isContested(id)) return 'not-host';
+    const host = this.docHost();
+    const holder = meta.accessHolder ?? null;
+    if (holder === null) {
+      // Claim: the doc host, connected and proven, takes the lapsed holder.
+      if (host !== id || !this.hasBoundSocket(id)) return 'not-host';
+      this.writeMeta({ ...meta, accessHolder: id, holderAbsentSince: null });
+      return null;
+    }
+    // An absent doc host is the creator before its first socket seeded the doc.
+    if (holder !== id || (host !== id && host !== undefined)) return 'not-host';
+    return null;
+  }
+
+  /** `settings.hostParticipantId` as the doc holds it now; read, never trusted alone. */
+  private docHost(): unknown {
+    return this.loadDoc().getMap(DOC_SETTINGS).get(DOC_HOST);
+  }
+
+  /** {@link proveOrBind}, where a storage failure leaves the socket unbound rather than refused. */
+  private tryProveOrBind(participantId: string, pkDigest: string): string | null {
+    try {
+      return this.proveOrBind(participantId, pkDigest);
+    } catch (err) {
+      logEvent('room-binding-failed', err);
+      return null;
+    }
+  }
+
+  /** The id this socket proved, or null: binds an unbound id while the table has room. */
+  private proveOrBind(participantId: string, pkDigest: string): string | null {
+    const stored = this.bindingOf(participantId);
+    if (stored !== null) return keyDigestMatches(stored, pkDigest) ? participantId : null;
+    const count = this.bindingsSql()
+      .exec<{ n: number }>('SELECT COUNT(*) AS n FROM bindings')
+      .one().n;
+    if (count >= BINDINGS_PER_SEAT * this.config.roomCap) return null;
+    this.insertBinding(participantId, pkDigest);
+    return participantId;
+  }
+
+  private bindingOf(participantId: string): string | null {
+    if (!isParticipantId(participantId)) return null;
+    const rows = this.bindingsSql()
+      .exec<{ digest: string }>(
+        'SELECT digest FROM bindings WHERE participant_id = ?',
+        participantId,
+      )
+      .toArray();
+    return rows[0]?.digest ?? null;
+  }
+
+  private insertBinding(participantId: string, digest: string): void {
+    this.bindingsSql().exec(
+      'INSERT INTO bindings (participant_id, digest) VALUES (?, ?)',
+      participantId,
+      digest,
+    );
+  }
+
+  /** The bindings table, made on first use: rooms from before ADR-0059 lack it. */
+  private bindingsSql(): SqlStorage {
+    const sql = this.ctx.storage.sql;
+    if (!this.bindingsReady) {
+      sql.exec(
+        'CREATE TABLE IF NOT EXISTS bindings (participant_id TEXT PRIMARY KEY, digest TEXT NOT NULL)',
+      );
+      this.bindingsReady = true;
+    }
+    return sql;
   }
 
   // lifecycle
@@ -613,6 +912,7 @@ export class Room extends DurableObject<Env> {
     await this.ctx.storage.deleteAll();
     await this.ctx.storage.deleteAlarm();
     this.meta = null;
+    this.bindingsReady = false;
     return true;
   }
 
@@ -720,6 +1020,23 @@ export class Room extends DurableObject<Env> {
 /** No live room: never made, deleted, or tombstoned. */
 function isGone(meta: RoomMeta | null): meta is null {
   return meta === null || meta.tombstonedAt !== null;
+}
+
+/** A well-formed caller's pk as the room would store it; null if malformed. */
+async function submittedKeyDigest(uuid: string, caller: Caller | null): Promise<string | null> {
+  if (caller === null || !isParticipantId(caller.participantId) || !isKeyHex(caller.pk)) {
+    return null;
+  }
+  return keyDigest(uuid, caller.pk);
+}
+
+/** ADR-0059 released-client grace: one keyless PATCH on a fresh, never-joined keyless room. */
+function graceOpen(meta: RoomMeta, now: number): boolean {
+  return (
+    meta.keylessGrace === true &&
+    meta.everAdmitted === false &&
+    now - meta.createdAt < KEYLESS_GRACE_MS
+  );
 }
 
 function accessModeOf(meta: RoomMeta): AccessMode {
