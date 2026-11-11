@@ -83,7 +83,7 @@ The Settings entries that change the room (`E`: name, scale, access) are offered
 
 | The relay says | An access change prints | A handoff prints |
 |---|---|---|
-| This participant is not the access holder | `Failed to update access: Only the host can change the password` | `Handoff failed: only the current host can hand off` |
+| This participant is not the access holder, and may not claim it | `Failed to update access: Only the host can change the password` | `Handoff failed: only the current host can hand off` |
 | The key is missing or wrong, or the id never joined | `Failed to update access: The relay did not accept this device as the host` | `Handoff failed: the relay did not accept this device as the host` |
 | The target is not connected with a proven key | — | `Handoff failed: the relay cannot hand host to that participant` |
 | The room is gone | `Failed to update access: The relay no longer knows this room` | `Handoff failed: the relay no longer knows this room` |

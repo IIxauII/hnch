@@ -256,6 +256,13 @@ describe('handoff with the holder unset (ADR-0060)', () => {
     expect(await holderOf(uuid)).toBeNull();
   });
 
+  it('refuses the doc host id with a wrong key, and a never-joined id, as unauthenticated', async () => {
+    const { uuid, carol } = await lapsed();
+    expect(await handoff(uuid, device('bob'), carol.id)).toEqual(UNAUTHENTICATED);
+    expect(await handoff(uuid, device('mallory'), carol.id)).toEqual(UNAUTHENTICATED);
+    expect(await holderOf(uuid)).toBeNull();
+  });
+
   it('refuses a contested doc host', async () => {
     const { uuid, bob, carol } = await lapsed();
     const impostor = await join(uuid, device('bob'));

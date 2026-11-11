@@ -18,7 +18,8 @@
  * Access changes (ADR-0059): only the room's access holder may PATCH, and the
  * holder moves only on what the relay sees itself (create, handoff, sockets
  * opening and closing, the clock), never on a doc write. The doc is read, never
- * trusted alone, at PATCH and when the holder's socket comes back.
+ * trusted alone, at PATCH, at a handoff that claims an unset holder (ADR-0060),
+ * and when the holder's socket comes back.
  */
 
 import { DurableObject } from 'cloudflare:workers';
