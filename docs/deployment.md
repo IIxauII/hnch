@@ -128,7 +128,9 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z
         │           │                            in www, each identical to its src copy,
         │           │                            every .js and .css named
         │           │                            <name>.<16 lowercase hex>.js|css
-        │           └── upload www (artifact kept 7 days, so a failed job can be re-run)
+        │           └── upload www (artifact kept 7 days, so a failed job can be re-run),
+        │               which skips hidden paths, and .well-known/api-catalog as its own
+        │               artifact (no other dotfile ships)
         │
         └── web     cold install (fresh store, client only, no install scripts);
                     │   fresh www from the build; deploy-guard.mjs config and www again
