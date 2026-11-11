@@ -12,7 +12,13 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import React from 'react';
 import { render } from 'ink';
-import { loadConfig, readConfig, updateConfig } from './config.js';
+import {
+  avatarColorOption,
+  loadConfig,
+  participantOptions,
+  readConfig,
+  updateConfig,
+} from './config.js';
 import { createSession, joinSession, openSession } from './session.js';
 import {
   BUILTIN_SCALES,
@@ -95,13 +101,11 @@ async function handleCreate(argv: {
   const exiting = sessionExit({ wasIn: () => true, typedPassword: password !== undefined });
 
   const session = await createSession({
-    participantId: config.participantId,
-    displayName: config.displayName,
-    relayUrl: config.relayUrl,
+    ...participantOptions(config),
     sessionName: resolvedName,
     password,
     defaultScale: scale,
-    ...(config.avatarColor !== undefined && { avatarColor: config.avatarColor }),
+    ...avatarColorOption(config),
     onRejection: onRejectionFor(refusal, exiting),
   });
   exiting.bind(session);
@@ -161,12 +165,10 @@ async function handleJoin(argv: { code: string; password?: boolean }): Promise<v
   });
 
   const session = await joinSession({
-    participantId: config.participantId,
-    displayName: config.displayName,
-    relayUrl: config.relayUrl,
+    ...participantOptions(config),
     roomCode: code,
     password: passwordInput,
-    ...(config.avatarColor !== undefined && { avatarColor: config.avatarColor }),
+    ...avatarColorOption(config),
     onRejection: onRejectionFor(refusal, exiting),
   });
   exiting.bind(session);
@@ -262,14 +264,12 @@ async function resumeEntry(
 
   // `hnch resume` is a join like `hnch join`: if this participant left the
   // room earlier, the first sync clears the `leftAt` it carries (ADR-0036 §6).
-  const session = openSession({
-    participantId: config.participantId,
-    displayName: config.displayName,
-    relayUrl: config.relayUrl,
+  const session = await openSession({
+    ...participantOptions(config),
     roomCode: entry.roomCode,
     roomUuid: entry.roomUuid,
     passwordHash: entry.passwordHash,
-    ...(config.avatarColor !== undefined && { avatarColor: config.avatarColor }),
+    ...avatarColorOption(config),
     onRejection: onRejectionFor(refusal, exiting),
   });
   exiting.bind(session);

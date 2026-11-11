@@ -99,6 +99,7 @@ describe('rejoinRoom', () => {
       relayHttpUrl: 'http://relay.test',
       getDisplayName: async () => 'Test User',
       getParticipantId: async () => 'pid-test',
+      getParticipantKey: async (roomUuid: string) => `pk(${roomUuid})`,
       getAvatarColor: () => null,
       docService,
       waitForJoinOutcome,
@@ -164,6 +165,18 @@ describe('rejoinRoom', () => {
     );
     // Cache write is now the component effect's responsibility, not rejoinRoom's
     expect(lastSessionService.record).not.toHaveBeenCalled();
+  });
+
+  it("opens with this device's key for the room the code resolved to (ADR-0059)", async () => {
+    const { rejoinRoom, deps, docService } = await buildDeps({
+      resolveResult: { uuid: 'uuid-open', accessMode: 'open' },
+    });
+
+    await rejoinRoom('ABC123', deps);
+
+    expect(docService.open).toHaveBeenCalledWith(
+      expect.objectContaining({ participantId: 'pid-test', participantKey: 'pk(uuid-open)' }),
+    );
   });
 
   it('passes on that the session went away while it waited', async () => {

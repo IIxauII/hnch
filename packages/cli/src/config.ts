@@ -1,18 +1,18 @@
 /**
  * Persistent CLI config stored at `~/.config/hnch/config.json`.
  *
- * Holds the device identity (participantId), display name, and relay
- * URL. On first run, generates a stable participantId and prompts for
- * a display name via stdin.
+ * Holds the device identity (participantId and its device key), display
+ * name, and relay URL. On first run, generates a stable participantId and
+ * device key, and prompts for a display name via stdin.
  *
  * Respects `XDG_CONFIG_HOME` if set; otherwise falls back to
  * `~/.config`. `HNCH_RELAY_URL` env var overrides the stored relay URL.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
 import {
   deterministicAvatarColor,
@@ -23,6 +23,12 @@ import {
 
 export interface CliConfig {
   participantId: string;
+  /**
+   * This device's secret (ADR-0059): 32 random bytes as 64 lowercase hex
+   * chars, from which each room's participant key is derived. Generated once,
+   * next to `participantId`, and never shown or logged.
+   */
+  deviceKey: string;
   displayName: string;
   relayUrl: string;
   defaultScale?: string | undefined;
@@ -42,6 +48,8 @@ export interface CliConfig {
 // Override with HNCH_RELAY_URL env var or `hnch config --relay-url`.
 const DEFAULT_RELAY_URL = 'https://hnch.dev';
 
+const DEVICE_KEY_PATTERN = /^[0-9a-f]{64}$/;
+
 export function configDir(): string {
   const xdg = process.env['XDG_CONFIG_HOME'];
   const base = xdg || join(homedir(), '.config');
@@ -55,8 +63,19 @@ function configPath(): string {
 function ensureDir(): void {
   const dir = configDir();
   if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
+}
+
+/**
+ * The file holds the device key, which proves this device to the relay
+ * (ADR-0059): owner-only. `mode` applies only to a new file, so an older,
+ * wider one is narrowed too.
+ */
+function writeConfigFile(config: Record<string, unknown>): void {
+  const path = configPath();
+  writeFileSync(path, JSON.stringify(config, null, 2) + '\n', { encoding: 'utf-8', mode: 0o600 });
+  chmodSync(path, 0o600);
 }
 
 export function readConfig(): Partial<CliConfig> {
@@ -78,7 +97,7 @@ export function writeConfig(config: Partial<CliConfig>): void {
   ensureDir();
   const existing = readConfig();
   const merged = { ...existing, ...config };
-  writeFileSync(configPath(), JSON.stringify(merged, null, 2) + '\n', 'utf-8');
+  writeConfigFile(merged);
 }
 
 export async function promptLine(question: string): Promise<string> {
@@ -110,6 +129,19 @@ export async function loadConfig(): Promise<CliConfig> {
     changed = true;
   }
 
+  // Configs from before ADR-0059 have none. A malformed one derives no key, so
+  // it is replaced too; one merely in upper case is kept, or this device would
+  // lose its binding in every room.
+  const lowered = stored.deviceKey?.toLowerCase();
+  if (lowered !== stored.deviceKey && lowered !== undefined && DEVICE_KEY_PATTERN.test(lowered)) {
+    stored.deviceKey = lowered;
+    changed = true;
+  }
+  if (!stored.deviceKey || !DEVICE_KEY_PATTERN.test(stored.deviceKey)) {
+    stored.deviceKey = randomBytes(32).toString('hex');
+    changed = true;
+  }
+
   if (!stored.displayName) {
     const name = await promptLine('Enter your display name: ');
     stored.displayName = name || `user-${stored.participantId.slice(0, 6)}`;
@@ -138,6 +170,7 @@ export async function loadConfig(): Promise<CliConfig> {
 
   return {
     participantId: stored.participantId!,
+    deviceKey: stored.deviceKey,
     displayName: stored.displayName!,
     relayUrl,
     defaultScale: stored.defaultScale,
@@ -147,6 +180,34 @@ export async function loadConfig(): Promise<CliConfig> {
     customScales: stored.customScales,
     avatarColor: stored.avatarColor,
   };
+}
+
+/** Who this device is in a session, and which relay it talks to. */
+export type ParticipantOptions = Pick<
+  CliConfig,
+  'relayUrl' | 'participantId' | 'deviceKey' | 'displayName'
+>;
+
+/**
+ * The fields every session open takes from the config. `avatarColor` is left
+ * out: a join writes it over the participant's color in the doc, so only the
+ * interactive commands pass it, on their own.
+ */
+export function participantOptions(config: CliConfig): ParticipantOptions {
+  return {
+    relayUrl: config.relayUrl,
+    participantId: config.participantId,
+    deviceKey: config.deviceKey,
+    displayName: config.displayName,
+  };
+}
+
+/**
+ * The avatar color, for a session open that should show it (ADR-0043): an
+ * interactive one. Kept apart from {@link participantOptions} on purpose.
+ */
+export function avatarColorOption(config: CliConfig): { avatarColor?: string } {
+  return config.avatarColor !== undefined ? { avatarColor: config.avatarColor } : {};
 }
 
 /**
@@ -164,5 +225,5 @@ export function updateConfig(patch: Partial<CliConfig>): void {
       merged[key] = value;
     }
   }
-  writeFileSync(configPath(), JSON.stringify(merged, null, 2) + '\n', 'utf-8');
+  writeConfigFile(merged);
 }

@@ -22,8 +22,14 @@ const relay = vi.hoisted(() => ({
   hold: null as null | Promise<void>,
   /** What the relay says the mode is after a change, whatever was asked for. */
   answersWith: null as null | 'open' | 'password',
+  /** Set to have the relay refuse the next change in its own words (ADR-0059). */
+  refuses: null as null | 'not-host' | 'unauthenticated',
   lookups: [] as string[],
-  patches: [] as { uuid: string; hash: string | null }[],
+  patches: [] as {
+    uuid: string;
+    hash: string | null;
+    caller?: { participantId: string; pk: string } | undefined;
+  }[],
 }));
 
 vi.mock('@hnch/shared', async (importOriginal) => {
@@ -41,10 +47,16 @@ vi.mock('@hnch/shared', async (importOriginal) => {
       if (relay.unreachable) throw new Error('relay unreachable');
       return { uuid: relay.uuid, accessMode: mode };
     },
-    patchRoomAccess: async (_url: string, uuid: string, hash: string | null) => {
+    patchRoomAccess: async (
+      _url: string,
+      uuid: string,
+      hash: string | null,
+      caller?: { participantId: string; pk: string },
+    ) => {
       if (relay.hold !== null) await relay.hold;
       if (relay.unreachable) throw new Error('relay unreachable');
-      relay.patches.push({ uuid, hash });
+      if (relay.refuses !== null) throw new actual.RelayAccessError(relay.refuses);
+      relay.patches.push({ uuid, hash, caller });
       relay.accessMode = relay.answersWith ?? (hash === null ? 'open' : 'password');
       return { accessMode: relay.accessMode };
     },
@@ -66,6 +78,7 @@ beforeEach(() => {
   relay.answersWith = null;
   relay.uuid = 'uuid-1';
   relay.unreachable = false;
+  relay.refuses = null;
   relay.hold = null;
   relay.lookups = [];
   relay.patches = [];
@@ -105,6 +118,7 @@ async function mount() {
           relaySynced: relaySynced.asReadonly(),
           sessionEpoch: sessionEpoch.asReadonly(),
           updateCredentials,
+          accessCaller: () => ({ participantId: 'p-self', pk: 'pk-self' }),
         },
       },
       {
@@ -247,7 +261,13 @@ describe('SessionAccessService — setting a password', () => {
     const result = await service.setPassword('hunter2');
 
     expect(result).toBe('applied');
-    expect(relay.patches).toEqual([{ uuid: 'uuid-1', hash: 'hash(hunter2,uuid-1)' }]);
+    expect(relay.patches).toEqual([
+      {
+        uuid: 'uuid-1',
+        hash: 'hash(hunter2,uuid-1)',
+        caller: { participantId: 'p-self', pk: 'pk-self' },
+      },
+    ]);
     expect(updateCredentials).toHaveBeenCalledWith('hash(hunter2,uuid-1)');
     expect(rememberPasswordHash).toHaveBeenCalledWith('uuid-1', 'hash(hunter2,uuid-1)');
     expect(service.mode()).toBe('password');
@@ -284,6 +304,24 @@ describe('SessionAccessService — setting a password', () => {
     expect(service.mode()).toBe('open');
     expect(updateCredentials).not.toHaveBeenCalled();
     expect(rememberPasswordHash).not.toHaveBeenCalled();
+  });
+
+  it('says when the relay only takes the change from the host, and keeps the mode shown', async () => {
+    relay.refuses = 'not-host';
+    const { service, updateCredentials, rememberPasswordHash } = await mount();
+
+    expect(await service.setPassword('hunter2')).toBe('not-host');
+    expect(service.mode()).toBe('open');
+    expect(service.saving()).toBe(false);
+    expect(updateCredentials).not.toHaveBeenCalled();
+    expect(rememberPasswordHash).not.toHaveBeenCalled();
+  });
+
+  it('counts any other refusal as a failure', async () => {
+    relay.refuses = 'unauthenticated';
+    const { service } = await mount();
+
+    expect(await service.setPassword('hunter2')).toBe('failed');
   });
 
   it('shows nothing of the change before the relay has answered', async () => {
@@ -438,7 +476,9 @@ describe('SessionAccessService — removing the password', () => {
     const result = await service.removePassword();
 
     expect(result).toBe('applied');
-    expect(relay.patches).toEqual([{ uuid: 'uuid-1', hash: null }]);
+    expect(relay.patches).toEqual([
+      { uuid: 'uuid-1', hash: null, caller: { participantId: 'p-self', pk: 'pk-self' } },
+    ]);
     expect(updateCredentials).toHaveBeenCalledWith(null);
     expect(clearPasswordHash).toHaveBeenCalledWith('uuid-1');
     expect(rememberPasswordHash).not.toHaveBeenCalled();

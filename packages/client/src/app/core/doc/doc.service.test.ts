@@ -89,6 +89,7 @@ interface Opened {
     readonly updateRoundDescriptor: ReturnType<typeof vi.fn>;
     readonly flushUpdates: ReturnType<typeof vi.fn>;
     readonly teardown: ReturnType<typeof vi.fn>;
+    readonly handoffHost: ReturnType<typeof vi.fn>;
   };
   readonly commands: SessionCommands;
 }
@@ -106,6 +107,7 @@ const ROOM = { uuid: 'room-uuid-1', code: 'ABC123' };
 const JOIN: OpenSessionInit = {
   room: ROOM,
   participantId: 'p-self',
+  participantKey: 'pk-self',
   displayName: 'Sam',
   seed: { kind: 'join' },
 };
@@ -151,6 +153,7 @@ beforeEach(() => {
       updateRoundDescriptor: vi.fn(),
       flushUpdates: vi.fn(() => Promise.resolve()),
       teardown: vi.fn(),
+      handoffHost: vi.fn(() => Promise.resolve({ applied: true as const })),
     };
     opened.push({ options, handle, commands });
     return handle;
@@ -180,7 +183,7 @@ describe('DocService — open', () => {
       expect.objectContaining({
         httpBaseUrl: 'http://relay.test',
         room: ROOM,
-        credentials: { deviceId: 'p-self', passwordHash: 'hash-1' },
+        credentials: { deviceId: 'p-self', participantKey: 'pk-self', passwordHash: 'hash-1' },
         self: { participantId: 'p-self', displayName: 'Sam', avatarColor: 'teal' },
         seed: { kind: 'join' },
       }),
@@ -506,5 +509,40 @@ describe('DocService — forwards', () => {
     await svc.flushUpdates(250);
 
     expect(latest().handle.flushUpdates).toHaveBeenCalledWith(250);
+  });
+
+  it('hands off through the live session, relay first, and reports its answer', async () => {
+    svc.open(JOIN);
+    latest().handle.handoffHost.mockResolvedValueOnce({ applied: false, reason: 'not-host' });
+
+    await expect(svc.handoffHost('p-other')).resolves.toEqual({
+      applied: false,
+      reason: 'not-host',
+    });
+    expect(latest().handle.handoffHost).toHaveBeenCalledWith('p-other');
+  });
+
+  it('refuses a handoff with no session', async () => {
+    await expect(svc.handoffHost('p-other')).resolves.toEqual({
+      applied: false,
+      reason: 'not-found',
+    });
+  });
+});
+
+describe('DocService — access caller (ADR-0059)', () => {
+  it('names who this peer is to the relay, and its key for the room', () => {
+    svc.open(JOIN);
+
+    expect(svc.accessCaller()).toEqual({ participantId: 'p-self', pk: 'pk-self' });
+  });
+
+  it('has none with no session, and none once it is torn down', () => {
+    expect(svc.accessCaller()).toBeNull();
+
+    svc.open(JOIN);
+    svc.teardown();
+
+    expect(svc.accessCaller()).toBeNull();
   });
 });

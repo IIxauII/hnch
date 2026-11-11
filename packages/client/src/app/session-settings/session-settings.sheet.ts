@@ -26,8 +26,9 @@ import {
 } from '@ionic/angular/standalone';
 
 import { DocService } from '../core/doc/doc.service';
+import { ACCESS_NOT_HOST_COPY } from '../core/relay-copy';
 import { ScalePreferenceService } from '../core/scale-preference.service';
-import { SessionAccessService } from '../core/session-access.service';
+import { SessionAccessService, type AccessChangeResult } from '../core/session-access.service';
 import { SurfaceService } from '../core/surface.service';
 import { ToastService } from '../services/toast.service';
 import { ScalePickerSheetComponent } from './scale-picker.sheet';
@@ -105,24 +106,26 @@ import { isComposingKey } from '../utils/composing-key';
           </ion-label>
           <ion-note slot="end" class="value">{{ scaleLabel() }}</ion-note>
         </ion-item>
-        <ion-item>
-          <ion-input
-            label="Password"
-            labelPlacement="stacked"
-            type="password"
-            autocomplete="off"
-            enterkeyhint="done"
-            [maxlength]="maxPasswordLength"
-            [placeholder]="passwordPlaceholder()"
-            [value]="passwordDraft()"
-            [disabled]="!isHost() || savingAccess()"
-            (ionInput)="passwordDraft.set($any($event.detail.value) ?? '')"
-            (ionBlur)="onPasswordCommit()"
-            (keydown.enter)="composing($event) || onPasswordCommit()"
-          >
-            <ion-input-password-toggle slot="end" color="medium"></ion-input-password-toggle>
-          </ion-input>
-        </ion-item>
+        @if (isHost()) {
+          <ion-item>
+            <ion-input
+              label="Password"
+              labelPlacement="stacked"
+              type="password"
+              autocomplete="off"
+              enterkeyhint="done"
+              [maxlength]="maxPasswordLength"
+              [placeholder]="passwordPlaceholder()"
+              [value]="passwordDraft()"
+              [disabled]="savingAccess()"
+              (ionInput)="passwordDraft.set($any($event.detail.value) ?? '')"
+              (ionBlur)="onPasswordCommit()"
+              (keydown.enter)="composing($event) || onPasswordCommit()"
+            >
+              <ion-input-password-toggle slot="end" color="medium"></ion-input-password-toggle>
+            </ion-input>
+          </ion-item>
+        }
       </ion-list>
       <ion-note class="helper">{{ accessHint() }}</ion-note>
       @if (isHost() && accessMode() === 'password') {
@@ -199,7 +202,10 @@ export class SessionSettingsSheetComponent {
   /** Whether the session asks for a password, as the relay last said. */
   protected readonly accessMode = this.access.mode;
 
-  /** Only the host may change anything here; everyone else gets it read-only. */
+  /**
+   * Only the host may change anything here; everyone else gets it read-only, and no password
+   * field at all (ADR-0059): the relay takes an access change from the host alone.
+   */
   readonly isHost = input<boolean>(false);
 
   /** Inner picker visibility flag. */
@@ -278,11 +284,11 @@ export class SessionSettingsSheetComponent {
    * Say how the change went. Runs to the end even when the sheet has been
    * closed in the meantime — the toast is how the user finds out.
    */
-  private async report(
-    result: Awaited<ReturnType<SessionAccessService['setPassword']>>,
-    done: string,
-  ): Promise<void> {
+  private async report(result: AccessChangeResult, done: string): Promise<void> {
     if (result === 'applied') await this.toastService.info(done);
+    if (result === 'not-host') {
+      await this.toastService.error(ACCESS_NOT_HOST_COPY);
+    }
     if (result === 'failed') {
       await this.toastService.error("Couldn't update the password. Try again.");
     }

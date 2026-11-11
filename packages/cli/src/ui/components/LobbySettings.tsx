@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Box, Text } from 'ink';
 import {
   buildAvailableScales,
@@ -68,6 +68,14 @@ export function LobbySettings({
     [localOverrides, customScales],
   );
   const [state, setState] = useState<SettingsState>('main-menu');
+
+  // Host lost mid-edit (a handoff, an election): leave the host-only screen,
+  // which the relay would refuse anyway (ADR-0059).
+  useEffect(() => {
+    if (!isHost && state !== 'main-menu' && state !== 'editing-display-name') {
+      setState('main-menu');
+    }
+  }, [isHost, state]);
   const [roomNameInput, setRoomNameInput] = useState(sessionName ?? '');
   const [displayNameInput, setDisplayNameInput] = useState(displayName);
   const [accessModeLocal, setAccessModeLocal] = useState<'open' | 'password'>(
@@ -162,7 +170,7 @@ export function LobbySettings({
         setPasswordInput('');
       }
     } catch (err) {
-      console.error(`Failed to update access: ${err}`);
+      console.error(`Failed to update access: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setIsUpdating(false);
       setState('main-menu');

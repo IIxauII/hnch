@@ -9,7 +9,15 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -26,7 +34,15 @@ vi.mock('node:readline', () => ({
 
 // Module under test (imported AFTER vi.mock is in place)
 
-import { configDir, readConfig, writeConfig, loadConfig, updateConfig } from './config.js';
+import {
+  configDir,
+  readConfig,
+  writeConfig,
+  loadConfig,
+  updateConfig,
+  participantOptions,
+  type CliConfig,
+} from './config.js';
 
 // Test lifecycle
 
@@ -249,6 +265,54 @@ describe('loadConfig', () => {
     expect(cfg.avatarColor).toBeDefined();
   });
 
+  it('gives an existing config a device key once, and reuses it on every later run (ADR-0059)', async () => {
+    writeFullConfig();
+    const cfg = await loadConfig();
+    expect(cfg.deviceKey).toMatch(/^[0-9a-f]{64}$/);
+    expect(cfg.participantId).toBe('test-pid-abc123');
+    expect(readConfig().deviceKey).toBe(cfg.deviceKey);
+
+    const cfg2 = await loadConfig();
+    expect(cfg2.deviceKey).toBe(cfg.deviceKey);
+  });
+
+  it('gives each new device its own key', async () => {
+    const first = await loadConfig();
+    rmSync(join(tmpBase, 'hnch'), { recursive: true, force: true });
+    const second = await loadConfig();
+    expect(second.deviceKey).not.toBe(first.deviceKey);
+  });
+
+  it('keeps a stored device key unchanged', async () => {
+    const stored = '0123456789abcdef'.repeat(4);
+    writeFullConfig({ deviceKey: stored });
+    expect((await loadConfig()).deviceKey).toBe(stored);
+  });
+
+  it('replaces a malformed device key, which no room key could be derived from', async () => {
+    writeFullConfig({ deviceKey: 'NOT-HEX' });
+    const cfg = await loadConfig();
+    expect(cfg.deviceKey).toMatch(/^[0-9a-f]{64}$/);
+    expect(readConfig().deviceKey).toBe(cfg.deviceKey);
+  });
+
+  it('lowercases a stored device key typed in upper case, rather than replacing it', async () => {
+    const stored = '0123456789ABCDEF'.repeat(4);
+    writeFullConfig({ deviceKey: stored });
+    expect((await loadConfig()).deviceKey).toBe(stored.toLowerCase());
+  });
+
+  it('keeps the config, which holds the device key, readable by its owner alone', async () => {
+    writeFullConfig();
+    const path = join(tmpBase, 'hnch', 'config.json');
+    chmodSync(path, 0o644);
+    await loadConfig();
+    expect(statSync(path).mode & 0o777).toBe(0o600);
+
+    updateConfig({ displayName: 'Bob' });
+    expect(statSync(path).mode & 0o777).toBe(0o600);
+  });
+
   it('uses the display name returned by promptLine', async () => {
     const dir = join(tmpBase, 'hnch');
     mkdirSync(dir, { recursive: true });
@@ -301,5 +365,29 @@ describe('updateConfig', () => {
     expect(cfg.displayName).toBeUndefined();
     expect(cfg.relayUrl).toBeUndefined();
     expect(cfg.participantId).toBe('pid1');
+  });
+});
+
+describe('participantOptions', () => {
+  const config: CliConfig = {
+    participantId: 'pid1',
+    deviceKey: 'a'.repeat(64),
+    displayName: 'Dave',
+    relayUrl: 'https://r',
+    defaultScale: 'fibonacci',
+    avatarColor: 'teal',
+  };
+
+  it('carries the relay, participant id, device key and display name', () => {
+    expect(participantOptions(config)).toEqual({
+      relayUrl: 'https://r',
+      participantId: 'pid1',
+      deviceKey: 'a'.repeat(64),
+      displayName: 'Dave',
+    });
+  });
+
+  it('leaves the avatar color out, since a join writes it over the doc', () => {
+    expect(participantOptions(config)).not.toHaveProperty('avatarColor');
   });
 });

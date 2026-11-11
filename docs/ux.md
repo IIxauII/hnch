@@ -238,8 +238,13 @@ Lobby → ⋯ on a participant row (host only, target is not self)
     → Cancel: dismiss alert
   → Tap "Make host"
     → Confirmation alert: "Make {name} the host?" — [Cancel] [Make host]
-    → Confirm: everyone is told — "Bob is now the host" (Bob: "You are now the host")
+    → Confirm: the relay is asked first (ADR-0059); once it agrees, everyone is told — "Bob is now the host" (Bob: "You are now the host")
+    → Refused: nothing changes, and a toast says why — "Bob is offline. Try again once they are back.",
+      "Couldn't make Bob the host. They may need to update hnch." (the relay hands only to a peer that proves itself),
+      "The relay didn't accept this device as the host.", or the relay-unreachable copy
 ```
+
+Only the host changes the password. The password field is in Session settings, which only the host can open, and it goes away if the host role moves while the sheet is open. Should the relay still not take this device as the host (the role has just moved, or the app it was handed from is out of date), the change is refused with "Only the host can change the password" and the access shown stays as it was.
 
 The toast about a new host says who the host is now, and why — where the client can vouch for the reason: "… left." for a host who left the session, "… disconnected." for one whose connection is gone. For a host who is still here it gives none. They may have handed the role over; or a participant who lost sight of the session for a moment has elected themselves, and the host that was did nothing.
 

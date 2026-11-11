@@ -13,6 +13,7 @@ import type {
   AgendaItem,
   AgendaResult,
   CustomScale,
+  HandoffResult,
   ParticipantSnapshot,
   RosterResult,
   Round,
@@ -1708,6 +1709,11 @@ interface CommandInternals {
 }
 
 const APPLIED_ROSTER: RosterResult = { applied: true };
+
+/** Let every promise that is ready run: an alert handler's async work, here. */
+async function settle(): Promise<void> {
+  for (let i = 0; i < 6; i++) await Promise.resolve();
+}
 const REFUSED_ROSTER: RosterResult = { applied: false, reason: 'not-host' };
 const APPLIED_AGENDA: AgendaResult = { applied: true, id: 'item-1' };
 const REFUSED_AGENDA: AgendaResult = { applied: false, reason: 'not-pending' };
@@ -1747,6 +1753,8 @@ interface CommandMountOptions {
   screen?: Screen | null;
   /** What `SessionAccessService` says the relay enforces. Default: open. */
   accessMode?: 'open' | 'password';
+  /** `DocService.handoffHost`, relay first (ADR-0059). Default: it applies. */
+  handoffHost?: (targetId: string) => Promise<HandoffResult>;
 }
 
 async function mountForCommands(opts: CommandMountOptions = {}) {
@@ -1827,6 +1835,7 @@ async function mountForCommands(opts: CommandMountOptions = {}) {
           updateRoundDescriptor,
           teardown,
           flushUpdates,
+          handoffHost: opts.handoffHost ?? (() => Promise.resolve({ applied: true })),
         },
       },
       { provide: HapticService, useValue: haptic },
@@ -2205,35 +2214,50 @@ describe('LobbyPage — leaveSession', () => {
 });
 
 describe('LobbyPage — onHandoffTap', () => {
-  it('fires a medium haptic when the handoff applies', async () => {
-    const handoffHost = vi.fn().mockReturnValue(APPLIED_ROSTER);
-    const { page, haptic, alerts } = await mountForCommands({ commands: { handoffHost } });
+  it('hands off relay first and fires a medium haptic once it applies', async () => {
+    const handoffHost = vi.fn().mockResolvedValue({ applied: true });
+    const docOnly = vi.fn().mockReturnValue(APPLIED_ROSTER);
+    const { page, haptic, alerts, toastError } = await mountForCommands({
+      handoffHost,
+      commands: { handoffHost: docOnly },
+    });
 
     await page.onHandoffTap('them', 'Ada');
     tapAlertButton(alerts, 'Make host');
+    await settle();
 
     expect(handoffHost).toHaveBeenCalledWith('them');
+    // ADR-0059: the doc-only command would leave the relay's access holder behind.
+    expect(docOnly).not.toHaveBeenCalled();
     expect(haptic.impactMedium).toHaveBeenCalledTimes(1);
+    expect(toastError).not.toHaveBeenCalled();
   });
 
-  it('fires no haptic when the target is offline and the command refuses', async () => {
-    const handoffHost = vi
-      .fn()
-      .mockReturnValue({ applied: false, reason: 'not-online' } satisfies RosterResult);
-    const { page, haptic, alerts } = await mountForCommands({ commands: { handoffHost } });
+  it.each([
+    ['not-online', 'Ada is offline. Try again once they are back.'],
+    ['bad-target', "Couldn't make Ada the host. They may need to update hnch."],
+    ['not-host', 'Only the host can hand off the host role.'],
+    ['unauthenticated', "The relay didn't accept this device as the host."],
+    ['unreachable', "Couldn't reach the relay. Check your connection and try again."],
+  ] as const)('says why when the handoff is refused (%s)', async (reason, copy) => {
+    const handoffHost = vi.fn().mockResolvedValue({ applied: false, reason });
+    const { page, haptic, alerts, toastError } = await mountForCommands({ handoffHost });
 
     await page.onHandoffTap('them', 'Ada');
     tapAlertButton(alerts, 'Make host');
+    await settle();
 
+    expect(toastError).toHaveBeenCalledWith(copy);
     expect(haptic.impactMedium).not.toHaveBeenCalled();
   });
 
-  it('does not reach the command before the participant id exists', async () => {
-    const handoffHost = vi.fn().mockReturnValue(APPLIED_ROSTER);
-    const { page, alerts } = await mountForCommands({ myId: null, commands: { handoffHost } });
+  it('does not hand off before the participant id exists', async () => {
+    const handoffHost = vi.fn().mockResolvedValue({ applied: true });
+    const { page, alerts } = await mountForCommands({ myId: null, handoffHost });
 
     await page.onHandoffTap('them', 'Ada');
     tapAlertButton(alerts, 'Make host');
+    await settle();
 
     expect(handoffHost).not.toHaveBeenCalled();
   });
