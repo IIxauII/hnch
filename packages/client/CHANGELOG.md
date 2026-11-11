@@ -1,3 +1,10 @@
+# [1.49.0](https://github.com/IIxauII/hnch/compare/client-v1.48.0...client-v1.49.0) (2026-11-11)
+
+
+### Features
+
+* **client,ci,docs:** serve Markdown to agents that ask for it ([#774](https://github.com/IIxauII/hnch/issues/774)) ([05633ac](https://github.com/IIxauII/hnch/commit/05633ac92fc11c281b0b96d684c8b801082c26d4))
+
 # [1.48.0](https://github.com/IIxauII/hnch/compare/client-v1.47.2...client-v1.48.0) (2026-11-11)
 
 
