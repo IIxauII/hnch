@@ -41,7 +41,7 @@ Relay keeps its own **access holder** per room, moved only by events relay obser
 - **Absence:** derived at each evaluation (socket open/close, PATCH, handoff) from `getWebSockets()`: open, admitted sockets whose attachment `participantId` = holder. None open and `holderAbsentSince` null → stamp now; one open → clear. Never relies on a close event (lost on DO restart/deploy, half-open sockets). `POST /rooms` with `creator` sets `holderAbsentSince = createdAt`.
 - **Lapse:** now − `holderAbsentSince` ≥ 5 s on relay clock (ADR-0010 debounce) → holder unset. Also: holder's socket opens after any recorded absence while doc's `hostParticipantId` ≠ holder → holder unset (clients elected someone else meanwhile; avoids deadlock where holder isn't doc host and doc host can't claim).
 - **Claim:** with holder unset, PATCH from caller C that is bound, uncontested, has an open bound socket, and equals doc's `hostParticipantId` (present, string) → holder = C, then PATCH applied. Covers election winner and pre-deploy rooms.
-- Doc read only at PATCH, never trusted alone: forged `hostParticipantId` while holder set gains nothing.
+- Doc's `hostParticipantId` read only at PATCH and at holder rejoin, never trusted alone: forged value while holder set gains nothing.
 
 **PATCH rule.** Validate body, `pk` format, digest (all awaits first), then one synchronous block: reload meta, tombstone check, absence/lapse evaluation, key compare, contested check, holder check (or claim), doc host check, write digest. Doc host check passes when doc's `hostParticipantId` = caller, or field absent and caller already holder (creator PATCHing before first socket seeds doc). Arrival order at DO decides PATCH vs handoff vs socket open/close. Refusals:
 - `401 { reason: 'unauthenticated' }`: missing, malformed, or wrong `pk`; unbound id.
@@ -56,7 +56,7 @@ Relay keeps its own **access holder** per room, moved only by events relay obser
 
 ## Trade-offs
 
-- Relay reads one doc field, read-only, at PATCH time; first semantic doc read, narrow departure from ADR-0001.
+- Relay reads one doc field, read-only, at PATCH and holder rejoin; first semantic doc read, narrow departure from ADR-0001.
 - Relay's holder and doc's host can disagree (forged doc host, legacy-client handoff without relay call, relay lapse vs client eligible set). PATCH fails closed: nobody changes access until holder lapses and doc host claims. Accepted.
 - After a lapse, any bound peer the doc names host can claim. An admitted malicious peer could forge doc host and claim first — same power ADR-0010 already gives it by choosing a lex-low device ID. Code-only outsiders in password rooms still can't.
 - Rejoin-lapse (holder back while doc names another host) fires after any recorded absence, not only ≥ 5 s: admitted peer that forged doc host during a holder blip can then claim. Accepted to avoid permanent deadlock; same admitted-malicious-peer class as above.
