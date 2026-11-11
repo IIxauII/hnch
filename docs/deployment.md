@@ -7,7 +7,7 @@ Production deployment for hnch: Cloudflare Workers and Durable Objects ([ADR-005
 | Surface | Where it lives | How it gets there |
 |---|---|---|
 | Relay (`@hnch/relay`) | Cloudflare Worker `hnch-relay` + Durable Objects (EU), on routes `hnch.dev/health*`, `/rooms*`, `/ws/*` | `deploy-relay.yml` on `relay-v*` tags → `wrangler deploy` |
-| PWA static (`@hnch/client`) | Cloudflare Worker `hnch-web` (Workers Static Assets, assets-only), on route `hnch.dev/*` | `deploy-client.yml` on `client-v*` tags → `wrangler deploy` |
+| PWA static (`@hnch/client`) | Cloudflare Worker `hnch-web` (Workers Static Assets, plus a Worker on page paths that serves Markdown to agents, [ADR-0058](../adr/0058-markdown-for-agents-worker.md)), on route `hnch.dev/*` | `deploy-client.yml` on `client-v*` tags → `wrangler deploy` |
 | CLI (`@xauyxau/hnch`) | npm registry | `release.yml` runs semantic-release; `cli-v*` tags trigger npm publish via `@semantic-release/npm` (configured in `packages/cli/release.config.mjs`) |
 
 All three surfaces speak to the same relay at `wss://hnch.dev/ws/:uuid` and `https://hnch.dev/rooms/:code`. The PWA is same-origin, so it needs no CORS. Native apps (`capacitor://localhost`, `https://localhost`) preflight `POST /rooms`; the relay answers `204` with `Access-Control-Allow-Origin: *`.
@@ -42,7 +42,7 @@ Zone `hnch.dev` on Cloudflare (Free plan). The registration stays at IONOS, with
 | `GET /health` | relay (liveness probe + smoke test) |
 | `POST /rooms`, `GET /rooms/:code`, `PATCH /rooms/:uuid/access` | relay (per ADR-0016 / ADR-0017) |
 | `WS /ws/:uuid` | relay (y-websocket sync) |
-| Everything else | static PWA, with SPA fallback to `/index.html` |
+| Everything else | static PWA, with SPA fallback to `/index.html`; a page path asked for `text/markdown` answers `/index.md` ([Markdown for agents](#pwa-release-rules)) |
 
 ## The switch and rollback
 
@@ -118,9 +118,10 @@ release.yml — semantic-release per package on the commit that run tested,
 deploy-client.yml — dispatched with --ref client-vX.Y.Z
         │
         ├── build   cold install (fresh store, client + shared, no install scripts)
-        │           ├── deploy-guard.mjs config  assets-only from ./www, SPA fallback, no
-        │           │                            run_worker_first, no workers.dev or preview
-        │           │                            URLs, every route on hnch.dev with a zone_id
+        │           ├── deploy-guard.mjs config  assets from ./www, SPA fallback, the Worker
+        │           │                            on page paths only, Workers Logs off, no
+        │           │                            workers.dev or preview URLs, every route on
+        │           │                            hnch.dev with a zone_id
         │           ├── ng build (production), once
         │           ├── deploy-guard.mjs www     _headers at the root of www, every .js and
         │           │                            .css named <name>.<16 lowercase hex>.js|css
@@ -154,6 +155,12 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z
   Because `/*.js` and `/*.css` are immutable for a year, every one of them must be content-hashed (`outputHashing: all`). The hash guard (`deploy-guard.mjs www`) fails the build unless each matches `\.[0-9a-f]{16}\.(js|css)$`, the webpack builder's exact hash form; a builder change that alters it fails the deploy rather than slipping through.
 - **SPA fallback.** Any path without a file answers `index.html` with `200`. `/index.html` itself redirects (`307`) to `/`.
 - **No service worker.** Plain SPA: no offline shell, no install prompt (deferred from v1). Adding one needs a re-read of the cache headers above against the service-worker lifecycle.
+- **Markdown for agents ([ADR-0058](../adr/0058-markdown-for-agents-worker.md)).** `worker/index.ts` runs for page paths only: `run_worker_first: ["/*", "!/*.*"]`, every path without a dot. Files never reach it and stay free.
+  - A GET or HEAD whose `Accept` prefers `text/markdown` gets `src/index.md` (copied to the root of `www`) as `text/markdown; charset=utf-8`, with `x-markdown-tokens` (bytes ÷ 4, Cloudflare's estimate), the `_headers` Cache-Control and no `ETag`. Any other request gets the assets' own answer. Both carry `Vary: Accept`.
+  - Without `index.md` the Worker serves the HTML, so `deploy-guard.mjs www` refuses a build without it, and the smoke checks that `/` answers `text/markdown` to `Accept: text/markdown`.
+  - `index.md` restates product facts by hand: change it with the product. `worker/index.test.ts` pins its scales, participant cap and code format to `@hnch/shared`.
+  - Only the default export may live in `worker/index.ts`: workerd takes any other export of the main module for an entrypoint and fails to start (seen on local workerd). Helpers go in `worker/markdown.ts`.
+  - Workers Logs stay off (`observability.enabled: false`, guarded): page URLs carry room codes.
 - **Tags and messages.** The `hnch-web` version is tagged `client-vX.Y.Z` only when the deployed commit is that release tag's commit; any other commit deploys untagged. Every version's message names the full commit SHA, and `verify` checks the version id `wrangler deploy` just uploaded (from `WRANGLER_OUTPUT_FILE_PATH`) is the one serving, so a re-dispatch can't pass on an earlier upload.
 - **Cold installs.** The `build` and `web` jobs run on GitHub-hosted `ubuntu-24.04-arm` ([ADR-0056](../adr/0056-github-hosted-runners.md)) and restore no Actions cache. Each runs `pnpm install --frozen-lockfile --ignore-scripts` into the fresh runner's empty store, so pnpm checks every package against the lockfile; `build` filters to `@hnch/client...`, `web` to `@hnch/client` (pnpm still installs the workspace root's packages). Node 22 comes from `actions/setup-node`, and pnpm's version from `packageManager` through Corepack.
 - **A client release never touches the relay.** In G0 (2026-10-28) relay sockets held for 300 s across a web redeploy with 0 closes.
@@ -216,11 +223,11 @@ pnpm --filter @hnch/client exec wrangler dev --port 8788
 pnpm --filter @hnch/client exec wrangler deploy --dry-run
 ```
 
-`curl -sI http://localhost:8788/lobby/x` should show `200`, `text/html` and one `Cache-Control: no-cache, must-revalidate`. `pnpm dev:client` (the Angular dev server) does not apply `_headers`.
+`curl -sI http://localhost:8788/lobby/x` should show `200`, `text/html`, `Vary: Accept` and one `Cache-Control: no-cache, must-revalidate`. `curl -sI -H 'Accept: text/markdown' http://localhost:8788/lobby/x` should show `text/markdown; charset=utf-8` and `x-markdown-tokens`. `pnpm dev:client` (the Angular dev server) does not apply `_headers` and runs no Worker.
 
 ## Free-plan budget and alerts
 
-Everything runs on the Workers Free plan. Its limits are **per account**, daily, and reset at 00:00 UTC; the account's other Workers draw from the same budget. Reference session: 8 peers for 1 h, 20 rounds, about 300 doc updates. Usage at the switch was about 0. Assumed, not verified (ADR-0051): inbound WebSocket messages count 1:1 against the request limits, and static asset requests are free without `run_worker_first`.
+Everything runs on the Workers Free plan. Its limits are **per account**, daily, and reset at 00:00 UTC; the account's other Workers draw from the same budget. Reference session: 8 peers for 1 h, 20 rounds, about 300 doc updates. Usage at the switch was about 0. Assumed, not verified (ADR-0051): inbound WebSocket messages count 1:1 against the request limits, and static asset requests that skip `hnch-web`'s Worker (every file, ADR-0058) are free.
 
 | Daily limit (Free) | Per reference session | Fits per day | Notes |
 |---|---|---|---|
@@ -229,12 +236,12 @@ Everything runs on the Workers Free plan. Its limits are **per account**, daily,
 | Rows written 100k | ≈ 200 | ≈ 500 sessions | Coalescing caps a room at 12 flushes per minute or fewer. |
 | Rows read 5M | ≈ 750 | ≈ 6,600 sessions | Lazy doc load keeps this low. |
 | Storage 5 GB per account, 1 GB per DO | KBs (stress room: 1 MB) | n/a | Not binding at expected size. |
-| Workers requests 100k | ≈ 30 | ≈ 3,000 sessions | Static assets are assumed free (no `run_worker_first`). |
+| Workers requests 100k | ≈ 40 | ≈ 2,500 sessions | About 30 relay requests plus one `hnch-web` request per page load, about 10 (ADR-0058). Files are assumed free. |
 | Workers Logs 200k events, 3-day retention (0.5 GB and 7 days from 2026-12-01) | small | n/a | Hitting it stops logging, not the relay. |
 
 - **Duration is the binding limit.** No usage gate exists; growth is checked by hand (below).
 - **Abuse exposure (stated, not mitigated; owner accepted, Free plan only):** anyone can take the relay down until 00:00 UTC by holding about 29 rooms open for an hour, sending about 100k cheap requests, or spamming room creation. The rate-limit rule only slows one IP down. Past a limit there is no fallback host. One bound is in the relay: a room holds at most 64 refused sockets (wrong password, room full) whose clients never answer the close; past that a refusal is a plain `503` with `Retry-After`, so a flood can't fill the Durable Object's WebSocket limit for legitimate joins (#566).
-- **Route fail mode at the Workers request limit: unverified.** On Free, each route either fails open (requests bypass the Worker and go to the origin) or fails closed (error `1027`) once the account's 100k requests are used, and the docs don't say which is the default. Not recorded yet. With the placeholder origin, fail open should end in a Cloudflare origin error rather than another backend (inferred), so either way the relay is down until 00:00 UTC. Read it in the dashboard (Workers Routes) and record it here.
+- **Route fail mode at the Workers request limit: unverified.** On Free, each route either fails open (requests bypass the Worker and go to the origin) or fails closed (error `1027`) once the account's 100k requests are used, and the docs don't say which is the default. Not recorded yet. With the placeholder origin, fail open should end in a Cloudflare origin error rather than another backend (inferred), so either way the relay is down until 00:00 UTC, and so are `hnch-web`'s pages, which run its Worker (ADR-0058); files should keep serving (inferred). Read it in the dashboard (Workers Routes) and record it here.
 - **No usage alerts.** Free has no Workers or Durable Objects usage alerts (the usage alert type needs Pro and pay-as-you-go), so nothing warns before a daily limit. Check usage by hand in the dashboard.
 - **Account alerts on, by email:** Universal SSL, HTTP DDoS attack, Trust & Safety block, abuse report, major or critical incidents on Workers, Durable Objects or Workers Assets, and Workers real-time issues.
 
@@ -243,7 +250,7 @@ Everything runs on the Workers Free plan. Its limits are **per account**, daily,
 - **Relay logs:** Workers Logs in the Cloudflare dashboard (`hnch-relay` › Observability). Invocation logs are off, so only the relay's own content-free `console` lines appear (event names, error classes; never a room UUID, code or URL).
 - **Don't tail production, and don't add rules on `/ws/*`.** WebSocket URLs carry the room password hash as `?pw=`. `wrangler tail` and the dashboard's real-time logs show request URLs whatever `invocation_logs` says, and a WAF or rate-limit rule matching `/ws/*` would record the full URI in Security Events.
 - **Relay deployments:** `pnpm --filter @hnch/relay exec wrangler deployments list`.
-- **PWA deployments:** `pnpm --filter @hnch/client exec wrangler deployments list`. `hnch-web` runs no Worker code, so it has no logs.
+- **PWA deployments:** `pnpm --filter @hnch/client exec wrangler deployments list`. `hnch-web`'s Worker has Workers Logs off (page URLs carry room codes), so it has no logs.
 - **Usage:** checked by hand in the dashboard; see [Free-plan budget and alerts](#free-plan-budget-and-alerts).
 - **VPS:** gone ([ADR-0054](../adr/0054-vps-decommission.md)). Still open on the owner's side: before cancelling the IONOS contract, check that the `hnch.dev` registration isn't bundled with it.
 

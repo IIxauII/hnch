@@ -1,6 +1,6 @@
 # ADR-0051: Hosting — Cloudflare Workers and Durable Objects replace the IONOS VPS
 
-**Status:** Accepted (VPS idle and DNS-only rollback clauses superseded by ADR-0054)
+**Status:** Accepted (VPS idle and DNS-only rollback clauses superseded by ADR-0054; `hnch-web` assets-only clause by ADR-0058)
 **Date:** 2026-10-28
 
 **Caveat (2026-10-30, #627):** deploys run on GitHub-hosted `ubuntu-24.04-arm` runners, not the self-hosted pool ([ADR-0056](0056-github-hosted-runners.md)); "the pool" in the Credentials and Deploy bullets now means those jobs.
