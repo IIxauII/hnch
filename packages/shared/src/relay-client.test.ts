@@ -411,7 +411,8 @@ describe('patchRoomAccess', () => {
 });
 
 describe('relayRefusalReason', () => {
-  it("sorts a failed access call: the relay's reason, the room gone, or no usable answer", () => {
+  it("sorts a failed access change or handoff: the relay's reason, the room gone, or no usable answer", () => {
+    expect(relayRefusalReason(new RelayAccessError('unauthenticated'))).toBe('unauthenticated');
     expect(relayRefusalReason(new RelayAccessError('not-host'))).toBe('not-host');
     expect(relayRefusalReason(new RelayAccessError('bad-target'))).toBe('bad-target');
     expect(relayRefusalReason(new RelayRejectionError('unknown-room'))).toBe('unknown-room');
