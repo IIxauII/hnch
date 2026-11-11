@@ -9,6 +9,7 @@ import {
   participantRole,
 } from '@hnch/shared';
 
+import { isJoinUrl } from '../join/join.helpers';
 import { DocService } from './doc/doc.service';
 import { LastSessionService } from './last-session.service';
 import { ParticipantIdService } from './participant-id.service';
@@ -184,7 +185,7 @@ export class WebMcpService {
             );
           }
           // The Join page acts on a code only as it is entered, and staying on it is no entry.
-          if (this.router.url.split('?')[0] === '/join') {
+          if (isJoinUrl(this.router.url)) {
             await this.router.navigateByUrl('/home', { skipLocationChange: true });
           }
           await this.router.navigate(['/join'], { queryParams: { code } });
@@ -244,7 +245,7 @@ export class WebMcpService {
     const me = this.participantIdService.id();
     const online = this.docService.onlineParticipantIds();
     const round = this.docService.currentRound();
-    const open = round !== null && this.docService.activeRound()?.id === round.id;
+    const active = round !== null && this.docService.activeRound()?.id === round.id;
     const everyone = this.docService.participants();
     const nameOf = (id: string): string =>
       everyone.find((p) => p.id === id)?.displayName ?? 'someone who left';
@@ -261,7 +262,7 @@ export class WebMcpService {
       role: roleLabel(p),
       isHost: p.id === settings.hostParticipantId,
       online: online.has(p.id),
-      hasVoted: open ? onlineVoters.has(p.id) && p.id in round.votes : undefined,
+      hasVoted: active ? onlineVoters.has(p.id) && p.id in round.votes : undefined,
     });
     const self = everyone.find((p) => p.id === me);
 
@@ -273,7 +274,7 @@ export class WebMcpService {
       sessionName: settings.name,
       you: self ? describe(self) : null,
       participants: this.docService.activeParticipants().map(describe),
-      round: round ? this.describeRound(round, open, onlineVoters, me, nameOf) : null,
+      round: round ? this.describeRound(round, active, onlineVoters, me, nameOf) : null,
       // Unset fields are undefined, which JSON leaves out.
       agenda: this.docService
         .pendingAgenda()
@@ -283,7 +284,7 @@ export class WebMcpService {
 
   private describeRound(
     round: Round,
-    open: boolean,
+    active: boolean,
     onlineVoters: ReadonlySet<string>,
     me: string | null,
     nameOf: (id: string) => string,
@@ -291,12 +292,12 @@ export class WebMcpService {
     const mine = me === null ? undefined : round.votes[me];
     return {
       status: round.status,
-      openForVoting: open,
+      openForVoting: active,
       title: round.title,
       ticketId: round.ticketId,
       description: round.description,
       cards: round.scale.cards,
-      ...(open && {
+      ...(active && {
         votesCast: Object.keys(round.votes).filter((id) => onlineVoters.has(id)).length,
         voters: onlineVoters.size,
       }),
