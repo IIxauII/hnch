@@ -54,6 +54,8 @@ function setup() {
   });
   const current = signal<Round | null>(round());
   const active = signal<Round | null>(round());
+  const online = signal<ReadonlySet<string>>(new Set([ME, OTHER]));
+  const everyone = signal(participants);
   const toggleCurrentVote = vi.fn(() => ({ applied: true }) as const);
   const navigate = vi.fn(async () => true);
   const navigateByUrl = vi.fn(async () => true);
@@ -70,9 +72,9 @@ function setup() {
           settings,
           roomCode: signal('K7P9MR'),
           joined: signal(true),
-          participants: signal(participants),
-          activeParticipants: signal(participants),
-          onlineParticipantIds: signal(new Set([ME])),
+          participants: everyone,
+          activeParticipants: everyone,
+          onlineParticipantIds: online,
           currentRound: current,
           activeRound: active,
           pendingAgenda: signal([]),
@@ -89,7 +91,20 @@ function setup() {
   const call = async (name: string, input: Record<string, unknown> = {}) =>
     JSON.parse((await tool(name).execute(input)).content[0]!.text);
 
-  return { service, call, settings, current, active, toggleCurrentVote, navigate, navigateByUrl };
+  const router = TestBed.inject(Router) as unknown as { url: string };
+  return {
+    service,
+    call,
+    router,
+    online,
+    everyone,
+    settings,
+    current,
+    active,
+    toggleCurrentVote,
+    navigate,
+    navigateByUrl,
+  };
 }
 
 describe('findModelContext', () => {
@@ -141,6 +156,22 @@ describe('WebMcpService', () => {
     expect(signals.every((s) => s.aborted)).toBe(true);
   });
 
+  it('registers on load when the API arrives after boot', () => {
+    const { service } = setup();
+    const readyState = vi.spyOn(document, 'readyState', 'get').mockReturnValue('interactive');
+    service.register(null);
+    readyState.mockRestore();
+
+    const registerTool = vi.fn(() => Promise.resolve());
+    Object.assign(navigator, { modelContext: { registerTool } });
+    try {
+      window.dispatchEvent(new Event('load'));
+      expect(registerTool).toHaveBeenCalledTimes(5);
+    } finally {
+      delete (navigator as { modelContext?: unknown }).modelContext;
+    }
+  });
+
   it('keeps going when the API throws or rejects', () => {
     const { service } = setup();
     const registerTool = vi
@@ -156,21 +187,49 @@ describe('WebMcpService', () => {
 
   describe('get_session_state', () => {
     it('hides other votes while the round is open', async () => {
-      const { call, current } = setup();
+      const { call, current, active } = setup();
       current.set(round({ votes: { [ME]: '5', [OTHER]: '8' } }));
+      active.set(current());
 
       const state = await call('get_session_state');
 
       expect(state).toMatchObject({ inSession: true, code: 'K7P9MR' });
-      expect(state.round).toMatchObject({ status: 'voting', votesCast: 2, yourVote: '5' });
+      expect(state.round).toMatchObject({
+        status: 'voting',
+        openForVoting: true,
+        votesCast: 2,
+        voters: 2,
+        yourVote: '5',
+      });
       expect(state.round.votes).toBeUndefined();
       expect(JSON.stringify({ ...state, round: { ...state.round, cards: [] } })).not.toContain(
         '"8"',
       );
       expect(state.participants).toEqual([
         { displayName: 'Ada', role: 'voter', isHost: true, online: true, hasVoted: true },
-        { displayName: 'Bo', role: 'voter', isHost: false, online: false, hasVoted: true },
+        { displayName: 'Bo', role: 'voter', isHost: false, online: true, hasVoted: true },
       ]);
+    });
+
+    it('counts votes as the voting screen does: online voters only', async () => {
+      const { call, current, active, online } = setup();
+      current.set(round({ votes: { [ME]: '5', [OTHER]: '8' } }));
+      active.set(current());
+      online.set(new Set([ME]));
+
+      const state = await call('get_session_state');
+
+      expect(state.round).toMatchObject({ votesCast: 1, voters: 1 });
+      expect(state.participants[1]).toMatchObject({ online: false, hasVoted: false });
+    });
+
+    it('calls viewers observers, as the app does', async () => {
+      const { call, everyone } = setup();
+      everyone.set([participants[0]!, { ...participants[1]!, role: 'viewer' }]);
+
+      const state = await call('get_session_state');
+
+      expect(state.participants[1].role).toBe('observer');
     });
 
     it('lists the votes once the round is revealed', async () => {
@@ -205,8 +264,17 @@ describe('WebMcpService', () => {
 
   describe('join_session', () => {
     it('opens the Join page with the normalized code', async () => {
-      const { call, navigate } = setup();
+      const { call, navigate, navigateByUrl } = setup();
       await call('join_session', { code: ' k7p-9mr ' });
+      expect(navigate).toHaveBeenCalledWith(['/join'], { queryParams: { code: 'K7P9MR' } });
+      expect(navigateByUrl).not.toHaveBeenCalled();
+    });
+
+    it('steps off the Join page first, which acts on a code only as it is entered', async () => {
+      const { call, router, navigate, navigateByUrl } = setup();
+      router.url = '/join?code=ABCDEF';
+      await call('join_session', { code: 'K7P9MR' });
+      expect(navigateByUrl).toHaveBeenCalledWith('/home', { skipLocationChange: true });
       expect(navigate).toHaveBeenCalledWith(['/join'], { queryParams: { code: 'K7P9MR' } });
     });
 
@@ -245,6 +313,15 @@ describe('WebMcpService', () => {
       await expect(call('cast_vote', { card: '13' })).rejects.toThrow(/Use one of: 1, 2, 3, 5, 8/);
       active.set(null);
       await expect(call('cast_vote', { card: '5' })).rejects.toThrow(/No round is open/);
+    });
+
+    it('refuses an observer even when their old vote matches', async () => {
+      const { call, active, everyone, toggleCurrentVote } = setup();
+      active.set(round({ votes: { [ME]: '5' } }));
+      everyone.set([{ ...participants[0]!, role: 'viewer' }, participants[1]!]);
+
+      await expect(call('cast_vote', { card: '5' })).rejects.toThrow(/observer/);
+      expect(toggleCurrentVote).not.toHaveBeenCalled();
     });
 
     it('explains a refusal for observers', async () => {

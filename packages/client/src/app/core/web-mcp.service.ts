@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import type { ParticipantSnapshot, Round } from '@hnch/shared';
 import {
   ABSTAIN_SENTINEL,
+  isAbstainVote,
   isValidRoomCode,
   normalizeRoomCode,
   participantRole,
@@ -58,8 +59,15 @@ function json(value: unknown): WebMcpToolResult {
 }
 
 function cardLabel(card: string): string {
-  return card === ABSTAIN_SENTINEL ? 'abstain' : card;
+  return isAbstainVote(card) ? 'abstain' : card;
 }
+
+/** The app says observer; the doc says viewer. */
+function roleLabel(p: ParticipantSnapshot): 'voter' | 'observer' {
+  return participantRole(p) === 'viewer' ? 'observer' : 'voter';
+}
+
+const NOT_A_VOTER = 'You are an observer in this session, so you cannot vote.';
 
 /**
  * Exposes hnch's main actions to AI agents in the browser through WebMCP: reading the session,
@@ -82,13 +90,25 @@ export class WebMcpService {
    * agent API that misbehaves must not stop the app from starting.
    */
   register(ctx: ModelContextLike | null = findModelContext()): void {
-    if (!ctx) return;
+    if (!ctx) {
+      // A polyfill or extension may install the API after the app has booted, but by `load`.
+      if (typeof document !== 'undefined' && document.readyState !== 'complete') {
+        const retry = (): void => {
+          const late = findModelContext();
+          if (late) this.register(late);
+        };
+        window.addEventListener('load', retry, { once: true });
+        this.destroyRef.onDestroy(() => window.removeEventListener('load', retry));
+      }
+      return;
+    }
     const controller = new AbortController();
     const tools = this.tools();
     for (const tool of tools) {
       try {
         const pending = ctx.registerTool(tool, { signal: controller.signal });
-        if (pending instanceof Promise) pending.catch(() => undefined);
+        // Not `instanceof Promise`: an extension's promise comes from another realm.
+        Promise.resolve(pending).catch(() => undefined);
       } catch {
         // A name the page already registered, or an implementation that rejects the schema.
       }
@@ -163,6 +183,10 @@ export class WebMcpService {
                 'without 0, O, 1, I and L.',
             );
           }
+          // The Join page acts on a code only as it is entered, and staying on it is no entry.
+          if (this.router.url.split('?')[0] === '/join') {
+            await this.router.navigateByUrl('/home', { skipLocationChange: true });
+          }
           await this.router.navigate(['/join'], { queryParams: { code } });
           return json({ code, page: this.router.url });
         },
@@ -220,16 +244,24 @@ export class WebMcpService {
     const me = this.participantIdService.id();
     const online = this.docService.onlineParticipantIds();
     const round = this.docService.currentRound();
+    const open = round !== null && this.docService.activeRound()?.id === round.id;
     const everyone = this.docService.participants();
     const nameOf = (id: string): string =>
       everyone.find((p) => p.id === id)?.displayName ?? 'someone who left';
+    // As the voting screen counts them: a vote left by someone offline or now observing is not.
+    const onlineVoters = new Set(
+      this.docService
+        .activeParticipants()
+        .filter((p) => online.has(p.id) && participantRole(p) === 'voter')
+        .map((p) => p.id),
+    );
 
     const describe = (p: ParticipantSnapshot) => ({
       displayName: p.displayName,
-      role: participantRole(p),
+      role: roleLabel(p),
       isHost: p.id === settings.hostParticipantId,
       online: online.has(p.id),
-      ...(round?.status === 'voting' && { hasVoted: p.id in round.votes }),
+      hasVoted: open ? onlineVoters.has(p.id) && p.id in round.votes : undefined,
     });
     const self = everyone.find((p) => p.id === me);
 
@@ -238,10 +270,10 @@ export class WebMcpService {
       page,
       code: this.docService.roomCode(),
       connected: this.docService.joined(),
-      ...(settings.name && { sessionName: settings.name }),
+      sessionName: settings.name,
       you: self ? describe(self) : null,
       participants: this.docService.activeParticipants().map(describe),
-      round: round ? this.describeRound(round, me, nameOf) : null,
+      round: round ? this.describeRound(round, open, onlineVoters, me, nameOf) : null,
       // Unset fields are undefined, which JSON leaves out.
       agenda: this.docService
         .pendingAgenda()
@@ -249,15 +281,25 @@ export class WebMcpService {
     };
   }
 
-  private describeRound(round: Round, me: string | null, nameOf: (id: string) => string): object {
+  private describeRound(
+    round: Round,
+    open: boolean,
+    onlineVoters: ReadonlySet<string>,
+    me: string | null,
+    nameOf: (id: string) => string,
+  ): object {
     const mine = me === null ? undefined : round.votes[me];
     return {
       status: round.status,
-      ...(round.title && { title: round.title }),
-      ...(round.ticketId && { ticketId: round.ticketId }),
-      ...(round.description && { description: round.description }),
+      openForVoting: open,
+      title: round.title,
+      ticketId: round.ticketId,
+      description: round.description,
       cards: round.scale.cards,
-      votesCast: Object.keys(round.votes).length,
+      ...(open && {
+        votesCast: Object.keys(round.votes).filter((id) => onlineVoters.has(id)).length,
+        voters: onlineVoters.size,
+      }),
       yourVote: mine === undefined ? null : cardLabel(mine),
       ...(round.status === 'revealed' && {
         votes: Object.entries(round.votes).map(([id, card]) => ({
@@ -283,16 +325,16 @@ export class WebMcpService {
       );
     }
 
-    // toggleCurrentVote clears a vote cast again, which is not what "cast" asks for.
     const me = this.participantIdService.id();
-    if (me !== null && round.votes[me] === card) return { vote: cardLabel(card) };
+    const self = this.docService.activeParticipants().find((p) => p.id === me);
+    if (!self || participantRole(self) !== 'voter') throw new Error(NOT_A_VOTER);
+    // toggleCurrentVote clears a vote cast again, which is not what "cast" asks for.
+    if (round.votes[self.id] === card) return { vote: cardLabel(card) };
 
     const result = this.docService.commands.toggleCurrentVote(card);
     if (!result.applied) {
       throw new Error(
-        result.reason === 'not-a-voter'
-          ? 'You are an observer in this session, so you cannot vote.'
-          : 'No round is open for voting.',
+        result.reason === 'not-a-voter' ? NOT_A_VOTER : 'No round is open for voting.',
       );
     }
     return { vote: cardLabel(card) };
