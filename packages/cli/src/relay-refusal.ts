@@ -6,22 +6,7 @@
  * `self-target` on a handoff); they are here so each map covers its union.
  */
 
-import {
-  RelayAccessError,
-  RelayRejectionError,
-  type AccessRefusalReason,
-  type HandoffResult,
-} from '@hnch/shared';
-
-/** The relay's answer, sorted: its own reason, the room gone, or no usable answer. */
-export type RelayRefusalReason = AccessRefusalReason | 'unknown-room' | 'unreachable';
-
-/** Sort a failed relay call into a {@link RelayRefusalReason}, as the shared handoff does. */
-export function relayRefusalReason(err: unknown): RelayRefusalReason {
-  if (err instanceof RelayAccessError) return err.reason;
-  if (err instanceof RelayRejectionError) return 'unknown-room';
-  return 'unreachable';
-}
+import type { HandoffResult, RelayRefusalReason } from '@hnch/shared';
 
 /** The relay reasons that read the same whichever act was refused. */
 const RELAY_SAYS: Record<Exclude<RelayRefusalReason, 'not-host' | 'bad-target'>, string> = {

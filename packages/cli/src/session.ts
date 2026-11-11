@@ -19,6 +19,7 @@ import {
   openLiveSession,
   participantKeyFor,
   patchRoomAccess,
+  relayRefusalReason,
   resolveRoom,
   type DocProjection,
   type HandoffResult,
@@ -35,7 +36,7 @@ import {
 } from '@hnch/shared';
 import WebSocket from 'ws';
 import { validatePassword } from './password-validation.js';
-import { ACCESS_REFUSAL, relayRefusalReason } from './relay-refusal.js';
+import { ACCESS_REFUSAL } from './relay-refusal.js';
 
 export interface CreateSessionOptions {
   readonly participantId: string;
