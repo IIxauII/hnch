@@ -5,8 +5,9 @@
  *
  *   node scripts/deploy-guard.mjs config   wrangler.jsonc is a production config
  *   node scripts/deploy-guard.mjs www      the build in www is fit to deploy:
- *                                          _headers and index.md at its root,
- *                                          every .js and .css content-hashed
+ *                                          _headers, robots.txt, sitemap.xml and
+ *                                          index.md at its root, every .js and
+ *                                          .css content-hashed
  *   node scripts/deploy-guard.mjs live     the deploy would not remove a live route
  *   node scripts/deploy-guard.mjs verify   the version this run uploaded is the
  *                                          live one, and every configured route
@@ -59,6 +60,14 @@ export const WORKER_MAIN = 'worker/index.ts';
  * request against the account's daily Free-plan budget (ADR-0051).
  */
 export const WORKER_FIRST = ['/*', '!/*.*'];
+
+/**
+ * Files angular.json copies from src to the root of www, which the build must
+ * carry unchanged: `_headers` configures hnch-web's caching, without
+ * `robots.txt` or `sitemap.xml` crawlers get the SPA's index.html, and without
+ * `index.md` Markdown requests quietly get the HTML (worker/index.ts).
+ */
+export const ROOT_FILES = ['_headers', 'robots.txt', 'sitemap.xml', 'index.md'];
 
 /**
  * @typedef {import('../../../scripts/cloudflare/worker-guard.mjs').RouteConfig} RouteConfig
@@ -159,21 +168,22 @@ function filesUnder(dir) {
  * Problems that make the build in `wwwDir` unfit to deploy (empty when fit),
  * and how many .js/.css files it has, from one walk of the tree.
  * @param {string} wwwDir
- * @param {string} headersSource the `_headers` the build must carry
+ * @param {string} srcDir the src the build came from, holding the ROOT_FILES
  * @returns {{ problems: string[], assets: number }}
  */
-export function wwwReport(wwwDir, headersSource) {
+export function wwwReport(wwwDir, srcDir) {
   if (!existsSync(resolve(wwwDir, 'index.html'))) {
     return { problems: [`${wwwDir} has no index.html`], assets: 0 };
   }
   const problems = [];
-  // Without it, Markdown requests quietly get the HTML (worker/index.ts).
-  if (!existsSync(resolve(wwwDir, 'index.md'))) problems.push(`${wwwDir} has no index.md`);
-  const headers = resolve(wwwDir, '_headers');
-  if (!existsSync(headers)) {
-    problems.push(`${wwwDir} has no _headers at its root`);
-  } else if (readFileSync(headers, 'utf8') !== readFileSync(headersSource, 'utf8')) {
-    problems.push(`${wwwDir}/_headers differs from ${headersSource}`);
+  for (const name of ROOT_FILES) {
+    const built = resolve(wwwDir, name);
+    const source = resolve(srcDir, name);
+    if (!existsSync(built)) {
+      problems.push(`${wwwDir} has no ${name} at its root`);
+    } else if (readFileSync(built, 'utf8') !== readFileSync(source, 'utf8')) {
+      problems.push(`${wwwDir}/${name} differs from ${source}`);
+    }
   }
   const assets = filesUnder(wwwDir).filter((f) => /\.(js|css)$/.test(f));
   for (const file of assets) {
@@ -187,10 +197,10 @@ export function wwwReport(wwwDir, headersSource) {
 /**
  * Problems that make the build in `wwwDir` unfit to deploy; empty when fit.
  * @param {string} wwwDir
- * @param {string} headersSource
+ * @param {string} srcDir
  */
-export function wwwProblems(wwwDir, headersSource) {
-  return wwwReport(wwwDir, headersSource).problems;
+export function wwwProblems(wwwDir, srcDir) {
+  return wwwReport(wwwDir, srcDir).problems;
 }
 
 /**
@@ -254,9 +264,11 @@ async function main() {
 
   if (mode === 'www') {
     const wwwDir = resolve(clientDir, 'www');
-    const { problems, assets } = wwwReport(wwwDir, resolve(clientDir, 'src/_headers'));
+    const { problems, assets } = wwwReport(wwwDir, resolve(clientDir, 'src'));
     if (problems.length > 0) fail(problems);
-    console.log(`www ok: _headers in place, ${assets} .js/.css files, all content-hashed`);
+    console.log(
+      `www ok: ${ROOT_FILES.join(', ')} in place, ${assets} .js/.css files, all content-hashed`,
+    );
     return;
   }
 

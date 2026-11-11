@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Public pages of hnch.dev (https://www.sitemaps.org/protocol.html), served at
+  /sitemap.xml. Only the site's address is listed: /onboarding is a sign-up
+  step, and every other route needs a display name first or is a room.
+  sitemap.test.ts checks each <loc> is a public route that robots.txt allows.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://hnch.dev/</loc>
+  </url>
+</urlset>

@@ -13,7 +13,7 @@ import {
 } from './deploy-guard.mjs';
 
 const ZONE = '0d0f221371c8a419c6a9d36fc3b4da23';
-const HEADERS = resolve(import.meta.dirname, '../src/_headers');
+const SRC = resolve(import.meta.dirname, '../src');
 const prod = {
   name: 'hnch-web',
   main: 'worker/index.ts',
@@ -136,8 +136,10 @@ describe('wwwProblems', () => {
   beforeEach(() => {
     www = mkdtempSync(join(tmpdir(), 'hnch-www-'));
     put('index.html', '<app-root></app-root>');
-    put('index.md', '# hnch\n');
-    put('_headers', readFileSync(HEADERS, 'utf8'));
+    put('_headers', readFileSync(join(SRC, '_headers'), 'utf8'));
+    put('robots.txt', readFileSync(join(SRC, 'robots.txt'), 'utf8'));
+    put('sitemap.xml', readFileSync(join(SRC, 'sitemap.xml'), 'utf8'));
+    put('index.md', readFileSync(join(SRC, 'index.md'), 'utf8'));
     put('main.66e4893120763c69.js');
     put('styles.876f054718d41689.css');
     put('219.b341d1532e91059a.js');
@@ -150,13 +152,13 @@ describe('wwwProblems', () => {
   afterEach(() => rmSync(www, { recursive: true, force: true }));
 
   it('passes a production build, counting its .js and .css in the same walk', () => {
-    expect(wwwReport(www, HEADERS)).toEqual({ problems: [], assets: 3 });
+    expect(wwwReport(www, SRC)).toEqual({ problems: [], assets: 3 });
   });
 
   it('refuses an unhashed .js or .css anywhere in the build', () => {
     put('main.js');
     put('assets/vendor/lib.css');
-    expect(wwwProblems(www, HEADERS)).toEqual([
+    expect(wwwProblems(www, SRC)).toEqual([
       expect.stringContaining('assets/vendor/lib.css'),
       expect.stringContaining('main.js'),
     ]);
@@ -164,19 +166,36 @@ describe('wwwProblems', () => {
 
   it('refuses a build without the _headers it was configured with', () => {
     rmSync(join(www, '_headers'));
-    expect(wwwProblems(www, HEADERS)).toHaveLength(1);
+    expect(wwwProblems(www, SRC)).toHaveLength(1);
     put('_headers', '/*\n  Cache-Control: public, max-age=31536000, immutable\n');
-    expect(wwwProblems(www, HEADERS)).toHaveLength(1);
+    expect(wwwProblems(www, SRC)).toHaveLength(1);
   });
 
-  it('refuses a build without index.md, which Markdown requests are answered with', () => {
+  it('refuses a build without the robots.txt it was built from', () => {
+    rmSync(join(www, 'robots.txt'));
+    expect(wwwProblems(www, SRC)).toEqual([expect.stringContaining('no robots.txt')]);
+    put('robots.txt', 'User-agent: *\nDisallow:\n');
+    expect(wwwProblems(www, SRC)).toEqual([expect.stringContaining('robots.txt differs')]);
+  });
+
+  it('refuses a build without the sitemap.xml it was built from', () => {
+    rmSync(join(www, 'sitemap.xml'));
+    put('assets/sitemap.xml', readFileSync(join(SRC, 'sitemap.xml'), 'utf8'));
+    expect(wwwProblems(www, SRC)).toEqual([expect.stringContaining('no sitemap.xml')]);
+    put('sitemap.xml', '<urlset/>');
+    expect(wwwProblems(www, SRC)).toEqual([expect.stringContaining('sitemap.xml differs')]);
+  });
+
+  it('refuses a build without the index.md that Markdown requests are answered with', () => {
     rmSync(join(www, 'index.md'));
-    expect(wwwProblems(www, HEADERS)).toEqual([expect.stringContaining('index.md')]);
+    expect(wwwProblems(www, SRC)).toEqual([expect.stringContaining('no index.md')]);
+    put('index.md', '# hnch\n');
+    expect(wwwProblems(www, SRC)).toEqual([expect.stringContaining('index.md differs')]);
   });
 
   it('refuses a directory that is not a build', () => {
     rmSync(join(www, 'index.html'));
-    expect(wwwProblems(www, HEADERS)).toHaveLength(1);
+    expect(wwwProblems(www, SRC)).toHaveLength(1);
   });
 
   it("matches exactly the webpack builder's .<16 lowercase hex>. hashes", () => {

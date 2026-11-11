@@ -123,8 +123,10 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z
         │           │                            workers.dev or preview URLs, every route on
         │           │                            hnch.dev with a zone_id
         │           ├── ng build (production), once
-        │           ├── deploy-guard.mjs www     _headers at the root of www, every .js and
-        │           │                            .css named <name>.<16 lowercase hex>.js|css
+        │           ├── deploy-guard.mjs www     _headers, robots.txt, sitemap.xml and index.md
+        │           │                            at the root of www, each identical to its src copy,
+        │           │                            every .js and .css named
+        │           │                            <name>.<16 lowercase hex>.js|css
         │           └── upload www (artifact kept 7 days, so a failed job can be re-run)
         │
         └── web     cold install (fresh store, client only, no install scripts);
@@ -139,8 +141,10 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z
                     └── if HNCH_LIVE == 'true':  https://hnch.dev/ serves this build (retried
                                                  up to 60 s), from Cloudflare, with exactly one
                                                  Cache-Control on /, /lobby/x, the licenses, the
-                                                 hashed main.js and /_headers (the SPA, not the
-                                                 file)
+                                                 hashed main.js, /_headers (the SPA, not the
+                                                 file), /robots.txt (text/plain, this
+                                                 build's file) and /sitemap.xml
+                                                 (an XML type, this build's file)
 ```
 
 `web` deploys exactly the `www` that `build` uploaded, so a failed `web` job can be re-run without a rebuild. The guards live in `packages/client/scripts/deploy-guard.mjs`; the route, version and Cloudflare API helpers are shared with the relay's guard through `scripts/cloudflare/worker-guard.mjs`.
@@ -149,11 +153,13 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z
 
 - **Cache headers come from `packages/client/src/_headers`**, which `angular.json` copies to the root of `www`. `hnch-web` applies it; wrangler does not serve the file itself. Each response carries exactly one `Cache-Control`:
   - `/*.js` and `/*.css`: `public, max-age=31536000, immutable`;
-  - everything else (`index.html`, SPA deep links such as `/lobby/x`, `/svg/*`, `/assets/*`, `favicon.ico`, `3rdpartylicenses.txt`): `no-cache, must-revalidate`;
+  - everything else (`index.html`, SPA deep links such as `/lobby/x`, `/svg/*`, `/assets/*`, `favicon.ico`, `robots.txt`, `sitemap.xml`, `3rdpartylicenses.txt`): `no-cache, must-revalidate`;
   - a missing `/x.<hash>.js` falls back to `index.html` with `immutable`.
 
   Because `/*.js` and `/*.css` are immutable for a year, every one of them must be content-hashed (`outputHashing: all`). The hash guard (`deploy-guard.mjs www`) fails the build unless each matches `\.[0-9a-f]{16}\.(js|css)$`, the webpack builder's exact hash form; a builder change that alters it fails the deploy rather than slipping through.
 - **SPA fallback.** Any path without a file answers `index.html` with `200`. `/index.html` itself redirects (`307`) to `/`.
+- **robots.txt** ([RFC 9309](https://www.rfc-editor.org/rfc/rfc9309)) is `packages/client/src/robots.txt`, which `angular.json` copies to the root of `www`. It keeps crawlers off room pages, invite links (`/join`) and the relay paths, and names the AI crawlers. Its `Content-Signal` line ([contentsignals.org](https://contentsignals.org/)) allows search, AI input and AI training (owner decision, 2026-11-11). A crawler obeys only the most specific `User-agent` group that names it, so every group repeats the `*` group's `Content-Signal` and rules; `scripts/robots.test.ts` checks that. `deploy-guard.mjs www` refuses a build whose `robots.txt` is missing or differs from `src`, and the smoke fails the deploy unless `/robots.txt` is that file as `text/plain`: crawlers read a `text/html` answer (the SPA fallback) as no robots.txt. Its last line, `Sitemap: https://hnch.dev/sitemap.xml`, names the sitemap.
+- **sitemap.xml** ([sitemaps.org](https://www.sitemaps.org/protocol.html)) is `packages/client/src/sitemap.xml`, copied the same way. It lists only `https://hnch.dev/`: `/onboarding` is a sign-up step, and every other route needs a display name first or is a room. A new page anyone can open (no parameter, redirect or guard) that is worth finding from a search gets a `<url>` there. `src/sitemap.test.ts` fails while the file lists any other path or one robots.txt blocks, or while robots.txt does not name it. `deploy-guard.mjs www` and the smoke check it like robots.txt, as an XML type.
 - **No service worker.** Plain SPA: no offline shell, no install prompt (deferred from v1). Adding one needs a re-read of the cache headers above against the service-worker lifecycle.
 - **Markdown for agents ([ADR-0058](../adr/0058-markdown-for-agents-worker.md)).** `worker/index.ts` runs for page paths only: `run_worker_first: ["/*", "!/*.*"]`, every path without a dot. Files never reach it and stay free.
   - A GET or HEAD whose `Accept` prefers `text/markdown` gets `src/index.md` (copied to the root of `www`) as `text/markdown; charset=utf-8`, with `x-markdown-tokens` (bytes ÷ 4, Cloudflare's estimate), the `_headers` Cache-Control and no `ETag`. Any other request gets the assets' own answer. Both carry `Vary: Accept`.
