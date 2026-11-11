@@ -31,11 +31,15 @@ describe('auth.md', () => {
 
   it('states a hash recipe that gives the hash the clients send', async () => {
     expect(AUTH_MD).toContain(
-      'PBKDF2-SHA-256 over the password (Unicode NFC, surrounding whitespace removed), salt the session UUID as UTF-8, 100000 iterations, 32 bytes, lowercase hex.',
+      'PBKDF2-SHA-256 over the password (Unicode NFC, then whitespace and the zero-width characters U+200B to U+200D and U+2060 removed from both ends), salt the session UUID as UTF-8, 100000 iterations, 32 bytes, lowercase hex.',
     );
     const uuid = '3f2b8c1e-9d4a-4e7b-a6c5-0b1d2e3f4a5b';
-    const typed = ' café ';
-    const byRecipe = pbkdf2Sync(typed.trim().normalize('NFC'), uuid, 100_000, 32, 'sha256');
+    const typed = '\u200B cafe\u0301 \u2060';
+    const stripped = typed
+      .normalize('NFC')
+      .replaceAll(/^[\s\u200B-\u200D\u2060]+|[\s\u200B-\u200D\u2060]+$/gu, '');
+    expect(stripped).toBe('caf\u00E9');
+    const byRecipe = pbkdf2Sync(stripped, uuid, 100_000, 32, 'sha256');
     expect(await hashPassword(typed, uuid)).toBe(byRecipe.toString('hex'));
   });
 });
