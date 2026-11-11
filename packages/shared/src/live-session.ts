@@ -124,9 +124,8 @@ export interface LiveSessionCredentials {
 }
 
 /**
- * The outcome of {@link LiveSession.handoffHost}: the doc's own refusals, the relay's
- * (`unauthenticated`, `not-host`, `bad-target`, `unknown-room`), or `unreachable` when no answer
- * came back.
+ * The outcome of {@link LiveSession.handoffHost}: the doc's own refusals, or the relay's as
+ * {@link relayRefusalReason} sorts them ({@link RelayRefusalReason}).
  */
 export type HandoffResult =
   | { applied: true }
