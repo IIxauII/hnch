@@ -250,6 +250,12 @@ jobs:
             fi
           }
           check / 'no-cache, must-revalidate'
+          # RFC 9727 discovery: the homepage links agents to the API catalog.
+          if ! curl -fsS --max-time 10 -D - -o /dev/null https://hnch.dev/ | tr -d '\r' \
+            | grep -qi '^link: </.well-known/api-catalog>; rel="api-catalog"$'; then
+            echo "::error::/ has no Link to /.well-known/api-catalog (rel=api-catalog)"
+            failed=1
+          fi
           check /lobby/x 'no-cache, must-revalidate'
           check /3rdpartylicenses.txt 'no-cache, must-revalidate'
           check "/${main}" 'public, max-age=31536000, immutable'
