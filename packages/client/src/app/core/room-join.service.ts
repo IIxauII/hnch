@@ -65,6 +65,8 @@ export interface RejoinDeps {
   relayHttpUrl: string;
   getDisplayName: () => Promise<string | null>;
   getParticipantId: () => Promise<string>;
+  /** This device's key for one room (ADR-0059). */
+  getParticipantKey: (roomUuid: string) => Promise<string>;
   /** Avatar color wire value (ADR-0043). Null = "no value set yet". */
   getAvatarColor: () => string | null;
   docService: Pick<DocService, 'teardown' | 'open' | 'sessionEpoch'>;
@@ -120,9 +122,10 @@ export async function rejoinRoom(
     return { type: 'password-required', roomCode: code };
   }
 
-  const [displayName, participantId] = await Promise.all([
+  const [displayName, participantId, participantKey] = await Promise.all([
     deps.getDisplayName(),
     deps.getParticipantId(),
+    deps.getParticipantKey(resolved.uuid),
   ]);
   // Read through a function: the signal changes under the awaits, which the
   // compiler's view of `opts` does not.
@@ -134,6 +137,7 @@ export async function rejoinRoom(
   deps.docService.open({
     room: { uuid: resolved.uuid, code },
     participantId,
+    participantKey,
     displayName: displayName ?? '',
     ...(avatarColor && { avatarColor }),
     ...(opts.passwordHash ? { passwordHash: opts.passwordHash } : {}),
@@ -238,6 +242,7 @@ export class RoomJoinService {
       relayHttpUrl: this.appPrefs.resolvedRelayHttpUrl(),
       getDisplayName: () => this.displayNameService.getDisplayName(),
       getParticipantId: () => this.participantIdService.getOrCreateId(),
+      getParticipantKey: (roomUuid) => this.participantIdService.participantKeyFor(roomUuid),
       getAvatarColor: () => this.avatarColorService.value(),
       docService: {
         teardown: () => this.docService.teardown(),

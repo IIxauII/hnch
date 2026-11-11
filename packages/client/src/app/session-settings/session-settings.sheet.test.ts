@@ -242,6 +242,16 @@ describe('SessionSettingsSheetComponent — setting a password', () => {
     expect(harness.toastInfo).not.toHaveBeenCalled();
   });
 
+  it('says only the host can change it when the relay does not take this device as host', async () => {
+    const { sheet, harness } = await mountSheet(FIB, [], { result: 'not-host' });
+    sheet.passwordDraft.set('hunter2');
+
+    await sheet.onPasswordCommit();
+
+    expect(harness.toastError).toHaveBeenCalledWith('Only the host can change the password');
+    expect(harness.toastInfo).not.toHaveBeenCalled();
+  });
+
   it('says nothing when there was nothing to send', async () => {
     const { sheet, harness } = await mountSheet(FIB, [], { result: 'skipped' });
     sheet.passwordDraft.set('hunter2');
@@ -378,6 +388,34 @@ describe('SessionSettingsSheetComponent — host gating', () => {
 
     expect(harness.passwordsSet).toEqual([]);
     expect(harness.removals).toBe(0);
+  });
+
+  // ADR-0059: the access control is there only while this peer is the host.
+  it('shows the password field to the host only', async () => {
+    const field = 'ion-input[type="password"]';
+    const host = await mountSheet(FIB, [], { accessMode: 'password' });
+    expect(host.fixture.nativeElement.querySelector(field)).not.toBeNull();
+
+    const guest = await mountSheet(FIB, [], { isHost: false, accessMode: 'password' });
+    expect(guest.fixture.nativeElement.querySelector(field)).toBeNull();
+    expect(guest.fixture.nativeElement.querySelector('.remove-password-btn')).toBeNull();
+  });
+
+  it('takes the password field away as soon as the host role is handed on', async () => {
+    const { fixture } = await mountSheet(FIB, []);
+
+    fixture.componentRef.setInput('isHost', false);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('ion-input[type="password"]')).toBeNull();
+  });
+
+  it('still tells a non-host whether the session asks for a password', async () => {
+    const { fixture } = await mountSheet(FIB, [], { isHost: false, accessMode: 'password' });
+
+    expect(fixture.nativeElement.querySelector('.helper')?.textContent).toContain(
+      'Anyone joining needs this password',
+    );
   });
 
   it('the host can change the scale', async () => {

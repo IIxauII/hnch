@@ -68,6 +68,7 @@ import { ConnectionStatusBannerComponent } from '../shared/connection-status-ban
 import { ExportService } from '../core/export.service';
 import { SurfaceService } from '../core/surface.service';
 import { ToastService } from '../services/toast.service';
+import { handoffRefusalCopy } from '../core/relay-copy';
 import { DocService } from '../core/doc/doc.service';
 import { HapticService } from '../core/haptic.service';
 import { LastSessionService } from '../core/last-session.service';
@@ -1499,9 +1500,9 @@ export class LobbyPage implements OnDestroy {
   }
 
   /**
-   * Handoff tap handler. Shows a confirmation dialog, and on confirm routes
-   * through the shared roster command, which applies the host gate and
-   * refuses a target who is not online (#507).
+   * Handoff tap handler. Shows a confirmation dialog, and on confirm hands off
+   * relay first (ADR-0059): the doc's own gate (#507), then the relay, and the
+   * doc only once the relay has moved its access holder. A refusal says why.
    */
   protected async onHandoffTap(participantId: string, displayName: string): Promise<void> {
     const alert = await this.alertCtrl.create({
@@ -1513,9 +1514,13 @@ export class LobbyPage implements OnDestroy {
           text: 'Make host',
           handler: () => {
             if (!this.myId()) return;
-            if (this.docService.commands.handoffHost(participantId).applied) {
-              this.haptic.impactMedium();
-            }
+            void this.docService.handoffHost(participantId).then(async (result) => {
+              if (result.applied) {
+                this.haptic.impactMedium();
+                return;
+              }
+              await this.toastService.error(handoffRefusalCopy(result.reason, displayName));
+            });
           },
         },
       ],

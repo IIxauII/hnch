@@ -141,4 +141,64 @@ describe('ParticipantIdService', () => {
       expect(id).toBe('alias-id-456');
     });
   });
+
+  // ADR-0059: one device key per install, next to the participant id.
+  describe('device key', () => {
+    let store: Map<string, string>;
+
+    beforeEach(() => {
+      store = new Map();
+      mockPreferences.get.mockImplementation(async ({ key }) => ({
+        value: store.get(key) ?? null,
+      }));
+      mockPreferences.set.mockImplementation(async ({ key, value }) => {
+        store.set(key, value);
+      });
+    });
+
+    it('creates a 256-bit key on first need and keeps it in the device store', async () => {
+      const svc = await createService();
+      const key = await svc.getOrCreateDeviceKey();
+      expect(key).toMatch(/^[0-9a-f]{64}$/);
+      expect(store.get('hnch.deviceKey')).toBe(key);
+    });
+
+    it('reuses the stored key, also after a restart', async () => {
+      const first = await (await createService()).getOrCreateDeviceKey();
+      const svc = await createService();
+      expect(await svc.getOrCreateDeviceKey()).toBe(first);
+      expect(await svc.getOrCreateDeviceKey()).toBe(first);
+    });
+
+    it('concurrent first calls agree on one key', async () => {
+      const svc = await createService();
+      const [a, b] = await Promise.all([svc.getOrCreateDeviceKey(), svc.getOrCreateDeviceKey()]);
+      expect(a).toBe(b);
+      expect(mockPreferences.set).toHaveBeenCalledOnce();
+    });
+
+    it('replaces a malformed stored key', async () => {
+      store.set('hnch.deviceKey', 'not-a-key');
+      const key = await (await createService()).getOrCreateDeviceKey();
+      expect(key).toMatch(/^[0-9a-f]{64}$/);
+      expect(store.get('hnch.deviceKey')).toBe(key);
+    });
+
+    it('reads an upper-case stored key as the same key', async () => {
+      store.set('hnch.deviceKey', 'AB'.repeat(32));
+      expect(await (await createService()).getOrCreateDeviceKey()).toBe('ab'.repeat(32));
+    });
+
+    it("derives a room's participant key the way the relay does", async () => {
+      // The relay's own vector (packages/relay/src/participant-key.test.ts).
+      store.set(
+        'hnch.deviceKey',
+        '000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f',
+      );
+      const svc = await createService();
+      await expect(svc.participantKeyFor('0f8e1c52-3b7a-4d2e-9c61-5a4b3c2d1e0f')).resolves.toBe(
+        'a6bf5f0ce5727a5eab653a0902c3aea1d51870396611d94f1b630980b74112b6',
+      );
+    });
+  });
 });
