@@ -64,7 +64,7 @@ The authoritative statement of the rule; other docs link here. Implemented once 
 - **Debounce:** when the host leaves the eligible set, every client waits 5 seconds. A host back within the window keeps the role, so network blips trigger no election.
 - **Winner:** still absent after the debounce → the lexicographically lowest eligible `participantId` wins. Only the winner writes itself to `hostParticipantId`; the others stand down when they see the write.
 - **No reclaim:** a former host who reconnects after losing the role does not regain it.
-- **Handoff:** the current host can also hand the role to an online participant directly (`handoffHost`, see [GLOSSARY.md](../GLOSSARY.md)).
+- **Handoff:** the current host can also hand the role to an online participant directly. The relay is asked first and the doc is written only on its yes (ADR-0059; `handoffHost`, see [GLOSSARY.md](../GLOSSARY.md)).
 
 ## `participants` — who's in the session
 

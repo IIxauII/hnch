@@ -263,6 +263,10 @@ export function handoffRefusal(
  * election has already restricted `winnerId` to the eligible peer set, which
  * is why there is no existence check either.
  *
+ * The live session's relay-first handoff (ADR-0059) also ends here: the doc's
+ * gate ran before the relay call, and the relay checked the target, so the
+ * doc follows the relay's yes without a second gate.
+ *
  * Always returns `{ applied: true }`; it is a `RosterResult` for one union
  * per module, not because it can refuse.
  */

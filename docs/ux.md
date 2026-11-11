@@ -241,7 +241,8 @@ Lobby → ⋯ on a participant row (host only, target is not self)
     → Confirm: the relay is asked first (ADR-0059); once it agrees, everyone is told — "Bob is now the host" (Bob: "You are now the host")
     → Refused: nothing changes, and a toast says why — "Bob is offline. Try again once they are back.",
       "Couldn't make Bob the host. They may need to update hnch." (the relay hands only to a peer that proves itself),
-      "The relay didn't accept this device as the host.", or the relay-unreachable copy
+      "The relay didn't accept this device as the host.", "Only the host can hand off the host role.",
+      "That session isn't active anymore.", or the relay-unreachable copy
 ```
 
 Only the host changes the password. The password field is in Session settings, which only the host can open, and it goes away if the host role moves while the sheet is open. Should the relay still not take this device as the host (the role has just moved, or the app it was handed from is out of date), the change is refused with "Only the host can change the password" and the access shown stays as it was.

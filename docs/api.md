@@ -26,7 +26,8 @@ Only the room's **access holder** may change access ([ADR-0059](../adr/0059-host
 - Create with `{"creator": {"participantId", "deviceKey"}}`: the creator holds access.
 - Join with `&pk={pk}` next to `did`: the first joined socket with a `pk` binds that id for the room.
 - Send `PATCH` and `POST /rooms/{uuid}/host` (handoff to `{"target"}`) with `Authorization: Bearer {pk}` and `participantId` in the body.
-- Refusals: `401 {"reason":"unauthenticated"}` (key missing, wrong, or id never joined), `401 {"reason":"not-host"}`, `409 {"reason":"bad-target"}` (handoff target not connected with a proven id).
+- A handoff answers `200 {"accessHolder"}` naming the new holder.
+- Refusals: `401 {"reason":"unauthenticated"}` (key missing, wrong, or id never joined), `401 {"reason":"not-host"}`, `409 {"reason":"bad-target"}` (handoff target not connected with a proven id), and `404` for an unknown room on both routes.
 - When the holder has been gone 5 s, the document's host claims access on its next `PATCH`.
 - A room created without `creator` accepts one `PATCH` without `Authorization`, within 60 s and before anyone joined, for older clients.
 
