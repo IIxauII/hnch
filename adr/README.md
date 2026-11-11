@@ -41,7 +41,7 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0013](0013-round-model-flat-parentroundid.md) | Round model — flat list with parentRoundId linking | Superseded | ADR-0046 |
 | [0014](0014-repo-layout-pnpm-workspaces.md) | Repo layout — pnpm workspaces monorepo | Accepted |  |
 | [0016](0016-client-relay-connection-handshake.md) | Client ↔ relay connection handshake | Accepted |  |
-| [0017](0017-password-hashing-drop-invite-only.md) | Password hashing scheme and invite-only removal | Accepted | ADR-0035 (partial), ADR-0051 (partial) |
+| [0017](0017-password-hashing-drop-invite-only.md) | Password hashing scheme and invite-only removal | Accepted | ADR-0035 (partial), ADR-0051 (partial), ADR-0059 (partial) |
 | [0018](0018-remove-timer-add-unanimous-reveal.md) | Remove countdown timer; add unanimous auto-reveal | Accepted |  |
 | [0019](0019-scale-customization.md) | Scale customization — builtin presets, sentinel removal, device-local overrides | Accepted |  |
 | [0020](0020-participant-viewer-voter-role.md) | Participant Viewer/Voter Role | Accepted |  |
@@ -76,7 +76,7 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0056](0056-github-hosted-runners.md) | GitHub-hosted runners for all CI/CD — self-hosted pool retired (supersedes ADR-0049, ADR-0052, ADR-0053) | Accepted |  |
 | [0057](0057-screenshot-reference-on-the-screenshots-branch.md) | Screenshot reference set — captured in main's e2e run, stored on the `screenshots` branch | Accepted |  |
 | [0058](0058-markdown-for-agents-worker.md) | Markdown for agents — `hnch-web` runs a Worker on page paths (partially supersedes ADR-0051) | Accepted |  |
-| [0059](0059-host-only-access-changes.md) | Host-only access changes — participant keys and a relay-held access holder (supersedes ADR-0017 PATCH-auth clause) | Proposed |  |
+| [0059](0059-host-only-access-changes.md) | Host-only access changes — participant keys and a relay-held access holder (supersedes ADR-0017 PATCH-auth clause) | Accepted |  |
 
 ## When to write an ADR
 
