@@ -2,6 +2,8 @@
 
 Pointing poker (planning poker) application for agile teams.
 
+[`packages/client/src/index.md`](../packages/client/src/index.md), the page hnch.dev answers agents that ask for Markdown ([ADR-0058](../adr/0058-markdown-for-agents-worker.md)), restates parts of this doc in user-facing words. Change both together.
+
 ## Name
 
 **hnch** — a vowel-dropped spelling of "hunch", reflecting the gut-feel nature of story point estimation.

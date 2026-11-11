@@ -68,13 +68,14 @@ This folder holds the architectural decisions for hnch. Each ADR captures *why* 
 | [0048](0048-host-election-eligible-peer-set.md) | Host election eligible peer set — online ∩ active, single-sourced in `shared/election.ts` (refines ADR-0010) | Accepted |  |
 | [0049](0049-self-hosted-runner-pool-current-state-consolidation.md) | Self-hosted runner pool — current-state consolidation | Superseded | ADR-0056 |
 | [0050](0050-reconnect-reconciliation.md) | Reconnect reconciliation — presence re-announce, sync-gated auto-reveal, HTTP refusal lookup | Accepted |  |
-| [0051](0051-cloudflare-hosting.md) | Hosting — Cloudflare Workers and Durable Objects replace the IONOS VPS | Accepted | ADR-0054 (partial) |
+| [0051](0051-cloudflare-hosting.md) | Hosting — Cloudflare Workers and Durable Objects replace the IONOS VPS | Accepted | ADR-0054 (partial), ADR-0058 (partial) |
 | [0052](0052-single-e2e-runner-slot.md) | Single `e2e` runner slot — one Playwright job at a time on the pool (refines ADR-0049) | Superseded | ADR-0056 |
 | [0053](0053-runner-pool-two-slots.md) | Runner pool size — 2 slots, fewer than the verify lanes | Superseded | ADR-0056 |
 | [0054](0054-vps-decommission.md) | VPS decommission — deploy path removed now, box shut down after the switch (partially supersedes ADR-0051) | Accepted |  |
 | [0055](0055-verified-skip-main-push-run.md) | Verified-skip — a main push run may pass on a green PR run for the identical tree | Accepted |  |
 | [0056](0056-github-hosted-runners.md) | GitHub-hosted runners for all CI/CD — self-hosted pool retired (supersedes ADR-0049, ADR-0052, ADR-0053) | Accepted |  |
 | [0057](0057-screenshot-reference-on-the-screenshots-branch.md) | Screenshot reference set — captured in main's e2e run, stored on the `screenshots` branch | Accepted |  |
+| [0058](0058-markdown-for-agents-worker.md) | Markdown for agents — `hnch-web` runs a Worker on page paths (partially supersedes ADR-0051) | Accepted |  |
 
 ## When to write an ADR
 

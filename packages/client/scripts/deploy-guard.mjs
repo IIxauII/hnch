@@ -5,9 +5,9 @@
  *
  *   node scripts/deploy-guard.mjs config   wrangler.jsonc is a production config
  *   node scripts/deploy-guard.mjs www      the build in www is fit to deploy:
- *                                          _headers, robots.txt and sitemap.xml at
- *                                          its root, every .js and .css
- *                                          content-hashed
+ *                                          _headers, robots.txt, sitemap.xml and
+ *                                          index.md at its root, every .js and
+ *                                          .css content-hashed
  *   node scripts/deploy-guard.mjs live     the deploy would not remove a live route
  *   node scripts/deploy-guard.mjs verify   the version this run uploaded is the
  *                                          live one, and every configured route
@@ -50,12 +50,24 @@ export const SCRIPT = 'hnch-web';
  */
 export const HASHED = /\.[0-9a-f]{16}\.(js|css)$/;
 
+/** The Worker's entry, relative to this package (ADR-0058). */
+export const WORKER_MAIN = 'worker/index.ts';
+
+/**
+ * The only `run_worker_first` a deploy accepts: every path without a dot (the
+ * pages) runs the Worker, every file is served as an asset without it. A wider
+ * list, or `true`, would bill each script, style and image request as a Worker
+ * request against the account's daily Free-plan budget (ADR-0051).
+ */
+export const WORKER_FIRST = ['/*', '!/*.*'];
+
 /**
  * Files angular.json copies from src to the root of www, which the build must
- * carry unchanged: `_headers` configures hnch-web's caching, and without
- * `robots.txt` or `sitemap.xml` crawlers get the SPA's index.html.
+ * carry unchanged: `_headers` configures hnch-web's caching, without
+ * `robots.txt` or `sitemap.xml` crawlers get the SPA's index.html, and without
+ * `index.md` Markdown requests quietly get the HTML (worker/index.ts).
  */
-export const ROOT_FILES = ['_headers', 'robots.txt', 'sitemap.xml'];
+export const ROOT_FILES = ['_headers', 'robots.txt', 'sitemap.xml', 'index.md'];
 
 /**
  * @typedef {import('../../../scripts/cloudflare/worker-guard.mjs').RouteConfig} RouteConfig
@@ -66,6 +78,14 @@ export const ROOT_FILES = ['_headers', 'robots.txt', 'sitemap.xml'];
  *   routes?: (RouteConfig | string)[],
  *   workers_dev?: boolean,
  *   preview_urls?: boolean,
+ *   observability?: {
+ *     enabled?: boolean,
+ *     logs?: { enabled?: boolean },
+ *     traces?: { enabled?: boolean },
+ *   },
+ *   logpush?: boolean,
+ *   tail_consumers?: unknown[],
+ *   streaming_tail_consumers?: unknown[],
  *   assets?: {
  *     directory?: string,
  *     binding?: string,
@@ -88,9 +108,26 @@ export function configProblems(config) {
   }
   // Only the hnch.dev route reaches the Worker.
   problems.push(...exposureProblems(config));
-  // Assets-only: no Worker code runs, so asset requests are not billed as
-  // Worker requests (ADR-0051).
-  if (config.main !== undefined) problems.push('main must not be set (assets-only Worker)');
+  // The Markdown Worker, and only it (wrangler resolves `main` to an absolute
+  // path, a test fixture passes it relative).
+  const entry =
+    config.main === undefined ? undefined : relative(clientDir, resolve(clientDir, config.main));
+  if (entry !== WORKER_MAIN) {
+    problems.push(`main must be ${WORKER_MAIN}, is ${JSON.stringify(config.main)}`);
+  }
+  // Page URLs carry room codes; nothing may record them.
+  const observability = config.observability;
+  if (
+    observability?.enabled !== false ||
+    observability.logs?.enabled === true ||
+    observability.traces?.enabled === true
+  ) {
+    problems.push('observability.enabled must be false, with no logs or traces override');
+  }
+  if (config.logpush === true) problems.push('logpush must not be set');
+  for (const sink of /** @type {const} */ (['tail_consumers', 'streaming_tail_consumers'])) {
+    if ((config[sink] ?? []).length > 0) problems.push(`${sink} must not be set`);
+  }
   const assets = config.assets;
   if (assets === undefined) {
     problems.push('assets must be set');
@@ -101,10 +138,13 @@ export function configProblems(config) {
     if (assets.not_found_handling !== 'single-page-application') {
       problems.push('assets.not_found_handling must be "single-page-application"');
     }
-    if (assets.run_worker_first !== undefined && assets.run_worker_first !== false) {
-      problems.push('assets.run_worker_first must not be set');
+    if (JSON.stringify(assets.run_worker_first) !== JSON.stringify(WORKER_FIRST)) {
+      problems.push(
+        `assets.run_worker_first must be ${JSON.stringify(WORKER_FIRST)}, is ${JSON.stringify(assets.run_worker_first)}`,
+      );
     }
-    if (assets.binding !== undefined) problems.push('assets.binding must not be set');
+    // worker/index.ts reads the assets as env.ASSETS.
+    if (assets.binding !== 'ASSETS') problems.push('assets.binding must be "ASSETS"');
   }
   const routes = config.routes ?? [];
   if (routes.length === 0) problems.push('top level: no routes');
