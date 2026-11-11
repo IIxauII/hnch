@@ -119,9 +119,9 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z
         │
         ├── build   cold install (fresh store, client + shared, no install scripts)
         │           ├── deploy-guard.mjs config  assets from ./www, SPA fallback, the Worker
-        │           │                            on page paths only, Workers Logs off, no
-        │           │                            workers.dev or preview URLs, every route on
-        │           │                            hnch.dev with a zone_id
+        │           │                            on page paths only, no observability, logpush
+        │           │                            or tail sinks, no workers.dev or preview URLs,
+        │           │                            every route on hnch.dev with a zone_id
         │           ├── ng build (production), once
         │           ├── deploy-guard.mjs www     _headers, robots.txt, sitemap.xml and index.md
         │           │                            at the root of www, each identical to its src copy,
@@ -163,10 +163,10 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z
 - **No service worker.** Plain SPA: no offline shell, no install prompt (deferred from v1). Adding one needs a re-read of the cache headers above against the service-worker lifecycle.
 - **Markdown for agents ([ADR-0058](../adr/0058-markdown-for-agents-worker.md)).** `worker/index.ts` runs for page paths only: `run_worker_first: ["/*", "!/*.*"]`, every path without a dot. Files never reach it and stay free.
   - A GET or HEAD whose `Accept` prefers `text/markdown` gets `src/index.md` (copied to the root of `www`) as `text/markdown; charset=utf-8`, with `x-markdown-tokens` (bytes ÷ 4, Cloudflare's estimate), the `_headers` Cache-Control and no `ETag`. Any other request gets the assets' own answer. Both carry `Vary: Accept`.
-  - Without `index.md` the Worker serves the HTML, so `deploy-guard.mjs www` refuses a build without it, and the smoke checks that `/` answers `text/markdown` to `Accept: text/markdown`.
+  - Without `index.md` the Worker serves the HTML, so `deploy-guard.mjs www` refuses a build without it or with one that differs from `src`, and the smoke checks that `/` and a deep link (`/lobby/x`) answer `text/markdown` with `Vary: Accept` to `Accept: text/markdown`.
   - `index.md` restates product facts by hand: change it with the product. `worker/index.test.ts` pins its scales, participant cap and code format to `@hnch/shared`.
   - Only the default export may live in `worker/index.ts`: workerd takes any other export of the main module for an entrypoint and fails to start (seen on local workerd). Helpers go in `worker/markdown.ts`.
-  - Workers Logs stay off (`observability.enabled: false`, guarded): page URLs carry room codes.
+  - Nothing records requests: `deploy-guard.mjs config` refuses Workers Logs and traces (`observability.enabled: false`), `logpush` and tail consumers, because page URLs carry room codes.
 - **Tags and messages.** The `hnch-web` version is tagged `client-vX.Y.Z` only when the deployed commit is that release tag's commit; any other commit deploys untagged. Every version's message names the full commit SHA, and `verify` checks the version id `wrangler deploy` just uploaded (from `WRANGLER_OUTPUT_FILE_PATH`) is the one serving, so a re-dispatch can't pass on an earlier upload.
 - **Cold installs.** The `build` and `web` jobs run on GitHub-hosted `ubuntu-24.04-arm` ([ADR-0056](../adr/0056-github-hosted-runners.md)) and restore no Actions cache. Each runs `pnpm install --frozen-lockfile --ignore-scripts` into the fresh runner's empty store, so pnpm checks every package against the lockfile; `build` filters to `@hnch/client...`, `web` to `@hnch/client` (pnpm still installs the workspace root's packages). Node 22 comes from `actions/setup-node`, and pnpm's version from `packageManager` through Corepack.
 - **A client release never touches the relay.** In G0 (2026-10-28) relay sockets held for 300 s across a web redeploy with 0 closes.
