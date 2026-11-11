@@ -131,6 +131,19 @@ jobs:
           # Long enough to re-run a failed web job the next days.
           retention-days: 7
 
+      - name: Upload .well-known/api-catalog
+        # upload-artifact skips hidden paths, so the www upload above leaves out
+        # .well-known/. Naming the one file uploads it and nothing else; leave
+        # include-hidden-files off so no other dotfile can ship. A new file in
+        # .well-known/ needs its own upload and download step like this pair.
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: api-catalog
+          path: packages/client/www/.well-known/api-catalog
+          if-no-files-found: error
+          # Same as www, so a re-run of the web job finds both.
+          retention-days: 7
+
   web:
     name: Deploy PWA to hnch-web
     needs: build
@@ -172,6 +185,14 @@ jobs:
         with:
           name: www
           path: packages/client/www
+
+      - name: Download .well-known/api-catalog
+        # Puts back the file the www artifact can't carry (see its upload).
+        # The artifact holds the bare file, so the target is its folder.
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: api-catalog
+          path: packages/client/www/.well-known
 
       - name: Re-check config and www
         # The same guards as the build job, on what this job will upload.
