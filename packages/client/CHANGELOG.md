@@ -1,3 +1,10 @@
+# [1.54.0](https://github.com/IIxauII/hnch/compare/client-v1.53.0...client-v1.54.0) (2026-11-11)
+
+
+### Features
+
+* **relay,shared,client,cli,e2e,docs:** host-only access changes (ADR-0059) ([#783](https://github.com/IIxauII/hnch/issues/783)) ([89afabf](https://github.com/IIxauII/hnch/commit/89afabf8a343f7681ba09d776d0041a523451c7b))
+
 # [1.53.0](https://github.com/IIxauII/hnch/compare/client-v1.52.0...client-v1.53.0) (2026-11-11)
 
 
