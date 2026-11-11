@@ -448,6 +448,48 @@ describe('session integration — host-only access (ADR-0059)', () => {
     await expect(host.updateAccess('open')).rejects.toThrow(message);
   });
 
+  it('says the room was made but left open when create cannot set its password', async () => {
+    const realFetch = globalThis.fetch;
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      if (String(input).endsWith('/access')) throw new TypeError('fetch failed');
+      return realFetch(input, init);
+    });
+
+    const created = createSession({
+      participantId: 'cr-unset',
+      deviceKey: keyOf('cr-unset'),
+      displayName: 'Alice',
+      relayUrl,
+      password: 'secret123',
+    });
+
+    await expect(created).rejects.toThrow(
+      /^Room [A-Z0-9]{6} was created, but its password was not set: The relay could not be reached\. The room is open to anyone with the code and was not joined\. Run `hnch create --password` again\.$/,
+    );
+    await expect(created).rejects.toHaveProperty('cause.cause', expect.any(TypeError));
+  });
+
+  it('keeps the doc-only handoff out of the session commands, torn down or not', async () => {
+    const host = await createSession({
+      participantId: 'no-ho',
+      deviceKey: keyOf('no-ho'),
+      displayName: 'Alice',
+      relayUrl,
+    });
+    await host.whenJoined();
+
+    expect('handoffHost' in host.commands).toBe(false);
+    expect(host.commands).toBe(host.commands);
+    const live = host.commands;
+
+    host.teardown();
+
+    expect('handoffHost' in host.commands).toBe(false);
+    expect(host.commands).not.toBe(live);
+    expect(host.commands).toBe(host.commands);
+    expect(host.commands.endSession()).toMatchObject({ applied: false });
+  });
+
   it('a handoff moves the power to change access along with the host', async () => {
     const { host, joiner } = await hostAndJoiner('ho');
 

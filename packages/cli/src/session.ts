@@ -19,8 +19,6 @@ import {
   openLiveSession,
   participantKeyFor,
   patchRoomAccess,
-  RelayAccessError,
-  RelayRejectionError,
   resolveRoom,
   type DocProjection,
   type HandoffResult,
@@ -37,6 +35,7 @@ import {
 } from '@hnch/shared';
 import WebSocket from 'ws';
 import { validatePassword } from './password-validation.js';
+import { ACCESS_REFUSAL, relayRefusalReason } from './relay-refusal.js';
 
 export interface CreateSessionOptions {
   readonly participantId: string;
@@ -86,8 +85,9 @@ export interface SessionHandle {
    * The session commands, bound to this session (#516). Every write the TUI
    * makes goes through them — or through the two patches below, which carry
    * their own gate — so every write meets its rule. Refuse once torn down.
+   * The doc-only `handoffHost` is left out: {@link handoffHost} is the one.
    */
-  readonly commands: SessionCommands;
+  readonly commands: CliSessionCommands;
 
   projection(): DocProjection;
   current(): Round | null;
@@ -118,7 +118,6 @@ export interface SessionHandle {
   /**
    * Hand host to `targetId`, relay first (ADR-0059): the doc changes only once
    * the relay has moved its access holder. Never rejects; a refusal says why.
-   * `commands.handoffHost` writes the doc alone — use this instead.
    */
   handoffHost(targetId: string): Promise<HandoffResult>;
 
@@ -158,7 +157,18 @@ export async function createSession(opts: CreateSessionOptions): Promise<Session
   if (opts.password !== undefined && normalizePassword(opts.password) !== '') {
     passwordHash = await hashPassword(opts.password, minted.uuid);
     // Before any socket: the relay takes it from the holder while the doc is empty.
-    await patchAccess(opts.relayUrl, minted.uuid, passwordHash, caller);
+    try {
+      await patchAccess(opts.relayUrl, minted.uuid, passwordHash, caller);
+    } catch (err) {
+      // The room exists now, open and unjoined; say so rather than only why.
+      const why = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `Room ${minted.code} was created, but its password was not set: ${why}. ` +
+          'The room is open to anyone with the code and was not joined. ' +
+          'Run `hnch create --password` again.',
+        { cause: err },
+      );
+    }
   }
 
   return open(
@@ -202,21 +212,7 @@ export async function openSession(opts: OpenSessionOptions): Promise<SessionHand
   return open(opts, participantKey, { kind: 'join' });
 }
 
-/** Why an access change failed, in words for the person at the terminal (docs/cli.md). */
-const ACCESS_FAILURE: Record<RelayAccessError['reason'] | 'unknown-room' | 'unreachable', string> =
-  {
-    'not-host': 'Only the host can change the password',
-    unauthenticated: 'The relay did not accept this device as the host',
-    // A handoff's reason: the access route never gives it.
-    'bad-target': 'The relay refused the change',
-    'unknown-room': 'The relay no longer knows this room',
-    unreachable: 'The relay could not be reached',
-  };
-
-/**
- * {@link patchRoomAccess}, failing in words. Sorted as the shared handoff
- * sorts it: the relay's reason, the room gone, or no usable answer.
- */
+/** {@link patchRoomAccess}, failing in words for the person at the terminal (docs/cli.md). */
 async function patchAccess(
   relayUrl: string,
   roomUuid: string,
@@ -226,14 +222,26 @@ async function patchAccess(
   try {
     await patchRoomAccess(relayUrl, roomUuid, passwordHash, caller);
   } catch (err) {
-    const reason =
-      err instanceof RelayAccessError
-        ? err.reason
-        : err instanceof RelayRejectionError
-          ? 'unknown-room'
-          : 'unreachable';
-    throw new Error(ACCESS_FAILURE[reason], { cause: err });
+    throw new Error(ACCESS_REFUSAL[relayRefusalReason(err)], { cause: err });
   }
+}
+
+/**
+ * The commands minus the doc-only `handoffHost`, which skips the relay
+ * (ADR-0059); {@link SessionHandle.handoffHost} asks the relay first.
+ */
+export type CliSessionCommands = Omit<SessionCommands, 'handoffHost'>;
+
+/** `commands` without `handoffHost`, one copy per commands object. */
+const withoutDocHandoff = new WeakMap<SessionCommands, CliSessionCommands>();
+function cliCommands(commands: SessionCommands): CliSessionCommands {
+  let stripped = withoutDocHandoff.get(commands);
+  if (stripped === undefined) {
+    const { handoffHost: _docOnly, ...rest } = commands;
+    stripped = rest;
+    withoutDocHandoff.set(commands, stripped);
+  }
+  return stripped;
 }
 
 function open(
@@ -315,8 +323,9 @@ function open(
     roomUuid,
     passwordHash: opts.passwordHash,
 
-    get commands(): SessionCommands {
-      return live.commands;
+    // Read each time: `live.commands` turns unbound at teardown.
+    get commands(): CliSessionCommands {
+      return cliCommands(live.commands);
     },
 
     projection: latest,

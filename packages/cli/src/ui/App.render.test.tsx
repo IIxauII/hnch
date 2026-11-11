@@ -82,7 +82,6 @@ function makeSession(
       toggleRole: vi.fn(() => ({ applied: true })),
       leave: vi.fn(() => ({ applied: true })),
       kick: vi.fn(() => ({ applied: true })),
-      handoffHost: vi.fn(() => ({ applied: true })),
       endSession: vi.fn(() => ({ applied: true })),
     },
     projection: () => makeProjection(overrides.rounds ?? [], overrides.participants),
@@ -352,9 +351,8 @@ describe('App — Lobby handoff goes through the relay first (ADR-0059)', () => 
     await press(stdin, '1');
     await press(stdin, 'y');
 
+    // The doc-only command is not on `session.commands` at all (session.test.ts).
     expect(session.handoffHost).toHaveBeenCalledWith('ada');
-    // The doc-only command would leave the relay's access holder behind.
-    expect(session.commands.handoffHost).not.toHaveBeenCalled();
   });
 
   it.each([

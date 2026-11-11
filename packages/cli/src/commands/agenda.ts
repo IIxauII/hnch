@@ -12,7 +12,7 @@
  */
 
 import { resolveRoom, type AgendaItem, type AgendaResult } from '@hnch/shared';
-import { loadConfig } from '../config.js';
+import { loadConfig, participantOptions } from '../config.js';
 import { readEntries } from '../last-session.js';
 import { openSession, type OpenSessionOptions, type SessionHandle } from '../session.js';
 
@@ -116,10 +116,7 @@ export async function handleAgendaAdd(argv: {
   }
 
   const session = await openAgendaSession({
-    relayUrl: config.relayUrl,
-    participantId: config.participantId,
-    deviceKey: config.deviceKey,
-    displayName: config.displayName,
+    ...participantOptions(config),
     roomCode: cached.roomCode,
     roomUuid: cached.roomUuid,
     ...(cached.passwordHash !== undefined && { passwordHash: cached.passwordHash }),
@@ -158,10 +155,7 @@ export async function handleAgendaList(): Promise<void> {
   }
 
   const session = await openAgendaSession({
-    relayUrl: config.relayUrl,
-    participantId: config.participantId,
-    deviceKey: config.deviceKey,
-    displayName: config.displayName,
+    ...participantOptions(config),
     roomCode: cached.roomCode,
     roomUuid: cached.roomUuid,
     ...(cached.passwordHash !== undefined && { passwordHash: cached.passwordHash }),
@@ -194,10 +188,7 @@ export async function handleAgendaSkip(argv: { id: string }): Promise<void> {
   }
 
   const session = await openAgendaSession({
-    relayUrl: config.relayUrl,
-    participantId: config.participantId,
-    deviceKey: config.deviceKey,
-    displayName: config.displayName,
+    ...participantOptions(config),
     roomCode: cached.roomCode,
     roomUuid: cached.roomUuid,
     ...(cached.passwordHash !== undefined && { passwordHash: cached.passwordHash }),
@@ -230,10 +221,7 @@ export async function handleAgendaCancel(argv: { id: string }): Promise<void> {
   }
 
   const session = await openAgendaSession({
-    relayUrl: config.relayUrl,
-    participantId: config.participantId,
-    deviceKey: config.deviceKey,
-    displayName: config.displayName,
+    ...participantOptions(config),
     roomCode: cached.roomCode,
     roomUuid: cached.roomUuid,
     ...(cached.passwordHash !== undefined && { passwordHash: cached.passwordHash }),
@@ -270,10 +258,7 @@ export async function handleAgendaMv(argv: {
   }
 
   const session = await openAgendaSession({
-    relayUrl: config.relayUrl,
-    participantId: config.participantId,
-    deviceKey: config.deviceKey,
-    displayName: config.displayName,
+    ...participantOptions(config),
     roomCode: cached.roomCode,
     roomUuid: cached.roomUuid,
     ...(cached.passwordHash !== undefined && { passwordHash: cached.passwordHash }),

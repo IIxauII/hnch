@@ -34,7 +34,15 @@ vi.mock('node:readline', () => ({
 
 // Module under test (imported AFTER vi.mock is in place)
 
-import { configDir, readConfig, writeConfig, loadConfig, updateConfig } from './config.js';
+import {
+  configDir,
+  readConfig,
+  writeConfig,
+  loadConfig,
+  updateConfig,
+  participantOptions,
+  type CliConfig,
+} from './config.js';
 
 // Test lifecycle
 
@@ -357,5 +365,29 @@ describe('updateConfig', () => {
     expect(cfg.displayName).toBeUndefined();
     expect(cfg.relayUrl).toBeUndefined();
     expect(cfg.participantId).toBe('pid1');
+  });
+});
+
+describe('participantOptions', () => {
+  const config: CliConfig = {
+    participantId: 'pid1',
+    deviceKey: 'a'.repeat(64),
+    displayName: 'Dave',
+    relayUrl: 'https://r',
+    defaultScale: 'fibonacci',
+    avatarColor: 'teal',
+  };
+
+  it('carries the relay, participant id, device key and display name', () => {
+    expect(participantOptions(config)).toEqual({
+      relayUrl: 'https://r',
+      participantId: 'pid1',
+      deviceKey: 'a'.repeat(64),
+      displayName: 'Dave',
+    });
+  });
+
+  it('leaves the avatar color out, since a join writes it over the doc', () => {
+    expect(participantOptions(config)).not.toHaveProperty('avatarColor');
   });
 });

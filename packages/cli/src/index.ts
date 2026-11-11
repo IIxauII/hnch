@@ -12,7 +12,7 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import React from 'react';
 import { render } from 'ink';
-import { loadConfig, readConfig, updateConfig } from './config.js';
+import { loadConfig, participantOptions, readConfig, updateConfig } from './config.js';
 import { createSession, joinSession, openSession } from './session.js';
 import {
   BUILTIN_SCALES,
@@ -95,10 +95,7 @@ async function handleCreate(argv: {
   const exiting = sessionExit({ wasIn: () => true, typedPassword: password !== undefined });
 
   const session = await createSession({
-    participantId: config.participantId,
-    deviceKey: config.deviceKey,
-    displayName: config.displayName,
-    relayUrl: config.relayUrl,
+    ...participantOptions(config),
     sessionName: resolvedName,
     password,
     defaultScale: scale,
@@ -162,10 +159,7 @@ async function handleJoin(argv: { code: string; password?: boolean }): Promise<v
   });
 
   const session = await joinSession({
-    participantId: config.participantId,
-    deviceKey: config.deviceKey,
-    displayName: config.displayName,
-    relayUrl: config.relayUrl,
+    ...participantOptions(config),
     roomCode: code,
     password: passwordInput,
     ...(config.avatarColor !== undefined && { avatarColor: config.avatarColor }),
@@ -265,10 +259,7 @@ async function resumeEntry(
   // `hnch resume` is a join like `hnch join`: if this participant left the
   // room earlier, the first sync clears the `leftAt` it carries (ADR-0036 §6).
   const session = await openSession({
-    participantId: config.participantId,
-    deviceKey: config.deviceKey,
-    displayName: config.displayName,
-    relayUrl: config.relayUrl,
+    ...participantOptions(config),
     roomCode: entry.roomCode,
     roomUuid: entry.roomUuid,
     passwordHash: entry.passwordHash,

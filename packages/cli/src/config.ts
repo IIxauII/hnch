@@ -182,6 +182,26 @@ export async function loadConfig(): Promise<CliConfig> {
   };
 }
 
+/** Who this device is in a session, and which relay it talks to. */
+export type ParticipantOptions = Pick<
+  CliConfig,
+  'relayUrl' | 'participantId' | 'deviceKey' | 'displayName'
+>;
+
+/**
+ * The fields every session open takes from the config. `avatarColor` is left
+ * out: a join writes it over the participant's color in the doc, so only the
+ * interactive commands pass it, on their own.
+ */
+export function participantOptions(config: CliConfig): ParticipantOptions {
+  return {
+    relayUrl: config.relayUrl,
+    participantId: config.participantId,
+    deviceKey: config.deviceKey,
+    displayName: config.displayName,
+  };
+}
+
 /**
  * Update specific config fields (used by `hnch config` subcommand).
  * String fields set to empty string are deleted from config.

@@ -89,6 +89,8 @@ The Settings entries that change the room (`E`: name, scale, access) are offered
 | The room is gone | `Failed to update access: The relay no longer knows this room` | `Handoff failed: the relay no longer knows this room` |
 | No usable answer | `Failed to update access: The relay could not be reached` | `Handoff failed: the relay could not be reached` |
 
+If `hnch create --password` makes the room but the relay then refuses the password, the CLI stops without joining and prints the code, the reason from the access column and what to do, for example: ``Room ABC123 was created, but its password was not set: The relay could not be reached. The room is open to anyone with the code and was not joined. Run `hnch create --password` again.``
+
 ### `hnch resume`
 
 Rejoins the most recent session from the last-session cache (`~/.config/hnch/last-session.json`). Exits cleanly if the session is no longer active on the relay.

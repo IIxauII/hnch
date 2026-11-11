@@ -7,7 +7,6 @@ import type {
   Scale,
   PresetOverrides,
   CustomScale,
-  HandoffResult,
   SyncStatus,
 } from '@hnch/shared';
 import {
@@ -19,6 +18,7 @@ import {
   screenFor,
 } from '@hnch/shared';
 import clipboard from 'clipboardy';
+import { HANDOFF_REFUSAL } from '../relay-refusal.js';
 import { shareCode, shareUrl, shareNpxCommand } from '../share.js';
 import {
   buildNewRoundArgs,
@@ -31,24 +31,6 @@ import { Lobby } from './Lobby.js';
 import { exportResultsToClipboard } from './lobby-helpers.js';
 import { Voting } from './Voting.js';
 import { useTransientNotice } from './hooks/useTransientNotice.js';
-
-/**
- * Human copy for a handoff refusal: the doc's own, then the relay's
- * (ADR-0059). The roster union is one per module rather than one per command,
- * so `'self-target'` — a `kick`-only reason — appears here too; it gets a
- * sentence describing *this* act rather than a cast, but `handoffHost` never
- * returns it.
- */
-const HANDOFF_REFUSAL: Record<Extract<HandoffResult, { applied: false }>['reason'], string> = {
-  'not-host': 'only the current host can hand off',
-  'not-found': 'that participant is not in the session',
-  'not-online': 'that participant is offline',
-  'self-target': 'you cannot hand off to yourself',
-  unauthenticated: 'the relay did not accept this device as the host',
-  'bad-target': 'the relay cannot hand host to that participant',
-  'unknown-room': 'the relay no longer knows this room',
-  unreachable: 'the relay could not be reached',
-};
 
 interface Props {
   session: SessionHandle;

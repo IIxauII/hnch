@@ -109,7 +109,8 @@ let firstSyncArrives = true;
 
 const teardown = vi.fn();
 
-vi.mock('../config.js', () => ({
+vi.mock('../config.js', async (importOriginal) => ({
+  participantOptions: (await importOriginal<typeof import('../config.js')>()).participantOptions,
   loadConfig: async () => MOCK_CONFIG,
   readConfig: () => MOCK_CONFIG,
 }));
@@ -183,6 +184,7 @@ function fakeSession(): SessionHandle {
     updateName: vi.fn(),
     updateScale: vi.fn(),
     updateAccess: vi.fn(),
+    handoffHost: vi.fn(),
     onChange: () => () => {},
     onStatusChange: () => () => {},
     onSessionEvent: () => () => {},
