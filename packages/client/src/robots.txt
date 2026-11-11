@@ -12,11 +12,12 @@
 #
 # A crawler follows only the most specific User-agent group that names it, so
 # every group repeats the Content-Signal line and the rules of the * group.
+# packages/client/scripts/robots.test.ts checks this.
 
 User-agent: *
 Content-Signal: ai-train=yes, search=yes, ai-input=yes
-Disallow: /lobby/
-Disallow: /estimating/
+Disallow: /lobby
+Disallow: /estimating
 Disallow: /join
 Disallow: /rooms
 Disallow: /ws/
@@ -30,8 +31,8 @@ User-agent: OAI-SearchBot
 User-agent: Claude-SearchBot
 User-agent: PerplexityBot
 Content-Signal: ai-train=yes, search=yes, ai-input=yes
-Disallow: /lobby/
-Disallow: /estimating/
+Disallow: /lobby
+Disallow: /estimating
 Disallow: /join
 Disallow: /rooms
 Disallow: /ws/
@@ -49,8 +50,8 @@ User-agent: CCBot
 User-agent: Bytespider
 User-agent: Amazonbot
 Content-Signal: ai-train=yes, search=yes, ai-input=yes
-Disallow: /lobby/
-Disallow: /estimating/
+Disallow: /lobby
+Disallow: /estimating
 Disallow: /join
 Disallow: /rooms
 Disallow: /ws/
@@ -62,12 +63,10 @@ User-agent: ChatGPT-User
 User-agent: Claude-User
 User-agent: Perplexity-User
 Content-Signal: ai-train=yes, search=yes, ai-input=yes
-Disallow: /lobby/
-Disallow: /estimating/
+Disallow: /lobby
+Disallow: /estimating
 Disallow: /join
 Disallow: /rooms
 Disallow: /ws/
 Disallow: /health
 Allow: /
-
-Sitemap: https://hnch.dev/sitemap.xml
