@@ -171,9 +171,12 @@ export async function resolveRoom(httpBaseUrl: string, code: string): Promise<Re
 }
 
 /** Which statuses carry which of the relay's refusal reasons. Anything else is not the relay's. */
-const ACCESS_REFUSALS_BY_STATUS: ReadonlyMap<number, ReadonlySet<string>> = new Map([
-  [401, new Set(['unauthenticated', 'not-host'])],
-  [409, new Set(['bad-target'])],
+const ACCESS_REFUSALS_BY_STATUS: ReadonlyMap<number, readonly AccessRefusalReason[]> = new Map<
+  number,
+  readonly AccessRefusalReason[]
+>([
+  [401, ['unauthenticated', 'not-host']],
+  [409, ['bad-target']],
 ]);
 
 /**
@@ -188,9 +191,8 @@ async function throwAccessFailure(res: Response, route: string): Promise<never> 
   if (res.status === 404 && reason === 'unknown-room') {
     throw new RelayRejectionError('unknown-room');
   }
-  if (typeof reason === 'string' && ACCESS_REFUSALS_BY_STATUS.get(res.status)?.has(reason)) {
-    throw new RelayAccessError(reason as AccessRefusalReason);
-  }
+  const refusal = ACCESS_REFUSALS_BY_STATUS.get(res.status)?.find((known) => known === reason);
+  if (refusal !== undefined) throw new RelayAccessError(refusal);
   throw new Error(`${route} failed: ${res.status}`);
 }
 

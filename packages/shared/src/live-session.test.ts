@@ -800,6 +800,25 @@ describe('live session — handoff (ADR-0059)', () => {
     expect(host.projection().settings.hostParticipantId).toBe('host');
   });
 
+  it('follows the relay into the doc even when the target drops while it answers', async () => {
+    const { host, peer } = await hostAndPeer();
+    const realFetch = globalThis.fetch;
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      if (!String(input).endsWith('/host')) return realFetch(input, init);
+      const answer = await realFetch(input, init);
+      // The relay has moved the holder; the target's link goes before the answer is read.
+      peer.link.cut();
+      await vi.waitFor(() => expect(host.onlineIds().has('peer')).toBe(false), {
+        timeout: SYNC_TIMEOUT,
+      });
+      return answer;
+    });
+
+    await expect(host.session.handoffHost('peer')).resolves.toEqual({ applied: true });
+    // The doc names the holder the relay now has, so the two do not disagree.
+    expect(host.projection().settings.hostParticipantId).toBe('peer');
+  });
+
   it('writes nothing when the relay cannot be reached', async () => {
     const { host } = await hostAndPeer();
     const realFetch = globalThis.fetch;

@@ -516,9 +516,12 @@ export function openLiveSession(options: OpenLiveSessionOptions): LiveSession {
         if (err instanceof RelayRejectionError) return { applied: false, reason: 'unknown-room' };
         return { applied: false, reason: 'unreachable' };
       }
-      // The relay has moved; the doc follows, through its own gate. Torn down meanwhile, there
-      // is no doc to write: the unbound commands refuse.
-      return commands.handoffHost(targetId);
+      // Torn down meanwhile, there is no doc to write.
+      if (tornDown) return { applied: false, reason: 'not-found' };
+      // The relay has moved its holder, after checking the target itself. The doc follows
+      // unconditionally: a second gate (the target's presence dropping during the await) would
+      // leave the two naming different hosts, and nobody able to change access until a lapse.
+      return promoteHost(doc, targetId);
     },
 
     updateCredentials(passwordHash: string | null): void {
