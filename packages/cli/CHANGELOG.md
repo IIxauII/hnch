@@ -1,3 +1,10 @@
+# [1.19.0](https://github.com/IIxauII/hnch/compare/cli-v1.18.0...cli-v1.19.0) (2026-11-11)
+
+
+### Features
+
+* **relay,shared,client,cli,e2e,docs:** host-only access changes (ADR-0059) ([#783](https://github.com/IIxauII/hnch/issues/783)) ([89afabf](https://github.com/IIxauII/hnch/commit/89afabf8a343f7681ba09d776d0041a523451c7b))
+
 # [1.18.0](https://github.com/IIxauII/hnch/compare/cli-v1.17.2...cli-v1.18.0) (2026-10-31)
 
 
