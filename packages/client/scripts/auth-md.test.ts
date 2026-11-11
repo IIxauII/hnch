@@ -20,6 +20,22 @@ describe('auth.md', () => {
     expect(AUTH_MD.split('\n')[0]).toMatch(/^# .*auth\.md/u);
   });
 
+  it('is plain ASCII, since the assets serve it as text/markdown without a charset', () => {
+    expect(AUTH_MD).toMatch(/^[\t\n\x20-\x7e]*$/u);
+  });
+
+  it('states the code length and exactly the letters and digits the code leaves out', () => {
+    expect(AUTH_MD).toContain(
+      'A session code is 6 characters, uppercase letters and digits without the look-alikes 0, O, 1, I and L',
+    );
+    expect(isValidRoomCode('K7P9M')).toBe(false);
+    expect(isValidRoomCode('K7P9MRX')).toBe(false);
+    const excluded = new Set('0O1IL');
+    for (const c of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789') {
+      expect(isValidRoomCode(`K7P9M${c}`)).toBe(!excluded.has(c));
+    }
+  });
+
   it('states the participant cap', () => {
     expect(AUTH_MD).toContain(`Up to ${MAX_ROOM_PARTICIPANTS} people per session`);
   });
