@@ -1,3 +1,10 @@
+# [1.52.0](https://github.com/IIxauII/hnch/compare/client-v1.51.0...client-v1.52.0) (2026-11-11)
+
+
+### Features
+
+* **client,ci,docs:** serve auth.md to tell agents how to get into a session ([#777](https://github.com/IIxauII/hnch/issues/777)) ([179a6ac](https://github.com/IIxauII/hnch/commit/179a6ac7b86bd06bf49b4ad8420b3e3f37ebd01a))
+
 # [1.51.0](https://github.com/IIxauII/hnch/compare/client-v1.50.0...client-v1.51.0) (2026-11-11)
 
 
