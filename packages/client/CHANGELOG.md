@@ -1,3 +1,10 @@
+# [1.48.0](https://github.com/IIxauII/hnch/compare/client-v1.47.2...client-v1.48.0) (2026-11-11)
+
+
+### Features
+
+* **client,ci,docs:** serve robots.txt and sitemap.xml ([#772](https://github.com/IIxauII/hnch/issues/772)) ([3608bd5](https://github.com/IIxauII/hnch/commit/3608bd547bddf63550f2d2a37a62fcf71508f9c4))
+
 ## [1.47.2](https://github.com/IIxauII/hnch/compare/client-v1.47.1...client-v1.47.2) (2026-11-01)
 
 
