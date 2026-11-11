@@ -24,8 +24,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   connectToRelay,
+  handoffHostOnRelay,
   mintRoom,
+  participantKeyFor,
   patchRoomAccess,
+  RelayAccessError,
   RELAY_REQUEST_TIMEOUT_MS,
   relayHttpToWsUrl,
   RelayRejectionError,
@@ -170,6 +173,19 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe('participantKeyFor', () => {
+  // The relay's own vector (packages/relay/src/participant-key.test.ts), so
+  // both sides provably derive the same key.
+  it('derives the key the relay derives for a device key and room', async () => {
+    await expect(
+      participantKeyFor(
+        '000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f',
+        '0f8e1c52-3b7a-4d2e-9c61-5a4b3c2d1e0f',
+      ),
+    ).resolves.toBe('a6bf5f0ce5727a5eab653a0902c3aea1d51870396611d94f1b630980b74112b6');
+  });
+});
+
 describe('mintRoom', () => {
   it('POSTs an empty body and returns the minted room', async () => {
     const fetchMock = stubFetch({
@@ -193,6 +209,20 @@ describe('mintRoom', () => {
     expect(fetchMock).toHaveBeenCalledWith(
       'http://relay.test/rooms',
       expect.objectContaining({ body: JSON.stringify({ passwordHash: 'hash-abc' }) }),
+    );
+  });
+
+  it('names the creator, so the relay binds its key and makes it the access holder', async () => {
+    const fetchMock = stubFetch({ json: async () => ({ uuid: 'u-1', code: 'ABC123' }) });
+    const creator = { participantId: 'device-001', deviceKey: 'ab'.repeat(32) };
+
+    await mintRoom('http://relay.test', { creator, passwordHash: 'hash-abc' });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://relay.test/rooms',
+      expect.objectContaining({
+        body: JSON.stringify({ passwordHash: 'hash-abc', creator }),
+      }),
     );
   });
 
@@ -310,12 +340,132 @@ describe('patchRoomAccess', () => {
     );
   });
 
+  it('proves the caller with its key as a bearer token, and names it in the body', async () => {
+    const fetchMock = stubFetch({ json: async () => ({ accessMode: 'password' }) });
+    const pk = 'cd'.repeat(32);
+
+    await patchRoomAccess('http://relay.test', 'u-1', 'hash-abc', {
+      participantId: 'device-001',
+      pk,
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(init.headers).toEqual({
+      'content-type': 'application/json',
+      authorization: `Bearer ${pk}`,
+    });
+    expect(init.body).toBe(
+      JSON.stringify({ participantId: 'device-001', passwordHash: 'hash-abc' }),
+    );
+  });
+
+  it('sends no Authorization header without a caller', async () => {
+    const fetchMock = stubFetch({ json: async () => ({ accessMode: 'password' }) });
+
+    await patchRoomAccess('http://relay.test', 'u-1', 'hash-abc');
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(init.headers).toEqual({ 'content-type': 'application/json' });
+  });
+
+  for (const reason of ['not-host', 'unauthenticated'] as const) {
+    it(`throws a typed RelayAccessError on a 401 ${reason}`, async () => {
+      stubFetch({ status: 401, json: async () => ({ reason }) });
+
+      const err = await patchRoomAccess('http://relay.test', 'u-1', null, {
+        participantId: 'device-001',
+        pk: 'cd'.repeat(32),
+      }).catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(RelayAccessError);
+      expect(err).toMatchObject({ reason });
+    });
+  }
+
+  it('throws a RelayRejectionError when the relay has no such room', async () => {
+    stubFetch({ status: 404, json: async () => ({ reason: 'unknown-room' }) });
+
+    await expect(patchRoomAccess('http://relay.test', 'u-1', null)).rejects.toMatchObject({
+      name: 'RelayRejectionError',
+      reason: 'unknown-room',
+    });
+  });
+
+  it("takes a 401 without one of the relay's reasons for no verdict", async () => {
+    stubFetch({ status: 401, json: async () => ({ reason: 'bad-target' }) });
+
+    const err = await patchRoomAccess('http://relay.test', 'u-1', null).catch((e: unknown) => e);
+
+    expect(err).not.toBeInstanceOf(RelayAccessError);
+    expect((err as Error).message).toBe('PATCH /rooms/:uuid/access failed: 401');
+  });
+
   it('throws on a non-ok status', async () => {
     stubFetch({ status: 403 });
 
     await expect(patchRoomAccess('http://relay.test', 'u-1', null)).rejects.toThrow(
       'PATCH /rooms/:uuid/access failed: 403',
     );
+  });
+});
+
+describe('handoffHostOnRelay', () => {
+  const caller = { participantId: 'device-001', pk: 'cd'.repeat(32) };
+
+  it('POSTs the target with the holder key and returns the new access holder', async () => {
+    const fetchMock = stubFetch({ json: async () => ({ accessHolder: 'device-002' }) });
+
+    await expect(
+      handoffHostOnRelay('http://relay.test', 'u-1', { ...caller, target: 'device-002' }),
+    ).resolves.toEqual({ accessHolder: 'device-002' });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://relay.test/rooms/u-1/host');
+    expect(init.method).toBe('POST');
+    expect(init.headers).toEqual({
+      'content-type': 'application/json',
+      authorization: `Bearer ${caller.pk}`,
+    });
+    expect(init.body).toBe(JSON.stringify({ participantId: 'device-001', target: 'device-002' }));
+  });
+
+  const refusals = [
+    [401, 'unauthenticated'],
+    [401, 'not-host'],
+    [409, 'bad-target'],
+  ] as const;
+  for (const [status, reason] of refusals) {
+    it(`throws a typed RelayAccessError on a ${status} ${reason}`, async () => {
+      stubFetch({ status, json: async () => ({ reason }) });
+
+      const err = await handoffHostOnRelay('http://relay.test', 'u-1', {
+        ...caller,
+        target: 'device-002',
+      }).catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(RelayAccessError);
+      expect(err).toMatchObject({ reason });
+    });
+  }
+
+  it('throws a RelayRejectionError when the relay has no such room', async () => {
+    stubFetch({ status: 404, json: async () => ({ reason: 'unknown-room' }) });
+
+    await expect(
+      handoffHostOnRelay('http://relay.test', 'u-1', { ...caller, target: 'device-002' }),
+    ).rejects.toBeInstanceOf(RelayRejectionError);
+  });
+
+  it('takes a reason sent with the wrong status for no verdict', async () => {
+    stubFetch({ status: 409, json: async () => ({ reason: 'not-host' }) });
+
+    const err = await handoffHostOnRelay('http://relay.test', 'u-1', {
+      ...caller,
+      target: 'device-002',
+    }).catch((e: unknown) => e);
+
+    expect(err).not.toBeInstanceOf(RelayAccessError);
+    expect((err as Error).message).toBe('POST /rooms/:uuid/host failed: 409');
   });
 });
 
@@ -342,6 +492,15 @@ describe('a request the relay does not answer', () => {
     ['mintRoom', () => mintRoom('http://relay.test')],
     ['resolveRoom', () => resolveRoom('http://relay.test', 'ABC123')],
     ['patchRoomAccess', () => patchRoomAccess('http://relay.test', 'u-1', 'hash-abc')],
+    [
+      'handoffHostOnRelay',
+      () =>
+        handoffHostOnRelay('http://relay.test', 'u-1', {
+          participantId: 'device-001',
+          pk: 'cd'.repeat(32),
+          target: 'device-002',
+        }),
+    ],
   ];
 
   for (const [name, request] of requests) {
@@ -408,6 +567,40 @@ describe('connectToRelay URL', () => {
     });
 
     expect(socketParams()).toEqual({ did: 'device-xyz', pw: 'hash-abc' });
+  });
+
+  describe('the participant key (ADR-0059)', () => {
+    const pk = 'cd'.repeat(32);
+    const keyed = { deviceId: 'device-xyz', roomCode: 'ABC123', participantKey: pk };
+
+    it('sends pk next to did on the first connect', () => {
+      makeConnection({ credentials: keyed });
+
+      expect(socketParams()).toEqual({ did: 'device-xyz', pk });
+    });
+
+    it('sends pk again on a reconnect', () => {
+      makeConnection({ credentials: keyed });
+      connectSuccessfully();
+
+      latestSocket().simulateClose(1006);
+      vi.advanceTimersByTime(10_000);
+
+      expect(sockets.length).toBeGreaterThan(1);
+      expect(socketParams()).toEqual({ did: 'device-xyz', pk });
+    });
+
+    it('keeps pk across a password set and taken off again', () => {
+      const conn = makeConnection({ credentials: keyed });
+      connectSuccessfully();
+
+      conn.updateCredentials({ passwordHash: 'hash-a' });
+      expect(socketParams()).toEqual({ did: 'device-xyz', pk, pw: 'hash-a' });
+
+      connectSuccessfully();
+      conn.updateCredentials({ passwordHash: null });
+      expect(socketParams()).toEqual({ did: 'device-xyz', pk });
+    });
   });
 
   it('never sends an inv param, whatever the credentials carry', () => {

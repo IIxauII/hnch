@@ -52,11 +52,15 @@ import type { Scale } from './doc.js';
 import { startElection } from './election.js';
 import {
   connectToRelay,
+  handoffHostOnRelay,
+  RelayAccessError,
+  RelayRejectionError,
+  type AccessRefusalReason,
   type RelayConnection,
   type SyncStatus,
   type WebSocketConstructorLike,
 } from './relay-client.js';
-import { promoteHost, rejoin } from './roster-commands.js';
+import { handoffRefusal, promoteHost, rejoin, type RosterResult } from './roster-commands.js';
 import {
   bindSessionCommands,
   UNBOUND_SESSION_COMMANDS,
@@ -112,7 +116,29 @@ export interface LiveSessionCredentials {
   readonly deviceId: string;
   /** Present for a password-protected room (ADR-0017). */
   readonly passwordHash?: string | undefined;
+  /**
+   * This device's key for the room (`participantKeyFor`, ADR-0059). Sent on every handshake and
+   * on {@link LiveSession.handoffHost}. Without it the socket is admitted unproven, and the relay
+   * refuses this peer any handoff or access change.
+   */
+  readonly participantKey?: string | undefined;
 }
+
+/**
+ * The outcome of {@link LiveSession.handoffHost}: the doc's own refusals, the relay's
+ * (`unauthenticated`, `not-host`, `bad-target`, `unknown-room`), or `unreachable` when no answer
+ * came back.
+ */
+export type HandoffResult =
+  | { applied: true }
+  | {
+      applied: false;
+      reason:
+        | Extract<RosterResult, { applied: false }>['reason']
+        | AccessRefusalReason
+        | 'unknown-room'
+        | 'unreachable';
+    };
 
 /** Who this peer is in the session. */
 export interface LiveSessionSelf {
@@ -201,8 +227,18 @@ export interface OpenLiveSessionOptions extends LiveSessionReadings {
 
 /** One peer's live session. Readings leave through the callbacks; this is what it does. */
 export interface LiveSession {
-  /** The session commands bound to this session; `UNBOUND_SESSION_COMMANDS` after teardown. */
+  /**
+   * The session commands bound to this session; `UNBOUND_SESSION_COMMANDS` after teardown. Its
+   * `handoffHost` writes the doc alone and leaves the relay's access holder behind (ADR-0059):
+   * hand off through {@link LiveSession.handoffHost} instead.
+   */
   readonly commands: SessionCommands;
+  /**
+   * Hand host to `targetId`, relay first (ADR-0059): the doc's gate, then the relay moves its
+   * access holder, and only on its `200` is the handoff written to the doc. Any refusal, or no
+   * answer, writes nothing and says why. Never rejects.
+   */
+  handoffHost(targetId: string): Promise<HandoffResult>;
   /**
    * Present a new password hash from now on, `null` for an open room — after
    * the host changes the room's access, so this peer's own connection keeps
@@ -390,9 +426,11 @@ export function openLiveSession(options: OpenLiveSessionOptions): LiveSession {
   // 5–6. The surface's hook, then the connection. The handle exists the whole
   // time: a teardown during the hook opens no socket, and credentials updated
   // during it are read when the socket opens.
+  const { participantKey } = options.credentials;
   let credentials: JoinCredentials = {
     roomCode: room.code,
     deviceId: options.credentials.deviceId,
+    ...(participantKey !== undefined && { participantKey }),
     ...(options.credentials.passwordHash !== undefined && {
       passwordHash: options.credentials.passwordHash,
     }),
@@ -461,12 +499,33 @@ export function openLiveSession(options: OpenLiveSessionOptions): LiveSession {
       return commands;
     },
 
+    async handoffHost(targetId: string): Promise<HandoffResult> {
+      if (tornDown) return { applied: false, reason: 'not-found' };
+      const refusal = handoffRefusal(doc, me, targetId, onlineIds);
+      if (refusal !== null) return refusal;
+      // A keyless call is one the relay refuses: no need to ask.
+      if (participantKey === undefined) return { applied: false, reason: 'unauthenticated' };
+      try {
+        await handoffHostOnRelay(options.httpBaseUrl, room.uuid, {
+          participantId: me,
+          pk: participantKey,
+          target: targetId,
+        });
+      } catch (err) {
+        if (err instanceof RelayAccessError) return { applied: false, reason: err.reason };
+        if (err instanceof RelayRejectionError) return { applied: false, reason: 'unknown-room' };
+        return { applied: false, reason: 'unreachable' };
+      }
+      // The relay has moved; the doc follows, through its own gate. Torn down meanwhile, there
+      // is no doc to write: the unbound commands refuse.
+      return commands.handoffHost(targetId);
+    },
+
     updateCredentials(passwordHash: string | null): void {
       if (tornDown) return;
-      credentials =
-        passwordHash === null
-          ? { roomCode: credentials.roomCode, deviceId: credentials.deviceId }
-          : { ...credentials, passwordHash };
+      // Only the hash changes: the key stays for the session's life.
+      const { passwordHash: _dropped, ...rest } = credentials;
+      credentials = passwordHash === null ? rest : { ...rest, passwordHash };
       // No connection yet: the socket opens with the credentials above.
       connection?.updateCredentials({ passwordHash });
     },

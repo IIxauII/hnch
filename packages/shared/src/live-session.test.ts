@@ -27,6 +27,7 @@
  *    left those retries hanging.
  */
 
+import { randomBytes } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as Y from 'yjs';
 import WebSocket from 'ws';
@@ -43,7 +44,10 @@ import {
 } from './live-session.js';
 import {
   mintRoom,
+  participantKeyFor,
   patchRoomAccess,
+  RelayAccessError,
+  type ParticipantCaller,
   type SyncStatus,
   type WebSocketConstructorLike,
 } from './relay-client.js';
@@ -145,6 +149,7 @@ const peers: Peer[] = [];
 
 afterEach(() => {
   for (const peer of peers.splice(0)) peer.session.teardown();
+  vi.restoreAllMocks();
 });
 
 interface OpenPeerOptions {
@@ -154,6 +159,7 @@ interface OpenPeerOptions {
   readonly displayName?: string;
   readonly url?: string;
   readonly passwordHash?: string;
+  readonly participantKey?: string;
   readonly beforeConnect?: (doc: Y.Doc) => Promise<void>;
   readonly link?: Link;
 }
@@ -176,6 +182,7 @@ function openPeer(opts: OpenPeerOptions): Peer {
     credentials: {
       deviceId: opts.id,
       ...(opts.passwordHash !== undefined && { passwordHash: opts.passwordHash }),
+      ...(opts.participantKey !== undefined && { participantKey: opts.participantKey }),
     },
     self: { participantId: opts.id, displayName: opts.displayName ?? opts.id },
     seed: opts.seed,
@@ -239,23 +246,36 @@ function openPeer(opts: OpenPeerOptions): Peer {
 const CREATE: LiveSessionSeed = { kind: 'create', defaultScale: FIBONACCI_SCALE };
 const JOIN: LiveSessionSeed = { kind: 'join' };
 
-/** A host who has created a fresh room and synced with the relay. */
-async function hostedRoom(
-  seed: LiveSessionSeed = CREATE,
-): Promise<{ host: Peer; room: { uuid: string; code: string } }> {
-  const room = await mintRoom(relayUrl());
-  const host = openPeer({ id: 'host', displayName: 'Hana', room, seed });
-  await vi.waitFor(() => expect(host.synced()).toBe(true), { timeout: SYNC_TIMEOUT });
-  return { host, room };
+/** A fresh device key (ADR-0059): 64 lowercase hex chars. */
+function newDeviceKey(): string {
+  return randomBytes(32).toString('hex');
 }
 
-/** A peer who has joined `room` and synced with the relay. */
+/**
+ * A host who has created a fresh room, keyed so the relay makes it the access holder, and synced
+ * with the relay. `asHost` is what proves it on a PATCH.
+ */
+async function hostedRoom(seed: LiveSessionSeed = CREATE): Promise<{
+  host: Peer;
+  room: { uuid: string; code: string };
+  asHost: ParticipantCaller;
+}> {
+  const deviceKey = newDeviceKey();
+  const room = await mintRoom(relayUrl(), { creator: { participantId: 'host', deviceKey } });
+  const pk = await participantKeyFor(deviceKey, room.uuid);
+  const host = openPeer({ id: 'host', displayName: 'Hana', room, seed, participantKey: pk });
+  await vi.waitFor(() => expect(host.synced()).toBe(true), { timeout: SYNC_TIMEOUT });
+  return { host, room, asHost: { participantId: 'host', pk } };
+}
+
+/** A peer who has joined `room` with a key of its own and synced with the relay. */
 async function joinedPeer(
   room: { uuid: string; code: string },
   id: string,
   displayName = id,
 ): Promise<Peer> {
-  const peer = openPeer({ id, displayName, room, seed: JOIN });
+  const participantKey = await participantKeyFor(newDeviceKey(), room.uuid);
+  const peer = openPeer({ id, displayName, room, seed: JOIN, participantKey });
   await vi.waitFor(() => expect(peer.synced()).toBe(true), { timeout: SYNC_TIMEOUT });
   return peer;
 }
@@ -626,9 +646,9 @@ describe('live session — before connect', () => {
   });
 
   it('credentials changed while the hook runs are the ones the socket opens with', async () => {
-    const { room } = await hostedRoom();
+    const { room, asHost } = await hostedRoom();
     const passwordHash = await hashPassword('correct horse', room.uuid);
-    await patchRoomAccess(relayUrl(), room.uuid, passwordHash);
+    await patchRoomAccess(relayUrl(), room.uuid, passwordHash, asHost);
     const held = heldConnect();
     const peer = openPeer({ id: 'peer', room, seed: JOIN, beforeConnect: held.hook });
 
@@ -641,9 +661,9 @@ describe('live session — before connect', () => {
   });
 
   it('a password taken off again while the hook runs is not sent', async () => {
-    const { room } = await hostedRoom();
+    const { room, asHost } = await hostedRoom();
     const passwordHash = await hashPassword('correct horse', room.uuid);
-    await patchRoomAccess(relayUrl(), room.uuid, passwordHash);
+    await patchRoomAccess(relayUrl(), room.uuid, passwordHash, asHost);
     const held = heldConnect();
     const peer = openPeer({ id: 'peer', room, seed: JOIN, passwordHash, beforeConnect: held.hook });
 
@@ -661,9 +681,9 @@ describe('live session — before connect', () => {
 
 describe('live session — credentials', () => {
   it('a host who sets a password keeps its own connection across a reconnect', async () => {
-    const { host, room } = await hostedRoom();
+    const { host, room, asHost } = await hostedRoom();
     const passwordHash = await hashPassword('correct horse', room.uuid);
-    await patchRoomAccess(relayUrl(), room.uuid, passwordHash);
+    await patchRoomAccess(relayUrl(), room.uuid, passwordHash, asHost);
 
     const syncs = (): number => host.log.filter((entry) => entry === 'synced:true').length;
     const before = syncs();
@@ -681,9 +701,14 @@ describe('live session — credentials', () => {
   });
 
   it('a peer without the new password is turned away', async () => {
-    const { room } = await hostedRoom();
+    const { room, asHost } = await hostedRoom();
     const peer = await joinedPeer(room, 'peer');
-    await patchRoomAccess(relayUrl(), room.uuid, await hashPassword('correct horse', room.uuid));
+    await patchRoomAccess(
+      relayUrl(),
+      room.uuid,
+      await hashPassword('correct horse', room.uuid),
+      asHost,
+    );
 
     peer.link.cut();
     await vi.waitFor(() => expect(peer.synced()).toBe(false), { timeout: SYNC_TIMEOUT });
@@ -692,6 +717,131 @@ describe('live session — credentials', () => {
     await vi.waitFor(() => expect(peer.rejections).toContain('wrong-password'), {
       timeout: SYNC_TIMEOUT,
     });
+  });
+
+  it('a host keeps its key across a password taken off and a reconnect', async () => {
+    const { host, room, asHost } = await hostedRoom();
+    const passwordHash = await hashPassword('correct horse', room.uuid);
+    await patchRoomAccess(relayUrl(), room.uuid, passwordHash, asHost);
+    host.session.updateCredentials(passwordHash);
+    await patchRoomAccess(relayUrl(), room.uuid, null, asHost);
+    host.session.updateCredentials(null);
+
+    host.link.cut();
+    await vi.waitFor(() => expect(host.synced()).toBe(false), { timeout: SYNC_TIMEOUT });
+    host.link.restore();
+    await vi.waitFor(() => expect(host.synced()).toBe(true), { timeout: SYNC_TIMEOUT });
+
+    // A socket without the key would contest the host's own id, and the relay would refuse.
+    await expect(patchRoomAccess(relayUrl(), room.uuid, passwordHash, asHost)).resolves.toEqual({
+      accessMode: 'password',
+    });
+  });
+});
+
+describe('live session — handoff (ADR-0059)', () => {
+  /** A keyed host and a keyed peer, each online to the other. */
+  async function hostAndPeer() {
+    const hosted = await hostedRoom();
+    const peer = await joinedPeer(hosted.room, 'peer');
+    await vi.waitFor(() => expect(hosted.host.onlineIds()).toEqual(new Set(['host', 'peer'])), {
+      timeout: SYNC_TIMEOUT,
+    });
+    return { ...hosted, peer };
+  }
+
+  it('moves the access holder on the relay, then the host in the doc', async () => {
+    const { host, peer, room, asHost } = await hostAndPeer();
+
+    await expect(host.session.handoffHost('peer')).resolves.toEqual({ applied: true });
+
+    expect(host.projection().settings.hostParticipantId).toBe('peer');
+    await vi.waitFor(() => expect(peer.projection().settings.hostParticipantId).toBe('peer'), {
+      timeout: SYNC_TIMEOUT,
+    });
+    // The relay agrees: the old host can no longer change access.
+    const err = await patchRoomAccess(relayUrl(), room.uuid, null, asHost).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(RelayAccessError);
+    expect(err).toMatchObject({ reason: 'not-host' });
+  });
+
+  it('writes nothing when the relay refuses the target', async () => {
+    const { host, room } = await hostedRoom();
+    // Joined without a key: the relay never bound it, so cannot hand to it.
+    const unkeyed = openPeer({ id: 'unkeyed', room, seed: JOIN });
+    await vi.waitFor(() => expect(host.onlineIds()).toEqual(new Set(['host', 'unkeyed'])), {
+      timeout: SYNC_TIMEOUT,
+    });
+    await vi.waitFor(() => expect(unkeyed.synced()).toBe(true), { timeout: SYNC_TIMEOUT });
+
+    await expect(host.session.handoffHost('unkeyed')).resolves.toEqual({
+      applied: false,
+      reason: 'bad-target',
+    });
+    expect(host.projection().settings.hostParticipantId).toBe('host');
+  });
+
+  it('writes nothing when the relay does not take the key', async () => {
+    const deviceKey = newDeviceKey();
+    const room = await mintRoom(relayUrl(), { creator: { participantId: 'host', deviceKey } });
+    // The key for some other room: worthless in this one.
+    const wrongKey = await participantKeyFor(deviceKey, '00000000-0000-4000-8000-000000000000');
+    const host = openPeer({ id: 'host', room, seed: CREATE, participantKey: wrongKey });
+    await vi.waitFor(() => expect(host.synced()).toBe(true), { timeout: SYNC_TIMEOUT });
+    await joinedPeer(room, 'peer');
+    await vi.waitFor(() => expect(host.onlineIds()).toEqual(new Set(['host', 'peer'])), {
+      timeout: SYNC_TIMEOUT,
+    });
+
+    await expect(host.session.handoffHost('peer')).resolves.toEqual({
+      applied: false,
+      reason: 'unauthenticated',
+    });
+    expect(host.projection().settings.hostParticipantId).toBe('host');
+  });
+
+  it('writes nothing when the relay cannot be reached', async () => {
+    const { host } = await hostAndPeer();
+    const realFetch = globalThis.fetch;
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      if (String(input).endsWith('/host')) throw new TypeError('fetch failed');
+      return realFetch(input, init);
+    });
+
+    await expect(host.session.handoffHost('peer')).resolves.toEqual({
+      applied: false,
+      reason: 'unreachable',
+    });
+    expect(host.projection().settings.hostParticipantId).toBe('host');
+  });
+
+  it('asks the relay nothing when the doc already says no', async () => {
+    const { peer } = await hostAndPeer();
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    await expect(peer.session.handoffHost('host')).resolves.toEqual({
+      applied: false,
+      reason: 'not-host',
+    });
+    expect(fetchSpy.mock.calls.filter(([url]) => String(url).endsWith('/host'))).toEqual([]);
+  });
+
+  it('refuses without asking when the session has no key', async () => {
+    const room = await mintRoom(relayUrl());
+    const host = openPeer({ id: 'host', room, seed: CREATE });
+    await vi.waitFor(() => expect(host.synced()).toBe(true), { timeout: SYNC_TIMEOUT });
+    await joinedPeer(room, 'peer');
+    await vi.waitFor(() => expect(host.onlineIds()).toEqual(new Set(['host', 'peer'])), {
+      timeout: SYNC_TIMEOUT,
+    });
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    await expect(host.session.handoffHost('peer')).resolves.toEqual({
+      applied: false,
+      reason: 'unauthenticated',
+    });
+    expect(fetchSpy.mock.calls.filter(([url]) => String(url).endsWith('/host'))).toEqual([]);
+    expect(host.projection().settings.hostParticipantId).toBe('host');
   });
 });
 

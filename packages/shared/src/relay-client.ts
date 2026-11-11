@@ -2,7 +2,7 @@
  * The relay contract for both surfaces: the HTTP routes (ADR-0016) and the WebSocket handshake.
  * The client and the CLI both import it, so the contract cannot drift between them.
  *
- * Handshake: `${wsBase}/ws/${roomUuid}?did=…[&pw=…]`; close codes 4000–4099 decode to a
+ * Handshake: `${wsBase}/ws/${roomUuid}?did=…[&pk=…][&pw=…]`; close codes 4000–4099 decode to a
  * {@link JoinRejectionReason}. `connectToRelay` takes the **http** base URL and derives the ws
  * form itself ({@link relayHttpToWsUrl}), so the transform exists once.
  *
@@ -20,6 +20,28 @@ import {
   type JoinCredentials,
   type JoinRejectionReason,
 } from './auth.js';
+
+// Participant keys (ADR-0059)
+
+const encoder = new TextEncoder();
+
+/**
+ * This device's key for one room: `HMAC-SHA-256(key = deviceKey's 32 bytes, message = roomUuid)`,
+ * as 64 lowercase hex chars, the way the relay derives it. `deviceKey` is 64 hex chars. Never log
+ * either.
+ */
+export async function participantKeyFor(deviceKey: string, roomUuid: string): Promise<string> {
+  if (!/^[0-9a-f]{64}$/.test(deviceKey)) {
+    throw new Error('device key must be 64 lowercase hex characters');
+  }
+  const raw = new Uint8Array(32);
+  for (let i = 0; i < 32; i += 1) raw[i] = Number.parseInt(deviceKey.slice(i * 2, i * 2 + 2), 16);
+  const key = await crypto.subtle.importKey('raw', raw, { name: 'HMAC', hash: 'SHA-256' }, false, [
+    'sign',
+  ]);
+  const mac = new Uint8Array(await crypto.subtle.sign('HMAC', key, encoder.encode(roomUuid)));
+  return Array.from(mac, (b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 // HTTP surface
 
@@ -55,8 +77,39 @@ export class RelayRejectionError extends Error {
   }
 }
 
+/**
+ * Why the relay refused an access change or a handoff (ADR-0059): `401 unauthenticated` (no key,
+ * a wrong one, or an id it never bound), `401 not-host` (the right key, but not the access holder,
+ * or contested), `409 bad-target` (a handoff target it cannot hand to).
+ */
+export type AccessRefusalReason = 'unauthenticated' | 'not-host' | 'bad-target';
+
+/** A refusal in the relay's own words, so callers route on the reason without re-parsing. */
+export class RelayAccessError extends Error {
+  constructor(readonly reason: AccessRefusalReason) {
+    super(`relay refused: ${reason}`);
+    this.name = 'RelayAccessError';
+  }
+}
+
+/** Who a keyed PATCH or handoff says it is, and the room key that proves it (ADR-0059). */
+export interface ParticipantCaller {
+  readonly participantId: string;
+  /** From {@link participantKeyFor}. Sent as a bearer token, never in a URL or a log. */
+  readonly pk: string;
+}
+
+/** Who a keyed `POST /rooms` is minted for (ADR-0059). The device key travels only in this body. */
+export interface RoomCreator {
+  readonly participantId: string;
+  /** 64 lowercase hex chars. */
+  readonly deviceKey: string;
+}
+
 export interface MintRoomOptions {
   readonly passwordHash?: string;
+  /** Binds the creator's key and makes it the access holder. Omitted: a keyless create. */
+  readonly creator?: RoomCreator;
 }
 
 /**
@@ -73,7 +126,10 @@ export async function mintRoom(
   const res = await fetch(`${httpBaseUrl}/rooms`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(options?.passwordHash ? { passwordHash: options.passwordHash } : {}),
+    body: JSON.stringify({
+      ...(options?.passwordHash ? { passwordHash: options.passwordHash } : {}),
+      ...(options?.creator !== undefined && { creator: options.creator }),
+    }),
     signal: AbortSignal.timeout(RELAY_REQUEST_TIMEOUT_MS),
   });
   if (!res.ok) {
@@ -114,22 +170,95 @@ export async function resolveRoom(httpBaseUrl: string, code: string): Promise<Re
   return (await res.json()) as ResolvedRoom;
 }
 
-/** `null` reverts to open. Returns the resulting mode, so no follow-up read is needed. */
+/** Which statuses carry which of the relay's refusal reasons. Anything else is not the relay's. */
+const ACCESS_REFUSALS_BY_STATUS: ReadonlyMap<number, ReadonlySet<string>> = new Map([
+  [401, new Set(['unauthenticated', 'not-host'])],
+  [409, new Set(['bad-target'])],
+]);
+
+/**
+ * Throws what a failed access call's answer says: {@link RelayAccessError}, or
+ * {@link RelayRejectionError} for `unknown-room`, when the relay gave its reason; otherwise a
+ * generic `Error` naming the route, since a proxy may answer instead.
+ */
+async function throwAccessFailure(res: Response, route: string): Promise<never> {
+  const body: unknown = await res.json().catch(() => null);
+  const reason =
+    typeof body === 'object' && body !== null ? (body as { reason?: unknown }).reason : undefined;
+  if (res.status === 404 && reason === 'unknown-room') {
+    throw new RelayRejectionError('unknown-room');
+  }
+  if (typeof reason === 'string' && ACCESS_REFUSALS_BY_STATUS.get(res.status)?.has(reason)) {
+    throw new RelayAccessError(reason as AccessRefusalReason);
+  }
+  throw new Error(`${route} failed: ${res.status}`);
+}
+
+/** A JSON call's headers, with the caller's key as a bearer token when there is a caller. */
+function jsonHeaders(caller?: ParticipantCaller): Record<string, string> {
+  return {
+    'content-type': 'application/json',
+    ...(caller !== undefined && { authorization: `Bearer ${caller.pk}` }),
+  };
+}
+
+/**
+ * `PATCH /rooms/:uuid/access`. `null` reverts to open. Returns the resulting mode, so no follow-up
+ * read is needed. Only the access holder gets through (ADR-0059). Without a `caller` the call is
+ * keyless, which the relay takes once, on a fresh keyless create, and refuses otherwise.
+ *
+ * Throws {@link RelayAccessError} on the relay's `401`, {@link RelayRejectionError} on its `404`.
+ */
 export async function patchRoomAccess(
   httpBaseUrl: string,
   uuid: string,
   passwordHash: string | null,
+  caller?: ParticipantCaller,
 ): Promise<PatchAccessResponse> {
   const res = await fetch(`${httpBaseUrl}/rooms/${uuid}/access`, {
     method: 'PATCH',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ passwordHash }),
+    headers: jsonHeaders(caller),
+    body: JSON.stringify(
+      caller === undefined
+        ? { passwordHash }
+        : { participantId: caller.participantId, passwordHash },
+    ),
     signal: AbortSignal.timeout(RELAY_REQUEST_TIMEOUT_MS),
   });
-  if (!res.ok) {
-    throw new Error(`PATCH /rooms/:uuid/access failed: ${res.status}`);
-  }
+  if (!res.ok) return throwAccessFailure(res, 'PATCH /rooms/:uuid/access');
   return (await res.json()) as PatchAccessResponse;
+}
+
+/** Response from `POST /rooms/:uuid/host` (ADR-0059). */
+export interface HandoffHostResponse {
+  readonly accessHolder: string;
+}
+
+export interface HandoffHostOnRelayRequest extends ParticipantCaller {
+  /** The participant id the access holder hands to. */
+  readonly target: string;
+}
+
+/**
+ * `POST /rooms/:uuid/host`: the access holder hands its power to change access to `target`
+ * (ADR-0059). Call it before writing the handoff to the doc, and write only once it resolves.
+ *
+ * Throws {@link RelayAccessError} on the relay's `401`/`409`, {@link RelayRejectionError} on its
+ * `404`.
+ */
+export async function handoffHostOnRelay(
+  httpBaseUrl: string,
+  uuid: string,
+  request: HandoffHostOnRelayRequest,
+): Promise<HandoffHostResponse> {
+  const res = await fetch(`${httpBaseUrl}/rooms/${uuid}/host`, {
+    method: 'POST',
+    headers: jsonHeaders(request),
+    body: JSON.stringify({ participantId: request.participantId, target: request.target }),
+    signal: AbortSignal.timeout(RELAY_REQUEST_TIMEOUT_MS),
+  });
+  if (!res.ok) return throwAccessFailure(res, 'POST /rooms/:uuid/host');
+  return (await res.json()) as HandoffHostResponse;
 }
 
 // Handshake
@@ -261,9 +390,15 @@ export function relayHttpToWsUrl(httpBaseUrl: string): string {
   );
 }
 
-/** `did` always, `pw` for protected rooms (ADR-0016). No invite param: ADR-0017 dropped invite-only. */
+/**
+ * `did` always, `pk` when keyed (ADR-0059), `pw` for protected rooms (ADR-0016). No invite param:
+ * ADR-0017 dropped invite-only.
+ */
 function credentialsToParams(credentials: JoinCredentials): Record<string, string> {
   const params: Record<string, string> = { did: credentials.deviceId };
+  if (credentials.participantKey !== undefined) {
+    params['pk'] = credentials.participantKey;
+  }
   if (credentials.passwordHash !== undefined) {
     params['pw'] = credentials.passwordHash;
   }
@@ -544,10 +679,9 @@ export function connectToRelay(opts: ConnectToRelayOptions): RelayConnection {
     updateCredentials(subOpts: { passwordHash?: string | null }): void {
       const next = subOpts.passwordHash ?? undefined;
       if (next === credentials.passwordHash) return;
-      credentials =
-        next === undefined
-          ? { roomCode: credentials.roomCode, deviceId: credentials.deviceId }
-          : { ...credentials, passwordHash: next };
+      // Only the hash changes: the key, like the id, stays for the connection's life.
+      const { passwordHash: _dropped, ...rest } = credentials;
+      credentials = next === undefined ? rest : { ...rest, passwordHash: next };
       // Only putting down a socket that was up is "asked for". One that was
       // down already is a connection being recovered, and says so.
       rehandshaking = status === 'connected';
