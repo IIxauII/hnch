@@ -1,3 +1,10 @@
+# [1.53.0](https://github.com/IIxauII/hnch/compare/client-v1.52.0...client-v1.53.0) (2026-11-11)
+
+
+### Features
+
+* **client:** register WebMCP tools so browser agents can read, join and vote ([#787](https://github.com/IIxauII/hnch/issues/787)) ([09f560b](https://github.com/IIxauII/hnch/commit/09f560b6f6448f7664e8e23d356a19a45a816118))
+
 # [1.52.0](https://github.com/IIxauII/hnch/compare/client-v1.51.0...client-v1.52.0) (2026-11-11)
 
 
