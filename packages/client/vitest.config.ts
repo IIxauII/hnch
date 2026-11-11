@@ -34,12 +34,13 @@ export default defineConfig({
           },
         },
       },
-      // Node-side: the hnch-web deploy guard (scripts/deploy-guard.mjs).
+      // Node-side: hnch-web's deploy guard (scripts/deploy-guard.mjs) and its
+      // Worker (worker/index.ts).
       {
         test: {
           name: 'node',
           environment: 'node',
-          include: ['scripts/**/*.test.ts'],
+          include: ['scripts/**/*.test.ts', 'worker/**/*.test.ts'],
         },
       },
     ],
@@ -47,7 +48,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'lcov', 'json-summary'],
       reportsDirectory: './coverage',
-      include: ['src/**/*.ts'],
+      include: ['src/**/*.ts', 'worker/**/*.ts'],
       exclude: [
         '**/*.test.ts',
         '**/*.spec.ts',

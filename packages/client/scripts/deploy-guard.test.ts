@@ -16,11 +16,25 @@ const ZONE = '0d0f221371c8a419c6a9d36fc3b4da23';
 const SRC = resolve(import.meta.dirname, '../src');
 const prod = {
   name: 'hnch-web',
+  main: 'worker/index.ts',
   routes: [{ pattern: 'hnch.dev/*', zone_id: ZONE }],
   workers_dev: false,
   preview_urls: false,
-  assets: { directory: './www', not_found_handling: 'single-page-application' },
+  observability: { enabled: false },
+  assets: {
+    directory: './www',
+    binding: 'ASSETS',
+    not_found_handling: 'single-page-application',
+    run_worker_first: ['/*', '!/*.*'],
+  },
 };
+
+/** `value` as a config that never set `key`. */
+function omit<T extends object, K extends keyof T>(value: T, key: K): Omit<T, K> {
+  const copy: Partial<T> = { ...value };
+  delete copy[key];
+  return copy as Omit<T, K>;
+}
 
 describe('configProblems', () => {
   it('passes the wrangler.jsonc in this package', () => {
@@ -41,28 +55,48 @@ describe('configProblems', () => {
     expect(configProblems({ ...prod, preview_urls: true })).toHaveLength(1);
   });
 
-  it('refuses Worker code in front of the assets', () => {
+  it('accepts the Markdown Worker by relative or absolute path, and no other script', () => {
+    expect(
+      configProblems({ ...prod, main: resolve(import.meta.dirname, '../worker/index.ts') }),
+    ).toEqual([]);
     expect(configProblems({ ...prod, main: 'src/worker.ts' })).toHaveLength(1);
-    expect(
-      configProblems({ ...prod, assets: { ...prod.assets, run_worker_first: true } }),
-    ).toHaveLength(1);
-    expect(
-      configProblems({ ...prod, assets: { ...prod.assets, run_worker_first: ['/*'] } }),
-    ).toHaveLength(1);
-    expect(configProblems({ ...prod, assets: { ...prod.assets, binding: 'ASSETS' } })).toHaveLength(
+    expect(configProblems(omit(prod, 'main'))).toHaveLength(1);
+    expect(configProblems({ ...prod, assets: omit(prod.assets, 'binding') })).toHaveLength(1);
+    expect(configProblems({ ...prod, assets: { ...prod.assets, binding: 'STATIC' } })).toHaveLength(
       1,
     );
   });
 
-  it('refuses assets other than www with SPA fallback', () => {
+  it('refuses to run the Worker for files: only the dot-free page paths', () => {
+    expect(configProblems({ ...prod, assets: omit(prod.assets, 'run_worker_first') })).toHaveLength(
+      1,
+    );
+    for (const run_worker_first of [true, false, ['/*'], ['/*', '!/*.js'], ['/']]) {
+      expect(
+        configProblems({ ...prod, assets: { ...prod.assets, run_worker_first } }),
+      ).toHaveLength(1);
+    }
+  });
+
+  it('refuses every sink that would record room codes from page URLs', () => {
+    expect(configProblems(omit(prod, 'observability'))).toHaveLength(1);
+    expect(configProblems({ ...prod, observability: { enabled: true } })).toHaveLength(1);
     expect(
-      configProblems({
-        name: prod.name,
-        routes: prod.routes,
-        workers_dev: false,
-        preview_urls: false,
-      }),
+      configProblems({ ...prod, observability: { enabled: false, logs: { enabled: true } } }),
     ).toHaveLength(1);
+    expect(
+      configProblems({ ...prod, observability: { enabled: false, traces: { enabled: true } } }),
+    ).toHaveLength(1);
+    expect(configProblems({ ...prod, logpush: true })).toHaveLength(1);
+    expect(configProblems({ ...prod, tail_consumers: [{ service: 'tap' }] })).toHaveLength(1);
+    expect(
+      configProblems({ ...prod, streaming_tail_consumers: [{ service: 'tap' }] }),
+    ).toHaveLength(1);
+    expect(configProblems({ ...prod, logpush: false, tail_consumers: [] })).toEqual([]);
+  });
+
+  it('refuses assets other than www with SPA fallback', () => {
+    expect(configProblems(omit(prod, 'assets'))).toHaveLength(1);
     expect(configProblems({ ...prod, assets: { ...prod.assets, directory: 'www/' } })).toEqual([]);
     expect(
       configProblems({ ...prod, assets: { ...prod.assets, directory: './dist' } }),
@@ -105,6 +139,7 @@ describe('wwwProblems', () => {
     put('_headers', readFileSync(join(SRC, '_headers'), 'utf8'));
     put('robots.txt', readFileSync(join(SRC, 'robots.txt'), 'utf8'));
     put('sitemap.xml', readFileSync(join(SRC, 'sitemap.xml'), 'utf8'));
+    put('index.md', readFileSync(join(SRC, 'index.md'), 'utf8'));
     put('main.66e4893120763c69.js');
     put('styles.876f054718d41689.css');
     put('219.b341d1532e91059a.js');
@@ -149,6 +184,13 @@ describe('wwwProblems', () => {
     expect(wwwProblems(www, SRC)).toEqual([expect.stringContaining('no sitemap.xml')]);
     put('sitemap.xml', '<urlset/>');
     expect(wwwProblems(www, SRC)).toEqual([expect.stringContaining('sitemap.xml differs')]);
+  });
+
+  it('refuses a build without the index.md that Markdown requests are answered with', () => {
+    rmSync(join(www, 'index.md'));
+    expect(wwwProblems(www, SRC)).toEqual([expect.stringContaining('no index.md')]);
+    put('index.md', '# hnch\n');
+    expect(wwwProblems(www, SRC)).toEqual([expect.stringContaining('index.md differs')]);
   });
 
   it('refuses a directory that is not a build', () => {

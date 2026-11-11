@@ -19,6 +19,9 @@
   "include": [
     "scripts/deploy-guard.mjs",
     "scripts/deploy-guard.test.ts",
-    "scripts/worker-guard.test.ts"
+    "scripts/worker-guard.test.ts",
+    "worker/index.ts",
+    "worker/index.test.ts",
+    "worker/markdown.ts"
   ]
 }
