@@ -32,6 +32,7 @@ import {
   RELAY_REQUEST_TIMEOUT_MS,
   relayHttpToWsUrl,
   RelayRejectionError,
+  relayRefusalReason,
   resolveRoom,
   type ConnectToRelayOptions,
   type RelayConnection,
@@ -405,6 +406,18 @@ describe('patchRoomAccess', () => {
 
     await expect(patchRoomAccess('http://relay.test', 'u-1', null)).rejects.toThrow(
       'PATCH /rooms/:uuid/access failed: 403',
+    );
+  });
+});
+
+describe('relayRefusalReason', () => {
+  it("sorts a failed access call: the relay's reason, the room gone, or no usable answer", () => {
+    expect(relayRefusalReason(new RelayAccessError('not-host'))).toBe('not-host');
+    expect(relayRefusalReason(new RelayAccessError('bad-target'))).toBe('bad-target');
+    expect(relayRefusalReason(new RelayRejectionError('unknown-room'))).toBe('unknown-room');
+    expect(relayRefusalReason(new TypeError('fetch failed'))).toBe('unreachable');
+    expect(relayRefusalReason(new Error('PATCH /rooms/:uuid/access failed: 502'))).toBe(
+      'unreachable',
     );
   });
 });
