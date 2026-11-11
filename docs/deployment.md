@@ -124,8 +124,8 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z
         │           │                            every route on hnch.dev with a zone_id
         │           ├── ng build (production), once
         │           ├── deploy-guard.mjs www     _headers, robots.txt, sitemap.xml, index.md,
-        │           │                            openapi.json and .well-known/api-catalog in www,
-        │           │                            each identical to its src copy,
+        │           │                            auth.md, openapi.json and .well-known/api-catalog
+        │           │                            in www, each identical to its src copy,
         │           │                            every .js and .css named
         │           │                            <name>.<16 lowercase hex>.js|css
         │           └── upload www (artifact kept 7 days, so a failed job can be re-run)
@@ -145,7 +145,8 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z
                                                  hashed main.js, /_headers (the SPA, not the
                                                  file), /robots.txt (text/plain, this
                                                  build's file), /sitemap.xml (an XML
-                                                 type), /openapi.json (JSON) and
+                                                 type), /auth.md (text/markdown),
+                                                 /openapi.json (JSON) and
                                                  /.well-known/api-catalog (Linkset JSON,
                                                  a Link on HEAD), each this build's file
 ```
@@ -156,7 +157,7 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z
 
 - **Cache headers come from `packages/client/src/_headers`**, which `angular.json` copies to the root of `www`. `hnch-web` applies it; wrangler does not serve the file itself. Each response carries exactly one `Cache-Control`:
   - `/*.js` and `/*.css`: `public, max-age=31536000, immutable`;
-  - everything else (`index.html`, SPA deep links such as `/lobby/x`, `/svg/*`, `/assets/*`, `favicon.ico`, `robots.txt`, `sitemap.xml`, `openapi.json`, `/.well-known/api-catalog`, `3rdpartylicenses.txt`): `no-cache, must-revalidate`;
+  - everything else (`index.html`, SPA deep links such as `/lobby/x`, `/svg/*`, `/assets/*`, `favicon.ico`, `robots.txt`, `sitemap.xml`, `auth.md`, `openapi.json`, `/.well-known/api-catalog`, `3rdpartylicenses.txt`): `no-cache, must-revalidate`;
   - a missing `/x.<hash>.js` falls back to `index.html` with `immutable`.
 
   Because `/*.js` and `/*.css` are immutable for a year, every one of them must be content-hashed (`outputHashing: all`). The hash guard (`deploy-guard.mjs www`) fails the build unless each matches `\.[0-9a-f]{16}\.(js|css)$`, the webpack builder's exact hash form; a builder change that alters it fails the deploy rather than slipping through.
@@ -165,6 +166,7 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z
 - **robots.txt** ([RFC 9309](https://www.rfc-editor.org/rfc/rfc9309)) is `packages/client/src/robots.txt`, which `angular.json` copies to the root of `www`. It keeps crawlers off room pages, invite links (`/join`) and the relay paths, and names the AI crawlers. Its `Content-Signal` line ([contentsignals.org](https://contentsignals.org/)) allows search, AI input and AI training (owner decision, 2026-11-11). A crawler obeys only the most specific `User-agent` group that names it, so every group repeats the `*` group's `Content-Signal` and rules; `scripts/robots.test.ts` checks that. `deploy-guard.mjs www` refuses a build whose `robots.txt` is missing or differs from `src`, and the smoke fails the deploy unless `/robots.txt` is that file as `text/plain`: crawlers read a `text/html` answer (the SPA fallback) as no robots.txt. Its last line, `Sitemap: https://hnch.dev/sitemap.xml`, names the sitemap.
 - **sitemap.xml** ([sitemaps.org](https://www.sitemaps.org/protocol.html)) is `packages/client/src/sitemap.xml`, copied the same way. It lists only `https://hnch.dev/`: `/onboarding` is a sign-up step, and every other route needs a display name first or is a room. A new page anyone can open (no parameter, redirect or guard) that is worth finding from a search gets a `<url>` there. `src/sitemap.test.ts` fails while the file lists any other path or one robots.txt blocks, or while robots.txt does not name it. `deploy-guard.mjs www` and the smoke check it like robots.txt, as an XML type.
 - **API catalog** ([RFC 9727](https://www.rfc-editor.org/rfc/rfc9727)) is `packages/client/src/.well-known/api-catalog`, copied to `www/.well-known/`. It lists the relay's HTTP API: `service-desc` is `/openapi.json` (`packages/client/src/openapi.json`, copied to the root of `www`), `service-doc` is [`docs/api.md`](api.md) on GitHub, `status` is `/health`. The file has no extension, so its own `_headers` block sets `Content-Type: application/linkset+json` with the RFC 9727 profile, plus the `Link: rel="api-catalog"` that RFC 9727 §2 asks of a HEAD. Its path has a dot (`.well-known`), so the Worker never runs for it and `_headers` applies. `src/api-catalog.test.ts` fails while `openapi.json` describes other routes than the relay's public ones (the header comment of `packages/relay/src/worker.ts`): **a relay route change updates `openapi.json` and `docs/api.md`.** `deploy-guard.mjs www` and the smoke check both files like robots.txt.
+- **auth.md** ([auth.md](https://github.com/workos/auth.md)) is `packages/client/src/auth.md`, copied the same way and served as `text/markdown`. It tells AI agents how to get into a session. hnch has no accounts, so it says there is no registration, publishes no OAuth metadata, and describes what an agent uses instead: a display name, the session code, the password, the command-line client and the relay protocol. Its H1 names `auth.md`, which is how agents and scanners recognise it. `scripts/auth-md.test.ts` pins its participant cap, code format, close codes and hash recipe to `@hnch/shared`; change it with the relay's access rules. `deploy-guard.mjs www` and the smoke check it like robots.txt, as `text/markdown`.
 - **No service worker.** Plain SPA: no offline shell, no install prompt (deferred from v1). Adding one needs a re-read of the cache headers above against the service-worker lifecycle.
 - **Markdown for agents ([ADR-0058](../adr/0058-markdown-for-agents-worker.md)).** `worker/index.ts` runs for page paths only: `run_worker_first: ["/*", "!/*.*"]`, every path without a dot. Files never reach it and stay free.
   - A GET or HEAD whose `Accept` prefers `text/markdown` gets `src/index.md` (copied to the root of `www`) as `text/markdown; charset=utf-8`, with `x-markdown-tokens` (bytes ÷ 4, Cloudflare's estimate), the `_headers` Cache-Control and no `ETag`. Any other request gets the assets' own answer. Both carry `Vary: Accept`.

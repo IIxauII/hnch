@@ -118,8 +118,8 @@ jobs:
       - name: Hash guard
         # _headers serves every .js and .css as immutable for a year, so each
         # must carry the build's content hash (`\.[0-9a-f]{16}\.(js|css)$`), and
-        # _headers, robots.txt, sitemap.xml, index.md, openapi.json and
-        # .well-known/api-catalog must sit at the root of www.
+        # _headers, robots.txt, sitemap.xml, index.md, auth.md, openapi.json
+        # and .well-known/api-catalog must sit at the root of www.
         working-directory: packages/client
         run: node scripts/deploy-guard.mjs www
 
@@ -309,6 +309,7 @@ jobs:
           # Crawlers read a text/html answer as no robots.txt.
           served_file robots.txt '^text/plain' text/plain
           served_file sitemap.xml '^(application|text)/xml' 'an XML type'
+          served_file auth.md '^text/markdown' text/markdown
           # RFC 9727: the API catalog is Linkset JSON, the spec it links to is JSON.
           served_file .well-known/api-catalog '^application/linkset\+json' application/linkset+json
           served_file openapi.json '^application/(json|vnd\.oai\.openapi\+json)' 'a JSON type'

@@ -45,5 +45,6 @@ A custom scale can have any cards, two or more; everyone in the session votes wi
 
 - App: <https://hnch.dev>
 - Command-line client: <https://www.npmjs.com/package/@xauyxau/hnch>
+- How agents get into a session: <https://hnch.dev/auth.md>
 - Source code (AGPL-3.0-only): <https://github.com/IIxauII/hnch>
 - Third-party licenses: <https://hnch.dev/3rdpartylicenses.txt>

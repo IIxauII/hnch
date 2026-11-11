@@ -140,6 +140,7 @@ describe('wwwProblems', () => {
     put('robots.txt', readFileSync(join(SRC, 'robots.txt'), 'utf8'));
     put('sitemap.xml', readFileSync(join(SRC, 'sitemap.xml'), 'utf8'));
     put('index.md', readFileSync(join(SRC, 'index.md'), 'utf8'));
+    put('auth.md', readFileSync(join(SRC, 'auth.md'), 'utf8'));
     put('openapi.json', readFileSync(join(SRC, 'openapi.json'), 'utf8'));
     put('.well-known/api-catalog', readFileSync(join(SRC, '.well-known/api-catalog'), 'utf8'));
     put('main.66e4893120763c69.js');
@@ -193,6 +194,13 @@ describe('wwwProblems', () => {
     expect(wwwProblems(www, SRC)).toEqual([expect.stringContaining('no index.md')]);
     put('index.md', '# hnch\n');
     expect(wwwProblems(www, SRC)).toEqual([expect.stringContaining('index.md differs')]);
+  });
+
+  it('refuses a build without the auth.md agents read to get in', () => {
+    rmSync(join(www, 'auth.md'));
+    expect(wwwProblems(www, SRC)).toEqual([expect.stringContaining('no auth.md')]);
+    put('auth.md', '# auth.md\n');
+    expect(wwwProblems(www, SRC)).toEqual([expect.stringContaining('auth.md differs')]);
   });
 
   it('refuses a build without the API catalog and the OpenAPI spec it links to', () => {
