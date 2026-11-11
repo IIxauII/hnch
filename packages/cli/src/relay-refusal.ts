@@ -1,7 +1,9 @@
 /**
  * What the CLI prints when the relay turns down an access change or a
  * handoff (ADR-0059), in one place for both acts. The sentences are the
- * docs/cli.md table's, word for word.
+ * docs/cli.md table's, word for word. The two entries it has no row for are
+ * reasons that act never meets (`bad-target` on an access change,
+ * `self-target` on a handoff); they are here so each map covers its union.
  */
 
 import {

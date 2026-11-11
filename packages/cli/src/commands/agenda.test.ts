@@ -134,6 +134,14 @@ vi.mock('@hnch/shared', async (importOriginal) => ({
  * projection of it, a first sync the test controls. What the handler does
  * through the handle lands in `_lastSeenDoc`.
  */
+/** The commands minus the doc-only handoff, as `SessionHandle.commands` has them. */
+function withoutDocHandoff(
+  commands: ReturnType<typeof bindSessionCommands>,
+): SessionHandle['commands'] {
+  const { handoffHost: _docOnly, ...rest } = commands;
+  return rest;
+}
+
 function fakeSession(): SessionHandle {
   const doc = new Y.Doc();
   _lastSeenDoc = doc;
@@ -169,11 +177,14 @@ function fakeSession(): SessionHandle {
     roomCode: 'ABC123',
     roomUuid: 'uuid-001',
     passwordHash: undefined,
-    commands: bindSessionCommands({
-      doc,
-      participantId: 'user-1',
-      onlineIds: () => new Set(['user-1']),
-    }),
+    // As the real handle exposes them: without the doc-only handoff.
+    commands: withoutDocHandoff(
+      bindSessionCommands({
+        doc,
+        participantId: 'user-1',
+        onlineIds: () => new Set(['user-1']),
+      }),
+    ),
     projection: () => projectDoc(doc),
     current: () => null,
     isHost: () => true,

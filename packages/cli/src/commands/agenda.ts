@@ -117,9 +117,8 @@ export async function handleAgendaAdd(argv: {
 
   const session = await openAgendaSession({
     ...participantOptions(config),
-    roomCode: cached.roomCode,
-    roomUuid: cached.roomUuid,
-    ...(cached.passwordHash !== undefined && { passwordHash: cached.passwordHash }),
+    // The room as remembered: its code, its uuid and the hash, if it has one.
+    ...cached,
   });
 
   try {
@@ -156,9 +155,8 @@ export async function handleAgendaList(): Promise<void> {
 
   const session = await openAgendaSession({
     ...participantOptions(config),
-    roomCode: cached.roomCode,
-    roomUuid: cached.roomUuid,
-    ...(cached.passwordHash !== undefined && { passwordHash: cached.passwordHash }),
+    // The room as remembered: its code, its uuid and the hash, if it has one.
+    ...cached,
   });
 
   try {
@@ -189,9 +187,8 @@ export async function handleAgendaSkip(argv: { id: string }): Promise<void> {
 
   const session = await openAgendaSession({
     ...participantOptions(config),
-    roomCode: cached.roomCode,
-    roomUuid: cached.roomUuid,
-    ...(cached.passwordHash !== undefined && { passwordHash: cached.passwordHash }),
+    // The room as remembered: its code, its uuid and the hash, if it has one.
+    ...cached,
   });
 
   try {
@@ -222,9 +219,8 @@ export async function handleAgendaCancel(argv: { id: string }): Promise<void> {
 
   const session = await openAgendaSession({
     ...participantOptions(config),
-    roomCode: cached.roomCode,
-    roomUuid: cached.roomUuid,
-    ...(cached.passwordHash !== undefined && { passwordHash: cached.passwordHash }),
+    // The room as remembered: its code, its uuid and the hash, if it has one.
+    ...cached,
   });
 
   try {
@@ -259,9 +255,8 @@ export async function handleAgendaMv(argv: {
 
   const session = await openAgendaSession({
     ...participantOptions(config),
-    roomCode: cached.roomCode,
-    roomUuid: cached.roomUuid,
-    ...(cached.passwordHash !== undefined && { passwordHash: cached.passwordHash }),
+    // The room as remembered: its code, its uuid and the hash, if it has one.
+    ...cached,
   });
 
   try {

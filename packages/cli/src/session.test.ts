@@ -424,6 +424,11 @@ describe('session integration — host-only access (ADR-0059)', () => {
       'The relay no longer knows this room',
     ],
     [
+      'the relay does not take the key',
+      () => Response.json({ reason: 'unauthenticated' }, { status: 401 }),
+      'The relay did not accept this device as the host',
+    ],
+    [
       'no answer comes',
       () => {
         throw new TypeError('fetch failed');

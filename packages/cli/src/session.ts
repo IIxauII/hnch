@@ -161,7 +161,8 @@ export async function createSession(opts: CreateSessionOptions): Promise<Session
       await patchAccess(opts.relayUrl, minted.uuid, passwordHash, caller);
     } catch (err) {
       // The room exists now, open and unjoined; say so rather than only why.
-      const why = err instanceof Error ? err.message : String(err);
+      // `patchAccess` throws nothing but an `Error` with a sentence.
+      const why = (err as Error).message;
       throw new Error(
         `Room ${minted.code} was created, but its password was not set: ${why}. ` +
           'The room is open to anyone with the code and was not joined. ' +

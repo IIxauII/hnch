@@ -12,7 +12,13 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import React from 'react';
 import { render } from 'ink';
-import { loadConfig, participantOptions, readConfig, updateConfig } from './config.js';
+import {
+  avatarColorOption,
+  loadConfig,
+  participantOptions,
+  readConfig,
+  updateConfig,
+} from './config.js';
 import { createSession, joinSession, openSession } from './session.js';
 import {
   BUILTIN_SCALES,
@@ -99,7 +105,7 @@ async function handleCreate(argv: {
     sessionName: resolvedName,
     password,
     defaultScale: scale,
-    ...(config.avatarColor !== undefined && { avatarColor: config.avatarColor }),
+    ...avatarColorOption(config),
     onRejection: onRejectionFor(refusal, exiting),
   });
   exiting.bind(session);
@@ -162,7 +168,7 @@ async function handleJoin(argv: { code: string; password?: boolean }): Promise<v
     ...participantOptions(config),
     roomCode: code,
     password: passwordInput,
-    ...(config.avatarColor !== undefined && { avatarColor: config.avatarColor }),
+    ...avatarColorOption(config),
     onRejection: onRejectionFor(refusal, exiting),
   });
   exiting.bind(session);
@@ -263,7 +269,7 @@ async function resumeEntry(
     roomCode: entry.roomCode,
     roomUuid: entry.roomUuid,
     passwordHash: entry.passwordHash,
-    ...(config.avatarColor !== undefined && { avatarColor: config.avatarColor }),
+    ...avatarColorOption(config),
     onRejection: onRejectionFor(refusal, exiting),
   });
   exiting.bind(session);

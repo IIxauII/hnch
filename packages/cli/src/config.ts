@@ -203,6 +203,14 @@ export function participantOptions(config: CliConfig): ParticipantOptions {
 }
 
 /**
+ * The avatar color, for a session open that should show it (ADR-0043): an
+ * interactive one. Kept apart from {@link participantOptions} on purpose.
+ */
+export function avatarColorOption(config: CliConfig): { avatarColor?: string } {
+  return config.avatarColor !== undefined ? { avatarColor: config.avatarColor } : {};
+}
+
+/**
  * Update specific config fields (used by `hnch config` subcommand).
  * String fields set to empty string are deleted from config.
  */
