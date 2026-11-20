@@ -11,11 +11,11 @@ Thanks for your interest. This document covers how to propose changes and what e
 
 ## Toolchain
 
-[mise](https://mise.jdx.dev) provides everything: Node, pnpm and hk (git hooks) at the exact versions in [`mise.toml`](mise.toml), checked against the checksums in `mise.lock`, plus the root tasks. CI installs the same versions with [`jdx/mise-action`](https://github.com/jdx/mise-action). A fresh clone:
+[mise](https://mise.jdx.dev) provides everything: Node, pnpm, hk (git hooks) and jq (the Claude Code hooks) at the exact versions in [`mise.toml`](mise.toml), checked against the checksums in `mise.lock`, plus the root tasks. CI installs the same versions with [`jdx/mise-action`](https://github.com/jdx/mise-action). A fresh clone:
 
 ```sh
 mise trust          # once per checkout path; mise.toml defines tasks and env
-mise install        # Node, pnpm, hk
+mise install        # Node, pnpm, hk, jq
 mise run setup      # git hooks (hk install --mise) + pnpm install
 ```
 

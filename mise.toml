@@ -10,6 +10,8 @@ min_version = "2026.11.10"
 node = "22.23.5"
 pnpm = "9.15.0"
 hk = "2.13.0"
+# The Claude Code hooks in .claude/hooks read and write JSON with jq.
+jq = "1.8.2"
 
 [settings]
 lockfile = true

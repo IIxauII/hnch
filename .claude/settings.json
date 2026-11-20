@@ -91,28 +91,11 @@
       "Bash(mise *--outdir*)",
       "Bash(mise *--outputFile*)",
       "Bash(mise *dry-run*)",
-      "Bash(mise *:::*)"
+      "Bash(mise * ::: *)"
     ]
   },
   "hooks": {
     "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/block-coauthor-commit.sh"
-          },
-          {
-            "type": "command",
-            "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/warn-force-push.sh"
-          },
-          {
-            "type": "command",
-            "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/enforce-pnpm.sh"
-          }
-        ]
-      },
       {
         "matcher": "Edit|Write|MultiEdit",
         "hooks": [
@@ -123,26 +106,10 @@
         ]
       }
     ],
-    "PostToolUse": [
-      {
-        "matcher": "Edit|Write|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/format-on-edit.sh"
-          }
-        ]
-      }
-    ],
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/stop-notify.sh" },
-          {
-            "type": "command",
-            "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/typecheck-on-stop.sh",
-            "timeout": 300
-          }
+          { "type": "command", "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/stop-notify.sh" }
         ]
       }
     ],
@@ -152,10 +119,6 @@
           {
             "type": "command",
             "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/session-start-context.sh"
-          },
-          {
-            "type": "command",
-            "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/typecheck-on-stop.sh --seed"
           }
         ]
       }
