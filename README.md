@@ -2,7 +2,7 @@
 
 Do not hand-edit. Do not merge into `main`. Two publishers write here, never with a force push:
 
-- `scripts/screenshot-publish.mjs` on `main` (the `lefthook` pre-push hook and `pnpm screenshots:publish`): a PR's capture, under `sha-<short>/` of the PR head.
+- `scripts/screenshot-publish.mjs` on `main` (the hk `pre-push` hook and `mise run screenshots:publish`): a PR's capture, under `sha-<short>/` of the PR head.
 - `scripts/ci/screenshots-reference.mjs` on `main` (the `screenshots-reference` job of `ci.yml`, on a `main` push with UI changes, after the e2e job captured the set or detect-changes promoted a verified PR run's): main's reference set, under `sha-<short>/` of the `main` commit, copied to `latest/`, and this README.
 
 ## Layout
