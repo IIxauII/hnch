@@ -27,14 +27,14 @@ The full suite starts the relay and the client automatically via `playwright.con
 
 | Value | What runs | Default |
 |---|---|---|
-| `dev` | `ng serve` (`pnpm --filter @hnch/client dev`) with its file watcher | local runs, including `pnpm test:e2e` |
+| `dev` | `ng serve` (`pnpm --filter @hnch/client dev`) with its file watcher | local runs, including `mise run test:e2e` |
 | `build` | `ng build --configuration e2e` into `packages/client/dist/e2e`, then `scripts/serve-static.mjs` serves it, with `index.html` for app routes | whenever `CI` is set (the `E2E (Playwright)` job, main's screenshot capture included) |
 
 The `build` mode runs the optimised bundle users get, and no dev server competes with the browsers for CPU. The `e2e` configuration has no `fileReplacements`, so it keeps `environment.ts` and reaches the relay on the page's own port (worktree and CI ports work with no extra config). Production builds and deploys are unaffected: they keep their own `production` configuration and `www/` output.
 
-- To run locally against what CI runs: `CI=1 pnpm test:e2e` (also gets the CI timeouts below and `maxFailures: 1`), or `E2E_CLIENT=build pnpm test:e2e` for the build alone.
+- To run locally against what CI runs: `CI=1 mise run test:e2e` (also gets the CI timeouts below and `maxFailures: 1`), or `E2E_CLIENT=build mise run test:e2e` for the build alone.
 - The build is not watched: with `build`, a client edit only shows up in the next run, which rebuilds (about 15 s locally).
-- Outside CI, Playwright reuses whatever already listens on `CLIENT_PORT`. A running `pnpm dev:client` there means `E2E_CLIENT=build` still tests the dev server.
+- Outside CI, Playwright reuses whatever already listens on `CLIENT_PORT`. A running `mise run dev:client` there means `E2E_CLIENT=build` still tests the dev server.
 
 ### Timeouts
 
@@ -61,7 +61,7 @@ A new screenshot spec starts with that line too, and imports `test` and `expect`
 
 ### Two surfaces
 
-- **PR flow** — `lefthook` pre-push hook runs a scoped subset and publishes to the `screenshots` branch under `sha-<short>/`. See `docs/release.md → Screenshots`.
+- **PR flow** — hk `pre-push` hook (`hk.pkl`) runs a scoped subset and publishes to the `screenshots` branch under `sha-<short>/`. See `docs/release.md → Screenshots`.
 - **Main flow** — on a push to `main` with UI changes, the CI `E2E (Playwright)` job runs with `SCREENSHOT_CAPTURE=1`: app tests and the full screenshot suite in one Playwright run. A follow-up job publishes the set to the `screenshots` branch as `sha-<short>/` of the `main` commit and as `latest/`, with `latest.json` naming the commit. `main` gets no PNGs ([ADR-0057](../../adr/0057-screenshot-reference-on-the-screenshots-branch.md)). A verified-skip `main` run (ADR-0055) promotes the verifying PR run's complete `screenshots-capture` set for the same tree instead of capturing (#598); see `docs/release.md → Main reference set`.
 
 ### Env vars
@@ -115,7 +115,7 @@ App specs never import the helper, so app tests and production run unpinned; the
 
 **Adding a source.** When a scene differs between two captures of one tree, find what differs (the session code, a colour, a time, a position) and pin it in `pinContext` in `_helpers/capture-test.ts`. A value only the client can choose gets a `window.__…` hook in the client that production never sets, in the `__confettiRng` pattern. Add a row to the table above.
 
-**Checking.** `pnpm screenshots:determinism` runs the CI command twice (`CI=1 SCREENSHOT_CAPTURE=1 pnpm --filter @hnch/e2e test`: app tests and capture together, at min(4, CPUs) workers, each against a fresh relay) into `docs/screenshots/determinism-{a,b}/` and compares them by hash with `scripts/ci/screenshot-diff.mjs`. Exit 0 means every scene is identical. Arguments go to Playwright: `pnpm screenshots:determinism _screenshots` captures without the app tests, `pnpm screenshots:determinism _screenshots/reveal-transition` one spec. `node scripts/ci/screenshot-diff.mjs <base-dir> <head-dir>` compares any two sets and lists the changed, added and removed scenes.
+**Checking.** `mise run screenshots:determinism` runs the CI command twice (`CI=1 SCREENSHOT_CAPTURE=1 pnpm --filter @hnch/e2e test`: app tests and capture together, at min(4, CPUs) workers, each against a fresh relay) into `docs/screenshots/determinism-{a,b}/` and compares them by hash with `scripts/ci/screenshot-diff.mjs`. Exit 0 means every scene is identical. Arguments go to Playwright: `mise run screenshots:determinism _screenshots` captures without the app tests, `mise run screenshots:determinism _screenshots/reveal-transition` one spec. `node scripts/ci/screenshot-diff.mjs <base-dir> <head-dir>` compares any two sets and lists the changed, added and removed scenes.
 
 ### Local manual run
 
@@ -125,7 +125,7 @@ SCREENSHOT_CAPTURE=1 SCREENSHOT_SHA=local \
   --project=chromium --workers=1
 ```
 
-Playwright starts the relay with the test routes on. A relay already listening on `RELAY_PORT` is reused instead, and one started by plain `pnpm dev:relay` has them off: sessions then get random codes (the run warns once), so the set will not match another capture. Stop it first, or start it with `HNCH_ENABLE_TEST_ROUTES=1 HNCH_ROOM_CAP=3`.
+Playwright starts the relay with the test routes on. A relay already listening on `RELAY_PORT` is reused instead, and one started by plain `mise run dev:relay` has them off: sessions then get random codes (the run warns once), so the set will not match another capture. Stop it first, or start it with `HNCH_ENABLE_TEST_ROUTES=1 HNCH_ROOM_CAP=3`.
 
 ### Spec organization
 
@@ -134,7 +134,7 @@ Playwright starts the relay with the test routes on. A relay already listening o
 
 ### Tag catalog
 
-Every `test()` under `_screenshots/` is annotated with one or more Playwright tags. `.screenshot-tags` (worktree root, gitignored) holds a `--grep` regex — `scripts/screenshot-publish.mjs` passes it through. Empty/missing → full suite runs. Write the file when creating a worktree with `pnpm worktree:add <name> [base] --tags "<grep>"`, or by hand inside the worktree. Skills do not write this file; the primary worktree (`main`) should never contain it.
+Every `test()` under `_screenshots/` is annotated with one or more Playwright tags. `.screenshot-tags` (worktree root, gitignored) holds a `--grep` regex — `scripts/screenshot-publish.mjs` passes it through. Empty/missing → full suite runs. Write the file when creating a worktree with `mise run worktree:add <name> [base] --tags "<grep>"`, or by hand inside the worktree. Skills do not write this file; the primary worktree (`main`) should never contain it.
 
 | Tag | Scope |
 |---|---|

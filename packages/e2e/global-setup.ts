@@ -10,7 +10,7 @@
  *    navigation lands on a hot server, and a bundle that fails to boot (the
  *    CI default `build`) fails here with one clear error, not in every test.
  *
- * 2. Local: warn if an already-running relay (from `pnpm dev:relay`) is
+ * 2. Local: warn if an already-running relay (from `mise run dev:relay`) is
  *    reused without test-mode env vars (HNCH_ENABLE_TEST_ROUTES=1,
  *    HNCH_ROOM_CAP=3), which would cause mysterious "flaky" failures.
  */
@@ -49,10 +49,10 @@ export default async () => {
   const RELAY_PORT = process.env['RELAY_PORT'] ?? '1234';
   console.warn(`
 ⚠  Playwright may reuse an already-running relay on port ${RELAY_PORT}.
-   If your relay was started with \`pnpm dev:relay\` (no test-mode env vars),
+   If your relay was started with \`mise run dev:relay\` (no test-mode env vars),
    tests will run against production room caps and the eviction route will
    return 404 — failures will look like flake. To run tests cleanly:
-     • stop any local \`pnpm dev:relay\` first, OR
+     • stop any local \`mise run dev:relay\` first, OR
      • start the relay with HNCH_ENABLE_TEST_ROUTES=1 HNCH_ROOM_CAP=3.
 `);
 };

@@ -61,7 +61,7 @@ packages/relay/
 │   ├── env.d.ts                # bindings + vars from wrangler.jsonc
 │   ├── test-support/peer.ts    # test-only y-websocket peer inside workerd
 │   └── *.test.ts               # Vitest on workerd (*.test-vars.test.ts: cap 3 + test routes)
-├── scripts/dev.mjs             # wrangler dev wrapper (pnpm dev:relay, e2e, harness)
+├── scripts/dev.mjs             # wrangler dev wrapper (mise run dev:relay, e2e, harness)
 ├── scripts/smoke.mjs           # smoke checks against any relay (BASE=…)
 ├── scripts/deploy-guard.mjs    # deploy-relay.yml config/route/version guard
 └── testing/start-relay.mjs     # @hnch/relay/testing harness

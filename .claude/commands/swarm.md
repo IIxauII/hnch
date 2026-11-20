@@ -300,10 +300,10 @@ A final message that is `BLOCKED: …` or `NEED FILE: …` leaves the task `in_p
 The final story is always the verification story. You run it yourself with Bash, from the repo root:
 
 - Vitest for touched packages + their consumers: `pnpm --filter <pkg> test` (a `packages/shared` change pulls in `@hnch/relay`, `@hnch/client`, `@xauyxau/hnch`)
-- Typecheck + lint: `pnpm typecheck`, `pnpm lint`
+- Typecheck + lint: `mise run typecheck`, `mise run lint`
 - Build all touched packages: `pnpm --filter <pkg> build`
-- E2e (chromium) if any client / shared / relay code changed: `pnpm test:e2e`
-- Flake-check any new e2e spec: `pnpm test:e2e --grep "<spec>" --repeat-each 5`
+- E2e (chromium) if any client / shared / relay code changed: `mise run test:e2e`
+- Flake-check any new e2e spec: `mise run test:e2e --grep "<spec>" --repeat-each 5`
 
 Report per command: the command, exit code, runtime, pass/fail summary. For a failure, quote the first failing test name and the first ~50 lines of its output verbatim. Don't speculate on root cause and don't re-run hoping for green.
 

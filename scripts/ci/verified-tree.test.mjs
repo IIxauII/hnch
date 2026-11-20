@@ -1,6 +1,6 @@
 // Tests for scripts/ci/verified-tree.mjs. node:test, not vitest: the
 // detect-changes job runs them before it trusts the script, and it has no
-// node_modules. Run locally with `pnpm test:ci-scripts`.
+// node_modules. Run locally with `mise run test:ci-scripts`.
 //
 // API responses are fixtures shaped like GitHub's REST answers; git is real,
 // in a throwaway repo, because the check reads trees and parents from it.

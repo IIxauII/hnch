@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # commit-msg hook: enforce Conventional Commits + scope coverage vs staged packages/*.
-# Invoked by lefthook via `commit-msg` stage. Arg $1 = path to commit message file.
+# Invoked by hk's `commit-msg` hook (hk.pkl). Arg $1 = path to commit message file.
 
 set -uo pipefail
 

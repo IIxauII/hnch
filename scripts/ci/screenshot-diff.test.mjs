@@ -1,6 +1,6 @@
 // Tests for scripts/ci/screenshot-diff.mjs. node:test, not vitest: CI jobs
 // that compare sets run it with no node_modules. Run locally with
-// `pnpm test:ci-scripts`.
+// `mise run test:ci-scripts`.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';

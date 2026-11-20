@@ -225,7 +225,7 @@ A PR names neither environment. A branch PR's run gets `CODECOV_TOKEN` and no ot
 
 ## Local relay
 
-`pnpm dev:relay` (or `pnpm --filter @hnch/relay dev`) runs the Worker on local workerd through `packages/relay/scripts/dev.mjs`: `PORT` → `--port`, the ADR-0027 vars → `--var` (only when set), always `JURISDICTION:none` (local workerd has no jurisdictions). With a test var set it starts from empty state in a temporary directory; otherwise state persists under `packages/relay/.wrangler/state`. `pnpm --filter @hnch/relay smoke <mode>` (with `BASE=`) runs `scripts/smoke.mjs` against any relay.
+`mise run dev:relay` (or `pnpm --filter @hnch/relay dev`) runs the Worker on local workerd through `packages/relay/scripts/dev.mjs`: `PORT` → `--port`, the ADR-0027 vars → `--var` (only when set), always `JURISDICTION:none` (local workerd has no jurisdictions). With a test var set it starts from empty state in a temporary directory; otherwise state persists under `packages/relay/.wrangler/state`. `pnpm --filter @hnch/relay smoke <mode>` (with `BASE=`) runs `scripts/smoke.mjs` against any relay.
 
 ## Local PWA on workerd
 
@@ -238,7 +238,7 @@ pnpm --filter @hnch/client exec wrangler dev --port 8788
 pnpm --filter @hnch/client exec wrangler deploy --dry-run
 ```
 
-`curl -sI http://localhost:8788/lobby/x` should show `200`, `text/html`, `Vary: Accept` and one `Cache-Control: no-cache, must-revalidate`. `curl -sI -H 'Accept: text/markdown' http://localhost:8788/lobby/x` should show `text/markdown; charset=utf-8` and `x-markdown-tokens`. `pnpm dev:client` (the Angular dev server) does not apply `_headers` and runs no Worker.
+`curl -sI http://localhost:8788/lobby/x` should show `200`, `text/html`, `Vary: Accept` and one `Cache-Control: no-cache, must-revalidate`. `curl -sI -H 'Accept: text/markdown' http://localhost:8788/lobby/x` should show `text/markdown; charset=utf-8` and `x-markdown-tokens`. `mise run dev:client` (the Angular dev server) does not apply `_headers` and runs no Worker.
 
 ## Free-plan budget and alerts
 

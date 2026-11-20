@@ -26,11 +26,15 @@ The one list of project docs; README and CONTRIBUTING point here. A fact lives i
 
 Structural decisions are recorded in `adr/`. **Before any architectural/structural change, read [`adr/README.md`](adr/README.md)** — it defines when an ADR is required, immutability/superseding rules, conventions, and the template.
 
+## Toolchain and tasks
+
+mise pins Node, pnpm and hk and defines the root tasks in `mise.toml`: run `mise run lint|typecheck|test|test:e2e|dev:client|…` (`mise tasks` lists them); package scripts stay `pnpm --filter <pkg> <script>`. Git hooks are hk (`hk.pkl`). Setup and version changes: [CONTRIBUTING.md › Toolchain](CONTRIBUTING.md#toolchain).
+
 ## Parallel worktrees
 
 Repo supports parallel git worktrees with per-worktree port isolation ([how port isolation works](CONTRIBUTING.md#how-port-isolation-works)). Use for multi-phase work to keep `main` clean, or to run dev servers for two features side-by-side.
 
-`pnpm worktree:add <name> [base-branch]` / `worktree:remove <name>` / `worktree:bootstrap`. **Run `git fetch origin` first** — the script branches off the local ref, so a stale `main` produces a worktree missing recent commits (agents may recreate files with diverging APIs). Full workflow in [CONTRIBUTING.md](CONTRIBUTING.md).
+`mise run worktree:add <name> [base-branch]` / `worktree:remove <name>` / `worktree:bootstrap`. **Run `git fetch origin` first** — the script branches off the local ref, so a stale `main` produces a worktree missing recent commits (agents may recreate files with diverging APIs). Full workflow in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Commit conventions
 

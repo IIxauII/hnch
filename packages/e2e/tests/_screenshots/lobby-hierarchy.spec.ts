@@ -4,7 +4,7 @@
  *
  * Captures the lobby's section-grid layout at mobile (390) and desktop
  * (1440) viewports in both themes. Tagged `@lobby-hierarchy` so the
- * lefthook pre-push subset (`@lobby-hierarchy|@layout`) re-renders these
+ * hk pre-push subset (`@lobby-hierarchy|@layout`) re-renders these
  * images whenever lobby chrome moves.
  *
  * Coverage: host-side lobby states across {390, 1440} × {light, dark}.

@@ -6,7 +6,7 @@
 //
 // Prints the changed, added and removed scenes and exits 0 when the two sets
 // are identical, 1 when they differ, 2 on a usage error. Two captures of one
-// tree must exit 0 (#762); `pnpm screenshots:determinism` runs that check.
+// tree must exit 0 (#762); `mise run screenshots:determinism` runs that check.
 //
 // Pure Node, no dependencies: CI jobs that compare sets have no node_modules.
 import { createHash } from 'node:crypto';

@@ -4,7 +4,7 @@
 // against another set shows only real changes. Exit 1: some scene differs;
 // the scenes are listed, and both sets stay on disk to look at.
 //
-//   pnpm screenshots:determinism [playwright args…]
+//   mise run screenshots:determinism [playwright args…]
 //
 // Each run is the CI command, `CI=1 SCREENSHOT_CAPTURE=1 pnpm --filter
 // @hnch/e2e test`: app tests and capture together at min(4, CPUs) workers,
@@ -21,8 +21,8 @@ import { diffSets, formatDiff, isIdentical } from './ci/screenshot-diff.mjs';
 const root = resolve(import.meta.dirname, '..');
 const sets = ['determinism-a', 'determinism-b'];
 
-// The relay and client consume @hnch/shared's build, as in `pnpm test:e2e`.
-if (spawnSync('pnpm', ['run', '_build:shared'], { cwd: root, stdio: 'inherit' }).status !== 0) {
+// The relay and client consume @hnch/shared's build, as in `mise run test:e2e`.
+if (spawnSync('mise', ['run', 'build:shared'], { cwd: root, stdio: 'inherit' }).status !== 0) {
   exit(2);
 }
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stop hook: run the root `pnpm typecheck` once per turn when TypeScript under
+# Stop hook: run the root `mise run typecheck` once per turn when TypeScript under
 # packages/ changed, so a shared edit that breaks a cli/relay/client consumer is
 # caught before the turn ends.
 #
@@ -55,20 +55,22 @@ if [ "$mode" = "--seed" ]; then
 fi
 
 [ "$fp" = "$(cat "$stamp" 2>/dev/null)" ] && exit 0
-# Not bootstrapped yet (no pnpm install): nothing meaningful to check.
+# Not bootstrapped yet (no pnpm install, or no mise for the tools): nothing
+# meaningful to check.
 [ -d node_modules ] || exit 0
+command -v mise >/dev/null 2>&1 || exit 0
 
-# The root `pnpm typecheck` (pretypecheck builds shared, then every package),
-# spelled out with --no-bail: the root script stops at the first failing package,
-# which would hide a cli/relay error behind a client one.
-out=$(pnpm run pretypecheck 2>&1 && pnpm -r --no-bail --if-present run typecheck 2>&1)
+# The root `mise run typecheck` (build:shared, then every package), spelled out
+# with --no-bail: the task stops at the first failing package, which would hide
+# a cli/relay error behind a client one. pnpm comes from mise, so go through it.
+out=$(mise run build:shared 2>&1 && mise exec -- pnpm -r --no-bail --if-present run typecheck 2>&1)
 ec=$?
 printf '%s\n' "$fp" > "$stamp"
 
 [ "$ec" -eq 0 ] && exit 0
 
 {
-  printf 'pnpm typecheck failed after TypeScript changes under packages/. Fix these before finishing:\n'
+  printf 'mise run typecheck failed after TypeScript changes under packages/. Fix these before finishing:\n'
   errors=$(printf '%s\n' "$out" | grep -E 'error TS[0-9]+' | head -40)
   if [ -n "$errors" ]; then
     printf '%s\n' "$errors"

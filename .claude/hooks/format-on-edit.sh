@@ -30,6 +30,7 @@ case "$file" in
 esac
 
 cd "$REPO" || exit 0
-pnpm exec biome format --write "$file" >/dev/null 2>&1 || true
+# pnpm (and Node) come from mise; the hook may run without an activated shell.
+mise exec -- pnpm exec biome format --write "$file" >/dev/null 2>&1 || true
 
 exit 0

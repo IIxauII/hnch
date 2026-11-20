@@ -67,7 +67,6 @@ updates:
           - oxlint
           - '@biomejs/biome'
           - eslint
-          - lefthook
           - tsx
           - tsup
           - jsdom
@@ -114,7 +113,6 @@ updates:
           - oxlint
           - '@biomejs/biome'
           - eslint
-          - lefthook
           - tsx
           - tsup
           - jsdom
