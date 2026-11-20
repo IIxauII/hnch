@@ -47,13 +47,13 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
           persist-credentials: false
 
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      # Node and pnpm at mise.toml's versions, checked against mise.lock. No
+      # cache, like the install below.
+      - uses: jdx/mise-action@90f833d396d0cc3674b631d2d225e306476c303a # v5.2.10
         with:
-          node-version: 22
-
-      - name: Enable Corepack
-        # pnpm's version comes from `packageManager`.
-        run: corepack enable
+          version: 2026.11.10
+          install_args: node pnpm
+          cache: false
 
       - name: Install (cold)
         # A job that builds what users get restores no cache: the fresh
@@ -160,13 +160,13 @@ jobs:
           ref: ${{ needs.build.outputs.sha }}
           persist-credentials: false
 
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      # Node and pnpm at mise.toml's versions, checked against mise.lock. No
+      # cache, like the install below.
+      - uses: jdx/mise-action@90f833d396d0cc3674b631d2d225e306476c303a # v5.2.10
         with:
-          node-version: 22
-
-      - name: Enable Corepack
-        # pnpm's version comes from `packageManager`.
-        run: corepack enable
+          version: 2026.11.10
+          install_args: node pnpm
+          cache: false
 
       - name: Install (cold)
         # A job that holds the deploy token restores no cache: the fresh

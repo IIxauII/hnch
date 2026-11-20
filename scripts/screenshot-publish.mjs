@@ -10,7 +10,7 @@
 //   3. Upserts a sticky PR comment with inline image embeds.
 //
 // It does NOT:
-//   - Run `pnpm test:e2e` or the full e2e suite.
+//   - Run `mise run test:e2e` or the full e2e suite.
 //   - Run the CI `verify` matrix (typecheck / lint / unit / build).
 //   - Gate the push on test results — failures exit 0 in hook mode.
 //
@@ -29,8 +29,8 @@
 // under latest/ (scripts/ci/screenshots-reference.mjs).
 //
 // Invoked by:
-//   - lefthook pre-push (mode=hook): conditional on UI-bearing diff vs @{push}
-//   - pnpm screenshots:publish (mode=manual): always runs full or tag-scoped
+//   - hk pre-push hook (mode=hook): conditional on UI-bearing diff vs @{push}
+//   - mise run screenshots:publish (mode=manual): always runs full or tag-scoped
 //
 // See docs/release.md#screenshots.
 // ============================================================================
@@ -711,7 +711,7 @@ function main() {
   if (!pr) {
     if (mode === 'hook') {
       log(
-        "no PR yet for this branch. After 'gh pr create', run 'pnpm screenshots:publish' to upload screenshots.",
+        "no PR yet for this branch. After 'gh pr create', run 'mise run screenshots:publish' to upload screenshots.",
       );
       return 0;
     }
@@ -767,10 +767,10 @@ try {
     process.exit(1);
   }
   // In hook mode we still exit 0 — screenshots are best-effort, not a push gate.
-  // Caller can re-run via pnpm screenshots:publish after diagnosing.
+  // Caller can re-run via mise run screenshots:publish after diagnosing.
   if (mode === 'hook') {
     log(
-      'hook mode: continuing push despite screenshot failure. Re-run via `pnpm screenshots:publish`.',
+      'hook mode: continuing push despite screenshot failure. Re-run via `mise run screenshots:publish`.',
     );
     process.exit(0);
   }

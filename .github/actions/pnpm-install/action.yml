@@ -1,7 +1,7 @@
 name: pnpm install
 description: |
-  Set up Node 22 and pnpm (the version in package.json's `packageManager`, via
-  Corepack), restore the pnpm store from the Actions cache, and run
+  Install Node and pnpm at mise.toml's versions (mise, checked against
+  mise.lock), restore the pnpm store from the Actions cache, and run
   `pnpm install --frozen-lockfile`.
 
   The cache key is the lockfile hash. A run reads caches from its own ref and
@@ -22,14 +22,16 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Setup Node 22
-      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+    # mise.lock is present, so the action runs `mise install --locked`: each
+    # download is checked against the lockfile's checksum. No tool cache: a
+    # restored cache is trusted as is, and the two downloads take seconds.
+    # hk (git hooks) is not needed in CI.
+    - name: Node and pnpm (mise)
+      uses: jdx/mise-action@90f833d396d0cc3674b631d2d225e306476c303a # v5.2.10
       with:
-        node-version: 22
-
-    - name: Enable Corepack
-      shell: bash
-      run: corepack enable
+        version: 2026.11.10
+        install_args: node pnpm
+        cache: false
 
     - name: Locate the pnpm store
       id: store

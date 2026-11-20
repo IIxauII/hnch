@@ -79,17 +79,17 @@ Under the hood, each package's `release.config.mjs` (built from `scripts/release
 
 Two surfaces, both automated, both publishing to the `screenshots` branch: a PR's capture from the pre-push hook, main's reference set from main's CI run.
 
-> **Not a test gate.** The screenshot harness is a *capture-and-publish* flow: capture visual fixtures, push PNGs, post a sticky PR comment. It does not run `pnpm test:e2e`, does not run the CI `verify` matrix (typecheck / lint / unit / build), and does not gate the push on test results — failures exit 0 in hook mode, and a failed publish on `main` leaves the run green. A successful run means "PNGs uploaded + comment posted", nothing more. Do not invoke `pnpm screenshots:publish` to validate behavior — use `pnpm test:e2e` or push and let CI run `verify`.
+> **Not a test gate.** The screenshot harness is a *capture-and-publish* flow: capture visual fixtures, push PNGs, post a sticky PR comment. It does not run `mise run test:e2e`, does not run the CI `verify` matrix (typecheck / lint / unit / build), and does not gate the push on test results — failures exit 0 in hook mode, and a failed publish on `main` leaves the run green. A successful run means "PNGs uploaded + comment posted", nothing more. Do not invoke `mise run screenshots:publish` to validate behavior — use `mise run test:e2e` or push and let CI run `verify`.
 
 ### PR pre-push hook (per-author, scoped)
 
-A `lefthook` pre-push hook (`pre-push.commands.screenshots-capture-and-publish`) runs whenever a push includes changes under `packages/{client,shared,e2e/tests/_screenshots,e2e/tests/fixtures}/**`. It:
+An hk pre-push hook (`hk.pkl`, step `screenshots-capture-and-publish`) runs whenever a push includes changes under `packages/{client,shared,e2e/tests/_screenshots,e2e/tests/fixtures}/**`. It:
 
-1. Runs `packages/e2e/tests/_screenshots/` (full suite by default; `.screenshot-tags` in the worktree narrows scope — written by `pnpm worktree:add <name> [base] --tags "<grep>"` or by hand).
+1. Runs `packages/e2e/tests/_screenshots/` (full suite by default; `.screenshot-tags` in the worktree narrows scope — written by `mise run worktree:add <name> [base] --tags "<grep>"` or by hand).
 2. Publishes PNGs to the `screenshots` branch under `sha-<short>/` via `git fetch + reset + push` with retry on rejection (non-force).
 3. Updates a sticky PR comment marked `<!-- hnch-screenshots -->` with inline `blob/<branch>/...?raw=true` embeds — the only embed pattern that renders on both mobile and desktop GitHub.
 
-If you push before opening a PR, the hook prints a stderr advisory and exits 0. After `gh pr create`, run `pnpm screenshots:publish` to upload + post the sticky comment manually.
+If you push before opening a PR, the hook prints a stderr advisory and exits 0. After `gh pr create`, run `mise run screenshots:publish` to upload + post the sticky comment manually.
 
 **Bypass:** `git push --no-verify` skips the hook entirely. Use sparingly — the next push that includes a relevant file will re-publish.
 
@@ -141,8 +141,8 @@ Output lands under `docs/screenshots/local/<feature>/`. The whole `docs/screensh
 ### Troubleshooting
 
 - **Hook ran but no comment appeared.** Check that `gh auth status` shows you logged in. The hook bails (exit 0) if `gh` is missing — install via `brew install gh && gh auth login`.
-- **Push rejected after capture succeeded.** The retry loop fetches+resets `origin/screenshots` and re-pushes up to 5 times. If all 5 attempts fail, the hook exits 0 (push proceeds); re-run `pnpm screenshots:publish` once the contention clears.
-- **Capture took too long, push timed out.** Narrow scope with `.screenshot-tags` at the worktree root: a single line holding a Playwright `--grep` regex, e.g. `@theming|@layout`. Create the worktree with `pnpm worktree:add <name> [base] --tags "<grep>"` to write it, or hand-write the file in an existing worktree. The publish script passes the regex to Playwright as `--grep` (and exports it as `SCREENSHOT_TAGS` for the capture run). See `packages/e2e/README.md` for the tag catalog.
+- **Push rejected after capture succeeded.** The retry loop fetches+resets `origin/screenshots` and re-pushes up to 5 times. If all 5 attempts fail, the hook exits 0 (push proceeds); re-run `mise run screenshots:publish` once the contention clears.
+- **Capture took too long, push timed out.** Narrow scope with `.screenshot-tags` at the worktree root: a single line holding a Playwright `--grep` regex, e.g. `@theming|@layout`. Create the worktree with `mise run worktree:add <name> [base] --tags "<grep>"` to write it, or hand-write the file in an existing worktree. The publish script passes the regex to Playwright as `--grep` (and exports it as `SCREENSHOT_TAGS` for the capture run). See `packages/e2e/README.md` for the tag catalog.
 - **`@{push}` not configured.** First push of a branch falls back to comparing vs `origin/main`. After `git push -u origin <branch>` lands, subsequent pushes use `@{push}` directly.
-- **Need to re-publish without pushing code.** `pnpm screenshots:publish` — always runs full capture against `HEAD`, regardless of diff state.
+- **Need to re-publish without pushing code.** `mise run screenshots:publish` — always runs full capture against `HEAD`, regardless of diff state.
 - **Manual escape.** `git push --no-verify` skips the hook completely. The next non-bypassed push that touches a relevant file will republish.

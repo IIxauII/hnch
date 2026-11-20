@@ -2,7 +2,7 @@
 // @ts-check
 /**
  * Runs the relay locally on workerd: `pnpm --filter @hnch/relay dev`, which is
- * also what `pnpm dev:relay`, the e2e webServer and `@hnch/relay/testing` run.
+ * also what `mise run dev:relay`, the e2e webServer and `@hnch/relay/testing` run.
  *
  * Maps the environment the Node relay read onto `wrangler dev`:
  *

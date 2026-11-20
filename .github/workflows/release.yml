@@ -159,14 +159,14 @@ jobs:
       - name: Put local main on the release commit
         run: git checkout -B main
 
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      # Node and pnpm at mise.toml's versions, checked against mise.lock.
+      # No cache: this job holds RELEASE_TOKEN and publishes the CLI, so it
+      # installs cold.
+      - uses: jdx/mise-action@90f833d396d0cc3674b631d2d225e306476c303a # v5.2.10
         with:
-          node-version: 22
-          # No `cache: pnpm`: this job holds RELEASE_TOKEN and publishes the
-          # CLI, so it installs cold rather than from a cache.
-
-      - name: Enable Corepack
-        run: corepack enable
+          version: 2026.11.10
+          install_args: node pnpm
+          cache: false
 
       # OIDC Trusted Publishing needs npm CLI >= 11.5.1 to mint + exchange the
       # GitHub Actions id-token (Node 22 ships npm 10.x). @semantic-release/npm

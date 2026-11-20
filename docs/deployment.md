@@ -177,7 +177,7 @@ deploy-client.yml — dispatched with --ref client-vX.Y.Z
   - Only the default export may live in `worker/index.ts`: workerd takes any other export of the main module for an entrypoint and fails to start (seen on local workerd). Helpers go in `worker/markdown.ts`.
   - Nothing records requests: `deploy-guard.mjs config` refuses Workers Logs and traces (`observability.enabled: false`), `logpush` and tail consumers, because page URLs carry room codes.
 - **Tags and messages.** The `hnch-web` version is tagged `client-vX.Y.Z` only when the deployed commit is that release tag's commit; any other commit deploys untagged. Every version's message names the full commit SHA, and `verify` checks the version id `wrangler deploy` just uploaded (from `WRANGLER_OUTPUT_FILE_PATH`) is the one serving, so a re-dispatch can't pass on an earlier upload.
-- **Cold installs.** The `build` and `web` jobs run on GitHub-hosted `ubuntu-24.04-arm` ([ADR-0056](../adr/0056-github-hosted-runners.md)) and restore no Actions cache. Each runs `pnpm install --frozen-lockfile --ignore-scripts` into the fresh runner's empty store, so pnpm checks every package against the lockfile; `build` filters to `@hnch/client...`, `web` to `@hnch/client` (pnpm still installs the workspace root's packages). Node 22 comes from `actions/setup-node`, and pnpm's version from `packageManager` through Corepack.
+- **Cold installs.** The `build` and `web` jobs run on GitHub-hosted `ubuntu-24.04-arm` ([ADR-0056](../adr/0056-github-hosted-runners.md)) and restore no Actions cache. Each runs `pnpm install --frozen-lockfile --ignore-scripts` into the fresh runner's empty store, so pnpm checks every package against the lockfile; `build` filters to `@hnch/client...`, `web` to `@hnch/client` (pnpm still installs the workspace root's packages). Node and pnpm come from `jdx/mise-action` at `mise.toml`'s versions, checked against `mise.lock`, with no tool cache.
 - **A client release never touches the relay.** In G0 (2026-10-28) relay sockets held for 300 s across a web redeploy with 0 closes.
 - **Rollback.** `wrangler rollback` (instant, no rebuild; `hnch-web` has no Durable Objects). A dispatch of an older `client-v*` tag also works, but only for a tag cut after the deploy job named its environment (later than `client-v1.47.0`, see [Environments](#environments)), and not `client-v1.51.0` or `client-v1.52.0`: their workflow requires `.well-known/api-catalog` but drops it between the jobs, so their guard fails. Redeploy those with `gh workflow run deploy-client.yml --ref main -f ref=<tag>`, which runs main's workflow on the tag's code. **Never re-dispatch a pre-ADR-0054 tag (≤ `client-v1.46.0`):** a dispatch runs the workflow at that tag, which ships only to the VPS. With the `VPS_*` secrets deleted it fails at its SSH step, and it never reaches `hnch-web`.
 
@@ -225,7 +225,7 @@ A PR names neither environment. A branch PR's run gets `CODECOV_TOKEN` and no ot
 
 ## Local relay
 
-`pnpm dev:relay` (or `pnpm --filter @hnch/relay dev`) runs the Worker on local workerd through `packages/relay/scripts/dev.mjs`: `PORT` → `--port`, the ADR-0027 vars → `--var` (only when set), always `JURISDICTION:none` (local workerd has no jurisdictions). With a test var set it starts from empty state in a temporary directory; otherwise state persists under `packages/relay/.wrangler/state`. `pnpm --filter @hnch/relay smoke <mode>` (with `BASE=`) runs `scripts/smoke.mjs` against any relay.
+`mise run dev:relay` (or `pnpm --filter @hnch/relay dev`) runs the Worker on local workerd through `packages/relay/scripts/dev.mjs`: `PORT` → `--port`, the ADR-0027 vars → `--var` (only when set), always `JURISDICTION:none` (local workerd has no jurisdictions). With a test var set it starts from empty state in a temporary directory; otherwise state persists under `packages/relay/.wrangler/state`. `pnpm --filter @hnch/relay smoke <mode>` (with `BASE=`) runs `scripts/smoke.mjs` against any relay.
 
 ## Local PWA on workerd
 
@@ -238,7 +238,7 @@ pnpm --filter @hnch/client exec wrangler dev --port 8788
 pnpm --filter @hnch/client exec wrangler deploy --dry-run
 ```
 
-`curl -sI http://localhost:8788/lobby/x` should show `200`, `text/html`, `Vary: Accept` and one `Cache-Control: no-cache, must-revalidate`. `curl -sI -H 'Accept: text/markdown' http://localhost:8788/lobby/x` should show `text/markdown; charset=utf-8` and `x-markdown-tokens`. `pnpm dev:client` (the Angular dev server) does not apply `_headers` and runs no Worker.
+`curl -sI http://localhost:8788/lobby/x` should show `200`, `text/html`, `Vary: Accept` and one `Cache-Control: no-cache, must-revalidate`. `curl -sI -H 'Accept: text/markdown' http://localhost:8788/lobby/x` should show `text/markdown; charset=utf-8` and `x-markdown-tokens`. `mise run dev:client` (the Angular dev server) does not apply `_headers` and runs no Worker.
 
 ## Free-plan budget and alerts
 

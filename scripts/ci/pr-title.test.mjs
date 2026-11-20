@@ -1,6 +1,6 @@
 // Tests for scripts/ci/pr-title.mjs. node:test, not vitest: the
 // detect-changes job runs them before it trusts the script, and it has no
-// node_modules. Run locally with `pnpm test:ci-scripts`.
+// node_modules. Run locally with `mise run test:ci-scripts`.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';

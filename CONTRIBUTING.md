@@ -9,13 +9,27 @@ Thanks for your interest. This document covers how to propose changes and what e
 3. Run the local checks (see [Pre-push checklist](#pre-push-checklist)).
 4. Open a PR against `main`.
 
+## Toolchain
+
+[mise](https://mise.jdx.dev) provides everything: Node, pnpm and hk (git hooks) at the exact versions in [`mise.toml`](mise.toml), checked against the checksums in `mise.lock`, plus the root tasks. CI installs the same versions with [`jdx/mise-action`](https://github.com/jdx/mise-action). A fresh clone:
+
+```sh
+mise trust          # once per checkout path; mise.toml defines tasks and env
+mise install        # Node, pnpm, hk
+mise run setup      # git hooks (hk install --mise) + pnpm install
+```
+
+`mise tasks` lists every root task; `mise run <task> [args…]` passes the args to the task's last command. Package scripts stay in each `packages/*/package.json` and run with `pnpm --filter <pkg> <script>`. Tasks that need `@hnch/shared` built depend on `build:shared`, which skips while `packages/shared/dist/` is newer than its sources.
+
+To change a tool version, edit `mise.toml`, then run `mise lock` (it records checksums for linux-x64, linux-arm64 and macos-arm64; CI installs with `--locked`). Keep `pnpm` in step with `packageManager` in `package.json`, which Dependabot reads.
+
 ## PR requirements
 
 Every PR must satisfy all four:
 
 - **PR opened against `main`** — no direct pushes to `main`.
 - **Description present** — explain *what* changed and *why*. Link the related ADR (`adr/NNNN-*.md`) or issue when applicable.
-- **All checks pass locally** — `pnpm lint && pnpm typecheck && pnpm test` must be green before pushing. Run `pnpm test:e2e` if the change touches `packages/client`, `packages/relay`, or `packages/shared`.
+- **All checks pass locally** — `mise run lint && mise run typecheck && mise run test` must be green before pushing. Run `mise run test:e2e` if the change touches `packages/client`, `packages/relay`, or `packages/shared`.
 - **No `Co-Authored-By` trailer** — commit messages must not include a `Co-Authored-By:` line.
 
 ## Commit style — Conventional Commits
@@ -107,11 +121,11 @@ Three tools, split by what each can actually parse:
 | **Biome 2.x** | Format TS/JS/JSON/MD, repo-wide | `biome.json` |
 | **Oxlint 1.x** | Lint every package | `.oxlintrc.json` |
 | **`@angular-eslint/template-*`** | Lint Angular `.html` only | `packages/client/eslint.config.mjs` |
-| **lefthook 2.x** | Pre-commit hooks | `lefthook.yml` |
+| **hk 2.x** | Git hooks | `hk.pkl` |
 
 It is three and not one because Biome 2.x has no Angular HTML support and Oxlint has no Angular plugin. Collapse to Biome (or drop angular-eslint) the moment either ships Angular HTML coverage; re-enable the `@angular-eslint/template/i18n` rules if we ever go multi-locale.
 
-Root commands: `pnpm format` / `pnpm format:check`, `pnpm lint` / `pnpm lint:fix`, `pnpm typecheck`. Each runs in ~100-150 ms over the tree. Every package has `typecheck` + `lint` + `format:check`, so the CI matrix has uniform per-package visibility.
+Root commands: `mise run format` / `mise run format:check`, `mise run lint` / `mise run lint:fix`, `mise run typecheck`. Each runs in ~100-150 ms over the tree. Every package has `typecheck` + `lint` + `format:check`, so the CI matrix has uniform per-package visibility.
 
 The per-package `lint` / `format:check` scripts call the root's `oxlint` / `biome`. pnpm only puts the root's `node_modules/.bin` on a package script's PATH when `ignore-scripts` is off, so with `ignore-scripts=true` in your npmrc they fail with `spawn ENOENT`. Run the root commands instead, or pass `--config.ignore-scripts=false`.
 
@@ -134,7 +148,9 @@ Errors gate; warnings do not. The warning count is a tracked baseline, not silen
 
 ### Pre-commit hooks
 
-lefthook auto-installs on `pnpm install`, so a fresh clone gets hooks with no manual step. It runs on **staged files only** (sub-second). Bypass with `LEFTHOOK=0 git commit` — it is a fast-feedback guard, not a security boundary. CI remains the source of truth.
+[hk](https://hk.jdx.dev) runs the hooks in `hk.pkl`: Biome format (fixed files are re-staged), Oxlint and the Angular template lint on **staged files only** (sub-second), the commit-scope check on `commit-msg`, and the screenshot capture on `pre-push`. `mise run setup` installs them once per clone (`hk install --mise`, so the hooks run hk through `mise x` and need no activated shell); every worktree of the clone shares them. Bypass with `HK=0 git commit`, or one step with `HK_SKIP_STEPS=oxlint git commit` — it is a fast-feedback guard, not a security boundary. CI remains the source of truth. `hk run pre-commit --plan` shows what a commit would run.
+
+Coming from lefthook: run `pnpm exec lefthook uninstall` *before* pulling this change (or delete lefthook's scripts in `.git/hooks/`), then `mise run setup`. hk refuses to overwrite hooks it did not write.
 
 ## Dependency updates
 
@@ -156,11 +172,11 @@ Every Dependabot title is `chore(deps): …`, dev dependencies included, so it p
 ## Pre-push checklist
 
 - [ ] Branched from `main`.
-- [ ] `pnpm lint` passes.
-- [ ] `pnpm typecheck` passes.
-- [ ] `pnpm test` passes (unit tests only).
-- [ ] `pnpm test:e2e` passes (if touching client/relay/shared).
-- [ ] `pnpm test:ci-scripts` passes (if touching `scripts/ci/`).
+- [ ] `mise run lint` passes.
+- [ ] `mise run typecheck` passes.
+- [ ] `mise run test` passes (unit tests only).
+- [ ] `mise run test:e2e` passes (if touching client/relay/shared).
+- [ ] `mise run test:ci-scripts` passes (if touching `scripts/ci/`).
 - [ ] PR title follows Conventional Commits (drives the release).
 - [ ] No `Co-Authored-By` trailers.
 - [ ] ADR added/updated if structural.
@@ -191,9 +207,9 @@ For working on multiple branches in parallel (e.g. running multiple AI agents si
 From the main repo dir:
 
 ```sh
-pnpm worktree:add feat-x                          # creates ../hnch-feat-x off main
-pnpm worktree:add feat-x dev                      # off custom base branch
-pnpm worktree:add feat-x main --tags "@viewer"    # also scopes the pre-push screenshot capture
+mise run worktree:add feat-x                          # creates ../hnch-feat-x off main
+mise run worktree:add feat-x dev                      # off custom base branch
+mise run worktree:add feat-x main --tags "@viewer"    # also scopes the pre-push screenshot capture
 ```
 
 This:
@@ -202,35 +218,35 @@ This:
 2. Runs `scripts/worktree-bootstrap.sh` inside the new worktree, which:
    - Picks the lowest unused port offset (multiple of 100, skipping 0).
    - Writes `.env.local` with `CLIENT_PORT`, `RELAY_PORT`, `PORT`, `HNCH_RELAY_URL`, `PLAYWRIGHT_BASE_URL`.
-   - Runs `pnpm install`.
+   - Runs `mise trust` and `mise install` (mise trusts config per path, so each new worktree needs it), then `pnpm install`.
 3. With `--tags "<grep>"`, writes the regex to `.screenshot-tags` in the new worktree so the pre-push screenshot hook captures only matching scenes ([docs/release.md › Screenshots](docs/release.md#screenshots)).
 
-`flock` serializes concurrent bootstraps so two parallel `pnpm worktree:add` calls won't collide.
+A `mkdir` lock serializes concurrent bootstraps so two parallel `mise run worktree:add` calls won't collide.
 
-All `dev:*` and `test:e2e` scripts auto-source `.env.local` via `scripts/with-env.sh`, so once bootstrapped, `pnpm dev:client`, `pnpm dev:relay`, `pnpm dev:cli`, and `pnpm test:e2e` all use the worktree's offset ports.
+The `dev:*` and `test:e2e` tasks load `.env.local` (mise's `_.file`; a missing file is skipped) and first run `check:ports`, so once bootstrapped, `mise run dev:client`, `mise run dev:relay`, `mise run dev:cli`, and `mise run test:e2e` all use the worktree's offset ports.
 
 ### How port isolation works
 
 Convention: `RELAY_PORT = 1234 + (CLIENT_PORT - 4200)`.
 
-The client (`packages/client/src/environments/environment.ts`) derives `relayHttpUrl` and `relayWsUrl` from `window.location.port` at module load — so the PWA at `localhost:4300` automatically connects to the relay at `localhost:1334` with no extra config. The `e2e` build configuration that CI's Playwright runs serve (`pnpm --filter @hnch/client build:e2e`) keeps this file, so it derives the relay the same way. Bootstrap writes `.env.local` to keep `RELAY_PORT` in lockstep with this convention; `with-env.sh` warns if they ever drift.
+The client (`packages/client/src/environments/environment.ts`) derives `relayHttpUrl` and `relayWsUrl` from `window.location.port` at module load — so the PWA at `localhost:4300` automatically connects to the relay at `localhost:1334` with no extra config. The `e2e` build configuration that CI's Playwright runs serve (`pnpm --filter @hnch/client build:e2e`) keeps this file, so it derives the relay the same way. Bootstrap writes `.env.local` to keep `RELAY_PORT` in lockstep with this convention; `scripts/check-ports.sh` (the `check:ports` task) warns if they ever drift.
 
 ### Other commands
 
 ```sh
-pnpm worktree:bootstrap          # (re-)provision the current worktree (regenerates .env.local)
-pnpm worktree:remove feat-x      # removes the worktree (refuses if dirty)
+mise run worktree:bootstrap          # (re-)provision the current worktree (regenerates .env.local)
+mise run worktree:remove feat-x      # removes the worktree (refuses if dirty)
 ```
 
-You can also use plain `git worktree add` if you don't want the wrapper — just remember to `cd` in and run `pnpm worktree:bootstrap` afterward.
+You can also use plain `git worktree add` if you don't want the wrapper — just remember to `cd` in and run `mise run worktree:bootstrap` afterward.
 
 ### Notes and limits
 
 - **Don't run `dev:relay` and `test:e2e` simultaneously in the same worktree.** Playwright's `reuseExistingServer` may pick up a relay started without the test env vars (`HNCH_ROOM_CAP`, `HNCH_ENABLE_TEST_ROUTES`), producing confusing failures.
-- **The relay runs on local workerd.** `pnpm dev:relay` goes through `packages/relay/scripts/dev.mjs`, which maps `PORT` and the ADR-0027 vars onto `wrangler dev` (no `.dev.vars`) and keeps rooms in `packages/relay/.wrangler/state` between restarts; with a test var set it starts empty every time. The relay bundles `@hnch/shared`'s built leaf modules, so build shared first (`pnpm dev:relay` does). Relay unit tests run inside workerd (`pnpm --filter @hnch/relay test`, vitest 4 with `@cloudflare/vitest-plugin`); the CLI and shared suites start a relay through `@hnch/relay/testing`.
+- **The relay runs on local workerd.** `mise run dev:relay` goes through `packages/relay/scripts/dev.mjs`, which maps `PORT` and the ADR-0027 vars onto `wrangler dev` (no `.dev.vars`) and keeps rooms in `packages/relay/.wrangler/state` between restarts; with a test var set it starts empty every time. The relay bundles `@hnch/shared`'s built leaf modules, so build shared first (`mise run dev:relay` does). Relay unit tests run inside workerd (`pnpm --filter @hnch/relay test`, vitest 4 with `@cloudflare/vitest-plugin`); the CLI and shared suites start a relay through `@hnch/relay/testing`.
 - **Capacitor `cap add ios`/`cap sync` are per-worktree.** Each worktree gets its own `ios/` dir and CocoaPods install (~500 MB). The CocoaPods cache (`~/Library/Caches/CocoaPods/`) is shared and safe.
-- **CLI config (`~/.config/hnch/config.json`) is user-level**, shared across worktrees. `HNCH_RELAY_URL` is set per worktree via `.env.local` so the CLI talks to the right relay; but `participantId`, `displayName`, etc. are shared. For per-worktree CLI identity, set `XDG_CONFIG_HOME=$(pwd)/.cli-config` before `pnpm dev:cli`.
+- **CLI config (`~/.config/hnch/config.json`) is user-level**, shared across worktrees. `HNCH_RELAY_URL` is set per worktree via `.env.local` so the CLI talks to the right relay; but `participantId`, `displayName`, etc. are shared. For per-worktree CLI identity, set `XDG_CONFIG_HOME=$(pwd)/.cli-config` before `mise run dev:cli`.
 - **Playwright browser cache (`~/.cache/ms-playwright`) is shared.** First-run install across two fresh worktrees in parallel may race; subsequent runs are fine.
-- **Linux/macOS only.** `with-env.sh` and `worktree-bootstrap.sh` are bash. Windows contributors will need WSL or equivalent.
-- **Claude Code permissions.** The committed `.claude/settings.json` allows read-only git and gh commands plus `git fetch`, file listing and search, and the `typecheck`, `test`, `lint`, `build` and `format:check` scripts, so a fresh worktree runs them without a prompt. Pushes, installs, script flags that write files (`--write`, `--fix`, `-u`) and anything destructive still prompt. Grants you add on top land in `.claude/settings.local.json`, which is gitignored and per-worktree.
-- **`pnpm worktree:add` does not auto-fetch.** The wrapper calls `git worktree add -b <name> <dir> <baseBranch>` against the local ref, so a stale local `main` (or other base) silently produces a worktree missing recent commits. Always `git fetch origin` *before* `pnpm worktree:add`, or pass an explicit remote-tracking ref like `origin/main`. Symptom of getting this wrong: AI agents in the worktree don't see files added by recently-merged PRs and recreate them from scratch with diverging APIs — local tests pass against the rewrite while CI fails on the merged base.
+- **Linux/macOS only.** `check-ports.sh` and `worktree-bootstrap.sh` are bash. Windows contributors will need WSL or equivalent.
+- **Claude Code permissions.** The committed `.claude/settings.json` allows read-only git and gh commands plus `git fetch`, file listing and search, and the `typecheck`, `test`, `lint`, `build` and `format:check` tasks and package scripts, plus `mise tasks` and the mise MCP server's `list_commands`, so a fresh worktree runs them without a prompt. Pushes, installs, script flags that write files (`--write`, `--fix`, `-u`) and anything destructive still prompt. Grants you add on top land in `.claude/settings.local.json`, which is gitignored and per-worktree.
+- **`mise run worktree:add` does not auto-fetch.** The wrapper calls `git worktree add -b <name> <dir> <baseBranch>` against the local ref, so a stale local `main` (or other base) silently produces a worktree missing recent commits. Always `git fetch origin` *before* `mise run worktree:add`, or pass an explicit remote-tracking ref like `origin/main`. Symptom of getting this wrong: AI agents in the worktree don't see files added by recently-merged PRs and recreate them from scratch with diverging APIs — local tests pass against the rewrite while CI fails on the merged base.

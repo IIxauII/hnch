@@ -2,7 +2,7 @@
 // Create a new git worktree and bootstrap it.
 //
 // Usage:
-//   pnpm worktree:add <name> [base-branch] [--tags "<grep>"]
+//   mise run worktree:add <name> [base-branch] [--tags "<grep>"]
 //
 // Resolves dir = ../hnch-<name>, creates branch <name> off <base-branch> (default
 // `main`), runs scripts/worktree-bootstrap.sh inside the new worktree.
@@ -19,7 +19,7 @@ import { resolve, basename } from 'node:path';
 const here = import.meta.dirname;
 const repoRoot = resolve(here, '..');
 
-const USAGE = 'Usage: pnpm worktree:add <name> [base-branch] [--tags "<grep>"]';
+const USAGE = 'Usage: mise run worktree:add <name> [base-branch] [--tags "<grep>"]';
 
 const rawArgs = process.argv.slice(2);
 if (rawArgs.length === 0) {
@@ -111,7 +111,7 @@ const bootstrapResult = spawnSync('bash', [resolve(repoRoot, 'scripts/worktree-b
 
 if (bootstrapResult.status !== 0) {
   console.error('✗ Bootstrap failed. Worktree was created at:', worktreeDir);
-  console.error('  Fix the issue and rerun: cd', worktreeDir, '&& pnpm worktree:bootstrap');
+  console.error('  Fix the issue and rerun: cd', worktreeDir, '&& mise run worktree:bootstrap');
   process.exit(bootstrapResult.status ?? 1);
 }
 

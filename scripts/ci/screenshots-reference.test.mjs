@@ -1,6 +1,6 @@
 // Tests for scripts/ci/screenshots-reference.mjs. node:test, not vitest: the
 // detect-changes job runs them before the script is trusted with a push, and
-// it has no node_modules. Run locally with `pnpm test:ci-scripts`.
+// it has no node_modules. Run locally with `mise run test:ci-scripts`.
 //
 // Every test publishes into a throwaway bare repo standing in for origin,
 // then reads the `screenshots` branch back from it: what the next consumer

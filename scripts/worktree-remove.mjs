@@ -2,7 +2,7 @@
 // Remove a git worktree.
 //
 // Usage:
-//   pnpm worktree:remove <name>
+//   mise run worktree:remove <name>
 //
 // Resolves dir = ../hnch-<name>, runs `git worktree remove`. Refuses if the
 // worktree has uncommitted changes (no --force by default).
@@ -19,7 +19,7 @@ const repoRoot = resolve(here, '..');
 
 const args = process.argv.slice(2);
 if (args.length === 0) {
-  console.error('Usage: pnpm worktree:remove <name>');
+  console.error('Usage: mise run worktree:remove <name>');
   process.exit(1);
 }
 

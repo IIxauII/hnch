@@ -142,7 +142,7 @@ async function pinContext(ctx: BrowserContext, testInfo: TestInfo, index: number
         url: new URL('/test/rooms', request.url()).href,
         postData: JSON.stringify(body),
       });
-      // A relay without test routes (a plain `pnpm dev:relay` reused locally):
+      // A relay without test routes (a plain `mise run dev:relay` reused locally):
       // the session still opens, with a random code.
       if (response.status() === 404) {
         warnUnpinnedCodes();

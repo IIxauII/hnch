@@ -1,0 +1,142 @@
+# Toolchain and root tasks for hnch (CONTRIBUTING.md > Toolchain).
+# `mise install` installs the pinned tools; `mise tasks` lists the tasks.
+
+min_version = "2026.11.10"
+
+# Exact versions, locked with checksums in mise.lock. Change a version here,
+# then run `mise lock` (CONTRIBUTING.md > Toolchain). Keep pnpm in step with
+# `packageManager` in package.json, which Dependabot reads.
+[tools]
+node = "22.23.5"
+pnpm = "9.15.0"
+hk = "2.13.0"
+
+[settings]
+lockfile = true
+
+[tool_config]
+locked = true
+
+# The dev and e2e tasks run with the worktree's ports from .env.local, written
+# by `mise run worktree:bootstrap` (a missing file is skipped), after
+# check:ports has checked them against the port convention. The dev tasks are
+# `raw` (templates cannot set it): the CLI and the dev servers need the terminal.
+[task_templates.worktree-env]
+env = { _.file = ".env.local" }
+depends = ["build:shared", "check:ports"]
+
+[tasks.setup]
+description = "Install the git hooks and the workspace dependencies"
+run = ["hk install --mise", "pnpm install"]
+
+[tasks."build:shared"]
+description = "Build @hnch/shared, which the other packages consume; skipped while dist/ is current"
+run = "pnpm --filter @hnch/shared build"
+sources = [
+  "packages/shared/src/**/*",
+  "packages/shared/package.json",
+  "packages/shared/tsconfig.json",
+  "tsconfig.base.json",
+]
+outputs = ["packages/shared/dist/**/*"]
+
+[tasks.build]
+description = "Build every package"
+run = "pnpm -r --if-present run build"
+
+[tasks.typecheck]
+description = "Typecheck every package"
+depends = ["build:shared"]
+run = "pnpm -r --if-present run typecheck"
+
+[tasks.format]
+description = "Format the tree with Biome"
+run = "pnpm exec biome format --write ."
+
+[tasks."format:check"]
+description = "Check formatting with Biome"
+run = "pnpm exec biome format ."
+
+[tasks.lint]
+description = "Lint with Oxlint, then the Angular templates"
+run = ["pnpm exec oxlint", "pnpm -r --if-present run lint:templates"]
+
+[tasks."lint:fix"]
+description = "Apply Oxlint's fixes"
+run = "pnpm exec oxlint --fix"
+
+[tasks.test]
+description = "Unit tests of every package but e2e"
+depends = ["build:shared"]
+run = "pnpm -r --if-present --filter '!@hnch/e2e' run test"
+
+[tasks."test:coverage"]
+description = "Unit tests with coverage"
+depends = ["build:shared"]
+run = "pnpm -r --if-present run test:coverage"
+
+[tasks."test:ci-scripts"]
+description = "node:test suites of scripts/ci"
+run = "node --test 'scripts/ci/*.test.mjs'"
+
+[tasks."test:e2e"]
+description = "Playwright e2e on this worktree's ports"
+extends = "worktree-env"
+run = "pnpm --filter @hnch/e2e test"
+
+[tasks."dev:client"]
+description = "Angular dev server on CLIENT_PORT"
+extends = "worktree-env"
+raw = true
+run = "pnpm --filter @hnch/client dev"
+
+[tasks."dev:relay"]
+description = "Relay on local workerd on RELAY_PORT"
+extends = "worktree-env"
+raw = true
+run = "pnpm --filter @hnch/relay dev"
+
+[tasks."dev:cli"]
+description = "CLI in dev mode against HNCH_RELAY_URL"
+extends = "worktree-env"
+raw = true
+run = "pnpm --filter @xauyxau/hnch dev"
+
+[tasks."check:ports"]
+description = "Warn when .env.local breaks the port convention or a linked worktree has none"
+hide = true
+env = { _.file = ".env.local" }
+run = "bash scripts/check-ports.sh"
+
+[tasks."worktree:add"]
+description = "Create a worktree with its own ports: worktree:add <name> [base-branch] [--tags <grep>]"
+run = "node scripts/worktree-add.mjs"
+
+[tasks."worktree:remove"]
+description = "Remove a worktree (refuses if dirty)"
+run = "node scripts/worktree-remove.mjs"
+
+[tasks."worktree:bootstrap"]
+description = "(Re-)provision this worktree: ports in .env.local, tools, dependencies"
+run = "bash scripts/worktree-bootstrap.sh"
+
+[tasks."audit:versions"]
+description = "Check package.json versions against the release tags"
+run = "node scripts/audit-versions.mjs"
+
+[tasks."screenshots:publish"]
+description = "Capture and publish this branch's screenshots to its PR"
+run = "node scripts/screenshot-publish.mjs --mode=manual"
+
+[tasks."screenshots:determinism"]
+description = "Run the CI capture twice and diff the images"
+run = "node scripts/screenshot-determinism.mjs"
+
+[tasks."release:dry"]
+description = "semantic-release dry run for every package"
+run = [
+  "pnpm exec semantic-release --extends ./packages/shared/release.config.mjs --dry-run --no-ci",
+  "pnpm exec semantic-release --extends ./packages/relay/release.config.mjs --dry-run --no-ci",
+  "pnpm exec semantic-release --extends ./packages/client/release.config.mjs --dry-run --no-ci",
+  "pnpm exec semantic-release --extends ./packages/cli/release.config.mjs --dry-run --no-ci",
+]

@@ -67,4 +67,4 @@ https://github.com/IIxauII/hnch/blob/screenshots/latest/<topic>/<scene>.png?raw=
 
 Use them to verify the issue's claims about current behavior match reality, and to spot scenes the change touches but the issue doesn't mention.
 
-**Screenshot scope.** The pre-push hook captures the full screenshot suite unless the worktree holds a `.screenshot-tags` regex (`pnpm worktree:add <name> [base] --tags "<grep>"`; catalog in `packages/e2e/README.md → Tag catalog`). If the issue proposes a tag scope that misses obviously affected surfaces (e.g. it touches participant rosters but names only `@theming`), surface that as a critique under "missed scope". Do not write `.screenshot-tags` during critique.
+**Screenshot scope.** The pre-push hook captures the full screenshot suite unless the worktree holds a `.screenshot-tags` regex (`mise run worktree:add <name> [base] --tags "<grep>"`; catalog in `packages/e2e/README.md → Tag catalog`). If the issue proposes a tag scope that misses obviously affected surfaces (e.g. it touches participant rosters but names only `@theming`), surface that as a critique under "missed scope". Do not write `.screenshot-tags` during critique.

@@ -1,0 +1,53 @@
+// Git hooks: fast pre-commit guards, the commit-scope check and the pre-push
+// screenshot capture. mise installs hk (mise.toml); `mise run setup` installs
+// the hooks. Errors block, warnings flow through, as in CI. CI is the source
+// of truth: skip with `HK=0 git commit` (or `HK_SKIP_STEPS=oxlint`) if needed.
+//
+// The `amends` version must match `hk` in mise.toml.
+amends "package://github.com/jdx/hk/releases/download/v2.13.0/hk@2.13.0#/Config.pkl"
+
+hooks {
+  ["pre-commit"] {
+    // Fixed files are staged whole. No stash: git's stash stack is shared by
+    // every worktree and parallel session, so hk must not push to it.
+    fix = true
+    stash = "none"
+    steps {
+      ["biome-format"] {
+        glob = "*.{ts,tsx,js,jsx,mjs,cjs,json,jsonc}"
+        check = "pnpm exec biome format --no-errors-on-unmatched {{files}}"
+        fix = "pnpm exec biome format --write --no-errors-on-unmatched {{files}}"
+      }
+      ["oxlint"] {
+        glob = "*.{ts,tsx,js,jsx,mjs,cjs}"
+        check = "pnpm exec oxlint {{files}}"
+      }
+      // Biome and Oxlint have no Angular HTML support (CONTRIBUTING.md).
+      ["angular-templates"] {
+        dir = "packages/client"
+        glob = "**/*.html"
+        check = "pnpm exec eslint {{files}}"
+      }
+    }
+  }
+
+  ["commit-msg"] {
+    steps {
+      ["scope-check"] {
+        check = "bash scripts/check-commit-scope.sh {{commit_msg_file}}"
+      }
+    }
+  }
+
+  // Screenshot capture + publish, not a test gate: see docs/release.md#screenshots.
+  // Exits 0 on any failure except a moved worktree HEAD (#335), which blocks
+  // the push. Skipped while a merge or rebase is in progress.
+  ["pre-push"] {
+    steps {
+      ["screenshots-capture-and-publish"] {
+        step_condition = #"!exec_ok('git rev-parse -q --verify MERGE_HEAD') && !exec_ok('test -d "$(git rev-parse --git-path rebase-merge)" -o -d "$(git rev-parse --git-path rebase-apply)"')"#
+        check = "node scripts/screenshot-publish.mjs --mode=hook"
+      }
+    }
+  }
+}

@@ -57,7 +57,7 @@ Each phase assumes the previous one passes its exit bar. Within a phase, orderin
 - Onboarding screen: name input + Continue button, writes to `@capacitor/preferences`. Handles the pending-join-URL case (if the app launched via deep link before onboarding, stash it and resume to Join after save).
 - Home screen: "Create Room" and "Join Room" buttons. Jump-back-in banner can be present as a shell (no wiring yet — that needs Phase 2+).
 - Dark mode: respect `prefers-color-scheme`; no explicit theme picker yet (that's Phase 6).
-- CI green: existing `room-code.test.ts` and any new shared-package tests pass under `pnpm test`.
+- CI green: existing `room-code.test.ts` and any new shared-package tests pass under `mise run test`.
 
 **ADRs touched.** None structurally; all referenced: [0002](../adr/0002-frontend-framework-angular-ionic-capacitor.md), [0005](../adr/0005-device-identity-capacitor-device-plugin.md), [0014](../adr/0014-repo-layout-pnpm-workspaces.md).
 
