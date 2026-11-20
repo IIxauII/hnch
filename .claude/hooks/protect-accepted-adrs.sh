@@ -8,6 +8,17 @@
 set -uo pipefail
 
 input=$(cat)
+
+# Without jq the path below reads as empty and every edit would pass, so block
+# anything that names a numbered ADR until jq (pinned in mise.toml) is on PATH.
+if ! command -v jq >/dev/null 2>&1; then
+  if printf '%s' "$input" | grep -qE 'adr/[0-9]{4}-[^"]*\.md'; then
+    printf 'blocked: jq is not on PATH, so the accepted-ADR guard cannot read this edit. Run `mise install` and start Claude Code from a mise-activated shell.\n' >&2
+    exit 2
+  fi
+  exit 0
+fi
+
 file=$(printf '%s' "$input" | jq -r '.tool_input.file_path // ""')
 
 [ -z "$file" ] && exit 0

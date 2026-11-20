@@ -28,7 +28,7 @@ Structural decisions are recorded in `adr/`. **Before any architectural/structur
 
 ## Toolchain and tasks
 
-mise pins Node, pnpm and hk and defines the root tasks in `mise.toml`: run `mise run lint|typecheck|test|test:e2e|dev:client|…` (`mise tasks` lists them); package scripts stay `pnpm --filter <pkg> <script>`. Git hooks are hk (`hk.pkl`). Setup and version changes: [CONTRIBUTING.md › Toolchain](CONTRIBUTING.md#toolchain).
+mise pins Node, pnpm, hk and jq and defines the root tasks in `mise.toml`: run `mise run lint|typecheck|test|test:e2e|dev:client|…` (`mise tasks` lists them); package scripts stay `pnpm --filter <pkg> <script>`. Git hooks are hk (`hk.pkl`). Setup and version changes: [CONTRIBUTING.md › Toolchain](CONTRIBUTING.md#toolchain).
 
 ## Parallel worktrees
 
