@@ -151,7 +151,7 @@ EOF
 
 echo "→ Wrote .env.local"
 
-# --- Step 5: tools and pnpm install ---------------------------------------
+# Step 5: tools and pnpm install
 # mise trusts config per path, so a new worktree's mise.toml is untrusted
 # until this runs. It is this repo's own config, checked out from its branch.
 echo "→ Trusting and installing this worktree's mise tools..."

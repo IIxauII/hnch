@@ -55,10 +55,10 @@ if [ "$mode" = "--seed" ]; then
 fi
 
 [ "$fp" = "$(cat "$stamp" 2>/dev/null)" ] && exit 0
-# Not bootstrapped yet (no pnpm install, or no mise for the tools): nothing
-# meaningful to check.
+# Not bootstrapped yet (no pnpm install; no mise, or a worktree whose
+# mise.toml is not trusted yet, so no pnpm): nothing meaningful to check.
 [ -d node_modules ] || exit 0
-command -v mise >/dev/null 2>&1 || exit 0
+mise exec -- pnpm --version >/dev/null 2>&1 || exit 0
 
 # The root `mise run typecheck` (build:shared, then every package), spelled out
 # with --no-bail: the task stops at the first failing package, which would hide

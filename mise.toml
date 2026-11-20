@@ -19,9 +19,11 @@ locked = true
 
 # The dev and e2e tasks run with the worktree's ports from .env.local, written
 # by `mise run worktree:bootstrap` (a missing file is skipped), after
-# check:ports has checked them against the port convention.
+# check:ports has checked them against the port convention. The dev tasks are
+# `raw` (templates cannot set it): the CLI and the dev servers need the terminal.
 [task_templates.worktree-env]
 env = { _.file = ".env.local" }
+depends = ["build:shared", "check:ports"]
 
 [tasks.setup]
 description = "Install the git hooks and the workspace dependencies"
@@ -80,25 +82,24 @@ run = "node --test 'scripts/ci/*.test.mjs'"
 [tasks."test:e2e"]
 description = "Playwright e2e on this worktree's ports"
 extends = "worktree-env"
-depends = ["build:shared", "check:ports"]
 run = "pnpm --filter @hnch/e2e test"
 
 [tasks."dev:client"]
 description = "Angular dev server on CLIENT_PORT"
 extends = "worktree-env"
-depends = ["build:shared", "check:ports"]
+raw = true
 run = "pnpm --filter @hnch/client dev"
 
 [tasks."dev:relay"]
 description = "Relay on local workerd on RELAY_PORT"
 extends = "worktree-env"
-depends = ["build:shared", "check:ports"]
+raw = true
 run = "pnpm --filter @hnch/relay dev"
 
 [tasks."dev:cli"]
 description = "CLI in dev mode against HNCH_RELAY_URL"
 extends = "worktree-env"
-depends = ["build:shared", "check:ports"]
+raw = true
 run = "pnpm --filter @xauyxau/hnch dev"
 
 [tasks."check:ports"]

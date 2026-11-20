@@ -221,7 +221,7 @@ This:
    - Runs `mise trust` and `mise install` (mise trusts config per path, so each new worktree needs it), then `pnpm install`.
 3. With `--tags "<grep>"`, writes the regex to `.screenshot-tags` in the new worktree so the pre-push screenshot hook captures only matching scenes ([docs/release.md › Screenshots](docs/release.md#screenshots)).
 
-`flock` serializes concurrent bootstraps so two parallel `mise run worktree:add` calls won't collide.
+A `mkdir` lock serializes concurrent bootstraps so two parallel `mise run worktree:add` calls won't collide.
 
 The `dev:*` and `test:e2e` tasks load `.env.local` (mise's `_.file`; a missing file is skipped) and first run `check:ports`, so once bootstrapped, `mise run dev:client`, `mise run dev:relay`, `mise run dev:cli`, and `mise run test:e2e` all use the worktree's offset ports.
 
